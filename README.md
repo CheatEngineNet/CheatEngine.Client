@@ -1,6 +1,6 @@
 # CheatEngine.Client
 
-A public, fluent, strongly-typed C# 14 / .NET 10 client API, built as a mapper/binder over CESDK.
+A public, fluent, strongly-typed C# 14 / .NET 10 client API, built as a mapper/binder over CheatEngine.SDK.
 
 ```powershell
 dotnet build CheatEngine.Client.slnx
@@ -16,7 +16,7 @@ CheatEngine.Client/
 ├─ eng/                                  MSBuild profiles, selected by the top-level folder of a project
 ├─ libs/                                 Small layered libraries
 │  ├─ CheatEngine.Client.Abstractions/   Public vocabulary and contracts
-│  ├─ CheatEngine.Client.Binding/        Mapper/binder onto CESDK
+│  ├─ CheatEngine.Client.Binding/        Mapper/binder onto CheatEngine.SDK
 │  └─ CheatEngine.Client.Fluent/         Fluent public API
 ├─ src/
 │  └─ CheatEngine.Client/                The one project a consumer references
@@ -29,7 +29,7 @@ CheatEngine.Client/
 |-----------------------------------|----------------------------------------------------------------------------------------|-------------------------------------|
 | `CheatEngine.Client.Abstractions` | Strongly-typed public vocabulary, and the contracts between the fluent and the binding | nothing                             |
 | `CheatEngine.Client.Fluent`       | Fluent, composable public API                                                          | `Abstractions`                      |
-| `CheatEngine.Client.Binding`      | Mapper/binder onto CESDK. Internal by default                                          | `Abstractions`                      |
+| `CheatEngine.Client.Binding`      | Mapper/binder onto CheatEngine.SDK. Internal by default                                                   | `Abstractions`                      |
 | `CheatEngine.Client`              | Composition root: the single project a consumer references                             | `Abstractions`, `Fluent`, `Binding` |
 
 Dependency rules:
@@ -37,7 +37,7 @@ Dependency rules:
 - `Abstractions` is the base. `Fluent` and `Binding` never reference each other, and only `CheatEngine.Client` composes
   them.
 - `libs/` never references `src/` or `tests/`. A consumer references `CheatEngine.Client` only.
-- `Binding` is the only project meant to depend on CESDK (the default rule, to revisit if `Abstractions` reuses CESDK
+- `Binding` is the only project meant to depend on CheatEngine.SDK (the default rule, to revisit if `Abstractions` reuses CheatEngine.SDK
   vocabulary).
 - A test project references its subject only.
 
