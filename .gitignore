@@ -1,0 +1,15 @@
+bin/
+obj/
+/artifacts/
+
+TestResults/
+*.binlog
+
+.idea/
+.vs/
+*.user
+*.suo
+
+.claude/scheduled_tasks.lock
+.claude/settings.local.json
+/CLAUDE.md

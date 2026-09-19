@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="../../libs/CheatEngine.Client.Fluent/CheatEngine.Client.Fluent.csproj"/>
+  </ItemGroup>
+
+</Project>

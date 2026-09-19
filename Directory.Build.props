@@ -1,0 +1,29 @@
+<Project>
+  <!-- Root defaults for every project. The only Directory.Build.props of the repository: nested ones would hide what a project inherits. -->
+
+  <PropertyGroup Label="Layout">
+    <RepoRoot>$(MSBuildThisFileDirectory)</RepoRoot>
+    <!-- bin/, obj/ and test output live under artifacts/, so project folders hold sources only. -->
+    <ArtifactsPath>$(RepoRoot)artifacts</ArtifactsPath>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Language">
+    <!-- An explicit number, never latest or preview. -->
+    <LangVersion>14.0</LangVersion>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!-- Friend assemblies by convention: <Project> and tests/<Project>.Tests are twins. Keyed on the project name only, so the props phase is early enough. -->
+  <ItemGroup Label="Friend assemblies by convention" Condition="!$(MSBuildProjectName.EndsWith('.Tests'))">
+    <InternalsVisibleTo Include="$(MSBuildProjectName).Tests"/>
+  </ItemGroup>
+
+  <!-- The top-level folder of a project selects its profile. Ignoring case: the file system does, and a typed path keeps the case it was typed with. -->
+  <PropertyGroup Label="Folder profiles">
+    <_CheatEngineClientFolder>$([MSBuild]::MakeRelative('$(RepoRoot)', '$(MSBuildProjectDirectory)').Replace('\', '/'))/</_CheatEngineClientFolder>
+  </PropertyGroup>
+  <Import Project="$(RepoRoot)eng/Shipping.props"
+          Condition="$(_CheatEngineClientFolder.StartsWith('src/', System.StringComparison.OrdinalIgnoreCase)) or $(_CheatEngineClientFolder.StartsWith('libs/', System.StringComparison.OrdinalIgnoreCase))"/>
+  <Import Project="$(RepoRoot)eng/Tests.props"
+          Condition="$(_CheatEngineClientFolder.StartsWith('tests/', System.StringComparison.OrdinalIgnoreCase))"/>
+</Project>

@@ -1,0 +1,7 @@
+<Project>
+  <!-- Profile for src/ and libs/: the assemblies a consumer builds against. -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,30 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig"/>
+    <File Path=".gitignore"/>
+    <File Path="CLAUDE.md"/>
+    <File Path="Directory.Build.props"/>
+    <File Path="Directory.Build.targets"/>
+    <File Path="Directory.Packages.props"/>
+    <File Path="global.json"/>
+    <File Path="README.md"/>
+  </Folder>
+  <Folder Name="/eng/">
+    <File Path="eng/Shipping.props"/>
+    <File Path="eng/Tests.props"/>
+  </Folder>
+  <Folder Name="/libs/">
+    <Project Path="libs/CheatEngine.Client.Abstractions/CheatEngine.Client.Abstractions.csproj"/>
+    <Project Path="libs/CheatEngine.Client.Binding/CheatEngine.Client.Binding.csproj"/>
+    <Project Path="libs/CheatEngine.Client.Fluent/CheatEngine.Client.Fluent.csproj"/>
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/CheatEngine.Client/CheatEngine.Client.csproj"/>
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CheatEngine.Client.Abstractions.Tests/CheatEngine.Client.Abstractions.Tests.csproj"/>
+    <Project Path="tests/CheatEngine.Client.Binding.Tests/CheatEngine.Client.Binding.Tests.csproj"/>
+    <Project Path="tests/CheatEngine.Client.Fluent.Tests/CheatEngine.Client.Fluent.Tests.csproj"/>
+    <Project Path="tests/CheatEngine.Client.Tests/CheatEngine.Client.Tests.csproj"/>
+  </Folder>
+</Solution>

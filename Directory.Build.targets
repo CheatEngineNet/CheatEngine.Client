@@ -1,0 +1,9 @@
+<Project>
+  <!-- Imported after the project body and the SDK targets, so conditions here see final property values. -->
+
+  <Target Name="CheatEngineClientRequireProjectReadme" BeforeTargets="BeforeBuild">
+    <Error Condition="!Exists('$(MSBuildProjectDirectory)/README.md')"
+           Code="CHEATENGINECLIENT9001"
+           Text="$(MSBuildProjectName) has no README.md next to its project file."/>
+  </Target>
+</Project>
