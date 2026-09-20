@@ -47,6 +47,11 @@ public readonly record struct CheatEngineFailure
 			throw new CheatEngineActivationExpiredException(Operation, Message, Exception);
 		}
 
+		if (Kind == CheatEngineFailureKind.InvalidState)
+		{
+			throw new CheatEngineClientLifecycleException(Operation, Message, Exception);
+		}
+
 		throw new CheatEngineOperationException(this);
 	}
 }

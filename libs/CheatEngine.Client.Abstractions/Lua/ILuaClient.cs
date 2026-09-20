@@ -22,11 +22,9 @@ public interface ILuaClient
 	public ILuaModuleLease RegisterModule(ILuaModule luaModule, CancellationToken cancellationToken = default);
 
 	/// <summary>Tries to execute one typed operation on Cheat Engine's main thread.</summary>
-	public bool TryExecute<TOperation, TResult>(TOperation operation, [MaybeNullWhen(false)] out TResult result,
-		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
-		where TOperation : ILuaOperation<TResult>;
+	public bool TryExecute<TResult>(ILuaOperation<TResult> operation, [MaybeNullWhen(false)] out TResult result,
+		out CheatEngineFailure failure, CancellationToken cancellationToken = default);
 
 	/// <summary>Executes one typed operation or throws when it fails.</summary>
-	public TResult Execute<TOperation, TResult>(TOperation operation, CancellationToken cancellationToken = default)
-		where TOperation : ILuaOperation<TResult>;
+	public TResult Execute<TResult>(ILuaOperation<TResult> operation, CancellationToken cancellationToken = default);
 }

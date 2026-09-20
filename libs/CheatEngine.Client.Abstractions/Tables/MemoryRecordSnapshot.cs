@@ -8,6 +8,8 @@ namespace CheatEngine.Client.Tables;
 public readonly record struct MemoryRecordSnapshot
 {
 	/// <summary>Creates a copied memory-record snapshot from grouped content and state fields.</summary>
+	/// <exception cref="ArgumentOutOfRangeException"><paramref name="index" /> is negative.</exception>
+	/// <exception cref="ArgumentException"><paramref name="content" /> is uninitialized.</exception>
 	public MemoryRecordSnapshot(
 		MemoryRecordId id,
 		int index,
@@ -15,6 +17,10 @@ public readonly record struct MemoryRecordSnapshot
 		MemoryRecordStateSnapshot state)
 	{
 		ArgumentOutOfRangeException.ThrowIfNegative(index);
+		if (content.Description is null || content.AddressExpression is null || content.Value is null)
+		{
+			throw new ArgumentException("Content requires non-null text fields.", nameof(content));
+		}
 
 		Id = id;
 		Index = index;

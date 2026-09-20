@@ -6,12 +6,24 @@ namespace CheatEngine.Client.Runtime;
 public readonly record struct CheatEngineRuntimePlatformInfo
 {
 	/// <summary>Creates runtime platform observations from copied host facts.</summary>
+	/// <exception cref="ArgumentException">
+	///     <paramref name="targetPointerSize" /> does not match the width implied by
+	///     <paramref name="targetArchitecture" />.
+	/// </exception>
 	public CheatEngineRuntimePlatformInfo(
 		CheatEngineArchitecture systemArchitecture,
 		CheatEngineArchitecture targetArchitecture,
 		PointerSize targetPointerSize,
 		TargetAbi targetAbi)
 	{
+		PointerSize expectedTargetPointerSize = PointerSize.FromArchitecture(targetArchitecture);
+		if (targetPointerSize != expectedTargetPointerSize)
+		{
+			throw new ArgumentException(
+				"The target pointer size must match the target architecture.",
+				nameof(targetPointerSize));
+		}
+
 		SystemArchitecture = systemArchitecture;
 		TargetArchitecture = targetArchitecture;
 		TargetPointerSize = targetPointerSize;

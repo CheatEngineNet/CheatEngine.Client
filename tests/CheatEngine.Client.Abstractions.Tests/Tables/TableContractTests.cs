@@ -9,6 +9,7 @@ namespace CheatEngine.Client.Tests.Tables;
 
 public sealed class TableContractTests
 {
+	/// <summary>Rejects collection bounds that cannot cap table-record materialization.</summary>
 	[Theory]
 	[InlineData(0)]
 	[InlineData(-1)]
@@ -17,6 +18,7 @@ public sealed class TableContractTests
 		Assert.Throws<ArgumentOutOfRangeException>(() => new MemoryRecordCollectionRequest(maximumItems));
 	}
 
+	/// <summary>Retains a valid upper bound for a bounded memory-record collection request.</summary>
 	[Fact]
 	public void MemoryRecordCollectionRequestRetainsItsPositiveBound()
 	{
@@ -25,6 +27,7 @@ public sealed class TableContractTests
 		Assert.Equal(32, request.MaximumItems);
 	}
 
+	/// <summary>Represents a known record count without forcing records to be copied into the snapshot.</summary>
 	[Fact]
 	public void CardinalityOnlyAddressTableSnapshotRetainsTheCountWithoutMaterializingRecords()
 	{
@@ -34,6 +37,7 @@ public sealed class TableContractTests
 		Assert.Empty(snapshot.Records);
 	}
 
+	/// <summary>Rejects hierarchy limits that cannot bound either breadth or depth.</summary>
 	[Theory]
 	[InlineData(0, 1)]
 	[InlineData(1, 0)]
@@ -45,6 +49,7 @@ public sealed class TableContractTests
 			new MemoryRecordHierarchyRequest(maximumItems, maximumDepth));
 	}
 
+	/// <summary>Requires a non-empty predicate before a record search can be evaluated.</summary>
 	[Fact]
 	public void MemoryRecordSearchRequiresAtLeastOneMeaningfulPredicate()
 	{
@@ -53,6 +58,7 @@ public sealed class TableContractTests
 		Assert.Throws<ArgumentException>(() => new MemoryRecordSearch(addressExpression: string.Empty));
 	}
 
+	/// <summary>Retains every supplied record-search predicate as one conjunctive request.</summary>
 	[Fact]
 	public void MemoryRecordSearchPreservesConjunctivePredicates()
 	{
@@ -64,6 +70,7 @@ public sealed class TableContractTests
 		Assert.True(search.IsActive);
 	}
 
+	/// <summary>Retains copied record data while preserving the separately reported table cardinality.</summary>
 	[Fact]
 	public void SnapshotCarriesCopiedRecordsAndCardinality()
 	{
@@ -81,6 +88,7 @@ public sealed class TableContractTests
 		Assert.Equal(2, onlyRecord.ChildCount);
 	}
 
+	/// <summary>Forwards grouped content and state fields through the established record leaf properties.</summary>
 	[Fact]
 	public void MemoryRecordSnapshotForwardsContentAndStateComponentsToItsExistingLeafProperties()
 	{
@@ -103,6 +111,7 @@ public sealed class TableContractTests
 		Assert.Equal(state.ChildCount, snapshot.ChildCount);
 	}
 
+	/// <summary>Rejects a record index that cannot identify a valid address-list position.</summary>
 	[Theory]
 	[InlineData(-1)]
 	[InlineData(int.MinValue)]
@@ -115,6 +124,7 @@ public sealed class TableContractTests
 			CreateState()));
 	}
 
+	/// <summary>Rejects a negative immediate-child count in a copied record state.</summary>
 	[Theory]
 	[InlineData(-1)]
 	[InlineData(int.MinValue)]
@@ -123,6 +133,7 @@ public sealed class TableContractTests
 		Assert.Throws<ArgumentOutOfRangeException>(() => CreateState(childCount: childCount));
 	}
 
+	/// <summary>Rejects required text fields that would make copied record content incomplete.</summary>
 	[Fact]
 	public void ContentSnapshotRejectsNullRequiredValues()
 	{
@@ -147,6 +158,43 @@ public sealed class TableContractTests
 		Assert.Equal("value", value.ParamName);
 	}
 
+	/// <summary>Normalizes default child arrays to empty both during construction and with-expression updates.</summary>
+	[Fact]
+	public void HierarchySnapshotNormalizesDefaultChildrenDuringConstructionAndWithUpdate()
+	{
+		MemoryRecordHierarchySnapshot hierarchy = new(CreateSnapshot(
+			new MemoryRecordId(12),
+			0,
+			CreateContent(),
+			CreateState()), default);
+		MemoryRecordHierarchySnapshot updatedHierarchy = hierarchy with
+		{
+			Children = default
+		};
+		MemoryRecordHierarchySnapshot uninitializedHierarchy = default;
+
+		Assert.False(hierarchy.Children.IsDefault);
+		Assert.Empty(hierarchy.Children);
+		Assert.False(updatedHierarchy.Children.IsDefault);
+		Assert.Empty(updatedHierarchy.Children);
+		Assert.False(uninitializedHierarchy.Children.IsDefault);
+		Assert.Empty(uninitializedHierarchy.Children);
+	}
+
+	/// <summary>Rejects default record content before it can leak null text fields through a snapshot.</summary>
+	[Fact]
+	public void MemoryRecordSnapshotRejectsDefaultContent()
+	{
+		ArgumentException exception = Assert.Throws<ArgumentException>(() => new MemoryRecordSnapshot(
+			new MemoryRecordId(12),
+			0,
+			default,
+			CreateState()));
+
+		Assert.Equal("content", exception.ParamName);
+	}
+
+	/// <summary>Preserves the root record and recursively copied child snapshots in hierarchy order.</summary>
 	[Fact]
 	public void HierarchySnapshotRetainsItsCopiedRootAndChildren()
 	{
@@ -169,6 +217,7 @@ public sealed class TableContractTests
 		Assert.Empty(onlyChild.Children);
 	}
 
+	/// <summary>Retains an explicitly supplied parent record identifier for a new table definition.</summary>
 	[Fact]
 	public void MemoryRecordDefinitionRetainsAnOptionalParentId()
 	{
@@ -178,6 +227,7 @@ public sealed class TableContractTests
 		Assert.Equal(new MemoryRecordId(12), definition.ParentId);
 	}
 
+	/// <summary>Defaults a new record definition to the address-list root when no parent is supplied.</summary>
 	[Fact]
 	public void MemoryRecordDefinitionDefaultsToTheAddressListRoot()
 	{

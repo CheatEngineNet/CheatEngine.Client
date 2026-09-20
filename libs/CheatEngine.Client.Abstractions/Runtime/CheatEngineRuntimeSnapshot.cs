@@ -12,6 +12,10 @@ namespace CheatEngine.Client.Runtime;
 public readonly record struct CheatEngineRuntimeSnapshot
 {
 	/// <summary>Creates a runtime snapshot from grouped version, platform, and capability observations.</summary>
+	/// <exception cref="ArgumentOutOfRangeException"><paramref name="epoch" /> is negative.</exception>
+	/// <exception cref="ArgumentNullException">
+	///     <paramref name="versionInfo" /> is uninitialized, or a capability collection is <see langword="null" />.
+	/// </exception>
 	public CheatEngineRuntimeSnapshot(
 		long epoch,
 		CheatEngineRuntimeVersionInfo versionInfo,
@@ -20,6 +24,8 @@ public readonly record struct CheatEngineRuntimeSnapshot
 		ClientCapabilities clientCapabilities)
 	{
 		ArgumentOutOfRangeException.ThrowIfNegative(epoch);
+		ArgumentNullException.ThrowIfNull(versionInfo.ClientAssemblyVersion);
+		ArgumentNullException.ThrowIfNull(versionInfo.SdkAssemblyVersion);
 
 		Epoch = epoch;
 		Version = versionInfo;

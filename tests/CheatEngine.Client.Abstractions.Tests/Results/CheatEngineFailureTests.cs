@@ -4,6 +4,7 @@ namespace CheatEngine.Client.Tests.Results;
 
 public sealed class CheatEngineFailureTests
 {
+	/// <summary>Preserves the classified diagnostic fields and their originating exception.</summary>
 	[Fact]
 	public void ConstructorPreservesClassifiedDiagnosticAndInnerException()
 	{
@@ -21,6 +22,7 @@ public sealed class CheatEngineFailureTests
 		Assert.Same(innerException, failure.Exception);
 	}
 
+	/// <summary>Rejects diagnostics that cannot name an operation or provide a human-readable message.</summary>
 	[Fact]
 	public void ConstructorRejectsMissingOperationOrMessage()
 	{
@@ -30,6 +32,7 @@ public sealed class CheatEngineFailureTests
 			CheatEngineFailureKind.Unknown, "Operation", " "));
 	}
 
+	/// <summary>Maps a general expected failure to an operation exception retaining its source failure.</summary>
 	[Fact]
 	public void ThrowCreatesOperationExceptionThatRetainsFailure()
 	{
@@ -47,6 +50,7 @@ public sealed class CheatEngineFailureTests
 		Assert.Same(innerException, exception.InnerException);
 	}
 
+	/// <summary>Maps activation expiration to its dedicated exception without losing its cause.</summary>
 	[Fact]
 	public void ThrowPreservesTheDedicatedActivationExpiredException()
 	{
@@ -64,6 +68,26 @@ public sealed class CheatEngineFailureTests
 		Assert.Same(innerException, exception.InnerException);
 	}
 
+	/// <summary>Maps an invalid lifecycle state to its dedicated exception while retaining all diagnostics.</summary>
+	[Fact]
+	public void ThrowPreservesTheDedicatedLifecycleExceptionForInvalidState()
+	{
+		InvalidOperationException innerException = new("provider is stopping");
+		CheatEngineFailure failure = new(
+			CheatEngineFailureKind.InvalidState,
+			"Client.Track",
+			"The provider is stopping.",
+			innerException);
+
+		CheatEngineClientLifecycleException exception =
+			Assert.Throws<CheatEngineClientLifecycleException>(failure.Throw);
+
+		Assert.Equal(failure, exception.Failure);
+		Assert.Equal(failure.Message, exception.Message);
+		Assert.Same(innerException, exception.InnerException);
+	}
+
+	/// <summary>Assigns each concrete lifecycle exception the stable failure kind it represents.</summary>
 	[Fact]
 	public void LifecycleExceptionsClassifyTheirSpecificLifecycleFailures()
 	{

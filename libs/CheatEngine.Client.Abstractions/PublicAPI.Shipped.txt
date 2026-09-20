@@ -122,9 +122,9 @@ CheatEngine.Client.Inspection.SymbolRegistration.Name.get -> string!
 CheatEngine.Client.Inspection.SymbolRegistration.SymbolRegistration() -> void
 CheatEngine.Client.Inspection.SymbolRegistration.SymbolRegistration(string! name, CheatEngine.SDK.Engine.Values.Address address, bool doNotSave = true) -> void
 CheatEngine.Client.Lua.ILuaClient
-CheatEngine.Client.Lua.ILuaClient.Execute<TOperation, TResult>(TOperation operation, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> TResult
+CheatEngine.Client.Lua.ILuaClient.Execute<TResult>(CheatEngine.Client.Lua.ILuaOperation<TResult>! operation, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> TResult
 CheatEngine.Client.Lua.ILuaClient.RegisterModule(CheatEngine.Client.Lua.ILuaModule! luaModule, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Lua.ILuaModuleLease!
-CheatEngine.Client.Lua.ILuaClient.TryExecute<TOperation, TResult>(TOperation operation, out TResult result, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
+CheatEngine.Client.Lua.ILuaClient.TryExecute<TResult>(CheatEngine.Client.Lua.ILuaOperation<TResult>! operation, out TResult result, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
 CheatEngine.Client.Lua.ILuaClient.TryRegisterModule(CheatEngine.Client.Lua.ILuaModule! luaModule, out CheatEngine.Client.Lua.ILuaModuleLease? lease, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
 CheatEngine.Client.Lua.ILuaExecutionContext
 CheatEngine.Client.Lua.ILuaExecutionContext.Epoch.get -> long

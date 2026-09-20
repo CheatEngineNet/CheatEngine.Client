@@ -7,6 +7,7 @@ namespace CheatEngine.Client.Tests.Runtime;
 
 public sealed class CheatEngineRuntimeSnapshotTests
 {
+	/// <summary>Keeps an observed coarse CE version distinct from its qualified four-part release baseline.</summary>
 	[Fact]
 	public void SnapshotKeepsObservedCeVersionSeparateFromTheQualifiedFourPartBaseline()
 	{
@@ -20,6 +21,7 @@ public sealed class CheatEngineRuntimeSnapshotTests
 		Assert.True(snapshot.IsOnQualifiedCheatEngineLine);
 	}
 
+	/// <summary>Forwards grouped runtime observations through the established leaf-property compatibility surface.</summary>
 	[Fact]
 	public void SnapshotForwardsVersionAndPlatformComponentsToItsExistingLeafProperties()
 	{
@@ -50,6 +52,7 @@ public sealed class CheatEngineRuntimeSnapshotTests
 		Assert.Equal(platform.TargetAbi, snapshot.TargetAbi);
 	}
 
+	/// <summary>Rejects non-finite or negative observed CE version values.</summary>
 	[Theory]
 	[InlineData(double.NaN)]
 	[InlineData(double.PositiveInfinity)]
@@ -59,6 +62,7 @@ public sealed class CheatEngineRuntimeSnapshotTests
 		Assert.Throws<ArgumentOutOfRangeException>(() => CreateVersionInfo(observedVersion));
 	}
 
+	/// <summary>Rejects absent assembly versions that would leave a version observation uninitialized.</summary>
 	[Fact]
 	public void VersionInfoRejectsNullAssemblyVersions()
 	{
@@ -77,6 +81,7 @@ public sealed class CheatEngineRuntimeSnapshotTests
 		Assert.Equal("sdkAssemblyVersion", sdkVersion.ParamName);
 	}
 
+	/// <summary>Retains unavailable version and target facts without inferring values that CE did not provide.</summary>
 	[Fact]
 	public void SnapshotAllowsAnUnavailableObservedVersionAndKeepsUnknownTargetFacts()
 	{
@@ -87,6 +92,7 @@ public sealed class CheatEngineRuntimeSnapshotTests
 		Assert.Equal(PointerSize.Unknown, snapshot.TargetPointerSize);
 	}
 
+	/// <summary>Rejects a snapshot epoch that cannot identify a real activation.</summary>
 	[Theory]
 	[InlineData(-1)]
 	[InlineData(long.MinValue)]
@@ -95,6 +101,7 @@ public sealed class CheatEngineRuntimeSnapshotTests
 		Assert.Throws<ArgumentOutOfRangeException>(() => Create(epoch: epoch));
 	}
 
+	/// <summary>Rejects absent capability collections instead of accepting an incomplete runtime snapshot.</summary>
 	[Fact]
 	public void SnapshotRejectsNullCapabilityCollections()
 	{
@@ -113,6 +120,51 @@ public sealed class CheatEngineRuntimeSnapshotTests
 
 		Assert.Equal("sdkCapabilities", sdkCapabilities.ParamName);
 		Assert.Equal("clientCapabilities", clientCapabilities.ParamName);
+	}
+
+	/// <summary>Rejects target pointer widths that disagree with the observed target architecture.</summary>
+	[Theory]
+	[InlineData(CheatEngineArchitecture.X64, 4)]
+	[InlineData(CheatEngineArchitecture.X86, 8)]
+	public void PlatformInfoRejectsPointerSizeThatDoesNotMatchTargetArchitecture(
+		CheatEngineArchitecture targetArchitecture,
+		int pointerBytes)
+	{
+		ArgumentException exception = Assert.Throws<ArgumentException>(() => new CheatEngineRuntimePlatformInfo(
+			CheatEngineArchitecture.X64,
+			targetArchitecture,
+			new PointerSize(pointerBytes),
+			TargetAbi.Windows));
+
+		Assert.Equal("targetPointerSize", exception.ParamName);
+	}
+
+	/// <summary>Accepts unknown architecture and pointer-size facts without inventing a target platform.</summary>
+	[Fact]
+	public void PlatformInfoAcceptsConsistentlyUnknownTargetArchitectureAndPointerSize()
+	{
+		CheatEngineRuntimePlatformInfo platform = new(
+			CheatEngineArchitecture.Unknown,
+			CheatEngineArchitecture.Unknown,
+			PointerSize.Unknown,
+			TargetAbi.Unknown);
+
+		Assert.Equal(CheatEngineArchitecture.Unknown, platform.TargetArchitecture);
+		Assert.Equal(PointerSize.Unknown, platform.TargetPointerSize);
+	}
+
+	/// <summary>Rejects the default version-info value before it can produce a partially initialized snapshot.</summary>
+	[Fact]
+	public void SnapshotRejectsDefaultVersionInfo()
+	{
+		ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => new CheatEngineRuntimeSnapshot(
+			42,
+			default,
+			CreatePlatformInfo(),
+			RuntimeCapabilities.Empty,
+			ClientCapabilities.Empty));
+
+		Assert.Equal("versionInfo.ClientAssemblyVersion", exception.ParamName);
 	}
 
 	private static CheatEngineRuntimeSnapshot Create(double? observedVersion = 7.7d, long epoch = 42)
