@@ -1,0 +1,13 @@
+<Project>
+  <Target Name="CheatEngineClientRequireDirectSdkReference"
+          BeforeTargets="CoreCompile"
+          Condition="'$(CheatEngineClientPluginProject)' == 'true' and '$(CheatEngineClientSkipDirectSdkReferenceCheck)' != 'true'">
+    <ItemGroup>
+      <_CheatEngineClientDirectSdkReference Include="@(PackageReference)"
+                                            Condition="'%(Identity)' == 'CheatEngine.SDK'"/>
+    </ItemGroup>
+    <Error Condition="'@(_CheatEngineClientDirectSdkReference)' == ''"
+           Code="CECLIENT001"
+           Text="Cheat Engine plugin projects must reference CheatEngine.SDK directly so its entry-point generator and native bridge assets are active."/>
+  </Target>
+</Project>
