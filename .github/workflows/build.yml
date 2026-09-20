@@ -49,6 +49,7 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         shell: powershell
         run: |
-          ${{ runner.temp }}\scanner\dotnet-sonarscanner begin /k:"CheatEngineNet_CheatEngine.Client" /o:"cheatenginenet" /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
-          dotnet build
+          ${{ runner.temp }}\scanner\dotnet-sonarscanner begin /k:"CheatEngineNet_CheatEngine.Client" /o:"cheatenginenet" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.cs.cobertura.reportsPaths="artifacts/sonar-test-results/**/*.cobertura.xml"
+          dotnet build CheatEngine.Client.slnx --configuration Release
+          dotnet test --solution CheatEngine.Client.slnx --configuration Release --no-build --coverage --coverage-output-format cobertura --results-directory artifacts/sonar-test-results --fail-skips on
           ${{ runner.temp }}\scanner\dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"

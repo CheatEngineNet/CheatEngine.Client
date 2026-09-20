@@ -11,37 +11,19 @@ namespace CheatEngine.Client.Runtime;
 /// </remarks>
 public readonly record struct CheatEngineRuntimeSnapshot
 {
-	/// <summary>Creates a runtime snapshot from independently observed facts.</summary>
+	/// <summary>Creates a runtime snapshot from grouped version, platform, and capability observations.</summary>
 	public CheatEngineRuntimeSnapshot(
 		long epoch,
-		double? observedCheatEngineVersion,
-		CheatEngineVersion qualifiedCheatEngineBaseline,
-		Version clientAssemblyVersion,
-		Version sdkAssemblyVersion,
-		CheatEngineArchitecture systemArchitecture,
-		CheatEngineArchitecture targetArchitecture,
-		PointerSize targetPointerSize,
-		TargetAbi targetAbi,
+		CheatEngineRuntimeVersionInfo versionInfo,
+		CheatEngineRuntimePlatformInfo platformInfo,
 		RuntimeCapabilities sdkCapabilities,
 		ClientCapabilities clientCapabilities)
 	{
 		ArgumentOutOfRangeException.ThrowIfNegative(epoch);
-		if (observedCheatEngineVersion is { } observed &&
-		    (!double.IsFinite(observed) || observed < 0))
-		{
-			throw new ArgumentOutOfRangeException(nameof(observedCheatEngineVersion), observed,
-				"The observed Cheat Engine version must be a finite non-negative number when supplied.");
-		}
 
 		Epoch = epoch;
-		ObservedCheatEngineVersion = observedCheatEngineVersion;
-		QualifiedCheatEngineBaseline = qualifiedCheatEngineBaseline;
-		ClientAssemblyVersion = clientAssemblyVersion ?? throw new ArgumentNullException(nameof(clientAssemblyVersion));
-		SdkAssemblyVersion = sdkAssemblyVersion ?? throw new ArgumentNullException(nameof(sdkAssemblyVersion));
-		SystemArchitecture = systemArchitecture;
-		TargetArchitecture = targetArchitecture;
-		TargetPointerSize = targetPointerSize;
-		TargetAbi = targetAbi;
+		Version = versionInfo;
+		Platform = platformInfo;
 		SdkCapabilities = sdkCapabilities ?? throw new ArgumentNullException(nameof(sdkCapabilities));
 		ClientCapabilities = clientCapabilities ?? throw new ArgumentNullException(nameof(clientCapabilities));
 	}
@@ -52,52 +34,64 @@ public readonly record struct CheatEngineRuntimeSnapshot
 		get;
 	}
 
+	/// <summary>Gets the grouped version observations captured for this activation.</summary>
+	public CheatEngineRuntimeVersionInfo Version
+	{
+		get;
+	}
+
+	/// <summary>Gets the grouped platform observations captured for this activation.</summary>
+	public CheatEngineRuntimePlatformInfo Platform
+	{
+		get;
+	}
+
 	/// <summary>Gets the coarse number returned by CE's <c>getCEVersion</c> global, when it was callable.</summary>
 	public double? ObservedCheatEngineVersion
 	{
-		get;
+		get => Version.ObservedCheatEngineVersion;
 	}
 
 	/// <summary>Gets the complete CE build against which this Client release was qualified.</summary>
 	public CheatEngineVersion QualifiedCheatEngineBaseline
 	{
-		get;
+		get => Version.QualifiedCheatEngineBaseline;
 	}
 
 	/// <summary>Gets the assembly version of this Client abstraction assembly.</summary>
 	public Version ClientAssemblyVersion
 	{
-		get;
+		get => Version.ClientAssemblyVersion;
 	}
 
 	/// <summary>Gets the assembly version of the SDK runtime-contract assembly.</summary>
 	public Version SdkAssemblyVersion
 	{
-		get;
+		get => Version.SdkAssemblyVersion;
 	}
 
 	/// <summary>Gets the CE host architecture observed from CE's system-architecture global.</summary>
 	public CheatEngineArchitecture SystemArchitecture
 	{
-		get;
+		get => Platform.SystemArchitecture;
 	}
 
 	/// <summary>Gets the target architecture observed by a target-specific probe, or unknown.</summary>
 	public CheatEngineArchitecture TargetArchitecture
 	{
-		get;
+		get => Platform.TargetArchitecture;
 	}
 
 	/// <summary>Gets the pointer width implied by the observed target architecture, or unknown.</summary>
 	public PointerSize TargetPointerSize
 	{
-		get;
+		get => Platform.TargetPointerSize;
 	}
 
 	/// <summary>Gets the target ABI observed from CE's ABI global, or unknown.</summary>
 	public TargetAbi TargetAbi
 	{
-		get;
+		get => Platform.TargetAbi;
 	}
 
 	/// <summary>Gets the explicit availability observation for each SDK runtime capability that was probed.</summary>
@@ -114,8 +108,8 @@ public readonly record struct CheatEngineRuntimeSnapshot
 
 	/// <summary>Gets whether the observed coarse CE version belongs to the qualified major/minor line.</summary>
 	public bool IsOnQualifiedCheatEngineLine => ObservedCheatEngineVersion is { } observed &&
-	                                            observed >= QualifiedCheatEngineBaseline.Major +
-	                                            QualifiedCheatEngineBaseline.Minor / 10d &&
-	                                            observed < QualifiedCheatEngineBaseline.Major +
-	                                            (QualifiedCheatEngineBaseline.Minor + 1) / 10d;
+												observed >= QualifiedCheatEngineBaseline.Major +
+												QualifiedCheatEngineBaseline.Minor / 10d &&
+												observed < QualifiedCheatEngineBaseline.Major +
+												(QualifiedCheatEngineBaseline.Minor + 1) / 10d;
 }
