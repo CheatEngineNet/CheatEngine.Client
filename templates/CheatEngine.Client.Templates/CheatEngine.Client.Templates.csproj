@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageType>Template</PackageType>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="**/*"/>
+    <Content Include="content/**/*" Pack="true" PackagePath="content/"/>
+    <None Include="README.md" Pack="true" PackagePath="/"/>
+  </ItemGroup>
+
+</Project>
