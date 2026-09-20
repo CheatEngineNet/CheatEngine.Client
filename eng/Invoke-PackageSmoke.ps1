@@ -162,6 +162,9 @@ try {
         throw "The negative isolated plugin build failed, but did not report CECLIENT001.`n$negativeOutput"
     }
 
+    # The expected negative build leaves PowerShell's native-command status non-zero. Clear it only after both
+    # assertions prove that the failure was the intended CECLIENT001 guard.
+    $global:LASTEXITCODE = 0
     Write-Host 'Package smoke test passed: direct SDK reference accepted and CECLIENT001 enforced for marked plugin projects.'
 }
 finally {
