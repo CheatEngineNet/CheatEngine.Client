@@ -113,7 +113,7 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 		CancellationToken cancellationToken = default)
 	{
 		if (TryGetSdkCapability(capability, out RuntimeCapabilityAvailability availability,
-			    out CheatEngineFailure failure, cancellationToken))
+				out CheatEngineFailure failure, cancellationToken))
 		{
 			return availability;
 		}
@@ -157,7 +157,7 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 		CancellationToken cancellationToken = default)
 	{
 		if (TryGetClientCapability(capability, out ClientCapabilityAvailability availability,
-			    out CheatEngineFailure failure, cancellationToken))
+				out CheatEngineFailure failure, cancellationToken))
 		{
 			return availability;
 		}
@@ -205,14 +205,12 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 
 		return new CheatEngineRuntimeSnapshot(
 			Epoch,
-			observedVersion,
-			CheatEngineVersion.Ce77010621,
-			_clientAssemblyVersion,
-			_sdkAssemblyVersion,
-			decodedSystemArchitecture,
-			decodedTargetArchitecture,
-			PointerSize.FromArchitecture(decodedTargetArchitecture),
-			decodedTargetAbi,
+			new CheatEngineRuntimeVersionInfo(observedVersion, CheatEngineVersion.Ce77010621, _clientAssemblyVersion, _sdkAssemblyVersion),
+			new CheatEngineRuntimePlatformInfo(
+				decodedSystemArchitecture,
+				decodedTargetArchitecture,
+				PointerSize.FromArchitecture(decodedTargetArchitecture),
+				decodedTargetAbi),
 			RuntimeCapabilities.Create(capabilities),
 			CreateClientCapabilities());
 	}
@@ -259,7 +257,7 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 	private static CheatEngineArchitecture DecodeSystemArchitecture(ProbeResult<int> probe)
 	{
 		return probe is { State: RuntimeCapabilityAvailabilityState.Available, Value: int architecture } &&
-		       RuntimeInfo.TryDecodeSystemArchitecture(architecture, out CheatEngineArchitecture decoded)
+			   RuntimeInfo.TryDecodeSystemArchitecture(architecture, out CheatEngineArchitecture decoded)
 			? decoded
 			: CheatEngineArchitecture.Unknown;
 	}
@@ -267,7 +265,7 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 	private static TargetAbi DecodeTargetAbi(ProbeResult<int> probe)
 	{
 		return probe is { State: RuntimeCapabilityAvailabilityState.Available, Value: int abi } &&
-		       RuntimeInfo.TryDecodeTargetAbi(abi, out TargetAbi decoded)
+			   RuntimeInfo.TryDecodeTargetAbi(abi, out TargetAbi decoded)
 			? decoded
 			: TargetAbi.Unknown;
 	}
@@ -275,7 +273,7 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 	private static CheatEngineArchitecture DecodeTargetArchitecture(ProbeResult<bool> probe, TargetAbi targetAbi)
 	{
 		if (targetAbi != TargetAbi.Windows ||
-		    probe is not { State: RuntimeCapabilityAvailabilityState.Available, Value: bool is64Bit })
+			probe is not { State: RuntimeCapabilityAvailabilityState.Available, Value: bool is64Bit })
 		{
 			return CheatEngineArchitecture.Unknown;
 		}
