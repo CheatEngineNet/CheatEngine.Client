@@ -16,7 +16,13 @@ public sealed class MemoryAddressBuilderTests
 	{
 		MemoryAddressBuilder builder = MemoryFluent.At(0x401000UL);
 
-		Assert.Throws<InvalidOperationException>(() => builder.Read<int>(TestContext.Current.CancellationToken));
+		InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+			() => builder.Read<int>(TestContext.Current.CancellationToken));
+
+		Assert.Contains("Memory.At(memory, address)", exception.Message);
+		Assert.Contains("memory.At(address)", exception.Message);
+		Assert.Contains("Using(memory)", exception.Message);
+		Assert.DoesNotContain("pass the service to Read/Write", exception.Message);
 	}
 
 	[Fact]

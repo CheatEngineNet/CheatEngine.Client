@@ -5,9 +5,12 @@ namespace CheatEngine.Client.Memory;
 /// <summary>Starts a fluent, handle-free operation against one target-memory address.</summary>
 public static class Memory
 {
-	/// <summary>Creates an address builder that receives its memory service at its terminal operation.</summary>
+	/// <summary>Creates an unbound address builder.</summary>
 	/// <param name="address">The target address to read or write.</param>
-	/// <returns>An immutable address builder.</returns>
+	/// <returns>
+	/// An immutable address builder that must be bound with <c>Using(memory)</c>
+	/// before a built-in terminal operation.
+	/// </returns>
 	public static MemoryAddressBuilder At(Address address)
 	{
 		return new MemoryAddressBuilder(address, null);
@@ -17,6 +20,7 @@ public static class Memory
 	/// <param name="memory">The scoped target-memory service used by terminal operations.</param>
 	/// <param name="address">The target address to read or write.</param>
 	/// <returns>An immutable address builder.</returns>
+	/// <exception cref="ArgumentNullException"><paramref name="memory" /> is <see langword="null" />.</exception>
 	public static MemoryAddressBuilder At(IMemoryClient memory, Address address)
 	{
 		ArgumentNullException.ThrowIfNull(memory);
