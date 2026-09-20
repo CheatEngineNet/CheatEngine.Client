@@ -72,9 +72,11 @@ internal sealed class CoreLifetime : IDisposable
 				"Cheat Engine cleanup must run on the plugin main thread.");
 		}
 
-		checked
+		int cleanupScopeDepth = Interlocked.Increment(ref _cleanupScopeDepth);
+		if (cleanupScopeDepth <= 0)
 		{
-			_cleanupScopeDepth++;
+			Interlocked.Decrement(ref _cleanupScopeDepth);
+			throw new InvalidOperationException("The Cheat Engine cleanup scope depth overflowed.");
 		}
 
 		return new CleanupScope(this);

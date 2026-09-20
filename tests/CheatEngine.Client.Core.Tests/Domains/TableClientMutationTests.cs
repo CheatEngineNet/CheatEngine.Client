@@ -116,7 +116,32 @@ public sealed class TableClientMutationTests
 		Assert.Equal(default, record);
 		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
 		Assert.Equal("Tables.SetParent", failure.Operation);
+		Assert.Equal(
+			"The requested parent relationship is invalid: it is self-referential, cyclic, or exceeds the " +
+			"supported hierarchy depth.",
+			failure.Message);
 		Assert.Equal(0, mutations.SetParentCallCount);
+	}
+
+	[Fact]
+	public void TrySetParentMapsAHostRejectedMutationToTheExactHostFailure()
+	{
+		FakeRecordMutationPort mutations = new()
+		{
+			SetParentStatus = TableRecordMutationStatus.HostRejected
+		};
+		TableClient client = CreateClient(mutations);
+
+		bool succeeded = client.TrySetParent(new MemoryRecordId(41), new MemoryRecordId(12),
+			out MemoryRecordSnapshot record, out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(default, record);
+		Assert.Equal(new MemoryRecordId(41), mutations.LastChildId);
+		Assert.Equal(new MemoryRecordId(12), mutations.LastParentId);
+		Assert.Equal(CheatEngineFailureKind.InvalidHostResult, failure.Kind);
+		Assert.Equal("Tables.SetParent", failure.Operation);
+		Assert.Equal("Cheat Engine did not return the expected Address List contract.", failure.Message);
 	}
 
 	[Fact]
@@ -143,6 +168,15 @@ public sealed class TableClientMutationTests
 			static id => id == new MemoryRecordId(12) ? ParentChainStep.Root : ParentChainStep.HostRejected);
 
 		Assert.Equal(TableRecordMutationStatus.Success, status);
+	}
+
+	[Fact]
+	public void ParentRelationshipGuardPropagatesARejectedHostRead()
+	{
+		TableRecordMutationStatus status = TableParentRelationshipGuard.Validate(new MemoryRecordId(41),
+			new MemoryRecordId(12), 4, static _ => ParentChainStep.HostRejected);
+
+		Assert.Equal(TableRecordMutationStatus.HostRejected, status);
 	}
 
 	[Fact]

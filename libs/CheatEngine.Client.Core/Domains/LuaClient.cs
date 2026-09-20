@@ -135,9 +135,8 @@ internal sealed class LuaClient : ILuaClient
 		throw new InvalidOperationException("Unreachable failure flow.");
 	}
 
-	public bool TryExecute<TOperation, TResult>(TOperation operation, [MaybeNullWhen(false)] out TResult result,
+	public bool TryExecute<TResult>(ILuaOperation<TResult> operation, [MaybeNullWhen(false)] out TResult result,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
-		where TOperation : ILuaOperation<TResult>
 	{
 		ArgumentNullException.ThrowIfNull(operation);
 		if (cancellationToken.IsCancellationRequested)
@@ -150,7 +149,7 @@ internal sealed class LuaClient : ILuaClient
 		long epoch = _epochProvider();
 		LuaOperationResult<TResult> operationResult = default;
 		if (!_dispatcher.TryInvoke(
-			    () => operationResult = ExecuteOperation<TOperation, TResult>(operation, epoch),
+			    () => operationResult = ExecuteOperation(operation, epoch),
 			    out failure,
 			    cancellationToken))
 		{
@@ -175,16 +174,27 @@ internal sealed class LuaClient : ILuaClient
 		return true;
 	}
 
-	public TResult Execute<TOperation, TResult>(TOperation operation, CancellationToken cancellationToken = default)
+	public bool TryExecute<TOperation, TResult>(TOperation operation, [MaybeNullWhen(false)] out TResult result,
+		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 		where TOperation : ILuaOperation<TResult>
 	{
-		if (TryExecute<TOperation, TResult>(operation, out TResult? result, out CheatEngineFailure failure,
-			    cancellationToken))
+		return TryExecute<TResult>(operation, out result, out failure, cancellationToken);
+	}
+
+	public TResult Execute<TResult>(ILuaOperation<TResult> operation, CancellationToken cancellationToken = default)
+	{
+		if (TryExecute<TResult>(operation, out TResult? result, out CheatEngineFailure failure, cancellationToken))
 		{
 			return result;
 		}
 
 		return ThrowFailure<TResult>(failure);
+	}
+
+	public TResult Execute<TOperation, TResult>(TOperation operation, CancellationToken cancellationToken = default)
+		where TOperation : ILuaOperation<TResult>
+	{
+		return Execute<TResult>(operation, cancellationToken);
 	}
 
 	private static T ThrowFailure<T>(CheatEngineFailure failure)
@@ -193,8 +203,7 @@ internal sealed class LuaClient : ILuaClient
 		throw new UnreachableException();
 	}
 
-	private LuaOperationResult<TResult> ExecuteOperation<TOperation, TResult>(TOperation operation, long epoch)
-		where TOperation : ILuaOperation<TResult>
+	private LuaOperationResult<TResult> ExecuteOperation<TResult>(ILuaOperation<TResult> operation, long epoch)
 	{
 		LuaOperationContext context = new(epoch, _isContextCurrent);
 		try

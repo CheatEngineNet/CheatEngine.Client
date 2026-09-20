@@ -27,7 +27,7 @@ public sealed class SymbolRegistrationLeaseTests
 			_ => events.Add("release-name"));
 		registry.Track(lease);
 
-		Assert.Throws<CheatEngineOperationException>(lease.Dispose);
+		Assert.Throws<CheatEngineClientLifecycleException>(lease.Dispose);
 
 		Assert.False(lease.IsReleased);
 		Assert.Empty(events);

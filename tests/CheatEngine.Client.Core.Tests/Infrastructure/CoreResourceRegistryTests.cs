@@ -84,10 +84,12 @@ public sealed class CoreResourceRegistryTests
 	{
 		List<string> events = new();
 		RecordingDisposable firstSelectionResource = new("first-selection", events);
+		RecordingDisposable activationResource = new("activation", events);
 		RecordingDisposable retainedResource = new("retained", events);
 		RecordingDisposable lastSelectionResource = new("last-selection", events);
 		CoreResourceRegistry registry = new();
 		registry.Track(firstSelectionResource, 4);
+		registry.Track(activationResource);
 		registry.Track(retainedResource, 5);
 		registry.Track(lastSelectionResource, 4);
 
@@ -95,12 +97,14 @@ public sealed class CoreResourceRegistryTests
 
 		Assert.Equal(["last-selection", "first-selection"], events);
 		Assert.Equal(1, firstSelectionResource.DisposeCount);
+		Assert.Equal(0, activationResource.DisposeCount);
 		Assert.Equal(0, retainedResource.DisposeCount);
 		Assert.Equal(1, lastSelectionResource.DisposeCount);
 
 		registry.Dispose();
 
-		Assert.Equal(["last-selection", "first-selection", "retained"], events);
+		Assert.Equal(["last-selection", "first-selection", "retained", "activation"], events);
+		Assert.Equal(1, activationResource.DisposeCount);
 		Assert.Equal(1, retainedResource.DisposeCount);
 	}
 

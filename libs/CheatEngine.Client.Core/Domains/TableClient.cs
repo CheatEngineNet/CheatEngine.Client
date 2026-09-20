@@ -809,7 +809,8 @@ internal sealed class TableClient(
 				operation, "The requested parent Cheat Engine memory record was not found."),
 			TableRecordMutationStatus.InvalidRelationship => new CheatEngineFailure(
 				CheatEngineFailureKind.OperationRejected, operation,
-				"A memory record cannot be its own parent."),
+				"The requested parent relationship is invalid: it is self-referential, cyclic, or exceeds the " +
+				"supported hierarchy depth."),
 			_ => HostFailure(operation)
 		};
 	}

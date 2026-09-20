@@ -1,5 +1,7 @@
 using CheatEngine.Client.Tables;
 using CheatEngine.SDK.Engine.AddressList;
+using CheatEngine.SDK.Lua.Runtime;
+using CheatEngine.SDK.Lua.State;
 
 namespace CheatEngine.Client.Core.Domains;
 
@@ -90,9 +92,15 @@ internal sealed class SdkTableRecordMutationPort : ITableRecordMutationPort
 
 	private static ParentChainStep GetNextParentChainStep(ref MemoryRecord current)
 	{
-		if (!current.TryGetParent(out MemoryRecord next))
+		ParentReadStatus parentReadStatus = TryReadParent(current, out MemoryRecord next);
+		if (parentReadStatus == ParentReadStatus.Root)
 		{
 			return ParentChainStep.Root;
+		}
+
+		if (parentReadStatus != ParentReadStatus.Parent)
+		{
+			return ParentChainStep.HostRejected;
 		}
 
 		current = next;
@@ -102,6 +110,28 @@ internal sealed class SdkTableRecordMutationPort : ITableRecordMutationPort
 		}
 
 		return ParentChainStep.Parent(nextId);
+	}
+
+	private static ParentReadStatus TryReadParent(MemoryRecord current, out MemoryRecord parent)
+	{
+		using LuaRuntimeOperation operation = LuaRuntime.AcquireOperation();
+		LuaState state = operation.State;
+		using LuaFrame frame = new(state);
+		if (!current.Handle.TryGetProperty(state, "Parent"u8).IsOk)
+		{
+			parent = default;
+			return ParentReadStatus.HostRejected;
+		}
+
+		if (state.IsNil(-1))
+		{
+			parent = default;
+			return ParentReadStatus.Root;
+		}
+
+		return MemoryRecord.TryRead(state, -1, out parent)
+			? ParentReadStatus.Parent
+			: ParentReadStatus.HostRejected;
 	}
 
 	private static TableRecordMutationStatus TryAssignParent(MemoryRecord child, MemoryRecord parent,
@@ -123,5 +153,12 @@ internal sealed class SdkTableRecordMutationPort : ITableRecordMutationPort
 		return topLevelCount > int.MaxValue - traversalSlack
 			? int.MaxValue
 			: Math.Max(1, topLevelCount) + traversalSlack;
+	}
+
+	private enum ParentReadStatus
+	{
+		Root,
+		Parent,
+		HostRejected
 	}
 }

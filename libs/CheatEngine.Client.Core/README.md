@@ -28,7 +28,7 @@ Abstractions  ←  Core  ←  DependencyInjection  ←  Hosting
                     ↑
              CheatEngine.SDK
 
-Fluent  ←  Abstractions
+Abstractions  ←  Fluent
 ```
 
 ## How It Improves CheatEngine.Client

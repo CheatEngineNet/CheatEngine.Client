@@ -264,10 +264,14 @@ internal sealed class InspectionClient(SdkMainThreadDispatcher dispatcher, CoreL
 			}
 			catch
 			{
-				// The original lifecycle failure is the meaningful result. The registration name was still released below.
+				// The original lifecycle failure is the meaningful result. Release the name below only if disposal did not.
 			}
 
-			ReleaseSymbolName(registration.Name);
+			if (!created.IsReleased)
+			{
+				ReleaseSymbolName(registration.Name);
+			}
+
 			failure = CoreFailureFactory.FromException("Inspection.RegisterSymbol", exception);
 			return false;
 		}
