@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="../../libs/CheatEngine.Client.Hosting/CheatEngine.Client.Hosting.csproj"/>
+  </ItemGroup>
+
+</Project>
