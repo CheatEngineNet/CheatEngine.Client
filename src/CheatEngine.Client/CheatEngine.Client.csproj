@@ -1,9 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <!-- This is intentionally a NuGet façade: public compile assets come from Fluent and Hosting. -->
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+  </PropertyGroup>
+
   <ItemGroup>
-    <ProjectReference Include="../../libs/CheatEngine.Client.Abstractions/CheatEngine.Client.Abstractions.csproj"/>
-    <ProjectReference Include="../../libs/CheatEngine.Client.Binding/CheatEngine.Client.Binding.csproj"/>
     <ProjectReference Include="../../libs/CheatEngine.Client.Fluent/CheatEngine.Client.Fluent.csproj"/>
+    <ProjectReference Include="../../libs/CheatEngine.Client.Hosting/CheatEngine.Client.Hosting.csproj"/>
   </ItemGroup>
 
 </Project>

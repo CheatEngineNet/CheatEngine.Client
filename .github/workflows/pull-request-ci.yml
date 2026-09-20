@@ -1,0 +1,79 @@
+name: Pull request CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - '.editorconfig'
+      - '.github/**'
+      - 'CheatEngine.Client.slnx'
+      - 'Directory.Build.props'
+      - 'Directory.Build.targets'
+      - 'Directory.Packages.props'
+      - 'README.md'
+      - 'eng/**'
+      - 'global.json'
+      - 'libs/**'
+      - 'src/**'
+      - 'templates/**'
+      - 'tests/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: CI
+    if: github.event.pull_request.draft == false
+    uses: ./.github/workflows/ci.yml
+    with:
+      collect-coverage: >-
+        ${{ github.event.pull_request.head.repo.full_name == github.repository
+            && github.actor != 'dependabot[bot]' }}
+
+  # Fork and Dependabot pull requests receive no repository secret. Keep this condition equal to collect-coverage.
+  sonar:
+    name: Sonar
+    needs: ci
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository
+      && github.actor != 'dependabot[bot]'
+    uses: ./.github/workflows/sonar.yml
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  lint-workflows:
+    name: Lint workflows
+    if: github.event.pull_request.draft == false
+    runs-on: windows-latest
+    timeout-minutes: 5
+    env:
+      ACTIONLINT_VERSION: 1.7.12
+      ACTIONLINT_SHA256: 6e7241b51e6817ea6a047693d8e6fed13b31819c9a0dd6c5a726e1592d22f6e9
+
+    steps:
+      - name: Checkout workflow definitions
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github
+          persist-credentials: false
+
+      - name: Run actionlint
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $archive = Join-Path $env:RUNNER_TEMP 'actionlint.zip'
+          $url = "https://github.com/rhysd/actionlint/releases/download/v$env:ACTIONLINT_VERSION/actionlint_$($env:ACTIONLINT_VERSION)_windows_amd64.zip"
+          Invoke-WebRequest -Uri $url -OutFile $archive -MaximumRetryCount 3 -RetryIntervalSec 5
+
+          $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $env:ACTIONLINT_SHA256) {
+            throw "actionlint $env:ACTIONLINT_VERSION has SHA-256 $actual, expected $env:ACTIONLINT_SHA256."
+          }
+
+          $destination = Join-Path $env:RUNNER_TEMP 'actionlint'
+          Expand-Archive -LiteralPath $archive -DestinationPath $destination
+          & (Join-Path $destination 'actionlint.exe') -color

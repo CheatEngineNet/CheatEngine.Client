@@ -1,0 +1,49 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "CheatEngineNet",
+  "classifications": [
+    "Cheat Engine",
+    "Plugin"
+  ],
+  "identity": "CheatEngineNet.CheatEngine.Client.Plugin",
+  "name": "CheatEngine Client Plugin",
+  "description": "A C# 14 .NET 10 Cheat Engine plugin hosted by CheatEngine.Client.",
+  "shortName": "ceplugin",
+  "sourceName": "CheatEngine.Plugin",
+  "defaultName": "CheatEngine.Plugin",
+  "tags": {
+    "language": "C#",
+    "type": "project"
+  },
+  "constraints": {
+    "dotnet": {
+      "type": "host",
+      "args": [
+        {
+          "hostname": "dotnetcli"
+        }
+      ]
+    },
+    "net10": {
+      "type": "sdk-version",
+      "args": "[10.0.401,)"
+    }
+  },
+  "primaryOutputs": [
+    {
+      "path": "CheatEngine.Plugin.csproj"
+    }
+  ],
+  "postActions": [
+    {
+      "description": "Restore NuGet packages.",
+      "manualInstructions": [
+        {
+          "text": "Run 'dotnet restore'."
+        }
+      ],
+      "actionId": "210D431B-A78B-4D2F-B762-4ED3E3EA9025",
+      "continueOnError": true
+    }
+  ]
+}

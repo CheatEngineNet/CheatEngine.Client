@@ -1,3 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <RootNamespace>CheatEngine.Client</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CheatEngine.SDK"
+                      VersionOverride="[1.0.0,2.0.0)"
+                      IncludeAssets="compile;runtime"
+                      ExcludeAssets="build;buildTransitive;analyzers;native;contentFiles"/>
+  </ItemGroup>
+
 </Project>
