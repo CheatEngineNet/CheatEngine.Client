@@ -53,44 +53,23 @@ public readonly record struct MemoryRecordSnapshot
 	}
 
 	/// <summary>Gets the record display description.</summary>
-	public string Description
-	{
-		get => Content.Description;
-	}
+	public string Description => Content.Description;
 
 	/// <summary>Gets the record's unresolved Cheat Engine address expression.</summary>
-	public string AddressExpression
-	{
-		get => Content.AddressExpression;
-	}
+	public string AddressExpression => Content.AddressExpression;
 
 	/// <summary>Gets the record's verbatim value text.</summary>
-	public string Value
-	{
-		get => Content.Value;
-	}
+	public string Value => Content.Value;
 
 	/// <summary>Gets the record's Cheat Engine value type.</summary>
-	public VariableType VariableType
-	{
-		get => Content.VariableType;
-	}
+	public VariableType VariableType => Content.VariableType;
 
 	/// <summary>Gets the currently resolved target address when it could be obtained.</summary>
-	public Address? CurrentAddress
-	{
-		get => State.CurrentAddress;
-	}
+	public Address? CurrentAddress => State.CurrentAddress;
 
 	/// <summary>Gets whether Cheat Engine reports this record as active or frozen.</summary>
-	public bool IsActive
-	{
-		get => State.IsActive;
-	}
+	public bool IsActive => State.IsActive;
 
 	/// <summary>Gets the number of immediate child records reported by Cheat Engine.</summary>
-	public int ChildCount
-	{
-		get => State.ChildCount;
-	}
+	public int ChildCount => State.ChildCount;
 }

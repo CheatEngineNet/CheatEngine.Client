@@ -3,7 +3,7 @@ using System.Globalization;
 using CheatEngine.Client.Runtime;
 using CheatEngine.SDK.Engine.Runtime;
 
-namespace CheatEngine.Client.Tests.Runtime;
+namespace CheatEngine.Client.Abstractions.Tests.Runtime;
 
 public sealed class CheatEngineRuntimeSnapshotTests
 {
@@ -27,7 +27,8 @@ public sealed class CheatEngineRuntimeSnapshotTests
 	{
 		Version clientAssemblyVersion = new(0, 1, 2, 3);
 		Version sdkAssemblyVersion = new(1, 2, 3, 4);
-		CheatEngineRuntimeVersionInfo version = new(7.7d, CheatEngineVersion.Ce77010621, clientAssemblyVersion, sdkAssemblyVersion);
+		CheatEngineRuntimeVersionInfo version = new(7.7d, CheatEngineVersion.Ce77010621, clientAssemblyVersion,
+			sdkAssemblyVersion);
 		CheatEngineRuntimePlatformInfo platform = new(
 			CheatEngineArchitecture.X64,
 			CheatEngineArchitecture.X86,
@@ -66,11 +67,12 @@ public sealed class CheatEngineRuntimeSnapshotTests
 	[Fact]
 	public void VersionInfoRejectsNullAssemblyVersions()
 	{
-		ArgumentNullException clientVersion = Assert.Throws<ArgumentNullException>(() => new CheatEngineRuntimeVersionInfo(
-			7.7d,
-			CheatEngineVersion.Ce77010621,
-			Null<Version>(),
-			new Version(1, 0, 0)));
+		ArgumentNullException clientVersion = Assert.Throws<ArgumentNullException>(() =>
+			new CheatEngineRuntimeVersionInfo(
+				7.7d,
+				CheatEngineVersion.Ce77010621,
+				Null<Version>(),
+				new Version(1, 0, 0)));
 		ArgumentNullException sdkVersion = Assert.Throws<ArgumentNullException>(() => new CheatEngineRuntimeVersionInfo(
 			7.7d,
 			CheatEngineVersion.Ce77010621,
@@ -105,18 +107,20 @@ public sealed class CheatEngineRuntimeSnapshotTests
 	[Fact]
 	public void SnapshotRejectsNullCapabilityCollections()
 	{
-		ArgumentNullException sdkCapabilities = Assert.Throws<ArgumentNullException>(() => new CheatEngineRuntimeSnapshot(
-			42,
-			CreateVersionInfo(),
-			CreatePlatformInfo(),
-			Null<RuntimeCapabilities>(),
-			ClientCapabilities.Empty));
-		ArgumentNullException clientCapabilities = Assert.Throws<ArgumentNullException>(() => new CheatEngineRuntimeSnapshot(
-			42,
-			CreateVersionInfo(),
-			CreatePlatformInfo(),
-			RuntimeCapabilities.Empty,
-			Null<ClientCapabilities>()));
+		ArgumentNullException sdkCapabilities = Assert.Throws<ArgumentNullException>(() =>
+			new CheatEngineRuntimeSnapshot(
+				42,
+				CreateVersionInfo(),
+				CreatePlatformInfo(),
+				Null<RuntimeCapabilities>(),
+				ClientCapabilities.Empty));
+		ArgumentNullException clientCapabilities = Assert.Throws<ArgumentNullException>(() =>
+			new CheatEngineRuntimeSnapshot(
+				42,
+				CreateVersionInfo(),
+				CreatePlatformInfo(),
+				RuntimeCapabilities.Empty,
+				Null<ClientCapabilities>()));
 
 		Assert.Equal("sdkCapabilities", sdkCapabilities.ParamName);
 		Assert.Equal("clientCapabilities", clientCapabilities.ParamName);
@@ -195,5 +199,8 @@ public sealed class CheatEngineRuntimeSnapshotTests
 			TargetAbi.Windows);
 	}
 
-	private static T Null<T>() where T : class => default!;
+	private static T Null<T>() where T : class
+	{
+		return default!;
+	}
 }

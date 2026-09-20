@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <ProjectGuid>{CF0D14B3-B4CB-4BDD-91AD-4C8B6B8BBCD0}</ProjectGuid>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../CheatEngine.Client.Extensions.DependencyInjection/CheatEngine.Client.Extensions.DependencyInjection.csproj"/>
+    <PackageReference Include="CheatEngine.SDK"
+                      VersionOverride="[1.0.0,2.0.0)"
+                      IncludeAssets="compile;runtime"
+                      ExcludeAssets="build;buildTransitive;analyzers;native;contentFiles"/>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection"/>
+    <PackageReference Include="Microsoft.Extensions.Logging"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="buildTransitive/CheatEngine.Client.Hosting.targets" Pack="true" PackagePath="buildTransitive/"/>
+  </ItemGroup>
+
+</Project>

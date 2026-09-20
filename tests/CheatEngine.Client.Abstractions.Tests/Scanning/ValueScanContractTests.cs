@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 using CheatEngine.Client.Scanning;
 using CheatEngine.SDK.Engine.Values;
 
-namespace CheatEngine.Client.Tests.Scanning;
+namespace CheatEngine.Client.Abstractions.Tests.Scanning;
 
 public sealed class ValueScanContractTests
 {

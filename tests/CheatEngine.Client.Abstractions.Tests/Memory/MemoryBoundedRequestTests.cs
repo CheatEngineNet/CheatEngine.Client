@@ -1,7 +1,7 @@
 using CheatEngine.Client.Memory;
 using CheatEngine.SDK.Engine.Values;
 
-namespace CheatEngine.Client.Tests.Memory;
+namespace CheatEngine.Client.Abstractions.Tests.Memory;
 
 public sealed class MemoryBoundedRequestTests
 {

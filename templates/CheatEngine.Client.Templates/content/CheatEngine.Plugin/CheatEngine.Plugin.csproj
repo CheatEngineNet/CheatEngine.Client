@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>14.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PlatformTarget>x64</PlatformTarget>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Opts this project into Hosting's direct-SDK reference guard (CECLIENT001). -->
+    <CheatEngineClientPluginProject>true</CheatEngineClientPluginProject>
+    <IsAotCompatible>true</IsAotCompatible>
+    <VerifyReferenceAotCompatibility>true</VerifyReferenceAotCompatibility>
+    <!-- A generated template is standalone even when it is created under this repository. -->
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CheatEngine.Client" Version="0.1.0"/>
+    <PackageReference Include="CheatEngine.SDK" Version="1.0.0"/>
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.12"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest"/>
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,45 @@
+name: Main CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.editorconfig'
+      - '.github/**'
+      - 'CheatEngine.Client.slnx'
+      - 'Directory.Build.props'
+      - 'Directory.Build.targets'
+      - 'Directory.Packages.props'
+      - 'README.md'
+      - 'eng/**'
+      - 'global.json'
+      - 'libs/**'
+      - 'src/**'
+      - 'templates/**'
+      - 'tests/**'
+  merge_group:
+    types: [checks_requested]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: CI
+    uses: ./.github/workflows/ci.yml
+    with:
+      collect-coverage: ${{ github.ref == 'refs/heads/main' }}
+
+  # Main analysis is the SonarQube Cloud baseline for pull-request new-code comparisons.
+  sonar:
+    name: Sonar
+    needs: ci
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/sonar.yml
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

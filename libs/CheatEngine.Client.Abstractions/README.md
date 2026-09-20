@@ -49,16 +49,16 @@ CheatEngine.Client.Abstractions
 Package and assembly names are not consumer namespaces. Public code belongs to functional
 namespaces only:
 
-| Namespace | Responsibility |
-|---|---|
-| `CheatEngine.Client` | `ICheatEngineClient`, the activation-scoped facade |
-| `.Dispatching` / `.Runtime` | main-thread dispatch and runtime/capability observations |
-| `.Processes` / `.Inspection` | target selection, copied process/module/region/symbol data |
-| `.Memory` | bounded primitive, byte, string, codec, and pointer-chain operations |
-| `.Scanning` | AOB contracts and the value-scan session contract |
-| `.Tables` | copied Address List records and explicitly trusted table I/O requests |
-| `.Lua` / `.Modules` | typed protected Lua operations, explicit modules, and leases |
-| `.Results` | classified expected failures and lifecycle exceptions |
+| Namespace                    | Responsibility                                                        |
+|------------------------------|-----------------------------------------------------------------------|
+| `CheatEngine.Client`         | `ICheatEngineClient`, the activation-scoped facade                    |
+| `.Dispatching` / `.Runtime`  | main-thread dispatch and runtime/capability observations              |
+| `.Processes` / `.Inspection` | target selection, copied process/module/region/symbol data            |
+| `.Memory`                    | bounded primitive, byte, string, codec, and pointer-chain operations  |
+| `.Scanning`                  | AOB contracts and the value-scan session contract                     |
+| `.Tables`                    | copied Address List records and explicitly trusted table I/O requests |
+| `.Lua` / `.Modules`          | typed protected Lua operations, explicit modules, and leases          |
+| `.Results`                   | classified expected failures and lifecycle exceptions                 |
 
 No public consumer should use `CheatEngine.Client.Abstractions` as a namespace.
 

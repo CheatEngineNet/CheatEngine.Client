@@ -3,7 +3,7 @@ using CheatEngine.SDK.Engine.Enums;
 using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Engine.Scanning.Aob;
 
-namespace CheatEngine.Client.Tests.Scanning;
+namespace CheatEngine.Client.Abstractions.Tests.Scanning;
 
 public sealed class AobPatternTests
 {

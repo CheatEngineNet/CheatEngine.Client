@@ -11,20 +11,31 @@
   </Folder>
   <Folder Name="/eng/">
     <File Path="eng/Shipping.props"/>
+    <File Path="eng/Templates.props"/>
     <File Path="eng/Tests.props"/>
   </Folder>
   <Folder Name="/libs/">
     <Project Path="libs/CheatEngine.Client.Abstractions/CheatEngine.Client.Abstractions.csproj"/>
-    <Project Path="libs/CheatEngine.Client.Binding/CheatEngine.Client.Binding.csproj"/>
+    <Project Path="libs/CheatEngine.Client.Core/CheatEngine.Client.Core.csproj"/>
+    <Project
+      Path="libs/CheatEngine.Client.Extensions.DependencyInjection/CheatEngine.Client.Extensions.DependencyInjection.csproj"/>
     <Project Path="libs/CheatEngine.Client.Fluent/CheatEngine.Client.Fluent.csproj"/>
+    <Project Path="libs/CheatEngine.Client.Hosting/CheatEngine.Client.Hosting.csproj"/>
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/CheatEngine.Client/CheatEngine.Client.csproj"/>
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/CheatEngine.Client.Abstractions.Tests/CheatEngine.Client.Abstractions.Tests.csproj"/>
-    <Project Path="tests/CheatEngine.Client.Binding.Tests/CheatEngine.Client.Binding.Tests.csproj"/>
+    <Project Path="tests/CheatEngine.Client.AotProbe/CheatEngine.Client.AotProbe.csproj"/>
+    <Project Path="tests/CheatEngine.Client.Core.Tests/CheatEngine.Client.Core.Tests.csproj"/>
+    <Project
+      Path="tests/CheatEngine.Client.Extensions.DependencyInjection.Tests/CheatEngine.Client.Extensions.DependencyInjection.Tests.csproj"/>
     <Project Path="tests/CheatEngine.Client.Fluent.Tests/CheatEngine.Client.Fluent.Tests.csproj"/>
+    <Project Path="tests/CheatEngine.Client.Hosting.Tests/CheatEngine.Client.Hosting.Tests.csproj"/>
     <Project Path="tests/CheatEngine.Client.Tests/CheatEngine.Client.Tests.csproj"/>
+  </Folder>
+  <Folder Name="/templates/">
+    <Project Path="templates/CheatEngine.Client.Templates/CheatEngine.Client.Templates.csproj"/>
   </Folder>
 </Solution>

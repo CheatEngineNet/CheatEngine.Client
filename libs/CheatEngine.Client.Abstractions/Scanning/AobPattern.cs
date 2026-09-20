@@ -42,10 +42,16 @@ public readonly record struct AobPattern
 	}
 
 	/// <summary>Gets the normalized Cheat Engine pattern text.</summary>
-	public string Value { get; }
+	public string Value
+	{
+		get;
+	}
 
 	/// <summary>Gets the number of byte positions represented by the pattern.</summary>
-	public int ByteLength { get; }
+	public int ByteLength
+	{
+		get;
+	}
 
 	/// <summary>Gets whether every byte position is a wildcard.</summary>
 	public bool IsWildcardOnly

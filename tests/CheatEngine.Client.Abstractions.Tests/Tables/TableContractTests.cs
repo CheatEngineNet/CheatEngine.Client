@@ -5,7 +5,7 @@ using CheatEngine.SDK.Engine.AddressList;
 using CheatEngine.SDK.Engine.Enums;
 using CheatEngine.SDK.Engine.Values;
 
-namespace CheatEngine.Client.Tests.Tables;
+namespace CheatEngine.Client.Abstractions.Tests.Tables;
 
 public sealed class TableContractTests
 {
@@ -142,11 +142,12 @@ public sealed class TableContractTests
 			"game.exe+20",
 			"100",
 			VariableType.Dword));
-		ArgumentNullException addressExpression = Assert.Throws<ArgumentNullException>(() => new MemoryRecordContentSnapshot(
-			"Health",
-			Null<string>(),
-			"100",
-			VariableType.Dword));
+		ArgumentNullException addressExpression = Assert.Throws<ArgumentNullException>(() =>
+			new MemoryRecordContentSnapshot(
+				"Health",
+				Null<string>(),
+				"100",
+				VariableType.Dword));
 		ArgumentNullException value = Assert.Throws<ArgumentNullException>(() => new MemoryRecordContentSnapshot(
 			"Health",
 			"game.exe+20",
@@ -167,10 +168,7 @@ public sealed class TableContractTests
 			0,
 			CreateContent(),
 			CreateState()), default);
-		MemoryRecordHierarchySnapshot updatedHierarchy = hierarchy with
-		{
-			Children = default
-		};
+		MemoryRecordHierarchySnapshot updatedHierarchy = hierarchy with { Children = default };
 		MemoryRecordHierarchySnapshot uninitializedHierarchy = default;
 
 		Assert.False(hierarchy.Children.IsDefault);
@@ -250,10 +248,14 @@ public sealed class TableContractTests
 		return new MemoryRecordContentSnapshot("Health", "game.exe+20", "100", VariableType.Dword);
 	}
 
-	private static MemoryRecordStateSnapshot CreateState(Address? currentAddress = null, bool isActive = false, int childCount = 0)
+	private static MemoryRecordStateSnapshot CreateState(Address? currentAddress = null, bool isActive = false,
+		int childCount = 0)
 	{
 		return new MemoryRecordStateSnapshot(currentAddress, isActive, childCount);
 	}
 
-	private static T Null<T>() where T : class => default!;
+	private static T Null<T>() where T : class
+	{
+		return default!;
+	}
 }

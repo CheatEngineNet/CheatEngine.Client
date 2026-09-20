@@ -6,7 +6,8 @@ namespace CheatEngine.Client.Tables;
 public readonly record struct MemoryRecordContentSnapshot
 {
 	/// <summary>Creates copied content fields for a memory-record snapshot.</summary>
-	public MemoryRecordContentSnapshot(string description, string addressExpression, string value, VariableType variableType)
+	public MemoryRecordContentSnapshot(string description, string addressExpression, string value,
+		VariableType variableType)
 	{
 		ArgumentNullException.ThrowIfNull(description);
 		ArgumentNullException.ThrowIfNull(addressExpression);
