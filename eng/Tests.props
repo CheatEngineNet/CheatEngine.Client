@@ -5,4 +5,17 @@
     <TargetFramework>net10.0</TargetFramework>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
+
+  <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('.Tests'))">
+    <IsTestProject>true</IsTestProject>
+    <OutputType>Exe</OutputType>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+  </PropertyGroup>
+
+  <ItemGroup Condition="$(MSBuildProjectName.EndsWith('.Tests'))">
+    <PackageReference Include="xunit.v3.mtp-v2"/>
+    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage"/>
+    <PackageReference Include="Microsoft.Testing.Extensions.TrxReport"/>
+    <Using Include="Xunit"/>
+  </ItemGroup>
 </Project>

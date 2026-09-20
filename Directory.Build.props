@@ -11,6 +11,26 @@
     <!-- An explicit number, never latest or preview. -->
     <LangVersion>14.0</LangVersion>
     <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Package identity">
+    <VersionPrefix>0.1.0</VersionPrefix>
+    <Authors>CheatEngineNet</Authors>
+    <Company>CheatEngineNet</Company>
+    <RepositoryType>git</RepositoryType>
+    <RepositoryUrl>https://github.com/CheatEngineNet/CheatEngine.Client</RepositoryUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
   </PropertyGroup>
 
   <!-- Friend assemblies by convention: <Project> and tests/<Project>.Tests are twins. Keyed on the project name only, so the props phase is early enough. -->
@@ -26,4 +46,6 @@
           Condition="$(_CheatEngineClientFolder.StartsWith('src/', System.StringComparison.OrdinalIgnoreCase)) or $(_CheatEngineClientFolder.StartsWith('libs/', System.StringComparison.OrdinalIgnoreCase))"/>
   <Import Project="$(RepoRoot)eng/Tests.props"
           Condition="$(_CheatEngineClientFolder.StartsWith('tests/', System.StringComparison.OrdinalIgnoreCase))"/>
+  <Import Project="$(RepoRoot)eng/Templates.props"
+          Condition="$(_CheatEngineClientFolder.StartsWith('templates/', System.StringComparison.OrdinalIgnoreCase))"/>
 </Project>

@@ -1,9 +1,72 @@
 <Project>
   <!-- Imported after the project body and the SDK targets, so conditions here see final property values. -->
 
-  <Target Name="CheatEngineClientRequireProjectReadme" BeforeTargets="BeforeBuild">
+  <Target Name="CheatEngineClientRequireProjectReadme"
+          BeforeTargets="Pack"
+          Condition="'$(IsPackable)' == 'true'">
     <Error Condition="!Exists('$(MSBuildProjectDirectory)/README.md')"
            Code="CHEATENGINECLIENT9001"
            Text="$(MSBuildProjectName) has no README.md next to its project file."/>
+  </Target>
+
+  <Target Name="CheatEngineClientValidateShippingPackageSettings"
+          BeforeTargets="Pack"
+          Condition="$(_CheatEngineClientFolder.StartsWith('src/', System.StringComparison.OrdinalIgnoreCase)) or $(_CheatEngineClientFolder.StartsWith('libs/', System.StringComparison.OrdinalIgnoreCase))">
+    <Error Condition="'$(TargetFramework)' != 'net10.0'"
+           Code="CHEATENGINECLIENT9002"
+           Text="Shipping projects must target net10.0."/>
+    <Error Condition="'$(LangVersion)' != '14.0'"
+           Code="CHEATENGINECLIENT9003"
+           Text="Shipping projects must use C# 14."/>
+    <Error Condition="'$(IsAotCompatible)' != 'true'"
+           Code="CHEATENGINECLIENT9004"
+           Text="Shipping projects must enable Native AOT compatibility analysis."/>
+    <Error Condition="'$(VerifyReferenceAotCompatibility)' != 'true'"
+           Code="CHEATENGINECLIENT9005"
+           Text="Shipping projects must verify AOT compatibility of their references."/>
+    <Error Condition="'$(GenerateDocumentationFile)' != 'true'"
+           Code="CHEATENGINECLIENT9006"
+           Text="Shipping projects must generate XML documentation."/>
+    <Error Condition="'$(EnablePackageValidation)' != 'true'"
+           Code="CHEATENGINECLIENT9007"
+           Text="Shipping projects must enable package validation."/>
+  </Target>
+
+  <Target Name="CheatEngineClientValidatePublishedDependencyGraph"
+          BeforeTargets="Pack">
+    <ItemGroup>
+      <!-- Pack augments ProjectReference with transitive projects. Keep only references declared by this project. -->
+      <_CheatEngineClientDirectProjectReference Include="@(ProjectReference)"
+                                                Condition="'%(ProjectReference.DefiningProjectName)' == '$(MSBuildProjectName)'"/>
+      <_CheatEngineClientSdkReference Include="@(PackageReference)"
+                                      Condition="'%(PackageReference.Identity)' == 'CheatEngine.SDK' and '%(PackageReference.DefiningProjectName)' == '$(MSBuildProjectName)'"/>
+      <_CheatEngineClientSdkRangeReference Include="@(_CheatEngineClientSdkReference)"
+                                           Condition="'%(_CheatEngineClientSdkReference.VersionOverride)' == '[1.0.0,2.0.0)'"/>
+    </ItemGroup>
+    <PropertyGroup>
+      <_CheatEngineClientProjectReferences>@(_CheatEngineClientDirectProjectReference-&gt;'%(Filename)')</_CheatEngineClientProjectReferences>
+    </PropertyGroup>
+
+    <Error Condition="'$(MSBuildProjectName)' == 'CheatEngine.Client.Abstractions' and '$(_CheatEngineClientProjectReferences)' != ''"
+           Code="CHEATENGINECLIENT9010"
+           Text="CheatEngine.Client.Abstractions cannot project-reference another Client layer."/>
+    <Error Condition="'$(MSBuildProjectName)' == 'CheatEngine.Client.Fluent' and '$(_CheatEngineClientProjectReferences)' != 'CheatEngine.Client.Abstractions'"
+           Code="CHEATENGINECLIENT9011"
+           Text="CheatEngine.Client.Fluent must reference only CheatEngine.Client.Abstractions."/>
+    <Error Condition="'$(MSBuildProjectName)' == 'CheatEngine.Client.Core' and '$(_CheatEngineClientProjectReferences)' != 'CheatEngine.Client.Abstractions'"
+           Code="CHEATENGINECLIENT9012"
+           Text="CheatEngine.Client.Core must reference only CheatEngine.Client.Abstractions."/>
+    <Error Condition="'$(MSBuildProjectName)' == 'CheatEngine.Client.Extensions.DependencyInjection' and '$(_CheatEngineClientProjectReferences)' != 'CheatEngine.Client.Abstractions;CheatEngine.Client.Core'"
+           Code="CHEATENGINECLIENT9013"
+           Text="CheatEngine.Client.Extensions.DependencyInjection must reference Abstractions then Core."/>
+    <Error Condition="'$(MSBuildProjectName)' == 'CheatEngine.Client.Hosting' and '$(_CheatEngineClientProjectReferences)' != 'CheatEngine.Client.Extensions.DependencyInjection'"
+           Code="CHEATENGINECLIENT9014"
+           Text="CheatEngine.Client.Hosting must reference only CheatEngine.Client.Extensions.DependencyInjection."/>
+    <Error Condition="'$(MSBuildProjectName)' == 'CheatEngine.Client' and '$(_CheatEngineClientProjectReferences)' != 'CheatEngine.Client.Fluent;CheatEngine.Client.Hosting'"
+           Code="CHEATENGINECLIENT9015"
+           Text="CheatEngine.Client must reference only CheatEngine.Client.Fluent and CheatEngine.Client.Hosting."/>
+    <Error Condition="('$(MSBuildProjectName)' == 'CheatEngine.Client.Abstractions' or '$(MSBuildProjectName)' == 'CheatEngine.Client.Core' or '$(MSBuildProjectName)' == 'CheatEngine.Client.Hosting') and '@(_CheatEngineClientSdkRangeReference)' == ''"
+           Code="CHEATENGINECLIENT9016"
+           Text="SDK-facing published packages must declare CheatEngine.SDK as [1.0.0, 2.0.0)."/>
   </Target>
 </Project>

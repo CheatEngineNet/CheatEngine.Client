@@ -1,0 +1,30 @@
+namespace CheatEngine.Client.Lua;
+
+/// <summary>An immutable Lua chunk to execute under the SDK's protected Lua boundary.</summary>
+public readonly record struct LuaScript
+{
+	/// <summary>Creates a Lua script request.</summary>
+	public LuaScript(string source, string? chunkName = null)
+	{
+		ArgumentNullException.ThrowIfNull(source);
+		if (chunkName is { Length: 0 })
+		{
+			throw new ArgumentException("A Lua chunk name must be null or non-empty.", nameof(chunkName));
+		}
+
+		Source = source;
+		ChunkName = chunkName;
+	}
+
+	/// <summary>Gets the UTF-16 source text to encode as UTF-8 for Lua.</summary>
+	public string Source
+	{
+		get;
+	}
+
+	/// <summary>Gets the optional chunk name used in Lua diagnostics.</summary>
+	public string? ChunkName
+	{
+		get;
+	}
+}

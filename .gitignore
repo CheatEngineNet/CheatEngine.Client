@@ -10,6 +10,5 @@ TestResults/
 *.user
 *.suo
 
-.claude/scheduled_tasks.lock
-.claude/settings.local.json
+.claude/*
 /CLAUDE.md
