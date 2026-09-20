@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="CheatEngine.Client.Hosting"/>
+    <ProjectReference Include="../CheatEngine.Client.Abstractions/CheatEngine.Client.Abstractions.csproj"/>
+    <ProjectReference Include="../CheatEngine.Client.Core/CheatEngine.Client.Core.csproj"/>
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions"/>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection"/>
+    <PackageReference Include="Microsoft.Extensions.Logging"/>
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions"/>
+    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations"/>
+  </ItemGroup>
+
+</Project>
