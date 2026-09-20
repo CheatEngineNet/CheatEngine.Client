@@ -11,12 +11,6 @@ CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientOptions
 CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientOptions.AllowedTableRoots.get -> string![]?
 CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientOptions.AllowedTableRoots.set -> void
 CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientOptions.CheatEngineClientOptions() -> void
-CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientOptions.DefaultMaximumAobResults.get -> int
-CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientOptions.DefaultMaximumAobResults.set -> void
-CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientOptions.DefaultMaximumValueScanPageSize.get -> int
-CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientOptions.DefaultMaximumValueScanPageSize.set -> void
-CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientOptions.EnableUnsafeLuaExecution.get -> bool
-CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientOptions.EnableUnsafeLuaExecution.set -> void
 CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientOptionsSemanticValidator
 CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientOptionsSemanticValidator.CheatEngineClientOptionsSemanticValidator() -> void
 CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientOptionsSemanticValidator.Validate(string? name, CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientOptions! options) -> Microsoft.Extensions.Options.ValidateOptionsResult!

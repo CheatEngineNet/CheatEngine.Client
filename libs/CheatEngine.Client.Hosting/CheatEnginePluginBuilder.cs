@@ -63,6 +63,12 @@ public sealed class CheatEnginePluginBuilder
 		});
 	}
 
+	/// <summary>Releases configuration sources after the activation can no longer resolve services from them.</summary>
+	/// <remarks>
+	///     The host calls this only after activation construction fails or after the activation scope and provider have
+	///     been disposed. This keeps configuration providers, including an explicitly supplied file source, scoped to one
+	///     enable epoch.
+	/// </remarks>
 	internal void ReleaseConfiguration()
 	{
 		Configuration.Dispose();

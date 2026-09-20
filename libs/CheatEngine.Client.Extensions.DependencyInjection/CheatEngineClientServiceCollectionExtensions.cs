@@ -80,7 +80,10 @@ public static class CheatEngineClientServiceCollectionExtensions
 				serviceProvider.GetRequiredService<IOptions<CheatEngineClientOptions>>().Value;
 			string[] allowedTableRoots = options.AllowedTableRoots
 				?? throw new InvalidOperationException("AllowedTableRoots must be validated before the Client policy is created.");
-			return new CoreClientPolicy(allowedTableRoots, options.EnableUnsafeLuaExecution);
+			bool enableUnsafeLuaExecution = serviceProvider
+				.GetService<UnsafeLuaExecutionRegistration>()?
+				.IsEnabled == true;
+			return new CoreClientPolicy(allowedTableRoots, enableUnsafeLuaExecution);
 		});
 
 		services.TryAddSingleton<SdkMainThreadDispatcher>(static serviceProvider =>
@@ -157,4 +160,13 @@ public static class CheatEngineClientServiceCollectionExtensions
 		services.TryAddSingleton<ICheatEngineClient>(static serviceProvider =>
 			serviceProvider.GetRequiredService<CheatEngineClient>());
 	}
+}
+
+/// <summary>Records the builder-only opt-in required to enable unsafe Lua for an activation.</summary>
+internal sealed class UnsafeLuaExecutionRegistration
+{
+	internal bool IsEnabled
+	{
+		get;
+	} = true;
 }

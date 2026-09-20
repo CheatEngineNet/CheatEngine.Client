@@ -119,6 +119,12 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 		ThrowCleanupFailures(failures);
 	}
 
+	/// <summary>Builds and resolves the complete activation graph before publishing it to the plugin instance.</summary>
+	/// <remarks>
+	///     The activation is not returned until options validation, the Client facade, modules, logging, and cleanup support
+	///     have all resolved from one scope. If any step fails, this method releases the scope, provider, and configuration
+	///     before propagating the original failure so a partially built epoch can never become observable.
+	/// </remarks>
 	private static Activation CreateActivation(CheatEnginePluginBuilder builder)
 	{
 		ServiceProvider? provider = null;
@@ -151,7 +157,7 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 
 	private static ICheatEngineClientModule[] GetModules(IServiceProvider services)
 	{
-		List<ICheatEngineClientModule> result = new();
+		List<ICheatEngineClientModule> result = [];
 		foreach (ICheatEngineClientModule module in services.GetServices<ICheatEngineClientModule>())
 		{
 			result.Add(module);
@@ -172,9 +178,16 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 			cleanupFailures);
 	}
 
+	/// <summary>Closes an activation in the only safe disposal order and collects every cleanup failure.</summary>
+	/// <remarks>
+	///     Module callbacks and Client-owned Cheat Engine resources run while the SDK context is valid. The activation scope,
+	///     root provider, and configuration are then released in that order. Each stage is attempted even after an earlier
+	///     stage fails, allowing the caller to report one aggregate failure only after all owned resources had a cleanup
+	///     opportunity.
+	/// </remarks>
 	private List<Exception> CleanupActivation(Activation activation)
 	{
-		List<Exception> failures = new();
+		List<Exception> failures = [];
 		try
 		{
 			using (activation.Cleanup.EnterCleanupScope())

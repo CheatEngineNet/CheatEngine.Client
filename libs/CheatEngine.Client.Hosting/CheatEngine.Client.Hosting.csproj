@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <ProjectGuid>{CF0D14B3-B4CB-4BDD-91AD-4C8B6B8BBCD0}</ProjectGuid>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
   </PropertyGroup>

@@ -24,7 +24,9 @@
   <Folder Name="/tests/">
     <Project Path="tests/CheatEngine.Client.Abstractions.Tests/CheatEngine.Client.Abstractions.Tests.csproj"/>
     <Project Path="tests/CheatEngine.Client.Binding.Tests/CheatEngine.Client.Binding.Tests.csproj"/>
+    <Project Path="tests/CheatEngine.Client.Extensions.DependencyInjection.Tests/CheatEngine.Client.Extensions.DependencyInjection.Tests.csproj"/>
     <Project Path="tests/CheatEngine.Client.Fluent.Tests/CheatEngine.Client.Fluent.Tests.csproj"/>
+    <Project Path="tests/CheatEngine.Client.Hosting.Tests/CheatEngine.Client.Hosting.Tests.csproj"/>
     <Project Path="tests/CheatEngine.Client.Tests/CheatEngine.Client.Tests.csproj"/>
   </Folder>
 </Solution>

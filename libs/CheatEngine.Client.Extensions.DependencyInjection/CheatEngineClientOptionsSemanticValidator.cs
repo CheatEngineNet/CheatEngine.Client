@@ -5,6 +5,11 @@ namespace CheatEngine.Client.Extensions.DependencyInjection;
 /// <summary>Validates the security-sensitive options that cannot be expressed as data annotations.</summary>
 public sealed class CheatEngineClientOptionsSemanticValidator : IValidateOptions<CheatEngineClientOptions>
 {
+	/// <summary>Initializes the semantic validator for the Client table-file policy.</summary>
+	public CheatEngineClientOptionsSemanticValidator()
+	{
+	}
+
 	/// <inheritdoc />
 	public ValidateOptionsResult Validate(string? name, CheatEngineClientOptions options)
 	{
@@ -23,12 +28,21 @@ public sealed class CheatEngineClientOptionsSemanticValidator : IValidateOptions
 				return ValidateOptionsResult.Fail("AllowedTableRoots cannot contain blank paths.");
 			}
 
-			if (!Path.IsPathFullyQualified(root))
+			string normalized;
+			try
 			{
-				return ValidateOptionsResult.Fail("AllowedTableRoots can contain only fully qualified paths.");
+				if (!Path.IsPathFullyQualified(root))
+				{
+					return ValidateOptionsResult.Fail("AllowedTableRoots can contain only fully qualified paths.");
+				}
+
+				normalized = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
+			}
+			catch (Exception exception) when (exception is ArgumentException or NotSupportedException or IOException)
+			{
+				return ValidateOptionsResult.Fail("AllowedTableRoots must contain paths that can be normalized safely.");
 			}
 
-			string normalized = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
 			if (!roots.Add(normalized))
 			{
 				return ValidateOptionsResult.Fail("AllowedTableRoots cannot contain the same normalized path twice.");

@@ -58,15 +58,15 @@ public sealed class CheatEngineClientBuilder
 	/// <typeparam name="TModule">The concrete module type.</typeparam>
 	/// <remarks>
 	///     Module construction is explicit through the generic service descriptor; no assembly scanning or runtime type
-	///     discovery is performed. Hosting enables modules in this order and disables successfully enabled modules in the
-	///     reverse order.
+	///     discovery is performed. Modules are scoped to the activation so they can depend on other scoped application
+	///     services. Hosting enables modules in this order and disables successfully enabled modules in the reverse order.
 	/// </remarks>
 	public CheatEngineClientBuilder AddModule<
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
 		TModule>()
 		where TModule : class, ICheatEngineClientModule
 	{
-		Services.TryAddEnumerable(ServiceDescriptor.Singleton<ICheatEngineClientModule, TModule>());
+		Services.TryAddEnumerable(ServiceDescriptor.Scoped<ICheatEngineClientModule, TModule>());
 		return this;
 	}
 
@@ -87,10 +87,25 @@ public sealed class CheatEngineClientBuilder
 	}
 
 	/// <summary>Opts this activation into trusted arbitrary Lua execution.</summary>
+	/// <remarks>
+	///     This is the only supported opt-in path. Configuration binding cannot enable the capability or register the
+	///     unsafe facade, so the activation policy and service registration are established together.
+	/// </remarks>
 	public CheatEngineClientBuilder EnableUnsafeLuaExecution()
 	{
-		Services.Configure<CheatEngineClientOptions>(static options => options.EnableUnsafeLuaExecution = true);
-		Services.TryAddSingleton<IUnsafeLuaClient>(static serviceProvider => new UnsafeLuaClient(
+		if (Services.Any(static descriptor => descriptor.ServiceType == typeof(IUnsafeLuaClient)))
+		{
+			if (Services.Any(static descriptor => descriptor.ServiceType == typeof(UnsafeLuaExecutionRegistration)))
+			{
+				return this;
+			}
+
+			throw new InvalidOperationException(
+				"IUnsafeLuaClient can only be registered through EnableUnsafeLuaExecution().");
+		}
+
+		Services.AddSingleton<UnsafeLuaExecutionRegistration>();
+		Services.AddSingleton<IUnsafeLuaClient>(static serviceProvider => new UnsafeLuaClient(
 			serviceProvider.GetRequiredService<SdkMainThreadDispatcher>(),
 			serviceProvider.GetRequiredService<CoreClientPolicy>()));
 		return this;

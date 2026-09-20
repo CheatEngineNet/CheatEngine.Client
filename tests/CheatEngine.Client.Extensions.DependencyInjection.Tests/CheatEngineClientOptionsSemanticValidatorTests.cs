@@ -64,4 +64,18 @@ public sealed class CheatEngineClientOptionsSemanticValidatorTests
 
 		Assert.True(result.Succeeded);
 	}
+
+	[Fact]
+	public void ValidateRejectsAnAllowedRootThatCannotBeNormalized()
+	{
+		string root = Path.GetPathRoot(Path.GetTempPath()) + "\0";
+
+		ValidateOptionsResult result =
+			_validator.Validate(null, new CheatEngineClientOptions { AllowedTableRoots = [root] });
+
+		Assert.True(result.Failed);
+		string? failureMessage = result.FailureMessage;
+		Assert.NotNull(failureMessage);
+		Assert.Contains("normalized safely", failureMessage, StringComparison.Ordinal);
+	}
 }

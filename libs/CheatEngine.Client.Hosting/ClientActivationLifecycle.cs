@@ -54,7 +54,7 @@ internal sealed class ClientActivationLifecycle
 		}
 
 		_cleanupStarted = true;
-		List<Exception> failures = new();
+		List<Exception> failures = [];
 
 		if (_clientEnableHookEntered)
 		{

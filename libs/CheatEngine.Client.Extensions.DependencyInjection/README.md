@@ -20,15 +20,17 @@ This package keeps the high-level API DI-first while preserving the Client's tri
 
 Configuration is always opt-in. `BindConfiguration(IConfiguration)` reads the `CheatEngineClient` section, while `BindConfiguration(IConfigurationSection)` lets a plugin choose a different explicit section. The package never searches for, loads, or watches `appsettings.json` on its own.
 
-`CheatEngineClientOptions` controls managed limits and table-file policy:
+`CheatEngineClientOptions` controls table-file policy:
 
-- `DefaultMaximumAobResults` and `DefaultMaximumValueScanPageSize` bound managed result materialization.
 - `AllowedTableRoots` is empty by default, which denies table-file load/save access.
-- `EnableUnsafeLuaExecution` remains disabled unless the builder explicitly enables it.
+
+AOB materialization and value-scan pages require their callers to provide an explicit bound. Unsafe Lua is deliberately
+not an appsettings option: it can only be enabled with the explicit builder opt-in below.
 
 The builder also provides explicit extension points:
 
-- `AddModule<TModule>()` preserves module registration order; Hosting enables modules in that order and disables them in reverse order.
+- `AddModule<TModule>()` preserves module registration order and creates modules in the activation scope; Hosting enables
+  modules in that order and disables them in reverse order.
 - `AddMemoryCodec<T, TCodec>()` adds a singleton deterministic codec without reflective structure marshalling.
 - `EnableUnsafeLuaExecution()` registers the unsafe Lua facade only for the current activation policy. It never exposes an SDK `LuaState`.
 

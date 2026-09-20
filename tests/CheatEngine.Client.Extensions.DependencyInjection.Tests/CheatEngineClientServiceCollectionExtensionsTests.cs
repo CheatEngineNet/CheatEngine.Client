@@ -54,35 +54,37 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		ServiceCollection services = new();
 		CheatEngineClientBuilder builder = services.AddCheatEngineClient();
 
-		builder.EnableUnsafeLuaExecution();
+		builder.EnableUnsafeLuaExecution().EnableUnsafeLuaExecution();
 
-		using ServiceProvider provider = services.BuildServiceProvider();
 		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IUnsafeLuaClient));
 		Assert.Single(services, static descriptor => descriptor.ServiceType == typeof(IUnsafeLuaClient));
-		Assert.True(provider.GetRequiredService<IOptions<CheatEngineClientOptions>>().Value.EnableUnsafeLuaExecution);
+		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(UnsafeLuaExecutionRegistration));
 	}
 
 	[Fact]
 	public void SectionOverloadBindsThenProgrammaticConfigurationRunsLast()
 	{
 		using ConfigurationManager configuration = new();
-		configuration["Configured:DefaultMaximumAobResults"] = "11";
+		string configuredRoot = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "configured"));
+		string overriddenRoot = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "overridden"));
+		configuration["Configured:AllowedTableRoots:0"] = configuredRoot;
 		ServiceCollection services = new();
 
 		services.AddCheatEngineClient(configuration.GetSection("Configured"))
-			.Configure(static options => options.DefaultMaximumAobResults = 29);
+			.Configure(options => options.AllowedTableRoots = [overriddenRoot]);
 
 		using ServiceProvider provider = services.BuildServiceProvider();
 		CheatEngineClientOptions options = provider.GetRequiredService<IOptions<CheatEngineClientOptions>>().Value;
 
-		Assert.Equal(29, options.DefaultMaximumAobResults);
+		Assert.Equal([overriddenRoot], Assert.IsType<string[]>(options.AllowedTableRoots));
 	}
 
 	[Fact]
 	public void RootOverloadUsesTheDefaultClientSection()
 	{
 		using ConfigurationManager configuration = new();
-		configuration["CheatEngineClient:DefaultMaximumValueScanPageSize"] = "87";
+		string allowedRoot = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "allowed"));
+		configuration["CheatEngineClient:AllowedTableRoots:0"] = allowedRoot;
 		ServiceCollection services = new();
 
 		services.AddCheatEngineClient(configuration);
@@ -90,22 +92,20 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		using ServiceProvider provider = services.BuildServiceProvider();
 		CheatEngineClientOptions options = provider.GetRequiredService<IOptions<CheatEngineClientOptions>>().Value;
 
-		Assert.Equal(87, options.DefaultMaximumValueScanPageSize);
+		Assert.Equal([allowedRoot], Assert.IsType<string[]>(options.AllowedTableRoots));
 	}
 
 	[Fact]
-	public void GeneratedOptionsValidatorRejectsOutOfRangeBoundConfiguration()
+	public void ConfigurationCannotEnableUnsafeLuaExecution()
 	{
 		using ConfigurationManager configuration = new();
-		configuration["CheatEngineClient:DefaultMaximumAobResults"] = "0";
+		configuration["CheatEngineClient:EnableUnsafeLuaExecution"] = "true";
 		ServiceCollection services = new();
 		services.AddCheatEngineClient(configuration);
 		using ServiceProvider provider = services.BuildServiceProvider();
 
-		OptionsValidationException exception = Assert.Throws<OptionsValidationException>(() =>
-			_ = provider.GetRequiredService<IOptions<CheatEngineClientOptions>>().Value);
-
-		Assert.Contains("DefaultMaximumAobResults", exception.Message, StringComparison.Ordinal);
+		Assert.DoesNotContain(services, static descriptor => descriptor.ServiceType == typeof(IUnsafeLuaClient));
+		Assert.Empty(provider.GetServices<IUnsafeLuaClient>());
 	}
 
 	[Fact]
@@ -114,15 +114,43 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		ServiceCollection services = new();
 		services.AddCheatEngineClient()
 			.AddModule<FirstModule>()
+			.AddModule<FirstModule>()
 			.AddModule<SecondModule>();
 
-		using ServiceProvider provider = services.BuildServiceProvider();
-		ICheatEngineClientModule[] modules = provider.GetServices<ICheatEngineClientModule>().ToArray();
+		using ServiceProvider provider = services.BuildServiceProvider(new ServiceProviderOptions
+		{
+			ValidateOnBuild = true,
+			ValidateScopes = true
+		});
+		using IServiceScope scope = provider.CreateScope();
+		ICheatEngineClientModule[] modules = scope.ServiceProvider.GetServices<ICheatEngineClientModule>().ToArray();
 
 		Assert.Collection(
 			modules,
 			module => Assert.IsType<FirstModule>(module),
 			module => Assert.IsType<SecondModule>(module));
+	}
+
+	[Fact]
+	public void AddModuleConstructsAModuleWithScopedDependencyOncePerActivationScope()
+	{
+		ServiceCollection services = new();
+		services.AddScoped<ScopedModuleDependency>();
+		services.AddCheatEngineClient().AddModule<ScopedDependencyModule>();
+
+		using ServiceProvider provider = services.BuildServiceProvider(new ServiceProviderOptions
+		{
+			ValidateOnBuild = true,
+			ValidateScopes = true
+		});
+		using IServiceScope scope = provider.CreateScope();
+		ScopedDependencyModule first = Assert.IsType<ScopedDependencyModule>(
+			Assert.Single(scope.ServiceProvider.GetServices<ICheatEngineClientModule>()));
+		ScopedDependencyModule second = Assert.IsType<ScopedDependencyModule>(
+			Assert.Single(scope.ServiceProvider.GetServices<ICheatEngineClientModule>()));
+
+		Assert.Same(first, second);
+		Assert.Same(first.Dependency, scope.ServiceProvider.GetRequiredService<ScopedModuleDependency>());
 	}
 
 	private readonly record struct CustomValue(int Value);
@@ -168,6 +196,30 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 
 	public sealed class SecondModule : ICheatEngineClientModule
 	{
+		public void OnEnabled(ICheatEngineClient client)
+		{
+		}
+
+		public void OnDisabling(ICheatEngineClient client)
+		{
+		}
+	}
+
+	public sealed class ScopedModuleDependency
+	{
+		public Guid Identifier
+		{
+			get;
+		} = Guid.NewGuid();
+	}
+
+	public sealed class ScopedDependencyModule(ScopedModuleDependency dependency) : ICheatEngineClientModule
+	{
+		public ScopedModuleDependency Dependency
+		{
+			get;
+		} = dependency;
+
 		public void OnEnabled(ICheatEngineClient client)
 		{
 		}
