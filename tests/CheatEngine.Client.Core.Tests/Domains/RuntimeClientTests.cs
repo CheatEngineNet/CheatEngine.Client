@@ -179,6 +179,73 @@ public sealed class RuntimeClientTests
 		Assert.Equal("Dispatcher.Invoke", exception.Failure.Operation);
 	}
 
+	[Fact]
+	public void CapabilityQueriesReturnTheObservedSnapshotEntryOrTheDocumentedUnknownFallback()
+	{
+		RuntimeClient runtime = new(new InlineDispatcher(), new FakeRuntimeProbe(), static () => 7);
+
+		bool sdkSucceeded = runtime.TryGetSdkCapability(
+			RuntimeCapabilityId.CheatEngineVersion,
+			out RuntimeCapabilityAvailability sdkAvailability,
+			out CheatEngineFailure sdkFailure,
+			TestContext.Current.CancellationToken);
+		bool clientSucceeded = runtime.TryGetClientCapability(
+			ClientCapabilityId.ProcessSelection,
+			out ClientCapabilityAvailability clientAvailability,
+			out CheatEngineFailure clientFailure,
+			TestContext.Current.CancellationToken);
+
+		Assert.True(sdkSucceeded);
+		Assert.Equal(default, sdkFailure);
+		Assert.Equal(RuntimeCapabilityAvailabilityState.Available, sdkAvailability.State);
+		Assert.True(clientSucceeded);
+		Assert.Equal(default, clientFailure);
+		Assert.Equal(ClientCapabilityAvailabilityState.Unknown, clientAvailability.State);
+		Assert.Contains("does not probe", clientAvailability.Reason, StringComparison.OrdinalIgnoreCase);
+	}
+
+	[Fact]
+	public void CapabilityQueriesRejectDefaultIdentifiersBeforeDispatching()
+	{
+		InlineDispatcher dispatcher = new();
+		RuntimeClient runtime = new(dispatcher, new FakeRuntimeProbe(), static () => 7);
+
+		Assert.Throws<ArgumentException>(() => runtime.TryGetSdkCapability(
+			default, out _, out _, TestContext.Current.CancellationToken));
+		Assert.Throws<ArgumentException>(() => runtime.TryGetClientCapability(
+			default, out _, out _, TestContext.Current.CancellationToken));
+		Assert.Equal(0, dispatcher.InvocationCount);
+	}
+
+	[Fact]
+	public void SnapshotMarksUnavailableAndDetachedHostProbesWithoutInventingRuntimeFacts()
+	{
+		RuntimeClient runtime = new(
+			new InlineDispatcher(),
+			new FakeRuntimeProbe
+			{
+				VersionException = new EngineGlobalUnavailableException("Runtime.Version"),
+				SystemArchitectureException =
+					new EngineCapabilityUnavailableException("Runtime.SystemArchitecture"),
+				TargetAbiException = new EngineGlobalUnavailableException("Runtime.TargetAbi"),
+				OpenedProcessException = new EngineCapabilityUnavailableException("Runtime.OpenedProcess")
+			},
+			static () => 7);
+
+		CheatEngineRuntimeSnapshot snapshot = runtime.GetSnapshot(TestContext.Current.CancellationToken);
+
+		Assert.Null(snapshot.ObservedCheatEngineVersion);
+		Assert.Equal(CheatEngineArchitecture.Unknown, snapshot.SystemArchitecture);
+		Assert.Equal(TargetAbi.Unknown, snapshot.TargetAbi);
+		Assert.Equal(CheatEngineArchitecture.Unknown, snapshot.TargetArchitecture);
+		Assert.True(snapshot.SdkCapabilities.TryGet(RuntimeCapabilityId.CheatEngineVersion,
+			out RuntimeCapabilityAvailability version));
+		Assert.Equal(RuntimeCapabilityAvailabilityState.Unavailable, version.State);
+		Assert.True(snapshot.SdkCapabilities.TryGet(RuntimeCapabilityId.SystemArchitecture,
+			out RuntimeCapabilityAvailability system));
+		Assert.Equal(RuntimeCapabilityAvailabilityState.Unavailable, system.State);
+	}
+
 	private sealed class FakeRuntimeProbe : IRuntimeProbe
 	{
 		internal double ReportedVersion
@@ -217,6 +284,30 @@ public sealed class RuntimeClientTests
 			init;
 		}
 
+		internal Exception? VersionException
+		{
+			get;
+			init;
+		}
+
+		internal Exception? SystemArchitectureException
+		{
+			get;
+			init;
+		}
+
+		internal Exception? TargetAbiException
+		{
+			get;
+			init;
+		}
+
+		internal Exception? OpenedProcessException
+		{
+			get;
+			init;
+		}
+
 		internal int TargetIs64BitCallCount
 		{
 			get;
@@ -225,21 +316,41 @@ public sealed class RuntimeClientTests
 
 		public double GetCheatEngineVersion()
 		{
+			if (VersionException is not null)
+			{
+				throw VersionException;
+			}
+
 			return ReportedVersion;
 		}
 
 		public int GetSystemArchitecture()
 		{
+			if (SystemArchitectureException is not null)
+			{
+				throw SystemArchitectureException;
+			}
+
 			return SystemArchitectureCode;
 		}
 
 		public int GetTargetAbi()
 		{
+			if (TargetAbiException is not null)
+			{
+				throw TargetAbiException;
+			}
+
 			return TargetAbiCode;
 		}
 
 		public long GetOpenedProcessId()
 		{
+			if (OpenedProcessException is not null)
+			{
+				throw OpenedProcessException;
+			}
+
 			return OpenedProcessId;
 		}
 
@@ -325,7 +436,7 @@ public sealed class RuntimeClientTests
 
 		public T Invoke<T>(Func<T> callback, CancellationToken cancellationToken = default)
 		{
-			if (TryInvoke(callback, out var result, out var failure, cancellationToken))
+			if (TryInvoke(callback, out T result, out CheatEngineFailure failure, cancellationToken))
 			{
 				return result;
 			}

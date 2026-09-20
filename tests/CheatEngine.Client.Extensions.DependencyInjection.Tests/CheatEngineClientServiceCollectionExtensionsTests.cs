@@ -27,8 +27,7 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 
 		using ServiceProvider provider = services.BuildServiceProvider(new ServiceProviderOptions
 		{
-			ValidateOnBuild = true,
-			ValidateScopes = true
+			ValidateOnBuild = true, ValidateScopes = true
 		});
 
 		Assert.NotNull(provider);
@@ -58,7 +57,8 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 
 		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IUnsafeLuaClient));
 		Assert.Single(services, static descriptor => descriptor.ServiceType == typeof(IUnsafeLuaClient));
-		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(UnsafeLuaExecutionRegistration));
+		Assert.Contains(services,
+			static descriptor => descriptor.ServiceType == typeof(UnsafeLuaExecutionRegistration));
 	}
 
 	[Fact]
@@ -119,8 +119,7 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 
 		using ServiceProvider provider = services.BuildServiceProvider(new ServiceProviderOptions
 		{
-			ValidateOnBuild = true,
-			ValidateScopes = true
+			ValidateOnBuild = true, ValidateScopes = true
 		});
 		using IServiceScope scope = provider.CreateScope();
 		ICheatEngineClientModule[] modules = scope.ServiceProvider.GetServices<ICheatEngineClientModule>().ToArray();
@@ -140,8 +139,7 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 
 		using ServiceProvider provider = services.BuildServiceProvider(new ServiceProviderOptions
 		{
-			ValidateOnBuild = true,
-			ValidateScopes = true
+			ValidateOnBuild = true, ValidateScopes = true
 		});
 		using IServiceScope scope = provider.CreateScope();
 		ScopedDependencyModule first = Assert.IsType<ScopedDependencyModule>(

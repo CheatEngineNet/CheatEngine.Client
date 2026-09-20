@@ -15,10 +15,7 @@ public sealed class TableClientMutationTests
 	[Fact]
 	public void TryDeleteDispatchesTheRequestedRecordAndReturnsSuccess()
 	{
-		FakeRecordMutationPort mutations = new()
-		{
-			DeleteStatus = TableRecordMutationStatus.Success
-		};
+		FakeRecordMutationPort mutations = new() { DeleteStatus = TableRecordMutationStatus.Success };
 		TableClient client = CreateClient(mutations);
 
 		bool succeeded =
@@ -68,8 +65,7 @@ public sealed class TableClientMutationTests
 		MemoryRecordSnapshot expected = Snapshot(41, "Ammo");
 		FakeRecordMutationPort mutations = new()
 		{
-			SetParentStatus = TableRecordMutationStatus.Success,
-			SetParentRecord = expected
+			SetParentStatus = TableRecordMutationStatus.Success, SetParentRecord = expected
 		};
 		TableClient client = CreateClient(mutations);
 
@@ -89,8 +85,7 @@ public sealed class TableClientMutationTests
 	{
 		FakeRecordMutationPort mutations = new()
 		{
-			SetParentStatus = TableRecordMutationStatus.Success,
-			SetParentRecord = Snapshot(41, "Ammo")
+			SetParentStatus = TableRecordMutationStatus.Success, SetParentRecord = Snapshot(41, "Ammo")
 		};
 		TableClient client = CreateClient(mutations);
 
@@ -126,10 +121,7 @@ public sealed class TableClientMutationTests
 	[Fact]
 	public void TrySetParentMapsAHostRejectedMutationToTheExactHostFailure()
 	{
-		FakeRecordMutationPort mutations = new()
-		{
-			SetParentStatus = TableRecordMutationStatus.HostRejected
-		};
+		FakeRecordMutationPort mutations = new() { SetParentStatus = TableRecordMutationStatus.HostRejected };
 		TableClient client = CreateClient(mutations);
 
 		bool succeeded = client.TrySetParent(new MemoryRecordId(41), new MemoryRecordId(12),
@@ -346,7 +338,7 @@ public sealed class TableClientMutationTests
 
 		public T Invoke<T>(Func<T> callback, CancellationToken cancellationToken = default)
 		{
-			if (TryInvoke(callback, out T? result, out var failure, cancellationToken))
+			if (TryInvoke(callback, out T? result, out CheatEngineFailure failure, cancellationToken))
 			{
 				return result;
 			}

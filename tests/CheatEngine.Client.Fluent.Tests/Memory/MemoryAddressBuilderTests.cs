@@ -7,7 +7,7 @@ using CheatEngine.SDK.Engine.Values;
 
 using MemoryFluent = CheatEngine.Client.Memory.Memory;
 
-namespace CheatEngine.Client.Tests.Memory;
+namespace CheatEngine.Client.Fluent.Tests.Memory;
 
 public sealed class MemoryAddressBuilderTests
 {
@@ -16,8 +16,8 @@ public sealed class MemoryAddressBuilderTests
 	{
 		MemoryAddressBuilder builder = MemoryFluent.At(0x401000UL);
 
-		InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
-			() => builder.Read<int>(TestContext.Current.CancellationToken));
+		InvalidOperationException exception =
+			Assert.Throws<InvalidOperationException>(() => builder.Read<int>(TestContext.Current.CancellationToken));
 
 		Assert.Contains("Memory.At(memory, address)", exception.Message);
 		Assert.Contains("memory.At(address)", exception.Message);
@@ -159,7 +159,7 @@ public sealed class MemoryAddressBuilderTests
 
 		Assert.Throws<InvalidOperationException>(() => unbound.TryReadWith(
 			codec, out _, out _, TestContext.Current.CancellationToken));
-		Assert.Throws<ArgumentNullException>(() => unbound.TryReadWith<int>(
+		Assert.Throws<ArgumentNullException>(() => unbound.TryReadWith(
 			null!, codec, out _, out _, TestContext.Current.CancellationToken));
 		Assert.Throws<ArgumentNullException>(() => unbound.TryReadWith(
 			memory, null!, out int _, out _, TestContext.Current.CancellationToken));
@@ -200,8 +200,9 @@ public sealed class MemoryAddressBuilderTests
 		Int32Codec codec = new();
 		FakeMemoryClient memory = new(0);
 
-		Assert.Throws<InvalidOperationException>(() => unbound.WriteWith(77, codec, TestContext.Current.CancellationToken));
-		Assert.Throws<ArgumentNullException>(() => unbound.WriteWith<int>(
+		Assert.Throws<InvalidOperationException>(() =>
+			unbound.WriteWith(77, codec, TestContext.Current.CancellationToken));
+		Assert.Throws<ArgumentNullException>(() => unbound.WriteWith(
 			null!, 77, codec, TestContext.Current.CancellationToken));
 		Assert.Throws<ArgumentNullException>(() => unbound.WriteWith(
 			memory, 77, null!, TestContext.Current.CancellationToken));

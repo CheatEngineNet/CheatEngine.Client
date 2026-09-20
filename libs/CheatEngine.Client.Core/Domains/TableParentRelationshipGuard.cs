@@ -11,7 +11,7 @@ internal static class TableParentRelationshipGuard
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumHops);
 		ArgumentNullException.ThrowIfNull(getNext);
 
-		HashSet<MemoryRecordId> visited = new();
+		HashSet<MemoryRecordId> visited = [];
 		MemoryRecordId current = candidateParentId;
 		for (int hop = 0; hop < maximumHops; hop++)
 		{

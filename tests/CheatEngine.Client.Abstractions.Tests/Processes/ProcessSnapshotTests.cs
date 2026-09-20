@@ -2,7 +2,7 @@ using CheatEngine.Client.Processes;
 using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Engine.Runtime;
 
-namespace CheatEngine.Client.Tests.Processes;
+namespace CheatEngine.Client.Abstractions.Tests.Processes;
 
 public sealed class ProcessSnapshotTests
 {

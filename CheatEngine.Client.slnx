@@ -29,7 +29,8 @@
     <Project Path="tests/CheatEngine.Client.Abstractions.Tests/CheatEngine.Client.Abstractions.Tests.csproj"/>
     <Project Path="tests/CheatEngine.Client.AotProbe/CheatEngine.Client.AotProbe.csproj"/>
     <Project Path="tests/CheatEngine.Client.Core.Tests/CheatEngine.Client.Core.Tests.csproj"/>
-    <Project Path="tests/CheatEngine.Client.Extensions.DependencyInjection.Tests/CheatEngine.Client.Extensions.DependencyInjection.Tests.csproj"/>
+    <Project
+      Path="tests/CheatEngine.Client.Extensions.DependencyInjection.Tests/CheatEngine.Client.Extensions.DependencyInjection.Tests.csproj"/>
     <Project Path="tests/CheatEngine.Client.Fluent.Tests/CheatEngine.Client.Fluent.Tests.csproj"/>
     <Project Path="tests/CheatEngine.Client.Hosting.Tests/CheatEngine.Client.Hosting.Tests.csproj"/>
     <Project Path="tests/CheatEngine.Client.Tests/CheatEngine.Client.Tests.csproj"/>

@@ -20,17 +20,17 @@ public sealed class DefaultMemoryCodecsTests
 			ValidateOnBuild = true, ValidateScopes = true
 		});
 
-		Assert.IsAssignableFrom<IMemoryCodec<byte>>(provider.GetRequiredService<IMemoryCodec<byte>>());
-		Assert.IsAssignableFrom<IMemoryCodec<sbyte>>(provider.GetRequiredService<IMemoryCodec<sbyte>>());
-		Assert.IsAssignableFrom<IMemoryCodec<ushort>>(provider.GetRequiredService<IMemoryCodec<ushort>>());
-		Assert.IsAssignableFrom<IMemoryCodec<short>>(provider.GetRequiredService<IMemoryCodec<short>>());
-		Assert.IsAssignableFrom<IMemoryCodec<uint>>(provider.GetRequiredService<IMemoryCodec<uint>>());
-		Assert.IsAssignableFrom<IMemoryCodec<int>>(provider.GetRequiredService<IMemoryCodec<int>>());
-		Assert.IsAssignableFrom<IMemoryCodec<ulong>>(provider.GetRequiredService<IMemoryCodec<ulong>>());
-		Assert.IsAssignableFrom<IMemoryCodec<long>>(provider.GetRequiredService<IMemoryCodec<long>>());
-		Assert.IsAssignableFrom<IMemoryCodec<float>>(provider.GetRequiredService<IMemoryCodec<float>>());
-		Assert.IsAssignableFrom<IMemoryCodec<double>>(provider.GetRequiredService<IMemoryCodec<double>>());
-		Assert.IsAssignableFrom<IMemoryCodec<Address>>(provider.GetRequiredService<IMemoryCodec<Address>>());
+		Assert.IsType<IMemoryCodec<byte>>(provider.GetRequiredService<IMemoryCodec<byte>>(), false);
+		Assert.IsType<IMemoryCodec<sbyte>>(provider.GetRequiredService<IMemoryCodec<sbyte>>(), false);
+		Assert.IsType<IMemoryCodec<ushort>>(provider.GetRequiredService<IMemoryCodec<ushort>>(), false);
+		Assert.IsType<IMemoryCodec<short>>(provider.GetRequiredService<IMemoryCodec<short>>(), false);
+		Assert.IsType<IMemoryCodec<uint>>(provider.GetRequiredService<IMemoryCodec<uint>>(), false);
+		Assert.IsType<IMemoryCodec<int>>(provider.GetRequiredService<IMemoryCodec<int>>(), false);
+		Assert.IsType<IMemoryCodec<ulong>>(provider.GetRequiredService<IMemoryCodec<ulong>>(), false);
+		Assert.IsType<IMemoryCodec<long>>(provider.GetRequiredService<IMemoryCodec<long>>(), false);
+		Assert.IsType<IMemoryCodec<float>>(provider.GetRequiredService<IMemoryCodec<float>>(), false);
+		Assert.IsType<IMemoryCodec<double>>(provider.GetRequiredService<IMemoryCodec<double>>(), false);
+		Assert.IsType<IMemoryCodec<Address>>(provider.GetRequiredService<IMemoryCodec<Address>>(), false);
 		Assert.Single(services, static descriptor => descriptor.ServiceType == typeof(IMemoryCodec<int>));
 		Assert.Single(services, static descriptor => descriptor.ServiceType == typeof(IMemoryCodec<Address>));
 	}

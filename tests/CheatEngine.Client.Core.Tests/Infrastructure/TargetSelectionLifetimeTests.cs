@@ -10,7 +10,7 @@ public sealed class TargetSelectionLifetimeTests
 	[Fact]
 	public void AdvanceInvalidatesOnlyThePreviousSelectionAndDisposesItsResourcesInLifoOrder()
 	{
-		List<string> events = new();
+		List<string> events = [];
 		TargetSelectionLifetime lifetime = new(static _ =>
 		{
 		});
@@ -39,7 +39,7 @@ public sealed class TargetSelectionLifetimeTests
 	[Fact]
 	public void AdvanceContinuesCleanupAfterAResourceFails()
 	{
-		List<string> events = new();
+		List<string> events = [];
 		TargetSelectionLifetime lifetime = new(static _ =>
 		{
 		});
@@ -62,7 +62,7 @@ public sealed class TargetSelectionLifetimeTests
 	[Fact]
 	public void DisposeIsIdempotentAndRejectsNewTargetBoundRegistrations()
 	{
-		List<string> events = new();
+		List<string> events = [];
 		TargetSelectionLifetime lifetime = new(static _ =>
 		{
 		});
@@ -80,7 +80,7 @@ public sealed class TargetSelectionLifetimeTests
 	[Fact]
 	public void UntrackPreventsTheNextSelectionAdvanceFromDisposingTheReleasedResource()
 	{
-		List<string> events = new();
+		List<string> events = [];
 		TargetSelectionLifetime lifetime = new(static _ =>
 		{
 		});

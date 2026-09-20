@@ -6,7 +6,7 @@ internal sealed class CoreClientPolicy
 	internal CoreClientPolicy(IEnumerable<string> allowedTableRoots, bool enableUnsafeLuaExecution)
 	{
 		ArgumentNullException.ThrowIfNull(allowedTableRoots);
-		List<string> roots = new();
+		List<string> roots = [];
 		foreach (string root in allowedTableRoots)
 		{
 			ArgumentException.ThrowIfNullOrWhiteSpace(root);

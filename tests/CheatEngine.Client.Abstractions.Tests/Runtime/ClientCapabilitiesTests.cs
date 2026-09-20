@@ -1,6 +1,6 @@
 using CheatEngine.Client.Runtime;
 
-namespace CheatEngine.Client.Tests.Runtime;
+namespace CheatEngine.Client.Abstractions.Tests.Runtime;
 
 public sealed class ClientCapabilitiesTests
 {

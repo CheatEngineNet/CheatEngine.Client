@@ -377,7 +377,7 @@ public sealed class ProcessClientTests
 
 		public T Invoke<T>(Func<T> callback, CancellationToken cancellationToken = default)
 		{
-			if (TryInvoke(callback, out var result, out var failure, cancellationToken))
+			if (TryInvoke(callback, out T result, out CheatEngineFailure failure, cancellationToken))
 			{
 				return result;
 			}

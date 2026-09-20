@@ -96,7 +96,10 @@ public readonly record struct MemoryAddressBuilder
 	/// <param name="codec">The deterministic codec that maps <typeparamref name="T" /> to Cheat Engine memory.</param>
 	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
 	/// <returns>The managed value returned by Cheat Engine.</returns>
-	/// <exception cref="ArgumentNullException"><paramref name="memory" /> or <paramref name="codec" /> is <see langword="null" />.</exception>
+	/// <exception cref="ArgumentNullException">
+	///     <paramref name="memory" /> or <paramref name="codec" /> is
+	///     <see langword="null" />.
+	/// </exception>
 	public T ReadWith<T>(IMemoryClient memory, IMemoryCodec<T> codec,
 		CancellationToken cancellationToken = default)
 	{
@@ -129,7 +132,10 @@ public readonly record struct MemoryAddressBuilder
 	/// <param name="failure">The classified operation failure when the method returns <see langword="false" />.</param>
 	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
 	/// <returns><see langword="true" /> when a value was read.</returns>
-	/// <exception cref="ArgumentNullException"><paramref name="memory" /> or <paramref name="codec" /> is <see langword="null" />.</exception>
+	/// <exception cref="ArgumentNullException">
+	///     <paramref name="memory" /> or <paramref name="codec" /> is
+	///     <see langword="null" />.
+	/// </exception>
 	public bool TryReadWith<T>(IMemoryClient memory, IMemoryCodec<T> codec, [MaybeNullWhen(false)] out T value,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
@@ -158,7 +164,10 @@ public readonly record struct MemoryAddressBuilder
 	/// <param name="codec">The deterministic codec that maps <typeparamref name="T" /> to Cheat Engine memory.</param>
 	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
 	/// <returns>Nothing when Cheat Engine accepted the write.</returns>
-	/// <exception cref="ArgumentNullException"><paramref name="memory" /> or <paramref name="codec" /> is <see langword="null" />.</exception>
+	/// <exception cref="ArgumentNullException">
+	///     <paramref name="memory" /> or <paramref name="codec" /> is
+	///     <see langword="null" />.
+	/// </exception>
 	public void WriteWith<T>(IMemoryClient memory, T value, IMemoryCodec<T> codec,
 		CancellationToken cancellationToken = default)
 	{
@@ -190,7 +199,10 @@ public readonly record struct MemoryAddressBuilder
 	/// <param name="failure">The classified operation failure when the method returns <see langword="false" />.</param>
 	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
 	/// <returns><see langword="true" /> when Cheat Engine accepted the write.</returns>
-	/// <exception cref="ArgumentNullException"><paramref name="memory" /> or <paramref name="codec" /> is <see langword="null" />.</exception>
+	/// <exception cref="ArgumentNullException">
+	///     <paramref name="memory" /> or <paramref name="codec" /> is
+	///     <see langword="null" />.
+	/// </exception>
 	public bool TryWriteWith<T>(IMemoryClient memory, T value, IMemoryCodec<T> codec,
 		out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)

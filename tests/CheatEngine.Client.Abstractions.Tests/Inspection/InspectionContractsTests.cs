@@ -1,7 +1,7 @@
 using CheatEngine.Client.Inspection;
 using CheatEngine.SDK.Engine.Values;
 
-namespace CheatEngine.Client.Tests.Inspection;
+namespace CheatEngine.Client.Abstractions.Tests.Inspection;
 
 public sealed class InspectionContractsTests
 {

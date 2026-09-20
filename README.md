@@ -32,13 +32,13 @@ native bridge, host object model, and compile-time plugin/Lua diagnostics. Those
 The Client exists for the application layer above that boundary. It makes recurring plugin concerns explicit and
 testable:
 
-| SDK boundary | Client policy above it |
-|---|---|
-| Plugin bootstrap and protected Lua calls | One activation-scoped `ICheatEngineClient`; no raw Lua lifetime escapes |
-| Host-owned temporary objects and main-thread affinity | Synchronous dispatcher boundary, copied results, and deterministic cleanup |
-| Primitive Lua/host operations | Typed memory codecs, bounded strings and pointer chains, immutable AOB builders |
-| Plugin construction | One validated DI provider per enable epoch; explicit modules and configuration |
-| Host failures and capability differences | `Try...` methods with `CheatEngineFailure`, convenience methods that throw, and runtime capability observations |
+| SDK boundary                                          | Client policy above it                                                                                          |
+|-------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------|
+| Plugin bootstrap and protected Lua calls              | One activation-scoped `ICheatEngineClient`; no raw Lua lifetime escapes                                         |
+| Host-owned temporary objects and main-thread affinity | Synchronous dispatcher boundary, copied results, and deterministic cleanup                                      |
+| Primitive Lua/host operations                         | Typed memory codecs, bounded strings and pointer chains, immutable AOB builders                                 |
+| Plugin construction                                   | One validated DI provider per enable epoch; explicit modules and configuration                                  |
+| Host failures and capability differences              | `Try...` methods with `CheatEngineFailure`, convenience methods that throw, and runtime capability observations |
 
 This separation lets a plugin stay ordinary, DI-friendly C# while retaining the SDK as the sole authority for ABI and
 Lua safety. It also keeps the high-level surface honest: a contract is not presented as a working Cheat Engine feature
@@ -53,13 +53,13 @@ surface reviewable: high-level APIs remain fluent for consumers while the Core r
 
 ## Requirements
 
-| Requirement | Baseline |
-|---|---|
-| .NET SDK | 10.0.401 or later |
-| Target framework / language | `net10.0` / C# 14 |
-| Cheat Engine host | 7.7, Windows x64 |
-| Plugin form | Framework-dependent managed plugin output folder |
-| SDK package | `CheatEngine.SDK` 1.x; the Client publishes a compatible range of `[1.0.0, 2.0.0)` |
+| Requirement                 | Baseline                                                                           |
+|-----------------------------|------------------------------------------------------------------------------------|
+| .NET SDK                    | 10.0.401 or later                                                                  |
+| Target framework / language | `net10.0` / C# 14                                                                  |
+| Cheat Engine host           | 7.7, Windows x64                                                                   |
+| Plugin form                 | Framework-dependent managed plugin output folder                                   |
+| SDK package                 | `CheatEngine.SDK` 1.x; the Client publishes a compatible range of `[1.0.0, 2.0.0)` |
 
 Cheat Engine remains the compatibility authority. The Client is not an IPC client, a remote-process service, or a
 standalone executable; v0.1 runs only inside an enabled Cheat Engine plugin.
@@ -190,15 +190,15 @@ CheatEngine.Client
 public contracts ────────────────────────────> stable SDK value/runtime types only
 ```
 
-| Package | Purpose | Consume directly when |
-|---|---|---|
-| [`CheatEngine.Client`](src/CheatEngine.Client/README.md) | Umbrella package for the high-level fluent and hosting experience | Building a normal plugin |
-| [`CheatEngine.Client.Hosting`](libs/CheatEngine.Client.Hosting/README.md) | `CheatEngineClientPlugin` and one-provider-per-activation host | Integrating the host into an existing composition root |
-| [`CheatEngine.Client.Extensions.DependencyInjection`](libs/CheatEngine.Client.Extensions.DependencyInjection/README.md) | Explicit DI registrations, modules, memory codecs, and options | Composing the Client without the plugin base |
-| [`CheatEngine.Client.Fluent`](libs/CheatEngine.Client.Fluent/README.md) | Immutable fluent memory and AOB builders | Depending only on fluent request construction |
-| [`CheatEngine.Client.Abstractions`](libs/CheatEngine.Client.Abstractions/README.md) | Contracts, requests, failures, and value vocabulary | Referencing contracts without an implementation |
-| [`CheatEngine.Client.Core`](libs/CheatEngine.Client.Core/README.md) | SDK-facing implementation | Normally composed through DI, not called directly |
-| [`CheatEngine.Client.Templates`](templates/CheatEngine.Client.Templates/README.md) | `dotnet new ceplugin` | Starting a new plugin |
+| Package                                                                                                                 | Purpose                                                           | Consume directly when                                  |
+|-------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------|--------------------------------------------------------|
+| [`CheatEngine.Client`](src/CheatEngine.Client/README.md)                                                                | Umbrella package for the high-level fluent and hosting experience | Building a normal plugin                               |
+| [`CheatEngine.Client.Hosting`](libs/CheatEngine.Client.Hosting/README.md)                                               | `CheatEngineClientPlugin` and one-provider-per-activation host    | Integrating the host into an existing composition root |
+| [`CheatEngine.Client.Extensions.DependencyInjection`](libs/CheatEngine.Client.Extensions.DependencyInjection/README.md) | Explicit DI registrations, modules, memory codecs, and options    | Composing the Client without the plugin base           |
+| [`CheatEngine.Client.Fluent`](libs/CheatEngine.Client.Fluent/README.md)                                                 | Immutable fluent memory and AOB builders                          | Depending only on fluent request construction          |
+| [`CheatEngine.Client.Abstractions`](libs/CheatEngine.Client.Abstractions/README.md)                                     | Contracts, requests, failures, and value vocabulary               | Referencing contracts without an implementation        |
+| [`CheatEngine.Client.Core`](libs/CheatEngine.Client.Core/README.md)                                                     | SDK-facing implementation                                         | Normally composed through DI, not called directly      |
+| [`CheatEngine.Client.Templates`](templates/CheatEngine.Client.Templates/README.md)                                      | `dotnet new ceplugin`                                             | Starting a new plugin                                  |
 
 Package and assembly names describe delivery, not user code. Consumer-facing APIs use functional namespaces such as
 `CheatEngine.Client.Memory`, `.Scanning`, `.Tables`, `.Lua`, `.Processes`, `.Runtime`, and `.Hosting`.
@@ -208,17 +208,17 @@ Package and assembly names describe delivery, not user code. Consumer-facing API
 The Client reports runtime capability rather than assuming a particular Cheat Engine global or ownership contract. The
 following table is a delivery statement, not a substitute for a live host check.
 
-| Area | v0.1.0 status | Boundary |
-|---|---|---|
-| Lifecycle, dispatch, DI, modules, options | Available | Per-enable provider and scope; modules stop in reverse order |
-| Runtime facts and selected process | Available | Snapshot and attachment state are re-read through the active host |
-| Typed memory and finite pointer chains | Available | Built-in primitives plus explicitly registered deterministic codecs; strings and byte ranges are bounded |
-| Modules, regions, symbols, and custom-symbol leases | Available | Results are copied; leases are activation-scoped |
-| AOB scanning | Available | Patterns are normalized; terminals are `FirstOrNone`, `RequireSingle`, or bounded `Take` |
-| Address List and memory records | Available | Snapshots and hierarchy materialization are bounded; table file access requires an allowed root |
-| Typed protected Lua and explicit Lua modules | Available | No Lua state crosses the public Client contract |
-| Value scanning | **Capability-gated** | The public state machine exists, but Client session creation stays unavailable until the internal `MemScan`/`FoundList` ownership path passes its Cheat Engine 7.7 x64 live gate |
-| Arbitrary Lua source | Policy-gated and off by default | Requires explicit unsafe opt-in; raw Lua state remains hidden |
+| Area                                                | v0.1.0 status                   | Boundary                                                                                                                                                                         |
+|-----------------------------------------------------|---------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Lifecycle, dispatch, DI, modules, options           | Available                       | Per-enable provider and scope; modules stop in reverse order                                                                                                                     |
+| Runtime facts and selected process                  | Available                       | Snapshot and attachment state are re-read through the active host                                                                                                                |
+| Typed memory and finite pointer chains              | Available                       | Built-in primitives plus explicitly registered deterministic codecs; strings and byte ranges are bounded                                                                         |
+| Modules, regions, symbols, and custom-symbol leases | Available                       | Results are copied; leases are activation-scoped                                                                                                                                 |
+| AOB scanning                                        | Available                       | Patterns are normalized; terminals are `FirstOrNone`, `RequireSingle`, or bounded `Take`                                                                                         |
+| Address List and memory records                     | Available                       | Snapshots and hierarchy materialization are bounded; table file access requires an allowed root                                                                                  |
+| Typed protected Lua and explicit Lua modules        | Available                       | No Lua state crosses the public Client contract                                                                                                                                  |
+| Value scanning                                      | **Capability-gated**            | The public state machine exists, but Client session creation stays unavailable until the internal `MemScan`/`FoundList` ownership path passes its Cheat Engine 7.7 x64 live gate |
+| Arbitrary Lua source                                | Policy-gated and off by default | Requires explicit unsafe opt-in; raw Lua state remains hidden                                                                                                                    |
 
 IPC, remote clients, UI/forms, debugger and breakpoints, Auto Assembler, injection, remote allocations, structures,
 hotkeys/timers, speedhack, DBVM, Mono/IL2CPP, and advanced ABI hooks are outside v0.1. They have no placeholder

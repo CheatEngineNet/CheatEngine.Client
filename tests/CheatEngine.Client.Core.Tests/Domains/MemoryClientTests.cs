@@ -172,7 +172,7 @@ public sealed class MemoryClientTests
 
 		public T Invoke<T>(Func<T> callback, CancellationToken cancellationToken = default)
 		{
-			if (TryInvoke(callback, out T? result, out var failure, cancellationToken))
+			if (TryInvoke(callback, out T? result, out CheatEngineFailure failure, cancellationToken))
 			{
 				return result;
 			}

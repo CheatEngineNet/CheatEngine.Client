@@ -46,7 +46,8 @@ ownership types. It brings together:
 
 Use the generated `ceplugin` template for a complete, buildable plugin shape. The client and all Client-created
 resources are valid only for one enable epoch; do not retain them across disable/re-enable. See the repository
-[README](../../README.md) for installation and deployment guidance, [ADR 0001](../../docs/adr/0001-layered-in-process-architecture.md)
+[README](../../README.md) for installation and deployment
+guidance, [ADR 0001](../../docs/adr/0001-layered-in-process-architecture.md)
 for the package architecture, and [ADR 0002](../../docs/adr/0002-plugin-activation-lifecycle.md) for lifecycle rules.
 
 ## Rules

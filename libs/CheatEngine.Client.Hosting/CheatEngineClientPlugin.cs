@@ -34,7 +34,10 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 
 	/// <summary>Gets the client for the active enable epoch.</summary>
 	/// <exception cref="CheatEngineClientLifecycleException">The plugin is not currently enabled.</exception>
-	protected ICheatEngineClient GetRequiredClient() => GetActiveClient();
+	protected ICheatEngineClient GetRequiredClient()
+	{
+		return GetActiveClient();
+	}
 
 	/// <summary>Adds application services, explicit Client modules, codecs, and configuration sources for one activation.</summary>
 	/// <remarks>

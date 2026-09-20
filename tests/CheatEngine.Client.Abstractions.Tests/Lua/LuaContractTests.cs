@@ -4,7 +4,7 @@ using System.Reflection;
 using CheatEngine.Client.Lua;
 using CheatEngine.Client.Results;
 
-namespace CheatEngine.Client.Tests.Lua;
+namespace CheatEngine.Client.Abstractions.Tests.Lua;
 
 public sealed class LuaContractTests
 {
@@ -65,27 +65,27 @@ public sealed class LuaContractTests
 		int executeResult = client.Execute(operation, TestContext.Current.CancellationToken);
 		bool tryExecuteSucceeded = client.TryExecute(
 			operation,
-			out var tryExecuteResult,
+			out int tryExecuteResult,
 			out CheatEngineFailure failure,
 			TestContext.Current.CancellationToken);
 
 		Assert.Equal(42, executeResult);
 		Assert.True(tryExecuteSucceeded);
 		Assert.Equal(42, tryExecuteResult);
-		Assert.Equal(default(CheatEngineFailure), failure);
+		Assert.Equal(default, failure);
 		Assert.Equal(2, operation.ExecutionCount);
 	}
 
 	private static IEnumerable<Type> GetPublicSignatureTypes(Type type)
 	{
 		foreach (PropertyInfo property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance |
-															 BindingFlags.Static))
+		                                                     BindingFlags.Static))
 		{
 			yield return property.PropertyType;
 		}
 
 		foreach (MethodInfo method in
-				 type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static))
+		         type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static))
 		{
 			yield return method.ReturnType;
 			foreach (ParameterInfo parameter in method.GetParameters())

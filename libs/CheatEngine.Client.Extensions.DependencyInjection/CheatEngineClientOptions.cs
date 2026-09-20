@@ -9,13 +9,13 @@ namespace CheatEngine.Client.Extensions.DependencyInjection;
 /// </remarks>
 public sealed class CheatEngineClientOptions
 {
+	/// <summary>Gets the default configuration section used by plugin hosting.</summary>
+	public const string ConfigurationSectionName = "CheatEngineClient";
+
 	/// <summary>Initializes the default table-file policy, which denies table-file access until roots are configured.</summary>
 	public CheatEngineClientOptions()
 	{
 	}
-
-	/// <summary>Gets the default configuration section used by plugin hosting.</summary>
-	public const string ConfigurationSectionName = "CheatEngineClient";
 
 	/// <summary>Gets or sets absolute roots from which Client table files may be loaded or saved.</summary>
 	/// <remarks>

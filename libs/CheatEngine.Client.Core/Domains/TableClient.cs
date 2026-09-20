@@ -16,7 +16,7 @@ internal sealed class TableClient(
 	CoreClientPolicy policy,
 	ITableRecordMutationPort? recordMutations = null) : ITableClient
 {
-	private const string GetHierarchyOperation = "Tables.GetHierarchy";
+	private const string _getHierarchyOperation = "Tables.GetHierarchy";
 
 	private readonly ICheatEngineDispatcher _dispatcher =
 		dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
@@ -30,8 +30,8 @@ internal sealed class TableClient(
 		AddressTableSnapshot captured = default;
 		bool succeeded = false;
 		if (!_dispatcher.TryInvoke(() =>
-				succeeded = AddressListAccess.TryGetCurrent(out AddressList list) && list.TryGetCount(out int count) &&
-							CaptureTable(count, out captured), out failure, cancellationToken))
+			    succeeded = AddressListAccess.TryGetCurrent(out AddressList list) && list.TryGetCount(out int count) &&
+			                CaptureTable(count, out captured), out failure, cancellationToken))
 		{
 			table = default;
 			return false;
@@ -65,8 +65,8 @@ internal sealed class TableClient(
 		bool succeeded = false;
 		bool exceededLimit = false;
 		if (!_dispatcher.TryInvoke(
-			() => succeeded = TryCaptureSnapshot(request, out captured, out exceededLimit),
-			out failure, cancellationToken))
+			    () => succeeded = TryCaptureSnapshot(request, out captured, out exceededLimit),
+			    out failure, cancellationToken))
 		{
 			table = default;
 			return false;
@@ -130,7 +130,7 @@ internal sealed class TableClient(
 		MemoryRecordCollectionRequest request, CancellationToken cancellationToken = default)
 	{
 		if (TryFind(search, request, out ImmutableArray<MemoryRecordSnapshot> result, out CheatEngineFailure failure,
-				cancellationToken))
+			    cancellationToken))
 		{
 			return result;
 		}
@@ -221,8 +221,8 @@ internal sealed class TableClient(
 		bool succeeded = false;
 		TableRecordMutationStatus parentMutationStatus = TableRecordMutationStatus.Success;
 		if (!_dispatcher.TryInvoke(
-			() => succeeded = TryCreateRecord(definition, out captured, out parentMutationStatus),
-			out failure, cancellationToken))
+			    () => succeeded = TryCreateRecord(definition, out captured, out parentMutationStatus),
+			    out failure, cancellationToken))
 		{
 			record = default;
 			return false;
@@ -258,7 +258,7 @@ internal sealed class TableClient(
 		MemoryRecordSnapshot captured = default;
 		bool succeeded = false;
 		if (!_dispatcher.TryInvoke(() => succeeded = TryUpdateRecord(update, out captured), out failure,
-			cancellationToken))
+			    cancellationToken))
 		{
 			record = default;
 			return false;
@@ -324,7 +324,7 @@ internal sealed class TableClient(
 		CancellationToken cancellationToken = default)
 	{
 		if (TrySetActive(id, isActive, out MemoryRecordSnapshot result, out CheatEngineFailure failure,
-				cancellationToken))
+			    cancellationToken))
 		{
 			return result;
 		}
@@ -346,7 +346,7 @@ internal sealed class TableClient(
 		MemoryRecordSnapshot captured = default;
 		TableRecordMutationStatus status = TableRecordMutationStatus.HostRejected;
 		if (!_dispatcher.TryInvoke(() => status = _recordMutations.TrySetParent(childId, parentId, out captured),
-				out failure, cancellationToken))
+			    out failure, cancellationToken))
 		{
 			record = default;
 			return false;
@@ -367,7 +367,7 @@ internal sealed class TableClient(
 		CancellationToken cancellationToken = default)
 	{
 		if (TrySetParent(childId, parentId, out MemoryRecordSnapshot result, out CheatEngineFailure failure,
-				cancellationToken))
+			    cancellationToken))
 		{
 			return result;
 		}
@@ -385,18 +385,18 @@ internal sealed class TableClient(
 		bool succeeded = false;
 		HierarchyBuildProblem problem = HierarchyBuildProblem.None;
 		if (!_dispatcher.TryInvoke(() =>
-			{
-				if (!AddressListAccess.TryGetCurrent(out AddressList list) ||
-					!list.TryGetMemoryRecordById(rootId, out MemoryRecord root))
-				{
-					return;
-				}
+		    {
+			    if (!AddressListAccess.TryGetCurrent(out AddressList list) ||
+			        !list.TryGetMemoryRecordById(rootId, out MemoryRecord root))
+			    {
+				    return;
+			    }
 
-				found = true;
-				HashSet<MemoryRecordId> visited = new();
-				int materialized = 0;
-				succeeded = TryBuildHierarchy(root, request, 1, visited, ref materialized, out captured, out problem);
-			}, out failure, cancellationToken))
+			    found = true;
+			    HashSet<MemoryRecordId> visited = [];
+			    int materialized = 0;
+			    succeeded = TryBuildHierarchy(root, request, 1, visited, ref materialized, out captured, out problem);
+		    }, out failure, cancellationToken))
 		{
 			hierarchy = default;
 			return false;
@@ -416,7 +416,7 @@ internal sealed class TableClient(
 		MemoryRecordHierarchyRequest request, CancellationToken cancellationToken = default)
 	{
 		if (TryGetHierarchy(rootId, request, out MemoryRecordHierarchySnapshot result, out CheatEngineFailure failure,
-				cancellationToken))
+			    cancellationToken))
 		{
 			return result;
 		}
@@ -471,15 +471,15 @@ internal sealed class TableClient(
 		MemoryRecordSnapshot captured = default;
 		bool succeeded = false;
 		if (!_dispatcher.TryInvoke(() =>
-			{
-				if (!AddressListAccess.TryGetCurrent(out AddressList list))
-				{
-					return;
-				}
+		    {
+			    if (!AddressListAccess.TryGetCurrent(out AddressList list))
+			    {
+				    return;
+			    }
 
-				MemoryRecord? value = selector(list);
-				succeeded = value.HasValue && TrySnapshot(value.Value, out captured);
-			}, out failure, cancellationToken))
+			    MemoryRecord? value = selector(list);
+			    succeeded = value.HasValue && TrySnapshot(value.Value, out captured);
+		    }, out failure, cancellationToken))
 		{
 			record = default;
 			return false;
@@ -522,7 +522,7 @@ internal sealed class TableClient(
 		for (int index = 0; index < count; index++)
 		{
 			if (!list.TryGetMemoryRecord(index, out MemoryRecord value) ||
-				!TrySnapshot(value, out MemoryRecordSnapshot snapshot))
+			    !TrySnapshot(value, out MemoryRecordSnapshot snapshot))
 			{
 				table = default;
 				return false;
@@ -540,13 +540,14 @@ internal sealed class TableClient(
 	{
 		record = default;
 		parentMutationStatus = TableRecordMutationStatus.Success;
-		if (!AddressListAccess.TryGetCurrent(out AddressList list) || !list.TryCreateMemoryRecord(out MemoryRecord value))
+		if (!AddressListAccess.TryGetCurrent(out AddressList list) ||
+		    !list.TryCreateMemoryRecord(out MemoryRecord value))
 		{
 			return false;
 		}
 
 		bool succeeded = TryInitializeRecord(value, definition) &&
-			TryCompleteRecordCreation(value, definition, out record, out parentMutationStatus);
+		                 TryCompleteRecordCreation(value, definition, out record, out parentMutationStatus);
 		if (!succeeded)
 		{
 			_ = value.Handle.TryCallMethod("destroy"u8);
@@ -558,9 +559,9 @@ internal sealed class TableClient(
 	private static bool TryInitializeRecord(MemoryRecord value, MemoryRecordDefinition definition)
 	{
 		return value.TrySetDescription(definition.Description) &&
-			   value.TrySetAddressExpression(definition.AddressExpression) &&
-			   value.TrySetVariableType(definition.VariableType) &&
-			   value.TrySetValue(definition.Value);
+		       value.TrySetAddressExpression(definition.AddressExpression) &&
+		       value.TrySetVariableType(definition.VariableType) &&
+		       value.TrySetValue(definition.Value);
 	}
 
 	private bool TryCompleteRecordCreation(MemoryRecord value, MemoryRecordDefinition definition,
@@ -587,7 +588,7 @@ internal sealed class TableClient(
 	{
 		record = default;
 		if (!AddressListAccess.TryGetCurrent(out AddressList list) ||
-			!list.TryGetMemoryRecordById(update.Id, out MemoryRecord value))
+		    !list.TryGetMemoryRecordById(update.Id, out MemoryRecord value))
 		{
 			return false;
 		}
@@ -598,9 +599,9 @@ internal sealed class TableClient(
 	private static bool TryApplyUpdate(MemoryRecord value, MemoryRecordUpdate update)
 	{
 		return (update.Description is null || value.TrySetDescription(update.Description)) &&
-			   (update.AddressExpression is null || value.TrySetAddressExpression(update.AddressExpression)) &&
-			   (!update.VariableType.HasValue || value.TrySetVariableType(update.VariableType.Value)) &&
-			   (update.Value is null || value.TrySetValue(update.Value));
+		       (update.AddressExpression is null || value.TrySetAddressExpression(update.AddressExpression)) &&
+		       (!update.VariableType.HasValue || value.TrySetVariableType(update.VariableType.Value)) &&
+		       (update.Value is null || value.TrySetValue(update.Value));
 	}
 
 	private bool TryAuthorize(string path, string operation, out CheatEngineFailure failure)
@@ -626,11 +627,11 @@ internal sealed class TableClient(
 	internal static bool TrySnapshot(MemoryRecord value, out MemoryRecordSnapshot snapshot)
 	{
 		if (!value.TryGetId(out MemoryRecordId id) || !value.TryGetIndex(out int index) ||
-			!value.TryGetDescription(out string? description) ||
-			!value.TryGetAddressExpression(out string? expression) ||
-			!value.TryGetValue(out string? text) || !value.TryGetVariableType(out VariableType variableType) ||
-			!value.Handle.TryGetProperty<BooleanMarshaller, bool>("Active"u8, out bool isActive) ||
-			!value.Handle.TryGetProperty<Int32Marshaller, int>("Count"u8, out int childCount) || childCount < 0)
+		    !value.TryGetDescription(out string? description) ||
+		    !value.TryGetAddressExpression(out string? expression) ||
+		    !value.TryGetValue(out string? text) || !value.TryGetVariableType(out VariableType variableType) ||
+		    !value.Handle.TryGetProperty<BooleanMarshaller, bool>("Active"u8, out bool isActive) ||
+		    !value.Handle.TryGetProperty<Int32Marshaller, int>("Count"u8, out int childCount) || childCount < 0)
 		{
 			snapshot = default;
 			return false;
@@ -654,16 +655,16 @@ internal sealed class TableClient(
 		bool found = false;
 		bool succeeded = false;
 		if (!_dispatcher.TryInvoke(() =>
-			{
-				if (!AddressListAccess.TryGetCurrent(out AddressList list) ||
-					!list.TryGetMemoryRecordById(id, out MemoryRecord value))
-				{
-					return;
-				}
+		    {
+			    if (!AddressListAccess.TryGetCurrent(out AddressList list) ||
+			        !list.TryGetMemoryRecordById(id, out MemoryRecord value))
+			    {
+				    return;
+			    }
 
-				found = true;
-				succeeded = mutation(list, value) && TrySnapshot(value, out captured);
-			}, out failure, cancellationToken))
+			    found = true;
+			    succeeded = mutation(list, value) && TrySnapshot(value, out captured);
+		    }, out failure, cancellationToken))
 		{
 			record = default;
 			return false;
@@ -734,9 +735,9 @@ internal sealed class TableClient(
 		{
 			problem = HierarchyBuildProblem.InvalidShape;
 			if (!value.TryGetChild(index, out MemoryRecord child) ||
-				!TryBuildHierarchy(child, request, depth + 1, visited, ref materialized,
-					out MemoryRecordHierarchySnapshot childSnapshot,
-					out problem))
+			    !TryBuildHierarchy(child, request, depth + 1, visited, ref materialized,
+				    out MemoryRecordHierarchySnapshot childSnapshot,
+				    out problem))
 			{
 				return false;
 			}
@@ -752,17 +753,17 @@ internal sealed class TableClient(
 	private static bool Matches(MemoryRecordSearch search, MemoryRecordSnapshot record)
 	{
 		return (search.DescriptionContains is null || record.Description.Contains(search.DescriptionContains,
-				   StringComparison.OrdinalIgnoreCase)) &&
-			   (search.AddressExpression is null || string.Equals(record.AddressExpression, search.AddressExpression,
-				   StringComparison.OrdinalIgnoreCase)) &&
-			   (!search.VariableType.HasValue || record.VariableType == search.VariableType.Value) &&
-			   (!search.IsActive.HasValue || record.IsActive == search.IsActive.Value);
+			       StringComparison.OrdinalIgnoreCase)) &&
+		       (search.AddressExpression is null || string.Equals(record.AddressExpression, search.AddressExpression,
+			       StringComparison.OrdinalIgnoreCase)) &&
+		       (!search.VariableType.HasValue || record.VariableType == search.VariableType.Value) &&
+		       (!search.IsActive.HasValue || record.IsActive == search.IsActive.Value);
 	}
 
 	private static bool HasPredicate(MemoryRecordSearch search)
 	{
 		return search.DescriptionContains is not null || search.AddressExpression is not null ||
-			   search.VariableType.HasValue || search.IsActive.HasValue;
+		       search.VariableType.HasValue || search.IsActive.HasValue;
 	}
 
 	private static bool CaptureTable(int count, out AddressTableSnapshot table)
@@ -788,14 +789,14 @@ internal sealed class TableClient(
 	{
 		return problem switch
 		{
-			HierarchyBuildProblem.ItemLimit => ResultLimitFailure(GetHierarchyOperation, request.MaximumItems),
+			HierarchyBuildProblem.ItemLimit => ResultLimitFailure(_getHierarchyOperation, request.MaximumItems),
 			HierarchyBuildProblem.DepthLimit => new CheatEngineFailure(CheatEngineFailureKind.ResultLimitExceeded,
-				GetHierarchyOperation,
+				_getHierarchyOperation,
 				$"The operation requires a hierarchy depth greater than the explicit limit of {request.MaximumDepth}."),
-			HierarchyBuildProblem.InvalidShape => HostFailure(GetHierarchyOperation),
-			_ when !found => new CheatEngineFailure(CheatEngineFailureKind.NotFound, GetHierarchyOperation,
+			HierarchyBuildProblem.InvalidShape => HostFailure(_getHierarchyOperation),
+			_ when !found => new CheatEngineFailure(CheatEngineFailureKind.NotFound, _getHierarchyOperation,
 				"The requested Cheat Engine memory record was not found."),
-			_ => HostFailure(GetHierarchyOperation)
+			_ => HostFailure(_getHierarchyOperation)
 		};
 	}
 

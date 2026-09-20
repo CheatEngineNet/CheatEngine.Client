@@ -48,7 +48,7 @@ public sealed class LuaClientTests
 	{
 		LuaClient client = new(new ImmediateDispatcher(), static () => 1, static () => true);
 
-		bool succeeded = client.TryExecute<int>(new FailingOperation(default), out _,
+		bool succeeded = client.TryExecute(new FailingOperation(default), out _,
 			out CheatEngineFailure failure,
 			TestContext.Current.CancellationToken);
 
@@ -65,7 +65,7 @@ public sealed class LuaClientTests
 		LuaClient client = new(new ImmediateDispatcher(), static () => 1, static () => true);
 
 		CheatEngineOperationException exception = Assert.Throws<CheatEngineOperationException>(() =>
-			client.Execute<int>(new FailingOperation(expected),
+			client.Execute(new FailingOperation(expected),
 				TestContext.Current.CancellationToken));
 
 		Assert.Equal(expected, exception.Failure);
@@ -78,7 +78,7 @@ public sealed class LuaClientTests
 		LuaClient client = new(new ImmediateDispatcher(), static () => 7, static () => false);
 
 		CheatEngineActivationExpiredException exception = Assert.Throws<CheatEngineActivationExpiredException>(() =>
-			client.TryExecute<int>(operation, out _, out _, TestContext.Current.CancellationToken));
+			client.TryExecute(operation, out _, out _, TestContext.Current.CancellationToken));
 
 		Assert.Equal(CheatEngineFailureKind.ActivationExpired, exception.Failure.Kind);
 		Assert.Equal("Lua.OperationContext", exception.Failure.Operation);
@@ -94,7 +94,7 @@ public sealed class LuaClientTests
 		RetainingOperation operation = new();
 		LuaClient client = new(dispatcher, static () => 7, static () => true);
 
-		bool succeeded = client.TryExecute<int>(
+		bool succeeded = client.TryExecute(
 			operation,
 			out _,
 			out CheatEngineFailure failure,
@@ -188,7 +188,7 @@ public sealed class LuaClientTests
 
 		public TResult Invoke<TResult>(Func<TResult> callback, CancellationToken cancellationToken = default)
 		{
-			if (TryInvoke(callback, out var result, out var failure, cancellationToken))
+			if (TryInvoke(callback, out TResult result, out CheatEngineFailure failure, cancellationToken))
 			{
 				return result;
 			}

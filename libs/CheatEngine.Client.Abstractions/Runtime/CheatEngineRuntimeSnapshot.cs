@@ -53,52 +53,28 @@ public readonly record struct CheatEngineRuntimeSnapshot
 	}
 
 	/// <summary>Gets the coarse number returned by CE's <c>getCEVersion</c> global, when it was callable.</summary>
-	public double? ObservedCheatEngineVersion
-	{
-		get => Version.ObservedCheatEngineVersion;
-	}
+	public double? ObservedCheatEngineVersion => Version.ObservedCheatEngineVersion;
 
 	/// <summary>Gets the complete CE build against which this Client release was qualified.</summary>
-	public CheatEngineVersion QualifiedCheatEngineBaseline
-	{
-		get => Version.QualifiedCheatEngineBaseline;
-	}
+	public CheatEngineVersion QualifiedCheatEngineBaseline => Version.QualifiedCheatEngineBaseline;
 
 	/// <summary>Gets the assembly version of this Client abstraction assembly.</summary>
-	public Version ClientAssemblyVersion
-	{
-		get => Version.ClientAssemblyVersion;
-	}
+	public Version ClientAssemblyVersion => Version.ClientAssemblyVersion;
 
 	/// <summary>Gets the assembly version of the SDK runtime-contract assembly.</summary>
-	public Version SdkAssemblyVersion
-	{
-		get => Version.SdkAssemblyVersion;
-	}
+	public Version SdkAssemblyVersion => Version.SdkAssemblyVersion;
 
 	/// <summary>Gets the CE host architecture observed from CE's system-architecture global.</summary>
-	public CheatEngineArchitecture SystemArchitecture
-	{
-		get => Platform.SystemArchitecture;
-	}
+	public CheatEngineArchitecture SystemArchitecture => Platform.SystemArchitecture;
 
 	/// <summary>Gets the target architecture observed by a target-specific probe, or unknown.</summary>
-	public CheatEngineArchitecture TargetArchitecture
-	{
-		get => Platform.TargetArchitecture;
-	}
+	public CheatEngineArchitecture TargetArchitecture => Platform.TargetArchitecture;
 
 	/// <summary>Gets the pointer width implied by the observed target architecture, or unknown.</summary>
-	public PointerSize TargetPointerSize
-	{
-		get => Platform.TargetPointerSize;
-	}
+	public PointerSize TargetPointerSize => Platform.TargetPointerSize;
 
 	/// <summary>Gets the target ABI observed from CE's ABI global, or unknown.</summary>
-	public TargetAbi TargetAbi
-	{
-		get => Platform.TargetAbi;
-	}
+	public TargetAbi TargetAbi => Platform.TargetAbi;
 
 	/// <summary>Gets the explicit availability observation for each SDK runtime capability that was probed.</summary>
 	public RuntimeCapabilities SdkCapabilities
@@ -114,8 +90,8 @@ public readonly record struct CheatEngineRuntimeSnapshot
 
 	/// <summary>Gets whether the observed coarse CE version belongs to the qualified major/minor line.</summary>
 	public bool IsOnQualifiedCheatEngineLine => ObservedCheatEngineVersion is { } observed &&
-												observed >= QualifiedCheatEngineBaseline.Major +
-												QualifiedCheatEngineBaseline.Minor / 10d &&
-												observed < QualifiedCheatEngineBaseline.Major +
-												(QualifiedCheatEngineBaseline.Minor + 1) / 10d;
+	                                            observed >= QualifiedCheatEngineBaseline.Major +
+	                                            QualifiedCheatEngineBaseline.Minor / 10d &&
+	                                            observed < QualifiedCheatEngineBaseline.Major +
+	                                            (QualifiedCheatEngineBaseline.Minor + 1) / 10d;
 }

@@ -32,7 +32,7 @@ public sealed class CoreResourceRegistryTests
 	[Fact]
 	public void DisposeContinuesInReverseOrderAfterAnEarlierResourceThrows()
 	{
-		List<string> events = new();
+		List<string> events = [];
 		RecordingDisposable first = new("first", events);
 		RecordingDisposable failing = new("failing", events, new InvalidOperationException("expected"));
 		RecordingDisposable last = new("last", events);
@@ -53,7 +53,7 @@ public sealed class CoreResourceRegistryTests
 	[Fact]
 	public void UntrackRemovesOnlyThatResourceAndReportsWhetherItWasTracked()
 	{
-		List<string> events = new();
+		List<string> events = [];
 		RecordingDisposable retained = new("retained", events);
 		RecordingDisposable removed = new("removed", events);
 		RecordingDisposable untracked = new("untracked", events);
@@ -82,7 +82,7 @@ public sealed class CoreResourceRegistryTests
 	[Fact]
 	public void DisposeTargetSelectionReleasesOnlyMatchingResourcesInReverseRegistrationOrder()
 	{
-		List<string> events = new();
+		List<string> events = [];
 		RecordingDisposable firstSelectionResource = new("first-selection", events);
 		RecordingDisposable activationResource = new("activation", events);
 		RecordingDisposable retainedResource = new("retained", events);
@@ -111,7 +111,7 @@ public sealed class CoreResourceRegistryTests
 	[Fact]
 	public void DisposeTargetSelectionContinuesAfterFailureAndPreservesTheFirstException()
 	{
-		List<string> events = new();
+		List<string> events = [];
 		RecordingDisposable first = new("first", events);
 		RecordingDisposable failing = new("failing", events, new InvalidOperationException("expected"));
 		RecordingDisposable last = new("last", events);

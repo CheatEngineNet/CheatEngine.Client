@@ -37,14 +37,26 @@ public readonly record struct MemoryRecordSearch
 	}
 
 	/// <summary>Gets the case-insensitive description substring predicate.</summary>
-	public string? DescriptionContains { get; }
+	public string? DescriptionContains
+	{
+		get;
+	}
 
 	/// <summary>Gets the case-insensitive exact address-expression predicate.</summary>
-	public string? AddressExpression { get; }
+	public string? AddressExpression
+	{
+		get;
+	}
 
 	/// <summary>Gets the optional exact Cheat Engine value-type predicate.</summary>
-	public VariableType? VariableType { get; }
+	public VariableType? VariableType
+	{
+		get;
+	}
 
 	/// <summary>Gets the optional active/frozen state predicate.</summary>
-	public bool? IsActive { get; }
+	public bool? IsActive
+	{
+		get;
+	}
 }

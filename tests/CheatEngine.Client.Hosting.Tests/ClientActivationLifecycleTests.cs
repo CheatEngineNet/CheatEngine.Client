@@ -15,7 +15,7 @@ public sealed class ClientActivationLifecycleTests
 	[Fact]
 	public void EnableThenCleanupRunsTheApplicationHookAndModulesInTheirSpecifiedOrder()
 	{
-		List<string> events = new();
+		List<string> events = [];
 		RecordingModule first = new("first", events);
 		RecordingModule second = new("second", events);
 		ClientActivationLifecycle lifecycle = CreateLifecycle(events, out ICheatEngineClient client, first, second);
@@ -37,7 +37,7 @@ public sealed class ClientActivationLifecycleTests
 	[Fact]
 	public void FailedModuleEnableStillCompensatesTheFailingModuleThenEarlierModulesInReverseOrder()
 	{
-		List<string> events = new();
+		List<string> events = [];
 		ClientActivationLifecycle lifecycle = CreateLifecycle(events, out _,
 			new RecordingModule("first", events),
 			new RecordingModule("second", events, new InvalidOperationException("module enable")));
@@ -54,7 +54,7 @@ public sealed class ClientActivationLifecycleTests
 	[Fact]
 	public void FailedApplicationEnableStillRunsItsCompensatingHookBeforeModuleCleanup()
 	{
-		List<string> events = new();
+		List<string> events = [];
 		ClientActivationLifecycle lifecycle = CreateLifecycle(events, out _, new RecordingModule("module", events));
 
 		InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => lifecycle.Enable(_ =>
@@ -72,7 +72,7 @@ public sealed class ClientActivationLifecycleTests
 	[Fact]
 	public void CleanupContinuesAfterFailuresAndIsIdempotent()
 	{
-		List<string> events = new();
+		List<string> events = [];
 		ClientActivationLifecycle lifecycle = CreateLifecycle(events, out _,
 			new RecordingModule("first", events, disableFailure: new InvalidOperationException("first disable")),
 			new RecordingModule("second", events, disableFailure: new InvalidOperationException("second disable")));

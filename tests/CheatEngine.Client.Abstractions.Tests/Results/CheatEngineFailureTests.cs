@@ -1,6 +1,6 @@
 using CheatEngine.Client.Results;
 
-namespace CheatEngine.Client.Tests.Results;
+namespace CheatEngine.Client.Abstractions.Tests.Results;
 
 public sealed class CheatEngineFailureTests
 {

@@ -6,9 +6,6 @@
 creates a C# 14, .NET 10, x64, managed in-process Cheat Engine plugin whose composition starts from
 `CheatEngineClientPlugin`.
 
-The generated plugin is the repository's executable reference implementation. There is intentionally no separate
-`samples/` project to keep in sync.
-
 ## Why this project exists
 
 Cheat Engine plugins need a direct reference to both packages below:

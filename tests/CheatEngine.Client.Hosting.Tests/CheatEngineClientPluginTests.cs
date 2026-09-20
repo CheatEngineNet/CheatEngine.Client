@@ -23,9 +23,9 @@ public sealed class CheatEngineClientPluginTests
 	{
 		ConstructorInfo? baseConstructor = typeof(CheatEngineClientPlugin).GetConstructor(
 			BindingFlags.Instance | BindingFlags.NonPublic,
-			binder: null,
-			types: Type.EmptyTypes,
-			modifiers: null);
+			null,
+			Type.EmptyTypes,
+			null);
 		ConstructorInfo? concreteConstructor = typeof(TestPlugin).GetConstructor(Type.EmptyTypes);
 
 		Assert.NotNull(baseConstructor);
@@ -54,7 +54,8 @@ public sealed class CheatEngineClientPluginTests
 		List<string> events = [];
 		FakeClient client = new(42);
 		RecordingCleanup cleanup = new(events);
-		TestPlugin plugin = CreatePlugin(events, client, cleanup, static builder => builder.Client.AddModule<RecordingModule>());
+		TestPlugin plugin = CreatePlugin(events, client, cleanup,
+			static builder => builder.Client.AddModule<RecordingModule>());
 
 		plugin.EnableForTest();
 
@@ -109,7 +110,9 @@ public sealed class CheatEngineClientPluginTests
 		List<string> events = [];
 		FakeClient client = new(46);
 		RecordingCleanup cleanup = new(events);
-		DefaultCallbacksPlugin plugin = new(CreateConfiguration(events, client, cleanup, static _ => { }));
+		DefaultCallbacksPlugin plugin = new(CreateConfiguration(events, client, cleanup, static _ =>
+		{
+		}));
 
 		plugin.EnableForTest();
 
@@ -125,8 +128,10 @@ public sealed class CheatEngineClientPluginTests
 	{
 		List<string> events = [];
 		FakeClient client = new(47);
-		RecordingCleanup cleanup = new(events, enterFailure: new InvalidOperationException("cleanup scope"));
-		TestPlugin plugin = CreatePlugin(events, client, cleanup, static _ => { });
+		RecordingCleanup cleanup = new(events, new InvalidOperationException("cleanup scope"));
+		TestPlugin plugin = CreatePlugin(events, client, cleanup, static _ =>
+		{
+		});
 		plugin.EnableForTest();
 
 		InvalidOperationException exception = Assert.Throws<InvalidOperationException>(plugin.DisableForTest);
@@ -142,8 +147,9 @@ public sealed class CheatEngineClientPluginTests
 		List<string> events = [];
 		FakeClient client = new(44);
 		RecordingCleanup cleanup = new(events, drainFailure: new InvalidOperationException("drain"));
-		TestPlugin plugin = CreatePlugin(events, client, cleanup, static builder => builder.Client.AddModule<RecordingModule>(),
-			onClientEnabled: static _ => throw new InvalidOperationException("application enable"));
+		TestPlugin plugin = CreatePlugin(events, client, cleanup,
+			static builder => builder.Client.AddModule<RecordingModule>(),
+			static _ => throw new InvalidOperationException("application enable"));
 
 		AggregateException exception = Assert.Throws<AggregateException>(plugin.EnableForTest);
 
@@ -166,7 +172,8 @@ public sealed class CheatEngineClientPluginTests
 		List<string> events = [];
 		FakeClient client = new(45);
 		RecordingCleanup cleanup = new(events, drainFailure: new InvalidOperationException("drain"));
-		TestPlugin plugin = CreatePlugin(events, client, cleanup, static builder => builder.Client.AddModule<FailingDisableModule>(),
+		TestPlugin plugin = CreatePlugin(events, client, cleanup,
+			static builder => builder.Client.AddModule<FailingDisableModule>(),
 			onClientDisabling: _ =>
 			{
 				events.Add("client.disabling");
@@ -183,7 +190,8 @@ public sealed class CheatEngineClientPluginTests
 			failure => Assert.Equal("drain", failure.Message));
 		Assert.Equal(
 			[
-				"configure", "module.enabled", "client.enabled", "cleanup.enter", "client.disabling", "module.disabling",
+				"configure", "module.enabled", "client.enabled", "cleanup.enter", "client.disabling",
+				"module.disabling",
 				"cleanup.drain", "cleanup.exit"
 			],
 			events);
@@ -217,7 +225,8 @@ public sealed class CheatEngineClientPluginTests
 		Action<ICheatEngineClient>? onClientEnabled = null,
 		Action<ICheatEngineClient>? onClientDisabling = null)
 	{
-		return new TestPlugin(CreateConfiguration(events, client, cleanup, configure), onClientEnabled ?? (currentClient => events.Add("client.enabled")),
+		return new TestPlugin(CreateConfiguration(events, client, cleanup, configure),
+			onClientEnabled ?? (currentClient => events.Add("client.enabled")),
 			onClientDisabling ?? (currentClient => events.Add("client.disabling")));
 	}
 
@@ -240,11 +249,13 @@ public sealed class CheatEngineClientPluginTests
 	private sealed class TestPlugin : CheatEngineClientPlugin
 	{
 		private readonly Action<CheatEnginePluginBuilder> _configure;
-		private readonly Action<ICheatEngineClient> _onClientEnabled;
 		private readonly Action<ICheatEngineClient> _onClientDisabling;
+		private readonly Action<ICheatEngineClient> _onClientEnabled;
 
 		public TestPlugin()
-			: this(static _ => { })
+			: this(static _ =>
+			{
+			})
 		{
 		}
 
@@ -254,8 +265,12 @@ public sealed class CheatEngineClientPluginTests
 			Action<ICheatEngineClient>? onClientDisabling = null)
 		{
 			_configure = configure;
-			_onClientEnabled = onClientEnabled ?? (static _ => { });
-			_onClientDisabling = onClientDisabling ?? (static _ => { });
+			_onClientEnabled = onClientEnabled ?? (static _ =>
+			{
+			});
+			_onClientDisabling = onClientDisabling ?? (static _ =>
+			{
+			});
 		}
 
 		protected override void Configure(CheatEnginePluginBuilder builder)
@@ -273,11 +288,20 @@ public sealed class CheatEngineClientPluginTests
 			_onClientDisabling(client);
 		}
 
-		internal void EnableForTest() => OnEnable();
+		internal void EnableForTest()
+		{
+			OnEnable();
+		}
 
-		internal void DisableForTest() => OnDisable();
+		internal void DisableForTest()
+		{
+			OnDisable();
+		}
 
-		internal ICheatEngineClient GetRequiredClientForTest() => GetRequiredClient();
+		internal ICheatEngineClient GetRequiredClientForTest()
+		{
+			return GetRequiredClient();
+		}
 	}
 
 	private sealed class DefaultCallbacksPlugin(Action<CheatEnginePluginBuilder> configure) : CheatEngineClientPlugin
@@ -287,11 +311,20 @@ public sealed class CheatEngineClientPluginTests
 			configure(builder);
 		}
 
-		internal void EnableForTest() => OnEnable();
+		internal void EnableForTest()
+		{
+			OnEnable();
+		}
 
-		internal void DisableForTest() => OnDisable();
+		internal void DisableForTest()
+		{
+			OnDisable();
+		}
 
-		internal ICheatEngineClient GetRequiredClientForTest() => GetRequiredClient();
+		internal ICheatEngineClient GetRequiredClientForTest()
+		{
+			return GetRequiredClient();
+		}
 	}
 
 	public sealed class RecordingModule(List<string> events) : ICheatEngineClientModule

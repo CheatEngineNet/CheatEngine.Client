@@ -32,3 +32,14 @@ jobs:
   ci:
     name: CI
     uses: ./.github/workflows/ci.yml
+    with:
+      collect-coverage: ${{ github.ref == 'refs/heads/main' }}
+
+  # Main analysis is the SonarQube Cloud baseline for pull-request new-code comparisons.
+  sonar:
+    name: Sonar
+    needs: ci
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/sonar.yml
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

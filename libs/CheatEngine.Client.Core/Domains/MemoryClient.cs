@@ -45,7 +45,7 @@ internal sealed class MemoryClient(ICheatEngineDispatcher dispatcher) : IMemoryC
 
 	public T ReadPrimitive<T>(Address address, CancellationToken cancellationToken = default)
 	{
-		if (TryReadPrimitive(address, out T? value, out var failure, cancellationToken))
+		if (TryReadPrimitive(address, out T? value, out CheatEngineFailure failure, cancellationToken))
 		{
 			return value!;
 		}
@@ -117,7 +117,7 @@ internal sealed class MemoryClient(ICheatEngineDispatcher dispatcher) : IMemoryC
 
 	public T Read<T>(MemoryReadRequest<T> request, CancellationToken cancellationToken = default)
 	{
-		if (TryRead(request, out T? value, out var failure, cancellationToken))
+		if (TryRead(request, out T? value, out CheatEngineFailure failure, cancellationToken))
 		{
 			return value;
 		}

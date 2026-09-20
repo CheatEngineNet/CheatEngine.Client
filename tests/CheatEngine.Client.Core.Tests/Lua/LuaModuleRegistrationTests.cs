@@ -12,7 +12,7 @@ public sealed class LuaModuleRegistrationTests
 	public void TryRegisterModuleTracksItsLeaseAndDisposesItThroughTheMainThreadDispatcher()
 	{
 		ImmediateDispatcher dispatcher = new();
-		List<ILuaModuleLease> tracked = new();
+		List<ILuaModuleLease> tracked = [];
 		RecordingModule module = new("diagnostics");
 		LuaClient client = CreateClient(dispatcher, static () => true, tracked.Add, lease =>
 		{
@@ -127,7 +127,7 @@ public sealed class LuaModuleRegistrationTests
 	{
 		ImmediateDispatcher dispatcher = new();
 		CoreResourceRegistry registry = new();
-		List<string> events = new();
+		List<string> events = [];
 		RecordingModule first = new("first", events: events);
 		RecordingModule second = new("second", events: events);
 		LuaClient client = CreateClient(
@@ -174,7 +174,7 @@ public sealed class LuaModuleRegistrationTests
 	public void DispatcherRejectionLeavesTheLeaseTrackedForTheLaterCleanupDispatch()
 	{
 		ImmediateDispatcher dispatcher = new();
-		List<ILuaModuleLease> tracked = new();
+		List<ILuaModuleLease> tracked = [];
 		RecordingModule module = new("diagnostics");
 		LuaClient client = CreateClient(dispatcher, static () => true, tracked.Add, lease =>
 		{
@@ -204,7 +204,7 @@ public sealed class LuaModuleRegistrationTests
 	public void FailedLeaseDisposeRemainsTrackedAndCanBeRetriedByTheActivationCleanupPath()
 	{
 		ImmediateDispatcher dispatcher = new();
-		List<ILuaModuleLease> tracked = new();
+		List<ILuaModuleLease> tracked = [];
 		RecordingModule module = new("diagnostics", unregisterFailureCount: 1);
 		LuaClient client = CreateClient(dispatcher, static () => true, tracked.Add, lease =>
 		{

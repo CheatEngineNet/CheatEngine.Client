@@ -12,7 +12,7 @@ public sealed class SymbolRegistrationLeaseTests
 	[Fact]
 	public void FailedDispatchKeepsTheLeaseTrackedUntilTheCleanupRetryUnregistersIt()
 	{
-		List<string> events = new();
+		List<string> events = [];
 		CoreResourceRegistry registry = new();
 		RetriableDispatcher dispatcher = new() { RejectDispatch = true };
 		SymbolRegistrationLease lease = new(
@@ -105,7 +105,7 @@ public sealed class SymbolRegistrationLeaseTests
 
 		public TResult Invoke<TResult>(Func<TResult> callback, CancellationToken cancellationToken = default)
 		{
-			if (TryInvoke(callback, out var result, out var failure, cancellationToken))
+			if (TryInvoke(callback, out TResult result, out CheatEngineFailure failure, cancellationToken))
 			{
 				return result;
 			}

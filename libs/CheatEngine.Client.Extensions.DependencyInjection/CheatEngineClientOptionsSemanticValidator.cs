@@ -40,7 +40,8 @@ public sealed class CheatEngineClientOptionsSemanticValidator : IValidateOptions
 			}
 			catch (Exception exception) when (exception is ArgumentException or NotSupportedException or IOException)
 			{
-				return ValidateOptionsResult.Fail("AllowedTableRoots must contain paths that can be normalized safely.");
+				return ValidateOptionsResult.Fail(
+					"AllowedTableRoots must contain paths that can be normalized safely.");
 			}
 
 			if (!roots.Add(normalized))

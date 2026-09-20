@@ -10,14 +10,19 @@ using CheatEngine.SDK.Engine.Values;
 
 namespace CheatEngine.Client.Core.Domains;
 
-internal sealed class InspectionClient(SdkMainThreadDispatcher dispatcher, CoreLifetime lifetime) : IInspectionClient
+internal sealed class InspectionClient(
+	SdkMainThreadDispatcher dispatcher,
+	CoreLifetime lifetime,
+	IInspectionPort? inspection = null) : IInspectionClient
 {
 	private readonly SdkMainThreadDispatcher _dispatcher =
 		dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
 
+	private readonly IInspectionPort _inspection = inspection ?? new SdkInspectionPort();
+
 	private readonly CoreLifetime _lifetime = lifetime ?? throw new ArgumentNullException(nameof(lifetime));
 	private readonly HashSet<string> _registeredSymbolNames = new(StringComparer.Ordinal);
-	private readonly object _registeredSymbolNamesLock = new();
+	private readonly Lock _registeredSymbolNamesLock = new();
 
 	public bool TryGetModules(InspectionCollectionRequest request, out ImmutableArray<ModuleInfo> modules,
 		out CheatEngineFailure failure, TargetProcessId? processId = null,
@@ -29,8 +34,8 @@ internal sealed class InspectionClient(SdkMainThreadDispatcher dispatcher, CoreL
 		    {
 			    ModuleInfo[] buffer = new ModuleInfo[request.MaximumItems];
 			    status = processId.HasValue
-				    ? EngineInspection.EnumerateModules(processId.Value, buffer, out int written)
-				    : EngineInspection.EnumerateModules(buffer, out written);
+				    ? _inspection.EnumerateModules(processId.Value, buffer, out int written)
+				    : _inspection.EnumerateModules(buffer, out written);
 			    if (status == InspectionStatus.Success)
 			    {
 				    result = ImmutableArray.Create(buffer, 0, written);
@@ -67,7 +72,7 @@ internal sealed class InspectionClient(SdkMainThreadDispatcher dispatcher, CoreL
 		if (!_dispatcher.TryInvoke(() =>
 		    {
 			    ModuleSectionInfo[] buffer = new ModuleSectionInfo[request.MaximumItems];
-			    status = EngineInspection.EnumerateSections(moduleName, buffer, out int written);
+			    status = _inspection.EnumerateSections(moduleName, buffer, out int written);
 			    if (status == InspectionStatus.Success)
 			    {
 				    result = ImmutableArray.Create(buffer, 0, written);
@@ -99,12 +104,12 @@ internal sealed class InspectionClient(SdkMainThreadDispatcher dispatcher, CoreL
 		out ImmutableArray<MemoryRegionInfo> regions, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
-		ImmutableArray<MemoryRegionInfo> result = ImmutableArray<MemoryRegionInfo>.Empty;
+		ImmutableArray<MemoryRegionInfo> result = [];
 		InspectionStatus status = InspectionStatus.InvalidResult;
 		if (!_dispatcher.TryInvoke(() =>
 		    {
 			    MemoryRegionInfo[] buffer = new MemoryRegionInfo[request.MaximumItems];
-			    status = EngineInspection.EnumerateMemoryRegions(buffer, out int written);
+			    status = _inspection.EnumerateMemoryRegions(buffer, out int written);
 			    if (status == InspectionStatus.Success)
 			    {
 				    result = ImmutableArray.Create(buffer, 0, written);
@@ -137,7 +142,7 @@ internal sealed class InspectionClient(SdkMainThreadDispatcher dispatcher, CoreL
 	{
 		MemoryRegionInfo captured = default;
 		InspectionStatus status = InspectionStatus.InvalidResult;
-		if (!_dispatcher.TryInvoke(() => status = EngineInspection.GetMemoryRegionInfo(address, out captured),
+		if (!_dispatcher.TryInvoke(() => status = _inspection.GetMemoryRegion(address, out captured),
 			    out failure, cancellationToken))
 		{
 			region = default;
@@ -164,7 +169,7 @@ internal sealed class InspectionClient(SdkMainThreadDispatcher dispatcher, CoreL
 	{
 		SymbolInfo captured = default;
 		InspectionStatus status = InspectionStatus.InvalidResult;
-		if (!_dispatcher.TryInvoke(() => status = EngineInspection.GetSymbolInfo(expression, out captured),
+		if (!_dispatcher.TryInvoke(() => status = _inspection.GetSymbol(expression, out captured),
 			    out failure, cancellationToken))
 		{
 			symbol = default;
@@ -192,7 +197,7 @@ internal sealed class InspectionClient(SdkMainThreadDispatcher dispatcher, CoreL
 		string? captured = null;
 		bool succeeded = false;
 		if (!_dispatcher.TryInvoke(() =>
-				    succeeded = ClientLuaGlobals.TryGetNameFromAddress(ToNativeAddress(address), out captured),
+				    succeeded = _inspection.TryResolveName(ToNativeAddress(address), out captured),
 			    out failure,
 			    cancellationToken))
 		{
@@ -236,7 +241,7 @@ internal sealed class InspectionClient(SdkMainThreadDispatcher dispatcher, CoreL
 			return false;
 		}
 
-		if (!_dispatcher.TryInvoke(() => ClientLuaGlobals.RegisterSymbol(registration.Name,
+		if (!_dispatcher.TryInvoke(() => _inspection.RegisterSymbol(registration.Name,
 			    ToNativeAddress(registration.Address), registration.DoNotSave), out failure, cancellationToken))
 		{
 			ReleaseSymbolName(registration.Name);
@@ -247,7 +252,7 @@ internal sealed class InspectionClient(SdkMainThreadDispatcher dispatcher, CoreL
 			registration,
 			_dispatcher,
 			lease => _lifetime.Untrack(lease),
-			ClientLuaGlobals.UnregisterSymbol,
+			_inspection.UnregisterSymbol,
 			ReleaseSymbolName);
 		try
 		{
@@ -295,7 +300,7 @@ internal sealed class InspectionClient(SdkMainThreadDispatcher dispatcher, CoreL
 	{
 		Address captured = Address.Zero;
 		InspectionStatus status = InspectionStatus.InvalidResult;
-		if (!_dispatcher.TryInvoke(() => status = EngineInspection.ResolveAddress(expression, options, out captured),
+		if (!_dispatcher.TryInvoke(() => status = _inspection.ResolveAddress(expression, options, out captured),
 			    out failure, cancellationToken))
 		{
 			address = default;

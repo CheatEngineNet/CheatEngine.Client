@@ -82,18 +82,3 @@ internal sealed class CheatEngineClient : ICheatEngineClient
 		get;
 	}
 }
-
-/// <summary>Internal grouping of the façade services that describe the active runtime and its dispatch boundary.</summary>
-internal sealed record CheatEngineClientRuntimeServices(
-	ICheatEngineRuntime Runtime,
-	ICheatEngineDispatcher Dispatcher);
-
-/// <summary>Internal grouping of the independently consumable high-level Client domains.</summary>
-internal sealed record CheatEngineClientDomainServices(
-	IProcessClient Processes,
-	IMemoryClient Memory,
-	IPatternScanner Patterns,
-	IValueScanner Scans,
-	IInspectionClient Inspection,
-	ITableClient Tables,
-	ILuaClient Lua);

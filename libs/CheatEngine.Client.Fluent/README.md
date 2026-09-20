@@ -57,10 +57,10 @@ Abstractions  ←  Fluent
 
 The package publishes functional namespaces only:
 
-| Namespace | Entry points |
-|---|---|
-| `CheatEngine.Client.Scanning` | `Aob(...)`, AOB filters, and bounded terminal builders |
-| `CheatEngine.Client.Memory` | `Memory.At(...)`, `IMemoryClient.At(...)`, and `MemoryAddressBuilder` |
+| Namespace                     | Entry points                                                          |
+|-------------------------------|-----------------------------------------------------------------------|
+| `CheatEngine.Client.Scanning` | `Aob(...)`, AOB filters, and bounded terminal builders                |
+| `CheatEngine.Client.Memory`   | `Memory.At(...)`, `IMemoryClient.At(...)`, and `MemoryAddressBuilder` |
 
 `CheatEngine.Client.Fluent` is a package/assembly name, never a consumer namespace. The builders
 may expose stable SDK value types already present in the Abstractions vocabulary, notably `Address`

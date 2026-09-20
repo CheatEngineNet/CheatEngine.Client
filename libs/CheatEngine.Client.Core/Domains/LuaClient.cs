@@ -15,7 +15,7 @@ internal sealed class LuaClient : ILuaClient
 	private readonly Func<long> _epochProvider;
 	private readonly Func<bool> _isContextCurrent;
 	private readonly HashSet<ILuaModule> _registeredModules = new(ReferenceEqualityComparer.Instance);
-	private readonly object _registeredModulesLock = new();
+	private readonly Lock _registeredModulesLock = new();
 	private readonly Action<ILuaModuleLease> _trackLease;
 	private readonly Action<ILuaModuleLease> _untrackLease;
 
@@ -174,13 +174,6 @@ internal sealed class LuaClient : ILuaClient
 		return true;
 	}
 
-	public bool TryExecute<TOperation, TResult>(TOperation operation, [MaybeNullWhen(false)] out TResult result,
-		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
-		where TOperation : ILuaOperation<TResult>
-	{
-		return TryExecute<TResult>(operation, out result, out failure, cancellationToken);
-	}
-
 	public TResult Execute<TResult>(ILuaOperation<TResult> operation, CancellationToken cancellationToken = default)
 	{
 		if (TryExecute<TResult>(operation, out TResult? result, out CheatEngineFailure failure, cancellationToken))
@@ -191,10 +184,17 @@ internal sealed class LuaClient : ILuaClient
 		return ThrowFailure<TResult>(failure);
 	}
 
+	public bool TryExecute<TOperation, TResult>(TOperation operation, [MaybeNullWhen(false)] out TResult result,
+		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
+		where TOperation : ILuaOperation<TResult>
+	{
+		return TryExecute<TResult>(operation, out result, out failure, cancellationToken);
+	}
+
 	public TResult Execute<TOperation, TResult>(TOperation operation, CancellationToken cancellationToken = default)
 		where TOperation : ILuaOperation<TResult>
 	{
-		return Execute<TResult>(operation, cancellationToken);
+		return Execute(operation, cancellationToken);
 	}
 
 	private static T ThrowFailure<T>(CheatEngineFailure failure)

@@ -8,8 +8,8 @@ public static class Memory
 	/// <summary>Creates an unbound address builder.</summary>
 	/// <param name="address">The target address to read or write.</param>
 	/// <returns>
-	/// An immutable address builder that must be bound with <c>Using(memory)</c>
-	/// before a built-in terminal operation.
+	///     An immutable address builder that must be bound with <c>Using(memory)</c>
+	///     before a built-in terminal operation.
 	/// </returns>
 	public static MemoryAddressBuilder At(Address address)
 	{

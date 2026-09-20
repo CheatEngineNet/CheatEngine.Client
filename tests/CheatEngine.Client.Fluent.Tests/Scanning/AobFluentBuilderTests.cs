@@ -13,7 +13,7 @@ using CheatEngine.SDK.Engine.Enums;
 using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Engine.Values;
 
-namespace CheatEngine.Client.Tests.Scanning;
+namespace CheatEngine.Client.Fluent.Tests.Scanning;
 
 public sealed class AobFluentBuilderTests
 {
@@ -207,8 +207,8 @@ public sealed class AobFluentBuilderTests
 			"AOB scanning is unavailable.");
 		FakePatternScanner scanner = new(expectedFailure);
 
-		CheatEngineOperationException exception = Assert.Throws<CheatEngineOperationException>(
-			() => scanner.Aob("90").FirstOrNone().Execute(TestContext.Current.CancellationToken));
+		CheatEngineOperationException exception = Assert.Throws<CheatEngineOperationException>(() =>
+			scanner.Aob("90").FirstOrNone().Execute(TestContext.Current.CancellationToken));
 
 		Assert.Equal(expectedFailure, exception.Failure);
 	}
@@ -244,8 +244,8 @@ public sealed class AobFluentBuilderTests
 			"AOB scanning is unavailable.");
 		FakePatternScanner scanner = new(expectedFailure);
 
-		CheatEngineOperationException exception = Assert.Throws<CheatEngineOperationException>(
-			() => scanner.Aob("90").Take(1).Execute(TestContext.Current.CancellationToken));
+		CheatEngineOperationException exception = Assert.Throws<CheatEngineOperationException>(() =>
+			scanner.Aob("90").Take(1).Execute(TestContext.Current.CancellationToken));
 
 		Assert.Equal(expectedFailure, exception.Failure);
 	}
@@ -319,8 +319,8 @@ public sealed class AobFluentBuilderTests
 	{
 		FakePatternScanner scanner = new(new AobScanResult(ImmutableArray<Address>.Empty, false));
 
-		CheatEngineOperationException exception = Assert.Throws<CheatEngineOperationException>(
-			() => scanner.Aob("90").RequireSingle().Execute(TestContext.Current.CancellationToken));
+		CheatEngineOperationException exception = Assert.Throws<CheatEngineOperationException>(() =>
+			scanner.Aob("90").RequireSingle().Execute(TestContext.Current.CancellationToken));
 
 		Assert.Equal(CheatEngineFailureKind.NotFound, exception.Failure.Kind);
 		Assert.Equal("Aob.RequireSingle", exception.Failure.Operation);

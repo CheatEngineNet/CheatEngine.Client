@@ -10,11 +10,23 @@ using CheatEngine.SDK.Hosting.Threading;
 namespace CheatEngine.Client.Core.Dispatching;
 
 /// <summary>Adapts the SDK's synchronous main-thread dispatcher without retaining Lua state.</summary>
-internal sealed class SdkMainThreadDispatcher(CoreLifetime lifetime) : ICheatEngineDispatcher
+internal sealed class SdkMainThreadDispatcher : ICheatEngineDispatcher
 {
-	private const string InvokeOperation = "Dispatcher.Invoke";
+	private const string _invokeOperation = "Dispatcher.Invoke";
 
-	private readonly CoreLifetime _lifetime = lifetime ?? throw new ArgumentNullException(nameof(lifetime));
+	private readonly CoreLifetime _lifetime;
+	private readonly IMainThreadInvoker _mainThread;
+
+	internal SdkMainThreadDispatcher(CoreLifetime lifetime)
+		: this(lifetime, SdkMainThreadInvoker.Instance)
+	{
+	}
+
+	internal SdkMainThreadDispatcher(CoreLifetime lifetime, IMainThreadInvoker mainThread)
+	{
+		_lifetime = lifetime ?? throw new ArgumentNullException(nameof(lifetime));
+		_mainThread = mainThread ?? throw new ArgumentNullException(nameof(mainThread));
+	}
 
 	public bool IsMainThread => _lifetime.CanDispatch && MainThread.IsMainThread;
 
@@ -22,17 +34,17 @@ internal sealed class SdkMainThreadDispatcher(CoreLifetime lifetime) : ICheatEng
 		CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(callback);
-		_lifetime.ThrowIfDispatchAllowed(InvokeOperation);
+		_lifetime.ThrowIfDispatchAllowed(_invokeOperation);
 		if (cancellationToken.IsCancellationRequested)
 		{
-			failure = CoreFailureFactory.Cancelled(InvokeOperation);
+			failure = CoreFailureFactory.Cancelled(_invokeOperation);
 			return false;
 		}
 
 		Exception? callbackException;
 		try
 		{
-			callbackException = MainThread.Invoke(static action => InvokeCallback(action), callback);
+			callbackException = _mainThread.Invoke(callback);
 		}
 		catch (CheatEngineActivationExpiredException)
 		{
@@ -40,12 +52,12 @@ internal sealed class SdkMainThreadDispatcher(CoreLifetime lifetime) : ICheatEng
 		}
 		catch (Exception exception) when (!_lifetime.IsActivationCurrent)
 		{
-			throw new CheatEngineActivationExpiredException(InvokeOperation,
+			throw new CheatEngineActivationExpiredException(_invokeOperation,
 				"The Cheat Engine plugin lifecycle changed while dispatching work.", exception);
 		}
 		catch (Exception exception)
 		{
-			failure = CoreFailureFactory.FromException(InvokeOperation, exception);
+			failure = CoreFailureFactory.FromException(_invokeOperation, exception);
 			return false;
 		}
 
@@ -62,18 +74,18 @@ internal sealed class SdkMainThreadDispatcher(CoreLifetime lifetime) : ICheatEng
 		CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(callback);
-		_lifetime.ThrowIfDispatchAllowed(InvokeOperation);
+		_lifetime.ThrowIfDispatchAllowed(_invokeOperation);
 		if (cancellationToken.IsCancellationRequested)
 		{
 			result = default;
-			failure = CoreFailureFactory.Cancelled(InvokeOperation);
+			failure = CoreFailureFactory.Cancelled(_invokeOperation);
 			return false;
 		}
 
-		CallbackResult<T> callbackResult;
+		MainThreadInvocationResult<T> callbackResult;
 		try
 		{
-			callbackResult = MainThread.Invoke(static function => InvokeCallback(function), callback);
+			callbackResult = _mainThread.Invoke(callback);
 		}
 		catch (CheatEngineActivationExpiredException)
 		{
@@ -82,13 +94,13 @@ internal sealed class SdkMainThreadDispatcher(CoreLifetime lifetime) : ICheatEng
 		catch (Exception exception) when (!_lifetime.IsActivationCurrent)
 		{
 			result = default;
-			throw new CheatEngineActivationExpiredException(InvokeOperation,
+			throw new CheatEngineActivationExpiredException(_invokeOperation,
 				"The Cheat Engine plugin lifecycle changed while dispatching work.", exception);
 		}
 		catch (Exception exception)
 		{
 			result = default;
-			failure = CoreFailureFactory.FromException(InvokeOperation, exception);
+			failure = CoreFailureFactory.FromException(_invokeOperation, exception);
 			return false;
 		}
 
@@ -112,7 +124,7 @@ internal sealed class SdkMainThreadDispatcher(CoreLifetime lifetime) : ICheatEng
 
 	public T Invoke<T>(Func<T> callback, CancellationToken cancellationToken = default)
 	{
-		if (TryInvoke(callback, out var result, out CheatEngineFailure failure, cancellationToken))
+		if (TryInvoke(callback, out T? result, out CheatEngineFailure failure, cancellationToken))
 		{
 			return result;
 		}
@@ -145,17 +157,33 @@ internal sealed class SdkMainThreadDispatcher(CoreLifetime lifetime) : ICheatEng
 		}
 	}
 
-	private static CallbackResult<T> InvokeCallback<T>(Func<T> callback)
+	private static MainThreadInvocationResult<T> InvokeCallback<T>(Func<T> callback)
 	{
 		try
 		{
-			return new CallbackResult<T>(callback(), null);
+			return new MainThreadInvocationResult<T>(callback(), null);
 		}
 		catch (Exception exception)
 		{
-			return new CallbackResult<T>(default!, exception);
+			return new MainThreadInvocationResult<T>(default!, exception);
 		}
 	}
 
-	private readonly record struct CallbackResult<T>(T Result, Exception? Exception);
+	private sealed class SdkMainThreadInvoker : IMainThreadInvoker
+	{
+		internal static SdkMainThreadInvoker Instance
+		{
+			get;
+		} = new();
+
+		public Exception? Invoke(Action callback)
+		{
+			return MainThread.Invoke(static action => InvokeCallback(action), callback);
+		}
+
+		public MainThreadInvocationResult<T> Invoke<T>(Func<T> callback)
+		{
+			return MainThread.Invoke(static function => InvokeCallback(function), callback);
+		}
+	}
 }

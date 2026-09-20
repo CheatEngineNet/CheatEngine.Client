@@ -7,24 +7,32 @@ namespace CheatEngine.Client.Core.Infrastructure;
 /// <summary>Captures one enabled plugin context and owns all client-created resources for its epoch.</summary>
 internal sealed class CoreLifetime : IDisposable
 {
-	private readonly PluginContext _context;
+	private readonly ICoreLifetimeContext _context;
 	private readonly CoreResourceRegistry _resources = new();
 	private int _cleanupScopeDepth;
 	private int _disposed;
 	private int _resourcesDrained;
 
 	private CoreLifetime(PluginContext context)
+		: this(new PluginContextAdapter(context))
 	{
-		_context = context;
+	}
+
+	internal CoreLifetime(ICoreLifetimeContext context)
+	{
+		_context = context ?? throw new ArgumentNullException(nameof(context));
 		TargetSelection = new TargetSelectionLifetime(ThrowIfInactive);
 	}
 
 	internal long Epoch => _context.Epoch;
 
-	internal CancellationToken Stopping => _context.ShutdownToken;
+	internal CancellationToken Stopping => _context.Stopping;
 
 	/// <summary>Gets the per-activation target-selection lifetime; this is deliberately independent from <see cref="Epoch" />.</summary>
-	internal TargetSelectionLifetime TargetSelection { get; }
+	internal TargetSelectionLifetime TargetSelection
+	{
+		get;
+	}
 
 	/// <summary>Gets whether the captured SDK activation context itself is still current, regardless of admission closure.</summary>
 	internal bool IsActivationCurrent => Volatile.Read(ref _disposed) == 0 && _context.IsCurrent;
@@ -207,5 +215,18 @@ internal sealed class CoreLifetime : IDisposable
 			CoreLifetime? owner = Interlocked.Exchange(ref _lifetime, null);
 			owner?.ExitCleanupScope();
 		}
+	}
+
+	private sealed class PluginContextAdapter(PluginContext context) : ICoreLifetimeContext
+	{
+		private readonly PluginContext _context = context ?? throw new ArgumentNullException(nameof(context));
+
+		public long Epoch => _context.Epoch;
+
+		public CancellationToken Stopping => _context.ShutdownToken;
+
+		public bool IsCurrent => _context.IsCurrent;
+
+		public bool IsMainThread => _context.IsMainThread;
 	}
 }
