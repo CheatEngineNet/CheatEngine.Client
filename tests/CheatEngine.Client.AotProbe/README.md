@@ -24,7 +24,7 @@ and must include the SDK bootstrap and bridge assets.
 From the repository root:
 
 ```powershell
-dotnet publish --project .\tests\CheatEngine.Client.AotProbe\CheatEngine.Client.AotProbe.csproj --configuration Release
+dotnet publish .\tests\CheatEngine.Client.AotProbe\CheatEngine.Client.AotProbe.csproj --configuration Release
 ```
 
 The successful output is a Native AOT executable under the repository artifacts path for `win-x64`; it is not intended

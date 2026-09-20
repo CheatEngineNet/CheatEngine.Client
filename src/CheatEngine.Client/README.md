@@ -1,23 +1,56 @@
 # CheatEngine.Client
 
-The single project a consumer references. It is the composition root of CheatEngine.Client: it wires together
-`CheatEngine.Client.Core`, `CheatEngine.Client.Hosting`, and `CheatEngine.Client.Fluent` behind the
-`CheatEngine.Client.Abstractions` contracts and holds no logic of its own.
+## Context
 
-## Purpose
+`CheatEngine.Client` is the umbrella package for a normal in-process Cheat Engine plugin. It is the composition root
+of the Client delivery graph: it combines Hosting and Fluent APIs over the public Client contracts, while keeping the
+SDK-facing Core implementation behind the DI registration boundary. The package itself intentionally contains no
+Cheat Engine host logic.
 
-As the final composition layer, this package:
+## Why this project exists
 
-- Depends on `CheatEngine.Client.Hosting` for the DI container and plugin lifecycle
-- Depends on `CheatEngine.Client.Fluent` for builder APIs
-- Transitively brings in `CheatEngine.Client.Core` (the SDK mapper) through Hosting's DI registration layer
-- Provides the umbrella package for normal plugin projects
+Most plugin projects should take one Client package rather than recreate the Client package graph. This façade is that
+stable installation point: Hosting supplies the activation-scoped DI lifecycle, Fluent supplies immutable request
+builders, and Core is composed internally through Hosting's DI registration.
 
-See [ADR 0001](../../docs/adr/0001-layered-in-process-architecture.md) for the complete layered architecture and
-[ADR 0002](../../docs/adr/0002-plugin-activation-lifecycle.md) for the plugin lifecycle model.
+It deliberately does not replace `CheatEngine.SDK`. A plugin must reference the SDK **directly** so its build assets
+can generate the Cheat Engine entry point and copy the native Lua bridge. Those host-bound assets do not flow through
+an ordinary transitive NuGet dependency.
+
+```xml
+<PropertyGroup>
+  <TargetFramework>net10.0</TargetFramework>
+  <LangVersion>14.0</LangVersion>
+  <PlatformTarget>x64</PlatformTarget>
+  <CheatEngineClientPluginProject>true</CheatEngineClientPluginProject>
+</PropertyGroup>
+
+<ItemGroup>
+  <PackageReference Include="CheatEngine.Client" Version="0.1.0" />
+  <PackageReference Include="CheatEngine.SDK" Version="1.0.0" />
+</ItemGroup>
+```
+
+When `CheatEngineClientPluginProject` is enabled, the Hosting build target emits `CECLIENT001` if that direct SDK
+reference is missing.
+
+## How it helps improve CheatEngine.Client
+
+The package gives plugin authors a small, intentional composition boundary without exposing implementation or SDK
+ownership types. It brings together:
+
+- `CheatEngine.Client.Hosting` for the enable-epoch DI container and plugin lifecycle;
+- `CheatEngine.Client.Fluent` for immutable memory and AOB request builders;
+- `CheatEngine.Client.Core`, composed through Hosting, as the only SDK mapper;
+- functional public namespaces such as `CheatEngine.Client.Memory`, `.Scanning`, `.Tables`, and `.Lua`.
+
+Use the generated `ceplugin` template for a complete, buildable plugin shape. The client and all Client-created
+resources are valid only for one enable epoch; do not retain them across disable/re-enable. See the repository
+[README](../../README.md) for installation and deployment guidance, [ADR 0001](../../docs/adr/0001-layered-in-process-architecture.md)
+for the package architecture, and [ADR 0002](../../docs/adr/0002-plugin-activation-lifecycle.md) for lifecycle rules.
 
 ## Rules
 
-- The only public package where Hosting, Core, and Fluent meet.
-- The assembly and the root namespace are both `CheatEngine.Client`, so never declare a type named `CheatEngine` or
-  `Client` in it (CA1724 matches each segment of the namespace).
+- This is the only public package where Hosting, Core, and Fluent meet.
+- The assembly and root namespace are both `CheatEngine.Client`; do not declare a `CheatEngine` or `Client` type in
+  this namespace because CA1724 matches each namespace segment.

@@ -14,7 +14,9 @@ using Microsoft.Extensions.Options;
 
 namespace CheatEngine.Plugin.Modules;
 
-/// <summary>Demonstrates DI, options, bounded AOB/memory access, Address List snapshots and generated Lua exports.</summary>
+/// <summary>
+///     Demonstrates DI, options, bounded AOB/memory access, Address List snapshots, and generated Lua exports.
+/// </summary>
 internal sealed partial class PluginClientModule(
 	IMemoryCodec<int> int32Codec,
 	IOptions<CheatEngineClientOptions> options,
@@ -23,6 +25,7 @@ internal sealed partial class PluginClientModule(
 	private readonly CheatEngineClientOptions _options = options.Value;
 	private ILuaModuleLease? _luaModuleLease;
 
+	/// <summary>Registers the activation-scoped Lua module and demonstrates bounded Client operations.</summary>
 	public void OnEnabled(ICheatEngineClient client)
 	{
 		ArgumentNullException.ThrowIfNull(client);
@@ -34,7 +37,8 @@ internal sealed partial class PluginClientModule(
 
 		_luaModuleLease = client.Lua.RegisterModule(new PluginLuaModule());
 
-		LogEnabled(logger, client.Epoch, _options.DefaultMaximumAobResults);
+		int allowedTableRootCount = _options.AllowedTableRoots?.Length ?? 0;
+		LogEnabled(logger, client.Epoch, allowedTableRootCount);
 
 		if (client.Tables.TryGetCurrent(out AddressTableSnapshot table, out CheatEngineFailure tableFailure))
 		{
@@ -80,6 +84,9 @@ internal sealed partial class PluginClientModule(
 		}
 	}
 
+	/// <summary>
+	///     Releases the activation-scoped Lua module so the hosting lifecycle can aggregate any cleanup failure.
+	/// </summary>
 	public void OnDisabling(ICheatEngineClient client)
 	{
 		ArgumentNullException.ThrowIfNull(client);
@@ -91,39 +98,31 @@ internal sealed partial class PluginClientModule(
 			return;
 		}
 
-		try
-		{
-			lease.Dispose();
-		}
-		catch (CheatEngineClientException exception)
-		{
-			LogLuaCleanupFailure(logger, exception.Failure.Message);
-		}
-		catch (InvalidOperationException exception)
-		{
-			LogLuaCleanupFailure(logger, exception.Message);
-		}
+		lease.Dispose();
 	}
 
+	/// <summary>Writes a bounded Client operation failure without exposing target-memory data.</summary>
 	private void LogSkipped(string operation, CheatEngineFailure failure)
 	{
 		LogClientFailure(logger, operation, failure);
 	}
 
+	/// <summary>Logs the activation epoch and configured count of trusted table-file roots.</summary>
 	[LoggerMessage(Level = LogLevel.Information,
-		Message = "CheatEngine.Plugin enabled at epoch {Epoch}; configured AOB result ceiling is {MaximumResults}.")]
-	private static partial void LogEnabled(ILogger logger, long epoch, int maximumResults);
+		Message = "CheatEngine.Plugin enabled at epoch {Epoch}; " +
+		          "configured trusted table-file root count is {AllowedTableRootCount}.")]
+	private static partial void LogEnabled(ILogger logger, long epoch, int allowedTableRootCount);
 
+	/// <summary>Logs the number of records in the current Address List snapshot.</summary>
 	[LoggerMessage(Level = LogLevel.Information, Message = "Current Address List contains {RecordCount} record(s).")]
 	private static partial void LogAddressList(ILogger logger, int recordCount);
 
+	/// <summary>Logs a successful bounded Int32 memory probe without logging the value read.</summary>
 	[LoggerMessage(Level = LogLevel.Information,
 		Message = "A typed Int32 memory read succeeded near AOB match {Address}.")]
 	private static partial void LogMemoryReadSucceeded(ILogger logger, Address address);
 
+	/// <summary>Logs a classified Client failure for an optional demonstration operation.</summary>
 	[LoggerMessage(Level = LogLevel.Debug, Message = "Skipped {Operation}: {Reason}")]
 	private static partial void LogClientFailure(ILogger logger, string operation, CheatEngineFailure reason);
-
-	[LoggerMessage(Level = LogLevel.Debug, Message = "Lua module cleanup did not complete: {Reason}")]
-	private static partial void LogLuaCleanupFailure(ILogger logger, string reason);
 }

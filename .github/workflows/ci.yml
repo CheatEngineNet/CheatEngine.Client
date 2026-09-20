@@ -53,8 +53,7 @@ jobs:
         run: |
           $reports = @(Get-ChildItem -Path artifacts/test-results -Filter *.trx -Recurse -File -ErrorAction SilentlyContinue)
           if ($reports.Count -eq 0) {
-            Write-Host '::warning::The test run produced no TRX report.'
-            return
+            throw 'Microsoft Testing Platform did not produce a TRX test report.'
           }
 
           $results = @($reports | ForEach-Object {
