@@ -31,9 +31,9 @@ public sealed class CheatEngineClientOptions
 	/// <summary>Gets or sets absolute roots from which Client table files may be loaded or saved.</summary>
 	/// <remarks>
 	///     An empty list denies table-file access by default. Paths are normalized and validated when an activation creates
-	///     its client scope; relative paths and blank entries are rejected.
+	///     its client scope; relative paths, blank entries, and <see langword="null" /> are rejected.
 	/// </remarks>
-	public string[] AllowedTableRoots
+	public string[]? AllowedTableRoots
 	{
 		get;
 		set;

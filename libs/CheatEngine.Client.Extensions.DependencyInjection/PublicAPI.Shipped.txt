@@ -8,7 +8,7 @@ CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientBuilder.Confi
 CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientBuilder.EnableUnsafeLuaExecution() -> CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientBuilder!
 CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientBuilder.Services.get -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientOptions
-CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientOptions.AllowedTableRoots.get -> string![]!
+CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientOptions.AllowedTableRoots.get -> string![]?
 CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientOptions.AllowedTableRoots.set -> void
 CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientOptions.CheatEngineClientOptions() -> void
 CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientOptions.DefaultMaximumAobResults.get -> int

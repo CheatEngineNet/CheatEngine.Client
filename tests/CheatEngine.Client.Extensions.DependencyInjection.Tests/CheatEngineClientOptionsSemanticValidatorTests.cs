@@ -18,7 +18,7 @@ public sealed class CheatEngineClientOptionsSemanticValidatorTests
 	public void ValidateRejectsNullAllowedRootList()
 	{
 		ValidateOptionsResult result =
-			_validator.Validate(null, new CheatEngineClientOptions { AllowedTableRoots = null! });
+			_validator.Validate(null, new CheatEngineClientOptions { AllowedTableRoots = null });
 
 		Assert.True(result.Failed);
 		string? failureMessage = result.FailureMessage;

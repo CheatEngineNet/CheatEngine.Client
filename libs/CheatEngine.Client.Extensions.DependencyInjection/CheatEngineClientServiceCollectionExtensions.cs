@@ -78,7 +78,9 @@ public static class CheatEngineClientServiceCollectionExtensions
 		{
 			CheatEngineClientOptions options =
 				serviceProvider.GetRequiredService<IOptions<CheatEngineClientOptions>>().Value;
-			return new CoreClientPolicy(options.AllowedTableRoots, options.EnableUnsafeLuaExecution);
+			string[] allowedTableRoots = options.AllowedTableRoots
+				?? throw new InvalidOperationException("AllowedTableRoots must be validated before the Client policy is created.");
+			return new CoreClientPolicy(allowedTableRoots, options.EnableUnsafeLuaExecution);
 		});
 
 		services.TryAddSingleton<SdkMainThreadDispatcher>(static serviceProvider =>
