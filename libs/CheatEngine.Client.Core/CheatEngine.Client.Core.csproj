@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- The final plugin executable owns the SDK dynamic-loading bootstrap and runtimeconfig. -->
+    <EnableDynamicLoading>false</EnableDynamicLoading>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../CheatEngine.Client.Abstractions/CheatEngine.Client.Abstractions.csproj"/>
+    <PackageReference Include="CheatEngine.SDK" VersionOverride="[1.0.0,2.0.0)"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="CheatEngine.Client.Extensions.DependencyInjection"/>
+    <InternalsVisibleTo Include="CheatEngine.Client.Hosting"/>
+  </ItemGroup>
+
+</Project>
