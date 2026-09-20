@@ -20,13 +20,61 @@ public sealed class CheatEngineRuntimeSnapshotTests
 		Assert.True(snapshot.IsOnQualifiedCheatEngineLine);
 	}
 
+	[Fact]
+	public void SnapshotForwardsVersionAndPlatformComponentsToItsExistingLeafProperties()
+	{
+		Version clientAssemblyVersion = new(0, 1, 2, 3);
+		Version sdkAssemblyVersion = new(1, 2, 3, 4);
+		CheatEngineRuntimeVersionInfo version = new(7.7d, CheatEngineVersion.Ce77010621, clientAssemblyVersion, sdkAssemblyVersion);
+		CheatEngineRuntimePlatformInfo platform = new(
+			CheatEngineArchitecture.X64,
+			CheatEngineArchitecture.X86,
+			PointerSize.Bit32,
+			TargetAbi.Windows);
+		CheatEngineRuntimeSnapshot snapshot = new(
+			42,
+			version,
+			platform,
+			RuntimeCapabilities.Empty,
+			ClientCapabilities.Empty);
+
+		Assert.Equal(version, snapshot.Version);
+		Assert.Equal(platform, snapshot.Platform);
+		Assert.Equal(version.ObservedCheatEngineVersion, snapshot.ObservedCheatEngineVersion);
+		Assert.Equal(version.QualifiedCheatEngineBaseline, snapshot.QualifiedCheatEngineBaseline);
+		Assert.Same(clientAssemblyVersion, snapshot.ClientAssemblyVersion);
+		Assert.Same(sdkAssemblyVersion, snapshot.SdkAssemblyVersion);
+		Assert.Equal(platform.SystemArchitecture, snapshot.SystemArchitecture);
+		Assert.Equal(platform.TargetArchitecture, snapshot.TargetArchitecture);
+		Assert.Equal(platform.TargetPointerSize, snapshot.TargetPointerSize);
+		Assert.Equal(platform.TargetAbi, snapshot.TargetAbi);
+	}
+
 	[Theory]
 	[InlineData(double.NaN)]
 	[InlineData(double.PositiveInfinity)]
 	[InlineData(-0.1d)]
-	public void SnapshotRejectsInvalidObservedCeVersion(double observedVersion)
+	public void VersionInfoRejectsInvalidObservedCeVersion(double observedVersion)
 	{
-		Assert.Throws<ArgumentOutOfRangeException>(() => Create(observedVersion));
+		Assert.Throws<ArgumentOutOfRangeException>(() => CreateVersionInfo(observedVersion));
+	}
+
+	[Fact]
+	public void VersionInfoRejectsNullAssemblyVersions()
+	{
+		ArgumentNullException clientVersion = Assert.Throws<ArgumentNullException>(() => new CheatEngineRuntimeVersionInfo(
+			7.7d,
+			CheatEngineVersion.Ce77010621,
+			Null<Version>(),
+			new Version(1, 0, 0)));
+		ArgumentNullException sdkVersion = Assert.Throws<ArgumentNullException>(() => new CheatEngineRuntimeVersionInfo(
+			7.7d,
+			CheatEngineVersion.Ce77010621,
+			new Version(0, 1, 0),
+			Null<Version>()));
+
+		Assert.Equal("clientAssemblyVersion", clientVersion.ParamName);
+		Assert.Equal("sdkAssemblyVersion", sdkVersion.ParamName);
 	}
 
 	[Fact]
@@ -47,19 +95,53 @@ public sealed class CheatEngineRuntimeSnapshotTests
 		Assert.Throws<ArgumentOutOfRangeException>(() => Create(epoch: epoch));
 	}
 
+	[Fact]
+	public void SnapshotRejectsNullCapabilityCollections()
+	{
+		ArgumentNullException sdkCapabilities = Assert.Throws<ArgumentNullException>(() => new CheatEngineRuntimeSnapshot(
+			42,
+			CreateVersionInfo(),
+			CreatePlatformInfo(),
+			Null<RuntimeCapabilities>(),
+			ClientCapabilities.Empty));
+		ArgumentNullException clientCapabilities = Assert.Throws<ArgumentNullException>(() => new CheatEngineRuntimeSnapshot(
+			42,
+			CreateVersionInfo(),
+			CreatePlatformInfo(),
+			RuntimeCapabilities.Empty,
+			Null<ClientCapabilities>()));
+
+		Assert.Equal("sdkCapabilities", sdkCapabilities.ParamName);
+		Assert.Equal("clientCapabilities", clientCapabilities.ParamName);
+	}
+
 	private static CheatEngineRuntimeSnapshot Create(double? observedVersion = 7.7d, long epoch = 42)
 	{
 		return new CheatEngineRuntimeSnapshot(
 			epoch,
-			observedVersion,
-			CheatEngineVersion.Ce77010621,
-			new Version(0, 1, 0),
-			new Version(1, 0, 0),
-			CheatEngineArchitecture.X64,
-			CheatEngineArchitecture.Unknown,
-			PointerSize.Unknown,
-			TargetAbi.Windows,
+			CreateVersionInfo(observedVersion),
+			CreatePlatformInfo(),
 			RuntimeCapabilities.Empty,
 			ClientCapabilities.Empty);
 	}
+
+	private static CheatEngineRuntimeVersionInfo CreateVersionInfo(double? observedVersion = 7.7d)
+	{
+		return new CheatEngineRuntimeVersionInfo(
+			observedVersion,
+			CheatEngineVersion.Ce77010621,
+			new Version(0, 1, 0),
+			new Version(1, 0, 0));
+	}
+
+	private static CheatEngineRuntimePlatformInfo CreatePlatformInfo()
+	{
+		return new CheatEngineRuntimePlatformInfo(
+			CheatEngineArchitecture.X64,
+			CheatEngineArchitecture.Unknown,
+			PointerSize.Unknown,
+			TargetAbi.Windows);
+	}
+
+	private static T Null<T>() where T : class => default!;
 }

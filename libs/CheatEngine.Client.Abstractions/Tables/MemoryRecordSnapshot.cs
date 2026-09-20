@@ -7,33 +7,19 @@ namespace CheatEngine.Client.Tables;
 /// <summary>A copied, handle-free snapshot of a Cheat Engine memory record.</summary>
 public readonly record struct MemoryRecordSnapshot
 {
-	/// <summary>Creates a copied memory-record snapshot.</summary>
+	/// <summary>Creates a copied memory-record snapshot from grouped content and state fields.</summary>
 	public MemoryRecordSnapshot(
 		MemoryRecordId id,
 		int index,
-		string description,
-		string addressExpression,
-		string value,
-		VariableType variableType,
-		Address? currentAddress,
-		bool isActive = false,
-		int childCount = 0)
+		MemoryRecordContentSnapshot content,
+		MemoryRecordStateSnapshot state)
 	{
 		ArgumentOutOfRangeException.ThrowIfNegative(index);
-		ArgumentOutOfRangeException.ThrowIfNegative(childCount);
-		ArgumentNullException.ThrowIfNull(description);
-		ArgumentNullException.ThrowIfNull(addressExpression);
-		ArgumentNullException.ThrowIfNull(value);
 
 		Id = id;
 		Index = index;
-		Description = description;
-		AddressExpression = addressExpression;
-		Value = value;
-		VariableType = variableType;
-		CurrentAddress = currentAddress;
-		IsActive = isActive;
-		ChildCount = childCount;
+		Content = content;
+		State = state;
 	}
 
 	/// <summary>Gets the stable Cheat Engine record identifier.</summary>
@@ -48,45 +34,57 @@ public readonly record struct MemoryRecordSnapshot
 		get;
 	}
 
+	/// <summary>Gets the copied content fields for this memory record.</summary>
+	public MemoryRecordContentSnapshot Content
+	{
+		get;
+	}
+
+	/// <summary>Gets the copied runtime state fields for this memory record.</summary>
+	public MemoryRecordStateSnapshot State
+	{
+		get;
+	}
+
 	/// <summary>Gets the record display description.</summary>
 	public string Description
 	{
-		get;
+		get => Content.Description;
 	}
 
 	/// <summary>Gets the record's unresolved Cheat Engine address expression.</summary>
 	public string AddressExpression
 	{
-		get;
+		get => Content.AddressExpression;
 	}
 
 	/// <summary>Gets the record's verbatim value text.</summary>
 	public string Value
 	{
-		get;
+		get => Content.Value;
 	}
 
 	/// <summary>Gets the record's Cheat Engine value type.</summary>
 	public VariableType VariableType
 	{
-		get;
+		get => Content.VariableType;
 	}
 
 	/// <summary>Gets the currently resolved target address when it could be obtained.</summary>
 	public Address? CurrentAddress
 	{
-		get;
+		get => State.CurrentAddress;
 	}
 
 	/// <summary>Gets whether Cheat Engine reports this record as active or frozen.</summary>
 	public bool IsActive
 	{
-		get;
+		get => State.IsActive;
 	}
 
 	/// <summary>Gets the number of immediate child records reported by Cheat Engine.</summary>
 	public int ChildCount
 	{
-		get;
+		get => State.ChildCount;
 	}
 }
