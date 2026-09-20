@@ -27,7 +27,8 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 
 		using ServiceProvider provider = services.BuildServiceProvider(new ServiceProviderOptions
 		{
-			ValidateOnBuild = true, ValidateScopes = true
+			ValidateOnBuild = true,
+			ValidateScopes = true
 		});
 
 		Assert.NotNull(provider);
@@ -126,30 +127,31 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 
 	private readonly record struct CustomValue(int Value);
 
-	private class FirstCustomCodec : IMemoryCodec<CustomValue>
+	private sealed class FirstCustomCodec : IMemoryCodec<CustomValue>
 	{
-		public virtual bool TryRead(IMemoryReadContext context, Address address, out CustomValue value)
+		public bool TryRead(IMemoryReadContext context, Address address, out CustomValue value)
 		{
 			value = default;
 			return false;
 		}
 
-		public virtual bool TryWrite(IMemoryWriteContext context, Address address, in CustomValue value)
+		public bool TryWrite(IMemoryWriteContext context, Address address, in CustomValue value)
 		{
 			return false;
 		}
 	}
 
-	private sealed class SecondCustomCodec : FirstCustomCodec
+	private sealed class SecondCustomCodec : IMemoryCodec<CustomValue>
 	{
-		public override bool TryRead(IMemoryReadContext context, Address address, out CustomValue value)
+		public bool TryRead(IMemoryReadContext context, Address address, out CustomValue value)
 		{
-			return base.TryRead(context, address, out value);
+			value = new CustomValue(2);
+			return true;
 		}
 
-		public override bool TryWrite(IMemoryWriteContext context, Address address, in CustomValue value)
+		public bool TryWrite(IMemoryWriteContext context, Address address, in CustomValue value)
 		{
-			return base.TryWrite(context, address, in value);
+			return value.Value == 2;
 		}
 	}
 

@@ -2,7 +2,7 @@
 abstract CheatEngine.Client.Hosting.CheatEngineClientPlugin.Configure(CheatEngine.Client.Hosting.CheatEnginePluginBuilder! builder) -> void
 CheatEngine.Client.Hosting.CheatEngineClientPlugin
 CheatEngine.Client.Hosting.CheatEngineClientPlugin.CheatEngineClientPlugin() -> void
-CheatEngine.Client.Hosting.CheatEngineClientPlugin.Client.get -> CheatEngine.Client.ICheatEngineClient!
+CheatEngine.Client.Hosting.CheatEngineClientPlugin.GetRequiredClient() -> CheatEngine.Client.ICheatEngineClient!
 CheatEngine.Client.Hosting.CheatEnginePluginBuilder
 CheatEngine.Client.Hosting.CheatEnginePluginBuilder.BuildServiceProvider() -> Microsoft.Extensions.DependencyInjection.ServiceProvider!
 CheatEngine.Client.Hosting.CheatEnginePluginBuilder.CheatEnginePluginBuilder() -> void

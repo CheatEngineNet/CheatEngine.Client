@@ -4,7 +4,7 @@ DI-first hosting for an SDK-loaded Cheat Engine plugin, with one validated Clien
 
 ## Context
 
-`CheatEngine.Client.Hosting` supplies `CheatEngineClientPlugin` and `CheatEnginePluginBuilder`. A plugin derives from the base class, keeps the public parameterless construction required by `CheatEngine.SDK`, and configures its managed dependencies in `Configure`.
+`CheatEngine.Client.Hosting` supplies `CheatEngineClientPlugin` and `CheatEnginePluginBuilder`. A plugin derives from the base class, keeps its own public parameterless construction required by `CheatEngine.SDK`, and configures its managed dependencies in `Configure`. The base constructor is protected: the SDK generator instantiates the attributed concrete plugin, whose implicit public constructor may call it.
 
 The host is intentionally synchronous and in-process. It is not a Generic Host and does not create a process-wide service provider, retain a raw Lua state, discover services by reflection, or keep a configuration file watcher alive.
 

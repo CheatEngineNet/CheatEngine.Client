@@ -23,18 +23,18 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 {
 	private Activation? _activation;
 
-	/// <summary>Initializes the SDK-loadable plugin base through its required public parameterless constructor.</summary>
+	/// <summary>Initializes the SDK-loadable plugin base for construction by a concrete plugin.</summary>
 	/// <remarks>
-	///     The SDK creates the concrete plugin type through a public parameterless constructor. Keeping this base
-	///     constructor public preserves the constructor chain required by that generated loading path.
+	///     The SDK creates the concrete plugin type through a public parameterless constructor. A concrete derived class
+	///     can use its implicit public parameterless constructor to call this protected base constructor.
 	/// </remarks>
-	public CheatEngineClientPlugin()
+	protected CheatEngineClientPlugin()
 	{
 	}
 
 	/// <summary>Gets the client for the active enable epoch.</summary>
 	/// <exception cref="CheatEngineClientLifecycleException">The plugin is not currently enabled.</exception>
-	protected ICheatEngineClient Client => GetActiveClient();
+	protected ICheatEngineClient GetRequiredClient() => GetActiveClient();
 
 	/// <summary>Adds application services, explicit Client modules, codecs, and configuration sources for one activation.</summary>
 	/// <remarks>
