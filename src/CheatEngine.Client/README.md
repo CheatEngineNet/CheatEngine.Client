@@ -1,22 +1,21 @@
 # CheatEngine.Client
 
-The recommended NuGet installation point for high-level, DI-oriented Cheat Engine plugins written in C# 14 and .NET 10.
-
 ## Context
 
-`CheatEngine.Client` is a NuGet façade package. It has no operational implementation of its own; it composes the Fluent API and plugin Hosting packages, which in turn bring the public Client contracts and their implementation dependencies.
-
-The public surface is organized by function rather than by delivery assembly. Plugin code uses namespaces such as `CheatEngine.Client`, `CheatEngine.Client.Memory`, `CheatEngine.Client.Scanning`, `CheatEngine.Client.Tables`, `CheatEngine.Client.Lua`, and `CheatEngine.Client.Hosting`. It does not need to use implementation namespaces.
+`CheatEngine.Client` is the umbrella package for a normal in-process Cheat Engine plugin. It is the composition root
+of the Client delivery graph: it combines Hosting and Fluent APIs over the public Client contracts, while keeping the
+SDK-facing Core implementation behind the DI registration boundary. The package itself intentionally contains no
+Cheat Engine host logic.
 
 ## Why this project exists
 
-Most plugin authors should install one Client package, not reconstruct its package graph. This façade provides that stable installation point while keeping the lower-level packages separately consumable when a project needs only a focused capability.
+Most plugin projects should take one Client package rather than recreate the Client package graph. This façade is that
+stable installation point: Hosting supplies the activation-scoped DI lifecycle, Fluent supplies immutable request
+builders, and Core is composed internally through Hosting's DI registration.
 
-It deliberately does not hide `CheatEngine.SDK`: a real plugin must directly reference the SDK so that the SDK's source generators, build targets, and native bridge assets are active in the plugin project.
-
-## How it helps CheatEngine.Client
-
-Use this package together with an explicit SDK package reference:
+It deliberately does not replace `CheatEngine.SDK`. A plugin must reference the SDK **directly** so its build assets
+can generate the Cheat Engine entry point and copy the native Lua bridge. Those host-bound assets do not flow through
+an ordinary transitive NuGet dependency.
 
 ```xml
 <PropertyGroup>
@@ -32,26 +31,26 @@ Use this package together with an explicit SDK package reference:
 </ItemGroup>
 ```
 
-The direct SDK reference is required even though Hosting has an SDK dependency. When `CheatEngineClientPluginProject` is `true`, Hosting's transitive build target reports `CECLIENT001` if the direct reference is missing.
+When `CheatEngineClientPluginProject` is enabled, the Hosting build target emits `CECLIENT001` if that direct SDK
+reference is missing.
 
-For a plugin, derive from `CheatEngineClientPlugin`, configure services and sources explicitly, and use `ICheatEngineClient` only within an enabled lifecycle. The Client facade exposes bounded synchronous APIs for runtime capabilities, process selection, typed memory, AOB scanning, inspection, tables, and typed Lua operations. Capability-dependent operations report Client failures when unavailable; value-scan functionality remains capability-gated.
+## How it helps improve CheatEngine.Client
 
-```csharp
-using CheatEngine.Client;
-using CheatEngine.Client.Hosting;
+The package gives plugin authors a small, intentional composition boundary without exposing implementation or SDK
+ownership types. It brings together:
 
-public sealed class Plugin : CheatEngineClientPlugin
-{
-    protected override void Configure(CheatEnginePluginBuilder builder)
-    {
-        // Add explicit configuration, modules, and memory codecs here.
-    }
+- `CheatEngine.Client.Hosting` for the enable-epoch DI container and plugin lifecycle;
+- `CheatEngine.Client.Fluent` for immutable memory and AOB request builders;
+- `CheatEngine.Client.Core`, composed through Hosting, as the only SDK mapper;
+- functional public namespaces such as `CheatEngine.Client.Memory`, `.Scanning`, `.Tables`, and `.Lua`.
 
-    protected override void OnClientEnabled(ICheatEngineClient client)
-    {
-        // The Client is valid only for this activation epoch.
-    }
-}
-```
+Use the generated `ceplugin` template for a complete, buildable plugin shape. The client and all Client-created
+resources are valid only for one enable epoch; do not retain them across disable/re-enable. See the repository
+[README](../../README.md) for installation and deployment guidance, [ADR 0001](../../docs/adr/0001-layered-in-process-architecture.md)
+for the package architecture, and [ADR 0002](../../docs/adr/0002-plugin-activation-lifecycle.md) for lifecycle rules.
 
-For the complete, SDK-annotated entry point and project configuration, install `CheatEngine.Client.Templates` and create the `ceplugin` template. The template is the executable reference for the expected plugin shape.
+## Rules
+
+- This is the only public package where Hosting, Core, and Fluent meet.
+- The assembly and root namespace are both `CheatEngine.Client`; do not declare a `CheatEngine` or `Client` type in
+  this namespace because CA1724 matches each namespace segment.
