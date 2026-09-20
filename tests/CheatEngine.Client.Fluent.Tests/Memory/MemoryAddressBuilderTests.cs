@@ -81,6 +81,126 @@ public sealed class MemoryAddressBuilderTests
 		Assert.Same(codec, memory.LastCustomWriteCodec);
 	}
 
+	[Fact]
+	public void TryReadForwardsBuiltInReadToTheBoundService()
+	{
+		Address address = 0x405000;
+		FakeMemoryClient memory = new(1337);
+
+		bool succeeded = MemoryFluent.At(address).Using(memory).TryRead(
+			out int value, out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.True(succeeded);
+		Assert.Equal(1337, value);
+		Assert.Equal(default, failure);
+		Assert.Equal(address, memory.LastPrimitiveReadAddress);
+		Assert.Equal(typeof(int), memory.LastPrimitiveReadType);
+	}
+
+	[Fact]
+	public void WriteForwardsBuiltInWriteToTheBoundService()
+	{
+		Address address = 0x406000;
+		FakeMemoryClient memory = new(0);
+
+		MemoryFluent.At(address).Using(memory).Write(77, TestContext.Current.CancellationToken);
+
+		Assert.Equal(address, memory.LastPrimitiveWriteAddress);
+		Assert.Equal(typeof(int), memory.LastPrimitiveWriteType);
+		Assert.Equal(77, memory.LastPrimitiveWriteValue);
+	}
+
+	[Fact]
+	public void TryReadWithForwardsTheBoundCustomCodecWithoutReplacingIt()
+	{
+		Address address = 0x407000;
+		Int32Codec codec = new();
+		FakeMemoryClient memory = new(42);
+
+		bool succeeded = MemoryFluent.At(address).Using(memory).TryReadWith(
+			codec, out int value, out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.True(succeeded);
+		Assert.Equal(42, value);
+		Assert.Equal(default, failure);
+		Assert.Equal(address, memory.LastCustomReadAddress);
+		Assert.Same(codec, memory.LastCustomReadCodec);
+	}
+
+	[Fact]
+	public void TryReadWithForwardsTheExplicitMemoryServiceAndCustomCodec()
+	{
+		Address address = 0x408000;
+		Int32Codec codec = new();
+		FakeMemoryClient memory = new(42);
+
+		bool succeeded = MemoryFluent.At(address).TryReadWith(
+			memory, codec, out int value, out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.True(succeeded);
+		Assert.Equal(42, value);
+		Assert.Equal(default, failure);
+		Assert.Equal(address, memory.LastCustomReadAddress);
+		Assert.Same(codec, memory.LastCustomReadCodec);
+	}
+
+	[Fact]
+	public void TryReadWithRejectsMissingBoundMemoryAndNullExplicitArguments()
+	{
+		MemoryAddressBuilder unbound = MemoryFluent.At(0x409000UL);
+		Int32Codec codec = new();
+		FakeMemoryClient memory = new(0);
+
+		Assert.Throws<InvalidOperationException>(() => unbound.TryReadWith(
+			codec, out _, out _, TestContext.Current.CancellationToken));
+		Assert.Throws<ArgumentNullException>(() => unbound.TryReadWith<int>(
+			null!, codec, out _, out _, TestContext.Current.CancellationToken));
+		Assert.Throws<ArgumentNullException>(() => unbound.TryReadWith(
+			memory, null!, out int _, out _, TestContext.Current.CancellationToken));
+	}
+
+	[Fact]
+	public void WriteWithForwardsTheBoundCustomCodecWithoutReplacingIt()
+	{
+		Address address = 0x40A000;
+		Int32Codec codec = new();
+		FakeMemoryClient memory = new(0);
+
+		MemoryFluent.At(address).Using(memory).WriteWith(77, codec, TestContext.Current.CancellationToken);
+
+		Assert.Equal(address, memory.LastCustomWriteAddress);
+		Assert.Equal(77, memory.LastCustomWriteValue);
+		Assert.Same(codec, memory.LastCustomWriteCodec);
+	}
+
+	[Fact]
+	public void WriteWithForwardsTheExplicitMemoryServiceAndCustomCodec()
+	{
+		Address address = 0x40B000;
+		Int32Codec codec = new();
+		FakeMemoryClient memory = new(0);
+
+		MemoryFluent.At(address).WriteWith(memory, 77, codec, TestContext.Current.CancellationToken);
+
+		Assert.Equal(address, memory.LastCustomWriteAddress);
+		Assert.Equal(77, memory.LastCustomWriteValue);
+		Assert.Same(codec, memory.LastCustomWriteCodec);
+	}
+
+	[Fact]
+	public void WriteWithRejectsMissingBoundMemoryAndNullExplicitArguments()
+	{
+		MemoryAddressBuilder unbound = MemoryFluent.At(0x40C000UL);
+		Int32Codec codec = new();
+		FakeMemoryClient memory = new(0);
+
+		Assert.Throws<InvalidOperationException>(() => unbound.WriteWith(77, codec, TestContext.Current.CancellationToken));
+		Assert.Throws<ArgumentNullException>(() => unbound.WriteWith<int>(
+			null!, 77, codec, TestContext.Current.CancellationToken));
+		Assert.Throws<ArgumentNullException>(() => unbound.WriteWith(
+			memory, 77, null!, TestContext.Current.CancellationToken));
+	}
+
 	private sealed class Int32Codec : IMemoryCodec<int>
 	{
 		public bool TryRead(IMemoryReadContext context, Address address, out int value)
