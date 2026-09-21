@@ -31,6 +31,13 @@ On disable—or if activation fails—the host invokes `OnClientDisabling` and m
 Client-owned Cheat Engine resources while the SDK context remains valid, disposes the scope and provider, and finally
 disposes activation configuration. Cleanup failures are aggregated after all cleanup opportunities have run.
 
+Construction failure has a narrower rollback: only resources acquired before publication are released, once each, in
+reverse construction order (`scope → provider → configuration`). Every stage is attempted even if an earlier disposal
+fails. The original configuration, validation, or service-resolution failure remains primary; cleanup failures are
+attached as secondary diagnostics. No module callback or Client-owned resource drain runs until an activation has been
+created and published. The DI container disposes services it creates; Hosting explicitly releases its host-created
+`ConfigurationManager` only after the scope and provider have been released.
+
 Add configuration sources explicitly and keep reload disabled. The following is the normal plugin shape:
 
 ```csharp
