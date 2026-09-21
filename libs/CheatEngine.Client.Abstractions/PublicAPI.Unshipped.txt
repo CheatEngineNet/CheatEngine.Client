@@ -37,6 +37,7 @@ CheatEngine.Client.Runtime.ClientCapabilityEvidence.ClientCapabilityEvidence() -
 CheatEngine.Client.Runtime.ClientCapabilityEvidence.ClientCapabilityEvidence(CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate implementation, CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate package, CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate host, CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate liveQualification, CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate policy, CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate lifetime) -> void
 CheatEngine.Client.Runtime.ClientCapabilityEvidence.AvailabilityState.get -> CheatEngine.Client.Runtime.ClientCapabilityAvailabilityState
 CheatEngine.Client.Runtime.ClientCapabilityEvidence.EffectiveReason.get -> string!
+CheatEngine.Client.Runtime.ClientCapabilityEvidence.EffectiveReasonCode.get -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode
 CheatEngine.Client.Runtime.ClientCapabilityEvidence.Host.get -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate
 CheatEngine.Client.Runtime.ClientCapabilityEvidence.Implementation.get -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate
 CheatEngine.Client.Runtime.ClientCapabilityEvidence.IsExecutable.get -> bool
@@ -52,6 +53,13 @@ CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate.IsSatisfied.get -> bool
 CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate.Reason.get -> string!
 CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate.State.get -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceState
 CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate.Equals(CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate other) -> bool
+CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode
+CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode.Host = 2 -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode
+CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode.Implementation = 0 -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode
+CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode.Lifetime = 5 -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode
+CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode.LiveQualification = 3 -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode
+CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode.Package = 1 -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode
+CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode.Policy = 4 -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode
 CheatEngine.Client.Runtime.ClientCapabilityEvidenceState
 CheatEngine.Client.Runtime.ClientCapabilityEvidenceState.Faulted = 3 -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceState
 CheatEngine.Client.Runtime.ClientCapabilityEvidenceState.Malformed = 4 -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceState

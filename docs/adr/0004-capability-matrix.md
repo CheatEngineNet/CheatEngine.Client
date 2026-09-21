@@ -65,6 +65,9 @@ been live-qualified.
   or host-side behavior that ordinary CI has not established.
 - The matrix gives reviewers one place to distinguish a deliberate product gate from a missing implementation, keeping
   package release claims honest as SDK evidence changes.
+- Capability evidence exposes the stable `EffectiveReasonCode` of the gate that supplied its display reason. Consumers
+  use that code with the gate's independently observed state rather than parsing text or reproducing the Client's
+  priority order; it does not promote an unknown, faulted, malformed, or unqualified capability to `Available`.
 
 ## Current template boundary
 
