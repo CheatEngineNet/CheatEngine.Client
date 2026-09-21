@@ -57,16 +57,18 @@ public sealed class SdkMainThreadDispatcherBehaviorTests
 		using ControlledCoreLifetimeContext context = new();
 		using CoreLifetime lifetime = new(context);
 		SdkMainThreadDispatcher dispatcher = new(lifetime, new RecordingMainThreadInvoker());
+		InvalidOperationException expectedActionException = new("action callback");
+		InvalidOperationException expectedFunctionException = new("function callback");
 
 		InvalidOperationException actionException = Assert.Throws<InvalidOperationException>(() =>
-			dispatcher.TryInvoke(static () => throw new InvalidOperationException("action callback"),
+			dispatcher.TryInvoke(() => throw expectedActionException,
 				out CheatEngineFailure _, TestContext.Current.CancellationToken));
 		InvalidOperationException functionException = Assert.Throws<InvalidOperationException>(() =>
-			dispatcher.TryInvoke<int>(static () => throw new InvalidOperationException("function callback"), out _,
+			dispatcher.TryInvoke<int>(() => throw expectedFunctionException, out _,
 				out CheatEngineFailure _, TestContext.Current.CancellationToken));
 
-		Assert.Equal("action callback", actionException.Message);
-		Assert.Equal("function callback", functionException.Message);
+		Assert.Same(expectedActionException, actionException);
+		Assert.Same(expectedFunctionException, functionException);
 	}
 
 	[Fact]
