@@ -1,6 +1,8 @@
 namespace CheatEngine.Client.Events;
 
-/// <summary>Configures bounded, non-blocking materialization of host callback events.</summary>
+/// <summary>
+///     Configures bounded materialization of copied host callback observations for one active asynchronous reader.
+/// </summary>
 public readonly record struct EventStreamOptions
 {
 	/// <summary>Creates bounded stream options.</summary>
@@ -20,7 +22,7 @@ public readonly record struct EventStreamOptions
 		OverflowPolicy = overflowPolicy;
 	}
 
-	/// <summary>Gets the mandatory maximum number of events buffered for a consumer.</summary>
+	/// <summary>Gets the mandatory maximum number of copied observations buffered for the one active reader.</summary>
 	public int Capacity
 	{
 		get;

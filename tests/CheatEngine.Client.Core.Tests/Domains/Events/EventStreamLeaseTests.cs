@@ -31,6 +31,24 @@ public sealed class EventStreamLeaseTests
 	}
 
 	[Fact]
+	public async Task DisposeCompletesAWaitingReaderAndClosesAdmissionBeforeReleasingTheHostRegistration()
+	{
+		BoundedEventStream<int> stream = new(new EventStreamOptions(1));
+		await using IAsyncEnumerator<int> enumerator =
+			stream.GetAsyncEnumerator(TestContext.Current.CancellationToken);
+		Task<bool> pendingMoveNext = enumerator.MoveNextAsync().AsTask();
+		EventStreamLease<int> lease = new(stream, static () =>
+		{
+		}, () => Assert.False(stream.IsAdmissionOpen));
+
+		lease.Dispose();
+
+		Assert.False(await pendingMoveNext);
+		Assert.True(lease.IsReleased);
+		Assert.False(lease.TryPublish(1));
+	}
+
+	[Fact]
 	public void DisposeIsIdempotentAndDoesNotReleaseTheHostTwice()
 	{
 		int neutralized = 0;

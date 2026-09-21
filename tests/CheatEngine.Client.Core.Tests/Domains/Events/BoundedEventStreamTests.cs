@@ -81,7 +81,7 @@ public sealed class BoundedEventStreamTests
 		Assert.Contains("overflowed", exception.Message, StringComparison.Ordinal);
 		Assert.True(stream.IsCompleted);
 		Assert.False(stream.IsAdmissionOpen);
-		Assert.Equal(1, stream.LostCount);
+		Assert.Equal(2, stream.LostCount);
 		Assert.False(stream.TryPublish(3));
 	}
 
@@ -101,22 +101,25 @@ public sealed class BoundedEventStreamTests
 	}
 
 	[Fact]
-	public async Task MultipleWaitingReadersReceiveCopiedEventsInAdmissionOrder()
+	public async Task ConcurrentReadersAreRejectedUntilTheActiveReaderIsDisposed()
 	{
 		using BoundedEventStream<int> stream = new(new EventStreamOptions(1));
-		await using IAsyncEnumerator<int> first = stream.GetAsyncEnumerator(TestContext.Current.CancellationToken);
+		IAsyncEnumerator<int> first = stream.GetAsyncEnumerator(TestContext.Current.CancellationToken);
+
+		for (int reader = 0; reader < 64; reader++)
+		{
+			InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+			{
+				_ = stream.GetAsyncEnumerator(TestContext.Current.CancellationToken);
+			});
+			Assert.Contains("one active", exception.Message, StringComparison.Ordinal);
+		}
+
+		await first.DisposeAsync();
 		await using IAsyncEnumerator<int> second = stream.GetAsyncEnumerator(TestContext.Current.CancellationToken);
-
-		Task<bool> firstMoveNext = first.MoveNextAsync().AsTask();
-		Task<bool> secondMoveNext = second.MoveNextAsync().AsTask();
-
 		Assert.True(stream.TryPublish(10));
-		Assert.True(stream.TryPublish(20));
-
-		Assert.True(await firstMoveNext);
-		Assert.Equal(10, first.Current);
-		Assert.True(await secondMoveNext);
-		Assert.Equal(20, second.Current);
+		Assert.True(await second.MoveNextAsync());
+		Assert.Equal(10, second.Current);
 	}
 
 	[Fact]
@@ -159,6 +162,23 @@ public sealed class BoundedEventStreamTests
 	}
 
 	[Fact]
+	public async Task DisposingAWaitingEnumeratorCompletesItsReadAndFreesTheReaderSlot()
+	{
+		using BoundedEventStream<int> stream = new(new EventStreamOptions(1));
+		IAsyncEnumerator<int> disposedEnumerator = stream.GetAsyncEnumerator(TestContext.Current.CancellationToken);
+		Task<bool> pendingMoveNext = disposedEnumerator.MoveNextAsync().AsTask();
+
+		await disposedEnumerator.DisposeAsync();
+
+		Assert.False(await pendingMoveNext);
+		await using IAsyncEnumerator<int> activeEnumerator =
+			stream.GetAsyncEnumerator(TestContext.Current.CancellationToken);
+		Assert.True(stream.TryPublish(7));
+		Assert.True(await activeEnumerator.MoveNextAsync());
+		Assert.Equal(7, activeEnumerator.Current);
+	}
+
+	[Fact]
 	public async Task DisposeClosesAdmissionDiscardsBufferedValuesAndCompletesReaders()
 	{
 		BoundedEventStream<int> stream = new(new EventStreamOptions(1));
@@ -170,8 +190,81 @@ public sealed class BoundedEventStreamTests
 		Assert.True(stream.IsCompleted);
 		Assert.False(stream.IsAdmissionOpen);
 		Assert.False(stream.TryPublish(2));
+		Assert.Equal(1, stream.LostCount);
 
 		stream.Dispose();
+	}
+
+	[Fact]
+	public async Task DisposeCompletesAWaitingReaderWithoutRetainingIt()
+	{
+		BoundedEventStream<int> stream = new(new EventStreamOptions(1));
+		await using IAsyncEnumerator<int> enumerator = stream.GetAsyncEnumerator(TestContext.Current.CancellationToken);
+		Task<bool> pendingMoveNext = enumerator.MoveNextAsync().AsTask();
+
+		stream.Dispose();
+
+		Assert.False(await pendingMoveNext);
+		Assert.False(stream.TryPublish(1));
+	}
+
+	[Fact]
+	public async Task CloseAdmissionRejectsNewObservationsAndLetsAcceptedObservationsDrain()
+	{
+		using BoundedEventStream<int> stream = new(new EventStreamOptions(1));
+		Assert.True(stream.TryPublish(1));
+		stream.CloseAdmission();
+		stream.Complete();
+
+		Assert.False(stream.TryPublish(2));
+		await using IAsyncEnumerator<int> enumerator = stream.GetAsyncEnumerator(TestContext.Current.CancellationToken);
+		Assert.True(await enumerator.MoveNextAsync());
+		Assert.Equal(1, enumerator.Current);
+		Assert.False(await enumerator.MoveNextAsync());
+		Assert.Equal(0, stream.LostCount);
+	}
+
+	[Fact]
+	public async Task FaultedCompletionDiscardsBufferedEventsReportsLossAndFailsReaders()
+	{
+		using BoundedEventStream<int> stream = new(new EventStreamOptions(2));
+		InvalidOperationException expected = new("callback failure");
+		Assert.True(stream.TryPublish(1));
+		stream.Complete(expected);
+
+		await using IAsyncEnumerator<int> enumerator = stream.GetAsyncEnumerator(TestContext.Current.CancellationToken);
+		InvalidOperationException actual = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+		{
+			_ = await enumerator.MoveNextAsync();
+		});
+
+		Assert.Same(expected, actual);
+		Assert.Equal(1, stream.LostCount);
+		Assert.False(stream.TryPublish(2));
+	}
+
+	[Fact]
+	public async Task PublicationDoesNotWaitForASlowConsumerContinuation()
+	{
+		CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+		using BoundedEventStream<int> stream = new(new EventStreamOptions(1));
+		await using IAsyncEnumerator<int> enumerator = stream.GetAsyncEnumerator(cancellationToken);
+		using ManualResetEventSlim consumerMayContinue = new(false);
+		TaskCompletionSource consumerEntered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		Task consumer = Task.Run(async () =>
+		{
+			Assert.True(await enumerator.MoveNextAsync());
+			consumerEntered.SetResult();
+			consumerMayContinue.Wait(cancellationToken);
+		}, cancellationToken);
+
+		Task<bool> publish = Task.Run(() => stream.TryPublish(1));
+		await consumerEntered.Task.WaitAsync(cancellationToken);
+		Assert.True(publish.IsCompletedSuccessfully);
+
+		consumerMayContinue.Set();
+		await consumer;
 	}
 
 	[Fact]

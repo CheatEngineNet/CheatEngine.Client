@@ -5,8 +5,9 @@ using CheatEngine.Client.Events;
 namespace CheatEngine.Client.Core.Domains.Events;
 
 /// <summary>
-///     Provides a bounded, non-blocking handoff from a Cheat Engine callback to an asynchronous consumer. Callback
-///     admission is synchronous and never waits for a reader; reader continuations always run asynchronously.
+///     Provides a bounded handoff from a Cheat Engine callback to one asynchronous observation consumer. Callback
+///     admission does not wait for reader consumption, but it does take a short lock and is not lock-free.
+///     Reader continuations always run asynchronously.
 /// </summary>
 /// <typeparam name="T">The copied event type.</typeparam>
 internal sealed class BoundedEventStream<T> : IAsyncEnumerable<T>, IDisposable
@@ -14,13 +15,14 @@ internal sealed class BoundedEventStream<T> : IAsyncEnumerable<T>, IDisposable
 	private readonly T[] _buffer;
 	private readonly object _gate = new();
 	private readonly EventStreamOverflowPolicy _overflowPolicy;
-	private readonly LinkedList<PendingRead> _pendingReads = [];
+	private Enumerator? _activeReader;
 	private bool _completed;
 	private Exception? _completionError;
 	private int _count;
 	private bool _disposed;
 	private bool _isAdmissionOpen = true;
 	private long _lostCount;
+	private PendingRead? _pendingRead;
 	private int _readIndex;
 	private int _writeIndex;
 
@@ -73,16 +75,30 @@ internal sealed class BoundedEventStream<T> : IAsyncEnumerable<T>, IDisposable
 		}
 	}
 
-	/// <summary>Returns an asynchronous enumerator over copied events.</summary>
+	/// <summary>
+	///     Returns the sole active asynchronous enumerator. A second concurrent reader is rejected rather than becoming
+	///     an unbounded competing subscription.
+	/// </summary>
 	public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default)
 	{
-		return new Enumerator(this, cancellationToken);
+		lock (_gate)
+		{
+			if (_activeReader is not null)
+			{
+				throw new InvalidOperationException(
+					"A bounded Client event stream supports only one active observation reader.");
+			}
+
+			Enumerator enumerator = new(this, cancellationToken);
+			_activeReader = enumerator;
+			return enumerator;
+		}
 	}
 
 	/// <summary>Closes admission and discards buffered events during deterministic subscription teardown.</summary>
 	public void Dispose()
 	{
-		List<PendingRead>? pendingReads = null;
+		PendingRead? pendingRead;
 		lock (_gate)
 		{
 			if (_disposed)
@@ -93,21 +109,23 @@ internal sealed class BoundedEventStream<T> : IAsyncEnumerable<T>, IDisposable
 			_disposed = true;
 			_isAdmissionOpen = false;
 			_completed = true;
-			ClearBuffer();
-			pendingReads = DetachAllPendingReads();
+			_activeReader = null;
+			DiscardBufferedEvents();
+			pendingRead = DetachPendingRead();
 		}
 
-		CompletePendingReads(pendingReads, ReadResult.End);
+		CompletePendingRead(pendingRead, ReadResult.End);
 	}
 
 	/// <summary>
 	///     Attempts to publish a copied callback event without waiting for an asynchronous consumer. A
-	///     <see langword="false" />
-	///     result means admission has closed or the selected overflow policy terminated the subscription.
+	///     <see langword="false" /> result means admission has closed or the selected overflow policy terminated the
+	///     subscription.
 	/// </summary>
 	internal bool TryPublish(T value)
 	{
-		PendingRead? pendingRead = null;
+		Exception? completionError = null;
+		PendingRead? pendingRead;
 		lock (_gate)
 		{
 			if (!_isAdmissionOpen)
@@ -115,7 +133,7 @@ internal sealed class BoundedEventStream<T> : IAsyncEnumerable<T>, IDisposable
 				return false;
 			}
 
-			pendingRead = DetachNextPendingRead();
+			pendingRead = DetachPendingRead();
 			if (pendingRead is null)
 			{
 				if (_count < _buffer.Length)
@@ -139,9 +157,10 @@ internal sealed class BoundedEventStream<T> : IAsyncEnumerable<T>, IDisposable
 
 					case EventStreamOverflowPolicy.FailSubscription:
 						_lostCount++;
-						CompleteCore(new InvalidOperationException(
-							"The bounded callback stream overflowed and the subscription was closed."), true);
-						return false;
+						completionError = new InvalidOperationException(
+							"The bounded callback stream overflowed and the subscription was closed.");
+						pendingRead = CompleteCore(completionError, true);
+						break;
 
 					default:
 						throw new InvalidOperationException(
@@ -150,17 +169,26 @@ internal sealed class BoundedEventStream<T> : IAsyncEnumerable<T>, IDisposable
 			}
 		}
 
-		pendingRead.Complete(new ReadResult(value));
-		return true;
+		if (completionError is null)
+		{
+			CompletePendingRead(pendingRead, new ReadResult(value));
+			return true;
+		}
+
+		FailPendingRead(pendingRead, completionError);
+		return false;
 	}
 
 	/// <summary>Closes admission and lets readers drain the copied events already accepted by the stream.</summary>
 	internal void Complete()
 	{
+		PendingRead? pendingRead;
 		lock (_gate)
 		{
-			CompleteCore(null, false);
+			pendingRead = CompleteCore(null, false);
 		}
+
+		CompletePendingRead(pendingRead, ReadResult.End);
 	}
 
 	/// <summary>Closes callback admission without completing existing readers until the host callback is neutralized.</summary>
@@ -176,22 +204,30 @@ internal sealed class BoundedEventStream<T> : IAsyncEnumerable<T>, IDisposable
 	internal void Complete(Exception error)
 	{
 		ArgumentNullException.ThrowIfNull(error);
+		PendingRead? pendingRead;
 		lock (_gate)
 		{
-			CompleteCore(error, true);
+			pendingRead = CompleteCore(error, true);
 		}
+
+		FailPendingRead(pendingRead, error);
 	}
 
-	private ValueTask<ReadResult> ReadAsync(CancellationToken cancellationToken)
+	private ValueTask<ReadResult> ReadAsync(Enumerator reader, CancellationToken cancellationToken)
 	{
 		if (cancellationToken.IsCancellationRequested)
 		{
 			return ValueTask.FromCanceled<ReadResult>(cancellationToken);
 		}
 
-		PendingRead? pendingRead = null;
+		PendingRead? pendingRead;
 		lock (_gate)
 		{
+			if (!ReferenceEquals(_activeReader, reader))
+			{
+				return ValueTask.FromResult(ReadResult.End);
+			}
+
 			if (_count != 0)
 			{
 				return ValueTask.FromResult(new ReadResult(Dequeue()));
@@ -207,8 +243,8 @@ internal sealed class BoundedEventStream<T> : IAsyncEnumerable<T>, IDisposable
 				return ValueTask.FromResult(ReadResult.End);
 			}
 
-			pendingRead = new PendingRead(this, cancellationToken);
-			pendingRead.Node = _pendingReads.AddLast(pendingRead);
+			pendingRead = new PendingRead(this, reader, cancellationToken);
+			_pendingRead = pendingRead;
 		}
 
 		pendingRead.RegisterCancellation();
@@ -219,84 +255,65 @@ internal sealed class BoundedEventStream<T> : IAsyncEnumerable<T>, IDisposable
 	{
 		lock (_gate)
 		{
-			if (pendingRead.Node is null || !pendingRead.TryBeginCompletion())
+			if (!ReferenceEquals(_pendingRead, pendingRead) || !pendingRead.TryBeginCompletion())
 			{
 				return;
 			}
 
-			_pendingReads.Remove(pendingRead.Node);
-			pendingRead.Node = null;
+			_pendingRead = null;
+			if (ReferenceEquals(_activeReader, pendingRead.Reader))
+			{
+				_activeReader = null;
+			}
 		}
 
 		pendingRead.Cancel(cancellationToken);
 	}
 
-	private PendingRead? DetachNextPendingRead()
+	private void ReleaseReader(Enumerator reader)
 	{
-		while (_pendingReads.First is LinkedListNode<PendingRead> node)
+		PendingRead? pendingRead = null;
+		lock (_gate)
 		{
-			PendingRead pendingRead = node.Value;
-			_pendingReads.Remove(node);
-			pendingRead.Node = null;
-			if (pendingRead.TryBeginCompletion())
+			if (!ReferenceEquals(_activeReader, reader))
 			{
-				return pendingRead;
+				return;
+			}
+
+			_activeReader = null;
+			if (ReferenceEquals(_pendingRead?.Reader, reader))
+			{
+				pendingRead = DetachPendingRead();
 			}
 		}
 
-		return null;
+		CompletePendingRead(pendingRead, ReadResult.End);
 	}
 
-	private List<PendingRead>? DetachAllPendingReads()
+	private PendingRead? DetachPendingRead()
 	{
-		if (_pendingReads.Count == 0)
-		{
-			return null;
-		}
-
-		List<PendingRead> detached = new(_pendingReads.Count);
-		while (_pendingReads.First is LinkedListNode<PendingRead> node)
-		{
-			PendingRead pendingRead = node.Value;
-			_pendingReads.RemoveFirst();
-			pendingRead.Node = null;
-			if (pendingRead.TryBeginCompletion())
-			{
-				detached.Add(pendingRead);
-			}
-		}
-
-		return detached;
+		PendingRead? pendingRead = _pendingRead;
+		_pendingRead = null;
+		return pendingRead is not null && pendingRead.TryBeginCompletion() ? pendingRead : null;
 	}
 
-	private void CompleteCore(Exception? error, bool clearBufferedEvents)
+	private PendingRead? CompleteCore(Exception? error, bool clearBufferedEvents)
 	{
 		if (_completed)
 		{
-			return;
+			return null;
 		}
 
 		_isAdmissionOpen = false;
 		_completed = true;
 		_completionError = error;
+
 		if (clearBufferedEvents)
 		{
-			ClearBuffer();
+			DiscardBufferedEvents();
 		}
 
-		List<PendingRead>? pendingReads = DetachAllPendingReads();
-		if (pendingReads is null)
-		{
-			return;
-		}
-
-		if (error is null)
-		{
-			CompletePendingReads(pendingReads, ReadResult.End);
-			return;
-		}
-
-		CompletePendingReads(pendingReads, error);
+		return DetachPendingRead();
 	}
 
 	private void Enqueue(T value)
@@ -327,30 +344,25 @@ internal sealed class BoundedEventStream<T> : IAsyncEnumerable<T>, IDisposable
 		_count = 0;
 	}
 
+	private void DiscardBufferedEvents()
+	{
+		_lostCount += _count;
+		ClearBuffer();
+	}
+
 	private int NextIndex(int index)
 	{
 		return index == _buffer.Length - 1 ? 0 : index + 1;
 	}
 
-	private static void CompletePendingReads(IEnumerable<PendingRead>? pendingReads, ReadResult result)
+	private static void CompletePendingRead(PendingRead? pendingRead, ReadResult result)
 	{
-		if (pendingReads is null)
-		{
-			return;
-		}
-
-		foreach (PendingRead pendingRead in pendingReads)
-		{
-			pendingRead.Complete(result);
-		}
+		pendingRead?.Complete(result);
 	}
 
-	private static void CompletePendingReads(IEnumerable<PendingRead> pendingReads, Exception error)
+	private static void FailPendingRead(PendingRead? pendingRead, Exception error)
 	{
-		foreach (PendingRead pendingRead in pendingReads)
-		{
-			pendingRead.Fail(error);
-		}
+		pendingRead?.Fail(error);
 	}
 
 	private readonly record struct ReadResult(bool HasValue, T? Value)
@@ -363,7 +375,7 @@ internal sealed class BoundedEventStream<T> : IAsyncEnumerable<T>, IDisposable
 		internal static ReadResult End => new(false, default);
 	}
 
-	private sealed class PendingRead(BoundedEventStream<T> owner, CancellationToken cancellationToken)
+	private sealed class PendingRead(BoundedEventStream<T> owner, Enumerator reader, CancellationToken cancellationToken)
 	{
 		private readonly CancellationToken _cancellationToken = cancellationToken;
 		private readonly BoundedEventStream<T> _owner = owner;
@@ -374,11 +386,7 @@ internal sealed class BoundedEventStream<T> : IAsyncEnumerable<T>, IDisposable
 		private int _completionStarted;
 		private CancellationTokenRegistration _registration;
 
-		internal LinkedListNode<PendingRead>? Node
-		{
-			get;
-			set;
-		}
+		internal Enumerator Reader => reader;
 
 		internal Task<ReadResult> Task => _source.Task;
 
@@ -414,6 +422,7 @@ internal sealed class BoundedEventStream<T> : IAsyncEnumerable<T>, IDisposable
 
 		internal void Cancel(CancellationToken cancellationToken)
 		{
+			_registration.Unregister();
 			_source.TrySetCanceled(cancellationToken);
 		}
 
@@ -429,6 +438,7 @@ internal sealed class BoundedEventStream<T> : IAsyncEnumerable<T>, IDisposable
 	{
 		private readonly CancellationToken _cancellationToken = cancellationToken;
 		private readonly BoundedEventStream<T> _owner = owner;
+		private int _completed;
 		private int _disposed;
 		private int _moveNextInProgress;
 
@@ -440,7 +450,7 @@ internal sealed class BoundedEventStream<T> : IAsyncEnumerable<T>, IDisposable
 
 		public async ValueTask<bool> MoveNextAsync()
 		{
-			if (Volatile.Read(ref _disposed) != 0)
+			if (Volatile.Read(ref _disposed) != 0 || Volatile.Read(ref _completed) != 0)
 			{
 				return false;
 			}
@@ -453,15 +463,21 @@ internal sealed class BoundedEventStream<T> : IAsyncEnumerable<T>, IDisposable
 
 			try
 			{
-				ReadResult result = await _owner.ReadAsync(_cancellationToken).ConfigureAwait(false);
+				ReadResult result = await _owner.ReadAsync(this, _cancellationToken).ConfigureAwait(false);
 				if (!result.HasValue)
 				{
 					Current = default!;
+					CompleteReader();
 					return false;
 				}
 
 				Current = result.Value!;
 				return true;
+			}
+			catch
+			{
+				CompleteReader();
+				throw;
 			}
 			finally
 			{
@@ -471,8 +487,21 @@ internal sealed class BoundedEventStream<T> : IAsyncEnumerable<T>, IDisposable
 
 		public ValueTask DisposeAsync()
 		{
-			Interlocked.Exchange(ref _disposed, 1);
+			if (Interlocked.Exchange(ref _disposed, 1) == 0)
+			{
+				Current = default!;
+				CompleteReader();
+			}
+
 			return ValueTask.CompletedTask;
+		}
+
+		private void CompleteReader()
+		{
+			if (Interlocked.Exchange(ref _completed, 1) == 0)
+			{
+				_owner.ReleaseReader(this);
+			}
 		}
 	}
 }
