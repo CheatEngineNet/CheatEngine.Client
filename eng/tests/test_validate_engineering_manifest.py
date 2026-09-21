@@ -59,6 +59,72 @@ class EngineeringManifestValidatorTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Cyclic local blocked_by dependency"):
             VALIDATOR.ensure_acyclic(dependencies)
 
+    def test_parent_cycle_is_rejected_independently_of_blocked_by(self) -> None:
+        manifest = copy.deepcopy(load_manifest())
+        first_epic = next(item for item in manifest["items"] if item["id"] == "CLI-E01")
+        second_epic = next(item for item in manifest["items"] if item["id"] == "CLI-E02")
+        first_epic["parent"] = second_epic["id"]
+        second_epic["parent"] = first_epic["id"]
+        first_epic["children"].append(second_epic["id"])
+        second_epic["children"].append(first_epic["id"])
+
+        with self.assertRaisesRegex(ValueError, "Cyclic parent hierarchy: CLI-E01 -> CLI-E02 -> CLI-E01"):
+            VALIDATOR.validate_manifest_data(manifest)
+
+    def test_parent_hierarchy_requires_one_roadmap_root(self) -> None:
+        manifest = copy.deepcopy(load_manifest())
+        epic = next(item for item in manifest["items"] if item["id"] == "CLI-E01")
+        epic["kind"] = "roadmap"
+        epic["labels"].append("ce:kind:roadmap")
+
+        with self.assertRaisesRegex(ValueError, "exactly one roadmap root; found 2 roadmap items"):
+            VALIDATOR.validate_manifest_data(manifest)
+
+    def test_parent_hierarchy_rejects_a_disconnected_forest(self) -> None:
+        hierarchy = {
+            "CLI-PLAN": {"children": []},
+            "CLI-E01": {"children": []},
+        }
+
+        with self.assertRaisesRegex(ValueError, "Hierarchy is disconnected from roadmap root CLI-PLAN: CLI-E01"):
+            VALIDATOR.ensure_connected_parent_hierarchy(hierarchy, "CLI-PLAN")
+
+    def test_roadmap_children_must_be_epics(self) -> None:
+        manifest = copy.deepcopy(load_manifest())
+        roadmap = next(item for item in manifest["items"] if item["id"] == "CLI-PLAN")
+        epic = next(item for item in manifest["items"] if item["id"] == "CLI-E01")
+        leaf = next(item for item in manifest["items"] if item["id"] == "CLI-001")
+        roadmap["children"].append(leaf["id"])
+        epic["children"].remove(leaf["id"])
+        leaf["parent"] = roadmap["id"]
+
+        with self.assertRaisesRegex(ValueError, "CLI-PLAN: roadmap child CLI-001 must be an epic"):
+            VALIDATOR.validate_manifest_data(manifest)
+
+    def test_epics_must_be_direct_children_of_the_roadmap_root(self) -> None:
+        manifest = copy.deepcopy(load_manifest())
+        roadmap = next(item for item in manifest["items"] if item["id"] == "CLI-PLAN")
+        first_epic = next(item for item in manifest["items"] if item["id"] == "CLI-E01")
+        second_epic = next(item for item in manifest["items"] if item["id"] == "CLI-E02")
+        roadmap["children"].remove(first_epic["id"])
+        second_epic["children"].append(first_epic["id"])
+        first_epic["parent"] = second_epic["id"]
+
+        with self.assertRaisesRegex(ValueError, "CLI-E01: epic parent must be roadmap root CLI-PLAN"):
+            VALIDATOR.validate_manifest_data(manifest)
+
+    def test_implementation_leaves_cannot_have_children(self) -> None:
+        manifest = copy.deepcopy(load_manifest())
+        epic = next(item for item in manifest["items"] if item["id"] == "CLI-E01")
+        leaf = next(item for item in manifest["items"] if item["id"] == "CLI-001")
+        nested_leaf = next(item for item in manifest["items"] if item["id"] == "CLI-002")
+        epic["children"].remove(nested_leaf["id"])
+        leaf["children"].append(nested_leaf["id"])
+        nested_leaf["parent"] = leaf["id"]
+
+        with self.assertRaisesRegex(ValueError, "CLI-001: implementation leaves cannot have children"):
+            VALIDATOR.validate_manifest_data(manifest)
+
     def test_reverse_dependency_is_required(self) -> None:
         manifest = copy.deepcopy(load_manifest())
         cli_001 = next(item for item in manifest["items"] if item["id"] == "CLI-001")

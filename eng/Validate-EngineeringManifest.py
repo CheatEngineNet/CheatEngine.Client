@@ -106,6 +106,113 @@ def ensure_acyclic(dependencies: Mapping[str, Iterable[str]]) -> None:
         visit(item_id)
 
 
+def ensure_acyclic_parent_hierarchy(items: Mapping[str, Mapping[str, Any]]) -> None:
+    """Fail with the cycle path when the single-parent hierarchy is cyclic."""
+    state: dict[str, int] = {}
+    stack: list[str] = []
+
+    def visit(item_id: str) -> None:
+        item_state = state.get(item_id, 0)
+        if item_state == 1:
+            start = stack.index(item_id)
+            raise ValueError("Cyclic parent hierarchy: " + " -> ".join([*stack[start:], item_id]))
+        if item_state == 2:
+            return
+
+        state[item_id] = 1
+        stack.append(item_id)
+        parent = items[item_id]["parent"]
+        if parent is not None:
+            visit(parent)
+        stack.pop()
+        state[item_id] = 2
+
+    for item_id in items:
+        visit(item_id)
+
+
+def ensure_connected_parent_hierarchy(items: Mapping[str, Mapping[str, Any]], roadmap_id: str) -> None:
+    """Fail when any planning item cannot be reached from the roadmap root."""
+    visited: set[str] = set()
+    stack = [roadmap_id]
+    while stack:
+        item_id = stack.pop()
+        if item_id in visited:
+            continue
+        visited.add(item_id)
+        stack.extend(items[item_id]["children"])
+    disconnected = sorted(set(items) - visited)
+    require(
+        not disconnected,
+        f"Hierarchy is disconnected from roadmap root {roadmap_id}: {', '.join(disconnected)}.",
+    )
+
+
+def validate_parent_hierarchy(items: Mapping[str, Mapping[str, Any]]) -> None:
+    """Require one connected roadmap-to-epic-to-leaf parent tree."""
+    for item_id, item in items.items():
+        parent = item["parent"]
+        require(
+            parent is None or (isinstance(parent, str) and parent in items),
+            f"{item_id}: parent references an unknown item.",
+        )
+        children = item["children"]
+        require(isinstance(children, list), f"{item_id}: children must be an array.")
+        require(
+            all(isinstance(child, str) and child in items for child in children),
+            f"{item_id}: children references an unknown item.",
+        )
+        require(len(children) == len(set(children)), f"{item_id}: children must not contain duplicates.")
+
+    ensure_acyclic_parent_hierarchy(items)
+
+    for item_id, item in items.items():
+        parent = item["parent"]
+        if parent is not None:
+            require(item_id in items[parent]["children"], f"{item_id}: parent does not list this child.")
+        for child in item["children"]:
+            require(items[child]["parent"] == item_id, f"{item_id}: child {child} has a different parent.")
+
+    roadmap_ids = [item_id for item_id, item in items.items() if item["kind"] == "roadmap"]
+    require(
+        len(roadmap_ids) == 1,
+        f"Hierarchy must contain exactly one roadmap root; found {len(roadmap_ids)} roadmap items.",
+    )
+    roadmap_id = roadmap_ids[0]
+    root_ids = [item_id for item_id, item in items.items() if item["parent"] is None]
+    require(
+        root_ids == [roadmap_id],
+        f"Hierarchy must have exactly one parentless root, roadmap {roadmap_id}; found {', '.join(root_ids) or 'none'}.",
+    )
+
+    roadmap = items[roadmap_id]
+    require(roadmap["milestone"] is None and roadmap["epic"] is None, f"{roadmap_id}: roadmap root cannot have a milestone or epic.")
+    for child in roadmap["children"]:
+        require(items[child]["kind"] == "epic", f"{roadmap_id}: roadmap child {child} must be an epic.")
+
+    for item_id, item in items.items():
+        if item_id == roadmap_id:
+            continue
+        if item["kind"] == "epic":
+            require(item["parent"] == roadmap_id, f"{item_id}: epic parent must be roadmap root {roadmap_id}.")
+            require(item["epic"] is None, f"{item_id}: an epic cannot belong to another epic.")
+            for child in item["children"]:
+                require(
+                    items[child]["kind"] not in {"roadmap", "epic"},
+                    f"{item_id}: epic child {child} must be an implementation leaf.",
+                )
+        else:
+            epic_id = item["epic"]
+            require(
+                isinstance(epic_id, str) and epic_id in items and items[epic_id]["kind"] == "epic",
+                f"{item_id}: leaf must name an existing epic.",
+            )
+            require(item["parent"] == epic_id, f"{item_id}: leaf parent and epic must agree.")
+            require(not item["children"], f"{item_id}: implementation leaves cannot have children.")
+
+    ensure_connected_parent_hierarchy(items, roadmap_id)
+
+
 def validate_manifest_data(data: Mapping[str, Any]) -> tuple[dict[str, dict[str, Any]], dict[str, int]]:
     """Validate backlog schema and local/cross-repository dependency invariants."""
     require(data.get("schema_version") == 1, "backlog.json: schema_version must be 1.")
@@ -215,30 +322,12 @@ def validate_manifest_data(data: Mapping[str, Any]) -> tuple[dict[str, dict[str,
         require((blocker, blocked) not in external_edges, f"Duplicate external dependency: {blocker} -> {blocked}.")
         external_edges.add((blocker, blocked))
 
+    validate_parent_hierarchy(items)
+
     local_dependencies: dict[str, list[str]] = {}
     for item_id, item in items.items():
-        parent = item["parent"]
-        require(parent is None or parent in items, f"{item_id}: parent references an unknown item.")
-        if parent is not None:
-            require(item_id in items[parent]["children"], f"{item_id}: parent does not list this child.")
-        for child in item["children"]:
-            require(child in items, f"{item_id}: child references an unknown item: {child!r}.")
-            require(items[child]["parent"] == item_id, f"{item_id}: child {child} has a different parent.")
         milestone = item["milestone"]
         require(milestone is None or milestone in milestone_ids, f"{item_id}: unknown milestone {milestone!r}.")
-        if item["kind"] == "roadmap":
-            require(
-                parent is None and milestone is None and item["epic"] is None,
-                f"{item_id}: roadmap must be the hierarchy root.",
-            )
-        elif item["kind"] == "epic":
-            require(item["epic"] is None, f"{item_id}: an epic cannot belong to another epic.")
-        else:
-            require(
-                item["epic"] in items and items[item["epic"]]["kind"] == "epic",
-                f"{item_id}: leaf must name an existing epic.",
-            )
-            require(parent == item["epic"], f"{item_id}: leaf parent and epic must agree.")
 
         local_dependencies[item_id] = []
         for blocker in item["blocked_by"]:
