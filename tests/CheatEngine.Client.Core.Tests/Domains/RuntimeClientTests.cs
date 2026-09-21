@@ -134,7 +134,9 @@ public sealed class RuntimeClientTests
 		Assert.True(snapshot.ClientCapabilities.TryGet(ClientCapabilityId.ValueScanning,
 			out ClientCapabilityAvailability valueScanning));
 		Assert.Equal(ClientCapabilityAvailabilityState.Unavailable, valueScanning.State);
-		Assert.Contains("live ownership", valueScanning.Reason, StringComparison.OrdinalIgnoreCase);
+		Assert.Equal(ClientCapabilityEvidenceState.Missing, valueScanning.Evidence.Implementation.State);
+		Assert.Equal(ClientCapabilityEvidenceState.Missing, valueScanning.Evidence.Package.State);
+		Assert.Contains("unavailable adapter", valueScanning.Reason, StringComparison.OrdinalIgnoreCase);
 		Assert.True(snapshot.ClientCapabilities.TryGet(ClientCapabilityId.TypedMemory,
 			out ClientCapabilityAvailability typedMemory));
 		Assert.Equal(ClientCapabilityAvailabilityState.Unknown, typedMemory.State);
@@ -158,22 +160,22 @@ public sealed class RuntimeClientTests
 			Assert.False(availability.IsAvailable);
 		}
 
-		ClientCapabilityId[] unknownCapabilities =
+		ClientCapabilityId[] additionallyUnavailableCapabilities =
 		[
 			ClientCapabilityId.Assembly,
 			ClientCapabilityId.Speed,
 			ClientCapabilityId.Hashing
 		];
-		foreach (ClientCapabilityId capability in unknownCapabilities)
+		foreach (ClientCapabilityId capability in additionallyUnavailableCapabilities)
 		{
 			Assert.True(snapshot.ClientCapabilities.TryGet(capability, out ClientCapabilityAvailability availability));
-			Assert.Equal(ClientCapabilityAvailabilityState.Unknown, availability.State);
-			Assert.False(availability.IsKnown);
+			Assert.Equal(ClientCapabilityAvailabilityState.Unavailable, availability.State);
+			Assert.Equal(ClientCapabilityEvidenceState.Missing, availability.Evidence.Implementation.State);
 		}
 	}
 
 	[Fact]
-	public void SnapshotReportsUnsafeLuaAvailableOnlyForTheExplicitActivationOptIn()
+	public void SnapshotReportsUnsafeLuaPolicyWithoutTreatingItAsHostEvidence()
 	{
 		RuntimeClient runtime = new(
 			new InlineDispatcher(),
@@ -189,23 +191,59 @@ public sealed class RuntimeClientTests
 
 		Assert.True(succeeded);
 		Assert.Equal(default, failure);
-		Assert.Equal(ClientCapabilityAvailabilityState.Available, availability.State);
-		Assert.True(availability.IsAvailable);
+		Assert.Equal(ClientCapabilityEvidenceState.Satisfied, availability.Evidence.Policy.State);
+		Assert.Equal(ClientCapabilityEvidenceState.Unknown, availability.Evidence.Host.State);
+		Assert.Equal(ClientCapabilityEvidenceState.Unknown, availability.Evidence.LiveQualification.State);
+		Assert.Equal(ClientCapabilityAvailabilityState.Unknown, availability.State);
+		Assert.False(availability.IsAvailable);
 	}
 
 	[Fact]
-	public void GetSnapshotThrowsTheClassifiedFailureWhenTheHostReportsAnInvalidVersion()
+	public void SnapshotClassifiesAnInvalidVersionAsMalformedWithoutCallingItUnavailable()
 	{
 		RuntimeClient runtime = new(
 			new InlineDispatcher(),
 			new FakeRuntimeProbe { ReportedVersion = double.NaN },
 			static () => 1);
 
-		CheatEngineOperationException exception = Assert.Throws<CheatEngineOperationException>(() =>
-			runtime.GetSnapshot(TestContext.Current.CancellationToken));
+		CheatEngineRuntimeSnapshot snapshot = runtime.GetSnapshot(TestContext.Current.CancellationToken);
 
-		Assert.Equal(CheatEngineFailureKind.InvalidHostResult, exception.Failure.Kind);
-		Assert.Equal("Dispatcher.Invoke", exception.Failure.Operation);
+		Assert.Null(snapshot.ObservedCheatEngineVersion);
+		Assert.True(snapshot.SdkCapabilities.TryGet(RuntimeCapabilityId.CheatEngineVersion,
+			out RuntimeCapabilityAvailability availability));
+		Assert.Equal(RuntimeCapabilityAvailabilityState.Unknown, availability.State);
+	}
+
+	[Fact]
+	public void SnapshotSeparatesMissingFaultedAndMalformedOpenedProcessEvidence()
+	{
+		AssertOpenedProcessEvidence(
+			new FakeRuntimeProbe { OpenedProcessException = new EngineGlobalUnavailableException("Runtime.Process") },
+			ClientCapabilityEvidenceState.Missing,
+			ClientCapabilityAvailabilityState.Unavailable);
+		AssertOpenedProcessEvidence(
+			new FakeRuntimeProbe { OpenedProcessException = new EngineOperationFailedException("Runtime.Process") },
+			ClientCapabilityEvidenceState.Faulted,
+			ClientCapabilityAvailabilityState.Unknown);
+		AssertOpenedProcessEvidence(
+			new FakeRuntimeProbe { OpenedProcessId = -1 },
+			ClientCapabilityEvidenceState.Malformed,
+			ClientCapabilityAvailabilityState.Unknown);
+	}
+
+	[Fact]
+	public void SnapshotReportsAnInactiveActivationAsALifetimeGate()
+	{
+		RuntimeClient runtime = new(new InlineDispatcher(), new FakeRuntimeProbe(), static () => 7,
+			isActivationCurrent: static () => false);
+
+		CheatEngineRuntimeSnapshot snapshot = runtime.GetSnapshot(TestContext.Current.CancellationToken);
+
+		Assert.True(snapshot.ClientCapabilities.TryGet(ClientCapabilityId.TypedMemory,
+			out ClientCapabilityAvailability availability));
+		Assert.Equal(ClientCapabilityEvidenceState.Missing, availability.Evidence.Lifetime.State);
+		Assert.Equal(ClientCapabilityAvailabilityState.Unavailable, availability.State);
+		Assert.Contains("no longer current", availability.Reason, StringComparison.OrdinalIgnoreCase);
 	}
 
 	[Fact]
@@ -230,7 +268,8 @@ public sealed class RuntimeClientTests
 		Assert.True(clientSucceeded);
 		Assert.Equal(default, clientFailure);
 		Assert.Equal(ClientCapabilityAvailabilityState.Unknown, clientAvailability.State);
-		Assert.Contains("does not probe", clientAvailability.Reason, StringComparison.OrdinalIgnoreCase);
+		Assert.Equal(ClientCapabilityEvidenceState.Unknown, clientAvailability.Evidence.Package.State);
+		Assert.Contains("package artifact", clientAvailability.Reason, StringComparison.OrdinalIgnoreCase);
 	}
 
 	[Fact]
@@ -273,6 +312,21 @@ public sealed class RuntimeClientTests
 		Assert.True(snapshot.SdkCapabilities.TryGet(RuntimeCapabilityId.SystemArchitecture,
 			out RuntimeCapabilityAvailability system));
 		Assert.Equal(RuntimeCapabilityAvailabilityState.Unavailable, system.State);
+	}
+
+	private static void AssertOpenedProcessEvidence(
+		FakeRuntimeProbe probe,
+		ClientCapabilityEvidenceState expectedHostState,
+		ClientCapabilityAvailabilityState expectedAvailabilityState)
+	{
+		RuntimeClient runtime = new(new InlineDispatcher(), probe, static () => 7);
+
+		CheatEngineRuntimeSnapshot snapshot = runtime.GetSnapshot(TestContext.Current.CancellationToken);
+
+		Assert.True(snapshot.ClientCapabilities.TryGet(ClientCapabilityId.ProcessSelection,
+			out ClientCapabilityAvailability availability));
+		Assert.Equal(expectedHostState, availability.Evidence.Host.State);
+		Assert.Equal(expectedAvailabilityState, availability.State);
 	}
 
 	private sealed class FakeRuntimeProbe : IRuntimeProbe

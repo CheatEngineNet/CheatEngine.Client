@@ -28,8 +28,24 @@ public readonly record struct ClientCapabilityAvailability
 		ArgumentException.ThrowIfNullOrWhiteSpace(reason);
 
 		Capability = capability;
-		State = state;
-		Reason = reason;
+		Evidence = CreateLegacyEvidence(state, reason);
+		State = Evidence.AvailabilityState;
+		Reason = Evidence.EffectiveReason;
+	}
+
+	/// <summary>Creates an availability projection from independently sourced prerequisite evidence.</summary>
+	public ClientCapabilityAvailability(ClientCapabilityId capability, ClientCapabilityEvidence evidence)
+	{
+		if (capability.IsEmpty)
+		{
+			throw new ArgumentException("A Client capability identifier is required.", nameof(capability));
+		}
+
+		_ = evidence.EffectiveReason;
+		Capability = capability;
+		Evidence = evidence;
+		State = evidence.AvailabilityState;
+		Reason = evidence.EffectiveReason;
 	}
 
 	/// <summary>Gets the stable Client-owned capability identifier.</summary>
@@ -40,6 +56,12 @@ public readonly record struct ClientCapabilityAvailability
 
 	/// <summary>Gets the observed availability state.</summary>
 	public ClientCapabilityAvailabilityState State
+	{
+		get;
+	}
+
+	/// <summary>Gets the separately observed implementation, package, host, qualification, policy, and lifetime gates.</summary>
+	public ClientCapabilityEvidence Evidence
 	{
 		get;
 	}
@@ -55,4 +77,16 @@ public readonly record struct ClientCapabilityAvailability
 
 	/// <summary>Gets whether this capability was explicitly established as available or unavailable.</summary>
 	public bool IsKnown => State != ClientCapabilityAvailabilityState.Unknown;
+
+	private static ClientCapabilityEvidence CreateLegacyEvidence(ClientCapabilityAvailabilityState state, string reason)
+	{
+		ClientCapabilityEvidenceState evidenceState = state switch
+		{
+			ClientCapabilityAvailabilityState.Available => ClientCapabilityEvidenceState.Satisfied,
+			ClientCapabilityAvailabilityState.Unavailable => ClientCapabilityEvidenceState.Missing,
+			_ => ClientCapabilityEvidenceState.Unknown
+		};
+		ClientCapabilityEvidenceGate gate = new(evidenceState, reason);
+		return new ClientCapabilityEvidence(gate, gate, gate, gate, gate, gate);
+	}
 }

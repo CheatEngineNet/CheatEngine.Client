@@ -1,5 +1,3 @@
-using System.Globalization;
-
 using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Results;
@@ -15,6 +13,7 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 	private readonly Version _clientAssemblyVersion;
 	private readonly ICheatEngineDispatcher _dispatcher;
 	private readonly Func<long> _getEpoch;
+	private readonly Func<bool> _isActivationCurrent;
 	private readonly CoreClientPolicy _policy;
 	private readonly IRuntimeProbe _probe;
 	private readonly Version _sdkAssemblyVersion;
@@ -26,7 +25,8 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 			() => lifetime.Epoch,
 			typeof(ICheatEngineRuntime).Assembly.GetName().Version,
 			typeof(RuntimeInfo).Assembly.GetName().Version,
-			policy)
+			policy,
+			() => lifetime.IsCurrent)
 	{
 		ArgumentNullException.ThrowIfNull(lifetime);
 	}
@@ -37,11 +37,13 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 		Func<long> getEpoch,
 		Version? clientAssemblyVersion = null,
 		Version? sdkAssemblyVersion = null,
-		CoreClientPolicy? policy = null)
+		CoreClientPolicy? policy = null,
+		Func<bool>? isActivationCurrent = null)
 	{
 		_dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
 		_probe = probe ?? throw new ArgumentNullException(nameof(probe));
 		_getEpoch = getEpoch ?? throw new ArgumentNullException(nameof(getEpoch));
+		_isActivationCurrent = isActivationCurrent ?? (static () => true);
 		_policy = policy ?? CoreClientPolicy.SafeDefaults;
 		_clientAssemblyVersion = clientAssemblyVersion ?? typeof(ICheatEngineRuntime).Assembly.GetName().Version ??
 			throw new InvalidOperationException("The Client assembly does not declare an assembly version.");
@@ -168,39 +170,28 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 
 	private CheatEngineRuntimeSnapshot Capture()
 	{
-		ProbeResult<double> version = Probe(RuntimeCapabilityId.CheatEngineVersion, _probe.GetCheatEngineVersion);
-		ProbeResult<int> systemArchitecture =
-			Probe(RuntimeCapabilityId.SystemArchitecture, _probe.GetSystemArchitecture);
-		ProbeResult<int> targetAbi = Probe(RuntimeCapabilityId.TargetAbi, _probe.GetTargetAbi);
+		ProbeResult<double> version = ValidateVersion(Probe(_probe.GetCheatEngineVersion));
+		ProbeResult<int> systemArchitecture = Probe(_probe.GetSystemArchitecture);
+		ProbeResult<int> targetAbi = Probe(_probe.GetTargetAbi);
+		ProbeResult<long> openedProcess = ValidateOpenedProcess(Probe(_probe.GetOpenedProcessId));
 
-		bool hasTarget = TryReadOpenedProcess(out long openedProcessId) && openedProcessId > 0;
+		bool hasTarget = openedProcess.HasValue && openedProcess.Value > 0;
 		ProbeResult<bool> targetArchitecture = hasTarget
-			? Probe(RuntimeCapabilityId.TargetArchitecture, _probe.TargetIs64Bit)
-			: ProbeResult<bool>.Unknown(RuntimeCapabilityId.TargetArchitecture);
+			? Probe(_probe.TargetIs64Bit)
+			: ProbeResult<bool>.Unknown("No target process is selected, so target architecture was not probed.");
 
-		double? observedVersion = version.State == RuntimeCapabilityAvailabilityState.Available
-			? version.Value
-			: null;
-		if (observedVersion is { } reported && (!double.IsFinite(reported) || reported < 0))
-		{
-			throw new EngineMarshallingException(
-				"Runtime.GetCheatEngineVersion",
-				EngineMarshallingDirection.Result,
-				"a finite non-negative number",
-				reported.ToString(CultureInfo.InvariantCulture));
-		}
-
-		CheatEngineArchitecture decodedSystemArchitecture = DecodeSystemArchitecture(systemArchitecture);
-		TargetAbi decodedTargetAbi = DecodeTargetAbi(targetAbi);
+		double? observedVersion = version.HasValue ? version.Value : null;
+		CheatEngineArchitecture decodedSystemArchitecture = DecodeSystemArchitecture(ref systemArchitecture);
+		TargetAbi decodedTargetAbi = DecodeTargetAbi(ref targetAbi);
 		CheatEngineArchitecture decodedTargetArchitecture =
-			DecodeTargetArchitecture(targetArchitecture, decodedTargetAbi);
+			DecodeTargetArchitecture(ref targetArchitecture, decodedTargetAbi);
 
 		RuntimeCapabilityAvailability[] capabilities =
 		[
-			version.ToAvailability(),
-			systemArchitecture.ToAvailability(),
-			targetArchitecture.ToAvailability(),
-			targetAbi.ToAvailability()
+			version.ToAvailability(RuntimeCapabilityId.CheatEngineVersion),
+			systemArchitecture.ToAvailability(RuntimeCapabilityId.SystemArchitecture),
+			targetArchitecture.ToAvailability(RuntimeCapabilityId.TargetArchitecture),
+			targetAbi.ToAvailability(RuntimeCapabilityId.TargetAbi)
 		];
 
 		return new CheatEngineRuntimeSnapshot(
@@ -213,130 +204,187 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 				PointerSize.FromArchitecture(decodedTargetArchitecture),
 				decodedTargetAbi),
 			RuntimeCapabilities.Create(capabilities),
-			CreateClientCapabilities());
+			CreateClientCapabilities(openedProcess));
 	}
 
-	private ClientCapabilities CreateClientCapabilities()
+	private ClientCapabilities CreateClientCapabilities(ProbeResult<long> openedProcess)
 	{
+		ClientCapabilityEvidenceGate lifetime = _isActivationCurrent()
+			? Satisfied("The Client activation is current.")
+			: Missing("The Client activation is no longer current.");
+		ClientCapabilityEvidenceGate packageUnknown = UnknownEvidence(
+			"The runtime snapshot does not establish the identity of the consumed SDK package artifact.");
+		ClientCapabilityEvidenceGate qualificationUnknown = UnknownEvidence(
+			"No complete Cheat Engine 7.7 x64 live qualification record is attached to this capability observation.");
+		ClientCapabilityEvidenceGate policyNotRequired = Satisfied(
+			"This capability has no additional activation policy opt-in.");
+		ClientCapabilityEvidenceGate unprobedHost = UnknownEvidence(
+			"The runtime snapshot does not probe every host primitive required by this capability.");
+		ClientCapabilityEvidenceGate implemented = Satisfied(
+			"The Client composes an operational adapter for this capability.");
+		ClientCapabilityEvidenceGate contractOnly = Missing(
+			"The Client package currently composes only an unavailable adapter for this capability.");
+
 		ClientCapabilityAvailability[] capabilities =
 		[
-			Unknown(ClientCapabilityId.ProcessSelection,
-				"The runtime snapshot does not probe every backing process-selection primitive, including openProcess."),
-			Unknown(ClientCapabilityId.TypedMemory,
-				"The runtime snapshot does not probe every backing typed-memory primitive."),
-			Unknown(ClientCapabilityId.PatternScanning,
-				"The runtime snapshot does not probe every backing AOB scan primitive."),
-			new(
-				ClientCapabilityId.ValueScanning,
-				ClientCapabilityAvailabilityState.Unavailable,
-				"Value scan sessions remain unavailable until the CE 7.7 live ownership and cleanup gate passes."),
-			Unknown(ClientCapabilityId.Inspection,
-				"The runtime snapshot does not probe every backing inspection primitive."),
-			Unknown(ClientCapabilityId.Tables,
-				"The runtime snapshot does not probe every backing Address List and table primitive."),
-			Unknown(ClientCapabilityId.ProtectedLua,
-				"The runtime snapshot does not probe every backing protected Lua primitive."),
-			_policy.EnableUnsafeLuaExecution
-				? new ClientCapabilityAvailability(
-					ClientCapabilityId.UnsafeLuaExecution,
-					ClientCapabilityAvailabilityState.Available,
-					"Unsafe Lua execution was explicitly enabled for this activation.")
-				: new ClientCapabilityAvailability(
-					ClientCapabilityId.UnsafeLuaExecution,
-					ClientCapabilityAvailabilityState.Unavailable,
-					"Unsafe Lua execution requires explicit EnableUnsafeLuaExecution opt-in for this activation."),
-			Unavailable(ClientCapabilityId.Allocations,
-				"Owned target allocations remain unavailable until the SDK production owner and CE 7.7 x64 cleanup gate pass."),
-			Unknown(ClientCapabilityId.Assembly,
-				"Assembly primitives and Auto Assembler ownership have not yet passed their CE 7.7 x64 live gate."),
-			Unavailable(ClientCapabilityId.RemoteExecution,
-				"Remote execution remains unavailable until allocation, timeout, and cleanup behavior pass the CE 7.7 x64 live gate."),
-			Unavailable(ClientCapabilityId.Debugger,
-				"Debugger callback ownership and synchronous continuation have not yet passed the CE 7.7 x64 live gate."),
-			Unavailable(ClientCapabilityId.Hotkeys,
-				"Hotkey callback ownership has not yet passed the CE 7.7 x64 live gate."),
-			Unavailable(ClientCapabilityId.Timers,
-				"Timer callback ownership has not yet passed the CE 7.7 x64 live gate."),
-			Unknown(ClientCapabilityId.Speed,
-				"The runtime snapshot does not yet probe the complete speed-control contract."),
-			Unknown(ClientCapabilityId.Hashing,
-				"The runtime snapshot does not yet probe target-memory and file hashing independently."),
-			Unavailable(ClientCapabilityId.Dbvm,
-				"DBVM observation, explicit initialization, and watch ownership have not yet passed the CE 7.7 x64 live gate.")
+			Describe(ClientCapabilityId.ProcessSelection, implemented, packageUnknown, openedProcess.Evidence,
+				qualificationUnknown, policyNotRequired, lifetime),
+			Describe(ClientCapabilityId.TypedMemory, implemented, packageUnknown, unprobedHost, qualificationUnknown,
+				policyNotRequired, lifetime),
+			Describe(ClientCapabilityId.PatternScanning, implemented, packageUnknown, unprobedHost, qualificationUnknown,
+				policyNotRequired, lifetime),
+			Describe(ClientCapabilityId.ValueScanning, contractOnly,
+				Missing("CheatEngine.SDK 1.0.0 does not provide the public MemScan and FoundList ownership factory required by Client."),
+				unprobedHost, qualificationUnknown, policyNotRequired, lifetime),
+			Describe(ClientCapabilityId.Inspection, implemented, packageUnknown, unprobedHost, qualificationUnknown,
+				policyNotRequired, lifetime),
+			Describe(ClientCapabilityId.Tables, implemented, packageUnknown, unprobedHost, qualificationUnknown,
+				policyNotRequired, lifetime),
+			Describe(ClientCapabilityId.ProtectedLua, implemented, packageUnknown, unprobedHost, qualificationUnknown,
+				policyNotRequired, lifetime),
+			Describe(ClientCapabilityId.UnsafeLuaExecution, implemented, packageUnknown, unprobedHost,
+				qualificationUnknown,
+				_policy.EnableUnsafeLuaExecution
+					? Satisfied("Unsafe Lua execution was explicitly enabled for this activation.")
+					: Missing("Unsafe Lua execution requires explicit EnableUnsafeLuaExecution opt-in for this activation."),
+				lifetime),
+			Describe(ClientCapabilityId.Allocations, contractOnly, packageUnknown, unprobedHost, qualificationUnknown,
+				policyNotRequired, lifetime),
+			Describe(ClientCapabilityId.Assembly, contractOnly, packageUnknown, unprobedHost, qualificationUnknown,
+				policyNotRequired, lifetime),
+			Describe(ClientCapabilityId.RemoteExecution, contractOnly, packageUnknown, unprobedHost, qualificationUnknown,
+				policyNotRequired, lifetime),
+			Describe(ClientCapabilityId.Debugger, contractOnly, packageUnknown, unprobedHost, qualificationUnknown,
+				policyNotRequired, lifetime),
+			Describe(ClientCapabilityId.Hotkeys, contractOnly, packageUnknown, unprobedHost, qualificationUnknown,
+				policyNotRequired, lifetime),
+			Describe(ClientCapabilityId.Timers, contractOnly, packageUnknown, unprobedHost, qualificationUnknown,
+				policyNotRequired, lifetime),
+			Describe(ClientCapabilityId.Speed, contractOnly, packageUnknown, unprobedHost, qualificationUnknown,
+				policyNotRequired, lifetime),
+			Describe(ClientCapabilityId.Hashing, contractOnly, packageUnknown, unprobedHost, qualificationUnknown,
+				policyNotRequired, lifetime),
+			Describe(ClientCapabilityId.Dbvm, contractOnly, packageUnknown, unprobedHost, qualificationUnknown,
+				policyNotRequired, lifetime)
 		];
 
 		return ClientCapabilities.Create(capabilities);
 	}
 
-	private static ClientCapabilityAvailability Unknown(ClientCapabilityId capability, string reason)
+	private static ClientCapabilityAvailability Describe(
+		ClientCapabilityId capability,
+		ClientCapabilityEvidenceGate implementation,
+		ClientCapabilityEvidenceGate package,
+		ClientCapabilityEvidenceGate host,
+		ClientCapabilityEvidenceGate qualification,
+		ClientCapabilityEvidenceGate policy,
+		ClientCapabilityEvidenceGate lifetime)
 	{
-		return new ClientCapabilityAvailability(capability, ClientCapabilityAvailabilityState.Unknown, reason);
+		return new ClientCapabilityAvailability(capability,
+			new ClientCapabilityEvidence(implementation, package, host, qualification, policy, lifetime));
 	}
 
-	private static ClientCapabilityAvailability Unavailable(ClientCapabilityId capability, string reason)
+	private static ClientCapabilityEvidenceGate Satisfied(string reason)
 	{
-		return new ClientCapabilityAvailability(capability, ClientCapabilityAvailabilityState.Unavailable, reason);
+		return new ClientCapabilityEvidenceGate(ClientCapabilityEvidenceState.Satisfied, reason);
 	}
 
-	private static CheatEngineArchitecture DecodeSystemArchitecture(ProbeResult<int> probe)
+	private static ClientCapabilityEvidenceGate Missing(string reason)
 	{
-		return probe is { State: RuntimeCapabilityAvailabilityState.Available, Value: int architecture } &&
-		       RuntimeInfo.TryDecodeSystemArchitecture(architecture, out CheatEngineArchitecture decoded)
-			? decoded
-			: CheatEngineArchitecture.Unknown;
+		return new ClientCapabilityEvidenceGate(ClientCapabilityEvidenceState.Missing, reason);
 	}
 
-	private static TargetAbi DecodeTargetAbi(ProbeResult<int> probe)
+	private static ClientCapabilityEvidenceGate UnknownEvidence(string reason)
 	{
-		return probe is { State: RuntimeCapabilityAvailabilityState.Available, Value: int abi } &&
-		       RuntimeInfo.TryDecodeTargetAbi(abi, out TargetAbi decoded)
-			? decoded
-			: TargetAbi.Unknown;
+		return new ClientCapabilityEvidenceGate(ClientCapabilityEvidenceState.Unknown, reason);
 	}
 
-	private static CheatEngineArchitecture DecodeTargetArchitecture(ProbeResult<bool> probe, TargetAbi targetAbi)
+	private static ProbeResult<double> ValidateVersion(ProbeResult<double> probe)
 	{
-		if (targetAbi != TargetAbi.Windows ||
-		    probe is not { State: RuntimeCapabilityAvailabilityState.Available, Value: bool is64Bit })
+		return probe.HasValue && probe.Value is { } version && (!double.IsFinite(version) || version < 0)
+			? ProbeResult<double>.Malformed("Cheat Engine returned a version that is not a finite non-negative number.")
+			: probe;
+	}
+
+	private static ProbeResult<long> ValidateOpenedProcess(ProbeResult<long> probe)
+	{
+		return probe.HasValue && probe.Value is { } processId &&
+		       (processId < 0 || processId > int.MaxValue)
+			? ProbeResult<long>.Malformed("Cheat Engine returned an opened process identifier outside the supported PID range.")
+			: probe;
+	}
+
+	private static CheatEngineArchitecture DecodeSystemArchitecture(ref ProbeResult<int> probe)
+	{
+		if (!probe.HasValue)
 		{
 			return CheatEngineArchitecture.Unknown;
 		}
 
-		return is64Bit ? CheatEngineArchitecture.X64 : CheatEngineArchitecture.X86;
+		if (RuntimeInfo.TryDecodeSystemArchitecture(probe.Value, out CheatEngineArchitecture architecture))
+		{
+			return architecture;
+		}
+
+		probe = ProbeResult<int>.Malformed("Cheat Engine returned an unsupported system architecture code.");
+		return CheatEngineArchitecture.Unknown;
 	}
 
-	private bool TryReadOpenedProcess(out long processId)
+	private static TargetAbi DecodeTargetAbi(ref ProbeResult<int> probe)
+	{
+		if (!probe.HasValue)
+		{
+			return TargetAbi.Unknown;
+		}
+
+		if (RuntimeInfo.TryDecodeTargetAbi(probe.Value, out TargetAbi targetAbi))
+		{
+			return targetAbi;
+		}
+
+		probe = ProbeResult<int>.Malformed("Cheat Engine returned an unsupported target ABI code.");
+		return TargetAbi.Unknown;
+	}
+
+	private static CheatEngineArchitecture DecodeTargetArchitecture(ref ProbeResult<bool> probe, TargetAbi targetAbi)
+	{
+		if (!probe.HasValue || targetAbi == TargetAbi.Unknown)
+		{
+			return CheatEngineArchitecture.Unknown;
+		}
+
+		if (targetAbi != TargetAbi.Windows)
+		{
+			probe = ProbeResult<bool>.Unknown(
+				"The target architecture probe is not qualified for the observed target ABI.");
+			return CheatEngineArchitecture.Unknown;
+		}
+
+		return probe.Value ? CheatEngineArchitecture.X64 : CheatEngineArchitecture.X86;
+	}
+
+	private static ProbeResult<T> Probe<T>(Func<T> probe)
 	{
 		try
 		{
-			processId = _probe.GetOpenedProcessId();
-			return true;
+			return ProbeResult<T>.Available(probe());
 		}
 		catch (EngineGlobalUnavailableException)
 		{
-			processId = 0;
-			return false;
+			return ProbeResult<T>.MissingGlobal();
 		}
 		catch (EngineCapabilityUnavailableException)
 		{
-			processId = 0;
-			return false;
+			return ProbeResult<T>.MissingCapability();
 		}
-	}
-
-	private static ProbeResult<T> Probe<T>(RuntimeCapabilityId capability, Func<T> probe)
-	{
-		try
+		catch (EngineMarshallingException)
 		{
-			return ProbeResult<T>.Available(capability, probe());
+			return ProbeResult<T>.Malformed("The Cheat Engine runtime probe returned a malformed result.");
 		}
-		catch (EngineGlobalUnavailableException)
+		catch (EngineException exception)
 		{
-			return ProbeResult<T>.Unavailable(capability);
-		}
-		catch (EngineCapabilityUnavailableException)
-		{
-			return ProbeResult<T>.Unavailable(capability);
+			return ProbeResult<T>.Faulted(
+				$"The Cheat Engine runtime probe failed with {exception.GetType().Name}.");
 		}
 	}
 }

@@ -23,8 +23,9 @@ internal static class UnavailableCapabilityFailure
 			? new CheatEngineFailure(CheatEngineFailureKind.Cancelled, operation,
 				"The operation was cancelled before Cheat Engine work began.")
 			: new CheatEngineFailure(CheatEngineFailureKind.CapabilityUnavailable, operation,
-				$"{capabilityName} is unavailable until its ownership, thread-affinity, cleanup, disable, re-enable, " +
-				"and target-change behavior pass the required Cheat Engine 7.7 x64 live gate.");
+				$"{capabilityName} is unavailable because this Client package currently composes an unavailable adapter. " +
+				"Promotion also requires its ownership, thread-affinity, cleanup, disable, re-enable, and target-change " +
+				"behavior to pass the required Cheat Engine 7.7 x64 live gate.");
 	}
 
 	internal static T Throw<T>(CheatEngineFailure failure)
