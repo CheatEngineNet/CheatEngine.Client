@@ -39,6 +39,7 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 
 		Assert.NotNull(builder);
 		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(ICheatEngineClient));
+		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(ILocalProcessDiagnostics));
 		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IMemoryCodec<int>));
 		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IAllocationClient));
 		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IAssemblyClient));

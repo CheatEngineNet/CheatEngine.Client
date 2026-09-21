@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 
 using CheatEngine.Client.Core.Domains.Events;
+using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Dbvm;
 using CheatEngine.Client.Events;
 using CheatEngine.Client.Results;
@@ -10,6 +11,12 @@ namespace CheatEngine.Client.Core.Domains.Dbvm;
 /// <summary>Observes no inferred DBVM state and never initializes DBVM before its explicit live-host gate passes.</summary>
 internal sealed class UnavailableDbvmClient : IDbvmClient
 {
+	private readonly CoreLifetime? _lifetime;
+
+	internal UnavailableDbvmClient(CoreLifetime? lifetime = null)
+	{
+		_lifetime = lifetime;
+	}
 	public bool TryGetStatus(out DbvmStatusSnapshot status, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
@@ -57,9 +64,9 @@ internal sealed class UnavailableDbvmClient : IDbvmClient
 		return UnavailableCapabilityFailure.Throw<IDbvmWatchLease>(failure);
 	}
 
-	private static CheatEngineFailure CreateFailure(string operation, CancellationToken cancellationToken)
+	private CheatEngineFailure CreateFailure(string operation, CancellationToken cancellationToken)
 	{
-		return UnavailableCapabilityFailure.Create("DBVM observation, explicit initialization, and watches", operation,
+		return UnavailableCapabilityFailure.Create(_lifetime, "DBVM observation, explicit initialization, and watches", operation,
 			cancellationToken);
 	}
 }

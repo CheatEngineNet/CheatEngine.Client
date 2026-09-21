@@ -2,6 +2,7 @@ using System.Diagnostics;
 
 using CheatEngine.Client.Results;
 using CheatEngine.Client.Scanning;
+using CheatEngine.Client.Core.Infrastructure;
 
 namespace CheatEngine.Client.Core.Domains;
 
@@ -11,6 +12,8 @@ namespace CheatEngine.Client.Core.Domains;
 /// </summary>
 internal sealed class UnavailableValueScanner : IValueScanner
 {
+	private readonly CoreLifetime? _lifetime;
+	internal UnavailableValueScanner(CoreLifetime? lifetime = null) => _lifetime = lifetime;
 	// This is a deliberate product gate, not a transient host-capability probe.  SDK 1.0.0 exposes the state machine
 	// only through MemoryScanSession.Adopt(Owned<MemScan>, Owned<FoundList>), while Owned<T> has an internal
 	// constructor and the Lua-global generator cannot marshal CEObject results.  Bypassing that with reflection or a
@@ -24,6 +27,7 @@ internal sealed class UnavailableValueScanner : IValueScanner
 		CancellationToken cancellationToken = default)
 	{
 		session = null;
+		_lifetime?.ThrowIfInactive("Scans.CreateSession");
 		failure = cancellationToken.IsCancellationRequested
 			? new CheatEngineFailure(CheatEngineFailureKind.Cancelled, "Scans.CreateSession",
 				"The operation was cancelled before Cheat Engine work began.")

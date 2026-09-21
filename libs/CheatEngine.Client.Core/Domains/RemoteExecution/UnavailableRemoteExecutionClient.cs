@@ -1,4 +1,5 @@
 using CheatEngine.Client.Core.Domains.Events;
+using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.RemoteExecution;
 using CheatEngine.Client.Results;
 
@@ -7,6 +8,12 @@ namespace CheatEngine.Client.Core.Domains.RemoteExecution;
 /// <summary>Preserves remote-execution intent contracts until allocation and thread-affinity live gates are complete.</summary>
 internal sealed class UnavailableRemoteExecutionClient : IRemoteExecutionClient
 {
+	private readonly CoreLifetime? _lifetime;
+
+	internal UnavailableRemoteExecutionClient(CoreLifetime? lifetime = null)
+	{
+		_lifetime = lifetime;
+	}
 	public bool TryInjectLibrary(RemoteDllInjectionRequest request, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
@@ -34,8 +41,8 @@ internal sealed class UnavailableRemoteExecutionClient : IRemoteExecutionClient
 		return UnavailableCapabilityFailure.Throw<RemoteCallResult>(failure);
 	}
 
-	private static CheatEngineFailure CreateFailure(string operation, CancellationToken cancellationToken)
+	private CheatEngineFailure CreateFailure(string operation, CancellationToken cancellationToken)
 	{
-		return UnavailableCapabilityFailure.Create("Remote execution and injection", operation, cancellationToken);
+		return UnavailableCapabilityFailure.Create(_lifetime, "Remote execution and injection", operation, cancellationToken);
 	}
 }

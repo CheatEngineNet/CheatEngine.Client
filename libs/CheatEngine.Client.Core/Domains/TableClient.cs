@@ -14,7 +14,8 @@ namespace CheatEngine.Client.Core.Domains;
 internal sealed class TableClient(
 	ICheatEngineDispatcher dispatcher,
 	CoreClientPolicy policy,
-	ITableRecordMutationPort? recordMutations = null) : ITableClient
+	ITableRecordMutationPort? recordMutations = null,
+	CoreLifetime? lifetime = null) : ITableClient
 {
 	private const string _getHierarchyOperation = "Tables.GetHierarchy";
 
@@ -23,6 +24,7 @@ internal sealed class TableClient(
 
 	private readonly CoreClientPolicy _policy = policy ?? throw new ArgumentNullException(nameof(policy));
 	private readonly ITableRecordMutationPort _recordMutations = recordMutations ?? new SdkTableRecordMutationPort();
+	private readonly CoreLifetime? _lifetime = lifetime;
 
 	public bool TryGetCurrent(out AddressTableSnapshot table, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
@@ -428,6 +430,7 @@ internal sealed class TableClient(
 	public bool TryLoadTrustedTable(TableLoadRequest request, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
+		_lifetime?.ThrowIfInactive("Tables.LoadTrustedTable");
 		if (!TryAuthorize(request.File.FullPath, "Tables.LoadTrustedTable", out failure))
 		{
 			return false;
@@ -448,6 +451,7 @@ internal sealed class TableClient(
 	public bool TrySaveTable(TableSaveRequest request, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
+		_lifetime?.ThrowIfInactive("Tables.SaveTable");
 		if (!TryAuthorize(request.File.FullPath, "Tables.SaveTable", out failure))
 		{
 			return false;

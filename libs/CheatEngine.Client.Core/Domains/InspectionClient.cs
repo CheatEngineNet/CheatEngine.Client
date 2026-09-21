@@ -236,6 +236,7 @@ internal sealed class InspectionClient(
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
 		lease = null;
+		_lifetime.ThrowIfInactive("Inspection.RegisterSymbol");
 		if (!TryReserveSymbolName(registration.Name, out failure))
 		{
 			return false;

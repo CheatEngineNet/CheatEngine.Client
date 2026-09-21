@@ -1,4 +1,5 @@
 using CheatEngine.Client.Core.Domains.Events;
+using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Results;
 using CheatEngine.Client.Speed;
 
@@ -7,6 +8,12 @@ namespace CheatEngine.Client.Core.Domains.Speed;
 /// <summary>Preserves validated speed semantics until Cheat Engine speed control passes its live-host gate.</summary>
 internal sealed class UnavailableSpeedClient : ISpeedClient
 {
+	private readonly CoreLifetime? _lifetime;
+
+	internal UnavailableSpeedClient(CoreLifetime? lifetime = null)
+	{
+		_lifetime = lifetime;
+	}
 	public bool TryGetMultiplier(out SpeedMultiplier multiplier, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
@@ -34,8 +41,8 @@ internal sealed class UnavailableSpeedClient : ISpeedClient
 		UnavailableCapabilityFailure.Throw(failure);
 	}
 
-	private static CheatEngineFailure CreateFailure(string operation, CancellationToken cancellationToken)
+	private CheatEngineFailure CreateFailure(string operation, CancellationToken cancellationToken)
 	{
-		return UnavailableCapabilityFailure.Create("Target speed control", operation, cancellationToken);
+		return UnavailableCapabilityFailure.Create(_lifetime, "Target speed control", operation, cancellationToken);
 	}
 }

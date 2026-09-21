@@ -1,4 +1,6 @@
 using CheatEngine.Client.Core.Domains;
+using CheatEngine.Client.Core.Infrastructure;
+using CheatEngine.Client.Core.Tests.TestSupport;
 using CheatEngine.Client.Results;
 using CheatEngine.Client.Scanning;
 
@@ -35,6 +37,21 @@ public sealed class UnavailableValueScannerTests
 		Assert.False(succeeded);
 		Assert.Null(session);
 		Assert.Equal(CheatEngineFailureKind.Cancelled, failure.Kind);
+	}
+
+	[Fact]
+	public void TryCreateSessionRejectsAStaleActivationBeforeCapabilityOrCancellation()
+	{
+		using ControlledCoreLifetimeContext context = new() { IsCurrent = false };
+		using CoreLifetime lifetime = new(context);
+		UnavailableValueScanner scanner = new(lifetime);
+		using CancellationTokenSource cancellation = new();
+		cancellation.Cancel();
+
+		CheatEngineActivationExpiredException exception = Assert.Throws<CheatEngineActivationExpiredException>(() =>
+			scanner.TryCreateSession(out _, out _, cancellation.Token));
+
+		Assert.Equal("Scans.CreateSession", exception.Failure.Operation);
 	}
 
 	[Fact]

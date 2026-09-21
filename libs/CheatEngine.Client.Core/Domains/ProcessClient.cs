@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using System.ComponentModel;
 
 using CheatEngine.Client.Core.Infrastructure;
@@ -14,6 +13,7 @@ namespace CheatEngine.Client.Core.Domains;
 /// <summary>Owns deterministic target selection without taking ownership of Cheat Engine's global process state.</summary>
 internal sealed class ProcessClient : IProcessClient
 {
+	private readonly Action<string>? _admitStatefulOperation;
 	private readonly ICheatEngineDispatcher _dispatcher;
 	private readonly IProcessHost _host;
 	private readonly Lock _selectionGate = new();
@@ -21,8 +21,12 @@ internal sealed class ProcessClient : IProcessClient
 	private ProcessSelection? _lastSelection;
 
 	internal ProcessClient(ICheatEngineDispatcher dispatcher, CoreLifetime lifetime)
-		: this(dispatcher, new LocalProcessHost(),
-			lifetime?.TargetSelection ?? throw new ArgumentNullException(nameof(lifetime)))
+		: this(dispatcher, new LocalProcessHost(), lifetime?.TargetSelection ?? throw new ArgumentNullException(nameof(lifetime)), lifetime.ThrowIfInactive)
+	{
+	}
+
+	internal ProcessClient(ICheatEngineDispatcher dispatcher, IProcessHost host, CoreLifetime lifetime)
+		: this(dispatcher, host, lifetime?.TargetSelection ?? throw new ArgumentNullException(nameof(lifetime)), lifetime.ThrowIfInactive)
 	{
 	}
 
@@ -30,10 +34,16 @@ internal sealed class ProcessClient : IProcessClient
 		ICheatEngineDispatcher dispatcher,
 		IProcessHost host,
 		TargetSelectionLifetime selectionLifetime)
+		: this(dispatcher, host, selectionLifetime, null)
+	{
+	}
+
+	internal ProcessClient(ICheatEngineDispatcher dispatcher, IProcessHost host, TargetSelectionLifetime selectionLifetime, Action<string>? admitStatefulOperation)
 	{
 		_dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
 		_host = host ?? throw new ArgumentNullException(nameof(host));
 		_selectionLifetime = selectionLifetime ?? throw new ArgumentNullException(nameof(selectionLifetime));
+		_admitStatefulOperation = admitStatefulOperation;
 	}
 
 	public bool TryGetCurrent(
@@ -42,78 +52,6 @@ internal sealed class ProcessClient : IProcessClient
 		CancellationToken cancellationToken = default)
 	{
 		return TryReadCurrent("Processes.GetCurrent", out snapshot, out failure, cancellationToken);
-	}
-
-	public bool TryGetProcesses(
-		ProcessEnumerationRequest request,
-		out ProcessEnumerationResult result,
-		out CheatEngineFailure failure,
-		CancellationToken cancellationToken = default)
-	{
-		ValidateEnumerationRequest(request);
-		if (cancellationToken.IsCancellationRequested)
-		{
-			result = default;
-			failure = Cancelled("Processes.GetProcesses");
-			return false;
-		}
-
-		try
-		{
-			IReadOnlyList<LocalProcessInfo> localProcesses = _host.GetLocalProcesses();
-			List<LocalProcessInfo> matching = new(localProcesses.Count);
-			for (int index = 0; index < localProcesses.Count; index++)
-			{
-				LocalProcessInfo process = localProcesses[index];
-				if (Matches(request, process))
-				{
-					matching.Add(process);
-				}
-			}
-
-			matching.Sort(static (left, right) => left.Id.CompareTo(right.Id));
-			int materializedCount = Math.Min(matching.Count, request.MaximumItems);
-			ProcessInfoSnapshot[] snapshots = new ProcessInfoSnapshot[materializedCount];
-			for (int index = 0; index < materializedCount; index++)
-			{
-				LocalProcessInfo process = matching[index];
-				snapshots[index] = new ProcessInfoSnapshot(
-					new TargetProcessId(process.Id),
-					process.Name,
-					process.ExecutablePath);
-			}
-
-			result = new ProcessEnumerationResult(
-				ImmutableArray.Create(snapshots),
-				matching.Count > materializedCount);
-			failure = default;
-			return true;
-		}
-		catch (Exception exception) when (exception is ArgumentException or InvalidOperationException
-			                                  or Win32Exception or PlatformNotSupportedException)
-		{
-			result = default;
-			failure = new CheatEngineFailure(
-				CheatEngineFailureKind.OperationRejected,
-				"Processes.GetProcesses",
-				"The local process list could not be materialized.",
-				exception);
-			return false;
-		}
-	}
-
-	public ProcessEnumerationResult GetProcesses(
-		ProcessEnumerationRequest request,
-		CancellationToken cancellationToken = default)
-	{
-		if (TryGetProcesses(request, out ProcessEnumerationResult result, out CheatEngineFailure failure,
-			    cancellationToken))
-		{
-			return result;
-		}
-
-		failure.Throw();
-		return default;
 	}
 
 	public ProcessSnapshot GetCurrent(CancellationToken cancellationToken = default)
@@ -156,6 +94,7 @@ internal sealed class ProcessClient : IProcessClient
 		{
 			throw new ArgumentOutOfRangeException(nameof(processId));
 		}
+		Admit("Processes.Attach");
 
 		CurrentProcessCapture captured = default;
 		if (!_dispatcher.TryInvoke(
@@ -207,7 +146,30 @@ internal sealed class ProcessClient : IProcessClient
 		CancellationToken cancellationToken = default)
 	{
 		string expectedName = NormalizeExactProcessName(processName);
-		IReadOnlyList<LocalProcessInfo> matches = _host.FindProcessesByExactName(expectedName);
+		Admit("Processes.AttachExactName");
+		if (cancellationToken.IsCancellationRequested)
+		{
+			snapshot = default;
+			failure = Cancelled("Processes.AttachExactName");
+			return false;
+		}
+		IReadOnlyList<LocalProcessInfo> matches;
+		try
+		{
+			matches = _host.FindProcessesByExactName(expectedName);
+		}
+		catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or Win32Exception
+		                                  or PlatformNotSupportedException)
+		{
+			snapshot = default;
+			failure = new CheatEngineFailure(
+				CheatEngineFailureKind.OperationRejected,
+				"Processes.AttachExactName",
+				"The local process catalog could not be searched for an attach candidate.",
+				exception);
+			return false;
+		}
+
 		if (matches.Count == 0)
 		{
 			snapshot = default;
@@ -366,19 +328,14 @@ internal sealed class ProcessClient : IProcessClient
 		}
 
 		TargetProcessId id = new(checked((int) processId));
-		if (!_host.TryGetLocalProcess(id.Value, out LocalProcessInfo process))
-		{
-			ClearObservedSelection(operation);
-			return new CurrentProcessCapture(CurrentProcessCaptureFailure.LocalProcessUnavailable);
-		}
-
-		if (process.Id != id.Value)
+		bool hasLocalMetadata = _host.TryGetLocalProcess(id.Value, out LocalProcessInfo process);
+		if (hasLocalMetadata && process.Id != id.Value)
 		{
 			return new CurrentProcessCapture(CurrentProcessCaptureFailure.InvalidLocalMetadata, process.Id);
 		}
 
 		CheatEngineArchitecture architecture = TryGetTargetArchitecture();
-		return new CurrentProcessCapture(ObserveSelection(id, process, architecture, operation));
+		return new CurrentProcessCapture(ObserveSelection(id, hasLocalMetadata ? process : default, architecture, operation));
 	}
 
 	private static bool TryGetCapturedSnapshot(
@@ -401,10 +358,6 @@ internal sealed class ProcessClient : IProcessClient
 				CheatEngineFailureKind.TargetNotAttached,
 				operation,
 				"Cheat Engine has no selected local target process."),
-			CurrentProcessCaptureFailure.LocalProcessUnavailable => new CheatEngineFailure(
-				CheatEngineFailureKind.TargetNotAttached,
-				operation,
-				"The selected target process is no longer available in local process metadata."),
 			CurrentProcessCaptureFailure.InvalidLocalMetadata => new CheatEngineFailure(
 				CheatEngineFailureKind.InvalidHostResult,
 				operation,
@@ -450,10 +403,7 @@ internal sealed class ProcessClient : IProcessClient
 			}
 
 			_lastSelection = selection;
-			return new ProcessSnapshot(
-				id,
-				process.Name,
-				process.ExecutablePath,
+			return new ProcessSnapshot(id, process.Name, process.ExecutablePath,
 				architecture,
 				_selectionLifetime.Epoch);
 		}
@@ -494,15 +444,6 @@ internal sealed class ProcessClient : IProcessClient
 		return normalized;
 	}
 
-	private static void ValidateEnumerationRequest(ProcessEnumerationRequest request)
-	{
-		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(request.MaximumItems);
-		if (request.NameContains is { Length: 0 })
-		{
-			throw new ArgumentException("A process-name filter must be null or non-empty.", nameof(request));
-		}
-	}
-
 	private static void ValidateStartRequest(ProcessStartRequest request)
 	{
 		if (string.IsNullOrWhiteSpace(request.ExecutablePath))
@@ -521,18 +462,13 @@ internal sealed class ProcessClient : IProcessClient
 		}
 	}
 
-	private static bool Matches(ProcessEnumerationRequest request, LocalProcessInfo process)
-	{
-		return request.NameContains is null ||
-		       process.Name?.IndexOf(request.NameContains, StringComparison.OrdinalIgnoreCase) >= 0;
-	}
-
-	private static bool TryUnavailable<T>(
+	private bool TryUnavailable<T>(
 		string operation,
 		out T result,
 		out CheatEngineFailure failure,
 		CancellationToken cancellationToken)
 	{
+		Admit(operation);
 		result = default!;
 		failure = cancellationToken.IsCancellationRequested
 			? Cancelled(operation)
@@ -542,6 +478,8 @@ internal sealed class ProcessClient : IProcessClient
 				"This operation requires a validated Cheat Engine process-control binding.");
 		return false;
 	}
+
+	private void Admit(string operation) => _admitStatefulOperation?.Invoke(operation);
 
 	private static CheatEngineFailure Cancelled(string operation)
 	{
@@ -573,7 +511,6 @@ internal sealed class ProcessClient : IProcessClient
 	{
 		None,
 		NoTargetSelected,
-		LocalProcessUnavailable,
 		InvalidLocalMetadata
 	}
 }

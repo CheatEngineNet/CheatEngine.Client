@@ -118,9 +118,13 @@ public static class CheatEngineClientServiceCollectionExtensions
 		services.TryAddSingleton<ICheatEngineRuntime>(static serviceProvider =>
 			serviceProvider.GetRequiredService<RuntimeClient>());
 
+		services.TryAddSingleton<LocalProcessHost>();
+		services.TryAddSingleton<ILocalProcessDiagnostics>(static serviceProvider =>
+			new LocalProcessDiagnostics(serviceProvider.GetRequiredService<LocalProcessHost>()));
 		services.TryAddSingleton<ProcessClient>(static serviceProvider =>
 			new ProcessClient(
 				serviceProvider.GetRequiredService<SdkMainThreadDispatcher>(),
+				serviceProvider.GetRequiredService<LocalProcessHost>(),
 				serviceProvider.GetRequiredService<CoreLifetime>()));
 		services.TryAddSingleton<IProcessClient>(static serviceProvider =>
 			serviceProvider.GetRequiredService<ProcessClient>());
@@ -135,16 +139,26 @@ public static class CheatEngineClientServiceCollectionExtensions
 		services.TryAddSingleton<IPatternScanner>(static serviceProvider =>
 			serviceProvider.GetRequiredService<PatternScanner>());
 
-		services.TryAddSingleton<IValueScanner, UnavailableValueScanner>();
-		services.TryAddSingleton<IAllocationClient, UnavailableAllocationClient>();
-		services.TryAddSingleton<IAssemblyClient, UnavailableAssemblyClient>();
-		services.TryAddSingleton<IRemoteExecutionClient, UnavailableRemoteExecutionClient>();
-		services.TryAddSingleton<IDebuggerClient, UnavailableDebuggerClient>();
-		services.TryAddSingleton<IHotkeyClient, UnavailableHotkeyClient>();
-		services.TryAddSingleton<ITimerClient, UnavailableTimerClient>();
-		services.TryAddSingleton<ISpeedClient, UnavailableSpeedClient>();
-		services.TryAddSingleton<IHashingClient, UnavailableHashingClient>();
-		services.TryAddSingleton<IDbvmClient, UnavailableDbvmClient>();
+		services.TryAddSingleton<IValueScanner>(static serviceProvider =>
+			new UnavailableValueScanner(serviceProvider.GetRequiredService<CoreLifetime>()));
+		services.TryAddSingleton<IAllocationClient>(static serviceProvider =>
+			new UnavailableAllocationClient(serviceProvider.GetRequiredService<CoreLifetime>()));
+		services.TryAddSingleton<IAssemblyClient>(static serviceProvider =>
+			new UnavailableAssemblyClient(serviceProvider.GetRequiredService<CoreLifetime>()));
+		services.TryAddSingleton<IRemoteExecutionClient>(static serviceProvider =>
+			new UnavailableRemoteExecutionClient(serviceProvider.GetRequiredService<CoreLifetime>()));
+		services.TryAddSingleton<IDebuggerClient>(static serviceProvider =>
+			new UnavailableDebuggerClient(serviceProvider.GetRequiredService<CoreLifetime>()));
+		services.TryAddSingleton<IHotkeyClient>(static serviceProvider =>
+			new UnavailableHotkeyClient(serviceProvider.GetRequiredService<CoreLifetime>()));
+		services.TryAddSingleton<ITimerClient>(static serviceProvider =>
+			new UnavailableTimerClient(serviceProvider.GetRequiredService<CoreLifetime>()));
+		services.TryAddSingleton<ISpeedClient>(static serviceProvider =>
+			new UnavailableSpeedClient(serviceProvider.GetRequiredService<CoreLifetime>()));
+		services.TryAddSingleton<IHashingClient>(static serviceProvider =>
+			new UnavailableHashingClient(serviceProvider.GetRequiredService<CoreLifetime>()));
+		services.TryAddSingleton<IDbvmClient>(static serviceProvider =>
+			new UnavailableDbvmClient(serviceProvider.GetRequiredService<CoreLifetime>()));
 
 		services.TryAddSingleton<InspectionClient>(static serviceProvider =>
 			new InspectionClient(
@@ -156,7 +170,8 @@ public static class CheatEngineClientServiceCollectionExtensions
 		services.TryAddSingleton<TableClient>(static serviceProvider =>
 			new TableClient(
 				serviceProvider.GetRequiredService<SdkMainThreadDispatcher>(),
-				serviceProvider.GetRequiredService<CoreClientPolicy>()));
+				serviceProvider.GetRequiredService<CoreClientPolicy>(),
+				lifetime: serviceProvider.GetRequiredService<CoreLifetime>()));
 		services.TryAddSingleton<ITableClient>(static serviceProvider =>
 			serviceProvider.GetRequiredService<TableClient>());
 
