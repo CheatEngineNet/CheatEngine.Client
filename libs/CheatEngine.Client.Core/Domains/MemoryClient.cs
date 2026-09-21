@@ -770,7 +770,7 @@ internal sealed class MemoryClient : IMemoryClient
 		{
 			get
 			{
-				ThrowIfUsable();
+				ThrowIfUnusable();
 				if (_pointerSize != 0)
 				{
 					return _pointerSize;
@@ -784,7 +784,7 @@ internal sealed class MemoryClient : IMemoryClient
 
 		public bool TryReadBytes(Address address, Span<byte> destination)
 		{
-			ThrowIfUsable();
+			ThrowIfUnusable();
 			if (_port.TryReadBytes(address, destination, out string? failure))
 			{
 				Failure = null;
@@ -797,7 +797,7 @@ internal sealed class MemoryClient : IMemoryClient
 
 		public bool TryWriteBytes(Address address, ReadOnlySpan<byte> source)
 		{
-			ThrowIfUsable();
+			ThrowIfUnusable();
 			if (_port.TryWriteBytes(address, source, out string? failure))
 			{
 				Failure = null;
@@ -821,7 +821,7 @@ internal sealed class MemoryClient : IMemoryClient
 			Volatile.Write(ref _expired, 1);
 		}
 
-		private void ThrowIfUsable()
+		private void ThrowIfUnusable()
 		{
 			if (Volatile.Read(ref _expired) != 0 ||
 			    _activationEpoch != _lifetime.Epoch ||
