@@ -11,8 +11,8 @@ namespace CheatEngine.Client.Core.Domains;
 
 internal sealed class LuaClient : ILuaClient
 {
-	private readonly ICheatEngineDispatcher _dispatcher;
 	private readonly Action<string>? _admitStatefulOperation;
+	private readonly ICheatEngineDispatcher _dispatcher;
 	private readonly Func<long> _epochProvider;
 
 	private readonly Func<bool> _isContextCurrent;
@@ -422,6 +422,11 @@ internal sealed class LuaClient : ILuaClient
 			lifetime.ThrowIfInactive);
 	}
 
+	private void Admit(string operation)
+	{
+		_admitStatefulOperation?.Invoke(operation);
+	}
+
 	private readonly record struct LuaOperationResult<TResult>(
 		bool Succeeded,
 		TResult Result,
@@ -433,8 +438,6 @@ internal sealed class LuaClient : ILuaClient
 		Action<ILuaModuleLease> TrackLease,
 		Action<ILuaModuleLease> UntrackLease,
 		Action<string> AdmitStatefulOperation);
-
-	private void Admit(string operation) => _admitStatefulOperation?.Invoke(operation);
 
 	private readonly struct LuaOperationDispatchState<TResult>
 	{

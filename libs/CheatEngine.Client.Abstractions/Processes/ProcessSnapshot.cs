@@ -4,7 +4,10 @@ using CheatEngine.SDK.Engine.Runtime;
 namespace CheatEngine.Client.Processes;
 
 /// <summary>An immutable snapshot of the process currently selected in Cheat Engine.</summary>
-/// <remarks>The identifier and architecture are Cheat Engine observations. Name and executable path are optional local BCL enrichment and do not establish liveness or authoritative target provenance.</remarks>
+/// <remarks>
+///     The identifier and architecture are Cheat Engine observations. Name and executable path are optional local BCL
+///     enrichment and do not establish liveness or authoritative target provenance.
+/// </remarks>
 public readonly record struct ProcessSnapshot
 {
 	/// <summary>Creates a selected-process snapshot without a target-architecture observation.</summary>

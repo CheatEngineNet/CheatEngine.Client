@@ -1,7 +1,7 @@
 using System.Diagnostics;
 
-using CheatEngine.Client.Results;
 using CheatEngine.Client.Core.Infrastructure;
+using CheatEngine.Client.Results;
 
 namespace CheatEngine.Client.Core.Domains.Events;
 
@@ -10,7 +10,9 @@ internal static class UnavailableCapabilityFailure
 {
 	internal static CheatEngineFailure Create(string capabilityName, string operation,
 		CancellationToken cancellationToken)
-		=> Create(null, capabilityName, operation, cancellationToken);
+	{
+		return Create(null, capabilityName, operation, cancellationToken);
+	}
 
 	internal static CheatEngineFailure Create(CoreLifetime? lifetime, string capabilityName, string operation,
 		CancellationToken cancellationToken)

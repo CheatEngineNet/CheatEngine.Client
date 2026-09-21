@@ -14,6 +14,7 @@ internal sealed class UnavailableHashingClient : IHashingClient
 	{
 		_lifetime = lifetime;
 	}
+
 	public bool TryHashMemory(MemoryHashRequest request, out HashDigest digest, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
@@ -44,6 +45,7 @@ internal sealed class UnavailableHashingClient : IHashingClient
 
 	private CheatEngineFailure CreateFailure(string operation, CancellationToken cancellationToken)
 	{
-		return UnavailableCapabilityFailure.Create(_lifetime, "Target-memory and file hashing", operation, cancellationToken);
+		return UnavailableCapabilityFailure.Create(_lifetime, "Target-memory and file hashing", operation,
+			cancellationToken);
 	}
 }

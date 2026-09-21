@@ -17,6 +17,7 @@ internal sealed class UnavailableHotkeyClient : IHotkeyClient
 	{
 		_lifetime = lifetime;
 	}
+
 	public bool TryRegister(HotkeyRegistration registration, HotkeyHandler handler, EventStreamOptions streamOptions,
 		[NotNullWhen(true)] out IHotkeyLease? lease, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)

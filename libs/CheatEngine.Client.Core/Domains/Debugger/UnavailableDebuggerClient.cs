@@ -17,6 +17,7 @@ internal sealed class UnavailableDebuggerClient : IDebuggerClient
 	{
 		_lifetime = lifetime;
 	}
+
 	public bool TryRegisterBreakpoint(BreakpointRequest request, BreakpointHandler handler,
 		EventStreamOptions streamOptions,
 		[NotNullWhen(true)] out IBreakpointLease? lease, out CheatEngineFailure failure,

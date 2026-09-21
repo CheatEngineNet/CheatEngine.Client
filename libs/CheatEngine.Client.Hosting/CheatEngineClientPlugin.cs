@@ -11,7 +11,10 @@ using Microsoft.Extensions.Options;
 
 namespace CheatEngine.Client.Hosting;
 
-/// <summary>Base class that activates an activation-owned <see cref="ICheatEngineClient" /> for each Cheat Engine enable epoch.</summary>
+/// <summary>
+///     Base class that activates an activation-owned <see cref="ICheatEngineClient" /> for each Cheat Engine enable
+///     epoch.
+/// </summary>
 /// <remarks>
 ///     The SDK constructs a plugin through a parameterless factory and reuses that instance across enable/disable cycles.
 ///     This base class therefore creates a fresh validated provider and scope only from <see cref="OnEnable" />, when the

@@ -16,11 +16,10 @@ namespace CheatEngine.Client.Core.Domains;
 
 internal sealed class MemoryClient : IMemoryClient
 {
+	private readonly IMemoryCodecContextPort _codecContextPort;
 	private readonly ICheatEngineDispatcher _dispatcher;
 
 	private readonly CoreLifetime _lifetime;
-
-	private readonly IMemoryCodecContextPort _codecContextPort;
 
 	internal MemoryClient(ICheatEngineDispatcher dispatcher, CoreLifetime lifetime)
 		: this(dispatcher, lifetime, SdkMemoryCodecContextPort.Instance)

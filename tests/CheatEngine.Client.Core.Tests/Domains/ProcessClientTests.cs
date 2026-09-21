@@ -1,5 +1,5 @@
-using CheatEngine.Client.Core.Domains;
 using CheatEngine.Client.Core.Dispatching;
+using CheatEngine.Client.Core.Domains;
 using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Core.Tests.TestSupport;
 using CheatEngine.Client.Dispatching;

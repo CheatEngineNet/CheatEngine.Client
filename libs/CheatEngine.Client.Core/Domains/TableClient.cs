@@ -22,9 +22,10 @@ internal sealed class TableClient(
 	private readonly ICheatEngineDispatcher _dispatcher =
 		dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
 
+	private readonly CoreLifetime? _lifetime = lifetime;
+
 	private readonly CoreClientPolicy _policy = policy ?? throw new ArgumentNullException(nameof(policy));
 	private readonly ITableRecordMutationPort _recordMutations = recordMutations ?? new SdkTableRecordMutationPort();
-	private readonly CoreLifetime? _lifetime = lifetime;
 
 	public bool TryGetCurrent(out AddressTableSnapshot table, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)

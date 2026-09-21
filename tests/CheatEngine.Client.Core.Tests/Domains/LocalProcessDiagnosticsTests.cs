@@ -67,7 +67,10 @@ public sealed class LocalProcessDiagnosticsTests
 	[Fact]
 	public void TryGetProcessesMapsLocalCatalogFailuresWithoutClaimingTargetState()
 	{
-		FakeLocalProcessHost host = new([]) { GetLocalProcessesException = new InvalidOperationException("fixture enumeration failed") };
+		FakeLocalProcessHost host = new([])
+		{
+			GetLocalProcessesException = new InvalidOperationException("fixture enumeration failed")
+		};
 		LocalProcessDiagnostics diagnostics = new(host);
 
 		bool succeeded = diagnostics.TryGetProcesses(
@@ -104,11 +107,28 @@ public sealed class LocalProcessDiagnosticsTests
 
 	private sealed class FakeLocalProcessHost(IReadOnlyList<LocalProcessInfo> processes) : IProcessHost
 	{
-		internal int GetLocalProcessesCalls { get; private set; }
-		internal Exception? GetLocalProcessesException { get; init; }
+		internal int GetLocalProcessesCalls
+		{
+			get;
+			private set;
+		}
 
-		public long GetOpenedProcessId() => 0;
-		public void OpenProcess(long processId) => throw new NotSupportedException();
+		internal Exception? GetLocalProcessesException
+		{
+			get;
+			init;
+		}
+
+		public long GetOpenedProcessId()
+		{
+			return 0;
+		}
+
+		public void OpenProcess(long processId)
+		{
+			throw new NotSupportedException();
+		}
+
 		public bool TryGetLocalProcess(int processId, out LocalProcessInfo process)
 		{
 			process = default;
@@ -126,7 +146,14 @@ public sealed class LocalProcessDiagnosticsTests
 			return processes;
 		}
 
-		public IReadOnlyList<LocalProcessInfo> FindProcessesByExactName(string processName) => [];
-		public CheatEngineArchitecture GetTargetArchitecture() => CheatEngineArchitecture.Unknown;
+		public IReadOnlyList<LocalProcessInfo> FindProcessesByExactName(string processName)
+		{
+			return [];
+		}
+
+		public CheatEngineArchitecture GetTargetArchitecture()
+		{
+			return CheatEngineArchitecture.Unknown;
+		}
 	}
 }

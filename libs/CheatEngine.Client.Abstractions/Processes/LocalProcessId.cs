@@ -12,5 +12,8 @@ public readonly record struct LocalProcessId
 	}
 
 	/// <summary>Gets the locally observed numeric process identifier.</summary>
-	public int Value { get; }
+	public int Value
+	{
+		get;
+	}
 }

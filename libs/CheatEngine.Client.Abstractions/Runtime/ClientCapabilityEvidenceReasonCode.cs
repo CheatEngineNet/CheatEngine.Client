@@ -1,6 +1,6 @@
 namespace CheatEngine.Client.Runtime;
 
-/// <summary>Identifies the evidence gate that supplies <see cref="ClientCapabilityEvidence.EffectiveReason"/>.</summary>
+/// <summary>Identifies the evidence gate that supplies <see cref="ClientCapabilityEvidence.EffectiveReason" />.</summary>
 public enum ClientCapabilityEvidenceReasonCode : byte
 {
 	/// <summary>The operational Client adapter gate supplies the effective reason.</summary>

@@ -17,6 +17,7 @@ internal sealed class UnavailableDbvmClient : IDbvmClient
 	{
 		_lifetime = lifetime;
 	}
+
 	public bool TryGetStatus(out DbvmStatusSnapshot status, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
@@ -66,7 +67,8 @@ internal sealed class UnavailableDbvmClient : IDbvmClient
 
 	private CheatEngineFailure CreateFailure(string operation, CancellationToken cancellationToken)
 	{
-		return UnavailableCapabilityFailure.Create(_lifetime, "DBVM observation, explicit initialization, and watches", operation,
+		return UnavailableCapabilityFailure.Create(_lifetime, "DBVM observation, explicit initialization, and watches",
+			operation,
 			cancellationToken);
 	}
 }

@@ -1,7 +1,7 @@
 ### New Rules
 
  Rule ID    | Category               | Severity | Notes
-------------|------------------------|----------|---------------------------------------------------------------
+------------|------------------------|----------|--------------------------------------------------------------------------------------
  CECLUA1001 | CheatEngine.Client.Lua | Error    | A generated Lua module must be a supported partial class.
  CECLUA1002 | CheatEngine.Client.Lua | Error    | A generated Lua module requires static SDK bindings.
  CECLUA1003 | CheatEngine.Client.Lua | Error    | A generated Lua module requires at least one export.

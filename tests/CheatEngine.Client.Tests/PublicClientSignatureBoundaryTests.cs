@@ -4,8 +4,8 @@ using CheatEngine.Client.Extensions.DependencyInjection;
 using CheatEngine.Client.Hosting;
 using CheatEngine.Client.Memory;
 using CheatEngine.SDK.Engine.Objects;
+using CheatEngine.SDK.Engine.Values;
 using CheatEngine.SDK.Lua.References;
-using CheatEngine.SDK.Lua.State;
 
 using ReflectionAssembly = System.Reflection.Assembly;
 
@@ -85,9 +85,9 @@ public sealed class PublicClientSignatureBoundaryTests
 	public void RecursiveVerifierAllowsApprovedSdkValuesInsideSafeContainers()
 	{
 		List<string> violations = [];
-		VerifyType(typeof(CheatEngine.SDK.Engine.Values.Address[]), "approved array", violations);
-		VerifyType(typeof(IReadOnlyList<CheatEngine.SDK.Engine.Values.Address>), "approved generic", violations);
-		VerifyType(typeof((CheatEngine.SDK.Engine.Values.Address Address, int Version)), "approved tuple", violations);
+		VerifyType(typeof(Address[]), "approved array", violations);
+		VerifyType(typeof(IReadOnlyList<Address>), "approved generic", violations);
+		VerifyType(typeof((Address Address, int Version)), "approved tuple", violations);
 
 		Assert.Empty(violations);
 	}
@@ -196,7 +196,8 @@ public sealed class PublicClientSignatureBoundaryTests
 			foreach (Type constraint in genericParameter.GetGenericParameterConstraints()
 				         .OrderBy(static type => type.FullName, StringComparer.Ordinal))
 			{
-				VerifyType(constraint, $"{member} generic parameter '{genericParameter.Name}'", violations, null, visited,
+				VerifyType(constraint, $"{member} generic parameter '{genericParameter.Name}'", violations, null,
+					visited,
 					depth + 1);
 			}
 		}
@@ -243,7 +244,8 @@ public sealed class PublicClientSignatureBoundaryTests
 
 		if (type.IsGenericParameter)
 		{
-			VerifyGenericParameterConstraints(type.GetGenericParameterConstraints(), source, violations, visited, depth);
+			VerifyGenericParameterConstraints(type.GetGenericParameterConstraints(), source, violations, visited,
+				depth);
 			return;
 		}
 
@@ -255,7 +257,8 @@ public sealed class PublicClientSignatureBoundaryTests
 		if (type.IsGenericType)
 		{
 			Type genericDefinition = type.GetGenericTypeDefinition();
-			VerifyGenericParameterConstraints(genericDefinition.GetGenericArguments(), source, violations, visited, depth);
+			VerifyGenericParameterConstraints(genericDefinition.GetGenericArguments(), source, violations, visited,
+				depth);
 			foreach (Type argument in type.GetGenericArguments())
 			{
 				VerifyType(argument, source, violations, declaringMember, visited, depth + 1);
@@ -327,7 +330,7 @@ public sealed class PublicClientSignatureBoundaryTests
 		}
 
 		foreach (Type implementedInterface in type.GetInterfaces().OrderBy(static candidate => candidate.FullName,
-			             StringComparer.Ordinal))
+			         StringComparer.Ordinal))
 		{
 			VerifyType(implementedInterface, $"{source} interface", violations, declaringMember, visited, depth + 1);
 		}
@@ -343,16 +346,17 @@ public sealed class PublicClientSignatureBoundaryTests
 		int depth)
 	{
 		const BindingFlags DeclaredInstance = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic |
-		                                          BindingFlags.DeclaredOnly;
+		                                      BindingFlags.DeclaredOnly;
 
 		foreach (FieldInfo field in type.GetFields(DeclaredInstance).OrderBy(static candidate => candidate.Name,
-			             StringComparer.Ordinal))
+			         StringComparer.Ordinal))
 		{
 			VerifyType(field.FieldType, $"{source} field '{field.Name}'", violations, field, visited, depth + 1);
 		}
 
-		foreach (PropertyInfo property in type.GetProperties(DeclaredInstance).OrderBy(static candidate => candidate.Name,
-			             StringComparer.Ordinal))
+		foreach (PropertyInfo property in type.GetProperties(DeclaredInstance).OrderBy(
+			         static candidate => candidate.Name,
+			         StringComparer.Ordinal))
 		{
 			VerifyType(property.PropertyType, $"{source} property '{property.Name}'", violations, property, visited,
 				depth + 1);
@@ -360,18 +364,19 @@ public sealed class PublicClientSignatureBoundaryTests
 		}
 
 		foreach (ConstructorInfo constructor in type.GetConstructors(DeclaredInstance).OrderBy(static candidate =>
-			             candidate.ToString(), StringComparer.Ordinal))
+			         candidate.ToString(), StringComparer.Ordinal))
 		{
 			VerifyParameters(constructor.GetParameters(), constructor, violations, visited, depth);
 		}
 
 		foreach (MethodInfo method in type.GetMethods(DeclaredInstance)
-			             .Where(static candidate => !candidate.IsPrivate)
-			             .OrderBy(static candidate => candidate.ToString(), StringComparer.Ordinal))
+			         .Where(static candidate => !candidate.IsPrivate)
+			         .OrderBy(static candidate => candidate.ToString(), StringComparer.Ordinal))
 		{
 			VerifyType(method.ReturnType, $"{source} method '{method.Name}'", violations, method, visited, depth + 1);
 			VerifyParameters(method.GetParameters(), method, violations, visited, depth);
-			VerifyGenericParameterConstraints(method.GetGenericArguments(), method.ToString(), violations, visited, depth);
+			VerifyGenericParameterConstraints(method.GetGenericArguments(), method.ToString(), violations, visited,
+				depth);
 		}
 	}
 
@@ -383,8 +388,8 @@ public sealed class PublicClientSignatureBoundaryTests
 		       declaringMember?.DeclaringType?.FullName == "CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot" &&
 		       declaringMember switch
 		       {
-		       FieldInfo { Name: "<SdkCapabilities>k__BackingField" } => true,
-		       ConstructorInfo => true,
+			       FieldInfo { Name: "<SdkCapabilities>k__BackingField" } => true,
+			       ConstructorInfo => true,
 			       MethodInfo { Name: "get_SdkCapabilities" } => true,
 			       PropertyInfo { Name: "SdkCapabilities" } => true,
 			       _ => false
@@ -408,7 +413,7 @@ public sealed class PublicClientSignatureBoundaryTests
 
 	private interface IUnsafeConstraint
 	{
-		LuaRef Reference
+		public LuaRef Reference
 		{
 			get;
 		}

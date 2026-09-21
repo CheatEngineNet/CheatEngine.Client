@@ -231,10 +231,12 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 				qualificationUnknown, policyNotRequired, lifetime),
 			Describe(ClientCapabilityId.TypedMemory, implemented, packageUnknown, unprobedHost, qualificationUnknown,
 				policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.PatternScanning, implemented, packageUnknown, unprobedHost, qualificationUnknown,
+			Describe(ClientCapabilityId.PatternScanning, implemented, packageUnknown, unprobedHost,
+				qualificationUnknown,
 				policyNotRequired, lifetime),
 			Describe(ClientCapabilityId.ValueScanning, contractOnly,
-				Missing("CheatEngine.SDK 1.0.0 does not provide the public MemScan and FoundList ownership factory required by Client."),
+				Missing(
+					"CheatEngine.SDK 1.0.0 does not provide the public MemScan and FoundList ownership factory required by Client."),
 				unprobedHost, qualificationUnknown, policyNotRequired, lifetime),
 			Describe(ClientCapabilityId.Inspection, implemented, packageUnknown, unprobedHost, qualificationUnknown,
 				policyNotRequired, lifetime),
@@ -246,13 +248,15 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 				qualificationUnknown,
 				_policy.EnableUnsafeLuaExecution
 					? Satisfied("Unsafe Lua execution was explicitly enabled for this activation.")
-					: Missing("Unsafe Lua execution requires explicit EnableUnsafeLuaExecution opt-in for this activation."),
+					: Missing(
+						"Unsafe Lua execution requires explicit EnableUnsafeLuaExecution opt-in for this activation."),
 				lifetime),
 			Describe(ClientCapabilityId.Allocations, contractOnly, packageUnknown, unprobedHost, qualificationUnknown,
 				policyNotRequired, lifetime),
 			Describe(ClientCapabilityId.Assembly, contractOnly, packageUnknown, unprobedHost, qualificationUnknown,
 				policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.RemoteExecution, contractOnly, packageUnknown, unprobedHost, qualificationUnknown,
+			Describe(ClientCapabilityId.RemoteExecution, contractOnly, packageUnknown, unprobedHost,
+				qualificationUnknown,
 				policyNotRequired, lifetime),
 			Describe(ClientCapabilityId.Debugger, contractOnly, packageUnknown, unprobedHost, qualificationUnknown,
 				policyNotRequired, lifetime),
@@ -310,7 +314,8 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 	{
 		return probe.HasValue && probe.Value is { } processId &&
 		       (processId < 0 || processId > int.MaxValue)
-			? ProbeResult<long>.Malformed("Cheat Engine returned an opened process identifier outside the supported PID range.")
+			? ProbeResult<long>.Malformed(
+				"Cheat Engine returned an opened process identifier outside the supported PID range.")
 			: probe;
 	}
 

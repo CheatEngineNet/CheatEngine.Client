@@ -17,6 +17,7 @@ internal sealed class UnavailableTimerClient : ITimerClient
 	{
 		_lifetime = lifetime;
 	}
+
 	public bool TryRegister(TimerRequest request, TimerHandler handler, EventStreamOptions streamOptions,
 		[NotNullWhen(true)] out ITimerLease? lease, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)

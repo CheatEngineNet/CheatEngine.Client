@@ -89,7 +89,7 @@ public readonly record struct ClientCapabilityEvidence
 	public string EffectiveReason => GetGate(EffectiveReasonCode).Reason;
 
 	/// <summary>
-	///     Gets the stable code for the evidence gate that supplies <see cref="EffectiveReason"/>. Its state remains
+	///     Gets the stable code for the evidence gate that supplies <see cref="EffectiveReason" />. Its state remains
 	///     available through the corresponding evidence-gate property.
 	/// </summary>
 	public ClientCapabilityEvidenceReasonCode EffectiveReasonCode => GetEffectiveReasonCode();

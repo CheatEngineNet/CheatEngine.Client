@@ -14,6 +14,7 @@ internal sealed class UnavailableRemoteExecutionClient : IRemoteExecutionClient
 	{
 		_lifetime = lifetime;
 	}
+
 	public bool TryInjectLibrary(RemoteDllInjectionRequest request, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
@@ -43,6 +44,7 @@ internal sealed class UnavailableRemoteExecutionClient : IRemoteExecutionClient
 
 	private CheatEngineFailure CreateFailure(string operation, CancellationToken cancellationToken)
 	{
-		return UnavailableCapabilityFailure.Create(_lifetime, "Remote execution and injection", operation, cancellationToken);
+		return UnavailableCapabilityFailure.Create(_lifetime, "Remote execution and injection", operation,
+			cancellationToken);
 	}
 }

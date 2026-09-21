@@ -3,8 +3,8 @@ using System.Diagnostics.CodeAnalysis;
 
 using CheatEngine.Client.Assembly;
 using CheatEngine.Client.Core.Domains.Events;
-using CheatEngine.Client.Results;
 using CheatEngine.Client.Core.Infrastructure;
+using CheatEngine.Client.Results;
 using CheatEngine.SDK.Engine.Values;
 
 namespace CheatEngine.Client.Core.Domains.Assembly;
@@ -13,7 +13,12 @@ namespace CheatEngine.Client.Core.Domains.Assembly;
 internal sealed class UnavailableAssemblyClient : IAssemblyClient
 {
 	private readonly CoreLifetime? _lifetime;
-	internal UnavailableAssemblyClient(CoreLifetime? lifetime = null) => _lifetime = lifetime;
+
+	internal UnavailableAssemblyClient(CoreLifetime? lifetime = null)
+	{
+		_lifetime = lifetime;
+	}
+
 	public bool TryDisassemble(Address address, out AssemblyInstructionSnapshot instruction,
 		out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
@@ -104,7 +109,8 @@ internal sealed class UnavailableAssemblyClient : IAssemblyClient
 
 	private CheatEngineFailure CreateFailure(string operation, CancellationToken cancellationToken)
 	{
-		return UnavailableCapabilityFailure.Create(_lifetime, "Assembly, disassembly, and Auto Assembler patches", operation,
+		return UnavailableCapabilityFailure.Create(_lifetime, "Assembly, disassembly, and Auto Assembler patches",
+			operation,
 			cancellationToken);
 	}
 }

@@ -26,9 +26,9 @@ public sealed class MemoryPrimitiveBatchBuilderTests
 		});
 
 		foreach (InvalidOperationException exception in new[]
-		{
-			readException, tryReadException, writeException, tryWriteException,
-		})
+		         {
+			         readException, tryReadException, writeException, tryWriteException
+		         })
 		{
 			Assert.Contains("Memory.Batch<T>(memory)", exception.Message);
 			Assert.Contains("memory.Batch<T>()", exception.Message);

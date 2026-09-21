@@ -27,12 +27,14 @@ internal readonly record struct ProbeResult<T>(ClientCapabilityEvidenceGate Evid
 
 	internal static ProbeResult<T> Unknown(string reason)
 	{
-		return new ProbeResult<T>(new ClientCapabilityEvidenceGate(ClientCapabilityEvidenceState.Unknown, reason), default);
+		return new ProbeResult<T>(new ClientCapabilityEvidenceGate(ClientCapabilityEvidenceState.Unknown, reason),
+			default);
 	}
 
 	internal static ProbeResult<T> Faulted(string reason)
 	{
-		return new ProbeResult<T>(new ClientCapabilityEvidenceGate(ClientCapabilityEvidenceState.Faulted, reason), default);
+		return new ProbeResult<T>(new ClientCapabilityEvidenceGate(ClientCapabilityEvidenceState.Faulted, reason),
+			default);
 	}
 
 	internal static ProbeResult<T> Malformed(string reason)

@@ -80,7 +80,8 @@ missing, faulted, and malformed host observations remain distinguishable instead
 unavailable result.
 
 `Evidence.EffectiveReasonCode` is the stable, typed identity of the gate supplying `Evidence.EffectiveReason`; use it
-with that gate's public state instead of parsing the human-readable reason text or duplicating the Client's deterministic
+with that gate's public state instead of parsing the human-readable reason text or duplicating the Client's
+deterministic
 priority. The reason text remains available for display and diagnostics.
 
 In particular, the value-scan contract and state model are published, but the Core implementation

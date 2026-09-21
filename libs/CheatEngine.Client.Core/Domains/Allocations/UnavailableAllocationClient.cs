@@ -2,8 +2,8 @@ using System.Diagnostics.CodeAnalysis;
 
 using CheatEngine.Client.Allocations;
 using CheatEngine.Client.Core.Domains.Events;
-using CheatEngine.Client.Results;
 using CheatEngine.Client.Core.Infrastructure;
+using CheatEngine.Client.Results;
 
 namespace CheatEngine.Client.Core.Domains.Allocations;
 
@@ -11,13 +11,19 @@ namespace CheatEngine.Client.Core.Domains.Allocations;
 internal sealed class UnavailableAllocationClient : IAllocationClient
 {
 	private readonly CoreLifetime? _lifetime;
-	internal UnavailableAllocationClient(CoreLifetime? lifetime = null) => _lifetime = lifetime;
+
+	internal UnavailableAllocationClient(CoreLifetime? lifetime = null)
+	{
+		_lifetime = lifetime;
+	}
+
 	public bool TryAllocate(TargetAllocationRequest request, [NotNullWhen(true)] out ITargetMemoryLease? lease,
 		out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
 		lease = null;
-		failure = UnavailableCapabilityFailure.Create(_lifetime, "Target allocations", "Allocations.Allocate", cancellationToken);
+		failure = UnavailableCapabilityFailure.Create(_lifetime, "Target allocations", "Allocations.Allocate",
+			cancellationToken);
 		return false;
 	}
 

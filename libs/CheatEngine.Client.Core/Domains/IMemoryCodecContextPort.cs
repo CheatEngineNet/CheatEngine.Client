@@ -21,14 +21,14 @@ internal interface IMemoryCodecContextPort
 /// <summary>Calls the SDK memory primitives after the owning context has admitted the operation.</summary>
 internal sealed class SdkMemoryCodecContextPort : IMemoryCodecContextPort
 {
+	private SdkMemoryCodecContextPort()
+	{
+	}
+
 	internal static SdkMemoryCodecContextPort Instance
 	{
 		get;
 	} = new();
-
-	private SdkMemoryCodecContextPort()
-	{
-	}
 
 	public bool IsTarget64Bit()
 	{

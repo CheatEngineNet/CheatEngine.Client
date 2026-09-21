@@ -18,7 +18,8 @@ internal sealed class UnsafeLuaClient : IUnsafeLuaClient
 	private readonly CoreClientPolicy _policy;
 
 	internal UnsafeLuaClient(SdkMainThreadDispatcher dispatcher, CoreClientPolicy policy, CoreLifetime lifetime)
-		: this((ICheatEngineDispatcher) (dispatcher ?? throw new ArgumentNullException(nameof(dispatcher))), policy, lifetime)
+		: this((ICheatEngineDispatcher) (dispatcher ?? throw new ArgumentNullException(nameof(dispatcher))), policy,
+			lifetime)
 	{
 	}
 
