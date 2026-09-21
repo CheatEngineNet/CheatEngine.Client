@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 
 using CheatEngine.Client.Core.Domains;
+using CheatEngine.Client.Core.Tests.TestSupport;
 using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Memory;
 using CheatEngine.Client.Results;
@@ -14,7 +15,7 @@ public sealed class MemoryClientTests
 	public void TypedPrimitiveReadUsesTheCallerSuppliedCodec()
 	{
 		RecordingInt32Codec codec = new() { ReadValue = 1234 };
-		MemoryClient client = new(new InlineDispatcher());
+		MemoryClient client = new(new InlineDispatcher(), InertCoreLifetime.Create());
 		Address address = 0x401000;
 
 		bool succeeded = client.TryRead(new MemoryReadRequest<int>(address, codec), out int value,
@@ -32,7 +33,7 @@ public sealed class MemoryClientTests
 	public void TypedPrimitiveWriteUsesTheCallerSuppliedCodec()
 	{
 		RecordingInt32Codec codec = new();
-		MemoryClient client = new(new InlineDispatcher());
+		MemoryClient client = new(new InlineDispatcher(), InertCoreLifetime.Create());
 		Address address = 0x402000;
 
 		bool succeeded = client.TryWrite(new MemoryWriteRequest<int>(address, 77, codec),
@@ -50,7 +51,7 @@ public sealed class MemoryClientTests
 	public void TypedCodecFailureBecomesAClassifiedMemoryReadFailure()
 	{
 		RecordingInt32Codec codec = new() { ReadSucceeds = false };
-		MemoryClient client = new(new InlineDispatcher());
+		MemoryClient client = new(new InlineDispatcher(), InertCoreLifetime.Create());
 
 		bool succeeded = client.TryRead(new MemoryReadRequest<int>(0x403000, codec), out int value,
 			out CheatEngineFailure failure,

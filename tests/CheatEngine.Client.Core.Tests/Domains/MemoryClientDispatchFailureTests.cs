@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 
 using CheatEngine.Client.Core.Domains;
+using CheatEngine.Client.Core.Tests.TestSupport;
 using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Memory;
 using CheatEngine.Client.Results;
@@ -17,7 +18,7 @@ public sealed class MemoryClientDispatchFailureTests
 	public void PrimitiveAndCodecReadsPreserveTheDispatcherFailureWithoutExecutingTargetMemory()
 	{
 		CheatEngineFailure expected = Failure("Test.Read");
-		MemoryClient client = new(new RejectingDispatcher(expected));
+		MemoryClient client = new(new RejectingDispatcher(expected), InertCoreLifetime.Create());
 		MemoryReadRequest<int> request = new(Address, new NeverUsedCodec());
 
 		bool primitiveSucceeded = client.TryReadPrimitive(Address, out int primitive,
@@ -38,7 +39,7 @@ public sealed class MemoryClientDispatchFailureTests
 	public void PrimitiveAndCodecWritesPreserveTheDispatcherFailureWithoutExecutingTargetMemory()
 	{
 		CheatEngineFailure expected = Failure("Test.Write");
-		MemoryClient client = new(new RejectingDispatcher(expected));
+		MemoryClient client = new(new RejectingDispatcher(expected), InertCoreLifetime.Create());
 		MemoryWriteRequest<int> request = new(Address, 42, new NeverUsedCodec());
 
 		bool primitiveSucceeded = client.TryWritePrimitive(Address, 42, out CheatEngineFailure primitiveFailure,
@@ -56,7 +57,7 @@ public sealed class MemoryClientDispatchFailureTests
 	public void ByteAndStringOperationsPreserveTheDispatcherFailureAndEmptyReadResults()
 	{
 		CheatEngineFailure expected = Failure("Test.Copy");
-		MemoryClient client = new(new RejectingDispatcher(expected));
+		MemoryClient client = new(new RejectingDispatcher(expected), InertCoreLifetime.Create());
 		MemoryBytesReadRequest byteRead = new(Address, 2);
 		MemoryBytesWriteRequest byteWrite = new(Address, [0x10, 0x20]);
 		MemoryStringReadRequest stringRead = new(Address, 12, true);
@@ -83,7 +84,7 @@ public sealed class MemoryClientDispatchFailureTests
 	public void PointerResolutionPreservesTheDispatcherFailureAndDefaultAddress()
 	{
 		CheatEngineFailure expected = Failure("Test.Pointer");
-		MemoryClient client = new(new RejectingDispatcher(expected));
+		MemoryClient client = new(new RejectingDispatcher(expected), InertCoreLifetime.Create());
 		PointerChainRequest request = new(Address, [4L, 8L]);
 
 		bool succeeded = client.TryResolvePointerChain(request, out Address actual, out CheatEngineFailure failure,
@@ -98,7 +99,7 @@ public sealed class MemoryClientDispatchFailureTests
 	public void PrimitiveBatchesPreserveTheDispatcherFailureWithoutAdmittingAnyTargetOperation()
 	{
 		CheatEngineFailure expected = Failure("Test.Batch");
-		MemoryClient client = new(new RejectingDispatcher(expected));
+		MemoryClient client = new(new RejectingDispatcher(expected), InertCoreLifetime.Create());
 		MemoryPrimitiveBatchReadRequest<int> reads = new([Address, Address + 4]);
 		MemoryPrimitiveBatchWriteRequest<int> writes = new([new MemoryAddressValue<int>(Address, 12)]);
 
@@ -115,7 +116,7 @@ public sealed class MemoryClientDispatchFailureTests
 	[Fact]
 	public void DefaultPrimitiveBatchesAreRejectedBeforeDispatch()
 	{
-		MemoryClient client = new(new RejectingDispatcher(Failure("Test.ShouldNotDispatch")));
+		MemoryClient client = new(new RejectingDispatcher(Failure("Test.ShouldNotDispatch")), InertCoreLifetime.Create());
 
 		Assert.Throws<ArgumentException>(() => client.TryReadPrimitiveBatch(default, out ImmutableArray<int> _, out _,
 			TestContext.Current.CancellationToken));
@@ -127,7 +128,7 @@ public sealed class MemoryClientDispatchFailureTests
 	[Fact]
 	public void UnsupportedPrimitiveTypesReturnTheSpecificUnsupportedFailureWithoutAccessingTheHost()
 	{
-		MemoryClient client = new(new InlineDispatcher());
+		MemoryClient client = new(new InlineDispatcher(), InertCoreLifetime.Create());
 
 		bool readSucceeded = client.TryReadPrimitive(Address, out DateTime readValue,
 			out CheatEngineFailure readFailure, TestContext.Current.CancellationToken);
@@ -146,7 +147,7 @@ public sealed class MemoryClientDispatchFailureTests
 	[Fact]
 	public void ReadAndWriteConvenienceMethodsThrowTheClassifiedDispatcherFailure()
 	{
-		MemoryClient client = new(new RejectingDispatcher(Failure("Test.Convenience")));
+		MemoryClient client = new(new RejectingDispatcher(Failure("Test.Convenience")), InertCoreLifetime.Create());
 		MemoryReadRequest<int> read = new(Address, new NeverUsedCodec());
 		MemoryWriteRequest<int> write = new(Address, 42, new NeverUsedCodec());
 
@@ -169,7 +170,7 @@ public sealed class MemoryClientDispatchFailureTests
 	[InlineData("pointer")]
 	public void InvalidDefaultRequestCannotReachTheDispatcher(string requestKind)
 	{
-		MemoryClient client = new(new RejectingDispatcher(Failure("Test.ShouldNotDispatch")));
+		MemoryClient client = new(new RejectingDispatcher(Failure("Test.ShouldNotDispatch")), InertCoreLifetime.Create());
 
 		switch (requestKind)
 		{
@@ -191,7 +192,7 @@ public sealed class MemoryClientDispatchFailureTests
 	[Fact]
 	public void DefaultStringAndByteWritesAreRejectedBeforeDispatch()
 	{
-		MemoryClient client = new(new RejectingDispatcher(Failure("Test.ShouldNotDispatch")));
+		MemoryClient client = new(new RejectingDispatcher(Failure("Test.ShouldNotDispatch")), InertCoreLifetime.Create());
 
 		Assert.Throws<ArgumentException>(() =>
 			client.TryWriteBytes(default, out _, TestContext.Current.CancellationToken));

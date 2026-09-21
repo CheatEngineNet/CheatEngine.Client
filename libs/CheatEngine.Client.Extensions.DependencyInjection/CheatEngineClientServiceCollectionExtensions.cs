@@ -126,7 +126,9 @@ public static class CheatEngineClientServiceCollectionExtensions
 			serviceProvider.GetRequiredService<ProcessClient>());
 
 		services.TryAddSingleton<MemoryClient>(static serviceProvider =>
-			new MemoryClient(serviceProvider.GetRequiredService<SdkMainThreadDispatcher>()));
+			new MemoryClient(
+				serviceProvider.GetRequiredService<SdkMainThreadDispatcher>(),
+				serviceProvider.GetRequiredService<CoreLifetime>()));
 		services.TryAddSingleton<IMemoryClient>(static serviceProvider =>
 			serviceProvider.GetRequiredService<MemoryClient>());
 
