@@ -1,1 +1,2 @@
 #nullable enable
+CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientBuilder.AddLuaModule<TModule>() -> CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientBuilder!

@@ -2,11 +2,6 @@ name: Client validation
 
 on:
   workflow_call:
-    inputs:
-      collect-coverage:
-        description: Emit Visual Studio XML coverage for the SonarQube Cloud analysis workflow.
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -49,8 +44,6 @@ jobs:
         run: dotnet build CheatEngine.Client.slnx --configuration Release --no-restore --warnaserror
 
       - name: Run unit tests through Microsoft Testing Platform
-        env:
-          COLLECT_COVERAGE: ${{ inputs.collect-coverage }}
         run: |
           $projects = @(Get-ChildItem -Path tests -Filter '*.Tests.csproj' -Recurse -File | Sort-Object Name)
           if ($projects.Count -eq 0) {
@@ -67,10 +60,6 @@ jobs:
               '--results-directory', $results,
               '--fail-skips', 'on'
             )
-            if ($env:COLLECT_COVERAGE -eq 'true') {
-              $options += '--coverage', '--coverage-output-format', 'xml', '--coverage-output', 'coverage.xml'
-            }
-
             dotnet test @options
           }
 
@@ -105,15 +94,6 @@ jobs:
           path: artifacts/test-results/**/*.trx
           if-no-files-found: warn
           retention-days: 14
-
-      - name: Upload Sonar coverage
-        if: ${{ inputs.collect-coverage && !cancelled() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: coverage-client
-          path: artifacts/test-results/*/coverage.xml
-          if-no-files-found: error
-          retention-days: 7
 
       - name: Pack and validate public package APIs
         run: dotnet pack CheatEngine.Client.slnx --configuration Release --no-build --no-restore

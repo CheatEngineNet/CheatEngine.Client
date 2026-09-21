@@ -8,6 +8,7 @@ internal interface IProcessHost
 	public long GetOpenedProcessId();
 	public void OpenProcess(long processId);
 	public bool TryGetLocalProcess(int processId, out LocalProcessInfo process);
+	public IReadOnlyList<LocalProcessInfo> GetLocalProcesses();
 	public IReadOnlyList<LocalProcessInfo> FindProcessesByExactName(string processName);
 	public CheatEngineArchitecture GetTargetArchitecture();
 }

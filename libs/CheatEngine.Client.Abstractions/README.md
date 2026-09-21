@@ -39,8 +39,9 @@ CheatEngine.Client.Abstractions
   `CheatEngineClientException`-derived exceptions only from the convenience methods.
 - Keeps CE-owned objects out of the public surface: no `LuaState`, `LuaRef`, `CEObject`,
   `Owned<T>`, or raw native handle escapes this package.
-- Requires bounded copies for scans, table snapshots, strings, byte reads, pointer chains, and
-  inspection collections, avoiding unbounded materialization and leaked SDK ownership.
+- Requires bounded copies for scans, table snapshots, strings, byte reads, finite pointer chains,
+  homogeneous primitive batches, and inspection collections, avoiding unbounded materialization and
+  leaked SDK ownership.
 - Makes lifecycle constraints visible: `ICheatEngineClient.Epoch`, `Stopping`, leases, and scan
   sessions are activation-scoped; stale resources report `CheatEngineActivationExpiredException`.
 
@@ -58,6 +59,11 @@ namespaces only:
 | `.Scanning`                  | AOB contracts and the value-scan session contract                     |
 | `.Tables`                    | copied Address List records and explicitly trusted table I/O requests |
 | `.Lua` / `.Modules`          | typed protected Lua operations, explicit modules, and leases          |
+| `.Allocations` / `.Assembly` | selection-bound allocation and reversible patch leases                |
+| `.RemoteExecution`           | bounded DLL injection and remote-call requests                        |
+| `.Debugger` / `.Hotkeys`     | synchronous copied callbacks and bounded stream projections           |
+| `.Timers` / `.Speed`         | activation-scoped timers and validated speed observations/mutations   |
+| `.Hashing` / `.Dbvm`         | separate memory/file hashes and explicit DBVM observation/control     |
 | `.Results`                   | classified expected failures and lifecycle exceptions                 |
 
 No public consumer should use `CheatEngine.Client.Abstractions` as a namespace.
@@ -69,10 +75,10 @@ and explicitly disposable value-scan sessions. A contract is not an availability
 must inspect `ICheatEngineRuntime` capability observations or handle `CapabilityUnavailable`.
 
 In particular, the value-scan contract and state model are published, but the Core implementation
-does **not** currently create a live `MemScan`/`FoundList` session. CheatEngine.SDK 1.0.0 has no
-public ownership factory for the required objects; Client enablement remains blocked by the
-Cheat Engine 7.7 x64 ownership and reactivation live gate. Do not treat `IValueScanner` as an
-available v1 runtime feature.
+does **not** currently create a live `MemScan`/`FoundList` session. The next SDK line now contains a
+production owner factory with parent rollback and child-before-parent teardown, but Client
+enablement remains blocked by the Cheat Engine 7.7 x64 ownership and reactivation live gate. Do
+not treat `IValueScanner` as available until that gate promotes its capability.
 
 `IUnsafeLuaClient` is intentionally separate from `ILuaClient` and is not registered by default.
 It is for explicitly trusted source only and still never exposes a raw Lua state.

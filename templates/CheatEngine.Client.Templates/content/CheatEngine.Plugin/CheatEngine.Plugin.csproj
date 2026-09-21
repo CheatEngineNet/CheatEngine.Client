@@ -7,7 +7,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <PlatformTarget>x64</PlatformTarget>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <!-- Opts this project into Hosting's direct-SDK reference guard (CECLIENT001). -->
+    <!-- Enables Hosting's complete direct-reference, plugin-shape, language, and architecture profile. -->
     <CheatEngineClientPluginProject>true</CheatEngineClientPluginProject>
     <IsAotCompatible>true</IsAotCompatible>
     <VerifyReferenceAotCompatibility>true</VerifyReferenceAotCompatibility>

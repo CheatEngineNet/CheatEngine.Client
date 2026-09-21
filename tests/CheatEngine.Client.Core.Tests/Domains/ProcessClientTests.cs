@@ -27,6 +27,85 @@ public sealed class ProcessClientTests
 	}
 
 	[Fact]
+	public void GetProcessesFiltersOrdersAndTruncatesCopiedLocalMetadataWithoutSelectingAnyProcess()
+	{
+		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
+		host.LocalProcesses[52] = new LocalProcessInfo(52, "alpha-worker", "C:\\fixtures\\alpha-worker.exe");
+		host.LocalProcesses[43] = new LocalProcessInfo(43, "alpha-server", "C:\\fixtures\\alpha-server.exe");
+		host.LocalProcesses[44] = new LocalProcessInfo(44, "beta", "C:\\fixtures\\beta.exe");
+		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
+		ProcessClient client = new(new InlineDispatcher(), host, selectionLifetime);
+
+		ProcessEnumerationResult result = client.GetProcesses(
+			new ProcessEnumerationRequest(1, "ALPHA"),
+			TestContext.Current.CancellationToken);
+
+		Assert.True(result.IsTruncated);
+		ProcessInfoSnapshot snapshot = Assert.Single(result.Processes);
+		Assert.Equal(new TargetProcessId(43), snapshot.Id);
+		Assert.Equal("alpha-server", snapshot.Name);
+		Assert.Equal("C:\\fixtures\\alpha-server.exe", snapshot.ExecutablePath);
+		Assert.Empty(host.OpenProcessCalls);
+		Assert.Equal(0, selectionLifetime.Epoch);
+	}
+
+	[Fact]
+	public void TryGetProcessesHonorsCancellationBeforeEnumeratingTheHost()
+	{
+		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
+		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
+		ProcessClient client = new(new InlineDispatcher(), host, selectionLifetime);
+		using CancellationTokenSource cancellation = new();
+		cancellation.Cancel();
+
+		bool succeeded = client.TryGetProcesses(
+			new ProcessEnumerationRequest(1),
+			out ProcessEnumerationResult result,
+			out CheatEngineFailure failure,
+			cancellation.Token);
+
+		Assert.False(succeeded);
+		Assert.Equal(default, result);
+		Assert.Equal(CheatEngineFailureKind.Cancelled, failure.Kind);
+		Assert.Equal(0, host.GetLocalProcessesCalls);
+	}
+
+	[Fact]
+	public void TryGetProcessesRejectsTheDefaultRequestBeforeEnumeratingTheHost()
+	{
+		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
+		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
+		ProcessClient client = new(new InlineDispatcher(), host, selectionLifetime);
+
+		Assert.Throws<ArgumentOutOfRangeException>(() =>
+			client.TryGetProcesses(default, out _, out _, TestContext.Current.CancellationToken));
+
+		Assert.Equal(0, host.GetLocalProcessesCalls);
+	}
+
+	[Fact]
+	public void TryGetProcessesMapsAHostMaterializationFailureWithoutSelectingAnyProcess()
+	{
+		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
+		host.GetLocalProcessesException = new InvalidOperationException("fixture enumeration failed");
+		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
+		ProcessClient client = new(new InlineDispatcher(), host, selectionLifetime);
+
+		bool succeeded = client.TryGetProcesses(
+			new ProcessEnumerationRequest(1),
+			out ProcessEnumerationResult result,
+			out CheatEngineFailure failure,
+			TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(default, result);
+		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
+		Assert.Equal("Processes.GetProcesses", failure.Operation);
+		Assert.Equal(1, host.GetLocalProcessesCalls);
+		Assert.Empty(host.OpenProcessCalls);
+	}
+
+	[Fact]
 	public void RefreshChangesPidAdvancesSelectionEpochAndDisposesTheOldTargetLease()
 	{
 		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
@@ -207,6 +286,143 @@ public sealed class ProcessClientTests
 		Assert.Empty(host.OpenProcessCalls);
 	}
 
+	[Fact]
+	public void TryAttachForegroundIsCapabilityGatedWithoutChangingTheObservedSelection()
+	{
+		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
+		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
+		ProcessClient client = new(new InlineDispatcher(), host, selectionLifetime);
+		ProcessSnapshot initial = client.GetCurrent(TestContext.Current.CancellationToken);
+
+		bool succeeded = client.TryAttachForeground(
+			out ProcessSnapshot snapshot,
+			out CheatEngineFailure failure,
+			TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(default, snapshot);
+		Assert.Equal(CheatEngineFailureKind.CapabilityUnavailable, failure.Kind);
+		Assert.Equal(42, host.OpenedProcessId);
+		Assert.Empty(host.OpenProcessCalls);
+		Assert.Equal(initial.SelectionEpoch, selectionLifetime.Epoch);
+	}
+
+	[Fact]
+	public void AttachForegroundThrowsTheStableCapabilityUnavailableFailure()
+	{
+		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
+		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
+		ProcessClient client = new(new InlineDispatcher(), host, selectionLifetime);
+
+		CheatEngineOperationException exception = Assert.Throws<CheatEngineOperationException>(() =>
+			client.AttachForeground(TestContext.Current.CancellationToken));
+
+		Assert.Equal(CheatEngineFailureKind.CapabilityUnavailable, exception.Failure.Kind);
+		Assert.Equal("Processes.AttachForeground", exception.Failure.Operation);
+		Assert.Empty(host.OpenProcessCalls);
+	}
+
+	[Fact]
+	public void TryCreateIsCapabilityGatedWithoutStartingOrSelectingAnyProcess()
+	{
+		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
+		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
+		ProcessClient client = new(new InlineDispatcher(), host, selectionLifetime);
+		ProcessSnapshot initial = client.GetCurrent(TestContext.Current.CancellationToken);
+
+		bool succeeded = client.TryCreate(
+			new ProcessStartRequest("C:\\fixtures\\target.exe"),
+			out ProcessSnapshot snapshot,
+			out CheatEngineFailure failure,
+			TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(default, snapshot);
+		Assert.Equal(CheatEngineFailureKind.CapabilityUnavailable, failure.Kind);
+		Assert.Equal(42, host.OpenedProcessId);
+		Assert.Empty(host.OpenProcessCalls);
+		Assert.Equal(initial.SelectionEpoch, selectionLifetime.Epoch);
+	}
+
+	[Fact]
+	public void TryCreateRejectsTheDefaultRequestBeforeHostAdmission()
+	{
+		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
+		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
+		ProcessClient client = new(new InlineDispatcher(), host, selectionLifetime);
+
+		Assert.Throws<ArgumentException>(() => client.TryCreate(
+			default,
+			out _,
+			out _,
+			TestContext.Current.CancellationToken));
+
+		Assert.Empty(host.OpenProcessCalls);
+	}
+
+	[Fact]
+	public void TryPauseIsCapabilityGatedWithoutChangingTheObservedSelection()
+	{
+		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
+		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
+		ProcessClient client = new(new InlineDispatcher(), host, selectionLifetime);
+		ProcessSnapshot initial = client.GetCurrent(TestContext.Current.CancellationToken);
+
+		bool succeeded = client.TryPause(
+			out ProcessSnapshot snapshot,
+			out CheatEngineFailure failure,
+			TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(default, snapshot);
+		Assert.Equal(CheatEngineFailureKind.CapabilityUnavailable, failure.Kind);
+		Assert.Equal(42, host.OpenedProcessId);
+		Assert.Empty(host.OpenProcessCalls);
+		Assert.Equal(initial.SelectionEpoch, selectionLifetime.Epoch);
+	}
+
+	[Fact]
+	public void TryResumeExecutionIsCapabilityGatedWithoutChangingTheObservedSelection()
+	{
+		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
+		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
+		ProcessClient client = new(new InlineDispatcher(), host, selectionLifetime);
+		ProcessSnapshot initial = client.GetCurrent(TestContext.Current.CancellationToken);
+
+		bool succeeded = client.TryResumeExecution(
+			out ProcessSnapshot snapshot,
+			out CheatEngineFailure failure,
+			TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(default, snapshot);
+		Assert.Equal(CheatEngineFailureKind.CapabilityUnavailable, failure.Kind);
+		Assert.Equal(42, host.OpenedProcessId);
+		Assert.Empty(host.OpenProcessCalls);
+		Assert.Equal(initial.SelectionEpoch, selectionLifetime.Epoch);
+	}
+
+	[Fact]
+	public void TryGetPauseStateIsCapabilityGatedWithoutChangingTheObservedSelection()
+	{
+		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
+		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
+		ProcessClient client = new(new InlineDispatcher(), host, selectionLifetime);
+		ProcessSnapshot initial = client.GetCurrent(TestContext.Current.CancellationToken);
+
+		bool succeeded = client.TryGetPauseState(
+			out ProcessPauseSnapshot snapshot,
+			out CheatEngineFailure failure,
+			TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(default, snapshot);
+		Assert.Equal(CheatEngineFailureKind.CapabilityUnavailable, failure.Kind);
+		Assert.Equal(42, host.OpenedProcessId);
+		Assert.Empty(host.OpenProcessCalls);
+		Assert.Equal(initial.SelectionEpoch, selectionLifetime.Epoch);
+	}
+
 	private static TargetSelectionLifetime CreateSelectionLifetime()
 	{
 		return new TargetSelectionLifetime(static _ =>
@@ -246,6 +462,18 @@ public sealed class ProcessClientTests
 			get;
 		} = [];
 
+		internal int GetLocalProcessesCalls
+		{
+			get;
+			private set;
+		}
+
+		internal Exception? GetLocalProcessesException
+		{
+			get;
+			set;
+		}
+
 		internal long OpenedProcessId
 		{
 			get;
@@ -278,6 +506,17 @@ public sealed class ProcessClientTests
 		public bool TryGetLocalProcess(int processId, out LocalProcessInfo process)
 		{
 			return LocalProcesses.TryGetValue(processId, out process);
+		}
+
+		public IReadOnlyList<LocalProcessInfo> GetLocalProcesses()
+		{
+			GetLocalProcessesCalls++;
+			if (GetLocalProcessesException is { } exception)
+			{
+				throw exception;
+			}
+
+			return LocalProcesses.Values.ToArray();
 		}
 
 		public IReadOnlyList<LocalProcessInfo> FindProcessesByExactName(string processName)

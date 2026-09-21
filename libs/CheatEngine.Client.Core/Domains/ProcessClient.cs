@@ -1,3 +1,6 @@
+using System.Collections.Immutable;
+using System.ComponentModel;
+
 using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Processes;
@@ -39,6 +42,78 @@ internal sealed class ProcessClient : IProcessClient
 		CancellationToken cancellationToken = default)
 	{
 		return TryReadCurrent("Processes.GetCurrent", out snapshot, out failure, cancellationToken);
+	}
+
+	public bool TryGetProcesses(
+		ProcessEnumerationRequest request,
+		out ProcessEnumerationResult result,
+		out CheatEngineFailure failure,
+		CancellationToken cancellationToken = default)
+	{
+		ValidateEnumerationRequest(request);
+		if (cancellationToken.IsCancellationRequested)
+		{
+			result = default;
+			failure = Cancelled("Processes.GetProcesses");
+			return false;
+		}
+
+		try
+		{
+			IReadOnlyList<LocalProcessInfo> localProcesses = _host.GetLocalProcesses();
+			List<LocalProcessInfo> matching = new(localProcesses.Count);
+			for (int index = 0; index < localProcesses.Count; index++)
+			{
+				LocalProcessInfo process = localProcesses[index];
+				if (Matches(request, process))
+				{
+					matching.Add(process);
+				}
+			}
+
+			matching.Sort(static (left, right) => left.Id.CompareTo(right.Id));
+			int materializedCount = Math.Min(matching.Count, request.MaximumItems);
+			ProcessInfoSnapshot[] snapshots = new ProcessInfoSnapshot[materializedCount];
+			for (int index = 0; index < materializedCount; index++)
+			{
+				LocalProcessInfo process = matching[index];
+				snapshots[index] = new ProcessInfoSnapshot(
+					new TargetProcessId(process.Id),
+					process.Name,
+					process.ExecutablePath);
+			}
+
+			result = new ProcessEnumerationResult(
+				ImmutableArray.Create(snapshots),
+				matching.Count > materializedCount);
+			failure = default;
+			return true;
+		}
+		catch (Exception exception) when (exception is ArgumentException or InvalidOperationException
+			                                  or Win32Exception or PlatformNotSupportedException)
+		{
+			result = default;
+			failure = new CheatEngineFailure(
+				CheatEngineFailureKind.OperationRejected,
+				"Processes.GetProcesses",
+				"The local process list could not be materialized.",
+				exception);
+			return false;
+		}
+	}
+
+	public ProcessEnumerationResult GetProcesses(
+		ProcessEnumerationRequest request,
+		CancellationToken cancellationToken = default)
+	{
+		if (TryGetProcesses(request, out ProcessEnumerationResult result, out CheatEngineFailure failure,
+			    cancellationToken))
+		{
+			return result;
+		}
+
+		failure.Throw();
+		return default;
 	}
 
 	public ProcessSnapshot GetCurrent(CancellationToken cancellationToken = default)
@@ -150,6 +225,103 @@ internal sealed class ProcessClient : IProcessClient
 	{
 		if (TryAttachExactName(processName, out ProcessSnapshot snapshot, out CheatEngineFailure failure,
 			    cancellationToken))
+		{
+			return snapshot;
+		}
+
+		failure.Throw();
+		return default;
+	}
+
+	public bool TryAttachForeground(
+		out ProcessSnapshot snapshot,
+		out CheatEngineFailure failure,
+		CancellationToken cancellationToken = default)
+	{
+		return TryUnavailable("Processes.AttachForeground", out snapshot, out failure, cancellationToken);
+	}
+
+	public ProcessSnapshot AttachForeground(CancellationToken cancellationToken = default)
+	{
+		if (TryAttachForeground(out ProcessSnapshot snapshot, out CheatEngineFailure failure, cancellationToken))
+		{
+			return snapshot;
+		}
+
+		failure.Throw();
+		return default;
+	}
+
+	public bool TryCreate(
+		ProcessStartRequest request,
+		out ProcessSnapshot snapshot,
+		out CheatEngineFailure failure,
+		CancellationToken cancellationToken = default)
+	{
+		ValidateStartRequest(request);
+		return TryUnavailable("Processes.Create", out snapshot, out failure, cancellationToken);
+	}
+
+	public ProcessSnapshot Create(ProcessStartRequest request, CancellationToken cancellationToken = default)
+	{
+		if (TryCreate(request, out ProcessSnapshot snapshot, out CheatEngineFailure failure, cancellationToken))
+		{
+			return snapshot;
+		}
+
+		failure.Throw();
+		return default;
+	}
+
+	public bool TryPause(
+		out ProcessSnapshot snapshot,
+		out CheatEngineFailure failure,
+		CancellationToken cancellationToken = default)
+	{
+		return TryUnavailable("Processes.Pause", out snapshot, out failure, cancellationToken);
+	}
+
+	public ProcessSnapshot Pause(CancellationToken cancellationToken = default)
+	{
+		if (TryPause(out ProcessSnapshot snapshot, out CheatEngineFailure failure, cancellationToken))
+		{
+			return snapshot;
+		}
+
+		failure.Throw();
+		return default;
+	}
+
+	public bool TryResumeExecution(
+		out ProcessSnapshot snapshot,
+		out CheatEngineFailure failure,
+		CancellationToken cancellationToken = default)
+	{
+		return TryUnavailable("Processes.Resume", out snapshot, out failure, cancellationToken);
+	}
+
+	public ProcessSnapshot ResumeExecution(CancellationToken cancellationToken = default)
+	{
+		if (TryResumeExecution(out ProcessSnapshot snapshot, out CheatEngineFailure failure, cancellationToken))
+		{
+			return snapshot;
+		}
+
+		failure.Throw();
+		return default;
+	}
+
+	public bool TryGetPauseState(
+		out ProcessPauseSnapshot snapshot,
+		out CheatEngineFailure failure,
+		CancellationToken cancellationToken = default)
+	{
+		return TryUnavailable("Processes.GetPauseState", out snapshot, out failure, cancellationToken);
+	}
+
+	public ProcessPauseSnapshot GetPauseState(CancellationToken cancellationToken = default)
+	{
+		if (TryGetPauseState(out ProcessPauseSnapshot snapshot, out CheatEngineFailure failure, cancellationToken))
 		{
 			return snapshot;
 		}
@@ -286,6 +458,63 @@ internal sealed class ProcessClient : IProcessClient
 		}
 
 		return normalized;
+	}
+
+	private static void ValidateEnumerationRequest(ProcessEnumerationRequest request)
+	{
+		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(request.MaximumItems);
+		if (request.NameContains is { Length: 0 })
+		{
+			throw new ArgumentException("A process-name filter must be null or non-empty.", nameof(request));
+		}
+	}
+
+	private static void ValidateStartRequest(ProcessStartRequest request)
+	{
+		if (string.IsNullOrWhiteSpace(request.ExecutablePath))
+		{
+			throw new ArgumentException("The executable path must not be empty.", nameof(request));
+		}
+
+		if (!Path.IsPathFullyQualified(request.ExecutablePath))
+		{
+			throw new ArgumentException("The executable path must be absolute.", nameof(request));
+		}
+
+		if (request.WorkingDirectory is { } directory && !Path.IsPathFullyQualified(directory))
+		{
+			throw new ArgumentException("The working directory must be absolute when specified.", nameof(request));
+		}
+	}
+
+	private static bool Matches(ProcessEnumerationRequest request, LocalProcessInfo process)
+	{
+		return request.NameContains is null ||
+		       process.Name?.IndexOf(request.NameContains, StringComparison.OrdinalIgnoreCase) >= 0;
+	}
+
+	private static bool TryUnavailable<T>(
+		string operation,
+		out T result,
+		out CheatEngineFailure failure,
+		CancellationToken cancellationToken)
+	{
+		result = default!;
+		failure = cancellationToken.IsCancellationRequested
+			? Cancelled(operation)
+			: new CheatEngineFailure(
+				CheatEngineFailureKind.CapabilityUnavailable,
+				operation,
+				"This operation requires a validated Cheat Engine process-control binding.");
+		return false;
+	}
+
+	private static CheatEngineFailure Cancelled(string operation)
+	{
+		return new CheatEngineFailure(
+			CheatEngineFailureKind.Cancelled,
+			operation,
+			"The operation was cancelled before process-host admission.");
 	}
 
 	private readonly record struct ProcessSelection(TargetProcessId Id, CheatEngineArchitecture Architecture);

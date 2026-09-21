@@ -42,6 +42,33 @@ public readonly struct ClientCapabilityId : IEquatable<ClientCapabilityId>
 	/// <summary>Gets the Client capability for explicitly opted-in arbitrary Lua source execution.</summary>
 	public static ClientCapabilityId UnsafeLuaExecution => new("Client.UnsafeLuaExecution");
 
+	/// <summary>Gets the Client capability for owned target-memory allocations.</summary>
+	public static ClientCapabilityId Allocations => new("Client.Allocations");
+
+	/// <summary>Gets the Client capability for assembly, disassembly, comments, and Auto Assembler patches.</summary>
+	public static ClientCapabilityId Assembly => new("Client.Assembly");
+
+	/// <summary>Gets the Client capability for bounded remote execution and DLL injection.</summary>
+	public static ClientCapabilityId RemoteExecution => new("Client.RemoteExecution");
+
+	/// <summary>Gets the Client capability for debugger breakpoints and copied debugger events.</summary>
+	public static ClientCapabilityId Debugger => new("Client.Debugger");
+
+	/// <summary>Gets the Client capability for activation-scoped hotkeys.</summary>
+	public static ClientCapabilityId Hotkeys => new("Client.Hotkeys");
+
+	/// <summary>Gets the Client capability for activation-scoped timers.</summary>
+	public static ClientCapabilityId Timers => new("Client.Timers");
+
+	/// <summary>Gets the Client capability for observing and changing target speed.</summary>
+	public static ClientCapabilityId Speed => new("Client.Speed");
+
+	/// <summary>Gets the Client capability for target-memory and file hashing.</summary>
+	public static ClientCapabilityId Hashing => new("Client.Hashing");
+
+	/// <summary>Gets the Client capability for explicitly initialized DBVM operations and watches.</summary>
+	public static ClientCapabilityId Dbvm => new("Client.Dbvm");
+
 	/// <inheritdoc />
 	public bool Equals(ClientCapabilityId other)
 	{

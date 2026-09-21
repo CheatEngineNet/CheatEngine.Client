@@ -36,8 +36,9 @@
           BeforeTargets="Pack">
     <ItemGroup>
       <!-- Pack augments ProjectReference with transitive projects. Keep only references declared by this project. -->
+      <!-- Compiler-only project references are analyzer assets, not runtime Client-layer dependencies. -->
       <_CheatEngineClientDirectProjectReference Include="@(ProjectReference)"
-                                                Condition="'%(ProjectReference.DefiningProjectName)' == '$(MSBuildProjectName)'"/>
+                                                Condition="'%(ProjectReference.DefiningProjectName)' == '$(MSBuildProjectName)' and '%(ProjectReference.ReferenceOutputAssembly)' != 'false'"/>
       <_CheatEngineClientSdkReference Include="@(PackageReference)"
                                       Condition="'%(PackageReference.Identity)' == 'CheatEngine.SDK' and '%(PackageReference.DefiningProjectName)' == '$(MSBuildProjectName)'"/>
       <_CheatEngineClientSdkRangeReference Include="@(_CheatEngineClientSdkReference)"

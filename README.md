@@ -220,9 +220,12 @@ following table is a delivery statement, not a substitute for a live host check.
 | Value scanning                                      | **Capability-gated**            | The public state machine exists, but Client session creation stays unavailable until the internal `MemScan`/`FoundList` ownership path passes its Cheat Engine 7.7 x64 live gate |
 | Arbitrary Lua source                                | Policy-gated and off by default | Requires explicit unsafe opt-in; raw Lua state remains hidden                                                                                                                    |
 
-IPC, remote clients, UI/forms, debugger and breakpoints, Auto Assembler, injection, remote allocations, structures,
-hotkeys/timers, speedhack, DBVM, Mono/IL2CPP, and advanced ABI hooks are outside v0.1. They have no placeholder
-public API. The full current-state rationale is in [ADR 0004](docs/adr/0004-capability-matrix.md).
+Target allocations; assembly and Auto Assembler; remote execution and DLL injection; debugger and breakpoints;
+hotkeys and timers; speed; hashing; and DBVM now have public Client API contracts. Each remains
+`Unknown` or `Unavailable` until its primitive, ownership, and lifecycle behavior passes the corresponding Cheat
+Engine 7.7 x64 live gate. IPC, remote clients, UI/forms, structures, Mono/IL2CPP, and advanced ABI hooks remain
+outside v0.1 and have no placeholder public API. The full current-state rationale is in
+[ADR 0004](docs/adr/0004-capability-matrix.md).
 
 ## AOT, trimming, and deployment
 
@@ -258,7 +261,9 @@ dotnet publish tests/CheatEngine.Client.AotProbe/CheatEngine.Client.AotProbe.csp
 The [Windows CI workflow](.github/workflows/ci.yml) runs the locked restore, Release build, Microsoft Testing Platform
 tests, package API validation, isolated package smoke test, template smoke test, and Native AOT graph probe. The
 Cheat Engine 7.7 x64 live suite is opt-in and intentionally excluded from ordinary CI; no CI result should be read as
-proof that an untested live-host feature is available.
+proof that an untested live-host feature is available. The required success, failure, cleanup, disable, re-enable, and
+target-change evidence for every advanced capability is defined in the
+[live-capability gate protocol](docs/live-capability-gates.md).
 
 ## Security and scope
 

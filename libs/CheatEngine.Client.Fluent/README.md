@@ -49,7 +49,8 @@ Abstractions  ←  Fluent
 - Preserves bounded materialization rules; callers can inspect `AobScanResult.IsTruncated` when a
   bounded scan is intentionally incomplete.
 - Provides `Memory.At(...)` and `memory.At(...)` builders for primitive and codec-based reads and
-  writes without retaining a live target handle.
+  writes without retaining a live target handle, including exact byte copies, explicit UTF-8/UTF-16
+  bounds, finite pointer chains, and bounded homogeneous primitive batches.
 - Uses the normal `Try...` plus `CheatEngineFailure` pattern and leaves the actual lifecycle,
   dispatch, and SDK translation to the supplied contract implementation.
 

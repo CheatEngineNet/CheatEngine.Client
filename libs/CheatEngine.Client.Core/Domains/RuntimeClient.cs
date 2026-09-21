@@ -244,7 +244,25 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 				: new ClientCapabilityAvailability(
 					ClientCapabilityId.UnsafeLuaExecution,
 					ClientCapabilityAvailabilityState.Unavailable,
-					"Unsafe Lua execution requires explicit EnableUnsafeLuaExecution opt-in for this activation.")
+					"Unsafe Lua execution requires explicit EnableUnsafeLuaExecution opt-in for this activation."),
+			Unavailable(ClientCapabilityId.Allocations,
+				"Owned target allocations remain unavailable until the SDK production owner and CE 7.7 x64 cleanup gate pass."),
+			Unknown(ClientCapabilityId.Assembly,
+				"Assembly primitives and Auto Assembler ownership have not yet passed their CE 7.7 x64 live gate."),
+			Unavailable(ClientCapabilityId.RemoteExecution,
+				"Remote execution remains unavailable until allocation, timeout, and cleanup behavior pass the CE 7.7 x64 live gate."),
+			Unavailable(ClientCapabilityId.Debugger,
+				"Debugger callback ownership and synchronous continuation have not yet passed the CE 7.7 x64 live gate."),
+			Unavailable(ClientCapabilityId.Hotkeys,
+				"Hotkey callback ownership has not yet passed the CE 7.7 x64 live gate."),
+			Unavailable(ClientCapabilityId.Timers,
+				"Timer callback ownership has not yet passed the CE 7.7 x64 live gate."),
+			Unknown(ClientCapabilityId.Speed,
+				"The runtime snapshot does not yet probe the complete speed-control contract."),
+			Unknown(ClientCapabilityId.Hashing,
+				"The runtime snapshot does not yet probe target-memory and file hashing independently."),
+			Unavailable(ClientCapabilityId.Dbvm,
+				"DBVM observation, explicit initialization, and watch ownership have not yet passed the CE 7.7 x64 live gate.")
 		];
 
 		return ClientCapabilities.Create(capabilities);
@@ -253,6 +271,11 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 	private static ClientCapabilityAvailability Unknown(ClientCapabilityId capability, string reason)
 	{
 		return new ClientCapabilityAvailability(capability, ClientCapabilityAvailabilityState.Unknown, reason);
+	}
+
+	private static ClientCapabilityAvailability Unavailable(ClientCapabilityId capability, string reason)
+	{
+		return new ClientCapabilityAvailability(capability, ClientCapabilityAvailabilityState.Unavailable, reason);
 	}
 
 	private static CheatEngineArchitecture DecodeSystemArchitecture(ProbeResult<int> probe)

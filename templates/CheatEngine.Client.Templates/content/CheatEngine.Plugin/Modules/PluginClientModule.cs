@@ -1,6 +1,5 @@
 using CheatEngine.Client;
 using CheatEngine.Client.Extensions.DependencyInjection;
-using CheatEngine.Client.Lua;
 using CheatEngine.Client.Memory;
 using CheatEngine.Client.Modules;
 using CheatEngine.Client.Processes;
@@ -23,19 +22,11 @@ internal sealed partial class PluginClientModule(
 	ILogger<PluginClientModule> logger) : ICheatEngineClientModule
 {
 	private readonly CheatEngineClientOptions _options = options.Value;
-	private ILuaModuleLease? _luaModuleLease;
 
-	/// <summary>Registers the activation-scoped Lua module and demonstrates bounded Client operations.</summary>
+	/// <summary>Demonstrates bounded Client operations after generated Lua modules have been registered.</summary>
 	public void OnEnabled(ICheatEngineClient client)
 	{
 		ArgumentNullException.ThrowIfNull(client);
-
-		if (_luaModuleLease is not null)
-		{
-			throw new InvalidOperationException("The Lua module is already registered for this activation.");
-		}
-
-		_luaModuleLease = client.Lua.RegisterModule(new PluginLuaModule());
 
 		int allowedTableRootCount = _options.AllowedTableRoots?.Length ?? 0;
 		LogEnabled(logger, client.Epoch, allowedTableRootCount);
@@ -84,21 +75,10 @@ internal sealed partial class PluginClientModule(
 		}
 	}
 
-	/// <summary>
-	///     Releases the activation-scoped Lua module so the hosting lifecycle can aggregate any cleanup failure.
-	/// </summary>
+	/// <summary>Completes the application module lifecycle before generated Lua modules are released.</summary>
 	public void OnDisabling(ICheatEngineClient client)
 	{
 		ArgumentNullException.ThrowIfNull(client);
-
-		ILuaModuleLease? lease = _luaModuleLease;
-		_luaModuleLease = null;
-		if (lease is null)
-		{
-			return;
-		}
-
-		lease.Dispose();
 	}
 
 	/// <summary>Writes a bounded Client operation failure without exposing target-memory data.</summary>

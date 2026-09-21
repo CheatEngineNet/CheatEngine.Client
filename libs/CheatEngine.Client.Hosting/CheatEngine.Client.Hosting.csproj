@@ -4,10 +4,22 @@
     <ProjectGuid>{CF0D14B3-B4CB-4BDD-91AD-4C8B6B8BBCD0}</ProjectGuid>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);_CheatEngineClientHostingPackLuaGenerator</TargetsForTfmSpecificContentInPackage>
+  </PropertyGroup>
+
+  <!-- A no-build pack consumes already-built analyzer output without asking the SDK to build project references. -->
+  <PropertyGroup Condition="'$(NoBuild)' == 'true'">
+    <BuildProjectReferences>false</BuildProjectReferences>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="../CheatEngine.Client.Extensions.DependencyInjection/CheatEngine.Client.Extensions.DependencyInjection.csproj"/>
+    <!-- A compiler component only: it never becomes a Hosting runtime dependency. -->
+    <ProjectReference Include="../../source-generators/CheatEngine.Client.SourceGenerators.Lua/CheatEngine.Client.SourceGenerators.Lua.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false"
+                      PrivateAssets="all"
+                      PackAsAnalyzer="true"/>
     <PackageReference Include="CheatEngine.SDK"
                       VersionOverride="[1.0.0,2.0.0)"
                       IncludeAssets="compile;runtime"
@@ -17,7 +29,16 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="buildTransitive/CheatEngine.Client.Hosting.props" Pack="true" PackagePath="buildTransitive/"/>
     <None Include="buildTransitive/CheatEngine.Client.Hosting.targets" Pack="true" PackagePath="buildTransitive/"/>
   </ItemGroup>
+
+  <!-- Pack only the generator's own DLL. Roslyn supplies its compiler dependencies at consumer build time. -->
+  <Target Name="_CheatEngineClientHostingPackLuaGenerator" DependsOnTargets="ResolveProjectReferences">
+    <ItemGroup>
+      <TfmSpecificPackageFile Include="@(Analyzer-&gt;WithMetadataValue('PackAsAnalyzer', 'true'))"
+                              PackagePath="analyzers/dotnet/cs"/>
+    </ItemGroup>
+  </Target>
 
 </Project>

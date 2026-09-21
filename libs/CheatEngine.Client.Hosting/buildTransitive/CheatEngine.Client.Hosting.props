@@ -1,0 +1,10 @@
+<Project>
+  <!--
+    Make profile values visible to any compiler-time Client diagnostics without changing SDK ownership of its entry-point
+    generation property.  Values are supplied exclusively by the consuming plugin project.
+  -->
+  <ItemGroup>
+    <CompilerVisibleProperty Include="CheatEngineClientPluginProject"/>
+    <CompilerVisibleProperty Include="CheatEngineClientManualBootstrap"/>
+  </ItemGroup>
+</Project>

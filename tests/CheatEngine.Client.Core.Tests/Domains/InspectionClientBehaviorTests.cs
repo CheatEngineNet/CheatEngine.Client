@@ -21,7 +21,8 @@ public sealed class InspectionClientBehaviorTests
 		FakeInspectionPort port = new() { ModulesWritten = 1 };
 		InspectionClient client = CreateClient(lifetime, port);
 
-		bool succeeded = client.TryGetModules(new InspectionCollectionRequest(2), out ImmutableArray<ModuleInfo> modules,
+		bool succeeded = client.TryGetModules(new InspectionCollectionRequest(2),
+			out ImmutableArray<ModuleInfo> modules,
 			out CheatEngineFailure failure, new TargetProcessId(42), TestContext.Current.CancellationToken);
 
 		Assert.True(succeeded);
@@ -40,7 +41,8 @@ public sealed class InspectionClientBehaviorTests
 	[InlineData(InspectionStatus.LuaFailure, CheatEngineFailureKind.LuaError)]
 	[InlineData(InspectionStatus.InvalidResult, CheatEngineFailureKind.InvalidHostResult)]
 	[InlineData((InspectionStatus) 999, CheatEngineFailureKind.Unknown)]
-	public void InspectionStatusesMapToStableClientFailures(InspectionStatus status, CheatEngineFailureKind expectedKind)
+	public void InspectionStatusesMapToStableClientFailures(InspectionStatus status,
+		CheatEngineFailureKind expectedKind)
 	{
 		using ControlledCoreLifetimeContext context = new();
 		using CoreLifetime lifetime = new(context);
@@ -61,7 +63,10 @@ public sealed class InspectionClientBehaviorTests
 	{
 		using ControlledCoreLifetimeContext context = new();
 		using CoreLifetime lifetime = new(context);
-		FakeInspectionPort port = new() { SectionsWritten = 1, RegionsWritten = 1, ResolvedAddress = new Address(0xC0FFEE) };
+		FakeInspectionPort port = new()
+		{
+			SectionsWritten = 1, RegionsWritten = 1, ResolvedAddress = new Address(0xC0FFEE)
+		};
 		InspectionClient client = CreateClient(lifetime, port);
 		ModuleName module = new("fixture.exe");
 		SymbolExpression symbol = new("fixture+10");
@@ -75,7 +80,8 @@ public sealed class InspectionClientBehaviorTests
 			TestContext.Current.CancellationToken));
 		Assert.True(client.TryGetSymbol(symbol, out SymbolInfo returnedSymbol, out CheatEngineFailure symbolFailure,
 			TestContext.Current.CancellationToken));
-		Assert.True(client.TryResolveAddress(symbol, options, out Address resolved, out CheatEngineFailure addressFailure,
+		Assert.True(client.TryResolveAddress(symbol, options, out Address resolved,
+			out CheatEngineFailure addressFailure,
 			TestContext.Current.CancellationToken));
 
 		Assert.Single(sections);
@@ -130,7 +136,7 @@ public sealed class InspectionClientBehaviorTests
 		using CoreLifetime lifetime = new(context);
 		FakeInspectionPort port = new();
 		InspectionClient client = CreateClient(lifetime, port);
-		SymbolRegistration registration = new("fixture-symbol", new Address(0x401000), true);
+		SymbolRegistration registration = new("fixture-symbol", new Address(0x401000));
 
 		Assert.True(client.TryRegisterSymbol(registration, out ISymbolRegistrationLease? lease,
 			out CheatEngineFailure firstFailure, TestContext.Current.CancellationToken));
@@ -166,7 +172,8 @@ public sealed class InspectionClientBehaviorTests
 		using CancellationTokenSource cancellation = new();
 		cancellation.Cancel();
 
-		bool succeeded = client.TryGetModules(new InspectionCollectionRequest(1), out ImmutableArray<ModuleInfo> modules,
+		bool succeeded = client.TryGetModules(new InspectionCollectionRequest(1),
+			out ImmutableArray<ModuleInfo> modules,
 			out CheatEngineFailure failure, cancellationToken: cancellation.Token);
 
 		Assert.False(succeeded);
@@ -178,34 +185,153 @@ public sealed class InspectionClientBehaviorTests
 
 	private static InspectionClient CreateClient(CoreLifetime lifetime, IInspectionPort port)
 	{
-		return new InspectionClient(new SdkMainThreadDispatcher(lifetime, new InlineMainThreadInvoker()), lifetime, port);
+		return new InspectionClient(new SdkMainThreadDispatcher(lifetime, new InlineMainThreadInvoker()), lifetime,
+			port);
 	}
 
 	private sealed class FakeInspectionPort : IInspectionPort
 	{
-		internal int CurrentProcessModuleCalls { get; private set; }
-		internal int ExplicitProcessModuleCalls { get; private set; }
-		internal int LastModuleBufferLength { get; private set; }
-		internal TargetProcessId? LastModuleProcessId { get; private set; }
-		internal int SectionsWritten { get; init; }
-		internal int RegionsWritten { get; init; }
-		internal int LastSectionBufferLength { get; private set; }
-		internal int LastRegionBufferLength { get; private set; }
-		internal ModuleName LastSectionModule { get; private set; }
-		internal SymbolExpression LastSymbolExpression { get; private set; }
-		internal SymbolExpression LastAddressExpression { get; private set; }
-		internal AddressResolutionOptions LastAddressOptions { get; private set; }
-		internal InspectionStatus ModulesStatus { get; init; } = InspectionStatus.Success;
-		internal InspectionStatus MemoryRegionStatus { get; init; } = InspectionStatus.Success;
-		internal Address ResolvedAddress { get; init; }
-		internal bool ResolveNameResult { get; init; }
-		internal string? ResolvedName { get; init; }
-		internal nuint LastNameAddress { get; private set; }
-		internal int RegisterCalls { get; private set; }
-		internal string? LastRegisteredName { get; private set; }
-		internal nuint LastRegisteredAddress { get; private set; }
-		internal bool LastRegisteredDoNotSave { get; private set; }
-		internal List<string> UnregisteredNames { get; } = [];
+		internal int CurrentProcessModuleCalls
+		{
+			get;
+			private set;
+		}
+
+		internal int ExplicitProcessModuleCalls
+		{
+			get;
+			private set;
+		}
+
+		internal int LastModuleBufferLength
+		{
+			get;
+			private set;
+		}
+
+		internal TargetProcessId? LastModuleProcessId
+		{
+			get;
+			private set;
+		}
+
+		internal int SectionsWritten
+		{
+			get;
+			init;
+		}
+
+		internal int RegionsWritten
+		{
+			get;
+			init;
+		}
+
+		internal int LastSectionBufferLength
+		{
+			get;
+			private set;
+		}
+
+		internal int LastRegionBufferLength
+		{
+			get;
+			private set;
+		}
+
+		internal ModuleName LastSectionModule
+		{
+			get;
+			private set;
+		}
+
+		internal SymbolExpression LastSymbolExpression
+		{
+			get;
+			private set;
+		}
+
+		internal SymbolExpression LastAddressExpression
+		{
+			get;
+			private set;
+		}
+
+		internal AddressResolutionOptions LastAddressOptions
+		{
+			get;
+			private set;
+		}
+
+		internal InspectionStatus ModulesStatus
+		{
+			get;
+		} = InspectionStatus.Success;
+
+		internal InspectionStatus MemoryRegionStatus
+		{
+			get;
+			init;
+		} = InspectionStatus.Success;
+
+		internal Address ResolvedAddress
+		{
+			get;
+			init;
+		}
+
+		internal bool ResolveNameResult
+		{
+			get;
+			init;
+		}
+
+		internal string? ResolvedName
+		{
+			get;
+			init;
+		}
+
+		internal nuint LastNameAddress
+		{
+			get;
+			private set;
+		}
+
+		internal int RegisterCalls
+		{
+			get;
+			private set;
+		}
+
+		internal string? LastRegisteredName
+		{
+			get;
+			private set;
+		}
+
+		internal nuint LastRegisteredAddress
+		{
+			get;
+			private set;
+		}
+
+		internal bool LastRegisteredDoNotSave
+		{
+			get;
+			private set;
+		}
+
+		internal List<string> UnregisteredNames
+		{
+			get;
+		} = [];
+
+		public int ModulesWritten
+		{
+			get;
+			init;
+		}
 
 		public InspectionStatus EnumerateModules(ModuleInfo[] destination, out int written)
 		{
@@ -224,9 +350,8 @@ public sealed class InspectionClientBehaviorTests
 			return ModulesStatus;
 		}
 
-		public int ModulesWritten { get; init; }
-
-		public InspectionStatus EnumerateSections(ModuleName moduleName, ModuleSectionInfo[] destination, out int written)
+		public InspectionStatus EnumerateSections(ModuleName moduleName, ModuleSectionInfo[] destination,
+			out int written)
 		{
 			LastSectionModule = moduleName;
 			LastSectionBufferLength = destination.Length;
@@ -254,7 +379,8 @@ public sealed class InspectionClientBehaviorTests
 			return InspectionStatus.Success;
 		}
 
-		public InspectionStatus ResolveAddress(SymbolExpression expression, AddressResolutionOptions options, out Address address)
+		public InspectionStatus ResolveAddress(SymbolExpression expression, AddressResolutionOptions options,
+			out Address address)
 		{
 			LastAddressExpression = expression;
 			LastAddressOptions = options;

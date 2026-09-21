@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>CheatEngine.Client.Benchmarks</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../libs/CheatEngine.Client.Extensions.DependencyInjection/CheatEngine.Client.Extensions.DependencyInjection.csproj"/>
+    <ProjectReference Include="../../libs/CheatEngine.Client.Fluent/CheatEngine.Client.Fluent.csproj"/>
+    <PackageReference Include="BenchmarkDotNet"/>
+  </ItemGroup>
+
+</Project>

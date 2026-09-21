@@ -32,6 +32,26 @@ public sealed class SdkMainThreadDispatcherBehaviorTests
 	}
 
 	[Fact]
+	public void InternalStatefulFastPathForwardsValueStateWithoutUsingThePublicClosureFallback()
+	{
+		using ControlledCoreLifetimeContext context = new();
+		using CoreLifetime lifetime = new(context);
+		RecordingMainThreadInvoker invoker = new();
+#pragma warning disable CA1859 // This test intentionally dispatches through the internal interface contract.
+		IStatefulCheatEngineDispatcher dispatcher = new SdkMainThreadDispatcher(lifetime, invoker);
+#pragma warning restore CA1859
+
+		bool succeeded = dispatcher.TryInvoke(21, static value => value * 2, out int result,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.True(succeeded);
+		Assert.Equal(42, result);
+		Assert.Equal(default, failure);
+		Assert.Equal(1, invoker.StateFunctionCalls);
+		Assert.Equal(0, invoker.FunctionCalls);
+	}
+
+	[Fact]
 	public void CallbackExceptionsAreRethrownWithoutBeingClassifiedAsHostFailures()
 	{
 		using ControlledCoreLifetimeContext context = new();
@@ -98,6 +118,12 @@ public sealed class SdkMainThreadDispatcherBehaviorTests
 			private set;
 		}
 
+		internal int StateFunctionCalls
+		{
+			get;
+			private set;
+		}
+
 		internal Exception? HostException
 		{
 			get;
@@ -138,6 +164,25 @@ public sealed class SdkMainThreadDispatcherBehaviorTests
 			catch (Exception exception)
 			{
 				return new MainThreadInvocationResult<T>(default!, exception);
+			}
+		}
+
+		public MainThreadInvocationResult<TResult> Invoke<TState, TResult>(Func<TState, TResult> callback,
+			TState state)
+		{
+			StateFunctionCalls++;
+			if (HostException is not null)
+			{
+				throw HostException;
+			}
+
+			try
+			{
+				return new MainThreadInvocationResult<TResult>(callback(state), null);
+			}
+			catch (Exception exception)
+			{
+				return new MainThreadInvocationResult<TResult>(default!, exception);
 			}
 		}
 	}

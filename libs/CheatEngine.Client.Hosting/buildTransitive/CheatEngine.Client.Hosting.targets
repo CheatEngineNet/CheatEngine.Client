@@ -1,13 +1,352 @@
 <Project>
-  <Target Name="CheatEngineClientRequireDirectSdkReference"
-          BeforeTargets="CoreCompile"
-          Condition="'$(CheatEngineClientPluginProject)' == 'true' and '$(CheatEngineClientSkipDirectSdkReferenceCheck)' != 'true'">
+  <!--
+    The Client package is deliberately only a convenience facade.  Plugin projects must retain direct references to both
+    packages: the Client describes the high-level activation contract while the SDK supplies the entry point generator and
+    the native Lua protection bridge.  Neither responsibility may depend on NuGet asset transitivity.
+  -->
+  <Target Name="CheatEngineClientValidatePluginProjectProfile"
+          BeforeTargets="CheatEngineSdkRequireX64Platform;BeforeBuild;PrepareForBuild;CoreCompile"
+          Condition="'$(CheatEngineClientPluginProject)' == 'true' and '$(CheatEngineClientSkipPluginProjectValidation)' != 'true'">
     <ItemGroup>
-      <_CheatEngineClientDirectSdkReference Include="@(PackageReference)"
+      <_CheatEngineClientDirectPackageReference Include="@(PackageReference)"/>
+      <_CheatEngineClientDirectSdkReference Include="@(_CheatEngineClientDirectPackageReference)"
                                             Condition="'%(Identity)' == 'CheatEngine.SDK'"/>
+      <_CheatEngineClientDirectClientReference Include="@(_CheatEngineClientDirectPackageReference)"
+                                               Condition="'%(Identity)' == 'CheatEngine.Client'"/>
     </ItemGroup>
-    <Error Condition="'@(_CheatEngineClientDirectSdkReference)' == ''"
+
+    <Error Condition="'@(_CheatEngineClientDirectSdkReference)' == '' and '$(CheatEngineClientSkipDirectSdkReferenceCheck)' != 'true'"
            Code="CECLIENT001"
            Text="Cheat Engine plugin projects must reference CheatEngine.SDK directly so its entry-point generator and native bridge assets are active."/>
+    <Error Condition="'@(_CheatEngineClientDirectClientReference)' == ''"
+           Code="CECLIENT002"
+           Text="Cheat Engine plugin projects must reference CheatEngine.Client directly so the supported high-level plugin contract is explicit."/>
+    <Error Condition="'$(TargetFramework)' != 'net10.0'"
+           Code="CECLIENT005"
+           Text="Cheat Engine Client plugin projects must target net10.0."/>
+    <Error Condition="'$(LangVersion)' != '14.0'"
+           Code="CECLIENT006"
+           Text="Cheat Engine Client plugin projects must use C# 14 (LangVersion 14.0)."/>
+    <Error Condition="'$(PlatformTarget)' != 'x64' and '$(PlatformTarget)' != 'AnyCPU'"
+           Code="CECLIENT007"
+           Text="Cheat Engine Client plugin projects must set PlatformTarget to x64 or AnyCPU because Cheat Engine hosts the managed plugin in an x64 process."/>
+    <Error Condition="'$(CheatEngineSdkGenerateEntryPoint)' == 'false' and '$(CheatEngineClientManualBootstrap)' != 'true'"
+           Code="CECLIENT008"
+           Text="CheatEngineSdkGenerateEntryPoint=false requires CheatEngineClientManualBootstrap=true and the exact SDK-validated CESDK.CESDK.CEPluginInitialize manual bootstrap."/>
+  </Target>
+
+  <!--
+    This task opens only ECMA-335 metadata from the intermediate assembly.  It deliberately does not load the plugin,
+    execute user code, or inspect an activation-scoped SDK object.  SDK diagnostics remain authoritative for plugin shape;
+    the Client profile adds its own requirement that exactly one generated Client host derives from
+    CheatEngineClientPlugin.
+  -->
+  <UsingTask TaskName="CheatEngineClientValidatePluginMetadata"
+             TaskFactory="RoslynCodeTaskFactory"
+             AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <AssemblyPath ParameterType="System.String" Required="true"/>
+    </ParameterGroup>
+    <Task>
+      <Reference Include="$(MSBuildToolsPath)\Microsoft.Build.Framework.dll"/>
+      <Reference Include="$(MSBuildToolsPath)\Microsoft.Build.Utilities.Core.dll"/>
+      <Reference Include="$(MSBuildToolsPath)\Sdks\Microsoft.NET.Sdk\tools\net472\System.Collections.Immutable.dll"/>
+      <Reference Include="$(MSBuildToolsPath)\Sdks\Microsoft.NET.Sdk\tools\net472\System.Reflection.Metadata.dll"/>
+      <Using Namespace="System"/>
+      <Using Namespace="System.IO"/>
+      <Using Namespace="System.Reflection.Metadata"/>
+      <Using Namespace="System.Reflection.PortableExecutable"/>
+      <Using Namespace="Microsoft.Build.Framework"/>
+      <Using Namespace="Microsoft.Build.Utilities"/>
+      <Code Type="Class" Language="cs"><![CDATA[
+#nullable enable
+
+using System;
+using System.IO;
+using System.Reflection.Metadata;
+using System.Reflection.PortableExecutable;
+using Microsoft.Build.Framework;
+using Microsoft.Build.Utilities;
+
+public sealed class CheatEngineClientValidatePluginMetadata : Task
+{
+    private const string ClientPluginNamespace = "CheatEngine.Client.Hosting";
+    private const string ClientPluginName = "CheatEngineClientPlugin";
+    private const string SdkPluginAttributeNamespace = "CheatEngine.SDK.Annotations.Plugin";
+    private const string SdkPluginAttributeName = "CheatEnginePluginAttribute";
+
+    [Required]
+    public string AssemblyPath { get; set; } = String.Empty;
+
+    public override bool Execute()
+    {
+        try
+        {
+            using FileStream stream = File.OpenRead(AssemblyPath);
+            using PEReader peReader = new PEReader(stream);
+            MetadataReader metadata = peReader.GetMetadataReader();
+            int validPluginCount = 0;
+
+            foreach (TypeDefinitionHandle typeHandle in metadata.TypeDefinitions)
+            {
+                TypeDefinition type = metadata.GetTypeDefinition(typeHandle);
+                if (HasSdkPluginAttribute(type, metadata) && DerivesFromClientPlugin(type, metadata))
+                {
+                    validPluginCount++;
+                }
+            }
+
+            if (validPluginCount == 0)
+            {
+                Log.LogError(null, "CECLIENT003", null, AssemblyPath, 0, 0, 0, 0,
+                    "Cheat Engine Client plugin projects must declare exactly one valid [CheatEnginePlugin] type derived from CheatEngineClientPlugin.");
+            }
+            else if (validPluginCount > 1)
+            {
+                Log.LogError(null, "CECLIENT004", null, AssemblyPath, 0, 0, 0, 0,
+                    "Cheat Engine Client plugin projects declare more than one valid [CheatEnginePlugin] type derived from CheatEngineClientPlugin.");
+            }
+        }
+        catch (Exception exception)
+        {
+            Log.LogError(null, "CECLIENT009", null, AssemblyPath, 0, 0, 0, 0,
+                "Cheat Engine Client could not validate plugin metadata: {0}", exception.Message);
+        }
+
+        return !Log.HasLoggedErrors;
+    }
+
+    private static bool HasSdkPluginAttribute(TypeDefinition type, MetadataReader metadata)
+    {
+        foreach (CustomAttributeHandle attributeHandle in type.GetCustomAttributes())
+        {
+            CustomAttribute attribute = metadata.GetCustomAttribute(attributeHandle);
+            if (IsTypeNamed(GetAttributeType(attribute, metadata), metadata,
+                    SdkPluginAttributeNamespace, SdkPluginAttributeName))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static EntityHandle GetAttributeType(CustomAttribute attribute, MetadataReader metadata)
+    {
+        return attribute.Constructor.Kind switch
+        {
+            HandleKind.MemberReference => metadata.GetMemberReference((MemberReferenceHandle)attribute.Constructor).Parent,
+            HandleKind.MethodDefinition => metadata.GetMethodDefinition((MethodDefinitionHandle)attribute.Constructor).GetDeclaringType(),
+            _ => default,
+        };
+    }
+
+    private static bool DerivesFromClientPlugin(TypeDefinition type, MetadataReader metadata)
+    {
+        EntityHandle baseType = type.BaseType;
+        while (!baseType.IsNil)
+        {
+            if (IsTypeNamed(baseType, metadata, ClientPluginNamespace, ClientPluginName))
+            {
+                return true;
+            }
+
+            if (baseType.Kind != HandleKind.TypeDefinition)
+            {
+                return false;
+            }
+
+            baseType = metadata.GetTypeDefinition((TypeDefinitionHandle)baseType).BaseType;
+        }
+
+        return false;
+    }
+
+    private static bool IsTypeNamed(EntityHandle handle, MetadataReader metadata, string expectedNamespace, string expectedName)
+    {
+        return handle.Kind switch
+        {
+            HandleKind.TypeDefinition => IsNamed(metadata.GetTypeDefinition((TypeDefinitionHandle)handle).Namespace,
+                metadata.GetTypeDefinition((TypeDefinitionHandle)handle).Name, metadata, expectedNamespace, expectedName),
+            HandleKind.TypeReference => IsNamed(metadata.GetTypeReference((TypeReferenceHandle)handle).Namespace,
+                metadata.GetTypeReference((TypeReferenceHandle)handle).Name, metadata, expectedNamespace, expectedName),
+            _ => false,
+        };
+    }
+
+    private static bool IsNamed(StringHandle namespaceHandle, StringHandle nameHandle, MetadataReader metadata,
+        string expectedNamespace, string expectedName)
+    {
+        return String.Equals(metadata.GetString(namespaceHandle), expectedNamespace, StringComparison.Ordinal) &&
+            String.Equals(metadata.GetString(nameHandle), expectedName, StringComparison.Ordinal);
+    }
+}
+      ]]></Code>
+    </Task>
+  </UsingTask>
+
+  <Target Name="CheatEngineClientValidatePluginMetadata"
+          AfterTargets="CoreCompile"
+          BeforeTargets="CopyFilesToOutputDirectory"
+          Condition="'$(CheatEngineClientPluginProject)' == 'true' and '$(CheatEngineClientSkipPluginProjectValidation)' != 'true' and '$(DesignTimeBuild)' != 'true'">
+    <CheatEngineClientValidatePluginMetadata AssemblyPath="$(IntermediateOutputPath)$(TargetFileName)"/>
+  </Target>
+
+  <!--
+    Deployment is opt-in.  It never discovers, changes, or starts a Cheat Engine installation: it writes only to the
+    caller-supplied output folder after the ordinary managed build has completed.  A staged file is moved with the Windows
+    replace-and-write-through primitive so an individual destination file is never observed half-written.  Windows has no
+    atomic replacement primitive for a non-empty directory, therefore callers must deploy while the plugin is disabled.
+  -->
+  <UsingTask TaskName="CheatEngineClientAtomicPluginDeployment"
+             TaskFactory="RoslynCodeTaskFactory"
+             AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <Files ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true"/>
+      <Destination ParameterType="System.String" Required="true"/>
+    </ParameterGroup>
+    <Task>
+      <Reference Include="$(MSBuildToolsPath)\Microsoft.Build.Framework.dll"/>
+      <Reference Include="$(MSBuildToolsPath)\Microsoft.Build.Utilities.Core.dll"/>
+      <Using Namespace="System"/>
+      <Using Namespace="System.Collections.Generic"/>
+      <Using Namespace="System.ComponentModel"/>
+      <Using Namespace="System.IO"/>
+      <Using Namespace="System.Runtime.InteropServices"/>
+      <Using Namespace="Microsoft.Build.Framework"/>
+      <Using Namespace="Microsoft.Build.Utilities"/>
+      <Code Type="Class" Language="cs"><![CDATA[
+#nullable enable
+
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.IO;
+using System.Runtime.InteropServices;
+using Microsoft.Build.Framework;
+using Microsoft.Build.Utilities;
+
+public sealed class CheatEngineClientAtomicPluginDeployment : Task
+{
+    private const int MoveFileReplaceExisting = 0x1;
+    private const int MoveFileWriteThrough = 0x8;
+    private string? stagingDirectory;
+
+    [Required]
+    public ITaskItem[] Files { get; set; } = Array.Empty<ITaskItem>();
+
+    [Required]
+    public string Destination { get; set; } = String.Empty;
+
+    public override bool Execute()
+    {
+        try
+        {
+            string destination = Path.GetFullPath(Destination);
+            string? parentDirectory = Path.GetDirectoryName(destination);
+            string directoryName = Path.GetFileName(destination.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+            if (String.IsNullOrWhiteSpace(parentDirectory) || String.IsNullOrWhiteSpace(directoryName))
+            {
+                throw new InvalidOperationException("CheatEnginePluginOutputPath must name a concrete output directory.");
+            }
+
+            Directory.CreateDirectory(parentDirectory);
+            stagingDirectory = Path.Combine(parentDirectory, "." + directoryName + ".ceclient-staging-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(stagingDirectory);
+
+            HashSet<string> names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            List<string> stagedFiles = new List<string>(Files.Length);
+            foreach (ITaskItem item in Files)
+            {
+                string source = Path.GetFullPath(item.ItemSpec);
+                string fileName = Path.GetFileName(source);
+                if (!File.Exists(source))
+                {
+                    throw new FileNotFoundException("The validated plugin deployment file no longer exists.", source);
+                }
+
+                if (String.IsNullOrWhiteSpace(fileName) || !names.Add(fileName))
+                {
+                    throw new InvalidOperationException("Plugin deployment contains duplicate output file names.");
+                }
+
+                string stagedFile = Path.Combine(stagingDirectory, fileName);
+                File.Copy(source, stagedFile, false);
+                stagedFiles.Add(stagedFile);
+            }
+
+            Directory.CreateDirectory(destination);
+            foreach (string stagedFile in stagedFiles)
+            {
+                string destinationFile = Path.Combine(destination, Path.GetFileName(stagedFile));
+                if (!MoveFileEx(stagedFile, destinationFile, MoveFileReplaceExisting | MoveFileWriteThrough))
+                {
+                    throw new Win32Exception(Marshal.GetLastWin32Error(),
+                        "Windows could not atomically replace plugin deployment file '" + destinationFile + "'.");
+                }
+            }
+
+            Log.LogMessage(MessageImportance.High,
+                "Prepared Cheat Engine managed plugin deployment in '{0}' ({1} file(s)).", destination, stagedFiles.Count);
+            return true;
+        }
+        catch (Exception exception)
+        {
+            Log.LogError(null, "CECLIENT016", null, Destination, 0, 0, 0, 0,
+                "Cheat Engine plugin deployment failed: {0}", exception.Message);
+            return false;
+        }
+        finally
+        {
+            if (!String.IsNullOrWhiteSpace(stagingDirectory) && Directory.Exists(stagingDirectory))
+            {
+                Directory.Delete(stagingDirectory, true);
+            }
+        }
+    }
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool MoveFileEx(string existingFileName, string newFileName, int flags);
+}
+      ]]></Code>
+    </Task>
+  </UsingTask>
+
+  <Target Name="PrepareCheatEnginePluginDeployment"
+          AfterTargets="Build"
+          Condition="'$(CheatEngineClientPluginProject)' == 'true' and '$(CheatEnginePluginOutputPath)' != ''">
+    <Error Condition="!Exists('$(TargetPath)')"
+           Code="CECLIENT010"
+           Text="The plugin assembly was not produced before deployment: $(TargetPath)."/>
+    <Error Condition="!Exists('$(TargetDir)$(AssemblyName).deps.json')"
+           Code="CECLIENT011"
+           Text="The plugin deployment requires $(AssemblyName).deps.json next to the managed plugin assembly."/>
+    <Error Condition="!Exists('$(TargetDir)$(AssemblyName).runtimeconfig.json')"
+           Code="CECLIENT012"
+           Text="The plugin deployment requires $(AssemblyName).runtimeconfig.json next to the managed plugin assembly."/>
+    <Error Condition="!Exists('$(TargetDir)CheatEngine.SDK.dll')"
+           Code="CECLIENT013"
+           Text="The plugin deployment requires the direct CheatEngine.SDK managed assembly in the build output."/>
+    <Error Condition="!Exists('$(TargetDir)CheatEngine.Client.Hosting.dll')"
+           Code="CECLIENT014"
+           Text="The plugin deployment requires CheatEngine.Client.Hosting.dll in the build output."/>
+    <Error Condition="!Exists('$(TargetDir)cheatengine-sdk-lua-bridge.dll')"
+           Code="CECLIENT015"
+           Text="The plugin deployment requires cheatengine-sdk-lua-bridge.dll from the direct CheatEngine.SDK build asset."/>
+
+    <ItemGroup>
+      <_CheatEngineClientDeploymentFile Include="$(TargetDir)*.dll"/>
+      <_CheatEngineClientDeploymentFile Include="$(TargetDir)*.json"/>
+      <_CheatEngineClientDeploymentFile Include="$(TargetDir)*.pdb"/>
+    </ItemGroup>
+    <RemoveDuplicates Inputs="@(_CheatEngineClientDeploymentFile)">
+      <Output TaskParameter="Filtered" ItemName="_CheatEngineClientDistinctDeploymentFile"/>
+    </RemoveDuplicates>
+    <Error Condition="'@(_CheatEngineClientDistinctDeploymentFile)' == ''"
+           Code="CECLIENT016"
+           Text="No managed deployment files were found in $(TargetDir)."/>
+    <CheatEngineClientAtomicPluginDeployment Files="@(_CheatEngineClientDistinctDeploymentFile)"
+                                             Destination="$(CheatEnginePluginOutputPath)"/>
   </Target>
 </Project>

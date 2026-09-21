@@ -62,8 +62,11 @@ public sealed class Plugin : CheatEngineClientPlugin
 
 Plugin projects must reference `CheatEngine.SDK` directly as well as `CheatEngine.Client`. The SDK's plugin entry-point
 generator and native bridge build assets cannot be supplied through a transitive NuGet dependency. Set
-`CheatEngineClientPluginProject` to `true` to opt into the Hosting build guard; it emits `CECLIENT001` at compile time
-when the direct SDK `PackageReference` is absent.
+`CheatEngineClientPluginProject` to `true` to opt into the Hosting profile. It verifies the two direct references
+(`CECLIENT001`/`CECLIENT002`), exactly one attributed `CheatEngineClientPlugin` (`CECLIENT003`/`CECLIENT004`),
+`net10.0`, C# 14, and an x64 or AnyCPU target (`CECLIENT005`–`CECLIENT007`). Disabling the SDK generator additionally
+requires an explicit `CheatEngineClientManualBootstrap=true` acknowledgement; the SDK then validates the exact manual
+entry point (`CECLIENT008` and `CESDK0003`).
 
 ```xml
 <PropertyGroup>
@@ -79,3 +82,19 @@ when the direct SDK `PackageReference` is absent.
 
 `CheatEngine.Client.Templates` contains a complete plugin layout that applies this configuration and includes a bounded
 AOB, memory, Address List, and Lua-module example.
+
+## Managed deployment folder
+
+Set `CheatEnginePluginOutputPath` only when a build should prepare a local managed deployment folder:
+
+```powershell
+dotnet build .\MyPlugin.csproj --configuration Release `
+  -p:CheatEnginePluginOutputPath=C:\CheatEngineDeploy\MyPlugin
+```
+
+`PrepareCheatEnginePluginDeployment` runs only for the marked plugin profile and only when that property is non-empty.
+It validates the plugin DLL, manifests, Client/SDK managed closure, and the SDK Lua bridge, stages the complete output,
+then replaces each destination file with Windows write-through replacement semantics. It does not inspect or change a
+Cheat Engine installation, runtime configuration, or plugin list. Windows cannot atomically replace a non-empty
+directory, so deploy while the plugin is disabled; destination files are individually never copied in a partially
+written state.
