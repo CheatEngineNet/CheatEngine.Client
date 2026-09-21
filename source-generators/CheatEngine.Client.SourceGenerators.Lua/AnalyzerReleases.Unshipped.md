@@ -13,4 +13,4 @@
  CECLUA1103 | CheatEngine.Client.Lua | Error    | Generated Lua operation signatures must be bounded.
  CECLUA1104 | CheatEngine.Client.Lua | Error    | Non-scalar Lua operation results require a mapper.
  CECLUA1105 | CheatEngine.Client.Lua | Error    | A Lua operation mapper must match the SDK result.
- CECLUA1106 | CheatEngine.Client.Lua | Error    | A Lua mapper must project a safe Client result.
+ CECLUA1106 | CheatEngine.Client.Lua | Error    | A Lua mapper must project a safe, recursively closed Client result and source graph.
