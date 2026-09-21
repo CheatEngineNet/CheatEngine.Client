@@ -15,9 +15,9 @@ The project provides a minimal but production-shaped plugin boundary:
 - `[CheatEnginePlugin]` is the SDK entry-point annotation recognized by the generated bootstrap.
 - `CheatEngineClientPlugin` creates a fresh DI container and Client activation for every enable cycle.
 - `Configure` explicitly loads the optional `appsettings.json` beside the plugin with `reloadOnChange: false` and
-  registers an application module.
+  registers the generated `PluginLuaModule` through `AddLuaModule<PluginLuaModule>()`, then the application module.
 - `PluginClientModule` demonstrates options, logging, a bounded AOB request, typed memory access, an Address List
-  snapshot, and an activation-scoped Lua module lease.
+  snapshot, and normal Client module lifecycle callbacks.
 
 The project references `CheatEngine.Client` **and** `CheatEngine.SDK` directly. The SDK reference must remain direct:
 its plugin generator and native Lua bridge assets are build inputs, not a transitive implementation detail.
@@ -33,10 +33,10 @@ matters to consumers: package restore, SDK-generated bootstrap, copied bridge as
 and the DI-first lifecycle. Its normal host preconditions use `Try...` APIs, so an absent process or pattern does not
 turn the example into an artificial activation failure.
 
-The Lua implementation deliberately keeps `LuaRuntime.AcquireState()` and generated SDK calls inside
-`PluginLuaModule`; no raw Lua state or SDK ownership handle crosses the Client-facing module boundary. The project does
-not demonstrate value scans because their complete Create/Scan/Destroy lifecycle is still capability-gated pending
-the opt-in Cheat Engine 7.7 x64 live validation.
+`PluginLuaModule` is an attribute-only declaration. The Client generator emits the activation-scoped implementation
+that acquires Lua state and invokes the generated SDK registration calls; application code contains neither those calls
+nor raw Lua state or SDK ownership handles. The project does not demonstrate value scans because their complete
+Create/Scan/Destroy lifecycle is still capability-gated pending the opt-in Cheat Engine 7.7 x64 live validation.
 
 ## Build
 

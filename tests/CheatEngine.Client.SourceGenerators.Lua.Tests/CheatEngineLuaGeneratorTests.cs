@@ -72,6 +72,9 @@ public sealed class CheatEngineLuaGeneratorTests
 			[LuaFunction("status")]
 			public static string Status() => "ok";
 
+			[LuaFunction("ping")]
+			public static int Ping() => 1;
+
 			public static LuaStatus RegisterLuaFunctions(LuaState state) => default;
 			public static LuaStatus UnregisterLuaFunctions(LuaState state) => default;
 		}
@@ -144,7 +147,7 @@ public sealed class CheatEngineLuaGeneratorTests
 	}
 
 	[Fact]
-	public void ModuleAdapterCompilesAgainstTheSdkRegistrationContract()
+	public void ModuleAdapterWithMultipleExportsCompilesAgainstTheSdkRegistrationContract()
 	{
 		GeneratorRun run = GeneratorRun.Execute(ModuleCompilationSource);
 

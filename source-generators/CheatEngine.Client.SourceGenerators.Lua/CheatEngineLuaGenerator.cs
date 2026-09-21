@@ -144,6 +144,7 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 		source.OpenBlock();
 		foreach (string export in candidate.Exports)
 		{
+			source.OpenBlock();
 			source.WriteLine("global::CheatEngine.SDK.Lua.Calls.LuaStatus status = state.TryGetGlobal(" +
 			                 CSharpLiteral(export) + "u8);");
 			source.WriteLine("if (!status.IsOk)");
@@ -158,6 +159,7 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 			                               candidate.ModuleName + "'.") + ");");
 			source.CloseBlock();
 			source.WriteLine("state.Pop(1);");
+			source.CloseBlock();
 		}
 
 		source.CloseBlock();
