@@ -7,6 +7,8 @@ using CheatEngine.Client.Benchmarks;
 
 return BenchmarkEntryPoint.Run(args);
 
+namespace CheatEngine.Client.Benchmarks
+{
 internal static class BenchmarkEntryPoint
 {
 	public static int Run(string[] args)
@@ -17,7 +19,7 @@ internal static class BenchmarkEntryPoint
 			.AddExporter(JsonExporter.Full);
 
 		Summary[] summaries = BenchmarkSwitcher
-			.FromAssembly(typeof(Program).Assembly)
+			.FromAssembly(typeof(BenchmarkEntryPoint).Assembly)
 			.Run(args, config)
 			.ToArray();
 
@@ -123,4 +125,5 @@ internal static class BenchmarkSummaryExtensions
 			summary.HasCriticalValidationErrors ||
 			summary.Reports.Any(static report => !report.Success));
 	}
+}
 }
