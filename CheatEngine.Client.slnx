@@ -38,6 +38,12 @@
       Path="tests/CheatEngine.Client.Extensions.DependencyInjection.Tests/CheatEngine.Client.Extensions.DependencyInjection.Tests.csproj"/>
     <Project Path="tests/CheatEngine.Client.Fluent.Tests/CheatEngine.Client.Fluent.Tests.csproj"/>
     <Project Path="tests/CheatEngine.Client.Hosting.Tests/CheatEngine.Client.Hosting.Tests.csproj"/>
+    <Project Path="tests/CheatEngine.Client.LivePlugin.Coexistence/PluginA/CheatEngine.Client.LivePlugin.Coexistence.PluginA.csproj">
+      <Platform Project="x64"/>
+    </Project>
+    <Project Path="tests/CheatEngine.Client.LivePlugin.Coexistence/PluginB/CheatEngine.Client.LivePlugin.Coexistence.PluginB.csproj">
+      <Platform Project="x64"/>
+    </Project>
     <Project
       Path="tests/CheatEngine.Client.SourceGenerators.Lua.Tests/CheatEngine.Client.SourceGenerators.Lua.Tests.csproj"/>
     <Project Path="tests/CheatEngine.Client.Tests/CheatEngine.Client.Tests.csproj"/>

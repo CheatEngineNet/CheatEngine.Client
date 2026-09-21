@@ -33,4 +33,67 @@ public sealed class CheatEnginePluginBuilderTests
 
 		Assert.Contains("only one provider", exception.Message, StringComparison.Ordinal);
 	}
+
+	[Fact]
+	public void TwoScopesShareProviderSingletonsButDisposeTheirOwnScopedServices()
+	{
+		CheatEnginePluginBuilder builder = new();
+		builder.Services.AddSingleton<ProviderOwnedDisposable>();
+		builder.Services.AddScoped<ScopeOwnedDisposable>();
+		ProviderOwnedDisposable providerOwned;
+		ScopeOwnedDisposable firstScoped;
+		ScopeOwnedDisposable secondScoped;
+
+		using (ServiceProvider provider = builder.BuildServiceProvider())
+		{
+			using (IServiceScope firstScope = provider.CreateScope())
+			{
+				providerOwned = firstScope.ServiceProvider.GetRequiredService<ProviderOwnedDisposable>();
+				firstScoped = firstScope.ServiceProvider.GetRequiredService<ScopeOwnedDisposable>();
+			}
+
+			Assert.Equal(1, firstScoped.DisposeCount);
+			Assert.Equal(0, providerOwned.DisposeCount);
+
+			using (IServiceScope secondScope = provider.CreateScope())
+			{
+				Assert.Same(providerOwned, secondScope.ServiceProvider.GetRequiredService<ProviderOwnedDisposable>());
+				secondScoped = secondScope.ServiceProvider.GetRequiredService<ScopeOwnedDisposable>();
+			}
+
+			Assert.NotSame(firstScoped, secondScoped);
+			Assert.Equal(1, secondScoped.DisposeCount);
+			Assert.Equal(0, providerOwned.DisposeCount);
+		}
+
+		Assert.Equal(1, providerOwned.DisposeCount);
+	}
+
+	private sealed class ProviderOwnedDisposable : IDisposable
+	{
+		internal int DisposeCount
+		{
+			get;
+			private set;
+		}
+
+		public void Dispose()
+		{
+			DisposeCount++;
+		}
+	}
+
+	private sealed class ScopeOwnedDisposable : IDisposable
+	{
+		internal int DisposeCount
+		{
+			get;
+			private set;
+		}
+
+		public void Dispose()
+		{
+			DisposeCount++;
+		}
+	}
 }

@@ -31,6 +31,28 @@ On disable—or if activation fails—the host invokes `OnClientDisabling` and m
 Client-owned Cheat Engine resources while the SDK context remains valid, disposes the scope and provider, and finally
 disposes activation configuration. Cleanup failures are aggregated after all cleanup opportunities have run.
 
+## Composition lifetime and DI ownership
+
+`CheatEngineClientPlugin` is the supported composition root: every `OnEnable` creates a new
+`CheatEnginePluginBuilder`, builds a new provider, and creates one activation scope from that provider. The Core Client
+graph intentionally uses provider-local singleton registrations, so **activation-local** means “owned by this new
+provider,” not “registered with Microsoft DI's `Scoped` lifetime.” A disable/re-enable cycle therefore constructs a
+new Client graph, options cache, deterministic codecs, and module state without mechanically changing their DI
+lifetimes.
+
+Creating a second `IServiceScope` from the same provider does not create another Client activation. That second scope
+has its own scoped application services and modules, but shares the provider's singleton Client graph, options, and
+codecs; scopes are siblings, not nested activation roots. Hosting opens exactly one such scope for an enable epoch.
+An integrator that needs an external persistent root must first introduce and qualify an explicit activation-factory
+design—repeated `CreateScope()` calls are not a supported substitute.
+
+The DI container owns the objects that it creates. Hosting never disposes resolved modules or services individually:
+after lifecycle callbacks and Client resource drain, it disposes the activation scope, then the provider, and finally
+its own `ConfigurationManager`. Register an application `IDisposable` under one owning descriptor. If application code
+needs another service view of that object, use a non-disposable facade/projection or make ownership explicit; do not
+forward the same disposable instance through multiple DI descriptors and expect Hosting to de-duplicate its disposal.
+Instances supplied directly by the application remain application-owned.
+
 Construction failure has a narrower rollback: only resources acquired before publication are released, once each, in
 reverse construction order (`scope → provider → configuration`). Every stage is attempted even if an earlier disposal
 fails. The original configuration, validation, or service-resolution failure remains primary; cleanup failures are

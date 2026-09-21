@@ -13,7 +13,9 @@ this project inside the template instead of maintaining a separate `samples/` co
 The project provides a minimal but production-shaped plugin boundary:
 
 - `[CheatEnginePlugin]` is the SDK entry-point annotation recognized by the generated bootstrap.
-- `CheatEngineClientPlugin` creates a fresh DI container and Client activation for every enable cycle.
+- `CheatEngineClientPlugin` creates a fresh DI container and Client activation for every enable cycle. The Client graph,
+  options, and codecs are provider-local singletons; the module scope is the one scope inside that new provider, not a
+  persistent root that can be reused for a later enable.
 - `Configure` explicitly loads the optional `appsettings.json` beside the plugin with `reloadOnChange: false` and
   registers the generated `PluginLuaModule` through `AddLuaModule<PluginLuaModule>()`, then the application module.
 - `PluginClientModule` demonstrates options, logging, a bounded AOB request, typed memory access, an Address List
@@ -69,6 +71,10 @@ list. Because Windows cannot transactionally swap a non-empty directory, run it 
 `CheatEngineClient:AllowedTableRoots` empty unless table import/export paths have been deliberately authorized;
 loading a table can execute Lua. Configuration and module registrations are rebuilt at the next plugin enable, not
 reloaded while an activation is active.
+
+Let DI dispose objects that it creates. A module receives its disposable dependencies but does not call `Dispose` on
+them; Hosting closes the activation scope and provider after module callbacks. Register a disposable implementation
+under one owning service descriptor, and use a non-disposable facade if the application needs a second service view.
 
 Before deployment, replace the illustrative AOB pattern and offset in `Modules/PluginClientModule.cs`, and choose an
 application-specific Lua global name in `Modules/PluginLuaFunctions.cs`. Keep AOB operations bounded and avoid logging

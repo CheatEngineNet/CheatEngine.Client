@@ -63,3 +63,21 @@ services.AddCheatEngineClient(configuration)
 For an SDK-loaded plugin, use `CheatEngine.Client.Hosting` instead of manually building this collection. The hosting
 package creates one validating provider for each enable epoch and resolves `IOptions<CheatEngineClientOptions>`
 immediately, so generated and semantic validation run before Client work starts.
+
+## Provider and scope contract
+
+`AddCheatEngineClient` configures one provider; it does not define a persistent application root. The supported plugin
+path builds a **fresh provider per enable epoch**, then opens one activation scope. The Core Client graph, options, and
+deterministic codecs are intentionally provider-local singleton registrations: that is safe because the provider itself
+is discarded at disable. Modules are scoped so they can consume scoped application services, but their scoped lifetime
+does not make a second scope in the same provider a fresh Client activation.
+
+Two scopes made from one external provider are ordinary sibling DI scopes. Their scoped services and modules differ,
+while provider singletons, options, and Client services remain shared until the provider is disposed. Do not reuse such
+a provider across Cheat Engine enable epochs; Client does not offer a persistent-root hosting mode or an activation
+factory for it. Any future external-provider model must specify and test its activation-bound registrations separately.
+
+The container disposes services it creates at their scope/provider boundary. Do not dispose services resolved from DI
+in a module or plugin callback, and do not register one disposable object through multiple forwarding aliases. Give the
+disposable one owning descriptor; expose an additional non-disposable facade when an application needs an alias. The
+host itself owns only its `ConfigurationManager`, which it releases after the scope and provider.
