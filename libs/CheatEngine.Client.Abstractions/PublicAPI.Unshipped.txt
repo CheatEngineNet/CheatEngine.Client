@@ -17,6 +17,44 @@ static CheatEngine.Client.Runtime.ClientCapabilityId.Hotkeys.get -> CheatEngine.
 static CheatEngine.Client.Runtime.ClientCapabilityId.RemoteExecution.get -> CheatEngine.Client.Runtime.ClientCapabilityId
 static CheatEngine.Client.Runtime.ClientCapabilityId.Speed.get -> CheatEngine.Client.Runtime.ClientCapabilityId
 static CheatEngine.Client.Runtime.ClientCapabilityId.Timers.get -> CheatEngine.Client.Runtime.ClientCapabilityId
+CheatEngine.Client.Runtime.ClientCapabilityAvailability.ClientCapabilityAvailability(CheatEngine.Client.Runtime.ClientCapabilityId capability, CheatEngine.Client.Runtime.ClientCapabilityEvidence evidence) -> void
+CheatEngine.Client.Runtime.ClientCapabilityAvailability.Evidence.get -> CheatEngine.Client.Runtime.ClientCapabilityEvidence
+CheatEngine.Client.Runtime.ClientCapabilityEvidence
+CheatEngine.Client.Runtime.ClientCapabilityEvidence.ClientCapabilityEvidence() -> void
+CheatEngine.Client.Runtime.ClientCapabilityEvidence.ClientCapabilityEvidence(CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate implementation, CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate package, CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate host, CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate liveQualification, CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate policy, CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate lifetime) -> void
+CheatEngine.Client.Runtime.ClientCapabilityEvidence.AvailabilityState.get -> CheatEngine.Client.Runtime.ClientCapabilityAvailabilityState
+CheatEngine.Client.Runtime.ClientCapabilityEvidence.EffectiveReason.get -> string!
+CheatEngine.Client.Runtime.ClientCapabilityEvidence.Host.get -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate
+CheatEngine.Client.Runtime.ClientCapabilityEvidence.Implementation.get -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate
+CheatEngine.Client.Runtime.ClientCapabilityEvidence.IsExecutable.get -> bool
+CheatEngine.Client.Runtime.ClientCapabilityEvidence.Lifetime.get -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate
+CheatEngine.Client.Runtime.ClientCapabilityEvidence.LiveQualification.get -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate
+CheatEngine.Client.Runtime.ClientCapabilityEvidence.Package.get -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate
+CheatEngine.Client.Runtime.ClientCapabilityEvidence.Policy.get -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate
+CheatEngine.Client.Runtime.ClientCapabilityEvidence.Equals(CheatEngine.Client.Runtime.ClientCapabilityEvidence other) -> bool
+CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate
+CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate.ClientCapabilityEvidenceGate() -> void
+CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate.ClientCapabilityEvidenceGate(CheatEngine.Client.Runtime.ClientCapabilityEvidenceState state, string! reason) -> void
+CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate.IsSatisfied.get -> bool
+CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate.Reason.get -> string!
+CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate.State.get -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceState
+CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate.Equals(CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate other) -> bool
+CheatEngine.Client.Runtime.ClientCapabilityEvidenceState
+CheatEngine.Client.Runtime.ClientCapabilityEvidenceState.Faulted = 3 -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceState
+CheatEngine.Client.Runtime.ClientCapabilityEvidenceState.Malformed = 4 -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceState
+CheatEngine.Client.Runtime.ClientCapabilityEvidenceState.Missing = 2 -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceState
+CheatEngine.Client.Runtime.ClientCapabilityEvidenceState.Satisfied = 1 -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceState
+CheatEngine.Client.Runtime.ClientCapabilityEvidenceState.Unknown = 0 -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceState
+override CheatEngine.Client.Runtime.ClientCapabilityEvidence.GetHashCode() -> int
+override CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate.GetHashCode() -> int
+static CheatEngine.Client.Runtime.ClientCapabilityEvidence.operator !=(CheatEngine.Client.Runtime.ClientCapabilityEvidence left, CheatEngine.Client.Runtime.ClientCapabilityEvidence right) -> bool
+static CheatEngine.Client.Runtime.ClientCapabilityEvidence.operator ==(CheatEngine.Client.Runtime.ClientCapabilityEvidence left, CheatEngine.Client.Runtime.ClientCapabilityEvidence right) -> bool
+static CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate.operator !=(CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate left, CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate right) -> bool
+static CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate.operator ==(CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate left, CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate right) -> bool
+~override CheatEngine.Client.Runtime.ClientCapabilityEvidence.Equals(object obj) -> bool
+~override CheatEngine.Client.Runtime.ClientCapabilityEvidence.ToString() -> string
+~override CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate.Equals(object obj) -> bool
+~override CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate.ToString() -> string
 CheatEngine.Client.Processes.IProcessClient.AttachForeground(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Processes.ProcessSnapshot
 CheatEngine.Client.Processes.IProcessClient.Create(CheatEngine.Client.Processes.ProcessStartRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Processes.ProcessSnapshot
 CheatEngine.Client.Processes.IProcessClient.GetPauseState(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Processes.ProcessPauseSnapshot

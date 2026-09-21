@@ -63,7 +63,7 @@ public sealed class ClientCapabilities : IEquatable<ClientCapabilities>
 		ClientCapabilityAvailability[] copy = entries.ToArray();
 		for (int index = 0; index < copy.Length; index++)
 		{
-			_ = new ClientCapabilityAvailability(copy[index].Capability, copy[index].State, copy[index].Reason);
+			_ = new ClientCapabilityAvailability(copy[index].Capability, copy[index].Evidence);
 			for (int previous = 0; previous < index; previous++)
 			{
 				if (copy[previous].Capability == copy[index].Capability)

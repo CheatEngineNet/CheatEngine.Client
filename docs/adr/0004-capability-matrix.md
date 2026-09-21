@@ -32,6 +32,18 @@ only because an abstraction can describe it.
   assuming an unproven SDK ownership, affinity, or cancellation contract.
 - **Deferred**: V1 intentionally provides no operational route through the aggregate Client.
 
+### Runtime evidence
+
+`ClientCapabilityAvailability.Evidence` records six independent gates for every Client capability:
+implementation, the consumed package artifact, host observation, live qualification, activation policy, and
+activation lifetime. The legacy `State` is only a projection of that evidence: it is `Available` when every gate is
+satisfied, `Unavailable` when a gate is known to be missing, and `Unknown` when the remaining evidence is unknown,
+faulted, or malformed. A faulted or malformed host observation is deliberately not reported as an unavailable host.
+
+An explicit `EnableUnsafeLuaExecution()` opt-in satisfies the policy gate only. It never establishes that the package
+contains an implementation, that the active Cheat Engine host exposes the required globals, or that the operation has
+been live-qualified.
+
 | Area | Public surface | Current source status | Boundary before live qualification |
 |---|---|---|---|
 | Plugin lifecycle and DI | `CheatEngineClientPlugin`, `CheatEnginePluginBuilder`, modules, options | Implemented | Exercise enable, rollback, disable, and repeated epoch activation in a CE host. |

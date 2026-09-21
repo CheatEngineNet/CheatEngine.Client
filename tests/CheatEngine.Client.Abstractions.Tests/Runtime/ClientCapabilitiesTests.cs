@@ -31,6 +31,58 @@ public sealed class ClientCapabilitiesTests
 	}
 
 	[Fact]
+	public void EvidenceSeparatesIndependentPrerequisitesWithoutPromotingAnOptIn()
+	{
+		ClientCapabilityEvidence evidence = new(
+			new ClientCapabilityEvidenceGate(ClientCapabilityEvidenceState.Satisfied,
+				"The adapter is implemented."),
+			new ClientCapabilityEvidenceGate(ClientCapabilityEvidenceState.Unknown,
+				"The consumed package identity has not been established."),
+			new ClientCapabilityEvidenceGate(ClientCapabilityEvidenceState.Unknown,
+				"The host primitive has not been probed."),
+			new ClientCapabilityEvidenceGate(ClientCapabilityEvidenceState.Unknown,
+				"No live qualification record is attached."),
+			new ClientCapabilityEvidenceGate(ClientCapabilityEvidenceState.Satisfied,
+				"The explicit policy opt-in is present."),
+			new ClientCapabilityEvidenceGate(ClientCapabilityEvidenceState.Satisfied,
+				"The activation is current."));
+
+		ClientCapabilityAvailability availability = new(ClientCapabilityId.UnsafeLuaExecution, evidence);
+
+		Assert.Equal(ClientCapabilityEvidenceState.Satisfied, availability.Evidence.Policy.State);
+		Assert.Equal(ClientCapabilityEvidenceState.Unknown, availability.Evidence.Host.State);
+		Assert.Equal(ClientCapabilityEvidenceState.Unknown, availability.Evidence.LiveQualification.State);
+		Assert.Equal(ClientCapabilityAvailabilityState.Unknown, availability.State);
+		Assert.False(availability.IsAvailable);
+		Assert.Contains("host primitive", availability.Reason, StringComparison.OrdinalIgnoreCase);
+	}
+
+	[Theory]
+	[InlineData(ClientCapabilityEvidenceState.Missing)]
+	[InlineData(ClientCapabilityEvidenceState.Faulted)]
+	[InlineData(ClientCapabilityEvidenceState.Malformed)]
+	public void EvidenceKeepsMissingFaultedAndMalformedHostPrerequisitesDistinct(
+		ClientCapabilityEvidenceState hostState)
+	{
+		ClientCapabilityEvidenceGate established = new(ClientCapabilityEvidenceState.Satisfied, "Established.");
+		ClientCapabilityEvidence evidence = new(
+			established,
+			established,
+			new ClientCapabilityEvidenceGate(hostState, "Host-specific result."),
+			established,
+			established,
+			established);
+
+		ClientCapabilityAvailability availability = new(ClientCapabilityId.ProcessSelection, evidence);
+
+		Assert.Equal(hostState, availability.Evidence.Host.State);
+		Assert.Equal(hostState == ClientCapabilityEvidenceState.Missing
+			? ClientCapabilityAvailabilityState.Unavailable
+			: ClientCapabilityAvailabilityState.Unknown, availability.State);
+		Assert.Equal("Host-specific result.", availability.Reason);
+	}
+
+	[Fact]
 	public void CollectionRejectsDuplicateCapabilityIdentifiers()
 	{
 		ClientCapabilityAvailability observation = new(

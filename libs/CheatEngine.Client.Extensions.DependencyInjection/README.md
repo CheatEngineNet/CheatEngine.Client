@@ -45,7 +45,8 @@ The builder also provides explicit extension points:
   modules in that order and disables them in reverse order.
 - `AddMemoryCodec<T, TCodec>()` adds a singleton deterministic codec without reflective structure marshalling.
 - `EnableUnsafeLuaExecution()` registers the unsafe Lua facade only for the current activation policy. It never exposes
-  an SDK `LuaState`.
+  an SDK `LuaState`. The opt-in satisfies only the policy evidence gate; it does not prove package support, host
+  globals, or live qualification.
 
 ```csharp
 using CheatEngine.Client.Extensions.DependencyInjection;

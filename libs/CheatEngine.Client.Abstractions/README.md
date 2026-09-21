@@ -74,6 +74,11 @@ The contracts describe runtime, process, memory, inspection, AOB scanning, table
 and explicitly disposable value-scan sessions. A contract is not an availability promise: callers
 must inspect `ICheatEngineRuntime` capability observations or handle `CapabilityUnavailable`.
 
+Each `ClientCapabilityAvailability` also exposes immutable `Evidence`: implementation, consumed package artifact,
+host observation, live qualification, policy, and activation lifetime are distinct gates. `Available` requires all six;
+missing, faulted, and malformed host observations remain distinguishable instead of being collapsed into a generic
+unavailable result.
+
 In particular, the value-scan contract and state model are published, but the Core implementation
 does **not** currently create a live `MemScan`/`FoundList` session. The next SDK line now contains a
 production owner factory with parent rollback and child-before-parent teardown, but Client
