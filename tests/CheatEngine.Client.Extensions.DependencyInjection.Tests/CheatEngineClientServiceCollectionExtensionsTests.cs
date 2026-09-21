@@ -224,6 +224,19 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		Assert.Equal(1, lease.DisposeCount);
 	}
 
+	[Fact]
+	public void LuaModuleLifecycleForwardsTheClientStoppingTokenToRegistration()
+	{
+		RecordingLuaClient lua = new();
+		LuaModuleLifecycle<FirstLuaModule> lifecycle = new(lua, new FirstLuaModule());
+		using CancellationTokenSource stopping = new();
+		TestClient client = new() { Stopping = stopping.Token };
+
+		lifecycle.OnEnabled(client);
+
+		Assert.Equal(client.Stopping, lua.RegistrationCancellationToken);
+	}
+
 	private readonly record struct CustomValue(int Value);
 
 	private sealed class FirstCustomCodec : IMemoryCodec<CustomValue>
@@ -346,6 +359,12 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 			private set;
 		}
 
+		internal CancellationToken RegistrationCancellationToken
+		{
+			get;
+			private set;
+		}
+
 		public bool TryRegisterModule(
 			ILuaModule luaModule,
 			[NotNullWhen(true)] out ILuaModuleLease? lease,
@@ -353,6 +372,7 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 			CancellationToken cancellationToken = default)
 		{
 			ArgumentNullException.ThrowIfNull(luaModule);
+			RegistrationCancellationToken = cancellationToken;
 			RegisteredModule = luaModule;
 			Lease = new RecordingLease();
 			lease = Lease;
@@ -417,7 +437,11 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 	{
 		public long Epoch => 1;
 
-		public CancellationToken Stopping => CancellationToken.None;
+		public CancellationToken Stopping
+		{
+			get;
+			init;
+		} = CancellationToken.None;
 
 		public ICheatEngineRuntime Runtime => null!;
 

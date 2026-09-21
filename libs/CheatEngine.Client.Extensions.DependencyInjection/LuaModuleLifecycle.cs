@@ -26,7 +26,7 @@ internal sealed class LuaModuleLifecycle<TModule>(ILuaClient lua, TModule module
 				"The Lua module lifecycle has already been enabled for this activation.");
 		}
 
-		_lease = _lua.RegisterModule(_module);
+		_lease = _lua.RegisterModule(_module, client.Stopping);
 	}
 
 	public void OnDisabling(ICheatEngineClient client)
