@@ -79,6 +79,10 @@ host observation, live qualification, policy, and activation lifetime are distin
 missing, faulted, and malformed host observations remain distinguishable instead of being collapsed into a generic
 unavailable result.
 
+`Evidence.EffectiveReasonCode` is the stable, typed identity of the gate supplying `Evidence.EffectiveReason`; use it
+with that gate's public state instead of parsing the human-readable reason text or duplicating the Client's deterministic
+priority. The reason text remains available for display and diagnostics.
+
 In particular, the value-scan contract and state model are published, but the Core implementation
 does **not** currently create a live `MemScan`/`FoundList` session. The next SDK line now contains a
 production owner factory with parent rollback and child-before-parent teardown, but Client

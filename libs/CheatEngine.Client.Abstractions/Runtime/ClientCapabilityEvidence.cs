@@ -86,100 +86,121 @@ public readonly record struct ClientCapabilityEvidence
 	public bool IsExecutable => AllSatisfied;
 
 	/// <summary>Gets the reason for the highest-priority missing, faulted, malformed, or unknown prerequisite.</summary>
-	public string EffectiveReason => GetEffectiveGate().Reason;
+	public string EffectiveReason => GetGate(EffectiveReasonCode).Reason;
+
+	/// <summary>
+	///     Gets the stable code for the evidence gate that supplies <see cref="EffectiveReason"/>. Its state remains
+	///     available through the corresponding evidence-gate property.
+	/// </summary>
+	public ClientCapabilityEvidenceReasonCode EffectiveReasonCode => GetEffectiveReasonCode();
 
 	private bool AllSatisfied =>
 		Implementation.IsSatisfied && Package.IsSatisfied && Host.IsSatisfied && LiveQualification.IsSatisfied &&
 		Policy.IsSatisfied && Lifetime.IsSatisfied;
 
-	private ClientCapabilityEvidenceGate GetEffectiveGate()
+	private ClientCapabilityEvidenceReasonCode GetEffectiveReasonCode()
 	{
 		if (Lifetime.State == ClientCapabilityEvidenceState.Missing)
 		{
-			return Lifetime;
+			return ClientCapabilityEvidenceReasonCode.Lifetime;
 		}
 
 		if (Policy.State == ClientCapabilityEvidenceState.Missing)
 		{
-			return Policy;
+			return ClientCapabilityEvidenceReasonCode.Policy;
 		}
 
 		if (Implementation.State == ClientCapabilityEvidenceState.Missing)
 		{
-			return Implementation;
+			return ClientCapabilityEvidenceReasonCode.Implementation;
 		}
 
 		if (Package.State == ClientCapabilityEvidenceState.Missing)
 		{
-			return Package;
+			return ClientCapabilityEvidenceReasonCode.Package;
 		}
 
 		if (Host.State == ClientCapabilityEvidenceState.Missing)
 		{
-			return Host;
+			return ClientCapabilityEvidenceReasonCode.Host;
 		}
 
 		if (LiveQualification.State == ClientCapabilityEvidenceState.Missing)
 		{
-			return LiveQualification;
+			return ClientCapabilityEvidenceReasonCode.LiveQualification;
 		}
 
 		if (Host.State is ClientCapabilityEvidenceState.Faulted or ClientCapabilityEvidenceState.Malformed)
 		{
-			return Host;
+			return ClientCapabilityEvidenceReasonCode.Host;
 		}
 
 		if (Package.State is ClientCapabilityEvidenceState.Faulted or ClientCapabilityEvidenceState.Malformed)
 		{
-			return Package;
+			return ClientCapabilityEvidenceReasonCode.Package;
 		}
 
 		if (LiveQualification.State is ClientCapabilityEvidenceState.Faulted or ClientCapabilityEvidenceState.Malformed)
 		{
-			return LiveQualification;
+			return ClientCapabilityEvidenceReasonCode.LiveQualification;
 		}
 
 		if (Implementation.State is ClientCapabilityEvidenceState.Faulted or ClientCapabilityEvidenceState.Malformed)
 		{
-			return Implementation;
+			return ClientCapabilityEvidenceReasonCode.Implementation;
 		}
 
 		if (Policy.State is ClientCapabilityEvidenceState.Faulted or ClientCapabilityEvidenceState.Malformed)
 		{
-			return Policy;
+			return ClientCapabilityEvidenceReasonCode.Policy;
 		}
 
 		if (Lifetime.State is ClientCapabilityEvidenceState.Faulted or ClientCapabilityEvidenceState.Malformed)
 		{
-			return Lifetime;
+			return ClientCapabilityEvidenceReasonCode.Lifetime;
 		}
 
 		if (Host.State == ClientCapabilityEvidenceState.Unknown)
 		{
-			return Host;
+			return ClientCapabilityEvidenceReasonCode.Host;
 		}
 
 		if (Package.State == ClientCapabilityEvidenceState.Unknown)
 		{
-			return Package;
+			return ClientCapabilityEvidenceReasonCode.Package;
 		}
 
 		if (LiveQualification.State == ClientCapabilityEvidenceState.Unknown)
 		{
-			return LiveQualification;
+			return ClientCapabilityEvidenceReasonCode.LiveQualification;
 		}
 
 		if (Implementation.State == ClientCapabilityEvidenceState.Unknown)
 		{
-			return Implementation;
+			return ClientCapabilityEvidenceReasonCode.Implementation;
 		}
 
 		if (Policy.State == ClientCapabilityEvidenceState.Unknown)
 		{
-			return Policy;
+			return ClientCapabilityEvidenceReasonCode.Policy;
 		}
 
-		return Lifetime;
+		return ClientCapabilityEvidenceReasonCode.Lifetime;
+	}
+
+	private ClientCapabilityEvidenceGate GetGate(ClientCapabilityEvidenceReasonCode reasonCode)
+	{
+		return reasonCode switch
+		{
+			ClientCapabilityEvidenceReasonCode.Implementation => Implementation,
+			ClientCapabilityEvidenceReasonCode.Package => Package,
+			ClientCapabilityEvidenceReasonCode.Host => Host,
+			ClientCapabilityEvidenceReasonCode.LiveQualification => LiveQualification,
+			ClientCapabilityEvidenceReasonCode.Policy => Policy,
+			ClientCapabilityEvidenceReasonCode.Lifetime => Lifetime,
+			_ => throw new ArgumentOutOfRangeException(nameof(reasonCode), reasonCode,
+				"The Client capability evidence reason code is not defined.")
+		};
 	}
 
 	private bool HasState(ClientCapabilityEvidenceState state)

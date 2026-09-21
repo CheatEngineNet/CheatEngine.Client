@@ -12,6 +12,7 @@ using CheatEngine.Client.Hotkeys;
 using CheatEngine.Client.Lua;
 using CheatEngine.Client.Memory;
 using CheatEngine.Client.RemoteExecution;
+using CheatEngine.Client.Runtime;
 using CheatEngine.Client.Scanning;
 using CheatEngine.Client.Speed;
 using CheatEngine.Client.Timers;
@@ -67,5 +68,19 @@ _ = typeof(MemoryHashRequest);
 _ = typeof(DbvmWatchRequest);
 _ = typeof(AssemblyInstructionRequest);
 _ = new AobPattern("90");
+
+const string evidenceReason = "Activation evidence is current.";
+ClientCapabilityEvidenceGate satisfiedGate = new(ClientCapabilityEvidenceState.Satisfied, evidenceReason);
+ClientCapabilityEvidence evidence = new(
+	satisfiedGate, satisfiedGate, satisfiedGate, satisfiedGate, satisfiedGate, satisfiedGate);
+ClientCapabilityAvailability capabilityAvailability = new(ClientCapabilityId.ProcessSelection, evidence);
+if (evidence.EffectiveReasonCode != ClientCapabilityEvidenceReasonCode.Lifetime ||
+	evidence.EffectiveReason != evidenceReason ||
+	capabilityAvailability.State != ClientCapabilityAvailabilityState.Available ||
+	!capabilityAvailability.IsAvailable || !capabilityAvailability.IsKnown ||
+	capabilityAvailability.Reason != evidenceReason)
+{
+	return 1;
+}
 
 return services.Count == 0 ? 1 : 0;
