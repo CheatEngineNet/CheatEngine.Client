@@ -44,6 +44,9 @@
     <Project Path="tests/CheatEngine.Client.LivePlugin.Coexistence/PluginB/CheatEngine.Client.LivePlugin.Coexistence.PluginB.csproj">
       <Platform Project="x64"/>
     </Project>
+    <Project Path="tests/CheatEngine.Client.LivePlugin.Coexistence/PluginCollision/CheatEngine.Client.LivePlugin.Coexistence.PluginCollision.csproj">
+      <Platform Project="x64"/>
+    </Project>
     <Project
       Path="tests/CheatEngine.Client.SourceGenerators.Lua.Tests/CheatEngine.Client.SourceGenerators.Lua.Tests.csproj"/>
     <Project Path="tests/CheatEngine.Client.Tests/CheatEngine.Client.Tests.csproj"/>

@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="../CoexistencePlugin.props"/>
+
+  <PropertyGroup>
+    <AssemblyName>CheatEngine.Client.LivePlugin.Coexistence.PluginCollision</AssemblyName>
+    <RootNamespace>LivePlugin.Coexistence.PluginCollision</RootNamespace>
+  </PropertyGroup>
+
+</Project>

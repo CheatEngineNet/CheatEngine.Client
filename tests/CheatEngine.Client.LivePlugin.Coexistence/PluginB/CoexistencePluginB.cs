@@ -36,13 +36,14 @@ internal sealed class CoexistencePluginBModule(
 	public void OnEnabled(ICheatEngineClient client)
 	{
 		ArgumentNullException.ThrowIfNull(client);
-		CoexistenceDiagnostics.RecordEnabled(pluginIdentity.Id, client.Epoch, _options.AllowedTableRoots?.Length ?? 0);
+		CoexistenceDiagnostics.RecordEnabled(pluginIdentity.Id, client, _options.AllowedTableRoots?.Length ?? 0);
 	}
 
 	/// <inheritdoc />
 	public void OnDisabling(ICheatEngineClient client)
 	{
 		ArgumentNullException.ThrowIfNull(client);
+		CoexistenceDiagnostics.RecordDisabling();
 	}
 }
 
