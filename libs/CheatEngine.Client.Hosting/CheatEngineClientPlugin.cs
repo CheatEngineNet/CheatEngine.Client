@@ -11,7 +11,7 @@ using Microsoft.Extensions.Options;
 
 namespace CheatEngine.Client.Hosting;
 
-/// <summary>Base class that activates a scoped <see cref="ICheatEngineClient" /> for each Cheat Engine enable epoch.</summary>
+/// <summary>Base class that activates an activation-owned <see cref="ICheatEngineClient" /> for each Cheat Engine enable epoch.</summary>
 /// <remarks>
 ///     The SDK constructs a plugin through a parameterless factory and reuses that instance across enable/disable cycles.
 ///     This base class therefore creates a fresh validated provider and scope only from <see cref="OnEnable" />, when the
@@ -73,12 +73,13 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 		}
 
 		CheatEnginePluginBuilder builder = new();
+		ActivationConstruction construction = new(builder);
 		Activation? activation = null;
 
 		try
 		{
 			Configure(builder);
-			activation = CreateActivation(builder);
+			activation = CreateActivation(construction);
 			Volatile.Write(ref _activation, activation);
 
 			activation.Lifecycle.Enable(OnClientEnabled);
@@ -88,14 +89,15 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 		{
 			if (activation is null)
 			{
-				builder.ReleaseConfiguration();
-				throw;
+				RethrowAfterCleanup(enableFailure, CleanupUnpublishedActivation(construction));
 			}
-
-			Interlocked.CompareExchange(ref _activation, null, activation);
-			ClientHostingLog.ActivationRollingBack(activation.Logger, activation.Client.Epoch);
-			RethrowAfterCleanup(enableFailure,
-				CleanupActivation(activation));
+			else
+			{
+				Interlocked.CompareExchange(ref _activation, null, activation);
+				ClientHostingLog.ActivationRollingBack(activation.Logger, activation.Client.Epoch);
+				RethrowAfterCleanup(enableFailure,
+					CleanupActivation(activation));
+			}
 		}
 	}
 
@@ -125,37 +127,26 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 	/// <summary>Builds and resolves the complete activation graph before publishing it to the plugin instance.</summary>
 	/// <remarks>
 	///     The activation is not returned until options validation, the Client facade, modules, logging, and cleanup support
-	///     have all resolved from one scope. If any step fails, this method releases the scope, provider, and configuration
-	///     before propagating the original failure so a partially built epoch can never become observable.
+	///     have all resolved from one scope. The outer activation transaction records each acquired component before the
+	///     next step, so its failure-independent rollback can release a partial graph without invoking lifecycle callbacks.
 	/// </remarks>
-	private static Activation CreateActivation(CheatEnginePluginBuilder builder)
+	private static Activation CreateActivation(ActivationConstruction construction)
 	{
-		ServiceProvider? provider = null;
-		IServiceScope? scope = null;
+		ServiceProvider provider = construction.Builder.BuildServiceProvider();
+		construction.Provider = provider;
+		IServiceScope scope = provider.CreateScope();
+		construction.Scope = scope;
 
-		try
-		{
-			provider = builder.BuildServiceProvider();
-			scope = provider.CreateScope();
+		// IOptions<T>.Value invokes the generated validator in plugin hosts that do not run Generic Host startup.
+		_ = scope.ServiceProvider.GetRequiredService<IOptions<CheatEngineClientOptions>>().Value;
+		ICheatEngineClient client = scope.ServiceProvider.GetRequiredService<ICheatEngineClient>();
+		ICheatEngineClientModule[] modules = GetModules(scope.ServiceProvider);
+		ILogger<CheatEngineClientPlugin> logger =
+			scope.ServiceProvider.GetRequiredService<ILogger<CheatEngineClientPlugin>>();
+		ICheatEngineClientActivationCleanup cleanup =
+			scope.ServiceProvider.GetRequiredService<ICheatEngineClientActivationCleanup>();
 
-			// IOptions<T>.Value invokes the generated validator in plugin hosts that do not run Generic Host startup.
-			_ = scope.ServiceProvider.GetRequiredService<IOptions<CheatEngineClientOptions>>().Value;
-			ICheatEngineClient client = scope.ServiceProvider.GetRequiredService<ICheatEngineClient>();
-			ICheatEngineClientModule[] modules = GetModules(scope.ServiceProvider);
-			ILogger<CheatEngineClientPlugin> logger =
-				scope.ServiceProvider.GetRequiredService<ILogger<CheatEngineClientPlugin>>();
-			ICheatEngineClientActivationCleanup cleanup =
-				scope.ServiceProvider.GetRequiredService<ICheatEngineClientActivationCleanup>();
-
-			return new Activation(builder, provider, scope, client, modules, logger, cleanup);
-		}
-		catch
-		{
-			scope?.Dispose();
-			provider?.Dispose();
-			builder.ReleaseConfiguration();
-			throw;
-		}
+		return new Activation(construction.Builder, provider, scope, client, modules, logger, cleanup);
 	}
 
 	private static ICheatEngineClientModule[] GetModules(IServiceProvider services)
@@ -179,6 +170,29 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 		cleanupFailures.Insert(0, enableFailure);
 		throw new AggregateException("Client activation failed and rollback encountered additional failures.",
 			cleanupFailures);
+	}
+
+	/// <summary>Releases a partial activation without invoking callbacks that were never admitted.</summary>
+	/// <remarks>
+	///     Provider construction happens before scope construction, and configuration outlives both. Each completed
+	///     construction stage is therefore released once in reverse order. Cleanup failures are recorded instead of
+	///     interrupting the remaining stages, so the original construction failure remains the first reported failure.
+	/// </remarks>
+	private static List<Exception> CleanupUnpublishedActivation(ActivationConstruction construction)
+	{
+		List<Exception> failures = [];
+		if (construction.Scope is not null)
+		{
+			TryCleanup(failures, construction.Scope.Dispose);
+		}
+
+		if (construction.Provider is not null)
+		{
+			TryCleanup(failures, construction.Provider.Dispose);
+		}
+
+		TryCleanup(failures, construction.Builder.ReleaseConfiguration);
+		return failures;
 	}
 
 	/// <summary>Closes an activation in the only safe disposal order and collects every cleanup failure.</summary>
@@ -256,6 +270,18 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 		throw new AggregateException("Client deactivation encountered one or more cleanup failures.", failures);
 	}
 
+	private static void TryCleanup(List<Exception> failures, Action cleanup)
+	{
+		try
+		{
+			cleanup();
+		}
+		catch (Exception exception)
+		{
+			failures.Add(exception);
+		}
+	}
+
 	private ICheatEngineClient GetActiveClient()
 	{
 		Activation? activation = Volatile.Read(ref _activation);
@@ -267,6 +293,26 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 		throw new CheatEngineClientLifecycleException(
 			"GetClient",
 			"The Cheat Engine client is available only while the plugin is enabled.");
+	}
+
+	private sealed class ActivationConstruction(CheatEnginePluginBuilder builder)
+	{
+		internal CheatEnginePluginBuilder Builder
+		{
+			get;
+		} = builder;
+
+		internal ServiceProvider? Provider
+		{
+			get;
+			set;
+		}
+
+		internal IServiceScope? Scope
+		{
+			get;
+			set;
+		}
 	}
 
 	private sealed class Activation

@@ -23,6 +23,11 @@ On disable, the base clears the active Client reference first, invokes `OnClient
 reverse order, drains Client-owned CE resources while the host is still attached, and finally disposes the scope,
 provider, and configuration. Cleanup is best-effort and aggregates failures only after every step has been attempted.
 
+Before an activation is published, construction has a separate rollback path. It releases only the stages that were
+actually acquired—scope, provider, then the host-created configuration—in reverse construction order. Each stage gets
+one independent cleanup attempt. The construction exception remains the primary failure; cleanup failures follow it as
+diagnostics. Module callbacks and Client-owned CE resource draining are never run for an incomplete activation.
+
 ## Invariants
 
 - SDK calls are forbidden from plugin constructors, field initializers, and static initialization. SDK-dependent
@@ -33,6 +38,8 @@ provider, and configuration. Cleanup is best-effort and aggregates failures only
   epoch. `ICheatEngineClient.Epoch` and `Stopping` identify the active lifetime.
 - Public Client operations are synchronous. They do not retain Lua state across an `await`, and main-thread work enters
   the SDK dispatcher as a bounded operation.
+- The DI container owns disposal of services it created. Hosting owns the `ConfigurationManager` instance it created
+  and releases it once after the scope and provider; it never disposes resolved services individually.
 
 ## Consequences and project value
 

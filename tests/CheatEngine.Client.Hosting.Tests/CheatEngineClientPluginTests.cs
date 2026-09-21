@@ -21,6 +21,7 @@ using CheatEngine.Client.Speed;
 using CheatEngine.Client.Tables;
 using CheatEngine.Client.Timers;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CheatEngine.Client.Hosting.Tests;
@@ -226,6 +227,119 @@ public sealed class CheatEngineClientPluginTests
 		plugin.DisableForTest();
 	}
 
+	[Fact]
+	public void FailedConstructionCleansEveryAcquiredStageAndAllowsANewEnableEpoch()
+	{
+		List<string> events = [];
+		FakeClient client = new(48);
+		RecordingCleanup cleanup = new(events);
+		int configureAttempt = 0;
+		TestPlugin plugin = new(builder =>
+		{
+			events.Add("configure");
+			if (configureAttempt++ == 0)
+			{
+				AddFailingConstructionRegistrations(builder, events);
+				return;
+			}
+
+			builder.Services.AddSingleton<ICheatEngineClient>(client);
+			builder.Services.AddSingleton<ICheatEngineClientActivationCleanup>(cleanup);
+		});
+
+		AggregateException exception = Assert.Throws<AggregateException>(plugin.EnableForTest);
+
+		Assert.Collection(
+			exception.InnerExceptions,
+			failure => Assert.Equal("client resolution", failure.Message),
+			failure => Assert.Equal("scope dispose", failure.Message),
+			failure => Assert.Equal("provider dispose", failure.Message),
+			failure => Assert.Equal("configuration dispose", failure.Message));
+		Assert.Equal(
+			["configure", "client.resolve", "scope.dispose", "provider.dispose", "configuration.dispose"],
+			events);
+		Assert.Throws<CheatEngineClientLifecycleException>(plugin.GetRequiredClientForTest);
+
+		plugin.DisableForTest();
+		plugin.EnableForTest();
+
+		Assert.Same(client, plugin.GetRequiredClientForTest());
+		plugin.DisableForTest();
+		Assert.Equal(1, cleanup.DrainCount);
+		Assert.Equal(2, configureAttempt);
+	}
+
+	[Fact]
+	public void ConfigureFailureRemainsPrimaryWhenConfigurationReleaseAlsoFails()
+	{
+		List<string> events = [];
+		TestPlugin plugin = new(builder =>
+		{
+			builder.Configuration.Sources.Add(new ThrowingDisposeConfigurationSource(events));
+			throw new InvalidOperationException("configuration");
+		});
+
+		AggregateException exception = Assert.Throws<AggregateException>(plugin.EnableForTest);
+
+		Assert.Collection(
+			exception.InnerExceptions,
+			failure => Assert.Equal("configuration", failure.Message),
+			failure => Assert.Equal("configuration dispose", failure.Message));
+		Assert.Equal(["configuration.dispose"], events);
+		Assert.Throws<CheatEngineClientLifecycleException>(plugin.GetRequiredClientForTest);
+	}
+
+	[Fact]
+	public void FailedModuleEnableRollsBackAndTheSamePluginCanEnableAgain()
+	{
+		List<string> events = [];
+		FakeClient client = new(49);
+		RecordingCleanup cleanup = new(events);
+		FailOnceEnableState state = new();
+		TestPlugin plugin = CreatePlugin(events, client, cleanup, builder =>
+		{
+			builder.Services.AddSingleton(state);
+			builder.Client.AddModule<FailOnceEnableModule>();
+		});
+
+		InvalidOperationException failure = Assert.Throws<InvalidOperationException>(plugin.EnableForTest);
+
+		Assert.Equal("module enable", failure.Message);
+		Assert.Equal(
+			[
+				"configure", "module.enabled", "cleanup.enter", "module.disabling", "cleanup.drain", "cleanup.exit"
+			],
+			events);
+		Assert.Throws<CheatEngineClientLifecycleException>(plugin.GetRequiredClientForTest);
+
+		plugin.EnableForTest();
+		Assert.Same(client, plugin.GetRequiredClientForTest());
+		plugin.DisableForTest();
+
+		Assert.Equal(2, cleanup.DrainCount);
+		Assert.Equal(
+			[
+				"configure", "module.enabled", "cleanup.enter", "module.disabling", "cleanup.drain", "cleanup.exit",
+				"configure", "module.enabled", "client.enabled", "cleanup.enter", "client.disabling", "module.disabling",
+				"cleanup.drain", "cleanup.exit"
+			],
+			events);
+	}
+
+	private static void AddFailingConstructionRegistrations(CheatEnginePluginBuilder builder, List<string> events)
+	{
+		builder.Configuration.Sources.Add(new ThrowingDisposeConfigurationSource(events));
+		builder.Services.AddScoped<ThrowingScopedDisposable>(_ => new ThrowingScopedDisposable(events));
+		builder.Services.AddSingleton<ThrowingSingletonDisposable>(_ => new ThrowingSingletonDisposable(events));
+		builder.Services.AddScoped<ICheatEngineClient>(services =>
+		{
+			_ = services.GetRequiredService<ThrowingScopedDisposable>();
+			_ = services.GetRequiredService<ThrowingSingletonDisposable>();
+			events.Add("client.resolve");
+			throw new InvalidOperationException("client resolution");
+		});
+	}
+
 	private static TestPlugin CreatePlugin(
 		List<string> events,
 		FakeClient client,
@@ -377,6 +491,33 @@ public sealed class CheatEngineClientPluginTests
 		}
 	}
 
+	public sealed class FailOnceEnableModule(List<string> events, FailOnceEnableState state) : ICheatEngineClientModule
+	{
+		public void OnEnabled(ICheatEngineClient client)
+		{
+			events.Add("module.enabled");
+			if (!state.HasFailed)
+			{
+				state.HasFailed = true;
+				throw new InvalidOperationException("module enable");
+			}
+		}
+
+		public void OnDisabling(ICheatEngineClient client)
+		{
+			events.Add("module.disabling");
+		}
+	}
+
+	public sealed class FailOnceEnableState
+	{
+		public bool HasFailed
+		{
+			get;
+			set;
+		}
+	}
+
 	private sealed class RecordingCleanup(
 		List<string> events,
 		Exception? enterFailure = null,
@@ -428,6 +569,41 @@ public sealed class CheatEngineClientPluginTests
 		public void Dispose()
 		{
 			Interlocked.Exchange(ref _dispose, null)?.Invoke();
+		}
+	}
+
+	private sealed class ThrowingScopedDisposable(List<string> events) : IDisposable
+	{
+		public void Dispose()
+		{
+			events.Add("scope.dispose");
+			throw new InvalidOperationException("scope dispose");
+		}
+	}
+
+	private sealed class ThrowingSingletonDisposable(List<string> events) : IDisposable
+	{
+		public void Dispose()
+		{
+			events.Add("provider.dispose");
+			throw new InvalidOperationException("provider dispose");
+		}
+	}
+
+	private sealed class ThrowingDisposeConfigurationSource(List<string> events) : IConfigurationSource
+	{
+		public IConfigurationProvider Build(IConfigurationBuilder builder)
+		{
+			return new ThrowingDisposeConfigurationProvider(events);
+		}
+	}
+
+	private sealed class ThrowingDisposeConfigurationProvider(List<string> events) : ConfigurationProvider, IDisposable
+	{
+		public void Dispose()
+		{
+			events.Add("configuration.dispose");
+			throw new InvalidOperationException("configuration dispose");
 		}
 	}
 
