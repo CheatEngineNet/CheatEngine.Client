@@ -12,6 +12,7 @@ namespace CheatEngine.Client.Core.Domains;
 internal sealed class LuaClient : ILuaClient
 {
 	private readonly ICheatEngineDispatcher _dispatcher;
+	private readonly Action<string>? _admitStatefulOperation;
 	private readonly Func<long> _epochProvider;
 
 	private readonly Func<bool> _isContextCurrent;
@@ -40,7 +41,8 @@ internal sealed class LuaClient : ILuaClient
 			initialization.EpochProvider,
 			initialization.IsContextCurrent,
 			initialization.TrackLease,
-			initialization.UntrackLease)
+			initialization.UntrackLease,
+			initialization.AdmitStatefulOperation)
 	{
 	}
 
@@ -50,7 +52,8 @@ internal sealed class LuaClient : ILuaClient
 		Func<long> epochProvider,
 		Func<bool> isContextCurrent,
 		Action<ILuaModuleLease>? trackLease = null,
-		Action<ILuaModuleLease>? untrackLease = null)
+		Action<ILuaModuleLease>? untrackLease = null,
+		Action<string>? admitStatefulOperation = null)
 	{
 		_dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
 		_epochProvider = epochProvider ?? throw new ArgumentNullException(nameof(epochProvider));
@@ -61,6 +64,7 @@ internal sealed class LuaClient : ILuaClient
 		_untrackLease = untrackLease ?? (static _ =>
 		{
 		});
+		_admitStatefulOperation = admitStatefulOperation;
 	}
 
 	public bool TryRegisterModule(ILuaModule luaModule, [NotNullWhen(true)] out ILuaModuleLease? lease,
@@ -68,6 +72,7 @@ internal sealed class LuaClient : ILuaClient
 	{
 		ArgumentNullException.ThrowIfNull(luaModule);
 		lease = null;
+		Admit("Lua.RegisterModule");
 		if (cancellationToken.IsCancellationRequested)
 		{
 			failure = CoreFailureFactory.Cancelled("Lua.RegisterModule");
@@ -156,6 +161,7 @@ internal sealed class LuaClient : ILuaClient
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(operation);
+		Admit("Lua.Execute");
 		if (cancellationToken.IsCancellationRequested)
 		{
 			result = default;
@@ -188,6 +194,7 @@ internal sealed class LuaClient : ILuaClient
 		out CheatEngineFailure failure, CancellationToken cancellationToken)
 		where TOperation : struct, ILuaOperation<TResult>
 	{
+		Admit("Lua.Execute");
 		if (cancellationToken.IsCancellationRequested)
 		{
 			result = default;
@@ -411,7 +418,8 @@ internal sealed class LuaClient : ILuaClient
 			() => lifetime.Epoch,
 			() => lifetime.IsActivationCurrent,
 			lease => lifetime.Track(lease),
-			lease => lifetime.Untrack(lease));
+			lease => lifetime.Untrack(lease),
+			lifetime.ThrowIfInactive);
 	}
 
 	private readonly record struct LuaOperationResult<TResult>(
@@ -423,7 +431,10 @@ internal sealed class LuaClient : ILuaClient
 		Func<long> EpochProvider,
 		Func<bool> IsContextCurrent,
 		Action<ILuaModuleLease> TrackLease,
-		Action<ILuaModuleLease> UntrackLease);
+		Action<ILuaModuleLease> UntrackLease,
+		Action<string> AdmitStatefulOperation);
+
+	private void Admit(string operation) => _admitStatefulOperation?.Invoke(operation);
 
 	private readonly struct LuaOperationDispatchState<TResult>
 	{

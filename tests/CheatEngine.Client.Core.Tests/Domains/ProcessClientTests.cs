@@ -30,85 +30,6 @@ public sealed class ProcessClientTests
 	}
 
 	[Fact]
-	public void GetProcessesFiltersOrdersAndTruncatesCopiedLocalMetadataWithoutSelectingAnyProcess()
-	{
-		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
-		host.LocalProcesses[52] = new LocalProcessInfo(52, "alpha-worker", "C:\\fixtures\\alpha-worker.exe");
-		host.LocalProcesses[43] = new LocalProcessInfo(43, "alpha-server", "C:\\fixtures\\alpha-server.exe");
-		host.LocalProcesses[44] = new LocalProcessInfo(44, "beta", "C:\\fixtures\\beta.exe");
-		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
-		ProcessClient client = new(new InlineDispatcher(), host, selectionLifetime);
-
-		ProcessEnumerationResult result = client.GetProcesses(
-			new ProcessEnumerationRequest(1, "ALPHA"),
-			TestContext.Current.CancellationToken);
-
-		Assert.True(result.IsTruncated);
-		ProcessInfoSnapshot snapshot = Assert.Single(result.Processes);
-		Assert.Equal(new TargetProcessId(43), snapshot.Id);
-		Assert.Equal("alpha-server", snapshot.Name);
-		Assert.Equal("C:\\fixtures\\alpha-server.exe", snapshot.ExecutablePath);
-		Assert.Empty(host.OpenProcessCalls);
-		Assert.Equal(0, selectionLifetime.Epoch);
-	}
-
-	[Fact]
-	public void TryGetProcessesHonorsCancellationBeforeEnumeratingTheHost()
-	{
-		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
-		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
-		ProcessClient client = new(new InlineDispatcher(), host, selectionLifetime);
-		using CancellationTokenSource cancellation = new();
-		cancellation.Cancel();
-
-		bool succeeded = client.TryGetProcesses(
-			new ProcessEnumerationRequest(1),
-			out ProcessEnumerationResult result,
-			out CheatEngineFailure failure,
-			cancellation.Token);
-
-		Assert.False(succeeded);
-		Assert.Equal(default, result);
-		Assert.Equal(CheatEngineFailureKind.Cancelled, failure.Kind);
-		Assert.Equal(0, host.GetLocalProcessesCalls);
-	}
-
-	[Fact]
-	public void TryGetProcessesRejectsTheDefaultRequestBeforeEnumeratingTheHost()
-	{
-		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
-		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
-		ProcessClient client = new(new InlineDispatcher(), host, selectionLifetime);
-
-		Assert.Throws<ArgumentOutOfRangeException>(() =>
-			client.TryGetProcesses(default, out _, out _, TestContext.Current.CancellationToken));
-
-		Assert.Equal(0, host.GetLocalProcessesCalls);
-	}
-
-	[Fact]
-	public void TryGetProcessesMapsAHostMaterializationFailureWithoutSelectingAnyProcess()
-	{
-		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
-		host.GetLocalProcessesException = new InvalidOperationException("fixture enumeration failed");
-		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
-		ProcessClient client = new(new InlineDispatcher(), host, selectionLifetime);
-
-		bool succeeded = client.TryGetProcesses(
-			new ProcessEnumerationRequest(1),
-			out ProcessEnumerationResult result,
-			out CheatEngineFailure failure,
-			TestContext.Current.CancellationToken);
-
-		Assert.False(succeeded);
-		Assert.Equal(default, result);
-		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
-		Assert.Equal("Processes.GetProcesses", failure.Operation);
-		Assert.Equal(1, host.GetLocalProcessesCalls);
-		Assert.Empty(host.OpenProcessCalls);
-	}
-
-	[Fact]
 	public void RefreshChangesPidAdvancesSelectionEpochAndDisposesTheOldTargetLease()
 	{
 		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
@@ -179,7 +100,7 @@ public sealed class ProcessClientTests
 	}
 
 	[Fact]
-	public void TryRefreshReportsTargetNotAttachedOnceWhenTheSelectedProcessDisappears()
+	public void TryRefreshRetainsTheCheatEngineSelectionWhenLocalMetadataDisappears()
 	{
 		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
 		using ControlledCoreLifetimeContext activationContext = new();
@@ -203,16 +124,17 @@ public sealed class ProcessClientTests
 			out CheatEngineFailure secondFailure,
 			TestContext.Current.CancellationToken);
 
-		Assert.False(firstSucceeded);
-		Assert.Equal(default, firstSnapshot);
-		Assert.Equal(CheatEngineFailureKind.TargetNotAttached, firstFailure.Kind);
-		Assert.Equal("Processes.Refresh", firstFailure.Operation);
-		Assert.False(secondSucceeded);
-		Assert.Equal(default, secondSnapshot);
-		Assert.Equal(CheatEngineFailureKind.TargetNotAttached, secondFailure.Kind);
-		Assert.Equal("Processes.Refresh", secondFailure.Operation);
-		Assert.Equal(1, selectionLifetime.Epoch);
-		Assert.Equal(1, lease.DisposeCount);
+		Assert.True(firstSucceeded);
+		Assert.Equal(default, firstFailure);
+		Assert.Equal(initial.Id, firstSnapshot.Id);
+		Assert.Null(firstSnapshot.Name);
+		Assert.Null(firstSnapshot.ExecutablePath);
+		Assert.True(secondSucceeded);
+		Assert.Equal(default, secondFailure);
+		Assert.Equal(initial.Id, secondSnapshot.Id);
+		Assert.Equal(initial.SelectionEpoch, secondSnapshot.SelectionEpoch);
+		Assert.Equal(initial.SelectionEpoch, selectionLifetime.Epoch);
+		Assert.Equal(0, lease.DisposeCount);
 	}
 
 	[Fact]
@@ -324,7 +246,7 @@ public sealed class ProcessClientTests
 	}
 
 	[Fact]
-	public void TryAttachReportsTargetNotAttachedWhenTheSelectedProcessDisappearsAfterOpen()
+	public void TryAttachReturnsTheSelectedCheatEngineTargetWhenLocalMetadataDisappearsAfterOpen()
 	{
 		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
 		host.LocalProcesses[43] = new LocalProcessInfo(43, "fixture-b", "C:\\fixtures\\fixture-b.exe");
@@ -346,10 +268,11 @@ public sealed class ProcessClientTests
 			out CheatEngineFailure failure,
 			TestContext.Current.CancellationToken);
 
-		Assert.False(succeeded);
-		Assert.Equal(default, snapshot);
-		Assert.Equal(CheatEngineFailureKind.TargetNotAttached, failure.Kind);
-		Assert.Equal("Processes.Attach", failure.Operation);
+		Assert.True(succeeded);
+		Assert.Equal(default, failure);
+		Assert.Equal(new TargetProcessId(43), snapshot.Id);
+		Assert.Null(snapshot.Name);
+		Assert.Null(snapshot.ExecutablePath);
 		Assert.Equal([43L], host.OpenProcessCalls);
 		Assert.Equal(1, selectionLifetime.Epoch);
 		Assert.Equal(1, lease.DisposeCount);
@@ -417,6 +340,62 @@ public sealed class ProcessClientTests
 		Assert.Equal(default, ambiguousSnapshot);
 		Assert.Equal(CheatEngineFailureKind.AmbiguousMatch, ambiguousFailure.Kind);
 		Assert.Empty(ambiguousHost.OpenProcessCalls);
+	}
+
+	[Fact]
+	public void TryAttachExactNameRejectsAStaleActivationBeforeLocalProcessDiscovery()
+	{
+		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
+		using ControlledCoreLifetimeContext context = new() { IsCurrent = false };
+		using CoreLifetime lifetime = new(context);
+		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
+		ProcessClient client = new(new InlineDispatcher(), host, selectionLifetime, lifetime.ThrowIfInactive);
+
+		CheatEngineActivationExpiredException exception = Assert.Throws<CheatEngineActivationExpiredException>(() =>
+			client.TryAttachExactName("fixture.exe", out _, out _, TestContext.Current.CancellationToken));
+
+		Assert.Equal("Processes.AttachExactName", exception.Failure.Operation);
+		Assert.Equal(0, host.FindProcessesByExactNameCalls);
+		Assert.Empty(host.OpenProcessCalls);
+	}
+
+	[Fact]
+	public void TryAttachExactNameHonorsCancellationBeforeLocalProcessDiscovery()
+	{
+		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
+		using ControlledCoreLifetimeContext context = new();
+		using CoreLifetime lifetime = new(context);
+		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
+		ProcessClient client = new(new InlineDispatcher(), host, selectionLifetime, lifetime.ThrowIfInactive);
+		using CancellationTokenSource cancellation = new();
+		cancellation.Cancel();
+
+		bool succeeded = client.TryAttachExactName("fixture.exe", out ProcessSnapshot snapshot,
+			out CheatEngineFailure failure, cancellation.Token);
+
+		Assert.False(succeeded);
+		Assert.Equal(default, snapshot);
+		Assert.Equal(CheatEngineFailureKind.Cancelled, failure.Kind);
+		Assert.Equal(0, host.FindProcessesByExactNameCalls);
+	}
+
+	[Fact]
+	public void TryAttachExactNameMapsLocalCatalogFailuresBeforeChangingTheCheatEngineSelection()
+	{
+		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
+		host.FindProcessesByExactNameException = new InvalidOperationException("fixture discovery failed");
+		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
+		ProcessClient client = new(new InlineDispatcher(), host, selectionLifetime);
+
+		bool succeeded = client.TryAttachExactName("fixture.exe", out ProcessSnapshot snapshot,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(default, snapshot);
+		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
+		Assert.Equal("Processes.AttachExactName", failure.Operation);
+		Assert.Equal(1, host.FindProcessesByExactNameCalls);
+		Assert.Empty(host.OpenProcessCalls);
 	}
 
 	[Fact]
@@ -639,6 +618,12 @@ public sealed class ProcessClientTests
 			private set;
 		}
 
+		internal int FindProcessesByExactNameCalls
+		{
+			get;
+			private set;
+		}
+
 		internal Exception? GetLocalProcessesException
 		{
 			get;
@@ -646,6 +631,12 @@ public sealed class ProcessClientTests
 		}
 
 		internal Exception? GetOpenedProcessIdException
+		{
+			get;
+			set;
+		}
+
+		internal Exception? FindProcessesByExactNameException
 		{
 			get;
 			set;
@@ -711,6 +702,12 @@ public sealed class ProcessClientTests
 
 		public IReadOnlyList<LocalProcessInfo> FindProcessesByExactName(string processName)
 		{
+			FindProcessesByExactNameCalls++;
+			if (FindProcessesByExactNameException is { } exception)
+			{
+				throw exception;
+			}
+
 			return NameMatches.TryGetValue(processName, out IReadOnlyList<LocalProcessInfo>? matches) ? matches : [];
 		}
 

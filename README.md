@@ -170,9 +170,13 @@ OnDisable
 resource lease, a Lua reference, a cancellation token, or a target-bound value across disable/re-enable. Constructors,
 field initializers, and static initialization must not call Cheat Engine; the SDK binding is valid only after enable.
 
-All Client operations are synchronous. A cancellation token can prevent dispatch or stop Client-managed work between
-steps, but it does not claim to interrupt a Lua primitive that has already started. Read
-[ADR 0002](docs/adr/0002-plugin-activation-lifecycle.md) before adding a service that touches Cheat Engine.
+All Client operations are synchronous. For stateful Client operations, request validation is followed by activation
+admission, then caller-cancellation observation, and only then policy checks or Cheat Engine work. A stale activation
+therefore throws `CheatEngineActivationExpiredException` even when the requested capability is currently gated. A
+cancellation token can prevent dispatch or stop Client-managed work between steps, but it does not claim to interrupt
+a Lua primitive that has already started. `ILocalProcessDiagnostics` is the explicit exception: it is an offline BCL
+catalog service, never a proof of Cheat Engine target identity, and its copied snapshots remain usable after disable.
+Read [ADR 0002](docs/adr/0002-plugin-activation-lifecycle.md) before adding a service that touches Cheat Engine.
 
 ## Packages and direct SDK reference
 

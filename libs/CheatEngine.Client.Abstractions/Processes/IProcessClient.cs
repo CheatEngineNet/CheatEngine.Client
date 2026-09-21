@@ -3,23 +3,15 @@ using CheatEngine.SDK.Engine.Inspection;
 
 namespace CheatEngine.Client.Processes;
 
-/// <summary>Reads the process selected by the active Cheat Engine session.</summary>
+/// <summary>Reads and changes the process selected by the active Cheat Engine session.</summary>
 public interface IProcessClient
 {
-	/// <summary>Tries to enumerate copied local-process metadata within an explicit materialization bound.</summary>
-	public bool TryGetProcesses(ProcessEnumerationRequest request, out ProcessEnumerationResult result,
-		out CheatEngineFailure failure, CancellationToken cancellationToken = default);
-
-	/// <summary>Enumerates copied local-process metadata within an explicit materialization bound.</summary>
-	public ProcessEnumerationResult GetProcesses(ProcessEnumerationRequest request,
-		CancellationToken cancellationToken = default);
-
 	/// <summary>Tries to get a copied snapshot of the currently selected target process.</summary>
 	/// <remarks>
-	///     Returns <see cref="CheatEngineFailureKind.TargetNotAttached" /> when Cheat Engine has no selected target or
-	///     its selected target is no longer available in local process metadata. An inconsistent local metadata result
-	///     returns <see cref="CheatEngineFailureKind.InvalidHostResult" />. Invalid arguments, lifecycle failures, and
-	///     unexpected implementation exceptions are not converted into a <c>Try</c> result.
+	///     Returns <see cref="CheatEngineFailureKind.TargetNotAttached" /> only when Cheat Engine has no selected target.
+	///     Local operating-system metadata is optional enrichment; its absence leaves the Cheat Engine target snapshot
+	///     valid with null name and executable path. Invalid arguments, lifecycle failures, and unexpected implementation
+	///     exceptions are not converted into a <c>Try</c> result.
 	/// </remarks>
 	public bool TryGetCurrent(out ProcessSnapshot snapshot, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
@@ -32,9 +24,9 @@ public interface IProcessClient
 	///     architecture changed.
 	/// </summary>
 	/// <remarks>
-	///     Returns <see cref="CheatEngineFailureKind.TargetNotAttached" /> and invalidates an observed selection when
-	///     the selected target is absent or no longer has local process metadata. This is an observation, not an
-	///     atomic process-lifetime guarantee.
+	///     Returns <see cref="CheatEngineFailureKind.TargetNotAttached" /> and invalidates an observed selection only
+	///     when Cheat Engine reports no selected target. Local metadata is optional enrichment and does not establish
+	///     liveness or target identity. This is an observation, not an atomic process-lifetime guarantee.
 	/// </remarks>
 	public bool TryRefresh(out ProcessSnapshot snapshot, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
@@ -50,7 +42,11 @@ public interface IProcessClient
 	public ProcessSnapshot Attach(TargetProcessId processId,
 		CancellationToken cancellationToken = default);
 
-	/// <summary>Tries to attach to the single local process whose executable name matches exactly.</summary>
+	/// <summary>Tries to attach to the single locally discovered process whose executable name matches exactly.</summary>
+	/// <remarks>
+	///     Activation admission occurs before local discovery; caller cancellation is then observed before catalog access.
+	///     A local match is only an attach candidate. Cheat Engine's selected target is verified before returning.
+	/// </remarks>
 	public bool TryAttachExactName(string processName, out ProcessSnapshot snapshot, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 

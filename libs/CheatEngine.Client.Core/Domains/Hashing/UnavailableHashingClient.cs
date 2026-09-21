@@ -1,4 +1,5 @@
 using CheatEngine.Client.Core.Domains.Events;
+using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Hashing;
 using CheatEngine.Client.Results;
 
@@ -7,6 +8,12 @@ namespace CheatEngine.Client.Core.Domains.Hashing;
 /// <summary>Preserves the separate file and target-memory hash contracts until their live-host gates are complete.</summary>
 internal sealed class UnavailableHashingClient : IHashingClient
 {
+	private readonly CoreLifetime? _lifetime;
+
+	internal UnavailableHashingClient(CoreLifetime? lifetime = null)
+	{
+		_lifetime = lifetime;
+	}
 	public bool TryHashMemory(MemoryHashRequest request, out HashDigest digest, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
@@ -35,8 +42,8 @@ internal sealed class UnavailableHashingClient : IHashingClient
 		return UnavailableCapabilityFailure.Throw<HashDigest>(failure);
 	}
 
-	private static CheatEngineFailure CreateFailure(string operation, CancellationToken cancellationToken)
+	private CheatEngineFailure CreateFailure(string operation, CancellationToken cancellationToken)
 	{
-		return UnavailableCapabilityFailure.Create("Target-memory and file hashing", operation, cancellationToken);
+		return UnavailableCapabilityFailure.Create(_lifetime, "Target-memory and file hashing", operation, cancellationToken);
 	}
 }

@@ -1,4 +1,17 @@
 #nullable enable
+CheatEngine.Client.Processes.ILocalProcessDiagnostics
+CheatEngine.Client.Processes.ILocalProcessDiagnostics.GetProcesses(CheatEngine.Client.Processes.ProcessEnumerationRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Processes.ProcessEnumerationResult
+CheatEngine.Client.Processes.ILocalProcessDiagnostics.TryGetProcesses(CheatEngine.Client.Processes.ProcessEnumerationRequest request, out CheatEngine.Client.Processes.ProcessEnumerationResult result, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
+CheatEngine.Client.Processes.LocalProcessId
+CheatEngine.Client.Processes.LocalProcessId.Equals(CheatEngine.Client.Processes.LocalProcessId other) -> bool
+CheatEngine.Client.Processes.LocalProcessId.LocalProcessId() -> void
+CheatEngine.Client.Processes.LocalProcessId.LocalProcessId(int value) -> void
+CheatEngine.Client.Processes.LocalProcessId.Value.get -> int
+~override CheatEngine.Client.Processes.LocalProcessId.Equals(object obj) -> bool
+override CheatEngine.Client.Processes.LocalProcessId.GetHashCode() -> int
+~override CheatEngine.Client.Processes.LocalProcessId.ToString() -> string
+static CheatEngine.Client.Processes.LocalProcessId.operator !=(CheatEngine.Client.Processes.LocalProcessId left, CheatEngine.Client.Processes.LocalProcessId right) -> bool
+static CheatEngine.Client.Processes.LocalProcessId.operator ==(CheatEngine.Client.Processes.LocalProcessId left, CheatEngine.Client.Processes.LocalProcessId right) -> bool
 CheatEngine.Client.ICheatEngineClient.Allocations.get -> CheatEngine.Client.Allocations.IAllocationClient!
 CheatEngine.Client.ICheatEngineClient.Assembly.get -> CheatEngine.Client.Assembly.IAssemblyClient!
 CheatEngine.Client.ICheatEngineClient.Dbvm.get -> CheatEngine.Client.Dbvm.IDbvmClient!
@@ -20,13 +33,11 @@ static CheatEngine.Client.Runtime.ClientCapabilityId.Timers.get -> CheatEngine.C
 CheatEngine.Client.Processes.IProcessClient.AttachForeground(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Processes.ProcessSnapshot
 CheatEngine.Client.Processes.IProcessClient.Create(CheatEngine.Client.Processes.ProcessStartRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Processes.ProcessSnapshot
 CheatEngine.Client.Processes.IProcessClient.GetPauseState(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Processes.ProcessPauseSnapshot
-CheatEngine.Client.Processes.IProcessClient.GetProcesses(CheatEngine.Client.Processes.ProcessEnumerationRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Processes.ProcessEnumerationResult
 CheatEngine.Client.Processes.IProcessClient.Pause(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Processes.ProcessSnapshot
 CheatEngine.Client.Processes.IProcessClient.ResumeExecution(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Processes.ProcessSnapshot
 CheatEngine.Client.Processes.IProcessClient.TryAttachForeground(out CheatEngine.Client.Processes.ProcessSnapshot snapshot, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
 CheatEngine.Client.Processes.IProcessClient.TryCreate(CheatEngine.Client.Processes.ProcessStartRequest request, out CheatEngine.Client.Processes.ProcessSnapshot snapshot, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
 CheatEngine.Client.Processes.IProcessClient.TryGetPauseState(out CheatEngine.Client.Processes.ProcessPauseSnapshot snapshot, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
-CheatEngine.Client.Processes.IProcessClient.TryGetProcesses(CheatEngine.Client.Processes.ProcessEnumerationRequest request, out CheatEngine.Client.Processes.ProcessEnumerationResult result, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
 CheatEngine.Client.Processes.IProcessClient.TryPause(out CheatEngine.Client.Processes.ProcessSnapshot snapshot, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
 CheatEngine.Client.Processes.IProcessClient.TryResumeExecution(out CheatEngine.Client.Processes.ProcessSnapshot snapshot, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
 CheatEngine.Client.Processes.ProcessEnumerationRequest
@@ -54,10 +65,10 @@ static CheatEngine.Client.Processes.ProcessEnumerationResult.operator ==(CheatEn
 CheatEngine.Client.Processes.ProcessInfoSnapshot
 CheatEngine.Client.Processes.ProcessInfoSnapshot.Equals(CheatEngine.Client.Processes.ProcessInfoSnapshot other) -> bool
 CheatEngine.Client.Processes.ProcessInfoSnapshot.ExecutablePath.get -> string?
-CheatEngine.Client.Processes.ProcessInfoSnapshot.Id.get -> CheatEngine.SDK.Engine.Inspection.TargetProcessId
+CheatEngine.Client.Processes.ProcessInfoSnapshot.Id.get -> CheatEngine.Client.Processes.LocalProcessId
 CheatEngine.Client.Processes.ProcessInfoSnapshot.Name.get -> string?
 CheatEngine.Client.Processes.ProcessInfoSnapshot.ProcessInfoSnapshot() -> void
-CheatEngine.Client.Processes.ProcessInfoSnapshot.ProcessInfoSnapshot(CheatEngine.SDK.Engine.Inspection.TargetProcessId id, string? name, string? executablePath) -> void
+CheatEngine.Client.Processes.ProcessInfoSnapshot.ProcessInfoSnapshot(CheatEngine.Client.Processes.LocalProcessId id, string? name, string? executablePath) -> void
 ~override CheatEngine.Client.Processes.ProcessInfoSnapshot.Equals(object obj) -> bool
 override CheatEngine.Client.Processes.ProcessInfoSnapshot.GetHashCode() -> int
 ~override CheatEngine.Client.Processes.ProcessInfoSnapshot.ToString() -> string

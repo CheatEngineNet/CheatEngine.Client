@@ -14,18 +14,20 @@ namespace CheatEngine.Client.Core.Domains;
 internal sealed class UnsafeLuaClient : IUnsafeLuaClient
 {
 	private readonly ICheatEngineDispatcher _dispatcher;
+	private readonly CoreLifetime? _lifetime;
 	private readonly CoreClientPolicy _policy;
 
-	internal UnsafeLuaClient(SdkMainThreadDispatcher dispatcher, CoreClientPolicy policy)
-		: this((ICheatEngineDispatcher) (dispatcher ?? throw new ArgumentNullException(nameof(dispatcher))), policy)
+	internal UnsafeLuaClient(SdkMainThreadDispatcher dispatcher, CoreClientPolicy policy, CoreLifetime lifetime)
+		: this((ICheatEngineDispatcher) (dispatcher ?? throw new ArgumentNullException(nameof(dispatcher))), policy, lifetime)
 	{
 	}
 
 	/// <summary>Deterministic internal seam for policy tests; production construction uses the SDK dispatcher overload.</summary>
-	internal UnsafeLuaClient(ICheatEngineDispatcher dispatcher, CoreClientPolicy policy)
+	internal UnsafeLuaClient(ICheatEngineDispatcher dispatcher, CoreClientPolicy policy, CoreLifetime? lifetime = null)
 	{
 		_dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
 		_policy = policy ?? throw new ArgumentNullException(nameof(policy));
+		_lifetime = lifetime;
 	}
 
 	public bool TryExecute(LuaScript script, out CheatEngineFailure failure,
@@ -36,6 +38,8 @@ internal sealed class UnsafeLuaClient : IUnsafeLuaClient
 		{
 			throw new ArgumentException("A Lua chunk name must be null or non-empty.", nameof(script));
 		}
+
+		_lifetime?.ThrowIfInactive("Lua.ExecuteUnsafe");
 
 		if (!_policy.EnableUnsafeLuaExecution)
 		{

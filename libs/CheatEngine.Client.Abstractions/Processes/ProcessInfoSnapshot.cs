@@ -1,12 +1,11 @@
-using CheatEngine.SDK.Engine.Inspection;
-
 namespace CheatEngine.Client.Processes;
 
 /// <summary>Copied local-process metadata that is independent of Cheat Engine's selected target.</summary>
+/// <remarks>This data is local operating-system enrichment only; it neither selects nor identifies a Cheat Engine target.</remarks>
 public readonly record struct ProcessInfoSnapshot
 {
 	/// <summary>Creates copied local-process metadata.</summary>
-	public ProcessInfoSnapshot(TargetProcessId id, string? name, string? executablePath)
+	public ProcessInfoSnapshot(LocalProcessId id, string? name, string? executablePath)
 	{
 		if (name is { Length: 0 })
 		{
@@ -23,8 +22,8 @@ public readonly record struct ProcessInfoSnapshot
 		ExecutablePath = executablePath;
 	}
 
-	/// <summary>Gets the local process identifier.</summary>
-	public TargetProcessId Id
+	/// <summary>Gets the local operating-system process identifier, not a Cheat Engine target identity.</summary>
+	public LocalProcessId Id
 	{
 		get;
 	}

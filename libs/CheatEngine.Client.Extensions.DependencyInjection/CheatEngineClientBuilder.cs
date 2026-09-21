@@ -129,7 +129,8 @@ public sealed class CheatEngineClientBuilder
 		Services.AddSingleton<UnsafeLuaExecutionRegistration>();
 		Services.AddSingleton<IUnsafeLuaClient>(static serviceProvider => new UnsafeLuaClient(
 			serviceProvider.GetRequiredService<SdkMainThreadDispatcher>(),
-			serviceProvider.GetRequiredService<CoreClientPolicy>()));
+			serviceProvider.GetRequiredService<CoreClientPolicy>(),
+			serviceProvider.GetRequiredService<CoreLifetime>()));
 		return this;
 	}
 }
