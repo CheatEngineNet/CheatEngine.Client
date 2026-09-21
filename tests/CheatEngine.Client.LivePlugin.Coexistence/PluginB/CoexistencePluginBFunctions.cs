@@ -20,4 +20,11 @@ internal static partial class CoexistencePluginBFunctions
 	{
 		return Interlocked.Increment(ref s_pingCount);
 	}
+
+	/// <summary>Records the active target observation without selecting a target.</summary>
+	[LuaFunction("cheatengine_client_coexistence_b_target")]
+	public static string ObserveTarget()
+	{
+		return CoexistenceDiagnostics.ObserveTarget();
+	}
 }

@@ -20,4 +20,39 @@ internal static partial class CoexistencePluginAFunctions
 	{
 		return Interlocked.Increment(ref s_pingCount);
 	}
+
+	/// <summary>Competes with Plugin Collision for the exact same Lua global name.</summary>
+	[LuaFunction("cheatengine_client_coexistence_a_collision")]
+	public static string Collision()
+	{
+		return "CollisionOwner=A";
+	}
+
+	/// <summary>Records the active target observation without selecting a target.</summary>
+	[LuaFunction("cheatengine_client_coexistence_a_target")]
+	public static string ObserveTarget()
+	{
+		return CoexistenceDiagnostics.ObserveTarget();
+	}
+
+	/// <summary>Attempts the explicitly opt-in retained-owner probe.</summary>
+	[LuaFunction("cheatengine_client_coexistence_a_retain_owner")]
+	public static string RetainOwner()
+	{
+		return CoexistenceDiagnostics.RetainOwner();
+	}
+
+	/// <summary>Reports the retained-owner state without issuing a CE call.</summary>
+	[LuaFunction("cheatengine_client_coexistence_a_owner_state")]
+	public static string OwnerState()
+	{
+		return CoexistenceDiagnostics.GetOwnerState();
+	}
+
+	/// <summary>Releases the retained owner when the operator has completed the probe.</summary>
+	[LuaFunction("cheatengine_client_coexistence_a_release_owner")]
+	public static string ReleaseOwner()
+	{
+		return CoexistenceDiagnostics.ReleaseOwner();
+	}
 }

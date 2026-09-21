@@ -1,7 +1,12 @@
 <Project>
 
   <PropertyGroup>
-    <!-- Each half is a managed plugin component with its own intact output directory. The SDK/host chooses any load-context policy. -->
+    <!--
+      Each fixture is a managed plugin component with its own intact output directory. The SDK/host chooses any
+      load-context policy. The source fixture deliberately consumes the current Client graph by project reference, so
+      it cannot claim to be a Client package-consumer test. It imports the deployment target only to stage and check a
+      fresh, complete output closure when an explicit fixture bundle path is supplied.
+    -->
     <Platforms>x64</Platforms>
     <PlatformTarget>x64</PlatformTarget>
     <EnableDynamicLoading>true</EnableDynamicLoading>
@@ -10,6 +15,11 @@
     <VerifyReferenceAotCompatibility>true</VerifyReferenceAotCompatibility>
     <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
     <IsPackable>false</IsPackable>
+    <CheatEngineClientPluginProject>true</CheatEngineClientPluginProject>
+    <CheatEngineClientSkipPluginProjectValidation>true</CheatEngineClientSkipPluginProjectValidation>
+    <CoexistenceSdkPackageVersion Condition="'$(CoexistenceSdkPackageVersion)' == ''">1.0.0</CoexistenceSdkPackageVersion>
+    <!-- A version other than the committed 1.0.0 tuple is an operator-supplied qualification input, not a lock-file update. -->
+    <RestorePackagesWithLockFile Condition="'$(CoexistenceSdkPackageVersion)' != '1.0.0'">false</RestorePackagesWithLockFile>
   </PropertyGroup>
 
   <ItemGroup>
@@ -20,8 +30,12 @@
                       ReferenceOutputAssembly="false"
                       PrivateAssets="all"/>
     <!-- Keep the SDK direct package reference: it supplies the entry-point generator and bridge assets. -->
-    <PackageReference Include="CheatEngine.SDK" Version="1.0.0"/>
+    <PackageReference Include="CheatEngine.SDK" Version="$(CoexistenceSdkPackageVersion)"/>
     <Compile Include="../CoexistenceDiagnostics.cs" Link="CoexistenceDiagnostics.cs"/>
   </ItemGroup>
+
+  <!-- Use the same complete-closure deployment mechanics as the Hosting package without misrepresenting this
+       source-graph fixture as an isolated Client package consumer. -->
+  <Import Project="$(MSBuildThisFileDirectory)..\..\libs\CheatEngine.Client.Hosting\buildTransitive\CheatEngine.Client.Hosting.targets"/>
 
 </Project>

@@ -8,11 +8,14 @@ using CheatEngine.SDK.Annotations.Plugin;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
-namespace LivePlugin.Coexistence.PluginA;
+namespace LivePlugin.Coexistence.PluginCollision;
 
-/// <summary>First half of the manual Client coexistence fixture. Its Lua export names are distinct from Plugin B's.</summary>
-[CheatEnginePlugin("CheatEngine.Client Coexistence Plugin A")]
-public sealed class CoexistencePluginA : CheatEngineClientPlugin
+/// <summary>
+///     Deliberately declares one export already owned by Plugin A. It must be loaded only after A in the controlled
+///     collision protocol; a failure to enable must leave A's existing globals callable and unchanged.
+/// </summary>
+[CheatEnginePlugin("CheatEngine.Client Coexistence Collision Plugin")]
+public sealed class CoexistencePluginCollision : CheatEngineClientPlugin
 {
 	/// <inheritdoc />
 	protected override void Configure(CheatEnginePluginBuilder builder)
@@ -20,13 +23,13 @@ public sealed class CoexistencePluginA : CheatEngineClientPlugin
 		ArgumentNullException.ThrowIfNull(builder);
 		builder.Services.AddSingleton(new CoexistencePluginIdentity(Context.PluginId));
 		builder.Client
-			.AddLuaModule<CoexistencePluginALuaModule>()
-			.AddModule<CoexistencePluginAModule>();
+			.AddLuaModule<CoexistencePluginCollisionLuaModule>()
+			.AddModule<CoexistencePluginCollisionModule>();
 	}
 }
 
-/// <summary>Records activation-local options and epoch facts without selecting a target or issuing a Client operation.</summary>
-internal sealed class CoexistencePluginAModule(
+/// <summary>Records the activation facts only if collision registration was unexpectedly admitted.</summary>
+internal sealed class CoexistencePluginCollisionModule(
 	IOptions<CheatEngineClientOptions> options,
 	CoexistencePluginIdentity pluginIdentity) : ICheatEngineClientModule
 {
@@ -47,9 +50,9 @@ internal sealed class CoexistencePluginAModule(
 	}
 }
 
-/// <summary>Declares Plugin A's generated activation-scoped Lua module.</summary>
-[CheatEngineLuaModule(typeof(CoexistencePluginAFunctions), "coexistence_a")]
-internal sealed partial class CoexistencePluginALuaModule : ILuaModule;
+/// <summary>Declares the collision module in a distinct managed assembly.</summary>
+[CheatEngineLuaModule(typeof(CoexistencePluginCollisionFunctions), "coexistence_collision")]
+internal sealed partial class CoexistencePluginCollisionLuaModule : ILuaModule;
 
 internal sealed class CoexistencePluginIdentity(uint id)
 {
