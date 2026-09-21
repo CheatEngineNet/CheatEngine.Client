@@ -36,10 +36,15 @@ diagnostics. Module callbacks and Client-owned CE resource draining are never ru
   provider construction; reloadable runtime configuration would violate the activation boundary.
 - A Client scope, cancellation token, SDK handle, Lua reference, or CE-owned resource never crosses an enable/disable
   epoch. `ICheatEngineClient.Epoch` and `Stopping` identify the active lifetime.
+- Activation-local is the fresh-provider boundary, not a blanket `ServiceLifetime.Scoped` rule. A second scope from
+  one provider has fresh scoped application/module services but reuses provider singletons, options, codecs, and the
+  Client graph; it is not another activation and is not supported as a persistent-root hosting model.
 - Public Client operations are synchronous. They do not retain Lua state across an `await`, and main-thread work enters
   the SDK dispatcher as a bounded operation.
 - The DI container owns disposal of services it created. Hosting owns the `ConfigurationManager` instance it created
-  and releases it once after the scope and provider; it never disposes resolved services individually.
+  and releases it once after the scope and provider; it never disposes resolved services individually. A disposable
+  application service has one owning registration; aliases must not make one disposable instance container-owned by
+  multiple descriptors.
 
 ## Consequences and project value
 

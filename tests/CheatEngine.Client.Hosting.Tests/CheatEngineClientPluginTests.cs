@@ -23,6 +23,7 @@ using CheatEngine.Client.Timers;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace CheatEngine.Client.Hosting.Tests;
 
@@ -326,6 +327,41 @@ public sealed class CheatEngineClientPluginTests
 			events);
 	}
 
+	[Fact]
+	public void FreshActivationProvidersDisposeOwnedModuleDependenciesOnceWhileAliasesAndOptionsRemainUsable()
+	{
+		List<string> events = [];
+		FakeClient client = new(50);
+		RecordingCleanup cleanup = new(events);
+		DisposableModuleState state = new();
+		TestPlugin plugin = CreatePlugin(events, client, cleanup, builder =>
+		{
+			builder.Configuration["CheatEngineClient:AllowedTableRoots:0"] = Path.GetTempPath();
+			builder.Services.AddSingleton(state);
+			builder.Services.AddSingleton<ProviderOwnedActivationSingleton>();
+			builder.Services.AddScoped<ActivationOwnedDisposable>();
+			builder.Services.AddScoped<IActivationOwnedAlias>(static services => new ActivationOwnedAlias(
+				services.GetRequiredService<ActivationOwnedDisposable>()));
+			builder.Client.AddModule<DisposableOptionsModule>();
+		});
+
+		plugin.EnableForTest();
+		plugin.DisableForTest();
+		plugin.EnableForTest();
+		plugin.DisableForTest();
+
+		Assert.True(state.AliasReferencedOwnedDisposable);
+		Assert.Equal(1, state.AllowedTableRootCount);
+		Assert.Equal(2, state.EnabledModuleIds.Count);
+		Assert.NotEqual(state.EnabledModuleIds[0], state.EnabledModuleIds[1]);
+		Assert.Equal(2, state.ProviderSingletonIds.Count);
+		Assert.NotEqual(state.ProviderSingletonIds[0], state.ProviderSingletonIds[1]);
+		Assert.Equal(2, state.ModuleDisableCount);
+		Assert.Equal(2, state.ModuleDisposeCount);
+		Assert.Equal(2, state.DependencyDisposeCount);
+		Assert.Equal(2, state.ProviderSingletonDisposeCount);
+	}
+
 	private static void AddFailingConstructionRegistrations(CheatEnginePluginBuilder builder, List<string> events)
 	{
 		builder.Configuration.Sources.Add(new ThrowingDisposeConfigurationSource(events));
@@ -515,6 +551,122 @@ public sealed class CheatEngineClientPluginTests
 		{
 			get;
 			set;
+		}
+	}
+
+	public sealed class DisposableModuleState
+	{
+		internal bool AliasReferencedOwnedDisposable
+		{
+			get;
+			set;
+		}
+
+		internal int AllowedTableRootCount
+		{
+			get;
+			set;
+		}
+
+		internal List<Guid> EnabledModuleIds
+		{
+			get;
+		} = [];
+
+		internal List<Guid> ProviderSingletonIds
+		{
+			get;
+		} = [];
+
+		internal int ModuleDisableCount
+		{
+			get;
+			set;
+		}
+
+		internal int ModuleDisposeCount
+		{
+			get;
+			set;
+		}
+
+		internal int DependencyDisposeCount
+		{
+			get;
+			set;
+		}
+
+		internal int ProviderSingletonDisposeCount
+		{
+			get;
+			set;
+		}
+	}
+
+	public sealed class ProviderOwnedActivationSingleton(DisposableModuleState state) : IDisposable
+	{
+		internal Guid Id
+		{
+			get;
+		} = Guid.NewGuid();
+
+		public void Dispose()
+		{
+			state.ProviderSingletonDisposeCount++;
+		}
+	}
+
+	public sealed class ActivationOwnedDisposable(DisposableModuleState state) : IDisposable
+	{
+		public void Dispose()
+		{
+			state.DependencyDisposeCount++;
+		}
+	}
+
+	public interface IActivationOwnedAlias
+	{
+		ActivationOwnedDisposable OwnedDisposable
+		{
+			get;
+		}
+	}
+
+	public sealed class ActivationOwnedAlias(ActivationOwnedDisposable ownedDisposable) : IActivationOwnedAlias
+	{
+		public ActivationOwnedDisposable OwnedDisposable
+		{
+			get;
+		} = ownedDisposable;
+	}
+
+	public sealed class DisposableOptionsModule(
+		ProviderOwnedActivationSingleton providerOwnedSingleton,
+		ActivationOwnedDisposable ownedDisposable,
+		IActivationOwnedAlias alias,
+		IOptions<CheatEngineClientOptions> options,
+		DisposableModuleState state) : ICheatEngineClientModule, IDisposable
+	{
+		private readonly Guid _id = Guid.NewGuid();
+
+		public void OnEnabled(ICheatEngineClient client)
+		{
+			ArgumentNullException.ThrowIfNull(client);
+			state.AliasReferencedOwnedDisposable = ReferenceEquals(ownedDisposable, alias.OwnedDisposable);
+			state.AllowedTableRootCount = options.Value.AllowedTableRoots?.Length ?? 0;
+			state.EnabledModuleIds.Add(_id);
+			state.ProviderSingletonIds.Add(providerOwnedSingleton.Id);
+		}
+
+		public void OnDisabling(ICheatEngineClient client)
+		{
+			ArgumentNullException.ThrowIfNull(client);
+			state.ModuleDisableCount++;
+		}
+
+		public void Dispose()
+		{
+			state.ModuleDisposeCount++;
 		}
 	}
 
