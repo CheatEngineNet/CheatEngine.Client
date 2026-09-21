@@ -37,6 +37,12 @@ jobs:
             **/packages.lock.json
             Directory.Packages.props
 
+      - name: Validate engineering backlog and validator tests
+        run: |
+          python --version
+          python eng/Validate-EngineeringManifest.py
+          python -m unittest discover -s eng/tests -v
+
       - name: Restore locked dependency graph
         run: dotnet restore CheatEngine.Client.slnx --locked-mode
 
