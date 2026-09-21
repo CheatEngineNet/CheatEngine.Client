@@ -13,7 +13,7 @@ internal sealed class SdkAobScanPort : IAobScanPort
 		[NotNullWhen(true)] out IAobMatchList? matches)
 	{
 		matches = null;
-		if (!AobScanner.TryScan(pattern, options, out Owned<StringList>? owner) || owner is null)
+		if (!AobScanner.TryScan(pattern, options, out Owned<StringList>? owner))
 		{
 			return AobScanHostStatus.Rejected;
 		}
