@@ -10,7 +10,7 @@
 
 This is the navigation root for the engineering bootstrap, not an implemented feature or a GitHub Project object.
 
-**Evidence classification:** Proposal; initial GitHub writes were denied by the integration.
+**Evidence classification:** `MetadataRead` + `Proposal`: the initial GitHub preparation attempt was denied (`Resource not accessible by integration`). A later operator-authorized import created and populated the private CheatEngineNet — Engineering Execution Project #1 and created Client issues [#8–#40](https://github.com/CheatEngineNet/CheatEngine.Client/issues/8). This is a planning-metadata receipt only; it does not establish implementation, package, fixture, or live-host qualification.
 
 ### Outcome and rationale
 
