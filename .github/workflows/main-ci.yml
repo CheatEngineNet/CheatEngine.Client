@@ -11,6 +11,8 @@ on:
       - 'Directory.Build.targets'
       - 'Directory.Packages.props'
       - 'README.md'
+      - 'ROADMAP.md'
+      - 'docs/**'
       - 'eng/**'
       - 'global.json'
       - 'libs/**'

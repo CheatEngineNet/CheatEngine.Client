@@ -6,8 +6,18 @@
 ## Context
 
 An interface alone does not establish that a Cheat Engine operation is safe to create, use, dispose, or repeat across
-plugin activation. In particular, SDK 1.0.0 does not expose the ownership factory required for the Client to create and
-adopt `MemScan` and `FoundList` instances without inventing an unverified handle-lifetime contract.
+plugin activation. Source and package evidence must also be kept separate. The reviewed SDK source baseline
+`aa3fcc3cdf629468e69d0c68817183d44a719894` contains
+`CheatEngine.SDK.Engine.Scanning.Values.MemoryScanSessions.TryCreate`, whereas the released `CheatEngine.SDK` 1.0.0
+package consumed by Client does not expose that factory. The Client therefore cannot adopt `MemScan` and `FoundList`
+instances from the released package without inventing an unverified handle-lifetime contract.
+
+| Evidence object | `MemoryScanSessions.TryCreate` | Client consequence |
+|---|---|---|
+| SDK source `aa3fcc3cdf629468e69d0c68817183d44a719894` | Present | A later SDK artifact may make an adoption path possible; source presence alone does not enable Client. |
+| Released NuGet `CheatEngine.SDK` 1.0.0 | Absent | `IValueScanner` remains capability-gated. |
+
+The required Cheat Engine 7.7 x64 ownership and lifecycle qualification remains separate from both observations.
 
 ## Decision and why
 
