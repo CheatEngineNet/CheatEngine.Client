@@ -33,18 +33,6 @@ jobs:
     if: github.event.pull_request.draft == false
     uses: ./.github/workflows/ci.yml
 
-  # Fork and Dependabot pull requests receive no repository secret, so Sonar skips them.
-  sonar:
-    name: Sonar
-    needs: ci
-    if: >-
-      vars.SONAR_CI_ENABLED == 'true'
-      && github.event.pull_request.head.repo.full_name == github.repository
-      && github.event.pull_request.user.login != 'dependabot[bot]'
-    uses: ./.github/workflows/sonar.yml
-    secrets:
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-
   lint-workflows:
     name: Lint workflows
     if: github.event.pull_request.draft == false
