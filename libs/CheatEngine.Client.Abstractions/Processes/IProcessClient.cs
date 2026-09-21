@@ -15,6 +15,12 @@ public interface IProcessClient
 		CancellationToken cancellationToken = default);
 
 	/// <summary>Tries to get a copied snapshot of the currently selected target process.</summary>
+	/// <remarks>
+	///     Returns <see cref="CheatEngineFailureKind.TargetNotAttached" /> when Cheat Engine has no selected target or
+	///     its selected target is no longer available in local process metadata. An inconsistent local metadata result
+	///     returns <see cref="CheatEngineFailureKind.InvalidHostResult" />. Invalid arguments, lifecycle failures, and
+	///     unexpected implementation exceptions are not converted into a <c>Try</c> result.
+	/// </remarks>
 	public bool TryGetCurrent(out ProcessSnapshot snapshot, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
@@ -25,6 +31,11 @@ public interface IProcessClient
 	///     Re-reads Cheat Engine's selected target and advances the selection epoch when its PID or observed
 	///     architecture changed.
 	/// </summary>
+	/// <remarks>
+	///     Returns <see cref="CheatEngineFailureKind.TargetNotAttached" /> and invalidates an observed selection when
+	///     the selected target is absent or no longer has local process metadata. This is an observation, not an
+	///     atomic process-lifetime guarantee.
+	/// </remarks>
 	public bool TryRefresh(out ProcessSnapshot snapshot, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 

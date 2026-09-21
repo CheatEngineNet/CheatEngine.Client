@@ -157,25 +157,35 @@ internal sealed class ProcessClient : IProcessClient
 			throw new ArgumentOutOfRangeException(nameof(processId));
 		}
 
-		ProcessSnapshot captured = default;
+		CurrentProcessCapture captured = default;
 		if (!_dispatcher.TryInvoke(
-			    () =>
-			    {
-				    _host.OpenProcess(processId.Value);
-				    captured = CaptureCurrent("Processes.Attach");
-				    if (captured.Id != processId)
-				    {
-					    throw new InvalidOperationException("Cheat Engine did not select the requested process.");
-				    }
-			    },
-			    out failure,
-			    cancellationToken))
+		    () =>
+		    {
+			    _host.OpenProcess(processId.Value);
+			    captured = CaptureCurrent("Processes.Attach");
+		    },
+		    out failure,
+		    cancellationToken))
 		{
 			snapshot = default;
 			return false;
 		}
 
-		snapshot = captured;
+		if (!TryGetCapturedSnapshot(captured, "Processes.Attach", out snapshot, out failure))
+		{
+			return false;
+		}
+
+		if (snapshot.Id != processId)
+		{
+			snapshot = default;
+			failure = new CheatEngineFailure(
+				CheatEngineFailureKind.OperationRejected,
+				"Processes.Attach",
+				"Cheat Engine did not select the requested process.");
+			return false;
+		}
+
 		return true;
 	}
 
@@ -336,53 +346,77 @@ internal sealed class ProcessClient : IProcessClient
 		out CheatEngineFailure failure,
 		CancellationToken cancellationToken)
 	{
-		ProcessSnapshot captured = default;
+		CurrentProcessCapture captured = default;
 		if (!_dispatcher.TryInvoke(() => captured = CaptureCurrent(operation), out failure, cancellationToken))
 		{
 			snapshot = default;
-			if (failure.Kind == CheatEngineFailureKind.OperationRejected)
-			{
-				failure = new CheatEngineFailure(
-					CheatEngineFailureKind.TargetNotAttached,
-					operation,
-					failure.Message,
-					failure.Exception);
-			}
-
 			return false;
 		}
 
-		snapshot = captured;
-		return true;
+		return TryGetCapturedSnapshot(captured, operation, out snapshot, out failure);
 	}
 
-	private ProcessSnapshot CaptureCurrent(string operation)
+	private CurrentProcessCapture CaptureCurrent(string operation)
 	{
 		long processId = _host.GetOpenedProcessId();
 		if (processId is <= 0 or > int.MaxValue)
 		{
 			ClearObservedSelection(operation);
-			throw new InvalidOperationException("Cheat Engine has no selected local target process.");
+			return new CurrentProcessCapture(CurrentProcessCaptureFailure.NoTargetSelected);
 		}
 
 		TargetProcessId id = new(checked((int) processId));
 		if (!_host.TryGetLocalProcess(id.Value, out LocalProcessInfo process))
 		{
 			ClearObservedSelection(operation);
-			throw new InvalidOperationException("The selected process no longer exists locally.");
+			return new CurrentProcessCapture(CurrentProcessCaptureFailure.LocalProcessUnavailable);
 		}
 
 		if (process.Id != id.Value)
 		{
-			throw new EngineMarshallingException(
-				"Processes.GetCurrent",
-				EngineMarshallingDirection.Result,
-				"metadata for the selected process identifier",
-				$"metadata for process {process.Id}");
+			return new CurrentProcessCapture(CurrentProcessCaptureFailure.InvalidLocalMetadata, process.Id);
 		}
 
 		CheatEngineArchitecture architecture = TryGetTargetArchitecture();
-		return ObserveSelection(id, process, architecture, operation);
+		return new CurrentProcessCapture(ObserveSelection(id, process, architecture, operation));
+	}
+
+	private static bool TryGetCapturedSnapshot(
+		CurrentProcessCapture captured,
+		string operation,
+		out ProcessSnapshot snapshot,
+		out CheatEngineFailure failure)
+	{
+		if (captured.Failure == CurrentProcessCaptureFailure.None)
+		{
+			snapshot = captured.Snapshot;
+			failure = default;
+			return true;
+		}
+
+		snapshot = default;
+		failure = captured.Failure switch
+		{
+			CurrentProcessCaptureFailure.NoTargetSelected => new CheatEngineFailure(
+				CheatEngineFailureKind.TargetNotAttached,
+				operation,
+				"Cheat Engine has no selected local target process."),
+			CurrentProcessCaptureFailure.LocalProcessUnavailable => new CheatEngineFailure(
+				CheatEngineFailureKind.TargetNotAttached,
+				operation,
+				"The selected target process is no longer available in local process metadata."),
+			CurrentProcessCaptureFailure.InvalidLocalMetadata => new CheatEngineFailure(
+				CheatEngineFailureKind.InvalidHostResult,
+				operation,
+				"The selected target's local process metadata did not match its identifier.",
+				new EngineMarshallingException(
+					operation,
+					EngineMarshallingDirection.Result,
+					"metadata for the selected process identifier",
+					$"metadata for process {captured.ObservedProcessId}")),
+			_ => throw new InvalidOperationException("The current process capture produced an unknown failure.")
+		};
+		return false;
 	}
 
 	private CheatEngineArchitecture TryGetTargetArchitecture()
@@ -518,4 +552,28 @@ internal sealed class ProcessClient : IProcessClient
 	}
 
 	private readonly record struct ProcessSelection(TargetProcessId Id, CheatEngineArchitecture Architecture);
+
+	private readonly record struct CurrentProcessCapture(
+		ProcessSnapshot Snapshot,
+		CurrentProcessCaptureFailure Failure,
+		int ObservedProcessId)
+	{
+		internal CurrentProcessCapture(ProcessSnapshot snapshot)
+			: this(snapshot, CurrentProcessCaptureFailure.None, 0)
+		{
+		}
+
+		internal CurrentProcessCapture(CurrentProcessCaptureFailure failure, int observedProcessId = 0)
+			: this(default, failure, observedProcessId)
+		{
+		}
+	}
+
+	private enum CurrentProcessCaptureFailure
+	{
+		None,
+		NoTargetSelected,
+		LocalProcessUnavailable,
+		InvalidLocalMetadata
+	}
 }
