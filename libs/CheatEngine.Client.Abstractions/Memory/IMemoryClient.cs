@@ -23,6 +23,22 @@ public interface IMemoryClient
 	/// <summary>Writes a built-in scalar or pointer type or throws when unsupported or rejected.</summary>
 	public void WritePrimitive<T>(Address address, T value, CancellationToken cancellationToken = default);
 
+	/// <summary>Tries to read a bounded homogeneous batch of built-in scalars or pointers in one dispatch admission.</summary>
+	public bool TryReadPrimitiveBatch<T>(MemoryPrimitiveBatchReadRequest<T> request, out ImmutableArray<T> values,
+		out CheatEngineFailure failure, CancellationToken cancellationToken = default);
+
+	/// <summary>Reads a bounded homogeneous batch of built-in scalars or pointers or throws on failure.</summary>
+	public ImmutableArray<T> ReadPrimitiveBatch<T>(MemoryPrimitiveBatchReadRequest<T> request,
+		CancellationToken cancellationToken = default);
+
+	/// <summary>Tries to write a bounded homogeneous batch of built-in scalars or pointers in one dispatch admission.</summary>
+	public bool TryWritePrimitiveBatch<T>(MemoryPrimitiveBatchWriteRequest<T> request, out CheatEngineFailure failure,
+		CancellationToken cancellationToken = default);
+
+	/// <summary>Writes a bounded homogeneous batch of built-in scalars or pointers or throws on failure.</summary>
+	public void WritePrimitiveBatch<T>(MemoryPrimitiveBatchWriteRequest<T> request,
+		CancellationToken cancellationToken = default);
+
 	/// <summary>Tries to copy an exact, caller-bounded byte range.</summary>
 	public bool TryReadBytes(MemoryBytesReadRequest request, out ImmutableArray<byte> bytes,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default);

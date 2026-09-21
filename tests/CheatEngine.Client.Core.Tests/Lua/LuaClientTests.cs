@@ -1,3 +1,4 @@
+using CheatEngine.Client.Core.Dispatching;
 using CheatEngine.Client.Core.Domains;
 using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Lua;
@@ -14,7 +15,7 @@ public sealed class LuaClientTests
 		RetainingOperation operation = new();
 		LuaClient client = new(dispatcher, static () => 42, static () => true);
 
-		bool succeeded = client.TryExecute<int>(operation, out int result,
+		bool succeeded = client.TryExecute(operation, out int result,
 			out CheatEngineFailure failure,
 			TestContext.Current.CancellationToken);
 
@@ -35,7 +36,7 @@ public sealed class LuaClientTests
 		CheatEngineFailure expected = new(CheatEngineFailureKind.LuaError, "Lua.Custom", "The Lua global failed.");
 		LuaClient client = new(new ImmediateDispatcher(), static () => 1, static () => true);
 
-		bool succeeded = client.TryExecute<int>(new FailingOperation(expected), out int result,
+		bool succeeded = client.TryExecute(new FailingOperation(expected), out int result,
 			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
 
 		Assert.False(succeeded);
@@ -106,6 +107,39 @@ public sealed class LuaClientTests
 		Assert.Null(operation.Context);
 	}
 
+	[Fact]
+	public void TryExecuteUsesTheConstrainedValueOperationOverloadForGeneratedStructOperations()
+	{
+		ImmediateDispatcher dispatcher = new();
+		LuaClient client = new(dispatcher, static () => 8, static () => true);
+		GeneratedValueOperation operation = new(73);
+
+		bool succeeded = client.TryExecute(operation, out int result,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.True(succeeded);
+		Assert.Equal(73, result);
+		Assert.Equal(default, failure);
+		Assert.Equal(1, dispatcher.InvocationCount);
+	}
+
+	[Fact]
+	public void TryExecuteUsesTheStatefulDispatcherPathForGeneratedStructOperations()
+	{
+		StatefulDispatcher dispatcher = new();
+		LuaClient client = new(dispatcher, static () => 8, static () => true);
+		GeneratedValueOperation operation = new(73);
+
+		bool succeeded = client.TryExecute(operation, out int result,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.True(succeeded);
+		Assert.Equal(73, result);
+		Assert.Equal(default, failure);
+		Assert.Equal(1, dispatcher.StatefulInvocationCount);
+		Assert.Equal(0, dispatcher.FallbackInvocationCount);
+	}
+
 	private sealed class RetainingOperation : ILuaOperation<int>
 	{
 		internal ILuaExecutionContext? Context
@@ -132,6 +166,17 @@ public sealed class LuaClientTests
 			result = default;
 			failure = expectedFailure;
 			return false;
+		}
+	}
+
+	private readonly record struct GeneratedValueOperation(int Value) : ILuaOperation<int>
+	{
+		public bool TryExecute(ILuaExecutionContext context, out int result, out CheatEngineFailure failure)
+		{
+			context.ThrowIfExpired();
+			result = Value;
+			failure = default;
+			return true;
 		}
 	}
 
@@ -195,6 +240,72 @@ public sealed class LuaClientTests
 
 			failure.Throw();
 			return default!;
+		}
+	}
+
+	private sealed class StatefulDispatcher : ICheatEngineDispatcher, IStatefulCheatEngineDispatcher
+	{
+		public int FallbackInvocationCount
+		{
+			get;
+			private set;
+		}
+
+		public int StatefulInvocationCount
+		{
+			get;
+			private set;
+		}
+
+		public bool IsMainThread => true;
+
+		public bool TryInvoke(Action callback, out CheatEngineFailure failure,
+			CancellationToken cancellationToken = default)
+		{
+			ArgumentNullException.ThrowIfNull(callback);
+			FallbackInvocationCount++;
+			callback();
+			failure = default;
+			return true;
+		}
+
+		public bool TryInvoke<TResult>(Func<TResult> callback, out TResult result, out CheatEngineFailure failure,
+			CancellationToken cancellationToken = default)
+		{
+			ArgumentNullException.ThrowIfNull(callback);
+			FallbackInvocationCount++;
+			result = callback();
+			failure = default;
+			return true;
+		}
+
+		public void Invoke(Action callback, CancellationToken cancellationToken = default)
+		{
+			if (!TryInvoke(callback, out CheatEngineFailure failure, cancellationToken))
+			{
+				failure.Throw();
+			}
+		}
+
+		public TResult Invoke<TResult>(Func<TResult> callback, CancellationToken cancellationToken = default)
+		{
+			if (TryInvoke(callback, out TResult result, out CheatEngineFailure failure, cancellationToken))
+			{
+				return result;
+			}
+
+			failure.Throw();
+			return default!;
+		}
+
+		public bool TryInvoke<TState, TResult>(TState state, Func<TState, TResult> callback, out TResult result,
+			out CheatEngineFailure failure, CancellationToken cancellationToken)
+		{
+			ArgumentNullException.ThrowIfNull(callback);
+			StatefulInvocationCount++;
+			result = callback(state);
+			failure = default;
+			return true;
 		}
 	}
 }

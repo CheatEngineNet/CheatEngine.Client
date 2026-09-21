@@ -1,6 +1,25 @@
+using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
+
+using CheatEngine.Client.Allocations;
+using CheatEngine.Client.Assembly;
+using CheatEngine.Client.Dbvm;
+using CheatEngine.Client.Debugger;
+using CheatEngine.Client.Dispatching;
+using CheatEngine.Client.Hashing;
+using CheatEngine.Client.Hotkeys;
+using CheatEngine.Client.Inspection;
 using CheatEngine.Client.Lua;
 using CheatEngine.Client.Memory;
 using CheatEngine.Client.Modules;
+using CheatEngine.Client.Processes;
+using CheatEngine.Client.RemoteExecution;
+using CheatEngine.Client.Results;
+using CheatEngine.Client.Runtime;
+using CheatEngine.Client.Scanning;
+using CheatEngine.Client.Speed;
+using CheatEngine.Client.Tables;
+using CheatEngine.Client.Timers;
 using CheatEngine.SDK.Engine.Values;
 
 using Microsoft.Extensions.Configuration;
@@ -21,6 +40,15 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		Assert.NotNull(builder);
 		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(ICheatEngineClient));
 		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IMemoryCodec<int>));
+		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IAllocationClient));
+		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IAssemblyClient));
+		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IRemoteExecutionClient));
+		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IDebuggerClient));
+		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IHotkeyClient));
+		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(ITimerClient));
+		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(ISpeedClient));
+		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IHashingClient));
+		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IDbvmClient));
 		Assert.Contains(services,
 			static descriptor => descriptor.ServiceType == typeof(IValidateOptions<CheatEngineClientOptions>));
 		Assert.DoesNotContain(services, static descriptor => descriptor.ServiceType == typeof(IUnsafeLuaClient));
@@ -151,6 +179,50 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		Assert.Same(first.Dependency, scope.ServiceProvider.GetRequiredService<ScopedModuleDependency>());
 	}
 
+	[Fact]
+	public void AddLuaModuleRegistersOneActivationLifecyclePerExplicitDescribedModule()
+	{
+		ServiceCollection services = new();
+		services.AddCheatEngineClient()
+			.AddLuaModule<FirstLuaModule>()
+			.AddLuaModule<FirstLuaModule>()
+			.AddLuaModule<SecondLuaModule>();
+
+		using ServiceProvider provider = services.BuildServiceProvider(new ServiceProviderOptions
+		{
+			ValidateOnBuild = true, ValidateScopes = true
+		});
+		ServiceDescriptor[] lifecycleDescriptors = services
+			.Where(static descriptor => descriptor.ServiceType == typeof(ICheatEngineClientModule))
+			.ToArray();
+
+		Assert.Collection(
+			lifecycleDescriptors,
+			descriptor => Assert.Equal(typeof(LuaModuleLifecycle<FirstLuaModule>), descriptor.ImplementationType),
+			descriptor => Assert.Equal(typeof(LuaModuleLifecycle<SecondLuaModule>), descriptor.ImplementationType));
+		Assert.Contains(services, static descriptor =>
+			descriptor.ServiceType == typeof(FirstLuaModule) && descriptor.Lifetime == ServiceLifetime.Scoped);
+		Assert.Contains(services, static descriptor =>
+			descriptor.ServiceType == typeof(SecondLuaModule) && descriptor.Lifetime == ServiceLifetime.Scoped);
+	}
+
+	[Fact]
+	public void LuaModuleLifecycleRegistersAndReleasesItsModuleExactlyOnce()
+	{
+		RecordingLuaClient lua = new();
+		FirstLuaModule module = new();
+		LuaModuleLifecycle<FirstLuaModule> lifecycle = new(lua, module);
+		TestClient client = new();
+
+		lifecycle.OnEnabled(client);
+		lifecycle.OnDisabling(client);
+		lifecycle.OnDisabling(client);
+
+		Assert.Same(module, lua.RegisteredModule);
+		RecordingLease lease = Assert.IsType<RecordingLease>(lua.Lease);
+		Assert.Equal(1, lease.DisposeCount);
+	}
+
 	private readonly record struct CustomValue(int Value);
 
 	private sealed class FirstCustomCodec : IMemoryCodec<CustomValue>
@@ -225,5 +297,161 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		public void OnDisabling(ICheatEngineClient client)
 		{
 		}
+	}
+
+	public sealed class FirstLuaModule : IDescribedLuaModule
+	{
+		public LuaModuleDescriptor Descriptor
+		{
+			get;
+		} = new("first", ImmutableArray.Create(new LuaExportDescriptor("first")));
+
+		public void Register()
+		{
+		}
+
+		public void Unregister()
+		{
+		}
+	}
+
+	public sealed class SecondLuaModule : IDescribedLuaModule
+	{
+		public LuaModuleDescriptor Descriptor
+		{
+			get;
+		} = new("second", ImmutableArray.Create(new LuaExportDescriptor("second")));
+
+		public void Register()
+		{
+		}
+
+		public void Unregister()
+		{
+		}
+	}
+
+	private sealed class RecordingLuaClient : ILuaClient
+	{
+		internal RecordingLease? Lease
+		{
+			get;
+			private set;
+		}
+
+		internal ILuaModule? RegisteredModule
+		{
+			get;
+			private set;
+		}
+
+		public bool TryRegisterModule(
+			ILuaModule luaModule,
+			[NotNullWhen(true)] out ILuaModuleLease? lease,
+			out CheatEngineFailure failure,
+			CancellationToken cancellationToken = default)
+		{
+			ArgumentNullException.ThrowIfNull(luaModule);
+			RegisteredModule = luaModule;
+			Lease = new RecordingLease();
+			lease = Lease;
+			failure = default;
+			return true;
+		}
+
+		public ILuaModuleLease RegisterModule(ILuaModule luaModule, CancellationToken cancellationToken = default)
+		{
+			if (TryRegisterModule(luaModule, out ILuaModuleLease? lease, out CheatEngineFailure failure,
+				    cancellationToken))
+			{
+				return lease;
+			}
+
+			failure.Throw();
+			throw new InvalidOperationException("A failed Lua registration must throw its mapped exception.");
+		}
+
+		public bool TryExecute<TResult>(
+			ILuaOperation<TResult> operation,
+			[MaybeNullWhen(false)] out TResult result,
+			out CheatEngineFailure failure,
+			CancellationToken cancellationToken = default)
+		{
+			ArgumentNullException.ThrowIfNull(operation);
+			result = default;
+			failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidState, "Test.Lua", "Not used by this test.");
+			return false;
+		}
+
+		public TResult Execute<TResult>(ILuaOperation<TResult> operation, CancellationToken cancellationToken = default)
+		{
+			_ = TryExecute(operation, out TResult? result, out CheatEngineFailure failure, cancellationToken);
+			failure.Throw();
+			return result!;
+		}
+	}
+
+	private sealed class RecordingLease : ILuaModuleLease
+	{
+		internal int DisposeCount
+		{
+			get;
+			private set;
+		}
+
+		public long Epoch => 1;
+
+		public bool IsReleased => DisposeCount != 0;
+
+		public void Dispose()
+		{
+			if (DisposeCount == 0)
+			{
+				DisposeCount++;
+			}
+		}
+	}
+
+	private sealed class TestClient : ICheatEngineClient
+	{
+		public long Epoch => 1;
+
+		public CancellationToken Stopping => CancellationToken.None;
+
+		public ICheatEngineRuntime Runtime => null!;
+
+		public ICheatEngineDispatcher Dispatcher => null!;
+
+		public IProcessClient Processes => null!;
+
+		public IMemoryClient Memory => null!;
+
+		public IPatternScanner Patterns => null!;
+
+		public IValueScanner Scans => null!;
+
+		public IInspectionClient Inspection => null!;
+
+		public ITableClient Tables => null!;
+
+		public ILuaClient Lua => null!;
+
+		public IAllocationClient Allocations => null!;
+
+		public IAssemblyClient Assembly => null!;
+
+		public IRemoteExecutionClient RemoteExecution => null!;
+
+		public IDebuggerClient Debugger => null!;
+
+		public IHotkeyClient Hotkeys => null!;
+
+		public ITimerClient Timers => null!;
+
+		public ISpeedClient Speed => null!;
+
+		public IHashingClient Hashing => null!;
+
+		public IDbvmClient Dbvm => null!;
 	}
 }

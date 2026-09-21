@@ -141,6 +141,35 @@ public sealed class RuntimeClientTests
 		Assert.True(snapshot.ClientCapabilities.TryGet(ClientCapabilityId.UnsafeLuaExecution,
 			out ClientCapabilityAvailability unsafeLua));
 		Assert.Equal(ClientCapabilityAvailabilityState.Unavailable, unsafeLua.State);
+
+		ClientCapabilityId[] unavailableCapabilities =
+		[
+			ClientCapabilityId.Allocations,
+			ClientCapabilityId.RemoteExecution,
+			ClientCapabilityId.Debugger,
+			ClientCapabilityId.Hotkeys,
+			ClientCapabilityId.Timers,
+			ClientCapabilityId.Dbvm
+		];
+		foreach (ClientCapabilityId capability in unavailableCapabilities)
+		{
+			Assert.True(snapshot.ClientCapabilities.TryGet(capability, out ClientCapabilityAvailability availability));
+			Assert.Equal(ClientCapabilityAvailabilityState.Unavailable, availability.State);
+			Assert.False(availability.IsAvailable);
+		}
+
+		ClientCapabilityId[] unknownCapabilities =
+		[
+			ClientCapabilityId.Assembly,
+			ClientCapabilityId.Speed,
+			ClientCapabilityId.Hashing
+		];
+		foreach (ClientCapabilityId capability in unknownCapabilities)
+		{
+			Assert.True(snapshot.ClientCapabilities.TryGet(capability, out ClientCapabilityAvailability availability));
+			Assert.Equal(ClientCapabilityAvailabilityState.Unknown, availability.State);
+			Assert.False(availability.IsKnown);
+		}
 	}
 
 	[Fact]

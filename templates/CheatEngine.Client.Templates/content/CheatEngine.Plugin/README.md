@@ -21,8 +21,10 @@ The project provides a minimal but production-shaped plugin boundary:
 
 The project references `CheatEngine.Client` **and** `CheatEngine.SDK` directly. The SDK reference must remain direct:
 its plugin generator and native Lua bridge assets are build inputs, not a transitive implementation detail.
-`<CheatEngineClientPluginProject>true</CheatEngineClientPluginProject>` enables the `CECLIENT001` build guard to enforce
-that rule.
+`<CheatEngineClientPluginProject>true</CheatEngineClientPluginProject>` enables the complete Hosting profile: it guards
+both direct references, requires exactly one attributed `CheatEngineClientPlugin`, and checks `net10.0`, C# 14, and an
+x64 or AnyCPU target. Leave `CheatEngineSdkGenerateEntryPoint` enabled unless you deliberately write the exact SDK
+manual bootstrap and explicitly set `CheatEngineClientManualBootstrap=true`.
 
 ## How it helps improve CheatEngine.Client
 
@@ -49,6 +51,17 @@ Deploy the complete `bin\Release\net10.0` managed output produced by that build,
 `.runtimeconfig.json`, `CheatEngine.SDK` assemblies, and the SDK Lua bridge assets. Do not publish this project as a
 Native AOT plugin binary: `IsAotCompatible` validates library compatibility only and is not a Cheat Engine plugin
 loader guarantee.
+
+To prepare a separate deployment folder without modifying Cheat Engine itself, pass an explicit output path:
+
+```powershell
+dotnet build .\CheatEngine.Plugin.csproj --configuration Release --no-restore `
+  -p:CheatEnginePluginOutputPath=C:\CheatEngineDeploy\CheatEngine.Plugin
+```
+
+The opt-in target validates and stages the managed closure before individually replacing destination files with
+write-through Windows replacement semantics. It never changes a Cheat Engine installation, configuration, or plugin
+list. Because Windows cannot transactionally swap a non-empty directory, run it only while the plugin is disabled.
 
 ## Configure and adapt
 

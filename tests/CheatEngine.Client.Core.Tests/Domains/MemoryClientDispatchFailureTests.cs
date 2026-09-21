@@ -95,6 +95,36 @@ public sealed class MemoryClientDispatchFailureTests
 	}
 
 	[Fact]
+	public void PrimitiveBatchesPreserveTheDispatcherFailureWithoutAdmittingAnyTargetOperation()
+	{
+		CheatEngineFailure expected = Failure("Test.Batch");
+		MemoryClient client = new(new RejectingDispatcher(expected));
+		MemoryPrimitiveBatchReadRequest<int> reads = new([Address, Address + 4]);
+		MemoryPrimitiveBatchWriteRequest<int> writes = new([new MemoryAddressValue<int>(Address, 12)]);
+
+		Assert.False(client.TryReadPrimitiveBatch(reads, out ImmutableArray<int> values,
+			out CheatEngineFailure readFailure,
+			TestContext.Current.CancellationToken));
+		Assert.True(values.IsEmpty);
+		Assert.Equal(expected, readFailure);
+		Assert.False(client.TryWritePrimitiveBatch(writes, out CheatEngineFailure writeFailure,
+			TestContext.Current.CancellationToken));
+		Assert.Equal(expected, writeFailure);
+	}
+
+	[Fact]
+	public void DefaultPrimitiveBatchesAreRejectedBeforeDispatch()
+	{
+		MemoryClient client = new(new RejectingDispatcher(Failure("Test.ShouldNotDispatch")));
+
+		Assert.Throws<ArgumentException>(() => client.TryReadPrimitiveBatch(default, out ImmutableArray<int> _, out _,
+			TestContext.Current.CancellationToken));
+		Assert.Throws<ArgumentException>(() => client.TryWritePrimitiveBatch(
+			default(MemoryPrimitiveBatchWriteRequest<int>), out _,
+			TestContext.Current.CancellationToken));
+	}
+
+	[Fact]
 	public void UnsupportedPrimitiveTypesReturnTheSpecificUnsupportedFailureWithoutAccessingTheHost()
 	{
 		MemoryClient client = new(new InlineDispatcher());

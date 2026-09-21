@@ -62,4 +62,25 @@ public sealed class ClientCapabilitiesTests
 		Assert.Equal("Client.Sample", capability.Value);
 		Assert.Equal(capability.Value, capability.ToString());
 	}
+
+	[Fact]
+	public void AdvancedDomainCapabilityIdentifiersAreStableAndDistinct()
+	{
+		ClientCapabilityId[] capabilities =
+		[
+			ClientCapabilityId.Allocations,
+			ClientCapabilityId.Assembly,
+			ClientCapabilityId.RemoteExecution,
+			ClientCapabilityId.Debugger,
+			ClientCapabilityId.Hotkeys,
+			ClientCapabilityId.Timers,
+			ClientCapabilityId.Speed,
+			ClientCapabilityId.Hashing,
+			ClientCapabilityId.Dbvm
+		];
+
+		Assert.Equal(9, capabilities.Length);
+		Assert.Equal(9, capabilities.Select(static capability => capability.Value).Distinct().Count());
+		Assert.All(capabilities, static capability => Assert.StartsWith("Client.", capability.Value));
+	}
 }

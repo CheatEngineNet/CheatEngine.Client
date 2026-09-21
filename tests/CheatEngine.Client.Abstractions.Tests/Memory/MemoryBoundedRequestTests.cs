@@ -83,6 +83,49 @@ public sealed class MemoryBoundedRequestTests
 	}
 
 	[Fact]
+	public void ExplicitStringFactoriesPreserveTheRequestedEncodingAndBound()
+	{
+		MemoryStringReadRequest read = MemoryStringReadRequest.Create(0x402210, 64, MemoryStringEncoding.Utf16);
+		MemoryStringWriteRequest write = MemoryStringWriteRequest.CreateBounded(0x402220, "é", 2,
+			MemoryStringEncoding.Utf8);
+
+		Assert.Equal(MemoryStringEncoding.Utf16, read.Encoding);
+		Assert.True(read.WideCharacter);
+		Assert.Equal(MemoryStringEncoding.Utf8, write.Encoding);
+		Assert.False(write.WideCharacter);
+		Assert.Equal(2, write.MaximumLength);
+	}
+
+	[Fact]
+	public void ExplicitBoundedStringFactoryRejectsAnOverlongUtf8Payload()
+	{
+		Assert.Throws<ArgumentException>(() => MemoryStringWriteRequest.CreateBounded(0x402230, "é", 1,
+			MemoryStringEncoding.Utf8));
+		Assert.Throws<ArgumentOutOfRangeException>(() => MemoryStringReadRequest.Create(0x402240, 10,
+			(MemoryStringEncoding) 42));
+	}
+
+	[Fact]
+	public void PrimitiveBatchRequestsCopyCallerInputsAndEnforceTheSharedBound()
+	{
+		Address[] addresses = [0x403000, 0x403010];
+		MemoryAddressValue<int>[] writes = [new(0x403020, 12), new(0x403024, 24)];
+
+		MemoryPrimitiveBatchReadRequest<int> reads = new(addresses);
+		MemoryPrimitiveBatchWriteRequest<int> batchWrites = new(writes);
+		addresses[0] = 0xDEAD;
+		writes[0] = new MemoryAddressValue<int>(0xDEAD, 99);
+
+		Assert.Equal([0x403000UL, 0x403010UL], reads.Addresses);
+		Assert.Equal(0x403020UL, batchWrites.Values[0].Address);
+		Assert.Equal(12, batchWrites.Values[0].Value);
+		Assert.Equal(MemoryBatchLimits.MaximumOperations, 1024);
+		Assert.Throws<ArgumentException>(() => new MemoryPrimitiveBatchReadRequest<int>(Array.Empty<Address>()));
+		Assert.Throws<ArgumentOutOfRangeException>(() => new MemoryPrimitiveBatchWriteRequest<int>(
+			new MemoryAddressValue<int>[MemoryBatchLimits.MaximumOperations + 1]));
+	}
+
+	[Fact]
 	public void PointerChainRequestCopiesOffsetsAndPreservesTheirOrder()
 	{
 		long[] offsets = [0x10, -0x20, 0x30];

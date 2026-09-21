@@ -14,4 +14,14 @@ public static class CheatEngineMemoryFluentExtensions
 	{
 		return Memory.At(memory, address);
 	}
+
+	/// <summary>Starts a bounded homogeneous primitive batch through the scoped target-memory service.</summary>
+	/// <typeparam name="T">The built-in scalar or target-aware pointer type.</typeparam>
+	/// <param name="memory">The scoped target-memory service used by terminal operations.</param>
+	/// <returns>An immutable batch builder bound to <paramref name="memory" />.</returns>
+	/// <exception cref="ArgumentNullException"><paramref name="memory" /> is <see langword="null" />.</exception>
+	public static MemoryPrimitiveBatchBuilder<T> Batch<T>(this IMemoryClient memory)
+	{
+		return Memory.Batch<T>(memory);
+	}
 }

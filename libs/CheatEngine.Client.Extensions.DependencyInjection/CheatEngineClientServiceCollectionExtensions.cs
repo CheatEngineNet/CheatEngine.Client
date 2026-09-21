@@ -1,15 +1,33 @@
+using CheatEngine.Client.Allocations;
+using CheatEngine.Client.Assembly;
 using CheatEngine.Client.Core;
 using CheatEngine.Client.Core.Dispatching;
 using CheatEngine.Client.Core.Domains;
+using CheatEngine.Client.Core.Domains.Allocations;
+using CheatEngine.Client.Core.Domains.Assembly;
+using CheatEngine.Client.Core.Domains.Dbvm;
+using CheatEngine.Client.Core.Domains.Debugger;
+using CheatEngine.Client.Core.Domains.Hashing;
+using CheatEngine.Client.Core.Domains.Hotkeys;
+using CheatEngine.Client.Core.Domains.RemoteExecution;
+using CheatEngine.Client.Core.Domains.Speed;
+using CheatEngine.Client.Core.Domains.Timers;
 using CheatEngine.Client.Core.Infrastructure;
+using CheatEngine.Client.Dbvm;
+using CheatEngine.Client.Debugger;
 using CheatEngine.Client.Dispatching;
+using CheatEngine.Client.Hashing;
+using CheatEngine.Client.Hotkeys;
 using CheatEngine.Client.Inspection;
 using CheatEngine.Client.Lua;
 using CheatEngine.Client.Memory;
 using CheatEngine.Client.Processes;
+using CheatEngine.Client.RemoteExecution;
 using CheatEngine.Client.Runtime;
 using CheatEngine.Client.Scanning;
+using CheatEngine.Client.Speed;
 using CheatEngine.Client.Tables;
+using CheatEngine.Client.Timers;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -118,6 +136,15 @@ public static class CheatEngineClientServiceCollectionExtensions
 			serviceProvider.GetRequiredService<PatternScanner>());
 
 		services.TryAddSingleton<IValueScanner, UnavailableValueScanner>();
+		services.TryAddSingleton<IAllocationClient, UnavailableAllocationClient>();
+		services.TryAddSingleton<IAssemblyClient, UnavailableAssemblyClient>();
+		services.TryAddSingleton<IRemoteExecutionClient, UnavailableRemoteExecutionClient>();
+		services.TryAddSingleton<IDebuggerClient, UnavailableDebuggerClient>();
+		services.TryAddSingleton<IHotkeyClient, UnavailableHotkeyClient>();
+		services.TryAddSingleton<ITimerClient, UnavailableTimerClient>();
+		services.TryAddSingleton<ISpeedClient, UnavailableSpeedClient>();
+		services.TryAddSingleton<IHashingClient, UnavailableHashingClient>();
+		services.TryAddSingleton<IDbvmClient, UnavailableDbvmClient>();
 
 		services.TryAddSingleton<InspectionClient>(static serviceProvider =>
 			new InspectionClient(
@@ -152,11 +179,36 @@ public static class CheatEngineClientServiceCollectionExtensions
 			IInspectionClient inspection = serviceProvider.GetRequiredService<IInspectionClient>();
 			ITableClient tables = serviceProvider.GetRequiredService<ITableClient>();
 			ILuaClient lua = serviceProvider.GetRequiredService<ILuaClient>();
+			IAllocationClient allocations = serviceProvider.GetRequiredService<IAllocationClient>();
+			IAssemblyClient assembly = serviceProvider.GetRequiredService<IAssemblyClient>();
+			IRemoteExecutionClient remoteExecution = serviceProvider.GetRequiredService<IRemoteExecutionClient>();
+			IDebuggerClient debugger = serviceProvider.GetRequiredService<IDebuggerClient>();
+			IHotkeyClient hotkeys = serviceProvider.GetRequiredService<IHotkeyClient>();
+			ITimerClient timers = serviceProvider.GetRequiredService<ITimerClient>();
+			ISpeedClient speed = serviceProvider.GetRequiredService<ISpeedClient>();
+			IHashingClient hashing = serviceProvider.GetRequiredService<IHashingClient>();
+			IDbvmClient dbvm = serviceProvider.GetRequiredService<IDbvmClient>();
 
 			return new CheatEngineClient(
 				lifetime,
 				new CheatEngineClientRuntimeServices(runtime, dispatcher),
-				new CheatEngineClientDomainServices(processes, memory, patterns, scans, inspection, tables, lua));
+				new CheatEngineClientDomainServices(
+					processes,
+					memory,
+					patterns,
+					scans,
+					inspection,
+					tables,
+					lua,
+					allocations,
+					assembly,
+					remoteExecution,
+					debugger,
+					hotkeys,
+					timers,
+					speed,
+					hashing,
+					dbvm));
 		});
 		services.TryAddSingleton<ICheatEngineClient>(static serviceProvider =>
 			serviceProvider.GetRequiredService<CheatEngineClient>());

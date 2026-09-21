@@ -1,11 +1,20 @@
+using CheatEngine.Client.Allocations;
+using CheatEngine.Client.Assembly;
+using CheatEngine.Client.Dbvm;
+using CheatEngine.Client.Debugger;
 using CheatEngine.Client.Dispatching;
+using CheatEngine.Client.Hashing;
+using CheatEngine.Client.Hotkeys;
 using CheatEngine.Client.Inspection;
 using CheatEngine.Client.Lua;
 using CheatEngine.Client.Memory;
 using CheatEngine.Client.Processes;
+using CheatEngine.Client.RemoteExecution;
 using CheatEngine.Client.Runtime;
 using CheatEngine.Client.Scanning;
+using CheatEngine.Client.Speed;
 using CheatEngine.Client.Tables;
+using CheatEngine.Client.Timers;
 
 namespace CheatEngine.Client;
 
@@ -79,6 +88,60 @@ public interface ICheatEngineClient
 
 	/// <summary>Gets the protected, handle-free Lua execution service.</summary>
 	public ILuaClient Lua
+	{
+		get;
+	}
+
+	/// <summary>Gets owned target-memory allocation operations.</summary>
+	public IAllocationClient Allocations
+	{
+		get;
+	}
+
+	/// <summary>Gets copied assembly, disassembly, comment, and Auto Assembler patch operations.</summary>
+	public IAssemblyClient Assembly
+	{
+		get;
+	}
+
+	/// <summary>Gets bounded DLL injection and remote-call operations.</summary>
+	public IRemoteExecutionClient RemoteExecution
+	{
+		get;
+	}
+
+	/// <summary>Gets breakpoint and copied debugger-event operations.</summary>
+	public IDebuggerClient Debugger
+	{
+		get;
+	}
+
+	/// <summary>Gets activation-scoped hotkey operations.</summary>
+	public IHotkeyClient Hotkeys
+	{
+		get;
+	}
+
+	/// <summary>Gets activation-scoped timer operations.</summary>
+	public ITimerClient Timers
+	{
+		get;
+	}
+
+	/// <summary>Gets validated target-speed operations.</summary>
+	public ISpeedClient Speed
+	{
+		get;
+	}
+
+	/// <summary>Gets explicitly separated target-memory and file hashing operations.</summary>
+	public IHashingClient Hashing
+	{
+		get;
+	}
+
+	/// <summary>Gets observational and explicitly initialized DBVM operations.</summary>
+	public IDbvmClient Dbvm
 	{
 		get;
 	}

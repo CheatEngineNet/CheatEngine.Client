@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
@@ -32,6 +33,21 @@ public sealed class LuaContractTests
 		Assert.Equal("=calculation", script.ChunkName);
 	}
 
+	/// <summary>Preserves copied module metadata and rejects duplicate Lua global ownership declarations.</summary>
+	[Fact]
+	public void LuaModuleDescriptorOwnsAStableIdentityAndUniqueCopiedExports()
+	{
+		LuaModuleDescriptor descriptor = new(
+			"plugin",
+			ImmutableArray.Create(new LuaExportDescriptor("plugin_status"), new LuaExportDescriptor("plugin_ping")));
+
+		Assert.Equal("plugin", descriptor.Name);
+		Assert.Equal(["plugin_status", "plugin_ping"], descriptor.Exports.Select(static export => export.Name));
+		Assert.Throws<ArgumentException>(() => new LuaModuleDescriptor(
+			"plugin",
+			ImmutableArray.Create(new LuaExportDescriptor("duplicate"), new LuaExportDescriptor("duplicate"))));
+	}
+
 	/// <summary>Ensures public Lua contracts remain handle-free at every reflected signature boundary.</summary>
 	[Fact]
 	public void PublicLuaContractsDoNotExposeRawSdkLuaHandles()
@@ -41,10 +57,16 @@ public sealed class LuaContractTests
 			typeof(ILuaClient),
 			typeof(ILuaModule),
 			typeof(ILuaModuleLease),
+			typeof(IDescribedLuaModule),
 			typeof(ILuaOperation<>),
+			typeof(ILuaResultMapper<,>),
 			typeof(ILuaExecutionContext),
 			typeof(IUnsafeLuaClient),
-			typeof(LuaScript)
+			typeof(LuaScript),
+			typeof(LuaModuleDescriptor),
+			typeof(LuaExportDescriptor),
+			typeof(CheatEngineLuaModuleAttribute),
+			typeof(CheatEngineLuaOperationAttribute)
 		];
 
 		IEnumerable<string> signatures = contracts.SelectMany(GetPublicSignatureTypes)
@@ -74,6 +96,32 @@ public sealed class LuaContractTests
 		Assert.Equal(42, tryExecuteResult);
 		Assert.Equal(default, failure);
 		Assert.Equal(2, operation.ExecutionCount);
+	}
+
+	/// <summary>Preserves the value-type operation overload for third-party Lua client implementations.</summary>
+	[Fact]
+	public void DefaultValueOperationOverloadsRemainCompatibleWithExistingImplementations()
+	{
+		ILuaClient client = new ForwardingLuaClient();
+		StructIntLuaOperation operation = new(17);
+
+		bool succeeded = client.TryExecute(
+			operation,
+			out int result,
+			out CheatEngineFailure failure,
+			TestContext.Current.CancellationToken);
+
+		Assert.True(succeeded);
+		Assert.Equal(17, result);
+		Assert.Equal(default, failure);
+		Assert.Equal(17, client.Execute<StructIntLuaOperation, int>(operation, TestContext.Current.CancellationToken));
+	}
+
+	/// <summary>Uses static abstract mapper dispatch without reflection or an SDK handle in the result.</summary>
+	[Fact]
+	public void LuaResultMapperUsesTheDeclaredStaticMapContract()
+	{
+		Assert.Equal("value:42", TextMapper.Map(new MappingSource(42)));
 	}
 
 	private static IEnumerable<Type> GetPublicSignatureTypes(Type type)
@@ -158,6 +206,28 @@ public sealed class LuaContractTests
 			operationResult = result;
 			failure = default;
 			return true;
+		}
+	}
+
+	private readonly struct StructIntLuaOperation(int value) : ILuaOperation<int>
+	{
+		public bool TryExecute(ILuaExecutionContext context, out int result, out CheatEngineFailure failure)
+		{
+			ArgumentNullException.ThrowIfNull(context);
+			context.ThrowIfExpired();
+			result = value;
+			failure = default;
+			return true;
+		}
+	}
+
+	private readonly record struct MappingSource(int Value);
+
+	private readonly struct TextMapper : ILuaResultMapper<MappingSource, string>
+	{
+		public static string Map(MappingSource source)
+		{
+			return $"value:{source.Value}";
 		}
 	}
 

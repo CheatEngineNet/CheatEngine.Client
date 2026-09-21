@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 using CheatEngine.Client.Core.Domains;
 using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Dispatching;
@@ -62,6 +64,127 @@ public sealed class LuaModuleRegistrationTests
 		firstLease.Dispose();
 
 		Assert.Equal(["diagnostics.register", "diagnostics.unregister"], module.Events);
+	}
+
+	[Fact]
+	public void TryRegisterModuleAllowsSeparateManualModulesBecauseTheyDoNotClaimGlobalNames()
+	{
+		ImmediateDispatcher dispatcher = new();
+		RecordingModule first = new("first");
+		RecordingModule second = new("second");
+		LuaClient client = CreateClient(dispatcher, static () => true);
+
+		using ILuaModuleLease firstLease = client.RegisterModule(first, TestContext.Current.CancellationToken);
+		using ILuaModuleLease secondLease = client.RegisterModule(second, TestContext.Current.CancellationToken);
+
+		Assert.Equal(["first.register"], first.Events);
+		Assert.Equal(["second.register"], second.Events);
+	}
+
+	[Fact]
+	public void TryRegisterModuleRejectsAnAlreadyReservedDescribedModuleIdentityBeforeLuaMutation()
+	{
+		ImmediateDispatcher dispatcher = new();
+		DescribedRecordingModule first = new("first", "diagnostics", ["first_export"]);
+		DescribedRecordingModule second = new("second", "diagnostics", ["second_export"]);
+		LuaClient client = CreateClient(dispatcher, static () => true);
+
+		using ILuaModuleLease firstLease = client.RegisterModule(first, TestContext.Current.CancellationToken);
+		bool succeeded = client.TryRegisterModule(second, out ILuaModuleLease? lease, out CheatEngineFailure failure,
+			TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Null(lease);
+		Assert.Equal(CheatEngineFailureKind.InvalidState, failure.Kind);
+		Assert.Equal("Lua.RegisterModule", failure.Operation);
+		Assert.Contains("identity 'diagnostics'", failure.Message, StringComparison.Ordinal);
+		Assert.Equal(["first.register"], first.Events);
+		Assert.Empty(second.Events);
+		Assert.Equal(1, dispatcher.InvocationCount);
+	}
+
+	[Fact]
+	public void TryRegisterModuleRejectsAnAlreadyReservedDescribedExportBeforeLuaMutation()
+	{
+		ImmediateDispatcher dispatcher = new();
+		DescribedRecordingModule first = new("first", "first", ["diagnostics"]);
+		DescribedRecordingModule second = new("second", "second", ["diagnostics"]);
+		LuaClient client = CreateClient(dispatcher, static () => true);
+
+		using ILuaModuleLease firstLease = client.RegisterModule(first, TestContext.Current.CancellationToken);
+		bool succeeded = client.TryRegisterModule(second, out ILuaModuleLease? lease, out CheatEngineFailure failure,
+			TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Null(lease);
+		Assert.Equal(CheatEngineFailureKind.InvalidState, failure.Kind);
+		Assert.Contains("export 'diagnostics'", failure.Message, StringComparison.Ordinal);
+		Assert.Equal(["first.register"], first.Events);
+		Assert.Empty(second.Events);
+		Assert.Equal(1, dispatcher.InvocationCount);
+	}
+
+	[Fact]
+	public void FailedDescribedRegistrationReleasesItsNameReservationForTheNextModule()
+	{
+		ImmediateDispatcher dispatcher = new();
+		DescribedRecordingModule failed = new("failed", "diagnostics", ["diagnostics"],
+			new InvalidOperationException("generated registration failed"));
+		DescribedRecordingModule replacement = new("replacement", "diagnostics", ["diagnostics"]);
+		LuaClient client = CreateClient(dispatcher, static () => true);
+
+		Assert.False(client.TryRegisterModule(failed, out _, out CheatEngineFailure failure,
+			TestContext.Current.CancellationToken));
+		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
+		using ILuaModuleLease lease = client.RegisterModule(replacement, TestContext.Current.CancellationToken);
+
+		Assert.Equal(["failed.register"], failed.Events);
+		Assert.Equal(["replacement.register"], replacement.Events);
+	}
+
+	[Fact]
+	public async Task ConcurrentDescribedRegistrationRejectsTheSecondModuleBeforeEitherOfItsLuaExportsMutate()
+	{
+		using BlockingDispatcher dispatcher = new();
+		DescribedRecordingModule first = new("first", "one", ["diagnostics"]);
+		DescribedRecordingModule second = new("second", "two", ["diagnostics"]);
+		LuaClient client = CreateClient(dispatcher, static () => true);
+		ILuaModuleLease? firstLease = null;
+
+		Task<bool> firstRegistration = Task.Run(() =>
+			client.TryRegisterModule(first, out firstLease, out _, CancellationToken.None));
+		Assert.True(dispatcher.WaitUntilEntered(TimeSpan.FromSeconds(5)));
+
+		bool secondSucceeded = client.TryRegisterModule(second, out ILuaModuleLease? secondLease,
+			out CheatEngineFailure secondFailure, TestContext.Current.CancellationToken);
+		dispatcher.Release();
+
+		Assert.True(await firstRegistration);
+		Assert.False(secondSucceeded);
+		Assert.Null(secondLease);
+		Assert.Equal(CheatEngineFailureKind.InvalidState, secondFailure.Kind);
+		Assert.Empty(second.Events);
+		Assert.Equal(["first.register"], first.Events);
+		firstLease!.Dispose();
+	}
+
+	[Fact]
+	public void TryRegisterModuleHonorsCancellationBeforeReservingOrDispatching()
+	{
+		using CancellationTokenSource cancellation = new();
+		cancellation.Cancel();
+		ImmediateDispatcher dispatcher = new();
+		DescribedRecordingModule module = new("diagnostics", "diagnostics", ["diagnostics"]);
+		LuaClient client = CreateClient(dispatcher, static () => true);
+
+		bool succeeded = client.TryRegisterModule(module, out ILuaModuleLease? lease, out CheatEngineFailure failure,
+			cancellation.Token);
+
+		Assert.False(succeeded);
+		Assert.Null(lease);
+		Assert.Equal(CheatEngineFailureKind.Cancelled, failure.Kind);
+		Assert.Empty(module.Events);
+		Assert.Equal(0, dispatcher.InvocationCount);
 	}
 
 	[Fact]
@@ -270,6 +393,39 @@ public sealed class LuaModuleRegistrationTests
 		}
 	}
 
+	private sealed class DescribedRecordingModule : IDescribedLuaModule
+	{
+		private readonly RecordingModule _inner;
+
+		internal DescribedRecordingModule(
+			string name,
+			string moduleName,
+			string[] exports,
+			Exception? registerException = null)
+		{
+			_inner = new RecordingModule(name, registerException);
+			Descriptor = new LuaModuleDescriptor(moduleName,
+				exports.Select(static export => new LuaExportDescriptor(export)).ToImmutableArray());
+		}
+
+		internal List<string> Events => _inner.Events;
+
+		public LuaModuleDescriptor Descriptor
+		{
+			get;
+		}
+
+		public void Register()
+		{
+			_inner.Register();
+		}
+
+		public void Unregister()
+		{
+			_inner.Unregister();
+		}
+	}
+
 	private sealed class ImmediateDispatcher : ICheatEngineDispatcher
 	{
 		public int InvocationCount
@@ -341,6 +497,79 @@ public sealed class LuaModuleRegistrationTests
 
 			failure.Throw();
 			return default!;
+		}
+	}
+
+	private sealed class BlockingDispatcher : ICheatEngineDispatcher, IDisposable
+	{
+		private readonly ManualResetEventSlim _entered = new(false);
+		private readonly ManualResetEventSlim _release = new(false);
+
+		public int InvocationCount
+		{
+			get;
+			private set;
+		}
+
+		public bool IsMainThread => true;
+
+		public bool TryInvoke(Action callback, out CheatEngineFailure failure,
+			CancellationToken cancellationToken = default)
+		{
+			ArgumentNullException.ThrowIfNull(callback);
+			InvocationCount++;
+			_entered.Set();
+			_release.Wait(cancellationToken);
+			callback();
+			failure = default;
+			return true;
+		}
+
+		public bool TryInvoke<TResult>(Func<TResult> callback, out TResult result, out CheatEngineFailure failure,
+			CancellationToken cancellationToken = default)
+		{
+			ArgumentNullException.ThrowIfNull(callback);
+			InvocationCount++;
+			_entered.Set();
+			_release.Wait(cancellationToken);
+			result = callback();
+			failure = default;
+			return true;
+		}
+
+		public void Invoke(Action callback, CancellationToken cancellationToken = default)
+		{
+			if (!TryInvoke(callback, out CheatEngineFailure failure, cancellationToken))
+			{
+				failure.Throw();
+			}
+		}
+
+		public TResult Invoke<TResult>(Func<TResult> callback, CancellationToken cancellationToken = default)
+		{
+			if (TryInvoke(callback, out TResult result, out CheatEngineFailure failure, cancellationToken))
+			{
+				return result;
+			}
+
+			failure.Throw();
+			return default!;
+		}
+
+		public void Dispose()
+		{
+			_entered.Dispose();
+			_release.Dispose();
+		}
+
+		public void Release()
+		{
+			_release.Set();
+		}
+
+		internal bool WaitUntilEntered(TimeSpan timeout)
+		{
+			return _entered.Wait(timeout);
 		}
 	}
 }

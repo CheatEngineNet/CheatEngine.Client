@@ -18,7 +18,9 @@ public sealed class Plugin : CheatEngineClientPlugin
             .SetBasePath(AppContext.BaseDirectory)
             .AddJsonFile("appsettings.json", optional: true, reloadOnChange: false);
 
-        builder.Client.AddModule<PluginClientModule>();
+        builder.Client
+            .AddLuaModule<PluginLuaModule>()
+            .AddModule<PluginClientModule>();
     }
 
     /// <summary>Runs after the Client activation scope and its modules have started.</summary>

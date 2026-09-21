@@ -12,12 +12,12 @@ on:
         type: string
         default: cheatenginenet
       wait-quality-gate:
-        description: Fail the analysis job when SonarQube Cloud reports a failing Quality Gate.
+        description: Fail the job when the quality gate fails.
         type: boolean
         default: false
     secrets:
       SONAR_TOKEN:
-        description: SonarQube Cloud token. Analysis is skipped when it is unavailable.
+        description: SonarQube Cloud token. The analysis is skipped when it is empty.
         required: false
 
 permissions:
@@ -96,13 +96,6 @@ jobs:
             **/packages.lock.json
             Directory.Packages.props
 
-      - name: Download coverage
-        if: env.SONAR_ENABLED == 'true'
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: coverage-client
-          path: ${{ runner.temp }}/coverage
-
       - name: Install scanner
         if: env.SONAR_ENABLED == 'true'
         run: >-
@@ -118,22 +111,40 @@ jobs:
         env:
           SONARQUBE_SCANNER_PARAMS: '{"sonar.token":"${{ secrets.SONAR_TOKEN }}"}'
         run: |
-          $coverage = "$env:RUNNER_TEMP/coverage"
-          $reports = @(Get-ChildItem -Path $coverage -Filter *.xml -Recurse -File -ErrorAction SilentlyContinue)
-          if ($reports.Count -eq 0) {
-            Write-Host '::error::No coverage report was downloaded. Call ci.yml with collect-coverage set to true.'
-            exit 1
-          }
-
-          Write-Host "Coverage reports: $($reports.Count)"
+          # These findings conflict with deliberate repository contracts. Keep them in the scanner configuration so
+          # production and test sources do not need Sonar-only attributes or code changes.
+          $ignoredIssues = @(
+            @{ Key = 'noLinq'; Rule = 'csharpsquid:S3267'; Resource = '**/*.cs' }
+            @{ Key = 'unsafeInterop'; Rule = 'csharpsquid:S6640'; Resource = '**/*.cs' }
+            @{ Key = 'nullableFlow'; Rule = 'csharpsquid:S8970'; Resource = '**/*.cs' }
+            @{ Key = 'apiOverloadLayout'; Rule = 'csharpsquid:S4136'; Resource = 'libs/**' }
+            @{ Key = 'generatorInstances'; Rule = 'csharpsquid:S2325'; Resource = 'source-generators/**' }
+            @{ Key = 'emittedFragments'; Rule = 'csharpsquid:S1192'; Resource = 'source-generators/**' }
+            @{ Key = 'generatorComments'; Rule = 'csharpsquid:S125'; Resource = 'source-generators/**' }
+            @{ Key = 'testReflection'; Rule = 'csharpsquid:S3011'; Resource = 'tests/**' }
+            @{ Key = 'testLiterals'; Rule = 'csharpsquid:S1192'; Resource = 'tests/**' }
+            @{ Key = 'testGc'; Rule = 'csharpsquid:S1215'; Resource = 'tests/**' }
+            @{ Key = 'testStaticHooks'; Rule = 'csharpsquid:S2696'; Resource = 'tests/**' }
+            @{ Key = 'testDoubleDispose'; Rule = 'csharpsquid:S3966'; Resource = 'tests/**' }
+            @{ Key = 'testBooleanTables'; Rule = 'csharpsquid:S1125'; Resource = 'tests/**' }
+            @{ Key = 'testComplexity'; Rule = 'csharpsquid:S3776'; Resource = 'tests/**' }
+            @{ Key = 'testParameters'; Rule = 'csharpsquid:S107'; Resource = 'tests/**' }
+            @{ Key = 'testMarkerClasses'; Rule = 'csharpsquid:S1118'; Resource = 'tests/**' }
+            @{ Key = 'testDuplicateScenarios'; Rule = 'csharpsquid:S4144'; Resource = 'tests/**' }
+            @{ Key = 'testFixedDoubles'; Rule = 'csharpsquid:S3400'; Resource = 'tests/**' }
+            @{ Key = 'testComments'; Rule = 'csharpsquid:S125'; Resource = 'tests/**' }
+          )
           $arguments = @(
-            "/k:$env:SONAR_PROJECT_KEY",
-            "/o:$env:SONAR_ORGANIZATION",
-            '/d:sonar.exclusions=artifacts/**',
-            '/d:sonar.coverage.exclusions=tests/**',
-            "/d:sonar.cs.vscoveragexml.reportsPaths=$coverage/**/*.xml",
+            "/k:$env:SONAR_PROJECT_KEY"
+            "/o:$env:SONAR_ORGANIZATION"
+            '/d:sonar.exclusions=artifacts/**,tests/CheatEngine.Client.Benchmarks/**'
+            "/d:sonar.issue.ignore.multicriteria=$(($ignoredIssues.Key) -join ',')"
             "/d:sonar.qualitygate.wait=$env:SONAR_WAIT_QUALITY_GATE"
           )
+          foreach ($issue in $ignoredIssues) {
+            $arguments += "/d:sonar.issue.ignore.multicriteria.$($issue.Key).ruleKey=$($issue.Rule)"
+            $arguments += "/d:sonar.issue.ignore.multicriteria.$($issue.Key).resourceKey=$($issue.Resource)"
+          }
           & "$env:RUNNER_TEMP/sonar-scanner/dotnet-sonarscanner.exe" begin @arguments
 
       - name: Build

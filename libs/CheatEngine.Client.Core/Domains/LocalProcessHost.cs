@@ -32,6 +32,21 @@ internal sealed class LocalProcessHost : IProcessHost
 		}
 	}
 
+	public IReadOnlyList<LocalProcessInfo> GetLocalProcesses()
+	{
+		using ProcessCollection processes = new(Process.GetProcesses());
+		List<LocalProcessInfo> captured = new(processes.Count);
+		for (int index = 0; index < processes.Count; index++)
+		{
+			if (TryCapture(processes[index], out LocalProcessInfo process))
+			{
+				captured.Add(process);
+			}
+		}
+
+		return captured;
+	}
+
 	public IReadOnlyList<LocalProcessInfo> FindProcessesByExactName(string processName)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(processName);

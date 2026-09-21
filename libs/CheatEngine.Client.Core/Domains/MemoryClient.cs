@@ -1,6 +1,10 @@
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using System.Text;
 
+using CheatEngine.Client.Core.Dispatching;
 using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Memory;
@@ -18,27 +22,25 @@ internal sealed class MemoryClient(ICheatEngineDispatcher dispatcher) : IMemoryC
 	public bool TryReadPrimitive<T>(Address address, [MaybeNullWhen(false)] out T value,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
-		T? captured = default;
-		string? hostFailure = null;
-		bool succeeded = false;
-		if (!_dispatcher.TryInvoke(() => succeeded = TryReadKnown(address, out captured, out hostFailure),
-			    out failure, cancellationToken))
+		if (!TryInvoke(address, static current => PrimitiveMemoryCodec<T>.Read(current),
+			    out PrimitiveReadOutcome<T> outcome, out failure, cancellationToken))
 		{
 			value = default;
 			return false;
 		}
 
-		if (!succeeded)
+		if (!outcome.Succeeded)
 		{
 			value = default;
-			failure = hostFailure is null
+			failure = !outcome.Handled
 				? new CheatEngineFailure(CheatEngineFailureKind.Unsupported, "Memory.ReadPrimitive",
 					$"'{typeof(T).FullName}' is not a built-in CheatEngine.Client memory type.")
-				: new CheatEngineFailure(CheatEngineFailureKind.MemoryReadFailed, "Memory.ReadPrimitive", hostFailure);
+				: new CheatEngineFailure(CheatEngineFailureKind.MemoryReadFailed, "Memory.ReadPrimitive",
+					outcome.Failure ?? "Cheat Engine rejected the target-memory read.");
 			return false;
 		}
 
-		value = captured!;
+		value = outcome.Value;
 		failure = default;
 		return true;
 	}
@@ -57,23 +59,20 @@ internal sealed class MemoryClient(ICheatEngineDispatcher dispatcher) : IMemoryC
 	public bool TryWritePrimitive<T>(Address address, T value, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
-		string? hostFailure = null;
-		bool handled = false;
-		bool succeeded = false;
-		if (!_dispatcher.TryInvoke(
-			    () => succeeded = TryWriteKnown(address, value, out handled, out hostFailure),
-			    out failure, cancellationToken))
+		PrimitiveWriteInput<T> input = new(address, value);
+		if (!TryInvoke(input, static current => PrimitiveMemoryCodec<T>.Write(current.Address, current.Value),
+			    out PrimitiveWriteOutcome outcome, out failure, cancellationToken))
 		{
 			return false;
 		}
 
-		if (!succeeded)
+		if (!outcome.Succeeded)
 		{
-			failure = !handled
+			failure = !outcome.Handled
 				? new CheatEngineFailure(CheatEngineFailureKind.Unsupported, "Memory.WritePrimitive",
 					$"'{typeof(T).FullName}' is not a built-in CheatEngine.Client memory type.")
 				: new CheatEngineFailure(CheatEngineFailureKind.MemoryWriteFailed, "Memory.WritePrimitive",
-					hostFailure ?? "Cheat Engine rejected the target-memory write.");
+					outcome.Failure ?? "Cheat Engine rejected the target-memory write.");
 			return false;
 		}
 
@@ -84,6 +83,79 @@ internal sealed class MemoryClient(ICheatEngineDispatcher dispatcher) : IMemoryC
 	public void WritePrimitive<T>(Address address, T value, CancellationToken cancellationToken = default)
 	{
 		if (!TryWritePrimitive(address, value, out CheatEngineFailure failure, cancellationToken))
+		{
+			failure.Throw();
+		}
+	}
+
+	public bool TryReadPrimitiveBatch<T>(MemoryPrimitiveBatchReadRequest<T> request, out ImmutableArray<T> values,
+		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
+	{
+		ValidateBatch(request.Addresses, nameof(request));
+		if (!TryInvoke(request, static current => PrimitiveMemoryCodec<T>.ReadBatch(current),
+			    out PrimitiveBatchReadOutcome<T> outcome, out failure, cancellationToken))
+		{
+			values = [];
+			return false;
+		}
+
+		if (!outcome.Succeeded)
+		{
+			values = [];
+			failure = !outcome.Handled
+				? new CheatEngineFailure(CheatEngineFailureKind.Unsupported, "Memory.ReadPrimitiveBatch",
+					$"'{typeof(T).FullName}' is not a built-in CheatEngine.Client memory type.")
+				: new CheatEngineFailure(CheatEngineFailureKind.MemoryReadFailed, "Memory.ReadPrimitiveBatch",
+					$"The batch read failed at index {outcome.FailedIndex}: {outcome.Failure}");
+			return false;
+		}
+
+		values = ImmutableCollectionsMarshal.AsImmutableArray(outcome.Values!);
+		failure = default;
+		return true;
+	}
+
+	public ImmutableArray<T> ReadPrimitiveBatch<T>(MemoryPrimitiveBatchReadRequest<T> request,
+		CancellationToken cancellationToken = default)
+	{
+		if (TryReadPrimitiveBatch(request, out ImmutableArray<T> values, out CheatEngineFailure failure,
+			    cancellationToken))
+		{
+			return values;
+		}
+
+		failure.Throw();
+		return [];
+	}
+
+	public bool TryWritePrimitiveBatch<T>(MemoryPrimitiveBatchWriteRequest<T> request,
+		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
+	{
+		ValidateBatch(request.Values, nameof(request));
+		if (!TryInvoke(request, static current => PrimitiveMemoryCodec<T>.WriteBatch(current),
+			    out PrimitiveBatchWriteOutcome outcome, out failure, cancellationToken))
+		{
+			return false;
+		}
+
+		if (!outcome.Succeeded)
+		{
+			failure = !outcome.Handled
+				? new CheatEngineFailure(CheatEngineFailureKind.Unsupported, "Memory.WritePrimitiveBatch",
+					$"'{typeof(T).FullName}' is not a built-in CheatEngine.Client memory type.")
+				: new CheatEngineFailure(CheatEngineFailureKind.MemoryWriteFailed, "Memory.WritePrimitiveBatch",
+					$"The batch write failed at index {outcome.FailedIndex}: {outcome.Failure}");
+			return false;
+		}
+
+		failure = default;
+		return true;
+	}
+
+	public void WritePrimitiveBatch<T>(MemoryPrimitiveBatchWriteRequest<T> request,
+		CancellationToken cancellationToken = default)
+	{
+		if (!TryWritePrimitiveBatch(request, out CheatEngineFailure failure, cancellationToken))
 		{
 			failure.Throw();
 		}
@@ -169,7 +241,7 @@ internal sealed class MemoryClient(ICheatEngineDispatcher dispatcher) : IMemoryC
 			    succeeded = TargetMemory.TryReadBytes(request.Address, buffer, out MemoryAccessFailure sdkFailure);
 			    if (succeeded)
 			    {
-				    captured = ImmutableArray.CreateRange(buffer);
+				    captured = ImmutableCollectionsMarshal.AsImmutableArray(buffer);
 			    }
 			    else
 			    {
@@ -271,6 +343,11 @@ internal sealed class MemoryClient(ICheatEngineDispatcher dispatcher) : IMemoryC
 		CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(request.Value);
+		if (request.MaximumLength > 0 && GetEncodedLength(request.Value, request.WideCharacter) > request.MaximumLength)
+		{
+			throw new ArgumentException("The encoded text exceeds the explicit maximum length.", nameof(request));
+		}
+
 		string? hostFailure = null;
 		bool succeeded = false;
 		if (!_dispatcher.TryInvoke(() =>
@@ -350,6 +427,19 @@ internal sealed class MemoryClient(ICheatEngineDispatcher dispatcher) : IMemoryC
 		return default;
 	}
 
+	private bool TryInvoke<TState, TResult>(TState state, Func<TState, TResult> callback,
+		[MaybeNullWhen(false)] out TResult result, out CheatEngineFailure failure,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(callback);
+		if (_dispatcher is IStatefulCheatEngineDispatcher statefulDispatcher)
+		{
+			return statefulDispatcher.TryInvoke(state, callback, out result, out failure, cancellationToken);
+		}
+
+		return _dispatcher.TryInvoke(() => callback(state), out result, out failure, cancellationToken);
+	}
+
 	private static bool TryReadCore<T>(MemoryReadRequest<T> request, [MaybeNullWhen(false)] out T value,
 		out string? failure)
 	{
@@ -378,158 +468,23 @@ internal sealed class MemoryClient(ICheatEngineDispatcher dispatcher) : IMemoryC
 		return false;
 	}
 
-	private static bool TryReadKnown<T>(Address address, [MaybeNullWhen(false)] out T value, out string? failure)
+	private static void ValidateBatch<T>(ImmutableArray<T> values, string parameterName)
 	{
-		object? boxed = null;
-		bool succeeded;
-		if (typeof(T) == typeof(byte))
+		if (values.IsDefaultOrEmpty)
 		{
-			succeeded = Read<byte>(TargetMemory.TryReadUInt8, address, out boxed, out failure);
-		}
-		else if (typeof(T) == typeof(sbyte))
-		{
-			succeeded = Read<sbyte>(TargetMemory.TryReadInt8, address, out boxed, out failure);
-		}
-		else if (typeof(T) == typeof(ushort))
-		{
-			succeeded = Read<ushort>(TargetMemory.TryReadUInt16, address, out boxed, out failure);
-		}
-		else if (typeof(T) == typeof(short))
-		{
-			succeeded = Read<short>(TargetMemory.TryReadInt16, address, out boxed, out failure);
-		}
-		else if (typeof(T) == typeof(uint))
-		{
-			succeeded = Read<uint>(TargetMemory.TryReadUInt32, address, out boxed, out failure);
-		}
-		else if (typeof(T) == typeof(int))
-		{
-			succeeded = Read<int>(TargetMemory.TryReadInt32, address, out boxed, out failure);
-		}
-		else if (typeof(T) == typeof(ulong))
-		{
-			succeeded = Read<ulong>(TargetMemory.TryReadUInt64, address, out boxed, out failure);
-		}
-		else if (typeof(T) == typeof(long))
-		{
-			succeeded = Read<long>(TargetMemory.TryReadInt64, address, out boxed, out failure);
-		}
-		else if (typeof(T) == typeof(float))
-		{
-			succeeded = Read<float>(TargetMemory.TryReadSingle, address, out boxed, out failure);
-		}
-		else if (typeof(T) == typeof(double))
-		{
-			succeeded = Read<double>(TargetMemory.TryReadDouble, address, out boxed, out failure);
-		}
-		else if (typeof(T) == typeof(Address))
-		{
-			succeeded = Read<Address>(TargetMemory.TryReadPointer, address, out boxed, out failure);
-		}
-		else
-		{
-			value = default;
-			failure = null;
-			return false;
+			throw new ArgumentException("A memory batch requires at least one operation.", parameterName);
 		}
 
-		if (succeeded && boxed is T typed)
+		if (values.Length > MemoryBatchLimits.MaximumOperations)
 		{
-			value = typed;
-			return true;
+			throw new ArgumentOutOfRangeException(parameterName,
+				$"A memory batch is limited to {MemoryBatchLimits.MaximumOperations} operations.");
 		}
-
-		value = default;
-		return false;
 	}
 
-	private static bool TryWriteKnown<T>(Address address, T value, out bool handled, out string? failure)
+	private static int GetEncodedLength(string value, bool wideCharacter)
 	{
-		handled = true;
-		if (typeof(T) == typeof(byte))
-		{
-			return Write(TargetMemory.TryWriteUInt8, address, (byte) (object) value!, out failure);
-		}
-
-		if (typeof(T) == typeof(sbyte))
-		{
-			return Write(TargetMemory.TryWriteInt8, address, (sbyte) (object) value!, out failure);
-		}
-
-		if (typeof(T) == typeof(ushort))
-		{
-			return Write(TargetMemory.TryWriteUInt16, address, (ushort) (object) value!, out failure);
-		}
-
-		if (typeof(T) == typeof(short))
-		{
-			return Write(TargetMemory.TryWriteInt16, address, (short) (object) value!, out failure);
-		}
-
-		if (typeof(T) == typeof(uint))
-		{
-			return Write(TargetMemory.TryWriteUInt32, address, (uint) (object) value!, out failure);
-		}
-
-		if (typeof(T) == typeof(int))
-		{
-			return Write(TargetMemory.TryWriteInt32, address, (int) (object) value!, out failure);
-		}
-
-		if (typeof(T) == typeof(ulong))
-		{
-			return Write(TargetMemory.TryWriteUInt64, address, (ulong) (object) value!, out failure);
-		}
-
-		if (typeof(T) == typeof(long))
-		{
-			return Write(TargetMemory.TryWriteInt64, address, (long) (object) value!, out failure);
-		}
-
-		if (typeof(T) == typeof(float))
-		{
-			return Write(TargetMemory.TryWriteSingle, address, (float) (object) value!, out failure);
-		}
-
-		if (typeof(T) == typeof(double))
-		{
-			return Write(TargetMemory.TryWriteDouble, address, (double) (object) value!, out failure);
-		}
-
-		if (typeof(T) == typeof(Address))
-		{
-			return Write(TargetMemory.TryWritePointer, address, (Address) (object) value!, out failure);
-		}
-
-		handled = false;
-		failure = null;
-		return false;
-	}
-
-	private static bool Read<T>(Reader<T> reader, Address address, out object? value, out string? failure)
-	{
-		if (reader(address, out T result, out MemoryAccessFailure sdkFailure))
-		{
-			value = result;
-			failure = null;
-			return true;
-		}
-
-		value = null;
-		failure = sdkFailure.ToString();
-		return false;
-	}
-
-	private static bool Write<T>(Writer<T> writer, Address address, T value, out string? failure)
-	{
-		if (writer(address, value, out MemoryAccessFailure sdkFailure))
-		{
-			failure = null;
-			return true;
-		}
-
-		failure = sdkFailure.ToString();
-		return false;
+		return wideCharacter ? value.Length : Encoding.UTF8.GetByteCount(value);
 	}
 
 	private static bool TryMapMemoryFailure(bool succeeded, bool isWrite, string operation, string? hostFailure,
@@ -546,6 +501,203 @@ internal sealed class MemoryClient(ICheatEngineDispatcher dispatcher) : IMemoryC
 			operation,
 			hostFailure ?? "Cheat Engine rejected the target-memory operation.");
 		return false;
+	}
+
+	private static TTo Reinterpret<TFrom, TTo>(TFrom value)
+	{
+		return Unsafe.As<TFrom, TTo>(ref value);
+	}
+
+	private readonly record struct PrimitiveWriteInput<T>(Address Address, T Value);
+
+	private readonly record struct PrimitiveReadOutcome<T>(bool Handled, bool Succeeded, T Value, string? Failure);
+
+	private readonly record struct PrimitiveWriteOutcome(bool Handled, bool Succeeded, string? Failure);
+
+	private readonly record struct PrimitiveBatchReadOutcome<T>(
+		bool Handled,
+		bool Succeeded,
+		T[]? Values,
+		int FailedIndex,
+		string? Failure);
+
+	private readonly record struct PrimitiveBatchWriteOutcome(
+		bool Handled,
+		bool Succeeded,
+		int FailedIndex,
+		string? Failure);
+
+	private static class PrimitiveMemoryCodec<T>
+	{
+		internal static PrimitiveReadOutcome<T> Read(Address address)
+		{
+			if (typeof(T) == typeof(byte))
+			{
+				return Read<byte>(TargetMemory.TryReadUInt8, address);
+			}
+
+			if (typeof(T) == typeof(sbyte))
+			{
+				return Read<sbyte>(TargetMemory.TryReadInt8, address);
+			}
+
+			if (typeof(T) == typeof(ushort))
+			{
+				return Read<ushort>(TargetMemory.TryReadUInt16, address);
+			}
+
+			if (typeof(T) == typeof(short))
+			{
+				return Read<short>(TargetMemory.TryReadInt16, address);
+			}
+
+			if (typeof(T) == typeof(uint))
+			{
+				return Read<uint>(TargetMemory.TryReadUInt32, address);
+			}
+
+			if (typeof(T) == typeof(int))
+			{
+				return Read<int>(TargetMemory.TryReadInt32, address);
+			}
+
+			if (typeof(T) == typeof(ulong))
+			{
+				return Read<ulong>(TargetMemory.TryReadUInt64, address);
+			}
+
+			if (typeof(T) == typeof(long))
+			{
+				return Read<long>(TargetMemory.TryReadInt64, address);
+			}
+
+			if (typeof(T) == typeof(float))
+			{
+				return Read<float>(TargetMemory.TryReadSingle, address);
+			}
+
+			if (typeof(T) == typeof(double))
+			{
+				return Read<double>(TargetMemory.TryReadDouble, address);
+			}
+
+			if (typeof(T) == typeof(Address))
+			{
+				return Read<Address>(TargetMemory.TryReadPointer, address);
+			}
+
+			return new PrimitiveReadOutcome<T>(false, false, default!, null);
+		}
+
+		internal static PrimitiveWriteOutcome Write(Address address, T value)
+		{
+			if (typeof(T) == typeof(byte))
+			{
+				return Write<byte>(TargetMemory.TryWriteUInt8, address, value);
+			}
+
+			if (typeof(T) == typeof(sbyte))
+			{
+				return Write<sbyte>(TargetMemory.TryWriteInt8, address, value);
+			}
+
+			if (typeof(T) == typeof(ushort))
+			{
+				return Write<ushort>(TargetMemory.TryWriteUInt16, address, value);
+			}
+
+			if (typeof(T) == typeof(short))
+			{
+				return Write<short>(TargetMemory.TryWriteInt16, address, value);
+			}
+
+			if (typeof(T) == typeof(uint))
+			{
+				return Write<uint>(TargetMemory.TryWriteUInt32, address, value);
+			}
+
+			if (typeof(T) == typeof(int))
+			{
+				return Write<int>(TargetMemory.TryWriteInt32, address, value);
+			}
+
+			if (typeof(T) == typeof(ulong))
+			{
+				return Write<ulong>(TargetMemory.TryWriteUInt64, address, value);
+			}
+
+			if (typeof(T) == typeof(long))
+			{
+				return Write<long>(TargetMemory.TryWriteInt64, address, value);
+			}
+
+			if (typeof(T) == typeof(float))
+			{
+				return Write<float>(TargetMemory.TryWriteSingle, address, value);
+			}
+
+			if (typeof(T) == typeof(double))
+			{
+				return Write<double>(TargetMemory.TryWriteDouble, address, value);
+			}
+
+			if (typeof(T) == typeof(Address))
+			{
+				return Write<Address>(TargetMemory.TryWritePointer, address, value);
+			}
+
+			return new PrimitiveWriteOutcome(false, false, null);
+		}
+
+		internal static PrimitiveBatchReadOutcome<T> ReadBatch(MemoryPrimitiveBatchReadRequest<T> request)
+		{
+			T[] values = new T[request.Addresses.Length];
+			for (int index = 0; index < request.Addresses.Length; index++)
+			{
+				PrimitiveReadOutcome<T> current = Read(request.Addresses[index]);
+				if (!current.Succeeded)
+				{
+					return new PrimitiveBatchReadOutcome<T>(current.Handled, false, null, index, current.Failure);
+				}
+
+				values[index] = current.Value;
+			}
+
+			return new PrimitiveBatchReadOutcome<T>(true, true, values, -1, null);
+		}
+
+		internal static PrimitiveBatchWriteOutcome WriteBatch(MemoryPrimitiveBatchWriteRequest<T> request)
+		{
+			for (int index = 0; index < request.Values.Length; index++)
+			{
+				MemoryAddressValue<T> current = request.Values[index];
+				PrimitiveWriteOutcome outcome = Write(current.Address, current.Value);
+				if (!outcome.Succeeded)
+				{
+					return new PrimitiveBatchWriteOutcome(outcome.Handled, false, index, outcome.Failure);
+				}
+			}
+
+			return new PrimitiveBatchWriteOutcome(true, true, -1, null);
+		}
+
+		private static PrimitiveReadOutcome<T> Read<TValue>(Reader<TValue> reader, Address address)
+		{
+			if (reader(address, out TValue value, out MemoryAccessFailure failure))
+			{
+				return new PrimitiveReadOutcome<T>(true, true, Reinterpret<TValue, T>(value), null);
+			}
+
+			return new PrimitiveReadOutcome<T>(true, false, default!, failure.ToString());
+		}
+
+		private static PrimitiveWriteOutcome Write<TValue>(Writer<TValue> writer, Address address, T value)
+		{
+			TValue targetValue = Reinterpret<T, TValue>(value);
+			return writer(address, targetValue, out MemoryAccessFailure failure)
+				? new PrimitiveWriteOutcome(true, true, null)
+				: new PrimitiveWriteOutcome(true, false, failure.ToString());
+		}
 	}
 
 	private delegate bool Reader<T>(Address address, out T value, out MemoryAccessFailure failure);

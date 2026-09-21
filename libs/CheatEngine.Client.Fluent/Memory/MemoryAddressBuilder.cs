@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 
 using CheatEngine.Client.Results;
@@ -76,6 +77,158 @@ public readonly record struct MemoryAddressBuilder
 		CancellationToken cancellationToken = default)
 	{
 		return RequireMemory().TryWritePrimitive(Address, value, out failure, cancellationToken);
+	}
+
+	/// <summary>Copies an exact, positive number of target bytes from this address.</summary>
+	/// <param name="length">The exact positive number of bytes to copy.</param>
+	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <returns>An immutable, caller-owned byte snapshot.</returns>
+	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
+	public ImmutableArray<byte> ReadBytes(int length, CancellationToken cancellationToken = default)
+	{
+		return RequireMemory().ReadBytes(new MemoryBytesReadRequest(Address, length), cancellationToken);
+	}
+
+	/// <summary>Tries to copy an exact, positive number of target bytes from this address.</summary>
+	/// <param name="length">The exact positive number of bytes to copy.</param>
+	/// <param name="bytes">The immutable byte snapshot when the method returns <see langword="true" />.</param>
+	/// <param name="failure">The classified operation failure when the method returns <see langword="false" />.</param>
+	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <returns><see langword="true" /> when the bytes were copied.</returns>
+	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
+	public bool TryReadBytes(int length, out ImmutableArray<byte> bytes, out CheatEngineFailure failure,
+		CancellationToken cancellationToken = default)
+	{
+		return RequireMemory().TryReadBytes(new MemoryBytesReadRequest(Address, length), out bytes, out failure,
+			cancellationToken);
+	}
+
+	/// <summary>Copies the supplied non-empty bytes to this address.</summary>
+	/// <param name="bytes">The caller-owned bytes copied into an immutable request before dispatch.</param>
+	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
+	public void WriteBytes(ReadOnlySpan<byte> bytes, CancellationToken cancellationToken = default)
+	{
+		RequireMemory().WriteBytes(new MemoryBytesWriteRequest(Address, bytes), cancellationToken);
+	}
+
+	/// <summary>Tries to copy the supplied non-empty bytes to this address.</summary>
+	/// <param name="bytes">The caller-owned bytes copied into an immutable request before dispatch.</param>
+	/// <param name="failure">The classified operation failure when the method returns <see langword="false" />.</param>
+	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <returns><see langword="true" /> when Cheat Engine accepted the write.</returns>
+	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
+	public bool TryWriteBytes(ReadOnlySpan<byte> bytes, out CheatEngineFailure failure,
+		CancellationToken cancellationToken = default)
+	{
+		return RequireMemory().TryWriteBytes(new MemoryBytesWriteRequest(Address, bytes), out failure,
+			cancellationToken);
+	}
+
+	/// <summary>Reads a bounded UTF-8 string from this address.</summary>
+	/// <param name="maximumLength">The positive maximum length passed to Cheat Engine.</param>
+	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <returns>The copied UTF-8 text.</returns>
+	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
+	public string ReadUtf8(int maximumLength, CancellationToken cancellationToken = default)
+	{
+		return ReadString(maximumLength, MemoryStringEncoding.Utf8, cancellationToken);
+	}
+
+	/// <summary>Reads a bounded UTF-16 string from this address.</summary>
+	/// <param name="maximumLength">The positive maximum length passed to Cheat Engine.</param>
+	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <returns>The copied UTF-16 text.</returns>
+	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
+	public string ReadUtf16(int maximumLength, CancellationToken cancellationToken = default)
+	{
+		return ReadString(maximumLength, MemoryStringEncoding.Utf16, cancellationToken);
+	}
+
+	/// <summary>Reads a bounded string with an explicit target encoding from this address.</summary>
+	/// <param name="maximumLength">The positive maximum length passed to Cheat Engine.</param>
+	/// <param name="encoding">The UTF-8 or UTF-16 target representation.</param>
+	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <returns>The copied target text.</returns>
+	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
+	public string ReadString(int maximumLength, MemoryStringEncoding encoding,
+		CancellationToken cancellationToken = default)
+	{
+		return RequireMemory().ReadString(MemoryStringReadRequest.Create(Address, maximumLength, encoding),
+			cancellationToken);
+	}
+
+	/// <summary>Tries to read a bounded string with an explicit target encoding from this address.</summary>
+	/// <param name="maximumLength">The positive maximum length passed to Cheat Engine.</param>
+	/// <param name="encoding">The UTF-8 or UTF-16 target representation.</param>
+	/// <param name="value">The copied target text when the method returns <see langword="true" />.</param>
+	/// <param name="failure">The classified operation failure when the method returns <see langword="false" />.</param>
+	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <returns><see langword="true" /> when the text was copied.</returns>
+	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
+	public bool TryReadString(int maximumLength, MemoryStringEncoding encoding, [NotNullWhen(true)] out string? value,
+		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
+	{
+		return RequireMemory().TryReadString(MemoryStringReadRequest.Create(Address, maximumLength, encoding),
+			out value,
+			out failure, cancellationToken);
+	}
+
+	/// <summary>Writes UTF-8 text whose encoded length is bounded explicitly at this address.</summary>
+	/// <param name="value">The managed text to copy.</param>
+	/// <param name="maximumLength">The positive maximum number of UTF-8 bytes accepted.</param>
+	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
+	public void WriteUtf8(string value, int maximumLength, CancellationToken cancellationToken = default)
+	{
+		WriteString(value, maximumLength, MemoryStringEncoding.Utf8, cancellationToken);
+	}
+
+	/// <summary>Writes UTF-16 text whose code-unit length is bounded explicitly at this address.</summary>
+	/// <param name="value">The managed text to copy.</param>
+	/// <param name="maximumLength">The positive maximum number of UTF-16 code units accepted.</param>
+	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
+	public void WriteUtf16(string value, int maximumLength, CancellationToken cancellationToken = default)
+	{
+		WriteString(value, maximumLength, MemoryStringEncoding.Utf16, cancellationToken);
+	}
+
+	/// <summary>Writes text with an explicit target encoding and maximum encoded length.</summary>
+	/// <param name="value">The managed text to copy.</param>
+	/// <param name="maximumLength">The positive maximum number of UTF-8 bytes or UTF-16 code units accepted.</param>
+	/// <param name="encoding">The UTF-8 or UTF-16 target representation.</param>
+	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
+	public void WriteString(string value, int maximumLength, MemoryStringEncoding encoding,
+		CancellationToken cancellationToken = default)
+	{
+		RequireMemory().WriteString(MemoryStringWriteRequest.CreateBounded(Address, value, maximumLength, encoding),
+			cancellationToken);
+	}
+
+	/// <summary>Tries to write text with an explicit target encoding and maximum encoded length.</summary>
+	/// <param name="value">The managed text to copy.</param>
+	/// <param name="maximumLength">The positive maximum number of UTF-8 bytes or UTF-16 code units accepted.</param>
+	/// <param name="encoding">The UTF-8 or UTF-16 target representation.</param>
+	/// <param name="failure">The classified operation failure when the method returns <see langword="false" />.</param>
+	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <returns><see langword="true" /> when Cheat Engine accepted the write.</returns>
+	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
+	public bool TryWriteString(string value, int maximumLength, MemoryStringEncoding encoding,
+		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
+	{
+		return RequireMemory().TryWriteString(
+			MemoryStringWriteRequest.CreateBounded(Address, value, maximumLength, encoding),
+			out failure, cancellationToken);
+	}
+
+	/// <summary>Starts a finite, target-aware pointer chain from this address.</summary>
+	/// <param name="offsets">The non-empty sequence of at most 64 offsets applied after each dereference.</param>
+	/// <returns>An immutable chain builder that remains bound to this builder's memory service.</returns>
+	public MemoryPointerChainBuilder Follow(ReadOnlySpan<long> offsets)
+	{
+		return new MemoryPointerChainBuilder(new PointerChainRequest(Address, offsets), _memory);
 	}
 
 	/// <summary>Reads one typed value through the service bound to this builder.</summary>

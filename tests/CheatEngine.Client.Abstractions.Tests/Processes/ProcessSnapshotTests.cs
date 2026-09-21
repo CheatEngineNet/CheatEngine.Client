@@ -7,6 +7,45 @@ namespace CheatEngine.Client.Abstractions.Tests.Processes;
 public sealed class ProcessSnapshotTests
 {
 	[Fact]
+	public void ProcessEnumerationRequestRejectsZeroMaximumAndAnEmptyNameFilter()
+	{
+		Assert.Throws<ArgumentOutOfRangeException>(() => new ProcessEnumerationRequest(0));
+		Assert.Throws<ArgumentException>(() => new ProcessEnumerationRequest(1, string.Empty));
+	}
+
+	[Fact]
+	public void ProcessEnumerationResultNormalizesTheDefaultArrayAndRejectsEmptyTruncation()
+	{
+		ProcessEnumerationResult result = new(default, false);
+
+		Assert.Empty(result.Processes);
+		Assert.False(result.IsTruncated);
+		Assert.Throws<ArgumentException>(() => new ProcessEnumerationResult([], true));
+	}
+
+	[Fact]
+	public void ProcessStartRequestRequiresAbsoluteExecutableAndWorkingDirectoryPaths()
+	{
+		Assert.Throws<ArgumentException>(() => new ProcessStartRequest("target.exe"));
+		Assert.Throws<ArgumentException>(() => new ProcessStartRequest("C:\\target.exe", null, "working"));
+
+		ProcessStartRequest request = new("C:\\target.exe", "--fixture", "C:\\working");
+		Assert.Equal("C:\\target.exe", request.ExecutablePath);
+		Assert.Equal("--fixture", request.Arguments);
+		Assert.Equal("C:\\working", request.WorkingDirectory);
+	}
+
+	[Fact]
+	public void ProcessPauseSnapshotPreservesCopiedTargetStateAndEpoch()
+	{
+		ProcessPauseSnapshot snapshot = new(new TargetProcessId(42), ProcessPauseState.Paused, 7);
+
+		Assert.Equal(new TargetProcessId(42), snapshot.ProcessId);
+		Assert.Equal(ProcessPauseState.Paused, snapshot.State);
+		Assert.Equal(7, snapshot.SelectionEpoch);
+	}
+
+	[Fact]
 	public void SnapshotPreservesCopiedIdentityArchitectureAndSelectionEpoch()
 	{
 		ProcessSnapshot snapshot = new(

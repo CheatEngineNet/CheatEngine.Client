@@ -208,6 +208,42 @@ public sealed class MemoryAddressBuilderTests
 			memory, 77, null!, TestContext.Current.CancellationToken));
 	}
 
+	[Fact]
+	public void BoundedBytesAndStringsProduceCopiedRequestsWithExplicitEncoding()
+	{
+		FakeMemoryClient memory = new(0);
+		MemoryAddressBuilder builder = memory.At(0x40D000);
+
+		ImmutableArray<byte> bytes = builder.ReadBytes(2, TestContext.Current.CancellationToken);
+		builder.WriteUtf8("é", 2, TestContext.Current.CancellationToken);
+		string text = builder.ReadUtf16(32, TestContext.Current.CancellationToken);
+
+		Assert.Equal([0x10, 0x20], bytes);
+		Assert.Equal(2, memory.LastBytesReadRequest.Length);
+		Assert.Equal("é", memory.LastStringWriteRequest.Value);
+		Assert.Equal(2, memory.LastStringWriteRequest.MaximumLength);
+		Assert.Equal(MemoryStringEncoding.Utf8, memory.LastStringWriteRequest.Encoding);
+		Assert.Equal(MemoryStringEncoding.Utf16, memory.LastStringReadRequest.Encoding);
+		Assert.Equal(string.Empty, text);
+	}
+
+	[Fact]
+	public void PointerChainsAndPrimitiveBatchesRemainBoundedAndUseOneTerminalContract()
+	{
+		FakeMemoryClient memory = new(1337);
+		Address baseAddress = 0x40E000;
+		MemoryPointerChainBuilder chain = memory.At(baseAddress).Follow([0x10L, -0x20L]);
+
+		Address resolved = chain.Resolve(TestContext.Current.CancellationToken);
+		ImmutableArray<int> values = memory.Batch<int>().Read([baseAddress, baseAddress + 4],
+			TestContext.Current.CancellationToken);
+
+		Assert.Equal(baseAddress, resolved);
+		Assert.Equal([0x10L, -0x20L], chain.Request.Offsets);
+		Assert.Equal([1337, 1337], values);
+		Assert.Equal(2, memory.LastPrimitiveBatchReadCount);
+	}
+
 	private sealed class Int32Codec : IMemoryCodec<int>
 	{
 		public bool TryRead(IMemoryReadContext context, Address address, out int value)
@@ -224,6 +260,30 @@ public sealed class MemoryAddressBuilderTests
 
 	private sealed class FakeMemoryClient(int primitiveReadValue) : IMemoryClient
 	{
+		internal MemoryBytesReadRequest LastBytesReadRequest
+		{
+			get;
+			private set;
+		}
+
+		internal MemoryStringReadRequest LastStringReadRequest
+		{
+			get;
+			private set;
+		}
+
+		internal MemoryStringWriteRequest LastStringWriteRequest
+		{
+			get;
+			private set;
+		}
+
+		internal int LastPrimitiveBatchReadCount
+		{
+			get;
+			private set;
+		}
+
 		internal Address LastPrimitiveReadAddress
 		{
 			get;
@@ -315,10 +375,62 @@ public sealed class MemoryAddressBuilderTests
 			_ = TryWritePrimitive(address, value, out _, cancellationToken);
 		}
 
+		public bool TryReadPrimitiveBatch<T>(MemoryPrimitiveBatchReadRequest<T> request,
+			out ImmutableArray<T> values, out CheatEngineFailure failure,
+			CancellationToken cancellationToken = default)
+		{
+			LastPrimitiveBatchReadCount = request.Addresses.Length;
+			T[] result = new T[request.Addresses.Length];
+			for (int index = 0; index < result.Length; index++)
+			{
+				if (!TryReadPrimitive(request.Addresses[index], out T? value, out failure, cancellationToken))
+				{
+					values = [];
+					return false;
+				}
+
+				result[index] = value!;
+			}
+
+			values = ImmutableArray.Create(result);
+			failure = default;
+			return true;
+		}
+
+		public ImmutableArray<T> ReadPrimitiveBatch<T>(MemoryPrimitiveBatchReadRequest<T> request,
+			CancellationToken cancellationToken = default)
+		{
+			_ = TryReadPrimitiveBatch(request, out ImmutableArray<T> values, out _, cancellationToken);
+			return values;
+		}
+
+		public bool TryWritePrimitiveBatch<T>(MemoryPrimitiveBatchWriteRequest<T> request,
+			out CheatEngineFailure failure, CancellationToken cancellationToken = default)
+		{
+			for (int index = 0; index < request.Values.Length; index++)
+			{
+				MemoryAddressValue<T> current = request.Values[index];
+				if (!TryWritePrimitive(current.Address, current.Value, out failure, cancellationToken))
+				{
+					return false;
+				}
+			}
+
+			failure = default;
+			return true;
+		}
+
+		public void WritePrimitiveBatch<T>(MemoryPrimitiveBatchWriteRequest<T> request,
+			CancellationToken cancellationToken = default)
+		{
+			_ = TryWritePrimitiveBatch(request, out _, cancellationToken);
+		}
+
 		public bool TryReadBytes(MemoryBytesReadRequest request, out ImmutableArray<byte> bytes,
 			out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 		{
-			bytes = [];
+			LastBytesReadRequest = request;
+			bytes = [0x10, 0x20];
 			failure = default;
 			return true;
 		}
@@ -345,6 +457,7 @@ public sealed class MemoryAddressBuilderTests
 		public bool TryReadString(MemoryStringReadRequest request, [NotNullWhen(true)] out string? value,
 			out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 		{
+			LastStringReadRequest = request;
 			value = string.Empty;
 			failure = default;
 			return true;
@@ -359,6 +472,7 @@ public sealed class MemoryAddressBuilderTests
 		public bool TryWriteString(MemoryStringWriteRequest request, out CheatEngineFailure failure,
 			CancellationToken cancellationToken = default)
 		{
+			LastStringWriteRequest = request;
 			failure = default;
 			return true;
 		}

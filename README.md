@@ -258,7 +258,9 @@ dotnet publish tests/CheatEngine.Client.AotProbe/CheatEngine.Client.AotProbe.csp
 The [Windows CI workflow](.github/workflows/ci.yml) runs the locked restore, Release build, Microsoft Testing Platform
 tests, package API validation, isolated package smoke test, template smoke test, and Native AOT graph probe. The
 Cheat Engine 7.7 x64 live suite is opt-in and intentionally excluded from ordinary CI; no CI result should be read as
-proof that an untested live-host feature is available.
+proof that an untested live-host feature is available. The required success, failure, cleanup, disable, re-enable, and
+target-change evidence for every advanced capability is defined in the
+[live-capability gate protocol](docs/live-capability-gates.md).
 
 ## Security and scope
 

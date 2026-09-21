@@ -16,8 +16,9 @@ Cheat Engine plugins need a direct reference to both packages below:
   guaranteed to flow through a transitive dependency.
 
 The template makes that deployment-critical relationship explicit. Its
-`<CheatEngineClientPluginProject>true</CheatEngineClientPluginProject>` marker activates Hosting's `CECLIENT001` guard,
-which fails a marked plugin build if the SDK reference stops being direct.
+`<CheatEngineClientPluginProject>true</CheatEngineClientPluginProject>` marker activates Hosting's full plugin profile:
+both references remain direct, exactly one Client plugin is required, and the `net10.0`/C# 14/x64-or-AnyCPU host
+contract is checked before compilation.
 
 ## How it helps improve CheatEngine.Client
 

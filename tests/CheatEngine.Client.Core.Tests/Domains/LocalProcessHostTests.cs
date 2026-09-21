@@ -29,4 +29,16 @@ public sealed class LocalProcessHostTests
 		Assert.False(succeeded);
 		Assert.Equal(default, process);
 	}
+
+	[Fact]
+	public void GetLocalProcessesContainsCopiedMetadataForTheCurrentManagedProcess()
+	{
+		using Process current = Process.GetCurrentProcess();
+		LocalProcessHost host = new();
+
+		IReadOnlyList<LocalProcessInfo> processes = host.GetLocalProcesses();
+		LocalProcessInfo currentSnapshot = Assert.Single(processes, process => process.Id == current.Id);
+
+		Assert.Equal(current.ProcessName, currentSnapshot.Name);
+	}
 }

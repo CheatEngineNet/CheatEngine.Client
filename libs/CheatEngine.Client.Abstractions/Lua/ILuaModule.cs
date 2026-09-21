@@ -13,6 +13,11 @@ public interface ILuaModule
 	/// <remarks>
 	///     Throw when the generated SDK registration reports a non-success status so
 	///     <see cref="ILuaClient.TryRegisterModule" /> can return the mapped failure.
+	///     <para>
+	///         A manual module that implements only this interface remains a compatible advanced escape hatch. Because it
+	///         does not declare its identity or exports, it cannot participate in the Client's activation-wide global
+	///         collision guarantee. Implement <see cref="IDescribedLuaModule" /> for ordinary application modules.
+	///     </para>
 	/// </remarks>
 	public void Register();
 
