@@ -26,6 +26,38 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 	private const string LuaFunctionAttributeMetadataName = "CheatEngine.SDK.Annotations.Lua.LuaFunctionAttribute";
 	private const string LuaGlobalAttributeMetadataName = "CheatEngine.SDK.Annotations.Lua.LuaGlobalAttribute";
 	private const string LuaResultMapperMetadataName = "CheatEngine.Client.Lua.ILuaResultMapper<TSource, TResult>";
+	private const string LuaClassAttributeMetadataName = "CheatEngine.SDK.Annotations.Lua.LuaClassAttribute";
+	private const string CheatEngineSdkAssemblyPrefix = "CheatEngine.SDK";
+	private const string CheatEngineSdkObjectContractMetadataName =
+		"CheatEngine.SDK.Engine.Objects.ICEObject<TSelf>";
+	private const int ClientBoundaryMaximumDepth = 32;
+	private const int ClientBoundaryMaximumNodes = 256;
+
+	private static readonly HashSet<string> ApprovedSdkClientResultTypes = new(StringComparer.Ordinal)
+	{
+		"CheatEngine.SDK.Engine.AddressList.MemoryRecordId",
+		"CheatEngine.SDK.Engine.Enums.FastScanMethod",
+		"CheatEngine.SDK.Engine.Enums.VariableType",
+		"CheatEngine.SDK.Engine.Inspection.AddressResolutionOptions",
+		"CheatEngine.SDK.Engine.Inspection.MemoryRegionInfo",
+		"CheatEngine.SDK.Engine.Inspection.ModuleInfo",
+		"CheatEngine.SDK.Engine.Inspection.ModuleName",
+		"CheatEngine.SDK.Engine.Inspection.ModuleSectionInfo",
+		"CheatEngine.SDK.Engine.Inspection.SymbolExpression",
+		"CheatEngine.SDK.Engine.Inspection.SymbolInfo",
+		"CheatEngine.SDK.Engine.Inspection.TargetProcessId",
+		"CheatEngine.SDK.Engine.Runtime.CheatEngineArchitecture",
+		"CheatEngine.SDK.Engine.Runtime.CheatEngineVersion",
+		"CheatEngine.SDK.Engine.Runtime.PointerSize",
+		"CheatEngine.SDK.Engine.Runtime.RuntimeCapabilityAvailability",
+		"CheatEngine.SDK.Engine.Runtime.RuntimeCapabilityId",
+		"CheatEngine.SDK.Engine.Runtime.TargetAbi",
+		"CheatEngine.SDK.Engine.Scanning.Aob.AobPattern",
+		"CheatEngine.SDK.Engine.Scanning.Aob.AobScanOptions",
+		"CheatEngine.SDK.Engine.Scanning.Values.FirstScanRequest",
+		"CheatEngine.SDK.Engine.Scanning.Values.NextScanRequest",
+		"CheatEngine.SDK.Engine.Values.Address"
+	};
 
 	/// <inheritdoc />
 	public void Initialize(IncrementalGeneratorInitializationContext context)
@@ -428,23 +460,296 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 		};
 	}
 
-	private static bool IsSafeMapperSource(ITypeSymbol type)
+	private static bool TryFindClientBoundaryViolation(ITypeSymbol type, ClientBoundaryRole role,
+		out string violation)
 	{
-		return !IsRawLuaOrOwnershipType(type) && type.TypeKind != TypeKind.Pointer && !type.IsRefLikeType;
+		HashSet<ISymbol> visited = new(SymbolEqualityComparer.Default);
+		int visitedCount = 0;
+		string rootPath = role == ClientBoundaryRole.MapperSource ? "mapper source" : "mapper result";
+		return TryFindClientBoundaryViolation(type, role, rootPath, visited, ref visitedCount, 0, out violation);
 	}
 
-	private static bool IsSafeClientResult(ITypeSymbol type)
+	private static bool TryFindClientBoundaryViolation(ITypeSymbol type, ClientBoundaryRole role, string path,
+		HashSet<ISymbol> visited, ref int visitedCount, int depth, out string violation)
 	{
-		return IsSafeMapperSource(type) && !HasAttribute(type, "CheatEngine.SDK.Annotations.Lua.LuaClassAttribute");
+		if (depth > ClientBoundaryMaximumDepth || ++visitedCount > ClientBoundaryMaximumNodes)
+		{
+			violation = path + " exceeds the supported Client result type graph budget.";
+			return true;
+		}
+
+		if (!visited.Add(type))
+		{
+			violation = string.Empty;
+			return false;
+		}
+
+		if (type.TypeKind == TypeKind.Error || type.TypeKind == TypeKind.Dynamic)
+		{
+			violation = path + " uses an unresolved or dynamic type.";
+			return true;
+		}
+
+		if (type is IFunctionPointerTypeSymbol)
+		{
+			violation = path + " exposes a function pointer.";
+			return true;
+		}
+
+		if (type is IPointerTypeSymbol)
+		{
+			violation = path + " exposes a pointer.";
+			return true;
+		}
+
+		if (type.IsRefLikeType)
+		{
+			violation = path + " exposes a ref-like type.";
+			return true;
+		}
+
+		if (type is IArrayTypeSymbol array)
+		{
+			return TryFindClientBoundaryViolation(array.ElementType, role, path + "[]", visited, ref visitedCount,
+				depth + 1, out violation);
+		}
+
+		if (type is ITypeParameterSymbol typeParameter)
+		{
+			return TryFindConstraintViolation(typeParameter, role, path, visited, ref visitedCount, depth, out violation);
+		}
+
+		if (type is not INamedTypeSymbol named)
+		{
+			violation = path + " uses an unsupported type shape '" + TypeName(type) + "'.";
+			return true;
+		}
+
+		if (TryFindNamedTypeViolation(named, role, path, out violation))
+		{
+			return true;
+		}
+
+		foreach (ITypeParameterSymbol parameter in named.OriginalDefinition.TypeParameters
+		             .OrderBy(static candidate => candidate.Ordinal))
+		{
+			if (TryFindConstraintViolation(parameter, role, path + "." + parameter.Name, visited, ref visitedCount,
+				depth + 1, out violation))
+			{
+				return true;
+			}
+		}
+
+		if (named.IsTupleType)
+		{
+			foreach (IFieldSymbol element in named.TupleElements)
+			{
+				if (TryFindClientBoundaryViolation(element.Type, role, path + "." + element.Name, visited,
+					ref visitedCount, depth + 1, out violation))
+				{
+					return true;
+				}
+			}
+		}
+
+		foreach (ITypeSymbol argument in named.TypeArguments)
+		{
+			if (TryFindClientBoundaryViolation(argument, role, path + "<" + TypeName(argument) + ">", visited,
+				ref visitedCount, depth + 1, out violation))
+			{
+				return true;
+			}
+		}
+
+		if (IsFrameworkOrApprovedSdkValue(named) ||
+		    (role == ClientBoundaryRole.MapperSource && IsCheatEngineSdkType(named)))
+		{
+			violation = string.Empty;
+			return false;
+		}
+
+		return TryFindUserDefinedDtoViolation(named, role, path, visited, ref visitedCount, depth, out violation);
 	}
 
-	private static bool IsRawLuaOrOwnershipType(ITypeSymbol type)
+	private static bool TryFindNamedTypeViolation(INamedTypeSymbol type, ClientBoundaryRole role, string path,
+		out string violation)
 	{
 		string metadataName = type.OriginalDefinition.ToDisplayString();
-		return string.Equals(metadataName, "CheatEngine.SDK.Lua.State.LuaState", StringComparison.Ordinal) ||
-		       string.Equals(metadataName, "CheatEngine.SDK.Lua.References.LuaRef", StringComparison.Ordinal) ||
-		       string.Equals(metadataName, "CheatEngine.SDK.Engine.Objects.CEObject", StringComparison.Ordinal) ||
-		       string.Equals(metadataName, "CheatEngine.SDK.Engine.Objects.Owned<T>", StringComparison.Ordinal);
+		if (metadataName is "CheatEngine.SDK.Lua.State.LuaState" or "CheatEngine.SDK.Lua.References.LuaRef" or
+		    "CheatEngine.SDK.Engine.Objects.CEObject" or "CheatEngine.SDK.Engine.Objects.Owned<T>" ||
+		    type.ContainingNamespace.ToDisplayString().Contains(".Interop", StringComparison.Ordinal) ||
+		    HasAttribute(type, LuaClassAttributeMetadataName) || ImplementsSdkObjectContract(type))
+		{
+			violation = path + " exposes forbidden SDK lifetime or interop type '" + metadataName + "'.";
+			return true;
+		}
+
+		if (type.TypeKind == TypeKind.Delegate)
+		{
+			violation = path + " exposes a delegate or callback.";
+			return true;
+		}
+
+		if (role == ClientBoundaryRole.ClientResult &&
+		    type.ContainingAssembly?.Name.StartsWith(CheatEngineSdkAssemblyPrefix, StringComparison.Ordinal) == true &&
+		    !ApprovedSdkClientResultTypes.Contains(metadataName))
+		{
+			violation = path + " exposes non-approved SDK type '" + metadataName + "'.";
+			return true;
+		}
+
+		if (type.SpecialType == SpecialType.System_Object || metadataName == "System.Type")
+		{
+			violation = path + " exposes an unqualified object or runtime type.";
+			return true;
+		}
+
+		violation = string.Empty;
+		return false;
+	}
+
+	private static bool TryFindConstraintViolation(ITypeParameterSymbol typeParameter, ClientBoundaryRole role,
+		string path, HashSet<ISymbol> visited, ref int visitedCount, int depth, out string violation)
+	{
+		foreach (ITypeSymbol constraint in typeParameter.ConstraintTypes.OrderBy(TypeName, StringComparer.Ordinal))
+		{
+			if (TryFindClientBoundaryViolation(constraint, role, path + " constraint", visited, ref visitedCount,
+				depth + 1, out violation))
+			{
+				return true;
+			}
+		}
+
+		violation = string.Empty;
+		return false;
+	}
+
+	private static bool TryFindUserDefinedDtoViolation(INamedTypeSymbol type, ClientBoundaryRole role, string path,
+		HashSet<ISymbol> visited, ref int visitedCount, int depth, out string violation)
+	{
+		if (type.BaseType is { SpecialType: not SpecialType.System_Object } baseType &&
+		    TryFindClientBoundaryViolation(baseType, role, path + ".base", visited, ref visitedCount, depth + 1,
+			out violation))
+		{
+			return true;
+		}
+
+		foreach (INamedTypeSymbol implementedInterface in type.Interfaces.OrderBy(TypeName, StringComparer.Ordinal))
+		{
+			if (TryFindClientBoundaryViolation(implementedInterface, role, path + ".interface", visited,
+				ref visitedCount, depth + 1, out violation))
+			{
+				return true;
+			}
+		}
+
+		foreach (ISymbol member in type.GetMembers().OrderBy(static candidate => candidate.MetadataName,
+			             StringComparer.Ordinal))
+		{
+			switch (member)
+			{
+				case IFieldSymbol { IsStatic: false } field:
+					if (TryFindClientBoundaryViolation(field.Type, role, path + "." + field.Name, visited,
+						ref visitedCount, depth + 1, out violation))
+					{
+						return true;
+					}
+
+					break;
+				case IPropertySymbol { IsStatic: false } property:
+					if (TryFindClientBoundaryViolation(property.Type, role, path + "." + property.Name, visited,
+						ref visitedCount, depth + 1, out violation) ||
+						TryFindParameterViolation(property.Parameters, role, path + "." + property.Name, visited,
+							ref visitedCount, depth + 1, out violation))
+					{
+						return true;
+					}
+
+					break;
+				case IEventSymbol { IsStatic: false } @event:
+					if (TryFindClientBoundaryViolation(@event.Type, role, path + "." + @event.Name, visited,
+						ref visitedCount, depth + 1, out violation))
+					{
+						return true;
+					}
+
+					break;
+				case IMethodSymbol { IsStatic: false } method when !method.IsImplicitlyDeclared &&
+				                                                method.DeclaredAccessibility != Accessibility.Private:
+					violation = string.Empty;
+					if (method.ReturnsByRef || method.ReturnsByRefReadonly ||
+						TryFindClientBoundaryViolation(method.ReturnType, role, path + "." + method.Name, visited,
+							ref visitedCount, depth + 1, out violation) ||
+						TryFindParameterViolation(method.Parameters, role, path + "." + method.Name, visited,
+							ref visitedCount, depth + 1, out violation))
+					{
+						violation = string.IsNullOrEmpty(violation)
+							? path + "." + method.Name + " exposes a by-reference return."
+							: violation;
+						return true;
+					}
+
+					break;
+			}
+		}
+
+		violation = string.Empty;
+		return false;
+	}
+
+	private static bool TryFindParameterViolation(ImmutableArray<IParameterSymbol> parameters, ClientBoundaryRole role,
+		string path, HashSet<ISymbol> visited, ref int visitedCount, int depth, out string violation)
+	{
+		foreach (IParameterSymbol parameter in parameters.OrderBy(static candidate => candidate.Ordinal))
+		{
+			if (parameter.RefKind != RefKind.None)
+			{
+				violation = path + " parameter '" + parameter.Name + "' is passed by reference.";
+				return true;
+			}
+
+			if (TryFindClientBoundaryViolation(parameter.Type, role, path + " parameter '" + parameter.Name + "'",
+				visited, ref visitedCount, depth + 1, out violation))
+			{
+				return true;
+			}
+		}
+
+		violation = string.Empty;
+		return false;
+	}
+
+	private static bool IsFrameworkOrApprovedSdkValue(INamedTypeSymbol type)
+	{
+		string metadataName = type.OriginalDefinition.ToDisplayString();
+		if (ApprovedSdkClientResultTypes.Contains(metadataName))
+		{
+			return true;
+		}
+
+		string? assemblyName = type.ContainingAssembly?.Name;
+		return assemblyName is not null &&
+		       !assemblyName.StartsWith(CheatEngineSdkAssemblyPrefix, StringComparison.Ordinal) &&
+		       (assemblyName.StartsWith("System", StringComparison.Ordinal) ||
+		        assemblyName.StartsWith("Microsoft", StringComparison.Ordinal));
+	}
+
+	private static bool IsCheatEngineSdkType(INamedTypeSymbol type)
+	{
+		return type.ContainingAssembly?.Name.StartsWith(CheatEngineSdkAssemblyPrefix, StringComparison.Ordinal) == true;
+	}
+
+	private static bool ImplementsSdkObjectContract(INamedTypeSymbol type)
+	{
+		return type.AllInterfaces.Any(@interface =>
+			string.Equals(@interface.OriginalDefinition.ToDisplayString(), CheatEngineSdkObjectContractMetadataName,
+				StringComparison.Ordinal));
+	}
+
+	private enum ClientBoundaryRole
+	{
+		MapperSource,
+		ClientResult
 	}
 
 	private static string TypeDeclaration(INamedTypeSymbol type, bool isStatic)
@@ -793,9 +1098,17 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 			{
 				return Invalid(OperationDiagnosticDescriptors.InvalidMapper, location, mapper.Name, method.Name);
 			}
-			else if (!IsSafeMapperSource(sourceResult) || !IsSafeClientResult(result))
+			else if (TryFindClientBoundaryViolation(sourceResult, ClientBoundaryRole.MapperSource,
+			             out string sourceViolation))
 			{
-				return Invalid(OperationDiagnosticDescriptors.UnsafeMappedType, location, method.Name);
+				return Invalid(OperationDiagnosticDescriptors.UnsafeMappedType, location, method.Name,
+					sourceViolation);
+			}
+			else if (TryFindClientBoundaryViolation(result, ClientBoundaryRole.ClientResult,
+			             out string resultViolation))
+			{
+				return Invalid(OperationDiagnosticDescriptors.UnsafeMappedType, location, method.Name,
+					resultViolation);
 			}
 
 			string operationTypeName = method.Name + "LuaOperation";
@@ -918,7 +1231,7 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 
 		public static readonly DiagnosticDescriptor UnsafeMappedType = new(
 			"CECLUA1106", "Lua operation mapper must project a safe Client result",
-			"Lua operation '{0}' maps a raw Lua, ownership, pointer, ref-like, or borrowed Lua-class value across the Client boundary",
+			"Lua operation '{0}' maps an unsafe value across the Client boundary: {1}",
 			"CheatEngine.Client.Lua", DiagnosticSeverity.Error, true);
 	}
 

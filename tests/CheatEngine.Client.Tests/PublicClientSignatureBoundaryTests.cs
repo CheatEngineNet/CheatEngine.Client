@@ -3,6 +3,9 @@ using System.Reflection;
 using CheatEngine.Client.Extensions.DependencyInjection;
 using CheatEngine.Client.Hosting;
 using CheatEngine.Client.Memory;
+using CheatEngine.SDK.Engine.Objects;
+using CheatEngine.SDK.Lua.References;
+using CheatEngine.SDK.Lua.State;
 
 using ReflectionAssembly = System.Reflection.Assembly;
 
@@ -52,6 +55,41 @@ public sealed class PublicClientSignatureBoundaryTests
 		}
 
 		Assert.True(violations.Count == 0, string.Join(Environment.NewLine, violations));
+	}
+
+	[Fact]
+	public void RecursiveVerifierRejectsNestedSdkHandlesOwnershipDelegatesAndConstraints()
+	{
+		AssertViolation(typeof(LuaRef[]), "forbidden SDK handle");
+		AssertViolation(typeof(IReadOnlyList<Owned<CEObject>>), "forbidden SDK handle");
+		AssertViolation(typeof((int Code, CEObject Handle)), "forbidden SDK handle");
+		AssertViolation(typeof(Owned<>), "forbidden SDK handle");
+		AssertViolation(typeof(LeakingDto), "forbidden SDK handle");
+		AssertViolation(typeof(UnsafeCallback), "forbidden SDK handle");
+		AssertViolation(typeof(ConstrainedDto<>), "forbidden SDK handle");
+	}
+
+	[Fact]
+	public void RecursiveVerifierRejectsPointersByReferenceAndFunctionPointers()
+	{
+		AssertViolation(typeof(int).MakePointerType(), "pointer type");
+		AssertViolation(typeof(LuaRef).MakeByRefType(), "forbidden SDK handle");
+
+		MethodInfo method = typeof(PublicClientSignatureBoundaryTests).GetMethod(
+			nameof(GetFunctionPointer),
+			BindingFlags.Static | BindingFlags.NonPublic)!;
+		AssertViolation(method.ReturnType, "function pointer");
+	}
+
+	[Fact]
+	public void RecursiveVerifierAllowsApprovedSdkValuesInsideSafeContainers()
+	{
+		List<string> violations = [];
+		VerifyType(typeof(CheatEngine.SDK.Engine.Values.Address[]), "approved array", violations);
+		VerifyType(typeof(IReadOnlyList<CheatEngine.SDK.Engine.Values.Address>), "approved generic", violations);
+		VerifyType(typeof((CheatEngine.SDK.Engine.Values.Address Address, int Version)), "approved tuple", violations);
+
+		Assert.Empty(violations);
 	}
 
 	private static IEnumerable<ReflectionAssembly> GetAggregateClientAssemblies()
@@ -131,20 +169,35 @@ public sealed class PublicClientSignatureBoundaryTests
 	private static void VerifyParameters(IEnumerable<ParameterInfo> parameters, MemberInfo member,
 		List<string> violations)
 	{
+		VerifyParameters(parameters, member, violations, [], 0);
+	}
+
+	private static void VerifyParameters(IEnumerable<ParameterInfo> parameters, MemberInfo member,
+		List<string> violations, HashSet<Type> visited, int depth)
+	{
 		foreach (ParameterInfo parameter in parameters)
 		{
-			VerifyType(parameter.ParameterType, $"{member} parameter '{parameter.Name}'", violations, member);
+			VerifyType(parameter.ParameterType, $"{member} parameter '{parameter.Name}'", violations, member, visited,
+				depth + 1);
 		}
 	}
 
 	private static void VerifyGenericParameterConstraints(IEnumerable<Type> genericParameters, string? member,
 		List<string> violations)
 	{
+		VerifyGenericParameterConstraints(genericParameters, member, violations, [], 0);
+	}
+
+	private static void VerifyGenericParameterConstraints(IEnumerable<Type> genericParameters, string? member,
+		List<string> violations, HashSet<Type> visited, int depth)
+	{
 		foreach (Type genericParameter in genericParameters.Where(static parameter => parameter.IsGenericParameter))
 		{
-			foreach (Type constraint in genericParameter.GetGenericParameterConstraints())
+			foreach (Type constraint in genericParameter.GetGenericParameterConstraints()
+				         .OrderBy(static type => type.FullName, StringComparer.Ordinal))
 			{
-				VerifyType(constraint, $"{member} generic parameter '{genericParameter.Name}'", violations);
+				VerifyType(constraint, $"{member} generic parameter '{genericParameter.Name}'", violations, null, visited,
+					depth + 1);
 			}
 		}
 	}
@@ -152,8 +205,21 @@ public sealed class PublicClientSignatureBoundaryTests
 	private static void VerifyType(Type? type, string? source, List<string> violations,
 		MemberInfo? declaringMember = null)
 	{
-		if (type is null || type.IsGenericParameter)
+		HashSet<Type> visited = [];
+		VerifyType(type, source, violations, declaringMember, visited, 0);
+	}
+
+	private static void VerifyType(Type? type, string? source, List<string> violations, MemberInfo? declaringMember,
+		HashSet<Type> visited, int depth)
+	{
+		if (type is null || depth > 32 || !visited.Add(type))
 		{
+			return;
+		}
+
+		if (type.IsFunctionPointer)
+		{
+			violations.Add($"{source} exposes a function pointer type '{type}'.");
 			return;
 		}
 
@@ -163,47 +229,149 @@ public sealed class PublicClientSignatureBoundaryTests
 			return;
 		}
 
-		if (type.HasElementType)
+		if (type.IsByRef)
 		{
-			VerifyType(type.GetElementType(), source, violations, declaringMember);
+			VerifyType(type.GetElementType(), source, violations, declaringMember, visited, depth + 1);
+			return;
+		}
+
+		if (type.IsArray)
+		{
+			VerifyType(type.GetElementType(), source, violations, declaringMember, visited, depth + 1);
+			return;
+		}
+
+		if (type.IsGenericParameter)
+		{
+			VerifyGenericParameterConstraints(type.GetGenericParameterConstraints(), source, violations, visited, depth);
+			return;
+		}
+
+		if (IsForbiddenSdkType(type, source, violations, declaringMember))
+		{
 			return;
 		}
 
 		if (type.IsGenericType)
 		{
 			Type genericDefinition = type.GetGenericTypeDefinition();
-			if (genericDefinition != type)
-			{
-				VerifyType(genericDefinition, source, violations, declaringMember);
-			}
-
+			VerifyGenericParameterConstraints(genericDefinition.GetGenericArguments(), source, violations, visited, depth);
 			foreach (Type argument in type.GetGenericArguments())
 			{
-				VerifyType(argument, source, violations, declaringMember);
+				VerifyType(argument, source, violations, declaringMember, visited, depth + 1);
+			}
+		}
+
+		if (typeof(Delegate).IsAssignableFrom(type))
+		{
+			MethodInfo? invoke = type.GetMethod("Invoke", BindingFlags.Public | BindingFlags.Instance);
+			if (invoke is not null)
+			{
+				VerifyType(invoke.ReturnType, $"{source} delegate return", violations, invoke, visited, depth + 1);
+				VerifyParameters(invoke.GetParameters(), invoke, violations, visited, depth);
 			}
 
 			return;
 		}
 
-		string typeName = type.FullName ?? type.Name;
-		if (type.Name is "LuaState" or "LuaRef" or "CEObject" ||
-		    type.Name.StartsWith("Owned`", StringComparison.Ordinal))
+		if (!ShouldInspectTypeMembers(type))
+		{
+			return;
+		}
+
+		VerifyTypeHierarchy(type, source, violations, declaringMember, visited, depth);
+		VerifyTypeMembers(type, source, violations, visited, depth);
+	}
+
+	private static bool IsForbiddenSdkType(Type type, string? source, List<string> violations,
+		MemberInfo? declaringMember)
+	{
+		Type definition = type.IsGenericType ? type.GetGenericTypeDefinition() : type;
+		string typeName = definition.FullName ?? definition.Name;
+		if (definition.Name is "LuaState" or "LuaRef" or "CEObject" ||
+		    definition.Name.StartsWith("Owned`", StringComparison.Ordinal))
 		{
 			violations.Add($"{source} exposes forbidden SDK handle '{typeName}'.");
-			return;
+			return true;
 		}
 
-		if (type.Namespace?.Contains(".Interop", StringComparison.Ordinal) == true)
+		if (definition.Namespace?.Contains(".Interop", StringComparison.Ordinal) == true)
 		{
 			violations.Add($"{source} exposes interop namespace type '{typeName}'.");
-			return;
+			return true;
 		}
 
-		if (type.Assembly.GetName().Name?.StartsWith("CheatEngine.SDK", StringComparison.Ordinal) == true &&
-		    (!type.IsValueType || !ApprovedSdkValueTypes.Contains(typeName)) &&
-		    !IsShippedRuntimeCapabilitiesDebt(type, declaringMember))
+		if (definition.Assembly.GetName().Name?.StartsWith("CheatEngine.SDK", StringComparison.Ordinal) == true &&
+		    (!definition.IsValueType || !ApprovedSdkValueTypes.Contains(typeName)) &&
+		    !IsShippedRuntimeCapabilitiesDebt(definition, declaringMember))
 		{
 			violations.Add($"{source} exposes non-approved SDK type '{typeName}'.");
+			return true;
+		}
+
+		return false;
+	}
+
+	private static bool ShouldInspectTypeMembers(Type type)
+	{
+		return type.Assembly == typeof(PublicClientSignatureBoundaryTests).Assembly ||
+		       type.Assembly.GetName().Name?.StartsWith("CheatEngine.Client", StringComparison.Ordinal) == true;
+	}
+
+	private static void VerifyTypeHierarchy(Type type, string? source, List<string> violations,
+		MemberInfo? declaringMember, HashSet<Type> visited, int depth)
+	{
+		if (type.BaseType is { } baseType && baseType != typeof(object) && !IsRequiredPluginBase(baseType))
+		{
+			VerifyType(baseType, $"{source} base type", violations, declaringMember, visited, depth + 1);
+		}
+
+		foreach (Type implementedInterface in type.GetInterfaces().OrderBy(static candidate => candidate.FullName,
+			             StringComparer.Ordinal))
+		{
+			VerifyType(implementedInterface, $"{source} interface", violations, declaringMember, visited, depth + 1);
+		}
+	}
+
+	private static bool IsRequiredPluginBase(Type type)
+	{
+		// Hosting intentionally derives from the SDK plugin bootstrap contract; it is not an SDK owner or raw handle.
+		return type.FullName == "CheatEngine.SDK.Hosting.Plugin.CheatEnginePlugin";
+	}
+
+	private static void VerifyTypeMembers(Type type, string? source, List<string> violations, HashSet<Type> visited,
+		int depth)
+	{
+		const BindingFlags DeclaredInstance = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic |
+		                                          BindingFlags.DeclaredOnly;
+
+		foreach (FieldInfo field in type.GetFields(DeclaredInstance).OrderBy(static candidate => candidate.Name,
+			             StringComparer.Ordinal))
+		{
+			VerifyType(field.FieldType, $"{source} field '{field.Name}'", violations, field, visited, depth + 1);
+		}
+
+		foreach (PropertyInfo property in type.GetProperties(DeclaredInstance).OrderBy(static candidate => candidate.Name,
+			             StringComparer.Ordinal))
+		{
+			VerifyType(property.PropertyType, $"{source} property '{property.Name}'", violations, property, visited,
+				depth + 1);
+			VerifyParameters(property.GetIndexParameters(), property, violations, visited, depth);
+		}
+
+		foreach (ConstructorInfo constructor in type.GetConstructors(DeclaredInstance).OrderBy(static candidate =>
+			             candidate.ToString(), StringComparer.Ordinal))
+		{
+			VerifyParameters(constructor.GetParameters(), constructor, violations, visited, depth);
+		}
+
+		foreach (MethodInfo method in type.GetMethods(DeclaredInstance)
+			             .Where(static candidate => !candidate.IsPrivate)
+			             .OrderBy(static candidate => candidate.ToString(), StringComparer.Ordinal))
+		{
+			VerifyType(method.ReturnType, $"{source} method '{method.Name}'", violations, method, visited, depth + 1);
+			VerifyParameters(method.GetParameters(), method, violations, visited, depth);
+			VerifyGenericParameterConstraints(method.GetGenericArguments(), method.ToString(), violations, visited, depth);
 		}
 	}
 
@@ -215,10 +383,52 @@ public sealed class PublicClientSignatureBoundaryTests
 		       declaringMember?.DeclaringType?.FullName == "CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot" &&
 		       declaringMember switch
 		       {
-			       ConstructorInfo => true,
+		       FieldInfo { Name: "<SdkCapabilities>k__BackingField" } => true,
+		       ConstructorInfo => true,
 			       MethodInfo { Name: "get_SdkCapabilities" } => true,
 			       PropertyInfo { Name: "SdkCapabilities" } => true,
 			       _ => false
 		       };
+	}
+
+	private static void AssertViolation(Type type, string expectedFragment)
+	{
+		List<string> violations = [];
+		VerifyType(type, type.FullName, violations);
+
+		Assert.Contains(violations, violation => violation.Contains(expectedFragment, StringComparison.Ordinal));
+	}
+
+	private static unsafe delegate* unmanaged[Cdecl]<int, int> GetFunctionPointer()
+	{
+		return null;
+	}
+
+	private delegate void UnsafeCallback(LuaRef reference);
+
+	private interface IUnsafeConstraint
+	{
+		LuaRef Reference
+		{
+			get;
+		}
+	}
+
+	private sealed class ConstrainedDto<T>
+		where T : IUnsafeConstraint;
+
+	private sealed class LeakingDto : IDisposable
+	{
+		private readonly LuaRef _reference = new();
+
+		public void Dispose()
+		{
+			_reference.Dispose();
+		}
+
+		private LuaRef PreserveReference()
+		{
+			return _reference;
+		}
 	}
 }

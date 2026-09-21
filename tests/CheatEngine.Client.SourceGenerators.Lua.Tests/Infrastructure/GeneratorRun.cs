@@ -53,7 +53,7 @@ internal sealed class GeneratorRun
 			"CheatEngineClientLuaGeneratorTests",
 			[syntaxTree],
 			GetMetadataReferences(),
-			new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+			new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, allowUnsafe: true));
 		GeneratorDriver driver = CSharpGeneratorDriver.Create(
 			[new CheatEngineLuaGenerator().AsSourceGenerator()],
 			parseOptions: parseOptions,
@@ -77,6 +77,19 @@ internal sealed class GeneratorRun
 		GeneratedSourceResult source = Assert.Single(GeneratedSources.Where(source =>
 			source.HintName.EndsWith(suffix, StringComparison.Ordinal)));
 		return source.SourceText.ToString();
+	}
+
+	public static Compilation CreateConsumerCompilation(string source, byte[] generatedAssembly)
+	{
+		ArgumentNullException.ThrowIfNull(source);
+		ArgumentNullException.ThrowIfNull(generatedAssembly);
+
+		CSharpParseOptions parseOptions = new(LanguageVersion.CSharp14);
+		return CSharpCompilation.Create(
+			"CheatEngineClientLuaGeneratedConsumerTests",
+			[CSharpSyntaxTree.ParseText(SourceText.From(source), parseOptions)],
+			[.. GetMetadataReferences(), MetadataReference.CreateFromImage(generatedAssembly)],
+			new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, allowUnsafe: true));
 	}
 
 	private static ImmutableArray<MetadataReference> GetMetadataReferences()
