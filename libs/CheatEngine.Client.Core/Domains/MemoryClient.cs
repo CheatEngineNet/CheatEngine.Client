@@ -14,10 +14,28 @@ using CheatEngine.SDK.Engine.Values;
 
 namespace CheatEngine.Client.Core.Domains;
 
-internal sealed class MemoryClient(ICheatEngineDispatcher dispatcher) : IMemoryClient
+internal sealed class MemoryClient : IMemoryClient
 {
-	private readonly ICheatEngineDispatcher _dispatcher =
-		dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
+	private readonly ICheatEngineDispatcher _dispatcher;
+
+	private readonly CoreLifetime _lifetime;
+
+	private readonly IMemoryCodecContextPort _codecContextPort;
+
+	internal MemoryClient(ICheatEngineDispatcher dispatcher, CoreLifetime lifetime)
+		: this(dispatcher, lifetime, SdkMemoryCodecContextPort.Instance)
+	{
+	}
+
+	internal MemoryClient(
+		ICheatEngineDispatcher dispatcher,
+		CoreLifetime lifetime,
+		IMemoryCodecContextPort codecContextPort)
+	{
+		_dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
+		_lifetime = lifetime ?? throw new ArgumentNullException(nameof(lifetime));
+		_codecContextPort = codecContextPort ?? throw new ArgumentNullException(nameof(codecContextPort));
+	}
 
 	public bool TryReadPrimitive<T>(Address address, [MaybeNullWhen(false)] out T value,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
@@ -440,32 +458,46 @@ internal sealed class MemoryClient(ICheatEngineDispatcher dispatcher) : IMemoryC
 		return _dispatcher.TryInvoke(() => callback(state), out result, out failure, cancellationToken);
 	}
 
-	private static bool TryReadCore<T>(MemoryReadRequest<T> request, [MaybeNullWhen(false)] out T value,
+	private bool TryReadCore<T>(MemoryReadRequest<T> request, [MaybeNullWhen(false)] out T value,
 		out string? failure)
 	{
 		failure = null;
-		TargetMemoryCodecContext context = TargetMemoryCodecContext.Create();
-		if (request.Codec.TryRead(context, request.Address, out value))
+		TargetMemoryCodecContext context = TargetMemoryCodecContext.Create(_lifetime, _dispatcher, _codecContextPort);
+		try
 		{
-			return true;
-		}
+			if (request.Codec.TryRead(context, request.Address, out value))
+			{
+				return true;
+			}
 
-		failure = context.Failure ?? $"The codec for '{typeof(T).Name}' rejected the target-memory read.";
-		return false;
+			failure = context.Failure ?? $"The codec for '{typeof(T).Name}' rejected the target-memory read.";
+			return false;
+		}
+		finally
+		{
+			context.Expire();
+		}
 	}
 
-	private static bool TryWriteCore<T>(MemoryWriteRequest<T> request, out string? failure)
+	private bool TryWriteCore<T>(MemoryWriteRequest<T> request, out string? failure)
 	{
 		failure = null;
-		TargetMemoryCodecContext context = TargetMemoryCodecContext.Create();
-		T value = request.Value;
-		if (request.Codec.TryWrite(context, request.Address, in value))
+		TargetMemoryCodecContext context = TargetMemoryCodecContext.Create(_lifetime, _dispatcher, _codecContextPort);
+		try
 		{
-			return true;
-		}
+			T value = request.Value;
+			if (request.Codec.TryWrite(context, request.Address, in value))
+			{
+				return true;
+			}
 
-		failure = context.Failure ?? $"The codec for '{typeof(T).Name}' rejected the target-memory write.";
-		return false;
+			failure = context.Failure ?? $"The codec for '{typeof(T).Name}' rejected the target-memory write.";
+			return false;
+		}
+		finally
+		{
+			context.Expire();
+		}
 	}
 
 	private static void ValidateBatch<T>(ImmutableArray<T> values, string parameterName)
@@ -706,7 +738,27 @@ internal sealed class MemoryClient(ICheatEngineDispatcher dispatcher) : IMemoryC
 
 	private sealed class TargetMemoryCodecContext : IMemoryReadContext, IMemoryWriteContext
 	{
+		private const string _operation = "Memory.CodecContext";
+
+		private readonly long _activationEpoch;
+		private readonly ICheatEngineDispatcher _dispatcher;
+		private readonly CoreLifetime _lifetime;
+		private readonly IMemoryCodecContextPort _port;
+		private readonly int _threadId;
+		private int _expired;
 		private int _pointerSize;
+
+		private TargetMemoryCodecContext(
+			CoreLifetime lifetime,
+			ICheatEngineDispatcher dispatcher,
+			IMemoryCodecContextPort port)
+		{
+			_lifetime = lifetime ?? throw new ArgumentNullException(nameof(lifetime));
+			_dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
+			_port = port ?? throw new ArgumentNullException(nameof(port));
+			_activationEpoch = lifetime.Epoch;
+			_threadId = Environment.CurrentManagedThreadId;
+		}
 
 		internal string? Failure
 		{
@@ -718,12 +770,13 @@ internal sealed class MemoryClient(ICheatEngineDispatcher dispatcher) : IMemoryC
 		{
 			get
 			{
+				ThrowIfUsable();
 				if (_pointerSize != 0)
 				{
 					return _pointerSize;
 				}
 
-				int pointerSize = ClientLuaGlobals.TargetIs64Bit() ? sizeof(ulong) : sizeof(uint);
+				int pointerSize = _port.IsTarget64Bit() ? sizeof(ulong) : sizeof(uint);
 				_pointerSize = pointerSize;
 				return pointerSize;
 			}
@@ -731,31 +784,57 @@ internal sealed class MemoryClient(ICheatEngineDispatcher dispatcher) : IMemoryC
 
 		public bool TryReadBytes(Address address, Span<byte> destination)
 		{
-			if (TargetMemory.TryReadBytes(address, destination, out MemoryAccessFailure sdkFailure))
+			ThrowIfUsable();
+			if (_port.TryReadBytes(address, destination, out string? failure))
 			{
 				Failure = null;
 				return true;
 			}
 
-			Failure = sdkFailure.ToString();
+			Failure = failure;
 			return false;
 		}
 
 		public bool TryWriteBytes(Address address, ReadOnlySpan<byte> source)
 		{
-			if (TargetMemory.TryWriteBytes(address, source, out MemoryAccessFailure sdkFailure))
+			ThrowIfUsable();
+			if (_port.TryWriteBytes(address, source, out string? failure))
 			{
 				Failure = null;
 				return true;
 			}
 
-			Failure = sdkFailure.ToString();
+			Failure = failure;
 			return false;
 		}
 
-		internal static TargetMemoryCodecContext Create()
+		internal static TargetMemoryCodecContext Create(
+			CoreLifetime lifetime,
+			ICheatEngineDispatcher dispatcher,
+			IMemoryCodecContextPort port)
 		{
-			return new TargetMemoryCodecContext();
+			return new TargetMemoryCodecContext(lifetime, dispatcher, port);
+		}
+
+		internal void Expire()
+		{
+			Volatile.Write(ref _expired, 1);
+		}
+
+		private void ThrowIfUsable()
+		{
+			if (Volatile.Read(ref _expired) != 0 ||
+			    _activationEpoch != _lifetime.Epoch ||
+			    !_lifetime.IsActivationCurrent ||
+			    Environment.CurrentManagedThreadId != _threadId ||
+			    !_dispatcher.IsMainThread)
+			{
+				throw new CheatEngineActivationExpiredException(
+					_operation,
+					"The memory codec context is no longer valid for the current Cheat Engine invocation.");
+			}
+
+			_lifetime.ThrowIfInactive(_operation);
 		}
 	}
 }
