@@ -31,6 +31,16 @@ project never builds, packs, restores or starts a process, so it runs in seconds
   tolerance, and the `dotnet-coverage` merge tool pinned to the collector's version in `.config/dotnet-tools.json`.
 - `Workflows/BuildInfoSchemaTests` keep `eng/ci/build-info.v0.schema.json`, the contract fields of `build-info.json`
   and its writer `eng/ci/New-BuildInfo.ps1` in step, and every object of the schema closed to unknown properties.
+- `Workflows/WorkflowContractTests` freeze the CI contract shared with CheatEngine.SDK, over every workflow that
+  exists: callers reach `ci.yml` through job `ci` named `CI`, so the only required check is `CI / Gate`; the Gate runs
+  `always()` without permissions and needs every other job; the Sonar condition equals the Gate's `SONAR_EXPECTED`;
+  no `pull_request_target`, `merge_group` or path filter; pinned runner labels and a timeout on every job; read-only
+  top-level permissions; every action pinned to a full SHA with its version, one pin per action; no credential left
+  by checkout; no NuGet cache on a release-reachable path; locked restores through the composite setup action; the
+  Release leg packs before it tests and hands the packages to the consumption tests, which Debug excludes by trait;
+  reserved artifact names and binary logs on failure only. `Workflows/WorkflowFile` loads the YAML with YamlDotNet.
+- `Toolchain/TestProfileTests` prove that every `*.Tests` project references the Microsoft.Testing.Platform extension
+  of every option the CI test command passes (a missing one fails the module with exit code 5).
 
 ## Run
 

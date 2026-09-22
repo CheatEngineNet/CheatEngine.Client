@@ -9,4 +9,9 @@
     <Using Include="System.Xml.Linq"/>
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Workflows/WorkflowContractTests parse .github/**/*.yml. -->
+    <PackageReference Include="YamlDotNet"/>
+  </ItemGroup>
+
 </Project>
