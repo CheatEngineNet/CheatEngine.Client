@@ -15,6 +15,9 @@ project never builds, packs, restores or starts a process, so it runs in seconds
 
 - `Solution/SolutionInventoryTests` proves that every `*.csproj` on disk is built by CI through
   `CheatEngine.Client.slnx`, unless an explicit, reasoned exclusion says otherwise (the template content project).
+- `Release/RepositoryDocumentsTests` proves that the repository carries what a published package links to: an MIT
+  `LICENSE` equal to the package license expression, a `CHANGELOG.md` whose `[Unreleased]` section separates the four
+  release categories, and a `RELEASING.md` that documents the trusted publishing policy for `CheatEngine.Client*`.
 - Later work adds one folder per contract (for example `Documentation/`, `Workflows/`, `Qualification/`).
 - `Toolchain/ToolchainPinTests` keeps the build reproducible from the commit alone: `global.json` pins the exact .NET
   SDK (`rollForward: disable`, with an `errorMessage` naming the install command), `AnalysisLevel` is a numbered
