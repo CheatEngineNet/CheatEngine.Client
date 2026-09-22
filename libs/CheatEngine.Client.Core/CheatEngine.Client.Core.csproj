@@ -4,6 +4,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!-- The final plugin executable owns the SDK dynamic-loading bootstrap and runtimeconfig. -->
     <EnableDynamicLoading>false</EnableDynamicLoading>
+    <Description>The CheatEngine.SDK-facing implementation of the CheatEngine.Client contracts for an enabled, in-process Cheat Engine plugin. Composed through dependency injection; plugins do not call it directly.</Description>
   </PropertyGroup>
 
   <ItemGroup>

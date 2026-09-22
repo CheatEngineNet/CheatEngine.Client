@@ -40,8 +40,12 @@
   <PropertyGroup Label="Package identity">
     <Authors>CheatEngineNet</Authors>
     <Company>CheatEngineNet</Company>
+    <!-- The holder line of LICENSE; RepositoryDocumentsTests keeps the two equal. -->
+    <Copyright>Copyright (c) 2026 AriusII, ShadowNineX and CheatEngine.Client contributors</Copyright>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>https://github.com/CheatEngineNet/CheatEngine.Client</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/CheatEngineNet/CheatEngine.Client</PackageProjectUrl>
+    <PackageReleaseNotes>$(PackageProjectUrl)/blob/main/CHANGELOG.md</PackageReleaseNotes>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <PackageReadmeFile>README.md</PackageReadmeFile>

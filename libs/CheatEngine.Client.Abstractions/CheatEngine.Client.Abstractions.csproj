@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <RootNamespace>CheatEngine.Client</RootNamespace>
+    <Description>Contracts, requests, failures and value vocabulary of CheatEngine.Client: the public types a Cheat Engine plugin or library references without taking the implementation.</Description>
   </PropertyGroup>
 
   <ItemGroup>

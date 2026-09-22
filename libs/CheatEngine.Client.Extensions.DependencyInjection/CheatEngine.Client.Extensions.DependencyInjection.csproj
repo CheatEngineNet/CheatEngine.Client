@@ -3,6 +3,7 @@
   <PropertyGroup>
     <ProjectGuid>{5E8B0B81-9BCB-4505-AF18-6071D762CC91}</ProjectGuid>
     <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
+    <Description>Microsoft.Extensions.DependencyInjection registrations for CheatEngine.Client: the activation-scoped client, modules, memory codecs and validated options.</Description>
   </PropertyGroup>
 
   <ItemGroup>

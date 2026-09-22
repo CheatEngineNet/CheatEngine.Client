@@ -143,6 +143,16 @@
     project body and the SDK defaults, so CHEATENGINECLIENT9019 can tell a version set by a project or a -p: switch from
     the root placeholder.
   -->
+  <!--
+    A package without build output (the CheatEngine.Client facade, the template package) has no PDB, so its symbol
+    package would contain only a nuspec; nuget.org's symbol server accepts portable PDBs, and an empty .snupkg would be
+    pushed next to the .nupkg for nothing. Evaluated here, after the project body and before the NuGet pack targets.
+    https://learn.microsoft.com/nuget/create-packages/symbol-packages-snupkg#nugetorg-symbol-package-constraints
+  -->
+  <PropertyGroup Label="Symbols only for packages with build output" Condition="'$(IncludeBuildOutput)' == 'false'">
+    <IncludeSymbols>false</IncludeSymbols>
+  </PropertyGroup>
+
   <PropertyGroup Label="Evaluated version sources">
     <_CheatEngineClientEvaluatedVersion>$(Version)</_CheatEngineClientEvaluatedVersion>
     <_CheatEngineClientEvaluatedPackageVersion>$(PackageVersion)</_CheatEngineClientEvaluatedPackageVersion>

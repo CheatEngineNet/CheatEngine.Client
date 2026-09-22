@@ -10,8 +10,15 @@
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <EnablePackageValidation>true</EnablePackageValidation>
     <EnableStrictModeForBaselineValidation>true</EnableStrictModeForBaselineValidation>
-    <PackageOutputPath>$(ArtifactsPath)/packages</PackageOutputPath>
-    <PackageDescription>Fluent, dependency-injection-friendly C# APIs for authorized local Cheat Engine plugins.</PackageDescription>
+    <!--
+      Baseline hook: nothing is published yet, so there is no version to compare with. After the first release, set
+      CheatEngineClientPackageValidationBaselineVersion in Directory.Build.props to that version; package validation then
+      also reports breaking changes against the published packages (RELEASING.md).
+      https://learn.microsoft.com/dotnet/core/project-sdk/msbuild-props#packagevalidationbaselineversion
+    -->
+    <PackageValidationBaselineVersion Condition="'$(CheatEngineClientPackageValidationBaselineVersion)' != ''">$(CheatEngineClientPackageValidationBaselineVersion)</PackageValidationBaselineVersion>
+    <!-- Same folder as the CI Release leg and the package smoke tests. -->
+    <PackageOutputPath>$(ArtifactsPath)/nuget</PackageOutputPath>
     <PackageTags>cheat-engine;plugin;memory;dotnet;fluent;dependency-injection</PackageTags>
   </PropertyGroup>
 

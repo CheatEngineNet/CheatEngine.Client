@@ -2,8 +2,8 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <IsAotCompatible>false</IsAotCompatible>
-    <PackageOutputPath>$(ArtifactsPath)/packages</PackageOutputPath>
-    <PackageDescription>dotnet new template for an in-process, dependency-injection-first Cheat Engine plugin.</PackageDescription>
+    <!-- Same folder as the CI Release leg and the package smoke tests. -->
+    <PackageOutputPath>$(ArtifactsPath)/nuget</PackageOutputPath>
     <PackageTags>dotnet-new;template;cheat-engine;plugin</PackageTags>
   </PropertyGroup>
 </Project>

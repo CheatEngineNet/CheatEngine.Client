@@ -5,6 +5,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
     <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);_CheatEngineClientHostingPackLuaGenerator</TargetsForTfmSpecificContentInPackage>
+    <Description>The CheatEngineClientPlugin base class and one-provider-per-activation host for in-process Cheat Engine plugins, with the Lua module source generator and the plugin project checks.</Description>
   </PropertyGroup>
 
   <!-- A no-build pack consumes already-built analyzer output without asking the SDK to build project references. -->

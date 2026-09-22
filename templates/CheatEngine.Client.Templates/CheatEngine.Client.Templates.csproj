@@ -4,6 +4,7 @@
     <PackageType>Template</PackageType>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <NoWarn>$(NoWarn);NU5128</NoWarn>
+    <Description>dotnet new template for an in-process, dependency-injection-first Cheat Engine plugin built on CheatEngine.Client and CheatEngine.SDK.</Description>
   </PropertyGroup>
 
   <ItemGroup>
