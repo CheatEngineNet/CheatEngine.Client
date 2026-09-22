@@ -1,0 +1,91 @@
+# Advisory CI-side dependency submission: automatic NuGet submission cannot be enabled for this organization, and the
+# dependency graph detects no NuGet package from the CPM + lock-file layout on its own.
+# - detect: read-only token; a pinned, hash-verified Component Detection binary scans the locked restore
+#   (eng/ci/New-DependencySnapshot.ps1). The official submission action is not used: it downloads the latest
+#   Component Detection release at run time and executes it next to a contents: write token.
+# - submit: the only job with contents: write; it executes no third-party code (download-artifact + gh api).
+# Pushes to main give dependency review its base snapshot; same-repository pull requests (Dependabot included)
+# submit a head snapshot for the pull request head commit. Fork pull requests never run it.
+name: Dependency submission
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+# Only the newest snapshot of a ref matters.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  detect:
+    name: Detect NuGet dependencies
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    # Windows: the AOT probe's lock file holds win-x64 sections, so a locked restore fails on Linux.
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      # The snapshot describes the commit it names: the pull request head, not the merge commit.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Set up .NET and restore (locked)
+        uses: ./.github/actions/setup-dotnet
+        with:
+          restore: CheatEngine.Client.slnx
+          cache: 'false'
+
+      - name: Run Component Detection and build the snapshot
+        env:
+          SNAPSHOT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          SNAPSHOT_REF: ${{ github.ref }}
+          SNAPSHOT_CORRELATOR: ${{ github.workflow }}_nuget
+          SNAPSHOT_JOB_ID: ${{ github.run_id }}
+          SNAPSHOT_JOB_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: ./eng/ci/New-DependencySnapshot.ps1 -OutputPath artifacts/dependency-snapshot/snapshot.json
+
+      - name: Upload snapshot
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dependency-snapshot
+          path: artifacts/dependency-snapshot/snapshot.json
+          if-no-files-found: error
+          retention-days: 5
+
+  submit:
+    name: Submit dependency snapshot
+    needs: detect
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write # POST /repos/{owner}/{repo}/dependency-graph/snapshots
+    steps:
+      - name: Download snapshot
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dependency-snapshot
+          path: snapshot
+
+      - name: Submit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          gh api --method POST "repos/$env:REPOSITORY/dependency-graph/snapshots" --input snapshot/snapshot.json
+          if ($LASTEXITCODE -ne 0) {
+            throw "Dependency snapshot submission failed with exit code $LASTEXITCODE."
+          }
