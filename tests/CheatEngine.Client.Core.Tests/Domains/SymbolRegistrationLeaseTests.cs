@@ -14,7 +14,10 @@ public sealed class SymbolRegistrationLeaseTests
 	{
 		List<string> events = [];
 		CoreResourceRegistry registry = new();
-		RetriableDispatcher dispatcher = new() { RejectDispatch = true };
+		RetriableDispatcher dispatcher = new()
+		{
+			RejectDispatch = true
+		};
 		SymbolRegistrationLease lease = new(
 			new SymbolRegistration("fixture-symbol", Address.Zero),
 			dispatcher,

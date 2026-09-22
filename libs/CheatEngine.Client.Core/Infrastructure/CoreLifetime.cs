@@ -45,11 +45,11 @@ internal sealed class CoreLifetime : IDisposable
 	///     main-thread cleanup scope may dispatch; no worker admission is reopened.
 	/// </summary>
 	internal bool CanDispatch => IsActivationCurrent &&
-	                             (!Stopping.IsCancellationRequested || IsInCleanupScopeOnMainThread);
+								 (!Stopping.IsCancellationRequested || IsInCleanupScopeOnMainThread);
 
 	private bool IsInCleanupScopeOnMainThread => Volatile.Read(ref _cleanupScopeDepth) != 0 &&
-	                                             IsActivationCurrent &&
-	                                             _context.IsMainThread;
+												 IsActivationCurrent &&
+												 _context.IsMainThread;
 
 	/// <summary>Releases client-owned resources while the hosting plugin still owns SDK detach sequencing.</summary>
 	public void Dispose()

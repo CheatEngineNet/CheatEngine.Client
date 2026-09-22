@@ -14,7 +14,7 @@ namespace CheatEngine.Client.SourceGenerators.Lua.Tests;
 public sealed class CheatEngineLuaGeneratorTests
 {
 	private const string ModuleSource = ModulePrefix +
-	                                    """
+										"""
 	                                    [CheatEngineLuaModule(typeof(PluginLuaBindings), "plugin")]
 	                                    internal sealed partial class PluginLuaModule : ILuaModule;
 	                                    """;
@@ -184,7 +184,7 @@ public sealed class CheatEngineLuaGeneratorTests
 		MethodInfo addLuaModule = Assert.Single(
 			typeof(CheatEngineClientBuilder).GetMethods(BindingFlags.Instance | BindingFlags.Public),
 			static method => method.Name == nameof(CheatEngineClientBuilder.AddLuaModule) &&
-			                 method.IsGenericMethodDefinition);
+							 method.IsGenericMethodDefinition);
 		Assert.Same(builder, addLuaModule.MakeGenericMethod(moduleType).Invoke(builder, null));
 
 		using ServiceProvider provider = services.BuildServiceProvider();
@@ -196,7 +196,7 @@ public sealed class CheatEngineLuaGeneratorTests
 	public void ExplicitPublicConstructorIsPreservedForDependencyInjection()
 	{
 		GeneratorRun run = GeneratorRun.Execute(ModulePrefix +
-		                                        """
+												"""
 		                                        public sealed class ModuleDependency;
 
 		                                        [CheatEngineLuaModule(typeof(PluginLuaBindings), "plugin")]
@@ -217,7 +217,7 @@ public sealed class CheatEngineLuaGeneratorTests
 	public void OnlyNonPublicExplicitConstructorsProduceAnActionableDiagnostic()
 	{
 		GeneratorRun run = GeneratorRun.Execute(ModulePrefix +
-		                                        """
+												"""
 		                                        [CheatEngineLuaModule(typeof(PluginLuaBindings), "plugin")]
 		                                        internal sealed partial class PluginLuaModule : ILuaModule
 		                                        {
@@ -296,8 +296,8 @@ public sealed class CheatEngineLuaGeneratorTests
 		string expectedMessageFragment)
 	{
 		string source = ModulePrefix +
-		                "[CheatEngineLuaModule(typeof(PluginLuaBindings), \"plugin\")] " + modifier +
-		                " partial class PluginLuaModule { }";
+						"[CheatEngineLuaModule(typeof(PluginLuaBindings), \"plugin\")] " + modifier +
+						" partial class PluginLuaModule { }";
 
 		Diagnostic first = Assert.Single(GeneratorRun.Execute(source).Diagnostics
 			.Where(static diagnostic => diagnostic.Id == "CECLUA1001"));

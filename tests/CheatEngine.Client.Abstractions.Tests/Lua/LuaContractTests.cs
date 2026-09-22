@@ -127,13 +127,13 @@ public sealed class LuaContractTests
 	private static IEnumerable<Type> GetPublicSignatureTypes(Type type)
 	{
 		foreach (PropertyInfo property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance |
-		                                                     BindingFlags.Static))
+															 BindingFlags.Static))
 		{
 			yield return property.PropertyType;
 		}
 
 		foreach (MethodInfo method in
-		         type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static))
+				 type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static))
 		{
 			yield return method.ReturnType;
 			foreach (ParameterInfo parameter in method.GetParameters())

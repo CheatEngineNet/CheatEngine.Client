@@ -21,7 +21,7 @@ internal sealed class EventStreamLease<TEvent>(
 		neutralizeCallback ?? throw new ArgumentNullException(nameof(neutralizeCallback));
 
 	private readonly Action _releaseHostRegistration = releaseHostRegistration ??
-	                                                   throw new ArgumentNullException(nameof(releaseHostRegistration));
+													   throw new ArgumentNullException(nameof(releaseHostRegistration));
 
 	private readonly BoundedEventStream<TEvent> _stream = stream ?? throw new ArgumentNullException(nameof(stream));
 	private readonly Action<EventStreamLease<TEvent>>? _untrack = untrack;

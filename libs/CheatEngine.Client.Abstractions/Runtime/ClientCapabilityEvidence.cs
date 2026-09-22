@@ -206,7 +206,7 @@ public readonly record struct ClientCapabilityEvidence
 	private bool HasState(ClientCapabilityEvidenceState state)
 	{
 		return Implementation.State == state || Package.State == state || Host.State == state ||
-		       LiveQualification.State == state || Policy.State == state || Lifetime.State == state;
+			   LiveQualification.State == state || Policy.State == state || Lifetime.State == state;
 	}
 
 	private static void Validate(ClientCapabilityEvidenceGate gate, string parameterName)

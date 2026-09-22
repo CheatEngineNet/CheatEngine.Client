@@ -17,7 +17,10 @@ public sealed class PatternScannerBehaviorTests
 	public void TryScanResolvesModuleBeforeTheGlobalScanAndAppliesModuleAndRangeAsPostFilters()
 	{
 		RecordingAobMatchList matches = new(["3FFF", "4000", "4010", "4020", "4100"]);
-		FakeAobScanPort port = new(matches) { Modules = [Module("game.exe", 0x4000, 0x100)] };
+		FakeAobScanPort port = new(matches)
+		{
+			Modules = [Module("game.exe", 0x4000, 0x100)]
+		};
 		PatternScanner scanner = CreateScanner(port);
 		AobScanRequest request = CreateRequest(
 			new ModuleName("game.exe"), new AobScanRange(0x4010, 0x4020), 3);
@@ -40,7 +43,10 @@ public sealed class PatternScannerBehaviorTests
 	public void TryScanCountsOnlyPostFilteredAddressesAgainstTheMaterializationLimit()
 	{
 		RecordingAobMatchList matches = new(["3FFF", "4000", "4001", "40FF"]);
-		FakeAobScanPort port = new(matches) { Modules = [Module("game.exe", 0x4000, 0x100)] };
+		FakeAobScanPort port = new(matches)
+		{
+			Modules = [Module("game.exe", 0x4000, 0x100)]
+		};
 		PatternScanner scanner = CreateScanner(port);
 		AobScanRequest request = CreateRequest(new ModuleName("game.exe"), null, 2);
 
@@ -58,7 +64,10 @@ public sealed class PatternScannerBehaviorTests
 	[Fact]
 	public void TryScanRejectsAnUnknownModuleWithoutStartingTheGlobalScan()
 	{
-		FakeAobScanPort port = new() { Modules = [Module("other.exe", 0x4000, 0x100)] };
+		FakeAobScanPort port = new()
+		{
+			Modules = [Module("other.exe", 0x4000, 0x100)]
+		};
 		PatternScanner scanner = CreateScanner(port);
 
 		bool succeeded = scanner.TryScan(CreateRequest(new ModuleName("game.exe"), null, 1),
@@ -95,7 +104,10 @@ public sealed class PatternScannerBehaviorTests
 	[Fact]
 	public void TryScanRejectsAModuleWithoutAnImageSizeBeforeStartingTheGlobalScan()
 	{
-		FakeAobScanPort port = new() { Modules = [Module("game.exe", 0x4000, null)] };
+		FakeAobScanPort port = new()
+		{
+			Modules = [Module("game.exe", 0x4000, null)]
+		};
 		PatternScanner scanner = CreateScanner(port);
 
 		bool succeeded = scanner.TryScan(CreateRequest(new ModuleName("game.exe"), null, 1),
@@ -111,7 +123,10 @@ public sealed class PatternScannerBehaviorTests
 	[Fact]
 	public void TryScanRejectsAZeroLengthModuleBeforeStartingTheGlobalScan()
 	{
-		FakeAobScanPort port = new() { Modules = [Module("game.exe", 0x4000, 0)] };
+		FakeAobScanPort port = new()
+		{
+			Modules = [Module("game.exe", 0x4000, 0)]
+		};
 		PatternScanner scanner = CreateScanner(port);
 
 		bool succeeded = scanner.TryScan(CreateRequest(new ModuleName("game.exe"), null, 1),
@@ -127,7 +142,10 @@ public sealed class PatternScannerBehaviorTests
 	[Fact]
 	public void TryScanRejectsAnInvalidModuleEnumerationCountBeforeStartingTheGlobalScan()
 	{
-		FakeAobScanPort port = new() { ReportedModuleCount = 4097 };
+		FakeAobScanPort port = new()
+		{
+			ReportedModuleCount = 4097
+		};
 		PatternScanner scanner = CreateScanner(port);
 
 		bool succeeded = scanner.TryScan(CreateRequest(new ModuleName("game.exe"), null, 1),
@@ -146,7 +164,8 @@ public sealed class PatternScannerBehaviorTests
 		using CancellationTokenSource cancellation = new();
 		FakeAobScanPort port = new()
 		{
-			Modules = [Module("game.exe", 0x4000, 0x100)], OnEnumerateModules = cancellation.Cancel
+			Modules = [Module("game.exe", 0x4000, 0x100)],
+			OnEnumerateModules = cancellation.Cancel
 		};
 		PatternScanner scanner = CreateScanner(port);
 
@@ -184,7 +203,10 @@ public sealed class PatternScannerBehaviorTests
 	{
 		using CancellationTokenSource cancellation = new();
 		RecordingAobMatchList matches = new(["400000"]);
-		FakeAobScanPort port = new(matches) { OnScan = cancellation.Cancel };
+		FakeAobScanPort port = new(matches)
+		{
+			OnScan = cancellation.Cancel
+		};
 		PatternScanner scanner = CreateScanner(port);
 
 		bool succeeded = scanner.TryScan(CreateRequest(null, null, 1),

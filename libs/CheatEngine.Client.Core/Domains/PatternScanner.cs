@@ -33,8 +33,8 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		CheatEngineFailure hostFailure = default;
 		bool succeeded = false;
 		if (!_dispatcher.TryInvoke(
-			    () => succeeded = TryScanCore(request, cancellationToken, out captured, out hostFailure),
-			    out failure, cancellationToken))
+				() => succeeded = TryScanCore(request, cancellationToken, out captured, out hostFailure),
+				out failure, cancellationToken))
 		{
 			result = default;
 			return false;
@@ -75,7 +75,7 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		bool hasModuleRange = false;
 		ModuleRange moduleRange = default;
 		if (request.Module.HasValue &&
-		    !TryGetModuleRange(request.Module.Value, out hasModuleRange, out moduleRange, out failure))
+			!TryGetModuleRange(request.Module.Value, out hasModuleRange, out moduleRange, out failure))
 		{
 			result = default;
 			return false;
@@ -226,7 +226,7 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		ModuleRange moduleRange)
 	{
 		return (!hasModuleRange || moduleRange.Contains(address)) &&
-		       (!request.Range.HasValue || request.Range.Value.Contains(address));
+			   (!request.Range.HasValue || request.Range.Value.Contains(address));
 	}
 
 	internal static bool TryValidateRequest(AobScanRequest request, out CheatEngineFailure failure)

@@ -93,7 +93,7 @@ internal static class DefaultMemoryCodecs
 		{
 			ArgumentNullException.ThrowIfNull(context);
 			if (!IsSupportedPointerSize(context.PointerSize) ||
-			    (context.PointerSize == sizeof(uint) && value.Value > uint.MaxValue))
+				(context.PointerSize == sizeof(uint) && value.Value > uint.MaxValue))
 			{
 				return false;
 			}

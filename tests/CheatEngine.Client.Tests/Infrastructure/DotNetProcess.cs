@@ -39,7 +39,10 @@ internal static class DotNetProcess
 			startInfo.Environment[name] = value;
 		}
 
-		using Process process = new() { StartInfo = startInfo };
+		using Process process = new()
+		{
+			StartInfo = startInfo
+		};
 		if (!process.Start())
 		{
 			throw new InvalidOperationException("The dotnet process did not start.");
@@ -73,7 +76,7 @@ internal sealed record DotNetProcessResult(
 	public override string ToString()
 	{
 		return $"dotnet {string.Join(' ', Arguments)} exited with {ExitCode}.{Environment.NewLine}" +
-		       $"stdout:{Environment.NewLine}{StandardOutput}{Environment.NewLine}" +
-		       $"stderr:{Environment.NewLine}{StandardError}";
+			   $"stdout:{Environment.NewLine}{StandardOutput}{Environment.NewLine}" +
+			   $"stderr:{Environment.NewLine}{StandardError}";
 	}
 }

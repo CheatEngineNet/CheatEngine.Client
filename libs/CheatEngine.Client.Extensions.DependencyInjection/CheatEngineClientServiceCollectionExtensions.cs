@@ -97,8 +97,8 @@ public static class CheatEngineClientServiceCollectionExtensions
 			CheatEngineClientOptions options =
 				serviceProvider.GetRequiredService<IOptions<CheatEngineClientOptions>>().Value;
 			string[] allowedTableRoots = options.AllowedTableRoots
-			                             ?? throw new InvalidOperationException(
-				                             "AllowedTableRoots must be validated before the Client policy is created.");
+										 ?? throw new InvalidOperationException(
+											 "AllowedTableRoots must be validated before the Client policy is created.");
 			bool enableUnsafeLuaExecution = serviceProvider
 				.GetService<UnsafeLuaExecutionRegistration>()?
 				.IsEnabled == true;
@@ -134,8 +134,8 @@ public static class CheatEngineClientServiceCollectionExtensions
 			CheatEngineClientOptions options =
 				serviceProvider.GetRequiredService<IOptions<CheatEngineClientOptions>>().Value;
 			MemoryResourceLimits limits = options.MemoryResourceLimits
-			                              ?? throw new InvalidOperationException(
-				                              "MemoryResourceLimits must be validated before the Client memory service is created.");
+										  ?? throw new InvalidOperationException(
+											  "MemoryResourceLimits must be validated before the Client memory service is created.");
 			return new MemoryClient(
 				serviceProvider.GetRequiredService<SdkMainThreadDispatcher>(),
 				serviceProvider.GetRequiredService<CoreLifetime>(),

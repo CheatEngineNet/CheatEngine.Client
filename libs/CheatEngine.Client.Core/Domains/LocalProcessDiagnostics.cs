@@ -66,7 +66,7 @@ internal sealed class LocalProcessDiagnostics(IProcessHost host) : ILocalProcess
 			return true;
 		}
 		catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or Win32Exception
-			                                  or PlatformNotSupportedException)
+											  or PlatformNotSupportedException)
 		{
 			result = default;
 			failure = new CheatEngineFailure(
@@ -83,7 +83,7 @@ internal sealed class LocalProcessDiagnostics(IProcessHost host) : ILocalProcess
 		CancellationToken cancellationToken = default)
 	{
 		if (TryGetProcesses(request, out ProcessEnumerationResult result, out CheatEngineFailure failure,
-			    cancellationToken))
+				cancellationToken))
 		{
 			return result;
 		}
@@ -95,7 +95,7 @@ internal sealed class LocalProcessDiagnostics(IProcessHost host) : ILocalProcess
 	private static bool Matches(ProcessEnumerationRequest request, LocalProcessInfo process)
 	{
 		return request.NameContains is null ||
-		       process.Name?.Contains(request.NameContains, StringComparison.OrdinalIgnoreCase) == true;
+			   process.Name?.Contains(request.NameContains, StringComparison.OrdinalIgnoreCase) == true;
 	}
 
 	private static bool Cancel(out ProcessEnumerationResult result, out CheatEngineFailure failure)

@@ -17,7 +17,8 @@ public sealed class DefaultMemoryCodecsTests
 
 		using ServiceProvider provider = services.BuildServiceProvider(new ServiceProviderOptions
 		{
-			ValidateOnBuild = true, ValidateScopes = true
+			ValidateOnBuild = true,
+			ValidateScopes = true
 		});
 
 		Assert.IsType<IMemoryCodec<byte>>(provider.GetRequiredService<IMemoryCodec<byte>>(), false);

@@ -31,16 +31,16 @@ internal sealed class InspectionClient(
 		ImmutableArray<ModuleInfo> result = ImmutableArray<ModuleInfo>.Empty;
 		InspectionStatus status = InspectionStatus.InvalidResult;
 		if (!_dispatcher.TryInvoke(() =>
-		    {
-			    ModuleInfo[] buffer = new ModuleInfo[request.MaximumItems];
-			    status = processId.HasValue
-				    ? _inspection.EnumerateModules(processId.Value, buffer, out int written)
-				    : _inspection.EnumerateModules(buffer, out written);
-			    if (status == InspectionStatus.Success)
-			    {
-				    result = ImmutableArray.Create(buffer, 0, written);
-			    }
-		    }, out failure, cancellationToken))
+			{
+				ModuleInfo[] buffer = new ModuleInfo[request.MaximumItems];
+				status = processId.HasValue
+					? _inspection.EnumerateModules(processId.Value, buffer, out int written)
+					: _inspection.EnumerateModules(buffer, out written);
+				if (status == InspectionStatus.Success)
+				{
+					result = ImmutableArray.Create(buffer, 0, written);
+				}
+			}, out failure, cancellationToken))
 		{
 			modules = [];
 			return false;
@@ -54,7 +54,7 @@ internal sealed class InspectionClient(
 		TargetProcessId? processId = null, CancellationToken cancellationToken = default)
 	{
 		if (TryGetModules(request, out ImmutableArray<ModuleInfo> result, out CheatEngineFailure failure, processId,
-			    cancellationToken))
+				cancellationToken))
 		{
 			return result;
 		}
@@ -70,14 +70,14 @@ internal sealed class InspectionClient(
 		ImmutableArray<ModuleSectionInfo> result = ImmutableArray<ModuleSectionInfo>.Empty;
 		InspectionStatus status = InspectionStatus.InvalidResult;
 		if (!_dispatcher.TryInvoke(() =>
-		    {
-			    ModuleSectionInfo[] buffer = new ModuleSectionInfo[request.MaximumItems];
-			    status = _inspection.EnumerateSections(moduleName, buffer, out int written);
-			    if (status == InspectionStatus.Success)
-			    {
-				    result = ImmutableArray.Create(buffer, 0, written);
-			    }
-		    }, out failure, cancellationToken))
+			{
+				ModuleSectionInfo[] buffer = new ModuleSectionInfo[request.MaximumItems];
+				status = _inspection.EnumerateSections(moduleName, buffer, out int written);
+				if (status == InspectionStatus.Success)
+				{
+					result = ImmutableArray.Create(buffer, 0, written);
+				}
+			}, out failure, cancellationToken))
 		{
 			sections = [];
 			return false;
@@ -91,7 +91,7 @@ internal sealed class InspectionClient(
 		InspectionCollectionRequest request, CancellationToken cancellationToken = default)
 	{
 		if (TryGetModuleSections(moduleName, request, out ImmutableArray<ModuleSectionInfo> result,
-			    out CheatEngineFailure failure, cancellationToken))
+				out CheatEngineFailure failure, cancellationToken))
 		{
 			return result;
 		}
@@ -107,14 +107,14 @@ internal sealed class InspectionClient(
 		ImmutableArray<MemoryRegionInfo> result = [];
 		InspectionStatus status = InspectionStatus.InvalidResult;
 		if (!_dispatcher.TryInvoke(() =>
-		    {
-			    MemoryRegionInfo[] buffer = new MemoryRegionInfo[request.MaximumItems];
-			    status = _inspection.EnumerateMemoryRegions(buffer, out int written);
-			    if (status == InspectionStatus.Success)
-			    {
-				    result = ImmutableArray.Create(buffer, 0, written);
-			    }
-		    }, out failure, cancellationToken))
+			{
+				MemoryRegionInfo[] buffer = new MemoryRegionInfo[request.MaximumItems];
+				status = _inspection.EnumerateMemoryRegions(buffer, out int written);
+				if (status == InspectionStatus.Success)
+				{
+					result = ImmutableArray.Create(buffer, 0, written);
+				}
+			}, out failure, cancellationToken))
 		{
 			regions = [];
 			return false;
@@ -128,7 +128,7 @@ internal sealed class InspectionClient(
 		CancellationToken cancellationToken = default)
 	{
 		if (TryGetMemoryRegions(request, out ImmutableArray<MemoryRegionInfo> result, out CheatEngineFailure failure,
-			    cancellationToken))
+				cancellationToken))
 		{
 			return result;
 		}
@@ -143,7 +143,7 @@ internal sealed class InspectionClient(
 		MemoryRegionInfo captured = default;
 		InspectionStatus status = InspectionStatus.InvalidResult;
 		if (!_dispatcher.TryInvoke(() => status = _inspection.GetMemoryRegion(address, out captured),
-			    out failure, cancellationToken))
+				out failure, cancellationToken))
 		{
 			region = default;
 			return false;
@@ -170,7 +170,7 @@ internal sealed class InspectionClient(
 		SymbolInfo captured = default;
 		InspectionStatus status = InspectionStatus.InvalidResult;
 		if (!_dispatcher.TryInvoke(() => status = _inspection.GetSymbol(expression, out captured),
-			    out failure, cancellationToken))
+				out failure, cancellationToken))
 		{
 			symbol = default;
 			return false;
@@ -197,9 +197,9 @@ internal sealed class InspectionClient(
 		string? captured = null;
 		bool succeeded = false;
 		if (!_dispatcher.TryInvoke(() =>
-				    succeeded = _inspection.TryResolveName(ToNativeAddress(address), out captured),
-			    out failure,
-			    cancellationToken))
+					succeeded = _inspection.TryResolveName(ToNativeAddress(address), out captured),
+				out failure,
+				cancellationToken))
 		{
 			name = null;
 			return false;
@@ -243,7 +243,7 @@ internal sealed class InspectionClient(
 		}
 
 		if (!_dispatcher.TryInvoke(() => _inspection.RegisterSymbol(registration.Name,
-			    ToNativeAddress(registration.Address), registration.DoNotSave), out failure, cancellationToken))
+				ToNativeAddress(registration.Address), registration.DoNotSave), out failure, cancellationToken))
 		{
 			ReleaseSymbolName(registration.Name);
 			return false;
@@ -287,7 +287,7 @@ internal sealed class InspectionClient(
 		CancellationToken cancellationToken = default)
 	{
 		if (TryRegisterSymbol(registration, out ISymbolRegistrationLease? result, out CheatEngineFailure failure,
-			    cancellationToken))
+				cancellationToken))
 		{
 			return result;
 		}
@@ -302,7 +302,7 @@ internal sealed class InspectionClient(
 		Address captured = Address.Zero;
 		InspectionStatus status = InspectionStatus.InvalidResult;
 		if (!_dispatcher.TryInvoke(() => status = _inspection.ResolveAddress(expression, options, out captured),
-			    out failure, cancellationToken))
+				out failure, cancellationToken))
 		{
 			address = default;
 			return false;
@@ -316,7 +316,7 @@ internal sealed class InspectionClient(
 		CancellationToken cancellationToken = default)
 	{
 		if (TryResolveAddress(expression, options, out Address result, out CheatEngineFailure failure,
-			    cancellationToken))
+				cancellationToken))
 		{
 			return result;
 		}

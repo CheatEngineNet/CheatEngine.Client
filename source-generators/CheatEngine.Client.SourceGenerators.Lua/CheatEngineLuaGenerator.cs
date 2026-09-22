@@ -186,7 +186,7 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 		source.Unindent();
 		source.WriteLine("EnsureExportsAreVacant(operation.State);");
 		source.WriteLine("global::CheatEngine.SDK.Lua.Calls.LuaStatus status = " + candidate.BindingsType +
-		                 ".RegisterLuaFunctions(operation.State);");
+						 ".RegisterLuaFunctions(operation.State);");
 		source.WriteLine("if (status.IsOk)");
 		source.OpenBlock();
 		source.WriteLine("return;");
@@ -210,7 +210,7 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 		source.WriteLine("global::CheatEngine.SDK.Lua.Runtime.LuaRuntime.AcquireOperation();");
 		source.Unindent();
 		source.WriteLine("global::CheatEngine.SDK.Lua.Calls.LuaStatus status = " + candidate.BindingsType +
-		                 ".UnregisterLuaFunctions(operation.State);");
+						 ".UnregisterLuaFunctions(operation.State);");
 		source.WriteLine("if (!status.IsOk)");
 		source.OpenBlock();
 		source.WriteLine("status.ThrowIfFailed(operation.State);");
@@ -227,7 +227,7 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 		{
 			source.OpenBlock();
 			source.WriteLine("global::CheatEngine.SDK.Lua.Calls.LuaStatus status = state.TryGetGlobal(" +
-			                 CSharpLiteral(export) + "u8);");
+							 CSharpLiteral(export) + "u8);");
 			source.WriteLine("if (!status.IsOk)");
 			source.OpenBlock();
 			source.WriteLine("status.ThrowIfFailed(state);");
@@ -235,9 +235,9 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 			source.WriteLine("if (!state.IsNil(-1))");
 			source.OpenBlock();
 			source.WriteLine("throw new global::System.InvalidOperationException(" +
-			                 CSharpLiteral("Lua global '" + export +
-			                               "' is already defined and cannot be replaced by Client module '" +
-			                               candidate.ModuleName + "'.") + ");");
+							 CSharpLiteral("Lua global '" + export +
+										   "' is already defined and cannot be replaced by Client module '" +
+										   candidate.ModuleName + "'.") + ");");
 			source.CloseBlock();
 			source.WriteLine("state.Pop(1);");
 			source.CloseBlock();
@@ -262,27 +262,27 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 		source.WriteLine(candidate.ContainingTypeDeclaration);
 		source.OpenBlock();
 		source.WriteLine("/// <summary>Creates a handle-free Client operation for <c>" + candidate.MethodName +
-		                 "</c>.</summary>");
+						 "</c>.</summary>");
 		source.WriteLine("public static " + candidate.OperationTypeName + " Create" + candidate.OperationTypeName +
-		                 "(" +
-		                 EmitParameterList(candidate.Parameters) + ")");
+						 "(" +
+						 EmitParameterList(candidate.Parameters) + ")");
 		source.OpenBlock();
 		source.WriteLine("return new " + candidate.OperationTypeName + "(" +
-		                 EmitArgumentList(candidate.Parameters, false) + ");");
+						 EmitArgumentList(candidate.Parameters, false) + ");");
 		source.CloseBlock();
 		source.WriteLine();
 		source.WriteLine("/// <summary>Generated readonly value operation for <c>" + candidate.MethodName +
-		                 "</c>.</summary>");
+						 "</c>.</summary>");
 		source.WriteLine(candidate.OperationVisibility + " readonly record struct " + candidate.OperationTypeName +
-		                 "(" +
-		                 EmitRecordParameterList(candidate.Parameters) +
-		                 ") : global::CheatEngine.Client.Lua.ILuaOperation<" +
-		                 candidate.ResultType + ">");
+						 "(" +
+						 EmitRecordParameterList(candidate.Parameters) +
+						 ") : global::CheatEngine.Client.Lua.ILuaOperation<" +
+						 candidate.ResultType + ">");
 		source.OpenBlock();
 		source.WriteLine("/// <inheritdoc />");
 		source.WriteLine("public bool TryExecute(global::CheatEngine.Client.Lua.ILuaExecutionContext context, out " +
-		                 candidate.ResultType +
-		                 " result, out global::CheatEngine.Client.Results.CheatEngineFailure failure)");
+						 candidate.ResultType +
+						 " result, out global::CheatEngine.Client.Results.CheatEngineFailure failure)");
 		source.OpenBlock();
 		source.WriteLine("global::System.ArgumentNullException.ThrowIfNull(context);");
 		source.WriteLine("context.ThrowIfExpired();");
@@ -292,7 +292,7 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 		{
 			source.WriteLine(candidate.SourceResultType + " source;");
 			source.WriteLine("if (!" + candidate.BindingsType + "." + candidate.MethodName + "(" +
-			                 EmitOutArgumentList(candidate.Parameters) + "))");
+							 EmitOutArgumentList(candidate.Parameters) + "))");
 			source.OpenBlock();
 			source.WriteLine("result = default!;");
 			source.WriteLine("failure = new global::CheatEngine.Client.Results.CheatEngineFailure(");
@@ -308,7 +308,7 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 		else
 		{
 			source.WriteLine(candidate.SourceResultType + " source = " + candidate.BindingsType + "." +
-			                 candidate.MethodName + "(" + EmitArgumentList(candidate.Parameters, true) + ");");
+							 candidate.MethodName + "(" + EmitArgumentList(candidate.Parameters, true) + ");");
 		}
 
 		source.WriteLine(candidate.MapperType is null
@@ -445,8 +445,8 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 		foreach (INamedTypeSymbol contract in mapper.AllInterfaces)
 		{
 			if (!string.Equals(contract.OriginalDefinition.ToDisplayString(), LuaResultMapperMetadataName,
-				    StringComparison.Ordinal) ||
-			    !SymbolEqualityComparer.Default.Equals(contract.TypeArguments[0], source))
+					StringComparison.Ordinal) ||
+				!SymbolEqualityComparer.Default.Equals(contract.TypeArguments[0], source))
 			{
 				continue;
 			}
@@ -482,7 +482,7 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 		foreach (SyntaxReference declaration in type.DeclaringSyntaxReferences)
 		{
 			if (declaration.GetSyntax() is TypeDeclarationSyntax syntax &&
-			    syntax.Modifiers.Any(static modifier => modifier.IsKind(SyntaxKind.PartialKeyword)))
+				syntax.Modifiers.Any(static modifier => modifier.IsKind(SyntaxKind.PartialKeyword)))
 			{
 				return true;
 			}
@@ -588,10 +588,10 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 		}
 
 		foreach (ITypeParameterSymbol parameter in named.OriginalDefinition.TypeParameters
-			         .OrderBy(static candidate => candidate.Ordinal))
+					 .OrderBy(static candidate => candidate.Ordinal))
 		{
 			if (TryFindConstraintViolation(parameter, role, path + "." + parameter.Name, visited, ref visitedCount,
-				    depth + 1, out violation))
+					depth + 1, out violation))
 			{
 				return true;
 			}
@@ -602,7 +602,7 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 			foreach (IFieldSymbol element in named.TupleElements)
 			{
 				if (TryFindClientBoundaryViolation(element.Type, role, path + "." + element.Name, visited,
-					    ref visitedCount, depth + 1, out violation))
+						ref visitedCount, depth + 1, out violation))
 				{
 					return true;
 				}
@@ -612,14 +612,14 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 		foreach (ITypeSymbol argument in named.TypeArguments)
 		{
 			if (TryFindClientBoundaryViolation(argument, role, path + "<" + TypeName(argument) + ">", visited,
-				    ref visitedCount, depth + 1, out violation))
+					ref visitedCount, depth + 1, out violation))
 			{
 				return true;
 			}
 		}
 
 		if (IsFrameworkOrApprovedSdkValue(named) ||
-		    (role == ClientBoundaryRole.MapperSource && IsCheatEngineSdkType(named)))
+			(role == ClientBoundaryRole.MapperSource && IsCheatEngineSdkType(named)))
 		{
 			violation = string.Empty;
 			return false;
@@ -633,9 +633,9 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 	{
 		string metadataName = type.OriginalDefinition.ToDisplayString();
 		if (metadataName is "CheatEngine.SDK.Lua.State.LuaState" or "CheatEngine.SDK.Lua.References.LuaRef" or
-			    "CheatEngine.SDK.Engine.Objects.CEObject" or "CheatEngine.SDK.Engine.Objects.Owned<T>" ||
-		    type.ContainingNamespace.ToDisplayString().Contains(".Interop", StringComparison.Ordinal) ||
-		    HasAttribute(type, LuaClassAttributeMetadataName) || ImplementsSdkObjectContract(type))
+				"CheatEngine.SDK.Engine.Objects.CEObject" or "CheatEngine.SDK.Engine.Objects.Owned<T>" ||
+			type.ContainingNamespace.ToDisplayString().Contains(".Interop", StringComparison.Ordinal) ||
+			HasAttribute(type, LuaClassAttributeMetadataName) || ImplementsSdkObjectContract(type))
 		{
 			violation = path + " exposes forbidden SDK lifetime or interop type '" + metadataName + "'.";
 			return true;
@@ -648,8 +648,8 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 		}
 
 		if (role == ClientBoundaryRole.ClientResult &&
-		    type.ContainingAssembly?.Name.StartsWith(CheatEngineSdkAssemblyPrefix, StringComparison.Ordinal) == true &&
-		    !ApprovedSdkClientResultTypes.Contains(metadataName))
+			type.ContainingAssembly?.Name.StartsWith(CheatEngineSdkAssemblyPrefix, StringComparison.Ordinal) == true &&
+			!ApprovedSdkClientResultTypes.Contains(metadataName))
 		{
 			violation = path + " exposes non-approved SDK type '" + metadataName + "'.";
 			return true;
@@ -677,7 +677,7 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 		foreach (ITypeSymbol constraint in typeParameter.ConstraintTypes.OrderBy(TypeName, StringComparer.Ordinal))
 		{
 			if (TryFindClientBoundaryViolation(constraint, role, path + " constraint", visited, ref visitedCount,
-				    depth + 1, out violation))
+					depth + 1, out violation))
 			{
 				return true;
 			}
@@ -691,12 +691,12 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 		HashSet<ISymbol> visited, ref int visitedCount, int depth, out string violation)
 	{
 		if (type.BaseType is
-		    {
-			    SpecialType: not SpecialType.System_Object and not SpecialType.System_ValueType and
-			    not SpecialType.System_Enum
-		    } baseType &&
-		    TryFindClientBoundaryViolation(baseType, role, path + ".base", visited, ref visitedCount, depth + 1,
-			    out violation))
+			{
+				SpecialType: not SpecialType.System_Object and not SpecialType.System_ValueType and
+				not SpecialType.System_Enum
+			} baseType &&
+			TryFindClientBoundaryViolation(baseType, role, path + ".base", visited, ref visitedCount, depth + 1,
+				out violation))
 		{
 			return true;
 		}
@@ -709,20 +709,20 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 			}
 
 			if (TryFindClientBoundaryViolation(implementedInterface, role, path + ".interface", visited,
-				    ref visitedCount, depth + 1, out violation))
+					ref visitedCount, depth + 1, out violation))
 			{
 				return true;
 			}
 		}
 
 		foreach (ISymbol member in type.GetMembers().OrderBy(static candidate => candidate.MetadataName,
-			         StringComparer.Ordinal))
+					 StringComparer.Ordinal))
 		{
 			switch (member)
 			{
 				case IFieldSymbol { IsStatic: false } field:
 					if (TryFindClientBoundaryViolation(field.Type, role, path + "." + field.Name, visited,
-						    ref visitedCount, depth + 1, out violation))
+							ref visitedCount, depth + 1, out violation))
 					{
 						return true;
 					}
@@ -730,9 +730,9 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 					break;
 				case IPropertySymbol { IsStatic: false } property:
 					if (TryFindClientBoundaryViolation(property.Type, role, path + "." + property.Name, visited,
-						    ref visitedCount, depth + 1, out violation) ||
-					    TryFindParameterViolation(property.Parameters, role, path + "." + property.Name, visited,
-						    ref visitedCount, depth + 1, out violation))
+							ref visitedCount, depth + 1, out violation) ||
+						TryFindParameterViolation(property.Parameters, role, path + "." + property.Name, visited,
+							ref visitedCount, depth + 1, out violation))
 					{
 						return true;
 					}
@@ -740,21 +740,21 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 					break;
 				case IEventSymbol { IsStatic: false } @event:
 					if (TryFindClientBoundaryViolation(@event.Type, role, path + "." + @event.Name, visited,
-						    ref visitedCount, depth + 1, out violation))
+							ref visitedCount, depth + 1, out violation))
 					{
 						return true;
 					}
 
 					break;
 				case IMethodSymbol { IsStatic: false } method when !method.IsImplicitlyDeclared &&
-				                                                   method.DeclaredAccessibility !=
-				                                                   Accessibility.Private:
+																   method.DeclaredAccessibility !=
+																   Accessibility.Private:
 					violation = string.Empty;
 					if (method.ReturnsByRef || method.ReturnsByRefReadonly ||
-					    TryFindClientBoundaryViolation(method.ReturnType, role, path + "." + method.Name, visited,
-						    ref visitedCount, depth + 1, out violation) ||
-					    TryFindParameterViolation(method.Parameters, role, path + "." + method.Name, visited,
-						    ref visitedCount, depth + 1, out violation))
+						TryFindClientBoundaryViolation(method.ReturnType, role, path + "." + method.Name, visited,
+							ref visitedCount, depth + 1, out violation) ||
+						TryFindParameterViolation(method.Parameters, role, path + "." + method.Name, visited,
+							ref visitedCount, depth + 1, out violation))
 					{
 						violation = string.IsNullOrEmpty(violation)
 							? path + "." + method.Name + " exposes a by-reference return."
@@ -782,7 +782,7 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 			}
 
 			if (TryFindClientBoundaryViolation(parameter.Type, role, path + " parameter '" + parameter.Name + "'",
-				    visited, ref visitedCount, depth + 1, out violation))
+					visited, ref visitedCount, depth + 1, out violation))
 			{
 				return true;
 			}
@@ -807,16 +807,16 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 	{
 		string metadataName = type.OriginalDefinition.ToDisplayString();
 		return IsScalar(type) || type.IsTupleType || ApprovedFrameworkValueTypes.Contains(metadataName) ||
-		       ApprovedFrameworkGenericCollectionTypes.Contains(metadataName);
+			   ApprovedFrameworkGenericCollectionTypes.Contains(metadataName);
 	}
 
 	private static bool IsFrameworkType(INamedTypeSymbol type)
 	{
 		string? assemblyName = type.ContainingAssembly?.Name;
 		return assemblyName is not null &&
-		       !assemblyName.StartsWith(CheatEngineSdkAssemblyPrefix, StringComparison.Ordinal) &&
-		       (assemblyName.StartsWith("System", StringComparison.Ordinal) ||
-		        assemblyName.StartsWith("Microsoft", StringComparison.Ordinal));
+			   !assemblyName.StartsWith(CheatEngineSdkAssemblyPrefix, StringComparison.Ordinal) &&
+			   (assemblyName.StartsWith("System", StringComparison.Ordinal) ||
+				assemblyName.StartsWith("Microsoft", StringComparison.Ordinal));
 	}
 
 	private static bool IsSafeFrameworkDtoImplementationContract(INamedTypeSymbol type)
@@ -853,7 +853,7 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 	private static string EscapeIdentifier(string name)
 	{
 		return SyntaxFacts.GetKeywordKind(name) != SyntaxKind.None ||
-		       SyntaxFacts.GetContextualKeywordKind(name) != SyntaxKind.None
+			   SyntaxFacts.GetContextualKeywordKind(name) != SyntaxKind.None
 			? "@" + name
 			: name;
 	}
@@ -931,14 +931,14 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 			INamedTypeSymbol? module = context.TargetSymbol as INamedTypeSymbol;
 			Location location = context.TargetNode.GetLocation();
 			if (module is null || module.TypeKind != TypeKind.Class || module.IsStatic || module.IsAbstract ||
-			    module.IsFileLocal || module.ContainingType is not null ||
-			    module.OriginalDefinition.TypeParameters.Length != 0 || !IsPartial(module))
+				module.IsFileLocal || module.ContainingType is not null ||
+				module.OriginalDefinition.TypeParameters.Length != 0 || !IsPartial(module))
 			{
 				return Invalid(ModuleDiagnosticDescriptors.InvalidModuleShape, location);
 			}
 
 			if (!TryDetermineConstructorEmission(module, out bool emitsPublicParameterlessConstructor,
-				    out IMethodSymbol? nonPublicConstructor))
+					out IMethodSymbol? nonPublicConstructor))
 			{
 				return Invalid(ModuleDiagnosticDescriptors.NoPublicConstructor,
 					nonPublicConstructor?.Locations.FirstOrDefault() ?? location,
@@ -950,9 +950,9 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 
 			AttributeData attribute = context.Attributes[0];
 			if (attribute.ConstructorArguments.Length == 0 ||
-			    attribute.ConstructorArguments[0].Value is not INamedTypeSymbol bindings || !bindings.IsStatic ||
-			    bindings.TypeKind != TypeKind.Class || bindings.IsFileLocal ||
-			    bindings.OriginalDefinition.TypeParameters.Length != 0)
+				attribute.ConstructorArguments[0].Value is not INamedTypeSymbol bindings || !bindings.IsStatic ||
+				bindings.TypeKind != TypeKind.Class || bindings.IsFileLocal ||
+				bindings.OriginalDefinition.TypeParameters.Length != 0)
 			{
 				return Invalid(ModuleDiagnosticDescriptors.InvalidBindingsType, location);
 			}
@@ -1123,18 +1123,18 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 			IMethodSymbol? method = context.TargetSymbol as IMethodSymbol;
 			Location location = context.TargetNode.GetLocation();
 			if (method is null || !HasAttribute(method, LuaGlobalAttributeMetadataName) ||
-			    method.MethodKind != MethodKind.Ordinary ||
-			    !method.IsStatic || method.IsGenericMethod || !method.IsPartialDefinition ||
-			    method.PartialImplementationPart is not null || method.ReturnsByRef || method.ReturnsByRefReadonly ||
-			    method.ContainingType.ContainingType is not null || method.ContainingType.IsFileLocal ||
-			    method.ContainingType.OriginalDefinition.TypeParameters.Length != 0 ||
-			    !method.ContainingType.IsStatic || !IsPartial(method.ContainingType))
+				method.MethodKind != MethodKind.Ordinary ||
+				!method.IsStatic || method.IsGenericMethod || !method.IsPartialDefinition ||
+				method.PartialImplementationPart is not null || method.ReturnsByRef || method.ReturnsByRefReadonly ||
+				method.ContainingType.ContainingType is not null || method.ContainingType.IsFileLocal ||
+				method.ContainingType.OriginalDefinition.TypeParameters.Length != 0 ||
+				!method.ContainingType.IsStatic || !IsPartial(method.ContainingType))
 			{
 				return Invalid(OperationDiagnosticDescriptors.InvalidOperationShape, location);
 			}
 
 			if (method.ContainingType.GetMembers(method.Name).OfType<IMethodSymbol>()
-				    .Count(static candidate => HasAttribute(candidate, LuaOperationAttributeMetadataName)) != 1)
+					.Count(static candidate => HasAttribute(candidate, LuaOperationAttributeMetadataName)) != 1)
 			{
 				return Invalid(OperationDiagnosticDescriptors.OverloadedOperation, location, method.Name);
 			}
@@ -1146,8 +1146,8 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 				if (parameter.RefKind == RefKind.Out)
 				{
 					if (outResult is not null || parameter.Ordinal != method.Parameters.Length - 1 ||
-					    parameter.IsParams ||
-					    parameter.HasExplicitDefaultValue)
+						parameter.IsParams ||
+						parameter.HasExplicitDefaultValue)
 					{
 						return Invalid(OperationDiagnosticDescriptors.UnsupportedSignature, location, method.Name);
 					}
@@ -1157,7 +1157,7 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 				}
 
 				if (parameter.RefKind != RefKind.None || parameter.IsParams || parameter.HasExplicitDefaultValue ||
-				    !IsScalar(parameter.Type))
+					!IsScalar(parameter.Type))
 				{
 					return Invalid(OperationDiagnosticDescriptors.UnsupportedSignature, location, method.Name);
 				}
@@ -1193,13 +1193,13 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 				return Invalid(OperationDiagnosticDescriptors.InvalidMapper, location, mapper.Name, method.Name);
 			}
 			else if (TryFindClientBoundaryViolation(sourceResult, ClientBoundaryRole.MapperSource,
-				         out string sourceViolation))
+						 out string sourceViolation))
 			{
 				return Invalid(OperationDiagnosticDescriptors.UnsafeMappedType, location, method.Name,
 					sourceViolation);
 			}
 			else if (TryFindClientBoundaryViolation(result, ClientBoundaryRole.ClientResult,
-				         out string resultViolation))
+						 out string resultViolation))
 			{
 				return Invalid(OperationDiagnosticDescriptors.UnsafeMappedType, location, method.Name,
 					resultViolation);

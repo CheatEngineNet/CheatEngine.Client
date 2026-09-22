@@ -148,7 +148,10 @@ public sealed class LuaModuleRegistrationTests
 	public void TryRegisterModuleReleasesTrackedReservationWhenDispatcherRejectsRegistration()
 	{
 		CheatEngineFailure dispatchFailure = new(CheatEngineFailureKind.InvalidState, "Test.Dispatcher", "Rejected.");
-		ImmediateDispatcher dispatcher = new() { TryInvokeFailure = dispatchFailure };
+		ImmediateDispatcher dispatcher = new()
+		{
+			TryInvokeFailure = dispatchFailure
+		};
 		List<ILuaModuleLease> tracked = [];
 		int trackCount = 0;
 		int untrackCount = 0;
@@ -744,7 +747,7 @@ public sealed class LuaModuleRegistrationTests
 
 		public TResult Invoke<TResult>(Func<TResult> callback, CancellationToken cancellationToken = default)
 		{
-			if (TryInvoke(callback, out var result, out var failure, cancellationToken))
+			if (TryInvoke(callback, out TResult? result, out CheatEngineFailure failure, cancellationToken))
 			{
 				return result;
 			}

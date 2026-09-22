@@ -102,13 +102,13 @@ internal sealed class ProcessClient : IProcessClient
 
 		CurrentProcessCapture captured = default;
 		if (!_dispatcher.TryInvoke(
-			    () =>
-			    {
-				    _host.OpenProcess(processId.Value);
-				    captured = CaptureCurrent("Processes.Attach");
-			    },
-			    out failure,
-			    cancellationToken))
+				() =>
+				{
+					_host.OpenProcess(processId.Value);
+					captured = CaptureCurrent("Processes.Attach");
+				},
+				out failure,
+				cancellationToken))
 		{
 			snapshot = default;
 			return false;
@@ -164,7 +164,7 @@ internal sealed class ProcessClient : IProcessClient
 			matches = _host.FindProcessesByExactName(expectedName);
 		}
 		catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or Win32Exception
-			                                  or PlatformNotSupportedException)
+											  or PlatformNotSupportedException)
 		{
 			snapshot = default;
 			failure = new CheatEngineFailure(
@@ -201,7 +201,7 @@ internal sealed class ProcessClient : IProcessClient
 	public ProcessSnapshot AttachExactName(string processName, CancellationToken cancellationToken = default)
 	{
 		if (TryAttachExactName(processName, out ProcessSnapshot snapshot, out CheatEngineFailure failure,
-			    cancellationToken))
+				cancellationToken))
 		{
 			return snapshot;
 		}

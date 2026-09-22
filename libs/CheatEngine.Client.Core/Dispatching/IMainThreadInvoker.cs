@@ -1,4 +1,4 @@
-﻿namespace CheatEngine.Client.Core.Dispatching;
+namespace CheatEngine.Client.Core.Dispatching;
 
 internal interface IMainThreadInvoker
 {

@@ -9,7 +9,10 @@ public sealed class CoreLifetimeBehaviorTests
 	[Fact]
 	public void ActiveContextExposesItsEpochAndAdmitsOrdinaryWork()
 	{
-		using ControlledCoreLifetimeContext context = new() { Epoch = 42 };
+		using ControlledCoreLifetimeContext context = new()
+		{
+			Epoch = 42
+		};
 		using CoreLifetime lifetime = new(context);
 
 		lifetime.ThrowIfInactive("Test.Work");
@@ -44,7 +47,10 @@ public sealed class CoreLifetimeBehaviorTests
 	[Fact]
 	public void CleanupScopeRequiresTheCapturedMainThread()
 	{
-		using ControlledCoreLifetimeContext context = new() { IsMainThread = false };
+		using ControlledCoreLifetimeContext context = new()
+		{
+			IsMainThread = false
+		};
 		using CoreLifetime lifetime = new(context);
 
 		CheatEngineClientLifecycleException exception = Assert.Throws<CheatEngineClientLifecycleException>(
@@ -57,7 +63,10 @@ public sealed class CoreLifetimeBehaviorTests
 	[Fact]
 	public void StaleContextRejectsAllLifecycleAdmissionsWithActivationExpired()
 	{
-		using ControlledCoreLifetimeContext context = new() { IsCurrent = false };
+		using ControlledCoreLifetimeContext context = new()
+		{
+			IsCurrent = false
+		};
 		using CoreLifetime lifetime = new(context);
 
 		CheatEngineActivationExpiredException inactive = Assert.Throws<CheatEngineActivationExpiredException>(() =>

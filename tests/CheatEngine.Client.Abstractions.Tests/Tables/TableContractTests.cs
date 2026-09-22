@@ -168,7 +168,10 @@ public sealed class TableContractTests
 			0,
 			CreateContent(),
 			CreateState()), default);
-		MemoryRecordHierarchySnapshot updatedHierarchy = hierarchy with { Children = default };
+		MemoryRecordHierarchySnapshot updatedHierarchy = hierarchy with
+		{
+			Children = default
+		};
 		MemoryRecordHierarchySnapshot uninitializedHierarchy = default;
 
 		Assert.False(hierarchy.Children.IsDefault);

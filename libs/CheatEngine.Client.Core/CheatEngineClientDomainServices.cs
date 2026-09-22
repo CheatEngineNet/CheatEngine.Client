@@ -1,4 +1,4 @@
-﻿using CheatEngine.Client.Allocations;
+using CheatEngine.Client.Allocations;
 using CheatEngine.Client.Assembly;
 using CheatEngine.Client.Dbvm;
 using CheatEngine.Client.Debugger;

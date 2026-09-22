@@ -63,7 +63,7 @@ public sealed class CheatEngineClientBuilder
 	/// </remarks>
 	public CheatEngineClientBuilder AddModule<
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
-		TModule>()
+	TModule>()
 		where TModule : class, ICheatEngineClientModule
 	{
 		Services.TryAddEnumerable(ServiceDescriptor.Scoped<ICheatEngineClientModule, TModule>());
@@ -81,7 +81,7 @@ public sealed class CheatEngineClientBuilder
 	/// </remarks>
 	public CheatEngineClientBuilder AddLuaModule<
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
-		TModule>()
+	TModule>()
 		where TModule : class, IDescribedLuaModule
 	{
 		Services.TryAdd(ServiceDescriptor.Describe(typeof(TModule), typeof(TModule), ServiceLifetime.Scoped));
@@ -101,7 +101,7 @@ public sealed class CheatEngineClientBuilder
 	/// </remarks>
 	public CheatEngineClientBuilder AddMemoryCodec<T,
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
-		TCodec>()
+	TCodec>()
 		where TCodec : class, IMemoryCodec<T>
 	{
 		Services.TryAdd(ServiceDescriptor.Singleton<IMemoryCodec<T>, TCodec>());

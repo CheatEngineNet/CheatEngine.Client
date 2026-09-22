@@ -232,12 +232,12 @@ public sealed class PackageConsumptionSmokeTests
 		XDocument document = XDocument.Load(stream);
 		XNamespace packageNamespace = document.Root!.Name.Namespace;
 		XElement metadata = document.Root.Element(packageNamespace + "metadata")
-		                    ?? throw new InvalidOperationException(
-			                    $"Package '{packagePath}' does not declare metadata.");
+							?? throw new InvalidOperationException(
+								$"Package '{packagePath}' does not declare metadata.");
 		string id = metadata.Element(packageNamespace + "id")?.Value
-		            ?? throw new InvalidOperationException($"Package '{packagePath}' does not declare an id.");
+					?? throw new InvalidOperationException($"Package '{packagePath}' does not declare an id.");
 		string version = metadata.Element(packageNamespace + "version")?.Value
-		                 ?? throw new InvalidOperationException($"Package '{packagePath}' does not declare a version.");
+						 ?? throw new InvalidOperationException($"Package '{packagePath}' does not declare a version.");
 		return new PackageArchive(id, packagePath, version);
 	}
 
@@ -273,14 +273,14 @@ public sealed class PackageConsumptionSmokeTests
 	private static string EscapeXml(string value)
 	{
 		return SecurityElement.Escape(value) ??
-		       throw new InvalidOperationException("Could not escape NuGet configuration.");
+			   throw new InvalidOperationException("Could not escape NuGet configuration.");
 	}
 
 	private static string FindRepositoryRoot()
 	{
 		for (DirectoryInfo? candidate = new(AppContext.BaseDirectory);
-		     candidate is not null;
-		     candidate = candidate.Parent)
+			 candidate is not null;
+			 candidate = candidate.Parent)
 		{
 			if (File.Exists(Path.Combine(candidate.FullName, "CheatEngine.Client.slnx")))
 			{

@@ -19,7 +19,10 @@ public sealed class MemoryCodecContextLifetimeTests
 	{
 		using ControlledCoreLifetimeContext activation = new();
 		using CoreLifetime lifetime = new(activation);
-		RecordingCodecContextPort port = new() { PointerSize = sizeof(ulong) };
+		RecordingCodecContextPort port = new()
+		{
+			PointerSize = sizeof(ulong)
+		};
 		MemoryClient client = CreateClient(lifetime, port);
 		CapturingCodec codec = new()
 		{
@@ -47,7 +50,10 @@ public sealed class MemoryCodecContextLifetimeTests
 	{
 		using ControlledCoreLifetimeContext activation = new();
 		using CoreLifetime lifetime = new(activation);
-		RecordingCodecContextPort port = new() { PointerSize = sizeof(uint) };
+		RecordingCodecContextPort port = new()
+		{
+			PointerSize = sizeof(uint)
+		};
 		MemoryClient client = CreateClient(lifetime, port);
 		CapturingCodec codec = new()
 		{
@@ -99,7 +105,11 @@ public sealed class MemoryCodecContextLifetimeTests
 		using CoreLifetime lifetime = new(activation);
 		RecordingCodecContextPort port = new();
 		MemoryClient client = CreateClient(lifetime, port);
-		CapturingCodec codec = new() { ReadSucceeds = false, WriteSucceeds = false };
+		CapturingCodec codec = new()
+		{
+			ReadSucceeds = false,
+			WriteSucceeds = false
+		};
 
 		bool readSucceeded = client.TryRead(new MemoryReadRequest<int>(_address, codec), out int readValue,
 			out CheatEngineFailure readFailure, TestContext.Current.CancellationToken);
@@ -127,8 +137,14 @@ public sealed class MemoryCodecContextLifetimeTests
 		MemoryClient client = CreateClient(lifetime, port);
 		InvalidOperationException readException = new("read failure");
 		InvalidOperationException writeException = new("write failure");
-		CapturingCodec readCodec = new() { ReadException = readException };
-		CapturingCodec writeCodec = new() { WriteException = writeException };
+		CapturingCodec readCodec = new()
+		{
+			ReadException = readException
+		};
+		CapturingCodec writeCodec = new()
+		{
+			WriteException = writeException
+		};
 
 		InvalidOperationException actualRead = Assert.Throws<InvalidOperationException>(() =>
 			client.TryRead(new MemoryReadRequest<int>(_address, readCodec), out _, out _,
@@ -177,7 +193,10 @@ public sealed class MemoryCodecContextLifetimeTests
 		Assert.True(client.TryRead(new MemoryReadRequest<int>(_address, firstCodec), out _, out _,
 			TestContext.Current.CancellationToken));
 		IMemoryReadContext firstContext = Assert.IsAssignableFrom<IMemoryReadContext>(firstCodec.ReadContext);
-		CapturingCodec secondCodec = new() { ReadAction = _ => AssertExpired(() => ConsumePointerSize(firstContext)) };
+		CapturingCodec secondCodec = new()
+		{
+			ReadAction = _ => AssertExpired(() => ConsumePointerSize(firstContext))
+		};
 
 		Assert.True(client.TryRead(new MemoryReadRequest<int>(_address, secondCodec), out _, out _,
 			TestContext.Current.CancellationToken));

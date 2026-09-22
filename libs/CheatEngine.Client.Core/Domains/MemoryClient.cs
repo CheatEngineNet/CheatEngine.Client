@@ -58,14 +58,14 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		ValidateBatch(request.Addresses, nameof(request));
 		int attemptedCount = request.Addresses.Length;
 		if (!TryAdmitBatch<T>(attemptedCount, false, "Memory.ReadPrimitiveBatch",
-			    out CheatEngineFailure admissionFailure))
+				out CheatEngineFailure admissionFailure))
 		{
 			return new MemoryPrimitiveBatchReadOutcome<T>(attemptedCount, 0, null, admissionFailure, []);
 		}
 
 		PrimitiveBatchReadInput<T> input = new(request, _codecContextPort);
 		if (!TryInvoke(input, static current => PrimitiveMemoryCodec<T>.ReadBatch(current.Request, current.Port),
-			    out PrimitiveBatchReadOutcome<T> outcome, out CheatEngineFailure dispatchFailure, cancellationToken))
+				out PrimitiveBatchReadOutcome<T> outcome, out CheatEngineFailure dispatchFailure, cancellationToken))
 		{
 			return new MemoryPrimitiveBatchReadOutcome<T>(attemptedCount, 0, null, dispatchFailure, []);
 		}
@@ -87,7 +87,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		ValidateBatch(request.Values, nameof(request));
 		int attemptedCount = request.Values.Length;
 		if (!TryAdmitBatch<T>(attemptedCount, true, "Memory.WritePrimitiveBatch",
-			    out CheatEngineFailure admissionFailure))
+				out CheatEngineFailure admissionFailure))
 		{
 			return new MemoryPrimitiveBatchWriteOutcome(attemptedCount, 0, null, admissionFailure,
 				MemoryBatchWriteEffectState.NotStarted);
@@ -95,7 +95,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 
 		PrimitiveBatchWriteInput<T> input = new(request, _codecContextPort);
 		if (!TryInvoke(input, static current => PrimitiveMemoryCodec<T>.WriteBatch(current.Request, current.Port),
-			    out PrimitiveBatchWriteOutcome outcome, out CheatEngineFailure dispatchFailure, cancellationToken))
+				out PrimitiveBatchWriteOutcome outcome, out CheatEngineFailure dispatchFailure, cancellationToken))
 		{
 			return new MemoryPrimitiveBatchWriteOutcome(attemptedCount, 0, null, dispatchFailure,
 				MemoryBatchWriteEffectState.Unknown);
@@ -119,7 +119,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
 		if (!TryInvoke(address, static current => PrimitiveMemoryCodec<T>.Read(current),
-			    out PrimitiveReadOutcome<T> outcome, out failure, cancellationToken))
+				out PrimitiveReadOutcome<T> outcome, out failure, cancellationToken))
 		{
 			value = default;
 			return false;
@@ -157,7 +157,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 	{
 		PrimitiveWriteInput<T> input = new(address, value);
 		if (!TryInvoke(input, static current => PrimitiveMemoryCodec<T>.Write(current.Address, current.Value),
-			    out PrimitiveWriteOutcome outcome, out failure, cancellationToken))
+				out PrimitiveWriteOutcome outcome, out failure, cancellationToken))
 		{
 			return false;
 		}
@@ -204,7 +204,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		CancellationToken cancellationToken = default)
 	{
 		if (TryReadPrimitiveBatch(request, out ImmutableArray<T> values, out CheatEngineFailure failure,
-			    cancellationToken))
+				cancellationToken))
 		{
 			return values;
 		}
@@ -243,7 +243,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		string? hostFailure = null;
 		bool succeeded = false;
 		if (!_dispatcher.TryInvoke(() => succeeded = TryReadCore(request, out captured, out hostFailure),
-			    out failure, cancellationToken))
+				out failure, cancellationToken))
 		{
 			value = default;
 			return false;
@@ -279,7 +279,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		string? hostFailure = null;
 		bool succeeded = false;
 		if (!_dispatcher.TryInvoke(() => succeeded = TryWriteCore(request, out hostFailure),
-			    out failure, cancellationToken))
+				out failure, cancellationToken))
 		{
 			return false;
 		}
@@ -308,7 +308,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 	{
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(request.Length);
 		if (!TryAdmitPayload(request.Length, _limits.MaximumReadBytes, false, "Memory.ReadBytes", "byte read",
-			    out failure))
+				out failure))
 		{
 			bytes = [];
 			return false;
@@ -318,18 +318,18 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		string? hostFailure = null;
 		bool succeeded = false;
 		if (!_dispatcher.TryInvoke(() =>
-		    {
-			    byte[] buffer = new byte[request.Length];
-			    succeeded = TargetMemory.TryReadBytes(request.Address, buffer, out MemoryAccessFailure sdkFailure);
-			    if (succeeded)
-			    {
-				    captured = ImmutableCollectionsMarshal.AsImmutableArray(buffer);
-			    }
-			    else
-			    {
-				    hostFailure = sdkFailure.ToString();
-			    }
-		    }, out failure, cancellationToken))
+			{
+				byte[] buffer = new byte[request.Length];
+				succeeded = TargetMemory.TryReadBytes(request.Address, buffer, out MemoryAccessFailure sdkFailure);
+				if (succeeded)
+				{
+					captured = ImmutableCollectionsMarshal.AsImmutableArray(buffer);
+				}
+				else
+				{
+					hostFailure = sdkFailure.ToString();
+				}
+			}, out failure, cancellationToken))
 		{
 			bytes = [];
 			return false;
@@ -360,7 +360,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		}
 
 		if (!TryAdmitPayload(request.Bytes.Length, _limits.MaximumWriteBytes, true, "Memory.WriteBytes", "byte write",
-			    out failure))
+				out failure))
 		{
 			return false;
 		}
@@ -368,14 +368,14 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		string? hostFailure = null;
 		bool succeeded = false;
 		if (!_dispatcher.TryInvoke(() =>
-		    {
-			    succeeded = TargetMemory.TryWriteBytes(request.Address, request.Bytes.AsSpan(),
-				    out MemoryAccessFailure sdkFailure);
-			    if (!succeeded)
-			    {
-				    hostFailure = sdkFailure.ToString();
-			    }
-		    }, out failure, cancellationToken))
+			{
+				succeeded = TargetMemory.TryWriteBytes(request.Address, request.Bytes.AsSpan(),
+					out MemoryAccessFailure sdkFailure);
+				if (!succeeded)
+				{
+					hostFailure = sdkFailure.ToString();
+				}
+			}, out failure, cancellationToken))
 		{
 			return false;
 		}
@@ -396,7 +396,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 	{
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(request.MaximumLength);
 		if (!TryAdmitPayload(GetEncodedByteLength(request.MaximumLength, request.WideCharacter),
-			    _limits.MaximumStringBytes, false, "Memory.ReadString", "string read", out failure))
+				_limits.MaximumStringBytes, false, "Memory.ReadString", "string read", out failure))
 		{
 			value = null;
 			return false;
@@ -406,14 +406,14 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		string? hostFailure = null;
 		bool succeeded = false;
 		if (!_dispatcher.TryInvoke(() =>
-		    {
-			    succeeded = TargetMemory.TryReadString(request.Address, request.MaximumLength,
-				    request.WideCharacter, out captured, out MemoryAccessFailure sdkFailure);
-			    if (!succeeded)
-			    {
-				    hostFailure = sdkFailure.ToString();
-			    }
-		    }, out failure, cancellationToken))
+			{
+				succeeded = TargetMemory.TryReadString(request.Address, request.MaximumLength,
+					request.WideCharacter, out captured, out MemoryAccessFailure sdkFailure);
+				if (!succeeded)
+				{
+					hostFailure = sdkFailure.ToString();
+				}
+			}, out failure, cancellationToken))
 		{
 			value = null;
 			return false;
@@ -445,7 +445,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		}
 
 		if (!TryAdmitPayload(GetEncodedByteLength(request.Value, request.WideCharacter), _limits.MaximumStringBytes,
-			    true, "Memory.WriteString", "string write", out failure))
+				true, "Memory.WriteString", "string write", out failure))
 		{
 			return false;
 		}
@@ -453,14 +453,14 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		string? hostFailure = null;
 		bool succeeded = false;
 		if (!_dispatcher.TryInvoke(() =>
-		    {
-			    succeeded = TargetMemory.TryWriteString(request.Address, request.Value.AsSpan(),
-				    request.WideCharacter, out MemoryAccessFailure sdkFailure);
-			    if (!succeeded)
-			    {
-				    hostFailure = sdkFailure.ToString();
-			    }
-		    }, out failure, cancellationToken))
+			{
+				succeeded = TargetMemory.TryWriteString(request.Address, request.Value.AsSpan(),
+					request.WideCharacter, out MemoryAccessFailure sdkFailure);
+				if (!succeeded)
+				{
+					hostFailure = sdkFailure.ToString();
+				}
+			}, out failure, cancellationToken))
 		{
 			return false;
 		}
@@ -493,22 +493,22 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		string? hostFailure = null;
 		bool succeeded = false;
 		if (!_dispatcher.TryInvoke(() =>
-		    {
-			    Address current = request.BaseAddress;
-			    foreach (long offset in request.Offsets)
-			    {
-				    if (!TargetMemory.TryReadPointer(current, out Address pointer, out MemoryAccessFailure sdkFailure))
-				    {
-					    hostFailure = sdkFailure.ToString();
-					    return;
-				    }
+			{
+				Address current = request.BaseAddress;
+				foreach (long offset in request.Offsets)
+				{
+					if (!TargetMemory.TryReadPointer(current, out Address pointer, out MemoryAccessFailure sdkFailure))
+					{
+						hostFailure = sdkFailure.ToString();
+						return;
+					}
 
-				    current = pointer + offset;
-			    }
+					current = pointer + offset;
+				}
 
-			    captured = current;
-			    succeeded = true;
-		    }, out failure, cancellationToken))
+				captured = current;
+				succeeded = true;
+			}, out failure, cancellationToken))
 		{
 			address = default;
 			return false;
@@ -914,10 +914,10 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		private void ThrowIfUnusable()
 		{
 			if (Volatile.Read(ref _expired) != 0 ||
-			    _activationEpoch != _lifetime.Epoch ||
-			    !_lifetime.IsActivationCurrent ||
-			    Environment.CurrentManagedThreadId != _threadId ||
-			    !_dispatcher.IsMainThread)
+				_activationEpoch != _lifetime.Epoch ||
+				!_lifetime.IsActivationCurrent ||
+				Environment.CurrentManagedThreadId != _threadId ||
+				!_dispatcher.IsMainThread)
 			{
 				throw new CheatEngineActivationExpiredException(
 					_operation,

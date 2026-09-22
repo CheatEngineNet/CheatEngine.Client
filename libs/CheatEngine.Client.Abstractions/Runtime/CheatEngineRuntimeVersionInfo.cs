@@ -13,7 +13,7 @@ public readonly record struct CheatEngineRuntimeVersionInfo
 		Version sdkAssemblyVersion)
 	{
 		if (observedCheatEngineVersion is { } observed &&
-		    (!double.IsFinite(observed) || observed < 0))
+			(!double.IsFinite(observed) || observed < 0))
 		{
 			throw new ArgumentOutOfRangeException(nameof(observedCheatEngineVersion), observed,
 				"The observed Cheat Engine version must be a finite non-negative number when supplied.");

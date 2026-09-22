@@ -139,7 +139,7 @@ internal sealed class SdkTableRecordMutationPort : ITableRecordMutationPort
 	{
 		record = default;
 		if (!child.Handle.TrySetProperty<MemoryRecord, MemoryRecord>("Parent"u8, parent) ||
-		    !TableClient.TrySnapshot(child, out record))
+			!TableClient.TrySnapshot(child, out record))
 		{
 			return TableRecordMutationStatus.HostRejected;
 		}

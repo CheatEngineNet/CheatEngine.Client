@@ -9,10 +9,10 @@ public sealed class ClientCapabilityEvidenceTests
 		get
 		{
 			foreach (ClientCapabilityEvidenceState state in new[]
-			         {
-				         ClientCapabilityEvidenceState.Missing, ClientCapabilityEvidenceState.Faulted,
-				         ClientCapabilityEvidenceState.Malformed, ClientCapabilityEvidenceState.Unknown
-			         })
+					 {
+						 ClientCapabilityEvidenceState.Missing, ClientCapabilityEvidenceState.Faulted,
+						 ClientCapabilityEvidenceState.Malformed, ClientCapabilityEvidenceState.Unknown
+					 })
 			{
 				ClientCapabilityAvailabilityState expectedAvailabilityState =
 					state == ClientCapabilityEvidenceState.Missing
@@ -154,7 +154,7 @@ public sealed class ClientCapabilityEvidenceTests
 		int expectedPriorityIndex)
 	{
 		ClientCapabilityEvidenceState gateState = state == ClientCapabilityEvidenceState.Satisfied ||
-		                                          Array.IndexOf(priority, code) < expectedPriorityIndex
+												  Array.IndexOf(priority, code) < expectedPriorityIndex
 			? ClientCapabilityEvidenceState.Satisfied
 			: state;
 		return new ClientCapabilityEvidenceGate(gateState, ReasonFor(code));

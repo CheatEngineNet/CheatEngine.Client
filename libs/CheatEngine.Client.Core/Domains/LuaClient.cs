@@ -113,21 +113,21 @@ internal sealed class LuaClient : ILuaClient
 		bool registered = false;
 		CheatEngineFailure moduleFailure = default;
 		if (!_dispatcher.TryInvoke(
-			    () =>
-			    {
-				    try
-				    {
-					    luaModule.Register();
-					    created.ConfirmRegistration();
-					    registered = true;
-				    }
-				    catch (Exception exception)
-				    {
-					    moduleFailure = CoreFailureFactory.FromException("Lua.RegisterModule", exception);
-				    }
-			    },
-			    out failure,
-			    cancellationToken))
+				() =>
+				{
+					try
+					{
+						luaModule.Register();
+						created.ConfirmRegistration();
+						registered = true;
+					}
+					catch (Exception exception)
+					{
+						moduleFailure = CoreFailureFactory.FromException("Lua.RegisterModule", exception);
+					}
+				},
+				out failure,
+				cancellationToken))
 		{
 			failure = FailAfterAbandoningUnregisteredLease(failure, created);
 			return false;
@@ -191,7 +191,7 @@ internal sealed class LuaClient : ILuaClient
 
 		long epoch = _epochProvider();
 		if (!TryDispatchOperation(operation, epoch, out LuaOperationResult<TResult> operationResult, out failure,
-			    cancellationToken))
+				cancellationToken))
 		{
 			result = default;
 			return false;
@@ -224,7 +224,7 @@ internal sealed class LuaClient : ILuaClient
 
 		long epoch = _epochProvider();
 		if (!TryDispatchOperation(operation, epoch, out LuaOperationResult<TResult> operationResult, out failure,
-			    cancellationToken))
+				cancellationToken))
 		{
 			result = default;
 			return false;
@@ -237,7 +237,7 @@ internal sealed class LuaClient : ILuaClient
 		where TOperation : struct, ILuaOperation<TResult>
 	{
 		if (TryExecute<TOperation, TResult>(operation, out TResult? result, out CheatEngineFailure failure,
-			    cancellationToken))
+				cancellationToken))
 		{
 			return result;
 		}

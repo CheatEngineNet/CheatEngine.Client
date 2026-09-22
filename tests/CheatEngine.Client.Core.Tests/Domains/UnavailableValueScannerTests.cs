@@ -42,7 +42,10 @@ public sealed class UnavailableValueScannerTests
 	[Fact]
 	public void TryCreateSessionRejectsAStaleActivationBeforeCapabilityOrCancellation()
 	{
-		using ControlledCoreLifetimeContext context = new() { IsCurrent = false };
+		using ControlledCoreLifetimeContext context = new()
+		{
+			IsCurrent = false
+		};
 		using CoreLifetime lifetime = new(context);
 		UnavailableValueScanner scanner = new(lifetime);
 		using CancellationTokenSource cancellation = new();

@@ -90,7 +90,12 @@ internal static class AobScanOptionsNormalizer
 
 	private static char GetProtectionFlag(int slot)
 	{
-		return slot switch { 0 => 'X', 1 => 'C', _ => 'W' };
+		return slot switch
+		{
+			0 => 'X',
+			1 => 'C',
+			_ => 'W'
+		};
 	}
 
 	private static bool IsProtectionSlotPresent(int seen, int slot)
@@ -113,7 +118,7 @@ internal static class AobScanOptionsNormalizer
 	private static string NormalizeDivisor(string? value)
 	{
 		if (string.IsNullOrEmpty(value) ||
-		    !ulong.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out ulong divisor) || divisor == 0)
+			!ulong.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out ulong divisor) || divisor == 0)
 		{
 			throw new ArgumentException(
 				"An aligned AOB scan requires a positive decimal alignment divisor.", nameof(value));

@@ -76,7 +76,10 @@ public sealed class RuntimeClientTests
 	{
 		FakeRuntimeProbe probe = new()
 		{
-			ReportedVersion = 7.7d, SystemArchitectureCode = 1, TargetAbiCode = 0, OpenedProcessId = 0
+			ReportedVersion = 7.7d,
+			SystemArchitectureCode = 1,
+			TargetAbiCode = 0,
+			OpenedProcessId = 0
 		};
 		RuntimeClient runtime = new(new InlineDispatcher(), probe, static () => 1);
 

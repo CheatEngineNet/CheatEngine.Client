@@ -91,9 +91,9 @@ internal sealed class CoreClientPolicy
 		string root = Path.TrimEndingDirectorySeparator(normalizedRoot);
 		string relative = Path.GetRelativePath(root, fullPath);
 		return !Path.IsPathFullyQualified(relative) &&
-		       !string.Equals(relative, "..", StringComparison.Ordinal) &&
-		       !relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal) &&
-		       !relative.StartsWith(".." + Path.AltDirectorySeparatorChar, StringComparison.Ordinal);
+			   !string.Equals(relative, "..", StringComparison.Ordinal) &&
+			   !relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal) &&
+			   !relative.StartsWith(".." + Path.AltDirectorySeparatorChar, StringComparison.Ordinal);
 	}
 
 	private static bool TryVerifySafePath(string normalizedRoot, string fullPath, bool forLoad, out string reason)
@@ -169,7 +169,7 @@ internal sealed class CoreClientPolicy
 		}
 
 		foreach (string segment in relative.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
-			         StringSplitOptions.RemoveEmptyEntries))
+					 StringSplitOptions.RemoveEmptyEntries))
 		{
 			current = Path.Combine(current, segment);
 			if (!TryVerifyNotReparsePoint(new DirectoryInfo(current), out reason))
@@ -198,7 +198,7 @@ internal sealed class CoreClientPolicy
 			}
 		}
 		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
-			                                  or NotSupportedException)
+											  or NotSupportedException)
 		{
 			reason = "The trusted table path cannot be verified without following a filesystem link.";
 			return false;

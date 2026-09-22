@@ -57,7 +57,8 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 
 		using ServiceProvider provider = services.BuildServiceProvider(new ServiceProviderOptions
 		{
-			ValidateOnBuild = true, ValidateScopes = true
+			ValidateOnBuild = true,
+			ValidateScopes = true
 		});
 
 		Assert.NotNull(provider);
@@ -164,7 +165,8 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 
 		using ServiceProvider provider = services.BuildServiceProvider(new ServiceProviderOptions
 		{
-			ValidateOnBuild = true, ValidateScopes = true
+			ValidateOnBuild = true,
+			ValidateScopes = true
 		});
 		using IServiceScope scope = provider.CreateScope();
 		ICheatEngineClientModule[] modules = scope.ServiceProvider.GetServices<ICheatEngineClientModule>().ToArray();
@@ -184,7 +186,8 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 
 		using ServiceProvider provider = services.BuildServiceProvider(new ServiceProviderOptions
 		{
-			ValidateOnBuild = true, ValidateScopes = true
+			ValidateOnBuild = true,
+			ValidateScopes = true
 		});
 		using IServiceScope scope = provider.CreateScope();
 		ScopedDependencyModule first = Assert.IsType<ScopedDependencyModule>(
@@ -207,7 +210,8 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 
 		using ServiceProvider provider = services.BuildServiceProvider(new ServiceProviderOptions
 		{
-			ValidateOnBuild = true, ValidateScopes = true
+			ValidateOnBuild = true,
+			ValidateScopes = true
 		});
 		ServiceDescriptor[] lifecycleDescriptors = services
 			.Where(static descriptor => descriptor.ServiceType == typeof(ICheatEngineClientModule))
@@ -246,7 +250,10 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		RecordingLuaClient lua = new();
 		LuaModuleLifecycle<FirstLuaModule> lifecycle = new(lua, new FirstLuaModule());
 		using CancellationTokenSource stopping = new();
-		TestClient client = new() { Stopping = stopping.Token };
+		TestClient client = new()
+		{
+			Stopping = stopping.Token
+		};
 
 		lifecycle.OnEnabled(client);
 
@@ -399,7 +406,7 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		public ILuaModuleLease RegisterModule(ILuaModule luaModule, CancellationToken cancellationToken = default)
 		{
 			if (TryRegisterModule(luaModule, out ILuaModuleLease? lease, out CheatEngineFailure failure,
-				    cancellationToken))
+					cancellationToken))
 			{
 				return lease;
 			}

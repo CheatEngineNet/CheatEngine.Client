@@ -96,7 +96,7 @@ internal static class CoexistenceDiagnostics
 		}
 
 		if (!client.Allocations.TryAllocate(new TargetAllocationRequest(16), out ITargetMemoryLease? owner,
-			    out CheatEngineFailure failure))
+				out CheatEngineFailure failure))
 		{
 			return DescribeFailure("Owner", failure);
 		}

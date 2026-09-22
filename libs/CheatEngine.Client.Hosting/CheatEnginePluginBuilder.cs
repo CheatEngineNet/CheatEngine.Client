@@ -59,7 +59,8 @@ public sealed class CheatEnginePluginBuilder
 		_built = true;
 		return Services.BuildServiceProvider(new ServiceProviderOptions
 		{
-			ValidateOnBuild = true, ValidateScopes = true
+			ValidateOnBuild = true,
+			ValidateScopes = true
 		});
 	}
 

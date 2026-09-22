@@ -1,4 +1,4 @@
-﻿namespace CheatEngine.Client.Extensions.DependencyInjection;
+namespace CheatEngine.Client.Extensions.DependencyInjection;
 
 /// <summary>Records the builder-only opt-in required to enable unsafe Lua for an activation.</summary>
 internal sealed class UnsafeLuaExecutionRegistration

@@ -99,13 +99,13 @@ public sealed class FacadeGraphSmokeTests
 		}
 
 		foreach (PropertyInfo property in contract.GetProperties(BindingFlags.Public | BindingFlags.Instance |
-		                                                         BindingFlags.Static))
+																 BindingFlags.Static))
 		{
 			yield return property.PropertyType;
 		}
 
 		foreach (MethodInfo method in contract.GetMethods(BindingFlags.Public | BindingFlags.Instance |
-		                                                  BindingFlags.Static))
+														  BindingFlags.Static))
 		{
 			yield return method.ReturnType;
 			foreach (ParameterInfo parameter in method.GetParameters())
@@ -128,6 +128,6 @@ public sealed class FacadeGraphSmokeTests
 		}
 
 		return type.Name is "LuaState" or "LuaRef" or "CEObject" or "MemScan" or "FoundList"
-		       || type.Name.StartsWith("Owned`", StringComparison.Ordinal);
+			   || type.Name.StartsWith("Owned`", StringComparison.Ordinal);
 	}
 }

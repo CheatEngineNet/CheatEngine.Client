@@ -346,7 +346,10 @@ public sealed class ProcessClientTests
 	public void TryAttachExactNameRejectsAStaleActivationBeforeLocalProcessDiscovery()
 	{
 		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
-		using ControlledCoreLifetimeContext context = new() { IsCurrent = false };
+		using ControlledCoreLifetimeContext context = new()
+		{
+			IsCurrent = false
+		};
 		using CoreLifetime lifetime = new(context);
 		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
 		ProcessClient client = new(new InlineDispatcher(), host, selectionLifetime, lifetime.ThrowIfInactive);
@@ -718,7 +721,11 @@ public sealed class ProcessClientTests
 
 		internal static FakeProcessHost CreateSelected(int processId, CheatEngineArchitecture architecture)
 		{
-			FakeProcessHost host = new() { OpenedProcessId = processId, TargetArchitecture = architecture };
+			FakeProcessHost host = new()
+			{
+				OpenedProcessId = processId,
+				TargetArchitecture = architecture
+			};
 			host.LocalProcesses[processId] = new LocalProcessInfo(
 				processId,
 				"fixture",

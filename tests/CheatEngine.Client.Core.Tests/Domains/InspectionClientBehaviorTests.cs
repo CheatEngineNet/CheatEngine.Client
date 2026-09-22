@@ -18,7 +18,10 @@ public sealed class InspectionClientBehaviorTests
 	{
 		using ControlledCoreLifetimeContext context = new();
 		using CoreLifetime lifetime = new(context);
-		FakeInspectionPort port = new() { ModulesWritten = 1 };
+		FakeInspectionPort port = new()
+		{
+			ModulesWritten = 1
+		};
 		InspectionClient client = CreateClient(lifetime, port);
 
 		bool succeeded = client.TryGetModules(new InspectionCollectionRequest(2),
@@ -46,7 +49,10 @@ public sealed class InspectionClientBehaviorTests
 	{
 		using ControlledCoreLifetimeContext context = new();
 		using CoreLifetime lifetime = new(context);
-		FakeInspectionPort port = new() { MemoryRegionStatus = status };
+		FakeInspectionPort port = new()
+		{
+			MemoryRegionStatus = status
+		};
 		InspectionClient client = CreateClient(lifetime, port);
 
 		bool succeeded = client.TryGetMemoryRegion(new Address(0x1234), out MemoryRegionInfo region,
@@ -65,7 +71,9 @@ public sealed class InspectionClientBehaviorTests
 		using CoreLifetime lifetime = new(context);
 		FakeInspectionPort port = new()
 		{
-			SectionsWritten = 1, RegionsWritten = 1, ResolvedAddress = new Address(0xC0FFEE)
+			SectionsWritten = 1,
+			RegionsWritten = 1,
+			ResolvedAddress = new Address(0xC0FFEE)
 		};
 		InspectionClient client = CreateClient(lifetime, port);
 		ModuleName module = new("fixture.exe");
@@ -109,7 +117,11 @@ public sealed class InspectionClientBehaviorTests
 	{
 		using ControlledCoreLifetimeContext context = new();
 		using CoreLifetime lifetime = new(context);
-		FakeInspectionPort port = new() { ResolveNameResult = resolveName, ResolvedName = name };
+		FakeInspectionPort port = new()
+		{
+			ResolveNameResult = resolveName,
+			ResolvedName = name
+		};
 		InspectionClient client = CreateClient(lifetime, port);
 
 		bool succeeded = client.TryResolveName(new Address(0x1234), out string? result,

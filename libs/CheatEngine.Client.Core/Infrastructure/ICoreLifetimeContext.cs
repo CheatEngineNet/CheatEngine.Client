@@ -1,4 +1,4 @@
-﻿namespace CheatEngine.Client.Core.Infrastructure;
+namespace CheatEngine.Client.Core.Infrastructure;
 
 internal interface ICoreLifetimeContext
 {

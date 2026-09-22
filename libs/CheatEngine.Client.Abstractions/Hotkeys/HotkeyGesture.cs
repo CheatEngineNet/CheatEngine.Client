@@ -16,7 +16,7 @@ public readonly record struct HotkeyGesture
 		}
 
 		if ((modifiers & ~(HotkeyModifiers.Alt | HotkeyModifiers.Control | HotkeyModifiers.Shift |
-		                   HotkeyModifiers.Windows)) != 0)
+						   HotkeyModifiers.Windows)) != 0)
 		{
 			throw new ArgumentOutOfRangeException(nameof(modifiers));
 		}

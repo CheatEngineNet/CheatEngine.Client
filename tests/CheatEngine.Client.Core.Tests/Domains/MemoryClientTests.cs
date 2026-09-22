@@ -14,7 +14,10 @@ public sealed class MemoryClientTests
 	[Fact]
 	public void TypedPrimitiveReadUsesTheCallerSuppliedCodec()
 	{
-		RecordingInt32Codec codec = new() { ReadValue = 1234 };
+		RecordingInt32Codec codec = new()
+		{
+			ReadValue = 1234
+		};
 		MemoryClient client = new(new InlineDispatcher(), InertCoreLifetime.Create());
 		Address address = 0x401000;
 
@@ -50,7 +53,10 @@ public sealed class MemoryClientTests
 	[Fact]
 	public void TypedCodecFailureBecomesAClassifiedMemoryReadFailure()
 	{
-		RecordingInt32Codec codec = new() { ReadSucceeds = false };
+		RecordingInt32Codec codec = new()
+		{
+			ReadSucceeds = false
+		};
 		MemoryClient client = new(new InlineDispatcher(), InertCoreLifetime.Create());
 
 		bool succeeded = client.TryRead(new MemoryReadRequest<int>(0x403000, codec), out int value,

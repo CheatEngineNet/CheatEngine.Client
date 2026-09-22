@@ -18,7 +18,10 @@ public sealed class MemoryClientBehaviorCoverageTests
 	{
 		CancellationToken cancellationToken = TestContext.Current.CancellationToken;
 		RecordingDispatcher dispatcher = new();
-		ProbeCodec codec = new() { ReadValue = 1337 };
+		ProbeCodec codec = new()
+		{
+			ReadValue = 1337
+		};
 		MemoryClient client = new(dispatcher, InertCoreLifetime.Create());
 
 		bool succeeded = client.TryRead(new MemoryReadRequest<int>(_address, codec), out int value,
@@ -58,7 +61,10 @@ public sealed class MemoryClientBehaviorCoverageTests
 	[Fact]
 	public void FailedCodecReadUsesTheFallbackFailureAndTheConvenienceMethodThrowsIt()
 	{
-		ProbeCodec codec = new() { ReadSucceeds = false };
+		ProbeCodec codec = new()
+		{
+			ReadSucceeds = false
+		};
 		MemoryClient client = new(new RecordingDispatcher(), InertCoreLifetime.Create());
 		MemoryReadRequest<int> request = new(_address, codec);
 
@@ -79,7 +85,10 @@ public sealed class MemoryClientBehaviorCoverageTests
 	[Fact]
 	public void FailedCodecWriteUsesTheFallbackFailureAndTheConvenienceMethodThrowsIt()
 	{
-		ProbeCodec codec = new() { WriteSucceeds = false };
+		ProbeCodec codec = new()
+		{
+			WriteSucceeds = false
+		};
 		MemoryClient client = new(new RecordingDispatcher(), InertCoreLifetime.Create());
 		MemoryWriteRequest<int> request = new(_address, 77, codec);
 

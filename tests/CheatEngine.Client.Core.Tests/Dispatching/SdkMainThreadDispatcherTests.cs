@@ -42,7 +42,10 @@ public sealed class SdkMainThreadDispatcherTests
 	[Fact]
 	public void MainThreadPropertyRemainsFalseOutsideTheActualSdkMainThread()
 	{
-		using ControlledCoreLifetimeContext context = new() { IsMainThread = true };
+		using ControlledCoreLifetimeContext context = new()
+		{
+			IsMainThread = true
+		};
 		using CoreLifetime lifetime = new(context);
 		SdkMainThreadDispatcher dispatcher = new(lifetime);
 

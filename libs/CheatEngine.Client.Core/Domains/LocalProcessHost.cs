@@ -55,7 +55,7 @@ internal sealed class LocalProcessHost : IProcessHost
 		for (int index = 0; index < processes.Count; index++)
 		{
 			if (TryCapture(processes[index], out LocalProcessInfo process) &&
-			    string.Equals(process.Name, processName, StringComparison.OrdinalIgnoreCase))
+				string.Equals(process.Name, processName, StringComparison.OrdinalIgnoreCase))
 			{
 				matches.Add(process);
 			}
@@ -93,7 +93,7 @@ internal sealed class LocalProcessHost : IProcessHost
 			return process.MainModule?.FileName;
 		}
 		catch (Exception exception) when (exception is InvalidOperationException or Win32Exception
-			                                  or NotSupportedException)
+											  or NotSupportedException)
 		{
 			return null;
 		}

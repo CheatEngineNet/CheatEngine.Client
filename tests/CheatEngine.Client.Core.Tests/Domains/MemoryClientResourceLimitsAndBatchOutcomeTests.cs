@@ -135,7 +135,10 @@ public sealed class MemoryClientResourceLimitsAndBatchOutcomeTests
 	[InlineData(2)]
 	public void DetailedReadReportsEveryHostFailureIndexAndItsImmutableCompletedPrefix(int failedIndex)
 	{
-		BatchPort port = new() { ReadFailureIndex = failedIndex };
+		BatchPort port = new()
+		{
+			ReadFailureIndex = failedIndex
+		};
 		MemoryClient client = CreateClient(new CountingDispatcher(), new MemoryResourceLimits(32, 32, 32, 32, 3), port);
 		MemoryPrimitiveBatchReadOutcome<int> outcome = client.ReadPrimitiveBatchDetailed(
 			new MemoryPrimitiveBatchReadRequest<int>([_address, _address + 4, _address + 8]),
@@ -157,7 +160,10 @@ public sealed class MemoryClientResourceLimitsAndBatchOutcomeTests
 	public void DetailedWriteReportsEveryHostFailureIndexWithoutRollback(int failedIndex,
 		MemoryBatchWriteEffectState expectedEffectState)
 	{
-		BatchPort port = new() { WriteFailureIndex = failedIndex };
+		BatchPort port = new()
+		{
+			WriteFailureIndex = failedIndex
+		};
 		MemoryClient client = CreateClient(new CountingDispatcher(), new MemoryResourceLimits(32, 32, 32, 32, 3), port);
 		MemoryPrimitiveBatchWriteOutcome outcome = client.WritePrimitiveBatchDetailed(
 			new MemoryPrimitiveBatchWriteRequest<int>([
@@ -197,7 +203,11 @@ public sealed class MemoryClientResourceLimitsAndBatchOutcomeTests
 		Assert.Equal(2, successfulPort.WriteInvocationCount);
 		Assert.Equal(1, successfulDispatcher.InvocationCount);
 
-		BatchPort failedPort = new() { ReadFailureIndex = 1, WriteFailureIndex = 1 };
+		BatchPort failedPort = new()
+		{
+			ReadFailureIndex = 1,
+			WriteFailureIndex = 1
+		};
 		MemoryClient failedClient = CreateClient(new CountingDispatcher(), new MemoryResourceLimits(32, 32, 32, 32, 3),
 			failedPort);
 		MemoryPrimitiveBatchReadRequest<int> reads = new([_address, _address + 4]);

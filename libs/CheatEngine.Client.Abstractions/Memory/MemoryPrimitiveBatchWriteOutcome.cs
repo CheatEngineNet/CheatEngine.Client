@@ -75,7 +75,7 @@ public sealed class MemoryPrimitiveBatchWriteOutcome
 		}
 
 		if (cause is not null &&
-		    (effectState == MemoryBatchWriteEffectState.Complete || completedCount == attemptedCount))
+			(effectState == MemoryBatchWriteEffectState.Complete || completedCount == attemptedCount))
 		{
 			throw new ArgumentException("A completed write outcome cannot contain a failure cause.", nameof(cause));
 		}
@@ -87,7 +87,7 @@ public sealed class MemoryPrimitiveBatchWriteOutcome
 		}
 
 		if (effectState == MemoryBatchWriteEffectState.Partial &&
-		    (completedCount == 0 || completedCount == attemptedCount))
+			(completedCount == 0 || completedCount == attemptedCount))
 		{
 			throw new ArgumentException("A partial write outcome requires a strict completed prefix.",
 				nameof(effectState));

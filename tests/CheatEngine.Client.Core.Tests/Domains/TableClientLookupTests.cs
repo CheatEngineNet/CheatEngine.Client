@@ -15,7 +15,10 @@ public sealed class TableClientLookupTests
 	[Fact]
 	public void TryGetRecordMapsAnUnavailableAddressListToCapabilityUnavailable()
 	{
-		FakeRecordLookupPort lookups = new() { IndexStatus = RecordLookupStatus.AddressListUnavailable };
+		FakeRecordLookupPort lookups = new()
+		{
+			IndexStatus = RecordLookupStatus.AddressListUnavailable
+		};
 		TableClient client = CreateClient(lookups);
 
 		bool succeeded = client.TryGetRecord(3, out MemoryRecordSnapshot record, out CheatEngineFailure failure,
@@ -32,7 +35,10 @@ public sealed class TableClientLookupTests
 	[Fact]
 	public void TryGetRecordPreservesNotFoundForAnAbsentRecord()
 	{
-		FakeRecordLookupPort lookups = new() { IdStatus = RecordLookupStatus.NotFound };
+		FakeRecordLookupPort lookups = new()
+		{
+			IdStatus = RecordLookupStatus.NotFound
+		};
 		TableClient client = CreateClient(lookups);
 		MemoryRecordId id = new(42);
 
@@ -50,7 +56,10 @@ public sealed class TableClientLookupTests
 	[Fact]
 	public void TryGetSelectedMapsAMalformedRecordToInvalidHostResult()
 	{
-		FakeRecordLookupPort lookups = new() { SelectedStatus = RecordLookupStatus.InvalidRecord };
+		FakeRecordLookupPort lookups = new()
+		{
+			SelectedStatus = RecordLookupStatus.InvalidRecord
+		};
 		TableClient client = CreateClient(lookups);
 
 		bool succeeded = client.TryGetSelected(out MemoryRecordSnapshot record, out CheatEngineFailure failure,
@@ -68,7 +77,11 @@ public sealed class TableClientLookupTests
 	public void TryGetRecordReturnsThePortSnapshotWhenTheLookupSucceeds()
 	{
 		MemoryRecordSnapshot expected = Snapshot(42, "Health");
-		FakeRecordLookupPort lookups = new() { IdStatus = RecordLookupStatus.Success, IdRecord = expected };
+		FakeRecordLookupPort lookups = new()
+		{
+			IdStatus = RecordLookupStatus.Success,
+			IdRecord = expected
+		};
 		TableClient client = CreateClient(lookups);
 
 		bool succeeded = client.TryGetRecord(new MemoryRecordId(42), out MemoryRecordSnapshot record,

@@ -53,22 +53,22 @@ internal sealed class UnsafeLuaClient : IUnsafeLuaClient
 		string? luaMessage = null;
 		bool succeeded = false;
 		if (!_dispatcher.TryInvoke(() =>
-		    {
-			    using LuaRuntimeOperation operation = LuaRuntime.AcquireOperation();
-			    LuaState state = operation.State;
-			    using LuaFrame frame = new(state);
-			    byte[] source = Encoding.UTF8.GetBytes(script.Source);
-			    ReadOnlySpan<byte> name = script.ChunkName is null
-				    ? ReadOnlySpan<byte>.Empty
-				    : Encoding.UTF8.GetBytes(script.ChunkName);
-			    LuaStatus status = state.TryExecute(source, 0, name);
-			    succeeded = status.IsOk;
-			    luaStatus = status.ToString();
-			    if (!succeeded)
-			    {
-				    luaMessage = LuaError.FromStack(state, status).Message;
-			    }
-		    }, out failure, cancellationToken))
+			{
+				using LuaRuntimeOperation operation = LuaRuntime.AcquireOperation();
+				LuaState state = operation.State;
+				using LuaFrame frame = new(state);
+				byte[] source = Encoding.UTF8.GetBytes(script.Source);
+				ReadOnlySpan<byte> name = script.ChunkName is null
+					? ReadOnlySpan<byte>.Empty
+					: Encoding.UTF8.GetBytes(script.ChunkName);
+				LuaStatus status = state.TryExecute(source, 0, name);
+				succeeded = status.IsOk;
+				luaStatus = status.ToString();
+				if (!succeeded)
+				{
+					luaMessage = LuaError.FromStack(state, status).Message;
+				}
+			}, out failure, cancellationToken))
 		{
 			return false;
 		}

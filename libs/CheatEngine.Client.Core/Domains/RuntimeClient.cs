@@ -115,7 +115,7 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 		CancellationToken cancellationToken = default)
 	{
 		if (TryGetSdkCapability(capability, out RuntimeCapabilityAvailability availability,
-			    out CheatEngineFailure failure, cancellationToken))
+				out CheatEngineFailure failure, cancellationToken))
 		{
 			return availability;
 		}
@@ -159,7 +159,7 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 		CancellationToken cancellationToken = default)
 	{
 		if (TryGetClientCapability(capability, out ClientCapabilityAvailability availability,
-			    out CheatEngineFailure failure, cancellationToken))
+				out CheatEngineFailure failure, cancellationToken))
 		{
 			return availability;
 		}
@@ -313,7 +313,7 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 	private static ProbeResult<long> ValidateOpenedProcess(ProbeResult<long> probe)
 	{
 		return probe.HasValue && probe.Value is { } processId &&
-		       (processId < 0 || processId > int.MaxValue)
+			   (processId < 0 || processId > int.MaxValue)
 			? ProbeResult<long>.Malformed(
 				"Cheat Engine returned an opened process identifier outside the supported PID range.")
 			: probe;
