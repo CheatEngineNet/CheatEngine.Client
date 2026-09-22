@@ -15,7 +15,9 @@
     <File Path="eng/Tests.props"/>
     <File Path="eng/Update-LockFiles.ps1"/>
     <File Path="eng/coverage-baseline.json"/>
+    <File Path="eng/PSScriptAnalyzerSettings.psd1"/>
     <File Path="eng/ci/build-info.v0.schema.json"/>
+    <File Path="eng/ci/Invoke-ScriptAnalysis.ps1"/>
     <File Path="eng/ci/New-BuildInfo.ps1"/>
     <File Path="eng/ci/Test-CoverageBaseline.ps1"/>
     <File Path="eng/ci/Test-PackageSet.ps1"/>
