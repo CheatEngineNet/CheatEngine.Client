@@ -1,0 +1,50 @@
+{
+  "schema": "cheatengine-pr-policy/v0",
+  "description": "Rules of the required 'PR policy' check (shared-contracts §1.12). Evaluated by eng/ci/Test-PullRequestPolicy.ps1 and mirrored by tests/CheatEngine.Client.Repository.Tests/Governance/PullRequestPolicyRules.cs. All patterns are case-sensitive .NET regular expressions.",
+  "exemptAuthors": [ "dependabot[bot]" ],
+  "title": {
+    "maxLength": {
+      "id": "MaxLength",
+      "limit": 72,
+      "message": "Shorten the title: it becomes the squash commit subject and must fit in 72 characters."
+    },
+    "rules": [
+      {
+        "id": "NoSurroundingWhitespace",
+        "mustNotMatch": "^\\s|\\s$",
+        "message": "Remove the leading or trailing whitespace from the title."
+      },
+      {
+        "id": "UppercaseFirstLetter",
+        "mustMatch": "^[A-Z]",
+        "message": "Start the title with an uppercase letter."
+      },
+      {
+        "id": "NoConventionalCommitPrefix",
+        "mustNotMatch": "^\\w+(\\([^)]*\\))?!?:\\s",
+        "message": "Remove the prefix (for example 'fix: ' or 'SDK: '): write a plain imperative sentence."
+      },
+      {
+        "id": "NoTrailingPeriod",
+        "mustNotMatch": "\\.$",
+        "message": "Remove the trailing period."
+      }
+    ],
+    "firstWord": {
+      "id": "ImperativeFirstWord",
+      "pattern": "^[A-Za-z]+",
+      "nonImperativePattern": "^[A-Z][a-z]*(ed|ing|[^s]s)$",
+      "denied": [ "Misc", "Various", "WIP", "Wip" ],
+      "allowed": [ "Alias", "Bias", "Bring", "Canvas", "Embed", "Exceed", "Feed", "Focus", "Need", "Ping", "Proceed", "Seed", "Shed", "Shred", "Speed", "String", "Succeed" ],
+      "message": "Start the title with an imperative verb (Add, Fix, Remove), not a past tense, a gerund, a third-person form or a placeholder word."
+    }
+  },
+  "changelog": {
+    "id": "ChangelogEntry",
+    "file": "CHANGELOG.md",
+    "consumerVisiblePathPattern": "^(libs|src|source-generators|templates)/",
+    "excludedPathPatterns": [ "(^|/)packages\\.lock\\.json$" ],
+    "optOutMarkerPattern": "(?m)^[ \\t]*<!-- changelog: not-needed -->[ \\t]*\\r?$",
+    "message": "Consumer-visible paths changed: add an entry under '## [Unreleased]' in CHANGELOG.md, or put the line '<!-- changelog: not-needed -->' on its own line in the pull request description."
+  }
+}

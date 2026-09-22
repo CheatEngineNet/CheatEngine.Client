@@ -1,0 +1,42 @@
+# Second required check, context "PR policy" (shared-contracts §1.2, §1.12). Never rename the job, never add path
+# filters, never move it into ci.yml. It runs on title and body edits too, so it stays cheap: Ubuntu, no .NET.
+# The rules are data (eng/ci/pr-policy.json) evaluated by eng/ci/Test-PullRequestPolicy.ps1; Dependabot is exempt.
+name: PR policy
+
+on:
+  pull_request:
+    types: [ opened, edited, synchronize, reopened, ready_for_review ]
+
+# An edit or a push supersedes the previous evaluation of the same pull request.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  policy:
+    name: PR policy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # git diff base...head needs the merge base
+          persist-credentials: false
+
+      # User-controlled values reach the script only through the environment (no template expansion in run:).
+      - name: Check the title and the CHANGELOG entry
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: ./eng/ci/Test-PullRequestPolicy.ps1
