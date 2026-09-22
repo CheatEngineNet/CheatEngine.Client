@@ -1,0 +1,44 @@
+# Configuration of actions/dependency-review-action (ci.yml, job "Dependency review", pull requests only). Option names
+# come from the action's action.yml at the pinned v5.0.0; every option can live in this file.
+
+# Block a pull request that adds or upgrades to a dependency with a known advisory of moderate severity or above, in
+# shipped code and in build or test tooling alike.
+fail-on-severity: moderate
+fail-on-scopes:
+  - runtime
+  - development
+
+# Licenses the Client may depend on (SPDX identifiers).
+allow-licenses:
+  - MIT
+  - Apache-2.0
+  - BSD-2-Clause
+  - BSD-3-Clause
+  - ISC
+  - 0BSD
+  - Unlicense
+  - MS-PL
+
+# Packages whose nuspec carries a license file or a license URL instead of an SPDX expression, so the dependency graph
+# cannot resolve their license. Each was checked on nuget.org for the locked version:
+#   CommandLineParser 2.9.1                          License.md, MIT text (BenchmarkDotNet dependency)
+#   Microsoft.DotNet.PlatformAbstractions 3.1.6      LICENSE.TXT, MIT text (BenchmarkDotNet dependency)
+#   Microsoft.NETCore.Platforms 1.1.0                .NET Library license URL (legacy Microsoft package)
+#   Microsoft.Testing.Extensions.CodeCoverage 18.11.2  License.txt, Microsoft free-to-use license (coverage collector)
+#   NETStandard.Library 2.0.3                        license URL of dotnet/standard, MIT (legacy Microsoft package)
+#   dotnet-coverage 18.11.2                          license file, same license as the collector (.config/dotnet-tools.json)
+allow-dependencies-licenses:
+  - pkg:nuget/CommandLineParser
+  - pkg:nuget/Microsoft.DotNet.PlatformAbstractions
+  - pkg:nuget/Microsoft.NETCore.Platforms
+  - pkg:nuget/Microsoft.Testing.Extensions.CodeCoverage
+  - pkg:nuget/NETStandard.Library
+  - pkg:nuget/dotnet-coverage
+
+# The dependency graph can lag behind a fresh push; wait for the head snapshot instead of reviewing a stale one.
+retry-on-snapshot-warnings: true
+retry-on-snapshot-warnings-timeout: 120
+
+# Show OpenSSF Scorecard data for changed dependencies and warn below level 3; informational, never blocking.
+show-openssf-scorecard: true
+warn-on-openssf-scorecard-level: 3

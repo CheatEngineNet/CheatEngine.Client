@@ -1,0 +1,22 @@
+# zizmor configuration (https://docs.zizmor.sh/configuration/), used by the offline audit of the ci.yml "Lint" job and
+# auto-discovered by a local 'zizmor --offline .github'. Only justified exceptions live here; every entry carries its
+# reason. Never weaken a finding by changing the persona instead.
+
+rules:
+  # The composite action appends three constant CLI settings (DOTNET_NOLOGO, DOTNET_CLI_TELEMETRY_OPTOUT,
+  # MSBUILDDISABLENODEREUSE) to GITHUB_ENV, as the shared CI contract requires. No expression, input or file content
+  # reaches the written text, so nothing attacker-controlled can inject a variable. The line is the step's run: key.
+  github-env:
+    ignore:
+      - action.yml:35
+
+  # zizmor suggests GitHub's 'uses: $/...' self-repository syntax, but actionlint 1.7.12 (the pinned linter of the same
+  # job) rejects it ("invalid format because ref is missing"). Keep the './' form, as CheatEngine.SDK does.
+  self-repository:
+    disable: true
+
+  # Temporary: .github/dependabot.yml belongs to the governance work, which adds a cooldown per ecosystem. Remove this
+  # entry in the same change.
+  dependabot-cooldown:
+    ignore:
+      - dependabot.yml
