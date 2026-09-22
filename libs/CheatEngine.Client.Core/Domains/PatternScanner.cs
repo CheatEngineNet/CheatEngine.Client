@@ -91,48 +91,119 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 
 		AobScanHostStatus status =
 			_scanPort.TryScan(request.Pattern.Value, request.Options, out IAobMatchList? matchList);
+		if (matchList is null)
+		{
+			result = default;
+			failure = CreateMissingListFailure(status);
+			return false;
+		}
+
+		// From here on this method is the single release authority for the owned list: every path below releases it
+		// exactly once, on this dispatched callback, and a release failure is never hidden behind a success.
+		bool succeeded;
+		try
+		{
+			succeeded = TryConsumeMatchList(matchList, status, request, hasModuleRange, moduleRange,
+				cancellationToken, out result, out failure);
+		}
+		catch (Exception consumeFailure)
+		{
+			ReleaseAfterUnexpectedFailure(matchList, consumeFailure);
+			throw;
+		}
+
+		return TryReleaseMatchList(matchList, succeeded, ref result, ref failure);
+	}
+
+	/// <summary>Keeps the single-release guarantee when copying throws instead of returning a failure.</summary>
+	private static void ReleaseAfterUnexpectedFailure(IAobMatchList matchList, Exception consumeFailure)
+	{
+		try
+		{
+			matchList.Dispose();
+		}
+		catch (Exception releaseFailure)
+		{
+			throw new AggregateException(
+				"Copying the AOB result list failed, and its release was not confirmed.",
+				consumeFailure,
+				releaseFailure);
+		}
+	}
+
+	private static CheatEngineFailure CreateMissingListFailure(AobScanHostStatus status)
+	{
+		return status == AobScanHostStatus.Rejected
+			? new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, _scanOperation,
+				"Cheat Engine did not return an AOB result list.")
+			: new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult, _scanOperation,
+				"Cheat Engine returned an invalid AOB result list.");
+	}
+
+	private static bool TryConsumeMatchList(IAobMatchList matchList, AobScanHostStatus status,
+		AobScanRequest request, bool hasModuleRange, ModuleRange moduleRange, CancellationToken cancellationToken,
+		out AobScanResult result, out CheatEngineFailure failure)
+	{
+		result = default;
 		if (TryGetCancellationFailure(cancellationToken, out failure))
 		{
-			matchList?.Dispose();
-			result = default;
 			return false;
 		}
 
-		if (status == AobScanHostStatus.Rejected)
+		if (status != AobScanHostStatus.Success)
 		{
-			result = default;
-			failure = new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, _scanOperation,
-				"Cheat Engine did not return an AOB result list.");
-			return false;
-		}
-
-		if (status != AobScanHostStatus.Success || matchList is null)
-		{
-			result = default;
 			failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult, _scanOperation,
 				"Cheat Engine returned an invalid AOB result list.");
 			return false;
 		}
 
-		using (matchList)
+		if (!matchList.TryGetCount(out int count) || count < 0)
 		{
-			if (TryGetCancellationFailure(cancellationToken, out failure))
-			{
-				result = default;
-				return false;
-			}
-
-			if (!matchList.TryGetCount(out int count) || count < 0)
-			{
-				result = default;
-				failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult, _scanOperation,
-					"Cheat Engine returned an invalid AOB result count.");
-				return false;
-			}
-
-			return TryMaterializeMatches(matchList, count, request, hasModuleRange, moduleRange, cancellationToken,
-				out result, out failure);
+			failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult, _scanOperation,
+				"Cheat Engine returned an invalid AOB result count.");
+			return false;
 		}
+
+		return TryMaterializeMatches(matchList, count, request, hasModuleRange, moduleRange, cancellationToken,
+			out result, out failure);
+	}
+
+	/// <summary>Releases the owned list once and turns an unconfirmed release into the operation's failure.</summary>
+	/// <remarks>
+	///     A release failure is never reported as success, even when every address was copied: the copied result is
+	///     discarded (audit ch.24 cleanup row, ADR-08). When the operation had already failed, the release failure is
+	///     added to the original failure instead of replacing its cause.
+	/// </remarks>
+	private static bool TryReleaseMatchList(IAobMatchList matchList, bool succeeded, ref AobScanResult result,
+		ref CheatEngineFailure failure)
+	{
+		try
+		{
+			matchList.Dispose();
+			return succeeded;
+		}
+		catch (Exception releaseFailure)
+		{
+			result = default;
+			failure = CreateReleaseFailure(succeeded ? null : failure, releaseFailure);
+			return false;
+		}
+	}
+
+	private static CheatEngineFailure CreateReleaseFailure(CheatEngineFailure? primaryFailure, Exception releaseFailure)
+	{
+		if (primaryFailure is not { } primary)
+		{
+			return new CheatEngineFailure(CheatEngineFailureKind.InvalidState, _scanOperation,
+				"The AOB result list release was not confirmed; copied results were discarded.", releaseFailure,
+				CheatEngineHostEffect.CleanupUnconfirmed);
+		}
+
+		Exception primaryException = primary.Exception ?? new CheatEngineOperationException(primary);
+		return new CheatEngineFailure(CheatEngineFailureKind.InvalidState, _scanOperation,
+			$"The AOB result list release was not confirmed after the scan had already failed ({primary.Kind}).",
+			new AggregateException(primaryException, releaseFailure),
+			CheatEngineHostEffect.CleanupUnconfirmed);
 	}
 
 	private static bool TryMaterializeMatches(

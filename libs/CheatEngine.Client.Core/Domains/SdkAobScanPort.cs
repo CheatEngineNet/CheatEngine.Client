@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 
+using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Engine.Objects;
 using CheatEngine.SDK.Engine.Scanning.Aob;
@@ -7,6 +8,11 @@ using CheatEngine.SDK.Engine.Scanning.Aob;
 namespace CheatEngine.Client.Core.Domains;
 
 /// <summary>Production adapter that copies and releases the SDK-owned AOB list on the CE dispatch thread.</summary>
+/// <remarks>
+///     The SDK owner is handed to <see cref="SdkAobMatchList" /> through <see cref="OwnershipHandoff" />, so a failure
+///     between acquisition and publication releases the Cheat Engine list exactly once (audit F13). After publication
+///     the match list is the single release authority.
+/// </remarks>
 internal sealed class SdkAobScanPort : IAobScanPort
 {
 	public AobScanHostStatus TryScan(string pattern, AobScanOptions options,
@@ -18,7 +24,7 @@ internal sealed class SdkAobScanPort : IAobScanPort
 			return AobScanHostStatus.Rejected;
 		}
 
-		matches = new SdkAobMatchList(owner);
+		matches = OwnershipHandoff.Adopt(owner, static acquired => new SdkAobMatchList(acquired));
 		return AobScanHostStatus.Success;
 	}
 
@@ -41,6 +47,12 @@ internal sealed class SdkAobScanPort : IAobScanPort
 			return _owner.Value.TryGetItem(index, out value);
 		}
 
+		/// <summary>Releases the Cheat Engine list through the SDK owner.</summary>
+		/// <remarks>
+		///     CheatEngine.SDK 1.0.0 <c>Owned&lt;T&gt;.Dispose</c> throws <see cref="InvalidOperationException" /> and
+		///     retains ownership when the runtime is detached; that exception is the only "release not confirmed" signal
+		///     available to the Client on 1.0.0, so it is propagated to <see cref="PatternScanner" /> unchanged.
+		/// </remarks>
 		public void Dispose()
 		{
 			_owner.Dispose();
