@@ -11,6 +11,9 @@ public sealed class BuildGuardTests
 	private const string SdkFacingLibrary = "libs/CheatEngine.Client.Hosting/CheatEngine.Client.Hosting.csproj";
 	private const string SdkPinGuard = "CheatEngineClientValidateSdkPin";
 	private const string SdkPackGuard = "CheatEngineClientRefuseUnsupportedSdkPack";
+	private const string GeneratorProject =
+		"source-generators/CheatEngine.Client.SourceGenerators.Lua/CheatEngine.Client.SourceGenerators.Lua.csproj";
+	private const string RoslynPinGuard = "CheatEngineClientCheckRoslynPin";
 
 	[Fact]
 	public async Task CommittedPinPassesTheSdkGuard()
@@ -59,6 +62,19 @@ public sealed class BuildGuardTests
 		Assert.DoesNotContain("error CHEATENGINECLIENT", build.StandardOutput, StringComparison.Ordinal);
 		Assert.True(pack.ExitCode != 0, pack.ToString());
 		Assert.Contains("error CHEATENGINECLIENT9016", pack.StandardOutput, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public async Task RoslynPinDriftFailsWithCHEATENGINECLIENT9020()
+	{
+		// A -p: switch cannot change a PackageVersion item, so the drift is simulated from the other side: the floor.
+		DotNetProcessResult committed = await RunGuardAsync(GeneratorProject, RoslynPinGuard);
+		DotNetProcessResult drifted = await RunGuardAsync(GeneratorProject, RoslynPinGuard,
+			"-p:CheatEngineClientRoslynComponentFloor=5.8.0");
+
+		Assert.True(committed.ExitCode == 0, committed.ToString());
+		Assert.True(drifted.ExitCode != 0, drifted.ToString());
+		Assert.Contains("error CHEATENGINECLIENT9020", drifted.StandardOutput, StringComparison.Ordinal);
 	}
 
 	private static Task<DotNetProcessResult> RunGuardAsync(string project, string target, params string[] properties)

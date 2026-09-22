@@ -50,6 +50,16 @@
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
   </PropertyGroup>
 
+  <PropertyGroup Label="Packaging and versioning">
+    <!--
+      The Roslyn version the shipped Lua generator (packed inside CheatEngine.Client.Hosting) is compiled against. A
+      generator built against Roslyn N does not load in an older compiler (CS9057), so this floor, the
+      Microsoft.CodeAnalysis pins in Directory.Packages.props, the template sdk-version constraint and global.json move
+      together; CHEATENGINECLIENT9020 enforces the first two.
+    -->
+    <CheatEngineClientRoslynComponentFloor>5.9.0</CheatEngineClientRoslynComponentFloor>
+  </PropertyGroup>
+
   <!-- Friend assemblies by convention: <Project> and tests/<Project>.Tests are twins. Keyed on the project name only, so the props phase is early enough. -->
   <ItemGroup Label="Friend assemblies by convention" Condition="!$(MSBuildProjectName.EndsWith('.Tests'))">
     <InternalsVisibleTo Include="$(MSBuildProjectName).Tests"/>

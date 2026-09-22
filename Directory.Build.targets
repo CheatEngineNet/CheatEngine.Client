@@ -121,6 +121,23 @@
            Text="$(MSBuildProjectName) sees the central CheatEngine.SDK PackageVersion '$(_CheatEngineClientCentralSdkVersion)', expected '$(CheatEngineSdkVersion)' from eng/CheatEngineSdk.props. Do not add or update a CheatEngine.SDK PackageVersion outside Directory.Packages.props."/>
   </Target>
 
+  <!--
+    CHEATENGINECLIENT9020: a Roslyn component compiled against a newer Roslyn than the consumer's compiler does not load
+    there (CS9057), and no local build notices a bumped pin because the SDK in global.json bundles the same Roslyn. The
+    target compares the central pins with the declared floor, so a Roslyn bump is always a deliberate, reviewed change.
+  -->
+  <Target Name="CheatEngineClientCheckRoslynPin"
+          BeforeTargets="BeforeBuild"
+          Condition="'$(IsRoslynComponent)' == 'true'">
+    <PropertyGroup>
+      <_CheatEngineClientRoslynCSharpPin>@(PackageVersion->WithMetadataValue('Identity', 'Microsoft.CodeAnalysis.CSharp')->'%(Version)')</_CheatEngineClientRoslynCSharpPin>
+      <_CheatEngineClientRoslynAnalyzersPin>@(PackageVersion->WithMetadataValue('Identity', 'Microsoft.CodeAnalysis.Analyzers')->'%(Version)')</_CheatEngineClientRoslynAnalyzersPin>
+    </PropertyGroup>
+    <Error Condition="'$(_CheatEngineClientRoslynCSharpPin)' != '$(CheatEngineClientRoslynComponentFloor)' or '$(_CheatEngineClientRoslynAnalyzersPin)' != '$(CheatEngineClientRoslynComponentFloor)'"
+           Code="CHEATENGINECLIENT9020"
+           Text="$(MSBuildProjectName) is a Roslyn component: Directory.Packages.props pins Microsoft.CodeAnalysis.CSharp '$(_CheatEngineClientRoslynCSharpPin)' and Microsoft.CodeAnalysis.Analyzers '$(_CheatEngineClientRoslynAnalyzersPin)', but CheatEngineClientRoslynComponentFloor is '$(CheatEngineClientRoslynComponentFloor)'. A generator compiled against Roslyn N does not load in an older compiler (CS9057): restore the pin, or raise it together with CheatEngineClientRoslynComponentFloor (Directory.Build.props), the template sdk-version constraint (templates/CheatEngine.Client.Templates/content/CheatEngine.Plugin/.template.config/template.json), global.json and the .NET SDK requirement row of the README."/>
+  </Target>
+
   <!-- A canary or otherwise unsupported SDK pin never produces a package, even when its build was allowed to run. -->
   <Target Name="CheatEngineClientRefuseUnsupportedSdkPack"
           BeforeTargets="Pack"
