@@ -1,0 +1,3 @@
+# Commits that only reformat code. Enable locally with: git config blame.ignoreRevsFile .git-blame-ignore-revs
+# Apply repository formatting
+e5b1e0dde918a54c0dd628737bb7ad86d36c1c7f

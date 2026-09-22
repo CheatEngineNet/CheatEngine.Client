@@ -21,6 +21,12 @@
     <PackageVersion Include="xunit.v3.mtp-v2" Version="4.0.1"/>
     <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.11.2"/>
     <PackageVersion Include="Microsoft.Testing.Extensions.TrxReport" Version="2.4.1"/>
+    <!-- GitHub annotations and job summaries (report-gh), hang and crash dumps for CI diagnostics. -->
+    <PackageVersion Include="Microsoft.Testing.Extensions.GitHubActionsReport" Version="2.4.1"/>
+    <PackageVersion Include="Microsoft.Testing.Extensions.HangDump" Version="2.4.1"/>
+    <PackageVersion Include="Microsoft.Testing.Extensions.CrashDump" Version="2.4.1"/>
+    <!-- Workflow contract tests parse .github/workflows/*.yml. -->
+    <PackageVersion Include="YamlDotNet" Version="18.1.0"/>
   </ItemGroup>
 
   <ItemGroup Label="Build tooling">
@@ -28,5 +34,7 @@
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0"/>
     <GlobalPackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.401"/>
     <PackageVersion Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="5.6.0"/>
+    <!-- SPDX software bill of materials embedded in the packages at pack time. -->
+    <PackageVersion Include="Microsoft.Sbom.Targets" Version="4.1.13"/>
   </ItemGroup>
 </Project>

@@ -52,6 +52,7 @@
     </Project>
     <Project
       Path="tests/CheatEngine.Client.SourceGenerators.Lua.Tests/CheatEngine.Client.SourceGenerators.Lua.Tests.csproj"/>
+    <Project Path="tests/CheatEngine.Client.Repository.Tests/CheatEngine.Client.Repository.Tests.csproj"/>
     <Project Path="tests/CheatEngine.Client.Tests/CheatEngine.Client.Tests.csproj"/>
   </Folder>
   <Folder Name="/templates/">
