@@ -16,6 +16,7 @@ public sealed class BuildGuardTests
 	private const string RoslynPinGuard = "CheatEngineClientCheckRoslynPin";
 	private const string PackableLibrary = "libs/CheatEngine.Client.Fluent/CheatEngine.Client.Fluent.csproj";
 	private const string LockstepGuard = "CheatEngineClientValidateLockstepVersion";
+	private const string SbomGuard = "CheatEngineClientRequireSbom";
 
 	[Fact]
 	public async Task CommittedPinPassesTheSdkGuard()
@@ -93,6 +94,17 @@ public sealed class BuildGuardTests
 		Assert.Contains("error CHEATENGINECLIENT9019", skipped.StandardOutput, StringComparison.Ordinal);
 		Assert.True(overridden.ExitCode != 0, overridden.ToString());
 		Assert.Contains("error CHEATENGINECLIENT9019", overridden.StandardOutput, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public async Task SbomGuardRefusesAPackWithoutTheSbom()
+	{
+		DotNetProcessResult committed = await RunGuardAsync(PackableLibrary, SbomGuard);
+		DotNetProcessResult disabled = await RunGuardAsync(PackableLibrary, SbomGuard, "-p:GenerateSBOM=false");
+
+		Assert.True(committed.ExitCode == 0, committed.ToString());
+		Assert.True(disabled.ExitCode != 0, disabled.ToString());
+		Assert.Contains("error CHEATENGINECLIENT9021", disabled.StandardOutput, StringComparison.Ordinal);
 	}
 
 	private static Task<DotNetProcessResult> RunGuardAsync(string project, string target, params string[] properties)

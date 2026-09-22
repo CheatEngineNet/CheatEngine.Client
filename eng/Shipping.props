@@ -22,7 +22,20 @@
     <PackageTags>cheat-engine;plugin;memory;dotnet;fluent;dependency-injection</PackageTags>
   </PropertyGroup>
 
+  <!--
+    SPDX 2.2 software bill of materials embedded in every package at _manifest/spdx_2.2/manifest.spdx.json, generated
+    locally and in CI alike so both inventories match. Microsoft.Sbom.Targets writes it after Pack and re-zips the .nupkg
+    (never the .snupkg). Directory.Build.targets sets the SBOM package version from MinVer and refuses a pack without
+    the SBOM (CHEATENGINECLIENT9021). eng/Templates.props carries the same values.
+  -->
+  <PropertyGroup Label="Software bill of materials">
+    <GenerateSBOM>true</GenerateSBOM>
+    <SbomGenerationPackageSupplier>CheatEngineNet</SbomGenerationPackageSupplier>
+    <SbomGenerationNamespaceBaseUri>https://github.com/CheatEngineNet/CheatEngine.Client</SbomGenerationNamespaceBaseUri>
+  </PropertyGroup>
+
   <ItemGroup>
+    <PackageReference Include="Microsoft.Sbom.Targets" PrivateAssets="all"/>
     <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers"
                       PrivateAssets="all"
                       IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive"/>

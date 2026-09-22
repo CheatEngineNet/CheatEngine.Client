@@ -6,4 +6,15 @@
     <PackageOutputPath>$(ArtifactsPath)/nuget</PackageOutputPath>
     <PackageTags>dotnet-new;template;cheat-engine;plugin</PackageTags>
   </PropertyGroup>
+
+  <!-- The same SPDX 2.2 SBOM as eng/Shipping.props (see the comment there). -->
+  <PropertyGroup Label="Software bill of materials">
+    <GenerateSBOM>true</GenerateSBOM>
+    <SbomGenerationPackageSupplier>CheatEngineNet</SbomGenerationPackageSupplier>
+    <SbomGenerationNamespaceBaseUri>https://github.com/CheatEngineNet/CheatEngine.Client</SbomGenerationNamespaceBaseUri>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Sbom.Targets" PrivateAssets="all"/>
+  </ItemGroup>
 </Project>

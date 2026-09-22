@@ -50,6 +50,35 @@ public sealed class PackageMetadataTests
 	}
 
 	[Fact]
+	public void EveryPackagingProfileEmbedsTheSameSpdxSbom()
+	{
+		List<string> offenders = [];
+		foreach (string props in (string[]) ["eng/Shipping.props", "eng/Templates.props"])
+		{
+			XDocument document = PackageVersioningTests.LoadXml(props);
+			string?[] values =
+			[
+				document.Descendants("GenerateSBOM").SingleOrDefault()?.Value,
+				document.Descendants("SbomGenerationPackageSupplier").SingleOrDefault()?.Value,
+				document.Descendants("SbomGenerationNamespaceBaseUri").SingleOrDefault()?.Value
+			];
+			if (values[0] != "true" || values[1] != "CheatEngineNet" || values[2] != "https://github.com/CheatEngineNet/CheatEngine.Client")
+			{
+				offenders.Add($"{props} must set GenerateSBOM=true, SbomGenerationPackageSupplier=CheatEngineNet and the repository namespace, found {string.Join(", ", values)}");
+			}
+
+			if (!document.Descendants("PackageReference").Any(static reference => (string?) reference.Attribute("Include") == "Microsoft.Sbom.Targets"
+																				  && (string?) reference.Attribute("PrivateAssets") == "all"))
+			{
+				offenders.Add($"{props} must reference Microsoft.Sbom.Targets with PrivateAssets=\"all\"");
+			}
+		}
+
+		Assert.True(offenders.Count == 0, string.Join(Environment.NewLine, offenders));
+		Assert.NotNull(PackageVersioningTests.CentralVersion("Microsoft.Sbom.Targets"));
+	}
+
+	[Fact]
 	public void PackageCopyrightMatchesTheLicenseHolderLine()
 	{
 		string[] license = File.ReadAllLines(Path.Combine(RepositoryRoot.Path, "LICENSE"));

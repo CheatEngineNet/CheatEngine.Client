@@ -193,6 +193,52 @@
            Text="$(MSBuildProjectName) would be packed as '$(PackageVersion)', but MinVer computed '$(MinVerVersion)'. The seven Client packages share one MinVer version."/>
   </Target>
 
+  <!--
+    Microsoft.Sbom.Targets derives SbomGenerationPackageVersion from $(Version) at evaluation, which is the placeholder,
+    not the MinVer version the package carries. Its GenerateSbomTarget runs after Pack, so setting the property after
+    MinVer makes the SBOM describe the package it is embedded in.
+  -->
+  <Target Name="CheatEngineClientSbomPackageVersion"
+          AfterTargets="MinVer"
+          Condition="'$(GenerateSBOM)' == 'true'">
+    <PropertyGroup>
+      <SbomGenerationPackageVersion>$(PackageVersion)</SbomGenerationPackageVersion>
+    </PropertyGroup>
+  </Target>
+
+  <!--
+    What the SBOM lists besides the packed files. The default component path is the project folder, where the artifacts
+    layout keeps no restore output, so no package would be listed. The intermediate folder would also expose stale
+    nuspec files of earlier packs. The SBOM therefore scans a folder holding only this project's project.assets.json: it
+    lists the resolved NuGet graph, runtime dependencies and build-only tools alike (MinVer, analyzers, Microsoft.Sbom.Targets,
+    template tasks), as RELEASING.md states.
+  -->
+  <Target Name="CheatEngineClientPrepareSbomComponents"
+          BeforeTargets="GenerateSbomTarget"
+          Condition="'$(IsPackable)' == 'true' and '$(GenerateSBOM)' == 'true'">
+    <PropertyGroup>
+      <_CheatEngineClientSbomComponentPath>$([MSBuild]::NormalizeDirectory('$(IntermediateOutputPath)', 'sbom-components'))</_CheatEngineClientSbomComponentPath>
+      <SbomGenerationBuildComponentPath>$(_CheatEngineClientSbomComponentPath)</SbomGenerationBuildComponentPath>
+    </PropertyGroup>
+    <Error Condition="!Exists('$(ProjectAssetsFile)')"
+           Code="CHEATENGINECLIENT9021"
+           Text="$(MSBuildProjectName) has no restore output ($(ProjectAssetsFile)) to describe in its SBOM. Restore before packing."/>
+    <RemoveDir Directories="$(_CheatEngineClientSbomComponentPath)"/>
+    <Copy SourceFiles="$(ProjectAssetsFile)" DestinationFolder="$(_CheatEngineClientSbomComponentPath)"/>
+  </Target>
+
+  <!-- CHEATENGINECLIENT9021: every Client package embeds its SPDX SBOM (audit PR-CQ-14); a pack without it is refused. -->
+  <Target Name="CheatEngineClientRequireSbom"
+          BeforeTargets="GenerateNuspec"
+          Condition="'$(IsPackable)' == 'true'">
+    <Error Condition="'$(GenerateSBOM)' != 'true'"
+           Code="CHEATENGINECLIENT9021"
+           Text="$(MSBuildProjectName) cannot be packed with GenerateSBOM='$(GenerateSBOM)': every Client package embeds an SPDX 2.2 SBOM at _manifest/spdx_2.2/manifest.spdx.json (eng/Shipping.props, eng/Templates.props)."/>
+    <Error Condition="'$(GenerateSBOM)' == 'true' and '@(PackageReference->WithMetadataValue('Identity', 'Microsoft.Sbom.Targets'))' == ''"
+           Code="CHEATENGINECLIENT9021"
+           Text="$(MSBuildProjectName) sets GenerateSBOM=true but does not reference Microsoft.Sbom.Targets, so no SBOM would be generated."/>
+  </Target>
+
   <!-- A canary or otherwise unsupported SDK pin never produces a package, even when its build was allowed to run. -->
   <Target Name="CheatEngineClientRefuseUnsupportedSdkPack"
           BeforeTargets="Pack"
