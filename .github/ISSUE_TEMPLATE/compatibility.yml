@@ -1,0 +1,212 @@
+name: Compatibility report
+description: A CheatEngine.Client plugin fails to load or behaves differently on a specific Cheat Engine setup.
+title: "Compatibility: "
+labels: [ bug ]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A compatibility problem can only be investigated against an exact tuple: the Client packages, the
+        CheatEngine.SDK package they resolved (version and fingerprint), the native Lua protection bridge, the Lua DLL
+        and the Cheat Engine build actually used, the .NET runtime policy of Cheat Engine, the plugin build options and
+        the load profile. A file name or a version alone does not identify it.
+
+        The qualified profile is Cheat Engine 7.7.0.10621 x64 (`cheatengine-x86_64.exe`) loading a managed plugin
+        through hostfxr (`ce-7.7.0.10621-x64-managed-hostfxr`). Other builds and load profiles are welcome but are not
+        qualified.
+
+        Compute every hash with `Get-FileHash <file> -Algorithm SHA256`. Remove user names and private paths.
+        Never attach Cheat Engine binaries, target binaries, authorization manifests or raw DebugView dumps.
+        Security problems go through private vulnerability reporting (see SECURITY.md), never through an issue.
+  - type: input
+    id: client-version
+    attributes:
+      label: CheatEngine.Client version
+      description: All CheatEngine.Client* packages share one version. Read it from your plugin's packages.lock.json.
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: input
+    id: sdk-version
+    attributes:
+      label: CheatEngine.SDK version
+      description: The `resolved` version of CheatEngine.SDK in your plugin's packages.lock.json.
+      placeholder: 1.0.0
+    validations:
+      required: true
+  - type: input
+    id: sdk-content-hash
+    attributes:
+      label: CheatEngine.SDK contentHash
+      description: The `contentHash` of the same CheatEngine.SDK entry, copied from packages.lock.json (not recomputed).
+      placeholder: n7nHqZ8v...gA==
+    validations:
+      required: true
+  - type: input
+    id: bridge-sha256
+    attributes:
+      label: Native bridge SHA-256
+      description: SHA-256 of `cheatengine-sdk-lua-bridge.dll` in your plugin output folder.
+    validations:
+      required: true
+  - type: input
+    id: bridge-fingerprint
+    attributes:
+      label: Native bridge source fingerprint (optional)
+      description: The `<c-sha256>:<xmake-sha256>` fingerprint, when the SDK release notes or the plugin log print it.
+  - type: input
+    id: lua-dll-sha256
+    attributes:
+      label: Lua DLL SHA-256
+      description: SHA-256 of `lua53-64.dll` in the Cheat Engine folder (the Lua runtime the plugin actually binds to).
+    validations:
+      required: true
+  - type: input
+    id: ce-version
+    attributes:
+      label: Cheat Engine version and executable
+      description: The version from Help > About, and the name of the executable you started.
+      placeholder: 7.7.0.10621, cheatengine-x86_64.exe
+    validations:
+      required: true
+  - type: input
+    id: ce-exe-sha256
+    attributes:
+      label: Cheat Engine executable SHA-256
+      description: SHA-256 of the executable you started.
+    validations:
+      required: true
+  - type: dropdown
+    id: ce-build
+    attributes:
+      label: Cheat Engine build and architecture
+      options:
+        - cheatengine-x86_64.exe (x64)
+        - cheatengine-x86_64-SSE4-AVX2.exe (x64, not a profiled build)
+        - Started through the Cheat Engine.exe launcher (not a profiled route)
+        - x86 Cheat Engine (not supported)
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: runtimeconfig-sha256
+    attributes:
+      label: ce.runtimeconfig.json SHA-256
+      description: >-
+        SHA-256 of `ce.runtimeconfig.json` in the Cheat Engine folder. Record it as it is; do not change it for
+        this report.
+    validations:
+      required: true
+  - type: dropdown
+    id: runtimeconfig-state
+    attributes:
+      label: ce.runtimeconfig.json state
+      options:
+        - As installed by Cheat Engine
+        - Modified locally (describe the difference under Actual behaviour)
+        - Unknown
+    validations:
+      required: true
+  - type: textarea
+    id: dotnet-runtimes
+    attributes:
+      label: Installed .NET runtimes
+      description: Output of `dotnet --list-runtimes`, with private paths removed.
+      render: text
+    validations:
+      required: true
+  - type: dropdown
+    id: load-profile
+    attributes:
+      label: Plugin load profile
+      options:
+        - Managed plugin loaded through hostfxr (qualified profile)
+        - NativeAOT plugin (not supported)
+        - Historical CLR route (not supported)
+        - I do not know
+    validations:
+      required: true
+  - type: textarea
+    id: plugin-build
+    attributes:
+      label: Plugin build settings
+      description: |
+        `dotnet --version`, TargetFramework, RuntimeIdentifier, PlatformTarget, PublishAot and SelfContained if set,
+        whether the plugin was created with `dotnet new ceplugin`, and whether the Client packages came from nuget.org
+        or another feed.
+      render: text
+    validations:
+      required: true
+  - type: dropdown
+    id: observed-level
+    attributes:
+      label: Where did you observe the problem?
+      description: The qualification level of the observation. A build or unit-test result is not a Cheat Engine result.
+      options:
+        - Build, restore, analyzer or packaging output (C0)
+        - Unit tests or test doubles (C1)
+        - Native fixture outside Cheat Engine (C2)
+        - Cheat Engine with this plugin loaded (C3)
+        - Cheat Engine with several plugins, or after a target switch (C4)
+    validations:
+      required: true
+  - type: input
+    id: target
+    attributes:
+      label: Target process
+      description: Architecture (x64 or x86) and kind (local process, CEServer, file opened as a process).
+      placeholder: x64 local process
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Windows version
+      placeholder: Windows 11 24H2 x64 (26100.xxxx)
+    validations:
+      required: true
+  - type: input
+    id: release-tuple
+    attributes:
+      label: Release tuple manifest SHA-256 (optional)
+      description: >-
+        SHA-256 of the `CheatEngine.Client.<version>.tuple.json` release asset, when you took the packages from a
+        GitHub release.
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      description: Include the exact exception, or the CheatEngineFailure kind and operation name.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Redacted logs
+      description: >-
+        Plugin log lines around the failure. Remove paths, addresses and memory contents you do not want
+        public.
+      render: text
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmations
+      options:
+        - label: I removed user names, private paths and target-memory contents from this report.
+          required: true
+        - label: I attached no Cheat Engine binaries, target binaries, authorization manifests or raw DebugView dumps.
+          required: true
+        - label: This is not a security vulnerability.
+          required: true

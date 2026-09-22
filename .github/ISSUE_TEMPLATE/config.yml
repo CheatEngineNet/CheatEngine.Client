@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/CheatEngineNet/CheatEngine.Client/security/advisories/new
+    about: Private vulnerability reporting. Never open a public issue for a vulnerability.
+  - name: CheatEngine.SDK problems (bootstrap, native bridge, Lua bindings, ABI)
+    url: https://github.com/CheatEngineNet/CheatEngine.SDK/issues/new/choose
+    about: Low-level SDK behaviour belongs to the CheatEngine.SDK repository.
+  - name: Cheat Engine itself
+    url: https://github.com/cheat-engine/cheat-engine/issues
+    about: Problems in Cheat Engine are reported upstream.
