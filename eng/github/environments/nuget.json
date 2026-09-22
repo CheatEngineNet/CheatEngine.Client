@@ -1,0 +1,14 @@
+{
+  "_comment": "Environment 'nuget' used by release.yml to publish. A required reviewer approves every publication; the script resolves the reviewer logins (-NuGetReviewer, default AriusII) to user ids. prevent_self_review stays false while there is a single maintainer (the maintainer both tags and approves). No admin bypass. Only v*.*.* tags may deploy.",
+  "name": "nuget",
+  "wait_timer": 0,
+  "prevent_self_review": false,
+  "can_admins_bypass": false,
+  "deployment_branch_policy": {
+    "protected_branches": false,
+    "custom_branch_policies": true
+  },
+  "deployment_policies": [
+    { "name": "v*.*.*", "type": "tag" }
+  ]
+}

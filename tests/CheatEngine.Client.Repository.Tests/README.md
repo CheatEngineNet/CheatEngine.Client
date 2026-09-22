@@ -41,6 +41,23 @@ project never builds, packs, restores or starts a process, so it runs in seconds
   reserved artifact names and binary logs on failure only. `Workflows/WorkflowFile` loads the YAML with YamlDotNet.
 - `Toolchain/TestProfileTests` prove that every `*.Tests` project references the Microsoft.Testing.Platform extension
   of every option the CI test command passes (a missing one fails the module with exit code 5).
+- `Governance/` holds the repository governance contracts (audit rows PR-CQ-08/17/21/23/25/31/35/37/46/56, A21-36,
+  A22-44):
+  - `PullRequestPolicyTests` (with `PullRequestPolicyRules`, the executable specification of `eng/ci/pr-policy.json`)
+    proves the required `PR policy` check: imperative title of at most 72 characters without a Conventional-Commit
+    prefix, a CHANGELOG entry for consumer-visible paths unless the opt-out marker is on its own line, Dependabot
+    exempt, user text reaching `eng/ci/Test-PullRequestPolicy.ps1` only through `env:`, case-sensitive matching only;
+  - `CodeQlWorkflowTests`, `ScorecardWorkflowTests` and `OnlineZizmorWorkflowTests` prove the advisory security
+    workflows: a manual traced build of the whole shipped graph without dependency cache, the Scorecard verifier's
+    restrictions, the same zizmor version as the Gate and no SARIF upload from forks;
+  - `DependabotConfigurationTests` proves the cooldowns, the covered ecosystems and the ignores that protect frozen
+    decisions (CheatEngine.SDK majors, Roslyn, SDK-implicit packages);
+  - `ScheduledHealthWorkflowTests` and `DependencySubmissionWorkflowTests` prove the scheduled audit, canary and repeat
+    run and the split read/write dependency submission with a pinned, hash-verified detector;
+  - `CommunityHealthTests` and `IssueFormTests` prove `SECURITY.md`, `CODE_OF_CONDUCT.md`, CODEOWNERS and the issue
+    forms, including a compatibility form that requires the full release tuple (audit Checkpoint F);
+  - `RepositorySettingsTests` proves the desired state of `eng/github/` (the two frozen required checks, squash-only
+    merges, no bypass actor, release tags protected without blocking their creation, a single guarded write path).
 
 ## Run
 

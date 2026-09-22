@@ -1,0 +1,18 @@
+{
+  "_comment": "Ruleset 'Protect release tags', matched by name. A pushed v* tag starts release.yml; it can be neither deleted nor moved. There is deliberately no 'creation' rule: the maintainer must be able to push the release tag, and publication is still gated by the 'nuget' environment reviewer. No bypass actor.",
+  "name": "Protect release tags",
+  "target": "tag",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "include": [ "refs/tags/v*" ],
+      "exclude": []
+    }
+  },
+  "bypass_actors": [],
+  "rules": [
+    { "type": "deletion" },
+    { "type": "non_fast_forward" },
+    { "type": "update" }
+  ]
+}
