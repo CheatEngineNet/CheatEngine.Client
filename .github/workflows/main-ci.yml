@@ -3,22 +3,6 @@ name: Main CI
 on:
   push:
     branches: [main]
-    paths:
-      - '.editorconfig'
-      - '.github/**'
-      - 'CheatEngine.Client.slnx'
-      - 'Directory.Build.props'
-      - 'Directory.Build.targets'
-      - 'Directory.Packages.props'
-      - 'README.md'
-      - 'ROADMAP.md'
-      - 'docs/**'
-      - 'eng/**'
-      - 'global.json'
-      - 'libs/**'
-      - 'src/**'
-      - 'templates/**'
-      - 'tests/**'
   merge_group:
     types: [checks_requested]
   workflow_dispatch:
@@ -34,3 +18,7 @@ jobs:
   ci:
     name: CI
     uses: ./.github/workflows/ci.yml
+    with:
+      collect_sonar_coverage: ${{ vars.SONAR_CI_ENABLED == 'true' && github.ref == 'refs/heads/main' }}
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

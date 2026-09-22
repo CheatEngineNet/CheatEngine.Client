@@ -51,19 +51,20 @@ internal sealed class EventStreamLease<TEvent>(
 			}
 
 			Volatile.Write(ref _disposing, 1);
-			Exception? firstFailure = null;
-			firstFailure = RunCleanupStep(_stream.CloseAdmission, firstFailure);
-			firstFailure = RunCleanupStep(_neutralizeCallback, firstFailure);
-			firstFailure = RunCleanupStep(_stream.Complete, firstFailure);
-			firstFailure = RunCleanupStep(_releaseHostRegistration, firstFailure);
-			firstFailure = RunCleanupStep(Untrack, firstFailure);
-			Volatile.Write(ref _released, 1);
-			Volatile.Write(ref _disposing, 0);
+		}
 
-			if (firstFailure is not null)
-			{
-				ExceptionDispatchInfo.Capture(firstFailure).Throw();
-			}
+		Exception? firstFailure = null;
+		firstFailure = RunCleanupStep(_stream.CloseAdmission, firstFailure);
+		firstFailure = RunCleanupStep(_neutralizeCallback, firstFailure);
+		firstFailure = RunCleanupStep(_stream.Complete, firstFailure);
+		firstFailure = RunCleanupStep(_releaseHostRegistration, firstFailure);
+		firstFailure = RunCleanupStep(Untrack, firstFailure);
+		Volatile.Write(ref _released, 1);
+		Volatile.Write(ref _disposing, 0);
+
+		if (firstFailure is not null)
+		{
+			ExceptionDispatchInfo.Capture(firstFailure).Throw();
 		}
 	}
 

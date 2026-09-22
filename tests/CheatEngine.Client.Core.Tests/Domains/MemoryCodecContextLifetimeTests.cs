@@ -177,10 +177,7 @@ public sealed class MemoryCodecContextLifetimeTests
 		Assert.True(client.TryRead(new MemoryReadRequest<int>(_address, firstCodec), out _, out _,
 			TestContext.Current.CancellationToken));
 		IMemoryReadContext firstContext = Assert.IsAssignableFrom<IMemoryReadContext>(firstCodec.ReadContext);
-		CapturingCodec secondCodec = new()
-		{
-			ReadAction = _ => AssertExpired(() => ConsumePointerSize(firstContext))
-		};
+		CapturingCodec secondCodec = new() { ReadAction = _ => AssertExpired(() => ConsumePointerSize(firstContext)) };
 
 		Assert.True(client.TryRead(new MemoryReadRequest<int>(_address, secondCodec), out _, out _,
 			TestContext.Current.CancellationToken));

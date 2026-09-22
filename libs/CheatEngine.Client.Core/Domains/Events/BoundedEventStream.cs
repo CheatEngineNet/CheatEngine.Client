@@ -375,7 +375,10 @@ internal sealed class BoundedEventStream<T> : IAsyncEnumerable<T>, IDisposable
 		internal static ReadResult End => new(false, default);
 	}
 
-	private sealed class PendingRead(BoundedEventStream<T> owner, Enumerator reader, CancellationToken cancellationToken)
+	private sealed class PendingRead(
+		BoundedEventStream<T> owner,
+		Enumerator reader,
+		CancellationToken cancellationToken)
 	{
 		private readonly CancellationToken _cancellationToken = cancellationToken;
 		private readonly BoundedEventStream<T> _owner = owner;

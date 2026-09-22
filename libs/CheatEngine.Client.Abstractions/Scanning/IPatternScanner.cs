@@ -2,13 +2,13 @@ using CheatEngine.Client.Results;
 
 namespace CheatEngine.Client.Scanning;
 
-/// <summary>Runs bounded AOB scans and copies all returned addresses before releasing SDK-owned objects.</summary>
+/// <summary>Runs global AOB scans, then copies post-filtered addresses before releasing SDK-owned objects.</summary>
 public interface IPatternScanner
 {
-	/// <summary>Tries to run one bounded pattern scan.</summary>
+	/// <summary>Tries to run one scan with managed post-filtered result materialization.</summary>
 	public bool TryScan(AobScanRequest request, out AobScanResult result, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
-	/// <summary>Runs one bounded pattern scan or throws when the operation fails.</summary>
+	/// <summary>Runs one scan with managed post-filtered result materialization or throws when it fails.</summary>
 	public AobScanResult Scan(AobScanRequest request, CancellationToken cancellationToken = default);
 }

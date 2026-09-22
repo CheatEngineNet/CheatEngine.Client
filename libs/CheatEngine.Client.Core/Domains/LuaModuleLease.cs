@@ -1,3 +1,5 @@
+using System.Runtime.ExceptionServices;
+
 using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Lua;
 
@@ -26,6 +28,7 @@ internal sealed class LuaModuleLease(
 		releaseModule ?? throw new ArgumentNullException(nameof(releaseModule));
 
 	private readonly Action<ILuaModuleLease> _untrack = untrack ?? throw new ArgumentNullException(nameof(untrack));
+	private int _registered;
 	private int _released;
 
 	public long Epoch
@@ -41,6 +44,12 @@ internal sealed class LuaModuleLease(
 		{
 			if (Volatile.Read(ref _released) != 0)
 			{
+				return;
+			}
+
+			if (Volatile.Read(ref _registered) == 0)
+			{
+				CompleteRelease();
 				return;
 			}
 
@@ -61,10 +70,72 @@ internal sealed class LuaModuleLease(
 		}
 	}
 
+	/// <summary>Marks the module as registered while the registration dispatcher callback still owns the main thread.</summary>
+	internal void ConfirmRegistration()
+	{
+		lock (_disposeLock)
+		{
+			if (Volatile.Read(ref _released) != 0)
+			{
+				throw new InvalidOperationException("The Lua module lease was released before registration completed.");
+			}
+
+			Volatile.Write(ref _registered, 1);
+		}
+	}
+
+	/// <summary>Releases a tracked handoff that never completed <see cref="ILuaModule.Register" />.</summary>
+	internal void AbandonRegistration()
+	{
+		lock (_disposeLock)
+		{
+			if (Volatile.Read(ref _released) != 0)
+			{
+				return;
+			}
+
+			if (Volatile.Read(ref _registered) != 0)
+			{
+				throw new InvalidOperationException(
+					"A registered Lua module lease cannot be abandoned without unregistration.");
+			}
+
+			CompleteRelease();
+		}
+	}
+
 	private void CompleteRelease()
 	{
 		Volatile.Write(ref _released, 1);
-		_untrack(this);
-		_releaseModule(_module);
+		List<Exception>? failures = null;
+		try
+		{
+			_untrack(this);
+		}
+		catch (Exception exception)
+		{
+			(failures ??= []).Add(exception);
+		}
+
+		try
+		{
+			_releaseModule(_module);
+		}
+		catch (Exception exception)
+		{
+			(failures ??= []).Add(exception);
+		}
+
+		if (failures is null)
+		{
+			return;
+		}
+
+		if (failures.Count == 1)
+		{
+			ExceptionDispatchInfo.Capture(failures[0]).Throw();
+		}
+
+		throw new AggregateException("Lua module lease release encountered one or more cleanup failures.", failures);
 	}
 }

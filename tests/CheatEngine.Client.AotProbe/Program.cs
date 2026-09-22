@@ -75,10 +75,10 @@ ClientCapabilityEvidence evidence = new(
 	satisfiedGate, satisfiedGate, satisfiedGate, satisfiedGate, satisfiedGate, satisfiedGate);
 ClientCapabilityAvailability capabilityAvailability = new(ClientCapabilityId.ProcessSelection, evidence);
 if (evidence.EffectiveReasonCode != ClientCapabilityEvidenceReasonCode.Lifetime ||
-	evidence.EffectiveReason != evidenceReason ||
-	capabilityAvailability.State != ClientCapabilityAvailabilityState.Available ||
-	!capabilityAvailability.IsAvailable || !capabilityAvailability.IsKnown ||
-	capabilityAvailability.Reason != evidenceReason)
+    evidence.EffectiveReason != evidenceReason ||
+    capabilityAvailability.State != ClientCapabilityAvailabilityState.Available ||
+    !capabilityAvailability.IsAvailable || !capabilityAvailability.IsKnown ||
+    capabilityAvailability.Reason != evidenceReason)
 {
 	return 1;
 }

@@ -39,10 +39,10 @@ generator and bridge assets. `CoexistenceSdkPackageVersion` can be overridden pe
 has an exact candidate SDK package source and tuple to qualify. A non-default version deliberately disables this
 fixture's lock-file write path; it is not an invitation to invent or float package versions.
 
-The source fixture is not a replacement for a clean Client package consumer: `eng/Invoke-PackageSmoke.ps1` remains the
-Client package-consumer gate. The coexistence runner imports the Hosting deployment target solely to stage a **fresh**
-complete source-fixture closure. It skips the direct-package profile validation because the Client graph is a project
-reference. Its receipt labels that distinction explicitly.
+The source fixture is not a replacement for a clean Client package consumer. The package-consumer gate is the C#
+`PackageConsumptionSmokeTests` suite, which consumes the immutable package directory supplied through
+`CHEATENGINE_CLIENT_PACKAGE_SOURCE`. The coexistence fixture skips direct-package profile validation because its
+Client graph is a project reference; that distinction must remain explicit in any live qualification receipt.
 
 The resolved SDK package is not evidence that it contains the later SDK PR #56 source merge, nor is that merge a
 published-package or live-host qualification. Before a real run, identify the exact qualified Client/SDK package tuple,
@@ -57,25 +57,10 @@ observation, not a portable hosting claim.
 
 ## Prepare isolated bundles and a receipt
 
-Run the opt-in preparation runner from the repository root. It builds each project directly into a new bundle directory,
-validates the `.deps.json` runtime/native closure plus the plugin, Client, SDK and native bridge assets, hashes every
-file, and emits a JSON receipt. It does not start, inspect, attach to, configure, or modify Cheat Engine or a target
-process.
-
-```powershell
-pwsh .\eng\Invoke-LivePluginCoexistenceFixture.ps1 -Build
-```
-
-The output contains three disjoint directories and `coexistence-build-receipt.json`. Preserve all three directories
-and the receipt. To prepare a future exact SDK package tuple, pass its version independently for each plugin, point
-NuGet at the approved package source through the normal restore configuration, and retain the resulting receipt:
-
-```powershell
-pwsh .\eng\Invoke-LivePluginCoexistenceFixture.ps1 -Build `
-  -PluginASdkVersion <qualified-A-version> `
-  -PluginBSdkVersion <qualified-B-version> `
-  -PluginCollisionSdkVersion <qualified-A-version>
-```
+The current checkout does not include an automated bundle-preparation runner. Do not infer that a live fixture or a
+receipt exists from this document. For a future exact SDK package tuple, prepare three disjoint output directories
+with an approved harness, record the package and assembly hashes, and retain the complete dependency closure and
+host transcript before loading Cheat Engine.
 
 Different requested package versions only make a side-by-side live run eligible. The receipt's assembly identities,
 package content hashes, full closures, and host transcript must still establish what the exact Cheat Engine loader did.

@@ -21,12 +21,14 @@ internal sealed class ProcessClient : IProcessClient
 	private ProcessSelection? _lastSelection;
 
 	internal ProcessClient(ICheatEngineDispatcher dispatcher, CoreLifetime lifetime)
-		: this(dispatcher, new LocalProcessHost(), lifetime?.TargetSelection ?? throw new ArgumentNullException(nameof(lifetime)), lifetime.ThrowIfInactive)
+		: this(dispatcher, new LocalProcessHost(),
+			lifetime?.TargetSelection ?? throw new ArgumentNullException(nameof(lifetime)), lifetime.ThrowIfInactive)
 	{
 	}
 
 	internal ProcessClient(ICheatEngineDispatcher dispatcher, IProcessHost host, CoreLifetime lifetime)
-		: this(dispatcher, host, lifetime?.TargetSelection ?? throw new ArgumentNullException(nameof(lifetime)), lifetime.ThrowIfInactive)
+		: this(dispatcher, host, lifetime?.TargetSelection ?? throw new ArgumentNullException(nameof(lifetime)),
+			lifetime.ThrowIfInactive)
 	{
 	}
 
@@ -38,7 +40,8 @@ internal sealed class ProcessClient : IProcessClient
 	{
 	}
 
-	internal ProcessClient(ICheatEngineDispatcher dispatcher, IProcessHost host, TargetSelectionLifetime selectionLifetime, Action<string>? admitStatefulOperation)
+	internal ProcessClient(ICheatEngineDispatcher dispatcher, IProcessHost host,
+		TargetSelectionLifetime selectionLifetime, Action<string>? admitStatefulOperation)
 	{
 		_dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
 		_host = host ?? throw new ArgumentNullException(nameof(host));
@@ -94,17 +97,18 @@ internal sealed class ProcessClient : IProcessClient
 		{
 			throw new ArgumentOutOfRangeException(nameof(processId));
 		}
+
 		Admit("Processes.Attach");
 
 		CurrentProcessCapture captured = default;
 		if (!_dispatcher.TryInvoke(
-		    () =>
-		    {
-			    _host.OpenProcess(processId.Value);
-			    captured = CaptureCurrent("Processes.Attach");
-		    },
-		    out failure,
-		    cancellationToken))
+			    () =>
+			    {
+				    _host.OpenProcess(processId.Value);
+				    captured = CaptureCurrent("Processes.Attach");
+			    },
+			    out failure,
+			    cancellationToken))
 		{
 			snapshot = default;
 			return false;
@@ -153,13 +157,14 @@ internal sealed class ProcessClient : IProcessClient
 			failure = Cancelled("Processes.AttachExactName");
 			return false;
 		}
+
 		IReadOnlyList<LocalProcessInfo> matches;
 		try
 		{
 			matches = _host.FindProcessesByExactName(expectedName);
 		}
 		catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or Win32Exception
-		                                  or PlatformNotSupportedException)
+			                                  or PlatformNotSupportedException)
 		{
 			snapshot = default;
 			failure = new CheatEngineFailure(
@@ -335,7 +340,8 @@ internal sealed class ProcessClient : IProcessClient
 		}
 
 		CheatEngineArchitecture architecture = TryGetTargetArchitecture();
-		return new CurrentProcessCapture(ObserveSelection(id, hasLocalMetadata ? process : default, architecture, operation));
+		return new CurrentProcessCapture(ObserveSelection(id, hasLocalMetadata ? process : default, architecture,
+			operation));
 	}
 
 	private static bool TryGetCapturedSnapshot(
@@ -479,7 +485,10 @@ internal sealed class ProcessClient : IProcessClient
 		return false;
 	}
 
-	private void Admit(string operation) => _admitStatefulOperation?.Invoke(operation);
+	private void Admit(string operation)
+	{
+		_admitStatefulOperation?.Invoke(operation);
+	}
 
 	private static CheatEngineFailure Cancelled(string operation)
 	{

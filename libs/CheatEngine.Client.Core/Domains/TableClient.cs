@@ -15,16 +15,19 @@ internal sealed class TableClient(
 	ICheatEngineDispatcher dispatcher,
 	CoreClientPolicy policy,
 	ITableRecordMutationPort? recordMutations = null,
-	CoreLifetime? lifetime = null) : ITableClient
+	CoreLifetime? lifetime = null,
+	ITableRecordLookupPort? recordLookups = null) : ITableClient
 {
 	private const string _getHierarchyOperation = "Tables.GetHierarchy";
 
 	private readonly ICheatEngineDispatcher _dispatcher =
 		dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
 
-	private readonly CoreClientPolicy _policy = policy ?? throw new ArgumentNullException(nameof(policy));
-	private readonly ITableRecordMutationPort _recordMutations = recordMutations ?? new SdkTableRecordMutationPort();
 	private readonly CoreLifetime? _lifetime = lifetime;
+
+	private readonly CoreClientPolicy _policy = policy ?? throw new ArgumentNullException(nameof(policy));
+	private readonly ITableRecordLookupPort _recordLookups = recordLookups ?? new SdkTableRecordLookupPort();
+	private readonly ITableRecordMutationPort _recordMutations = recordMutations ?? new SdkTableRecordMutationPort();
 
 	public bool TryGetCurrent(out AddressTableSnapshot table, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
@@ -145,17 +148,15 @@ internal sealed class TableClient(
 		CancellationToken cancellationToken = default)
 	{
 		ArgumentOutOfRangeException.ThrowIfNegative(index);
-		return TryRecord("Tables.GetRecord",
-			list => list.TryGetMemoryRecord(index, out MemoryRecord value) ? value : null,
-			out record, out failure, cancellationToken);
+		return TryRecord("Tables.GetRecord", (out result) =>
+			_recordLookups.TryGetRecord(index, out result), out record, out failure, cancellationToken);
 	}
 
 	public bool TryGetRecord(MemoryRecordId id, out MemoryRecordSnapshot record,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
-		return TryRecord("Tables.GetRecord",
-			list => list.TryGetMemoryRecordById(id, out MemoryRecord value) ? value : null,
-			out record, out failure, cancellationToken);
+		return TryRecord("Tables.GetRecord", (out result) =>
+			_recordLookups.TryGetRecord(id, out result), out record, out failure, cancellationToken);
 	}
 
 	public MemoryRecordSnapshot GetRecord(int index, CancellationToken cancellationToken = default)
@@ -183,8 +184,8 @@ internal sealed class TableClient(
 	public bool TryGetSelected(out MemoryRecordSnapshot record, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
-		return TryRecord("Tables.GetSelected", list => list.TryGetSelectedRecord(out MemoryRecord value) ? value : null,
-			out record, out failure, cancellationToken);
+		return TryRecord("Tables.GetSelected", _recordLookups.TryGetSelected, out record, out failure,
+			cancellationToken);
 	}
 
 	public MemoryRecordSnapshot GetSelected(CancellationToken cancellationToken = default)
@@ -469,34 +470,24 @@ internal sealed class TableClient(
 		}
 	}
 
-	private bool TryRecord(string operation, Func<AddressList, MemoryRecord?> selector,
+	private bool TryRecord(string operation, RecordLookup lookup,
 		out MemoryRecordSnapshot record, out CheatEngineFailure failure, CancellationToken cancellationToken)
 	{
 		MemoryRecordSnapshot captured = default;
-		bool succeeded = false;
-		if (!_dispatcher.TryInvoke(() =>
-		    {
-			    if (!AddressListAccess.TryGetCurrent(out AddressList list))
-			    {
-				    return;
-			    }
-
-			    MemoryRecord? value = selector(list);
-			    succeeded = value.HasValue && TrySnapshot(value.Value, out captured);
-		    }, out failure, cancellationToken))
+		RecordLookupStatus status = RecordLookupStatus.InvalidRecord;
+		if (!_dispatcher.TryInvoke(() => status = lookup(out captured), out failure, cancellationToken))
 		{
 			record = default;
 			return false;
 		}
 
 		record = captured;
-		if (succeeded)
+		if (status == RecordLookupStatus.Success)
 		{
 			return true;
 		}
 
-		failure = new CheatEngineFailure(CheatEngineFailureKind.NotFound, operation,
-			"The requested Cheat Engine memory record was not found or was malformed.");
+		failure = LookupFailure(operation, status);
 		return false;
 	}
 
@@ -782,6 +773,20 @@ internal sealed class TableClient(
 			"Cheat Engine did not return the expected Address List contract.");
 	}
 
+	private static CheatEngineFailure LookupFailure(string operation, RecordLookupStatus status)
+	{
+		return status switch
+		{
+			RecordLookupStatus.NotFound => new CheatEngineFailure(CheatEngineFailureKind.NotFound, operation,
+				"The requested Cheat Engine memory record was not found."),
+			RecordLookupStatus.AddressListUnavailable => new CheatEngineFailure(
+				CheatEngineFailureKind.CapabilityUnavailable, operation,
+				"Cheat Engine's Address List capability is unavailable."),
+			RecordLookupStatus.InvalidRecord => HostFailure(operation),
+			_ => HostFailure(operation)
+		};
+	}
+
 	private static CheatEngineFailure ResultLimitFailure(string operation, int maximumItems)
 	{
 		return new CheatEngineFailure(CheatEngineFailureKind.ResultLimitExceeded, operation,
@@ -827,4 +832,6 @@ internal sealed class TableClient(
 		DepthLimit,
 		InvalidShape
 	}
+
+	private delegate RecordLookupStatus RecordLookup(out MemoryRecordSnapshot record);
 }

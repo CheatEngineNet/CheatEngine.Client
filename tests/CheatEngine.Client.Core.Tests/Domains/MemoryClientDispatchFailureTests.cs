@@ -116,7 +116,8 @@ public sealed class MemoryClientDispatchFailureTests
 	[Fact]
 	public void DefaultPrimitiveBatchesAreRejectedBeforeDispatch()
 	{
-		MemoryClient client = new(new RejectingDispatcher(Failure("Test.ShouldNotDispatch")), InertCoreLifetime.Create());
+		MemoryClient client = new(new RejectingDispatcher(Failure("Test.ShouldNotDispatch")),
+			InertCoreLifetime.Create());
 
 		Assert.Throws<ArgumentException>(() => client.TryReadPrimitiveBatch(default, out ImmutableArray<int> _, out _,
 			TestContext.Current.CancellationToken));
@@ -170,7 +171,8 @@ public sealed class MemoryClientDispatchFailureTests
 	[InlineData("pointer")]
 	public void InvalidDefaultRequestCannotReachTheDispatcher(string requestKind)
 	{
-		MemoryClient client = new(new RejectingDispatcher(Failure("Test.ShouldNotDispatch")), InertCoreLifetime.Create());
+		MemoryClient client = new(new RejectingDispatcher(Failure("Test.ShouldNotDispatch")),
+			InertCoreLifetime.Create());
 
 		switch (requestKind)
 		{
@@ -192,7 +194,8 @@ public sealed class MemoryClientDispatchFailureTests
 	[Fact]
 	public void DefaultStringAndByteWritesAreRejectedBeforeDispatch()
 	{
-		MemoryClient client = new(new RejectingDispatcher(Failure("Test.ShouldNotDispatch")), InertCoreLifetime.Create());
+		MemoryClient client = new(new RejectingDispatcher(Failure("Test.ShouldNotDispatch")),
+			InertCoreLifetime.Create());
 
 		Assert.Throws<ArgumentException>(() =>
 			client.TryWriteBytes(default, out _, TestContext.Current.CancellationToken));

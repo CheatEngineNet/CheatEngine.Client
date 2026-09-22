@@ -4,9 +4,9 @@ using System.Runtime.Loader;
 
 using CheatEngine.Client;
 using CheatEngine.Client.Allocations;
+using CheatEngine.Client.Hosting;
 using CheatEngine.Client.Processes;
 using CheatEngine.Client.Results;
-using CheatEngine.Client.Hosting;
 using CheatEngine.SDK.Hosting.Bootstrap;
 
 namespace LivePlugin.Coexistence;
@@ -96,7 +96,7 @@ internal static class CoexistenceDiagnostics
 		}
 
 		if (!client.Allocations.TryAllocate(new TargetAllocationRequest(16), out ITargetMemoryLease? owner,
-			out CheatEngineFailure failure))
+			    out CheatEngineFailure failure))
 		{
 			return DescribeFailure("Owner", failure);
 		}

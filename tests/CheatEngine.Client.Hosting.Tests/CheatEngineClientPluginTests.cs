@@ -321,7 +321,8 @@ public sealed class CheatEngineClientPluginTests
 		Assert.Equal(
 			[
 				"configure", "module.enabled", "cleanup.enter", "module.disabling", "cleanup.drain", "cleanup.exit",
-				"configure", "module.enabled", "client.enabled", "cleanup.enter", "client.disabling", "module.disabling",
+				"configure", "module.enabled", "client.enabled", "cleanup.enter", "client.disabling",
+				"module.disabling",
 				"cleanup.drain", "cleanup.exit"
 			],
 			events);
@@ -626,7 +627,7 @@ public sealed class CheatEngineClientPluginTests
 
 	public interface IActivationOwnedAlias
 	{
-		ActivationOwnedDisposable OwnedDisposable
+		public ActivationOwnedDisposable OwnedDisposable
 		{
 			get;
 		}

@@ -1,0 +1,107 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+
+language: "en-US"
+early_access: false
+
+reviews:
+  profile: "chill"
+  request_changes_workflow: false
+  high_level_summary: true
+  review_status: false
+  poem: false
+
+  # The GitHub App performs automatic reviews. No CodeRabbit token, CLI, or workflow is used here.
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+    auto_pause_after_reviewed_commits: 0
+    drafts: false
+    base_branches: ["main"]
+    ignore_usernames: ["dependabot[bot]"]
+
+  tools:
+    github-checks:
+      enabled: true
+    # pull-request-ci.yml runs the pinned, checksum-verified actionlint binary.
+    actionlint:
+      enabled: false
+
+  path_filters:
+    - "!artifacts/**"
+    - "!TestResults/**"
+    - "!**/bin/**"
+    - "!**/obj/**"
+    - "!**/packages.lock.json"
+    - "!**/*.nupkg"
+    - "!**/*.snupkg"
+    - "!**/*.g.cs"
+    - "!**/*.generated.cs"
+
+  path_instructions:
+    - path: "libs/CheatEngine.Client.Abstractions/**"
+      instructions: |
+        Preserve a public, high-level Client API. Do not expose LuaState, CEObject, Owned<T>, native pointers,
+        activation-bound handles, or SDK lifetime ownership. SDK values that cross this API must be stable copied values.
+
+    - path: "libs/CheatEngine.Client.Core/**"
+      instructions: |
+        Treat Core as the internal execution adapter to CheatEngine.SDK. Verify SDK mappings stay internal, partial
+        effects and operational errors remain observable, and Client resources are released before SDK detachment.
+        Flag any public Client API that leaks an SDK handle or an SDK lifetime responsibility.
+
+    - path: "libs/CheatEngine.Client.Hosting/**"
+      instructions: |
+        Review activation lifecycle changes carefully: construction must not invoke Cheat Engine, DI scopes are per
+        activation, cleanup is deterministic, and no state survives a disable/enable cycle.
+
+    - path: "src/**"
+      instructions: |
+        Keep the facade developer-focused and independent from ABI, Lua binding, native ownership, and dispatcher
+        details. Direct SDK dependencies must not bypass the Client Core layer.
+
+    - path: "source-generators/**"
+      instructions: |
+        Require deterministic generated output and diagnostics that preserve public-boundary protections. Do not relax
+        lifetime or interop safeguards without focused tests, and do not introduce public SDK-bound handles.
+
+    - path: "templates/**"
+      instructions: |
+        Keep templates approachable for plugin developers while preserving the explicit SDK bootstrap and generation
+        assets they require. Package and template smoke coverage belongs in the C# test suite.
+
+    - path: "tests/**"
+      instructions: |
+        Require behavior tests for success, failure, cancellation, cleanup, and lifecycle transitions. Packaging tests
+        must consume the packages built by CI and keep realistic Client plus SDK dependencies.
+
+    - path: ".github/**"
+      instructions: |
+        Review least privilege, full-SHA action pins, reusable-workflow contracts, artifact producer/consumer paths,
+        fork and secret guards, and deterministic dependency sources. Do not duplicate the actionlint check already
+        executed by pull-request-ci.yml.
+
+    - path: "{Directory.Build.props,Directory.Build.targets,Directory.Packages.props,global.json}"
+      instructions: |
+        Preserve the net10/MTP/package validation contracts and central dependency management. Flag a change that
+        weakens the Client to SDK layering rules or makes builds and tests less reproducible.
+
+    - path: "{README.md,ROADMAP.md,docs/**}"
+      instructions: |
+        Keep the architecture boundary explicit: CheatEngine.SDK owns ABI, native bindings, Lua globals, dispatcher,
+        and native resource ownership; CheatEngine.Client owns high-level workflows, policies, and developer ergonomics.
+
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - "CLAUDE.md"
+  linked_repositories:
+    - repository: "CheatEngineNet/CheatEngine.SDK"
+      instructions: |
+        This is the authoritative low-level SDK. Use it to assess API/package compatibility and invariants around ABI,
+        native ownership, dispatcher behavior, and Lua bridging. Client changes must not duplicate or expose these
+        implementation responsibilities.
+
+chat:
+  # Keep conversations opt-in with an explicit @coderabbitai mention.
+  auto_reply: false

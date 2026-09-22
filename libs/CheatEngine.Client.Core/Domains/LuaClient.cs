@@ -11,11 +11,12 @@ namespace CheatEngine.Client.Core.Domains;
 
 internal sealed class LuaClient : ILuaClient
 {
-	private readonly ICheatEngineDispatcher _dispatcher;
 	private readonly Action<string>? _admitStatefulOperation;
+	private readonly ICheatEngineDispatcher _dispatcher;
 	private readonly Func<long> _epochProvider;
 
 	private readonly Func<bool> _isContextCurrent;
+	private readonly Func<bool> _isStopping;
 
 	// This is deliberately a single lock-protected reservation. A generated module has two identities that must move
 	// together: its managed module instance and the immutable Lua name set published in its descriptor. Reserving the
@@ -42,7 +43,8 @@ internal sealed class LuaClient : ILuaClient
 			initialization.IsContextCurrent,
 			initialization.TrackLease,
 			initialization.UntrackLease,
-			initialization.AdmitStatefulOperation)
+			initialization.AdmitStatefulOperation,
+			initialization.IsStopping)
 	{
 	}
 
@@ -53,11 +55,13 @@ internal sealed class LuaClient : ILuaClient
 		Func<bool> isContextCurrent,
 		Action<ILuaModuleLease>? trackLease = null,
 		Action<ILuaModuleLease>? untrackLease = null,
-		Action<string>? admitStatefulOperation = null)
+		Action<string>? admitStatefulOperation = null,
+		Func<bool>? isStopping = null)
 	{
 		_dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
 		_epochProvider = epochProvider ?? throw new ArgumentNullException(nameof(epochProvider));
 		_isContextCurrent = isContextCurrent ?? throw new ArgumentNullException(nameof(isContextCurrent));
+		_isStopping = isStopping ?? (static () => false);
 		_trackLease = trackLease ?? (static _ =>
 		{
 		});
@@ -92,6 +96,20 @@ internal sealed class LuaClient : ILuaClient
 			return false;
 		}
 
+		LuaModuleLease created = new(luaModule, _epochProvider(), _dispatcher, _isContextCurrent, _untrackLease,
+			ReleaseModule);
+		try
+		{
+			_trackLease(created);
+		}
+		catch (Exception trackingException)
+		{
+			failure = FailAfterAbandoningUnregisteredLease(
+				CoreFailureFactory.FromException("Lua.RegisterModule", trackingException),
+				created);
+			return false;
+		}
+
 		bool registered = false;
 		CheatEngineFailure moduleFailure = default;
 		if (!_dispatcher.TryInvoke(
@@ -100,6 +118,7 @@ internal sealed class LuaClient : ILuaClient
 				    try
 				    {
 					    luaModule.Register();
+					    created.ConfirmRegistration();
 					    registered = true;
 				    }
 				    catch (Exception exception)
@@ -110,40 +129,41 @@ internal sealed class LuaClient : ILuaClient
 			    out failure,
 			    cancellationToken))
 		{
-			ReleaseModule(luaModule);
+			failure = FailAfterAbandoningUnregisteredLease(failure, created);
 			return false;
 		}
 
 		if (!registered)
 		{
-			ReleaseModule(luaModule);
-			failure = moduleFailure;
+			failure = FailAfterAbandoningUnregisteredLease(moduleFailure, created);
 			return false;
 		}
 
-		LuaModuleLease created = new(luaModule, _epochProvider(), _dispatcher, _isContextCurrent, _untrackLease,
-			ReleaseModule);
 		try
 		{
-			_trackLease(created);
-			lease = created;
-			failure = default;
-			return true;
+			// Registration and lifetime tracking are deliberately handed off in this order. If shutdown starts while
+			// Register runs, the already-tracked lease is drained by the hosting cleanup scope rather than redispatched
+			// from this worker after ordinary dispatch admission has closed.
+			Admit("Lua.RegisterModule");
 		}
 		catch (Exception exception)
 		{
-			try
+			CheatEngineFailure admissionFailure = CoreFailureFactory.FromException("Lua.RegisterModule", exception);
+			if (_isStopping())
 			{
-				created.Dispose();
-			}
-			catch
-			{
-				// The track failure remains the meaningful result; the module was still removed from this Client scope.
+				// The Core lifetime owns the pre-tracked, registered lease. Leaving it there gives the main-thread
+				// cleanup scope one admitted unregistration attempt and avoids publishing a lease to a stopped caller.
+				failure = admissionFailure;
+				return false;
 			}
 
-			failure = CoreFailureFactory.FromException("Lua.RegisterModule", exception);
+			failure = FailAfterRegisteredLease(admissionFailure, created);
 			return false;
 		}
+
+		lease = created;
+		failure = default;
+		return true;
 	}
 
 	public ILuaModuleLease RegisterModule(ILuaModule luaModule, CancellationToken cancellationToken = default)
@@ -417,9 +437,58 @@ internal sealed class LuaClient : ILuaClient
 		return new LuaClientInitialization(
 			() => lifetime.Epoch,
 			() => lifetime.IsActivationCurrent,
+			() => lifetime.Stopping.IsCancellationRequested,
 			lease => lifetime.Track(lease),
 			lease => lifetime.Untrack(lease),
 			lifetime.ThrowIfInactive);
+	}
+
+	private void Admit(string operation)
+	{
+		_admitStatefulOperation?.Invoke(operation);
+	}
+
+	private static CheatEngineFailure FailAfterAbandoningUnregisteredLease(
+		CheatEngineFailure primaryFailure,
+		LuaModuleLease lease)
+	{
+		try
+		{
+			lease.AbandonRegistration();
+			return primaryFailure;
+		}
+		catch (Exception cleanupException)
+		{
+			return WithSecondaryFailure(primaryFailure, cleanupException);
+		}
+	}
+
+	private static CheatEngineFailure FailAfterRegisteredLease(CheatEngineFailure primaryFailure, LuaModuleLease lease)
+	{
+		try
+		{
+			lease.Dispose();
+			return primaryFailure;
+		}
+		catch (Exception cleanupException)
+		{
+			return WithSecondaryFailure(primaryFailure, cleanupException);
+		}
+	}
+
+	private static CheatEngineFailure WithSecondaryFailure(CheatEngineFailure primaryFailure,
+		Exception secondaryFailure)
+	{
+		Exception primaryException = primaryFailure.Exception ?? new CheatEngineOperationException(primaryFailure);
+		AggregateException combined = new(
+			"Lua module registration failed and its handoff cleanup encountered an additional failure.",
+			primaryException,
+			secondaryFailure);
+		return new CheatEngineFailure(
+			primaryFailure.Kind,
+			primaryFailure.Operation,
+			$"{primaryFailure.Message} The registration handoff cleanup also failed: {secondaryFailure.Message}",
+			combined);
 	}
 
 	private readonly record struct LuaOperationResult<TResult>(
@@ -430,11 +499,10 @@ internal sealed class LuaClient : ILuaClient
 	private readonly record struct LuaClientInitialization(
 		Func<long> EpochProvider,
 		Func<bool> IsContextCurrent,
+		Func<bool> IsStopping,
 		Action<ILuaModuleLease> TrackLease,
 		Action<ILuaModuleLease> UntrackLease,
 		Action<string> AdmitStatefulOperation);
-
-	private void Admit(string operation) => _admitStatefulOperation?.Invoke(operation);
 
 	private readonly struct LuaOperationDispatchState<TResult>
 	{

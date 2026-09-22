@@ -14,6 +14,7 @@ internal sealed class UnavailableSpeedClient : ISpeedClient
 	{
 		_lifetime = lifetime;
 	}
+
 	public bool TryGetMultiplier(out SpeedMultiplier multiplier, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{

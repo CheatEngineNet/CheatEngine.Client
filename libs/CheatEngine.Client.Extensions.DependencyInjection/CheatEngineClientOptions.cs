@@ -1,5 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 
+using CheatEngine.Client.Memory;
+
 namespace CheatEngine.Client.Extensions.DependencyInjection;
 
 /// <summary>Configuration values used by the high-level Cheat Engine client during one plugin activation.</summary>
@@ -28,4 +30,15 @@ public sealed class CheatEngineClientOptions
 		get;
 		set;
 	} = Array.Empty<string>();
+
+	/// <summary>Gets or sets the target-memory budgets captured when an activation creates its client services.</summary>
+	/// <remarks>
+	///     The registration validates and copies these values when it constructs <c>MemoryClient</c>; changing this
+	///     options object afterwards cannot change the active memory policy.
+	/// </remarks>
+	public MemoryResourceLimits? MemoryResourceLimits
+	{
+		get;
+		set;
+	} = new();
 }

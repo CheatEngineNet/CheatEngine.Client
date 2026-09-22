@@ -1,4 +1,47 @@
 #nullable enable
+CheatEngine.Client.Memory.IMemoryBatchClient
+CheatEngine.Client.Memory.IMemoryBatchClient.ReadPrimitiveBatchDetailed<T>(CheatEngine.Client.Memory.MemoryPrimitiveBatchReadRequest<T> request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Memory.MemoryPrimitiveBatchReadOutcome<T>!
+CheatEngine.Client.Memory.IMemoryBatchClient.WritePrimitiveBatchDetailed<T>(CheatEngine.Client.Memory.MemoryPrimitiveBatchWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Memory.MemoryPrimitiveBatchWriteOutcome!
+CheatEngine.Client.Memory.MemoryBatchWriteEffectState
+CheatEngine.Client.Memory.MemoryBatchWriteEffectState.Complete = 2 -> CheatEngine.Client.Memory.MemoryBatchWriteEffectState
+CheatEngine.Client.Memory.MemoryBatchWriteEffectState.NotStarted = 0 -> CheatEngine.Client.Memory.MemoryBatchWriteEffectState
+CheatEngine.Client.Memory.MemoryBatchWriteEffectState.Partial = 1 -> CheatEngine.Client.Memory.MemoryBatchWriteEffectState
+CheatEngine.Client.Memory.MemoryBatchWriteEffectState.Unknown = 3 -> CheatEngine.Client.Memory.MemoryBatchWriteEffectState
+CheatEngine.Client.Memory.MemoryPrimitiveBatchReadOutcome<T>
+CheatEngine.Client.Memory.MemoryPrimitiveBatchReadOutcome<T>.AttemptedCount.get -> int
+CheatEngine.Client.Memory.MemoryPrimitiveBatchReadOutcome<T>.Cause.get -> CheatEngine.Client.Results.CheatEngineFailure?
+CheatEngine.Client.Memory.MemoryPrimitiveBatchReadOutcome<T>.CompletedCount.get -> int
+CheatEngine.Client.Memory.MemoryPrimitiveBatchReadOutcome<T>.FailedIndex.get -> int?
+CheatEngine.Client.Memory.MemoryPrimitiveBatchReadOutcome<T>.MemoryPrimitiveBatchReadOutcome(int attemptedCount, int completedCount, int? failedIndex, CheatEngine.Client.Results.CheatEngineFailure? cause, System.ReadOnlySpan<T> readPrefix) -> void
+CheatEngine.Client.Memory.MemoryPrimitiveBatchReadOutcome<T>.ReadPrefix.get -> System.Collections.Immutable.ImmutableArray<T>
+CheatEngine.Client.Memory.MemoryPrimitiveBatchReadOutcome<T>.Succeeded.get -> bool
+CheatEngine.Client.Memory.MemoryPrimitiveBatchWriteOutcome
+CheatEngine.Client.Memory.MemoryPrimitiveBatchWriteOutcome.AttemptedCount.get -> int
+CheatEngine.Client.Memory.MemoryPrimitiveBatchWriteOutcome.Cause.get -> CheatEngine.Client.Results.CheatEngineFailure?
+CheatEngine.Client.Memory.MemoryPrimitiveBatchWriteOutcome.CompletedCount.get -> int
+CheatEngine.Client.Memory.MemoryPrimitiveBatchWriteOutcome.EffectState.get -> CheatEngine.Client.Memory.MemoryBatchWriteEffectState
+CheatEngine.Client.Memory.MemoryPrimitiveBatchWriteOutcome.FailedIndex.get -> int?
+CheatEngine.Client.Memory.MemoryPrimitiveBatchWriteOutcome.MemoryPrimitiveBatchWriteOutcome(int attemptedCount, int completedCount, int? failedIndex, CheatEngine.Client.Results.CheatEngineFailure? cause, CheatEngine.Client.Memory.MemoryBatchWriteEffectState effectState) -> void
+CheatEngine.Client.Memory.MemoryPrimitiveBatchWriteOutcome.Succeeded.get -> bool
+CheatEngine.Client.Memory.MemoryResourceLimits
+const CheatEngine.Client.Memory.MemoryResourceLimits.DefaultMaximumBatchOperationCount = 1024 -> int
+const CheatEngine.Client.Memory.MemoryResourceLimits.DefaultMaximumBatchPayloadBytes = 65536 -> int
+const CheatEngine.Client.Memory.MemoryResourceLimits.DefaultMaximumReadBytes = 1048576 -> int
+const CheatEngine.Client.Memory.MemoryResourceLimits.DefaultMaximumStringBytes = 65536 -> int
+const CheatEngine.Client.Memory.MemoryResourceLimits.DefaultMaximumWriteBytes = 1048576 -> int
+CheatEngine.Client.Memory.MemoryResourceLimits.CreateSnapshot() -> CheatEngine.Client.Memory.MemoryResourceLimits!
+CheatEngine.Client.Memory.MemoryResourceLimits.MaximumBatchOperationCount.get -> int
+CheatEngine.Client.Memory.MemoryResourceLimits.MaximumBatchOperationCount.set -> void
+CheatEngine.Client.Memory.MemoryResourceLimits.MaximumBatchPayloadBytes.get -> int
+CheatEngine.Client.Memory.MemoryResourceLimits.MaximumBatchPayloadBytes.set -> void
+CheatEngine.Client.Memory.MemoryResourceLimits.MaximumReadBytes.get -> int
+CheatEngine.Client.Memory.MemoryResourceLimits.MaximumReadBytes.set -> void
+CheatEngine.Client.Memory.MemoryResourceLimits.MaximumStringBytes.get -> int
+CheatEngine.Client.Memory.MemoryResourceLimits.MaximumStringBytes.set -> void
+CheatEngine.Client.Memory.MemoryResourceLimits.MaximumWriteBytes.get -> int
+CheatEngine.Client.Memory.MemoryResourceLimits.MaximumWriteBytes.set -> void
+CheatEngine.Client.Memory.MemoryResourceLimits.MemoryResourceLimits() -> void
+CheatEngine.Client.Memory.MemoryResourceLimits.MemoryResourceLimits(int maximumReadBytes, int maximumWriteBytes, int maximumStringBytes, int maximumBatchPayloadBytes, int maximumBatchOperationCount) -> void
 CheatEngine.Client.Processes.ILocalProcessDiagnostics
 CheatEngine.Client.Processes.ILocalProcessDiagnostics.GetProcesses(CheatEngine.Client.Processes.ProcessEnumerationRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Processes.ProcessEnumerationResult
 CheatEngine.Client.Processes.ILocalProcessDiagnostics.TryGetProcesses(CheatEngine.Client.Processes.ProcessEnumerationRequest request, out CheatEngine.Client.Processes.ProcessEnumerationResult result, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool

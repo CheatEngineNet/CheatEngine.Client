@@ -66,7 +66,7 @@ internal sealed class LocalProcessDiagnostics(IProcessHost host) : ILocalProcess
 			return true;
 		}
 		catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or Win32Exception
-		                                  or PlatformNotSupportedException)
+			                                  or PlatformNotSupportedException)
 		{
 			result = default;
 			failure = new CheatEngineFailure(

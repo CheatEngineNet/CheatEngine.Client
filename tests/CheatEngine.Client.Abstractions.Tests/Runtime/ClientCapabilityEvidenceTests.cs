@@ -4,6 +4,29 @@ namespace CheatEngine.Client.Abstractions.Tests.Runtime;
 
 public sealed class ClientCapabilityEvidenceTests
 {
+	public static IEnumerable<object[]> EffectiveReasonPriorityCases
+	{
+		get
+		{
+			foreach (ClientCapabilityEvidenceState state in new[]
+			         {
+				         ClientCapabilityEvidenceState.Missing, ClientCapabilityEvidenceState.Faulted,
+				         ClientCapabilityEvidenceState.Malformed, ClientCapabilityEvidenceState.Unknown
+			         })
+			{
+				ClientCapabilityAvailabilityState expectedAvailabilityState =
+					state == ClientCapabilityEvidenceState.Missing
+						? ClientCapabilityAvailabilityState.Unavailable
+						: ClientCapabilityAvailabilityState.Unknown;
+
+				foreach (ClientCapabilityEvidenceReasonCode expectedReasonCode in GetPriority(state))
+				{
+					yield return [state, expectedReasonCode, expectedAvailabilityState];
+				}
+			}
+		}
+	}
+
 	[Theory]
 	[MemberData(nameof(EffectiveReasonPriorityCases))]
 	public void EffectiveReasonCodePreservesEveryGatePriority(
@@ -108,31 +131,6 @@ public sealed class ClientCapabilityEvidenceTests
 		Assert.Equal((byte) 5, (byte) ClientCapabilityEvidenceReasonCode.Lifetime);
 	}
 
-	public static IEnumerable<object[]> EffectiveReasonPriorityCases
-	{
-		get
-		{
-			foreach (ClientCapabilityEvidenceState state in new[]
-			{
-				ClientCapabilityEvidenceState.Missing,
-				ClientCapabilityEvidenceState.Faulted,
-				ClientCapabilityEvidenceState.Malformed,
-				ClientCapabilityEvidenceState.Unknown
-			})
-			{
-				ClientCapabilityAvailabilityState expectedAvailabilityState =
-					state == ClientCapabilityEvidenceState.Missing
-						? ClientCapabilityAvailabilityState.Unavailable
-						: ClientCapabilityAvailabilityState.Unknown;
-
-				foreach (ClientCapabilityEvidenceReasonCode expectedReasonCode in GetPriority(state))
-				{
-					yield return [state, expectedReasonCode, expectedAvailabilityState];
-				}
-			}
-		}
-	}
-
 	private static ClientCapabilityEvidence CreateEvidenceForPriority(
 		ClientCapabilityEvidenceState state,
 		ClientCapabilityEvidenceReasonCode expectedReasonCode)
@@ -156,7 +154,7 @@ public sealed class ClientCapabilityEvidenceTests
 		int expectedPriorityIndex)
 	{
 		ClientCapabilityEvidenceState gateState = state == ClientCapabilityEvidenceState.Satisfied ||
-			Array.IndexOf(priority, code) < expectedPriorityIndex
+		                                          Array.IndexOf(priority, code) < expectedPriorityIndex
 			? ClientCapabilityEvidenceState.Satisfied
 			: state;
 		return new ClientCapabilityEvidenceGate(gateState, ReasonFor(code));
@@ -177,14 +175,14 @@ public sealed class ClientCapabilityEvidenceTests
 			],
 			ClientCapabilityEvidenceState.Faulted or ClientCapabilityEvidenceState.Malformed or
 				ClientCapabilityEvidenceState.Unknown =>
-			[
-				ClientCapabilityEvidenceReasonCode.Host,
-				ClientCapabilityEvidenceReasonCode.Package,
-				ClientCapabilityEvidenceReasonCode.LiveQualification,
-				ClientCapabilityEvidenceReasonCode.Implementation,
-				ClientCapabilityEvidenceReasonCode.Policy,
-				ClientCapabilityEvidenceReasonCode.Lifetime
-			],
+				[
+					ClientCapabilityEvidenceReasonCode.Host,
+					ClientCapabilityEvidenceReasonCode.Package,
+					ClientCapabilityEvidenceReasonCode.LiveQualification,
+					ClientCapabilityEvidenceReasonCode.Implementation,
+					ClientCapabilityEvidenceReasonCode.Policy,
+					ClientCapabilityEvidenceReasonCode.Lifetime
+				],
 			ClientCapabilityEvidenceState.Satisfied =>
 			[
 				ClientCapabilityEvidenceReasonCode.Lifetime,

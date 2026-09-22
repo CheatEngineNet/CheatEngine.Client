@@ -9,121 +9,121 @@ return BenchmarkEntryPoint.Run(args);
 
 namespace CheatEngine.Client.Benchmarks
 {
-internal static class BenchmarkEntryPoint
-{
-	public static int Run(string[] args)
+	internal static class BenchmarkEntryPoint
 	{
-		string artifactsDirectory = BenchmarkArtifactsDirectory.Resolve(args);
-		IConfig config = DefaultConfig.Instance
-			.WithArtifactsPath(artifactsDirectory)
-			.AddExporter(JsonExporter.Full);
-
-		Summary[] summaries = BenchmarkSwitcher
-			.FromAssembly(typeof(BenchmarkEntryPoint).Assembly)
-			.Run(args, config)
-			.ToArray();
-
-		if (summaries.Length == 0)
+		public static int Run(string[] args)
 		{
-			return BenchmarkInvocation.IsInformational(args) ? 0 : 1;
-		}
+			string artifactsDirectory = BenchmarkArtifactsDirectory.Resolve(args);
+			IConfig config = DefaultConfig.Instance
+				.WithArtifactsPath(artifactsDirectory)
+				.AddExporter(JsonExporter.Full);
 
-		if (summaries.HasError())
-		{
-			return 1;
-		}
+			Summary[] summaries = BenchmarkSwitcher
+				.FromAssembly(typeof(BenchmarkEntryPoint).Assembly)
+				.Run(args, config)
+				.ToArray();
 
-		BenchmarkSuiteMetadata.WriteTo(artifactsDirectory);
-		return 0;
-	}
-}
-
-internal static class BenchmarkArtifactsDirectory
-{
-	private const string DefaultDirectoryName = "BenchmarkDotNet.Artifacts";
-
-	public static string Resolve(IReadOnlyList<string> args)
-	{
-		ArgumentNullException.ThrowIfNull(args);
-
-		string artifactsPath = Path.Combine(Environment.CurrentDirectory, DefaultDirectoryName);
-		for (int index = 0; index < args.Count; index++)
-		{
-			if (TryReadArtifactsPath(args, ref index, out string? specifiedPath))
+			if (summaries.Length == 0)
 			{
-				artifactsPath = specifiedPath!;
+				return BenchmarkInvocation.IsInformational(args) ? 0 : 1;
 			}
-		}
 
-		return new DirectoryInfo(artifactsPath).FullName;
+			if (summaries.HasError())
+			{
+				return 1;
+			}
+
+			BenchmarkSuiteMetadata.WriteTo(artifactsDirectory);
+			return 0;
+		}
 	}
 
-	private static bool TryReadArtifactsPath(
-		IReadOnlyList<string> args,
-		ref int index,
-		out string? artifactsPath)
+	internal static class BenchmarkArtifactsDirectory
 	{
-		string argument = args[index]!;
-		if (argument.Equals("-a", StringComparison.OrdinalIgnoreCase) ||
-			argument.Equals("--artifacts", StringComparison.OrdinalIgnoreCase))
+		private const string DefaultDirectoryName = "BenchmarkDotNet.Artifacts";
+
+		public static string Resolve(IReadOnlyList<string> args)
 		{
-			artifactsPath = index + 1 < args.Count ? args[++index] : null;
-			return artifactsPath is not null;
+			ArgumentNullException.ThrowIfNull(args);
+
+			string artifactsPath = Path.Combine(Environment.CurrentDirectory, DefaultDirectoryName);
+			for (int index = 0; index < args.Count; index++)
+			{
+				if (TryReadArtifactsPath(args, ref index, out string? specifiedPath))
+				{
+					artifactsPath = specifiedPath!;
+				}
+			}
+
+			return new DirectoryInfo(artifactsPath).FullName;
 		}
 
-		return TryReadAssignedArtifactsPath(argument, "-a=", out artifactsPath) ||
-			TryReadAssignedArtifactsPath(argument, "--artifacts=", out artifactsPath);
-	}
-
-	private static bool TryReadAssignedArtifactsPath(
-		string argument,
-		string prefix,
-		out string? artifactsPath)
-	{
-		if (argument.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+		private static bool TryReadArtifactsPath(
+			IReadOnlyList<string> args,
+			ref int index,
+			out string? artifactsPath)
 		{
-			artifactsPath = argument[prefix.Length..];
-			return true;
+			string argument = args[index]!;
+			if (argument.Equals("-a", StringComparison.OrdinalIgnoreCase) ||
+			    argument.Equals("--artifacts", StringComparison.OrdinalIgnoreCase))
+			{
+				artifactsPath = index + 1 < args.Count ? args[++index] : null;
+				return artifactsPath is not null;
+			}
+
+			return TryReadAssignedArtifactsPath(argument, "-a=", out artifactsPath) ||
+			       TryReadAssignedArtifactsPath(argument, "--artifacts=", out artifactsPath);
 		}
 
-		artifactsPath = null;
-		return false;
-	}
-}
+		private static bool TryReadAssignedArtifactsPath(
+			string argument,
+			string prefix,
+			out string? artifactsPath)
+		{
+			if (argument.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+			{
+				artifactsPath = argument[prefix.Length..];
+				return true;
+			}
 
-internal static class BenchmarkInvocation
-{
-	public static bool IsInformational(IReadOnlyList<string> args)
+			artifactsPath = null;
+			return false;
+		}
+	}
+
+	internal static class BenchmarkInvocation
 	{
-		ArgumentNullException.ThrowIfNull(args);
+		public static bool IsInformational(IReadOnlyList<string> args)
+		{
+			ArgumentNullException.ThrowIfNull(args);
 
-		return args.Any(static argument =>
-			argument.Equals("--help", StringComparison.OrdinalIgnoreCase) ||
-			argument.Equals("-?", StringComparison.Ordinal) ||
-			argument.Equals("--version", StringComparison.OrdinalIgnoreCase) ||
-			argument.Equals("--info", StringComparison.OrdinalIgnoreCase) ||
-			argument.Equals("--list", StringComparison.OrdinalIgnoreCase) ||
-			argument.StartsWith("--list=", StringComparison.OrdinalIgnoreCase));
+			return args.Any(static argument =>
+				argument.Equals("--help", StringComparison.OrdinalIgnoreCase) ||
+				argument.Equals("-?", StringComparison.Ordinal) ||
+				argument.Equals("--version", StringComparison.OrdinalIgnoreCase) ||
+				argument.Equals("--info", StringComparison.OrdinalIgnoreCase) ||
+				argument.Equals("--list", StringComparison.OrdinalIgnoreCase) ||
+				argument.StartsWith("--list=", StringComparison.OrdinalIgnoreCase));
+		}
 	}
-}
 
-internal static class BenchmarkSummaryExtensions
-{
-	/// <summary>
-	/// Determines whether BenchmarkDotNet 0.15.8 reported a critical validation failure or an unsuccessful benchmark.
-	/// </summary>
-	/// <remarks>
-	/// Version 0.15.8 does not expose the <c>HasError()</c> helper suggested by the review. Its public result
-	/// surface exposes these two signals instead: <see cref="Summary.HasCriticalValidationErrors"/> and
-	/// <see cref="BenchmarkReport.Success"/>.
-	/// </remarks>
-	public static bool HasError(this IEnumerable<Summary> summaries)
+	internal static class BenchmarkSummaryExtensions
 	{
-		ArgumentNullException.ThrowIfNull(summaries);
+		/// <summary>
+		///     Determines whether BenchmarkDotNet 0.15.8 reported a critical validation failure or an unsuccessful benchmark.
+		/// </summary>
+		/// <remarks>
+		///     Version 0.15.8 does not expose the <c>HasError()</c> helper suggested by the review. Its public result
+		///     surface exposes these two signals instead: <see cref="Summary.HasCriticalValidationErrors" /> and
+		///     <see cref="BenchmarkReport.Success" />.
+		/// </remarks>
+		public static bool HasError(this IEnumerable<Summary> summaries)
+		{
+			ArgumentNullException.ThrowIfNull(summaries);
 
-		return summaries.Any(static summary =>
-			summary.HasCriticalValidationErrors ||
-			summary.Reports.Any(static report => !report.Success));
+			return summaries.Any(static summary =>
+				summary.HasCriticalValidationErrors ||
+				summary.Reports.Any(static report => !report.Success));
+		}
 	}
-}
 }

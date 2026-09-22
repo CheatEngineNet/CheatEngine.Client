@@ -1,8 +1,8 @@
 using System.Diagnostics;
 
+using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Results;
 using CheatEngine.Client.Scanning;
-using CheatEngine.Client.Core.Infrastructure;
 
 namespace CheatEngine.Client.Core.Domains;
 
@@ -12,8 +12,6 @@ namespace CheatEngine.Client.Core.Domains;
 /// </summary>
 internal sealed class UnavailableValueScanner : IValueScanner
 {
-	private readonly CoreLifetime? _lifetime;
-	internal UnavailableValueScanner(CoreLifetime? lifetime = null) => _lifetime = lifetime;
 	// This is a deliberate product gate, not a transient host-capability probe.  SDK 1.0.0 exposes the state machine
 	// only through MemoryScanSession.Adopt(Owned<MemScan>, Owned<FoundList>), while Owned<T> has an internal
 	// constructor and the Lua-global generator cannot marshal CEObject results.  Bypassing that with reflection or a
@@ -22,6 +20,13 @@ internal sealed class UnavailableValueScanner : IValueScanner
 		"Value scans are disabled: CheatEngine.SDK 1.0.0 has no public ownership factory for createMemScan or " +
 		"createFoundList, and its generated Lua globals cannot return CEObject handles. Enablement requires the " +
 		"Cheat Engine 7.7 ownership and reactivation live gate.";
+
+	private readonly CoreLifetime? _lifetime;
+
+	internal UnavailableValueScanner(CoreLifetime? lifetime = null)
+	{
+		_lifetime = lifetime;
+	}
 
 	public bool TryCreateSession(out IValueScanSession? session, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)

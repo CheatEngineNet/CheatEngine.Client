@@ -1,3 +1,5 @@
+using CheatEngine.Client.Memory;
+
 using Microsoft.Extensions.Options;
 
 namespace CheatEngine.Client.Extensions.DependencyInjection.Tests;
@@ -12,6 +14,26 @@ public sealed class CheatEngineClientOptionsSemanticValidatorTests
 		ValidateOptionsResult result = _validator.Validate(null, new CheatEngineClientOptions());
 
 		Assert.True(result.Succeeded);
+	}
+
+	[Fact]
+	public void ValidateRejectsMissingOrInvalidMemoryResourceLimits()
+	{
+		ValidateOptionsResult missing = _validator.Validate(null,
+			new CheatEngineClientOptions { MemoryResourceLimits = null });
+		ValidateOptionsResult invalid = _validator.Validate(null,
+			new CheatEngineClientOptions
+			{
+				MemoryResourceLimits = new MemoryResourceLimits
+				{
+					MaximumBatchOperationCount = MemoryBatchLimits.MaximumOperations + 1
+				}
+			});
+
+		Assert.True(missing.Failed);
+		Assert.Contains("MemoryResourceLimits", missing.FailureMessage, StringComparison.Ordinal);
+		Assert.True(invalid.Failed);
+		Assert.Contains("MemoryResourceLimits", invalid.FailureMessage, StringComparison.Ordinal);
 	}
 
 	[Fact]

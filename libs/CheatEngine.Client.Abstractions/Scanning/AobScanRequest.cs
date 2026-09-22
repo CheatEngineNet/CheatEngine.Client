@@ -3,7 +3,7 @@ using CheatEngine.SDK.Engine.Scanning.Aob;
 
 namespace CheatEngine.Client.Scanning;
 
-/// <summary>An immutable AOB scan request with an explicit managed materialization limit.</summary>
+/// <summary>An immutable AOB scan request with an explicit managed, post-filter materialization limit.</summary>
 public readonly record struct AobScanRequest
 {
 	/// <summary>Creates an AOB scan request.</summary>
@@ -40,19 +40,20 @@ public readonly record struct AobScanRequest
 		get;
 	}
 
-	/// <summary>Gets the maximum number of managed matches the caller permits.</summary>
+	/// <summary>Gets the maximum number of copied addresses that may survive managed post-filters.</summary>
+	/// <remarks>This bounds result materialization only; it does not bound or terminate the global Cheat Engine scan.</remarks>
 	public int MaximumResults
 	{
 		get;
 	}
 
-	/// <summary>Gets the optional module whose copied address range filters the results.</summary>
+	/// <summary>Gets the optional module Core resolves before the global scan and applies as a copied-address post-filter.</summary>
 	public ModuleName? Module
 	{
 		get;
 	}
 
-	/// <summary>Gets the optional inclusive range that filters copied address results.</summary>
+	/// <summary>Gets the optional inclusive copied-address post-filter.</summary>
 	public AobScanRange? Range
 	{
 		get;

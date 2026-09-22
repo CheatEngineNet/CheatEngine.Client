@@ -1,2 +1,4 @@
 #nullable enable
+CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientOptions.MemoryResourceLimits.get -> CheatEngine.Client.Memory.MemoryResourceLimits?
+CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientOptions.MemoryResourceLimits.set -> void
 CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientBuilder.AddLuaModule<TModule>() -> CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientBuilder!

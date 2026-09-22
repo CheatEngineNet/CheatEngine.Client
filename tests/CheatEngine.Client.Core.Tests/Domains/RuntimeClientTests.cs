@@ -470,17 +470,9 @@ public sealed class RuntimeClientTests
 			}
 
 			InvocationCount++;
-			try
-			{
-				callback();
-				failure = default;
-				return true;
-			}
-			catch (Exception exception)
-			{
-				failure = FromException(exception);
-				return false;
-			}
+			callback();
+			failure = default;
+			return true;
 		}
 
 		public bool TryInvoke<T>(Func<T> callback, out T result, out CheatEngineFailure failure,
@@ -495,18 +487,9 @@ public sealed class RuntimeClientTests
 			}
 
 			InvocationCount++;
-			try
-			{
-				result = callback();
-				failure = default;
-				return true;
-			}
-			catch (Exception exception)
-			{
-				result = default!;
-				failure = FromException(exception);
-				return false;
-			}
+			result = callback();
+			failure = default;
+			return true;
 		}
 
 		public void Invoke(Action callback, CancellationToken cancellationToken = default)
@@ -534,17 +517,6 @@ public sealed class RuntimeClientTests
 				CheatEngineFailureKind.Cancelled,
 				"Dispatcher.Invoke",
 				"Cancelled before dispatch.");
-		}
-
-		private static CheatEngineFailure FromException(Exception exception)
-		{
-			return new CheatEngineFailure(
-				exception is EngineMarshallingException
-					? CheatEngineFailureKind.InvalidHostResult
-					: CheatEngineFailureKind.OperationRejected,
-				"Dispatcher.Invoke",
-				exception.Message,
-				exception);
 		}
 	}
 }
