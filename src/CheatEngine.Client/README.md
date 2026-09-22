@@ -7,6 +7,9 @@ of the Client delivery graph: it combines Hosting and Fluent APIs over the publi
 SDK-facing Core implementation behind the DI registration boundary. The package itself intentionally contains no
 Cheat Engine host logic.
 
+CheatEngine.Client runs in process inside an enabled Cheat Engine plugin; it is neither Cheat Engine's `luaclient`
+library nor an RPC client of `ceserver`.
+
 ## Why this project exists
 
 Most plugin projects should take one Client package rather than recreate the Client package graph. This façade is that
@@ -26,10 +29,14 @@ an ordinary transitive NuGet dependency.
 </PropertyGroup>
 
 <ItemGroup>
-  <PackageReference Include="CheatEngine.Client" Version="0.1.0" />
+  <PackageReference Include="CheatEngine.Client" Version="X.Y.Z" />
   <PackageReference Include="CheatEngine.SDK" Version="1.0.0" />
 </ItemGroup>
 ```
+
+Replace `X.Y.Z` with the CheatEngine.Client version you install; the `ceplugin` template writes it for you. Keep
+`CheatEngine.SDK` on 1.x: this Client release is built and tested against CheatEngine.SDK 1.0.0 and declares
+`[1.0.0, 2.0.0)`. Do not upgrade to 2.x until a Client release says so.
 
 When `CheatEngineClientPluginProject` is enabled, the Hosting build target emits `CECLIENT001` if that direct SDK
 reference is missing.
@@ -45,10 +52,13 @@ ownership types. It brings together:
 - functional public namespaces such as `CheatEngine.Client.Memory`, `.Scanning`, `.Tables`, and `.Lua`.
 
 Use the generated `ceplugin` template for a complete, buildable plugin shape. The client and all Client-created
-resources are valid only for one enable epoch; do not retain them across disable/re-enable. See the repository
-[README](../../README.md) for installation and deployment
-guidance, [ADR 0001](../../docs/adr/0001-layered-in-process-architecture.md)
-for the package architecture, and [ADR 0002](../../docs/adr/0002-plugin-activation-lifecycle.md) for lifecycle rules.
+resources are valid only for one enable epoch; do not retain them across disable/re-enable. See the
+[repository README](https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/README.md) for installation and
+deployment guidance, its
+[package architecture](https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/README.md#packages-and-direct-sdk-reference)
+section, and its
+[plugin lifecycle](https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/README.md#the-plugin-lifecycle)
+rules.
 
 ## Rules
 

@@ -42,19 +42,25 @@ dotnet restore .\Contoso.CheatEngine.Plugin\Contoso.CheatEngine.Plugin.csproj
 dotnet build .\Contoso.CheatEngine.Plugin\Contoso.CheatEngine.Plugin.csproj --configuration Release --no-restore
 ```
 
-The generated project's [README](content/CheatEngine.Plugin/README.md) explains the composition, configuration, and
-managed deployment requirements. Keep both direct package references when adapting the project.
+The generated project's
+[README](https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/templates/CheatEngine.Client.Templates/content/CheatEngine.Plugin/README.md)
+explains the composition, configuration, and managed deployment requirements. Keep both direct package references when
+adapting the project. The generated project references the exact `CheatEngine.Client` version of this template package
+and `CheatEngine.SDK` 1.0.0; keep `CheatEngine.SDK` on 1.x until a Client release says otherwise.
 
 ## Validate the template from this repository
 
-Pack the repository first so the C# consumer smoke test can restore the Client packages from `artifacts/packages`:
+Build the repository, pack it, and point the C# consumer smoke tests at the exact package directory:
 
 ```powershell
-dotnet pack CheatEngine.Client.slnx --configuration Release --output .\artifacts\packages
-$env:CHEATENGINE_CLIENT_PACKAGE_SOURCE = (Resolve-Path .\artifacts\packages).Path
-dotnet test --project .\tests\CheatEngine.Client.Tests\CheatEngine.Client.Tests.csproj --configuration Release --no-build --no-restore --fail-skips on
+dotnet build CheatEngine.Client.slnx --configuration Release
+dotnet pack CheatEngine.Client.slnx --configuration Release --no-build --output ./artifacts/nuget
+$env:CHEATENGINE_CLIENT_PACKAGE_SOURCE = (Resolve-Path ./artifacts/nuget).Path
+dotnet test --project ./tests/CheatEngine.Client.Tests/CheatEngine.Client.Tests.csproj --configuration Release --no-build --fail-skips on
 ```
 
-The package smoke test installs the locally packed template, runs `dotnet new ceplugin --dry-run`, instantiates it into
-a
-temporary directory, restores it against the local package source, and builds it in Release configuration.
+The smoke tests install this template package in an isolated template home, run `dotnet new ceplugin --dry-run`,
+instantiate it into a temporary directory outside the repository, restore it against the packed Client packages and
+nuget.org only, and build it in Release configuration. They check that the generated project references the co-packed
+`CheatEngine.Client` version and the pinned `CheatEngine.SDK` directly, and that the build output holds the complete
+deployment closure next to the plugin.

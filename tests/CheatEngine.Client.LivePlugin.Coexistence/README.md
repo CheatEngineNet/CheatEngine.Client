@@ -139,6 +139,7 @@ Record both target PIDs, architectures, selection epochs, owner creation/release
 disable/re-enable results. An unqualified owner, a missing target observation, or an old owner that can act after the
 switch is a stopped/failing result, never a reason to continue against target B.
 
-No Cheat Engine execution is performed by this repository fixture, runner, or ordinary CI build. A managed Native AOT
+No Cheat Engine execution is performed by this repository fixture or by an ordinary CI build. A managed Native AOT
 probe is publication evidence only; it does not prove that Cheat Engine can load, disable, remove, or unload a Native
-AOT plugin. The runner's JSON record is a reproducible build/package-layout receipt, not a `LiveQualified` result.
+AOT plugin. No script in this repository produces a receipt for this fixture: host receipts come from the SDK
+qualification runner and from the Client qualification work that records Client scenarios against it.
