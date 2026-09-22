@@ -138,6 +138,51 @@
            Text="$(MSBuildProjectName) is a Roslyn component: Directory.Packages.props pins Microsoft.CodeAnalysis.CSharp '$(_CheatEngineClientRoslynCSharpPin)' and Microsoft.CodeAnalysis.Analyzers '$(_CheatEngineClientRoslynAnalyzersPin)', but CheatEngineClientRoslynComponentFloor is '$(CheatEngineClientRoslynComponentFloor)'. A generator compiled against Roslyn N does not load in an older compiler (CS9057): restore the pin, or raise it together with CheatEngineClientRoslynComponentFloor (Directory.Build.props), the template sdk-version constraint (templates/CheatEngine.Client.Templates/content/CheatEngine.Plugin/.template.config/template.json), global.json and the .NET SDK requirement row of the README."/>
   </Target>
 
+  <!--
+    Versioning (MinVer, configured in Directory.Build.props). The evaluation-time values are captured here, after the
+    project body and the SDK defaults, so CHEATENGINECLIENT9019 can tell a version set by a project or a -p: switch from
+    the root placeholder.
+  -->
+  <PropertyGroup Label="Evaluated version sources">
+    <_CheatEngineClientEvaluatedVersion>$(Version)</_CheatEngineClientEvaluatedVersion>
+    <_CheatEngineClientEvaluatedPackageVersion>$(PackageVersion)</_CheatEngineClientEvaluatedPackageVersion>
+  </PropertyGroup>
+
+  <!--
+    MinVer sets AssemblyVersion to major.0.0.0. In 0.x a minor release is breaking, and the Client assemblies were 0.1.0.0
+    before MinVer, so keep major.minor while the major is 0. This is the customization MinVer documents: a target that
+    runs after MinVer.
+  -->
+  <Target Name="CheatEngineClientAssemblyVersion"
+          AfterTargets="MinVer"
+          Condition="'$(MinVerSkip)' != 'true' and '$(MinVerMajor)' == '0'">
+    <PropertyGroup>
+      <AssemblyVersion>$(MinVerMajor).$(MinVerMinor).0.0</AssemblyVersion>
+    </PropertyGroup>
+  </Target>
+
+  <!--
+    CHEATENGINECLIENT9019: the seven packages always share the MinVer version. A package whose version comes from
+    anywhere else (a project property, a -p: switch, the version-suffix option of dotnet pack, or MinVerSkip) is refused
+    before its nuspec exists.
+  -->
+  <Target Name="CheatEngineClientValidateLockstepVersion"
+          BeforeTargets="GenerateNuspec"
+          Condition="'$(IsPackable)' == 'true'">
+    <PropertyGroup>
+      <_CheatEngineClientMinVerPackageVersion>$(MinVerVersion.Split('+')[0])</_CheatEngineClientMinVerPackageVersion>
+    </PropertyGroup>
+    <Error Condition="'$(MinVerSkip)' == 'true'"
+           Code="CHEATENGINECLIENT9019"
+           Text="$(MSBuildProjectName) cannot be packed with MinVerSkip=true: every Client package takes its version from MinVer. Rehearse a release version with -p:MinVerVersionOverride=X.Y.Z instead."/>
+    <Error Condition="'$(MinVerSkip)' != 'true' and ('$(VersionPrefix)' != '$(_CheatEngineClientRootVersionPrefix)' or '$(VersionSuffix)' != '' or '$(_CheatEngineClientEvaluatedVersion)' != '$(_CheatEngineClientRootVersionPrefix)' or ('$(_CheatEngineClientEvaluatedPackageVersion)' != '' and '$(_CheatEngineClientEvaluatedPackageVersion)' != '$(_CheatEngineClientEvaluatedVersion)'))"
+           Code="CHEATENGINECLIENT9019"
+           Text="$(MSBuildProjectName) sets its own version (VersionPrefix '$(VersionPrefix)', VersionSuffix '$(VersionSuffix)', Version '$(_CheatEngineClientEvaluatedVersion)', PackageVersion '$(_CheatEngineClientEvaluatedPackageVersion)'). The seven Client packages share one MinVer version: remove the project property or command-line switch; MinVerMinimumMajorMinor in Directory.Build.props and the v* tag are the only version inputs."/>
+    <Error Condition="'$(MinVerSkip)' != 'true' and '$(PackageVersion)' != '$(_CheatEngineClientMinVerPackageVersion)'"
+           Code="CHEATENGINECLIENT9019"
+           Text="$(MSBuildProjectName) would be packed as '$(PackageVersion)', but MinVer computed '$(MinVerVersion)'. The seven Client packages share one MinVer version."/>
+  </Target>
+
   <!-- A canary or otherwise unsupported SDK pin never produces a package, even when its build was allowed to run. -->
   <Target Name="CheatEngineClientRefuseUnsupportedSdkPack"
           BeforeTargets="Pack"

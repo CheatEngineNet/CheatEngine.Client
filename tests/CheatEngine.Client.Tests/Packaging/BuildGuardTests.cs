@@ -14,6 +14,8 @@ public sealed class BuildGuardTests
 	private const string GeneratorProject =
 		"source-generators/CheatEngine.Client.SourceGenerators.Lua/CheatEngine.Client.SourceGenerators.Lua.csproj";
 	private const string RoslynPinGuard = "CheatEngineClientCheckRoslynPin";
+	private const string PackableLibrary = "libs/CheatEngine.Client.Fluent/CheatEngine.Client.Fluent.csproj";
+	private const string LockstepGuard = "CheatEngineClientValidateLockstepVersion";
 
 	[Fact]
 	public async Task CommittedPinPassesTheSdkGuard()
@@ -75,6 +77,22 @@ public sealed class BuildGuardTests
 		Assert.True(committed.ExitCode == 0, committed.ToString());
 		Assert.True(drifted.ExitCode != 0, drifted.ToString());
 		Assert.Contains("error CHEATENGINECLIENT9020", drifted.StandardOutput, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public async Task LockstepGuardAcceptsMinVerAndRefusesEveryOtherVersionSource()
+	{
+		string minVerThenGuard = $"MinVer;{LockstepGuard}";
+
+		DotNetProcessResult committed = await RunGuardAsync(PackableLibrary, minVerThenGuard);
+		DotNetProcessResult skipped = await RunGuardAsync(PackableLibrary, minVerThenGuard, "-p:MinVerSkip=true");
+		DotNetProcessResult overridden = await RunGuardAsync(PackableLibrary, minVerThenGuard, "-p:Version=9.9.9");
+
+		Assert.True(committed.ExitCode == 0, committed.ToString());
+		Assert.True(skipped.ExitCode != 0, skipped.ToString());
+		Assert.Contains("error CHEATENGINECLIENT9019", skipped.StandardOutput, StringComparison.Ordinal);
+		Assert.True(overridden.ExitCode != 0, overridden.ToString());
+		Assert.Contains("error CHEATENGINECLIENT9019", overridden.StandardOutput, StringComparison.Ordinal);
 	}
 
 	private static Task<DotNetProcessResult> RunGuardAsync(string project, string target, params string[] properties)

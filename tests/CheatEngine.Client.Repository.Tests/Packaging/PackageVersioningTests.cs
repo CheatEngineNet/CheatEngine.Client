@@ -64,6 +64,42 @@ public sealed partial class PackageVersioningTests
 			$"The template requires .NET SDK {lowerBound}, above the SDK the repository builds and tests with ({repositorySdk}).");
 	}
 
+	[Fact]
+	public void MinVerIsConfiguredOnceForEveryPackage()
+	{
+		string[] versionProperties = ["Version", "VersionPrefix", "VersionSuffix", "PackageVersion", "AssemblyVersion", "FileVersion"];
+		List<string> offenders = [];
+		foreach (string pattern in (string[]) ["*.csproj", "*.props", "*.targets"])
+		{
+			foreach (string file in RepositoryRoot.EnumerateSourceFiles(pattern))
+			{
+				if (file is "Directory.Build.props" or "Directory.Build.targets" or "Directory.Packages.props")
+				{
+					continue;
+				}
+
+				foreach (XElement property in LoadXml(file).Descendants().Where(static element => element.Parent?.Name.LocalName == "PropertyGroup"))
+				{
+					string name = property.Name.LocalName;
+					if (Array.IndexOf(versionProperties, name) >= 0 || name.StartsWith("MinVer", StringComparison.Ordinal))
+					{
+						offenders.Add($"{file} sets {name}");
+					}
+				}
+			}
+		}
+
+		XElement[] minVer = LoadXml("Directory.Packages.props").Descendants("GlobalPackageReference")
+			.Where(static reference => (string?) reference.Attribute("Include") == "MinVer").ToArray();
+
+		Assert.True(offenders.Count == 0,
+			$"The seven packages share the MinVer version configured in Directory.Build.props (CHEATENGINECLIENT9019):{Environment.NewLine}{string.Join(Environment.NewLine, offenders)}");
+		Assert.True(minVer.Length == 1, "Directory.Packages.props must declare MinVer once, as a GlobalPackageReference.");
+		Assert.Equal("v", BuildProperty("MinVerTagPrefix"));
+		Assert.Matches(@"^\d+\.\d+$", BuildProperty("MinVerMinimumMajorMinor"));
+		Assert.Equal("$(MinVerMinimumMajorMinor).0", BuildProperty("VersionPrefix"));
+	}
+
 	internal static XDocument LoadXml(string repositoryRelativePath)
 	{
 		return XDocument.Load(Path.Combine(RepositoryRoot.Path, repositoryRelativePath));
