@@ -8,4 +8,10 @@ public sealed class CheatEngineClientLifecycleException : CheatEngineClientExcep
 		: base(new CheatEngineFailure(CheatEngineFailureKind.InvalidState, operation, message, innerException))
 	{
 	}
+
+	/// <summary>Creates the exception from an existing invalid-state failure without losing its host effect.</summary>
+	internal CheatEngineClientLifecycleException(CheatEngineFailure failure)
+		: base(failure)
+	{
+	}
 }

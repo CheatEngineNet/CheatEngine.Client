@@ -8,4 +8,10 @@ public sealed class CheatEngineActivationExpiredException : CheatEngineClientExc
 		: base(new CheatEngineFailure(CheatEngineFailureKind.ActivationExpired, operation, message, innerException))
 	{
 	}
+
+	/// <summary>Creates the exception from an existing activation-expired failure without losing its host effect.</summary>
+	internal CheatEngineActivationExpiredException(CheatEngineFailure failure)
+		: base(failure)
+	{
+	}
 }

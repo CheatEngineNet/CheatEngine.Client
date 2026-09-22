@@ -6,7 +6,11 @@ public enum CheatEngineFailureKind
 	/// <summary>The operation could not be classified more precisely.</summary>
 	Unknown = 0,
 
-	/// <summary>The operation was cancelled before a Cheat Engine call began.</summary>
+	/// <summary>
+	///     The caller's cancellation was observed. <see cref="CheatEngineFailure.HostEffect" /> tells whether Cheat Engine
+	///     work had started; a token never interrupts a Cheat Engine call that has already begun and never removes an
+	///     effect that such a call produced.
+	/// </summary>
 	Cancelled = 1,
 
 	/// <summary>The required Cheat Engine capability or Lua global is unavailable.</summary>
@@ -49,5 +53,17 @@ public enum CheatEngineFailureKind
 	ActivationExpired = 14,
 
 	/// <summary>The operation is not valid in the resource's current lifecycle or session state.</summary>
-	InvalidState = 15
+	InvalidState = 15,
+
+	/// <summary>
+	///     Cheat Engine returned a result that the consumed CheatEngine.SDK version cannot attribute to one cause: several
+	///     documented causes (for example no match and a host failure) are indistinguishable. Inspect the operation's
+	///     documentation; never treat it as absence.
+	/// </summary>
+	/// <remarks>
+	///     This is distinct from <see cref="AmbiguousMatch" /> (several matches were observed), from
+	///     <see cref="InvalidHostResult" /> (a result outside the documented shape was observed), and from
+	///     <see cref="NotFound" /> (absence was established).
+	/// </remarks>
+	IndeterminateHostResult = 16
 }

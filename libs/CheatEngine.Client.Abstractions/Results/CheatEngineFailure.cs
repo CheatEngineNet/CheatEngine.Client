@@ -1,18 +1,57 @@
 namespace CheatEngine.Client.Results;
 
 /// <summary>An immutable description of an expected Cheat Engine operation failure.</summary>
+/// <remarks>
+///     <para>
+///         <see cref="Kind" /> classifies why the operation failed and <see cref="HostEffect" /> states how far the
+///         requested Cheat Engine primitive got. Both are stable, language-independent values: never classify a failure by
+///         parsing <see cref="Message" /> or <see cref="Exception" /> text.
+///     </para>
+/// </remarks>
 public readonly record struct CheatEngineFailure
 {
 	/// <summary>Creates a failure while retaining an optional SDK exception for diagnostics.</summary>
+	/// <remarks>
+	///     The <see cref="HostEffect" /> of a failure created by this constructor is
+	///     <see cref="CheatEngineHostEffect.Unknown" />.
+	/// </remarks>
+	/// <param name="kind">The stable failure category.</param>
+	/// <param name="operation">The Client operation that failed, for example <c>Patterns.Scan</c>.</param>
+	/// <param name="message">A human-readable diagnostic message; it may contain user data.</param>
+	/// <param name="exception">The originating exception, if any; it may contain user data.</param>
+	public CheatEngineFailure(CheatEngineFailureKind kind, string operation, string message, Exception? exception)
+		: this(kind, operation, message, exception, CheatEngineHostEffect.Unknown)
+	{
+	}
+
+	/// <summary>Creates a failure that also states the known Cheat Engine side effect of the failed operation.</summary>
+	/// <param name="kind">The stable failure category.</param>
+	/// <param name="operation">The Client operation that failed, for example <c>Patterns.Scan</c>.</param>
+	/// <param name="message">A human-readable diagnostic message; it may contain user data.</param>
+	/// <param name="exception">The originating exception, if any; it may contain user data.</param>
+	/// <param name="hostEffect">What is known about the Cheat Engine side effect of the failed operation.</param>
+	/// <exception cref="ArgumentException"><paramref name="operation" /> or <paramref name="message" /> is empty.</exception>
+	/// <exception cref="ArgumentOutOfRangeException"><paramref name="hostEffect" /> is not a defined value.</exception>
+	/// <remarks>
+	///     The historical four-parameter overload remains for binary compatibility; the optional parameters moved to this
+	///     overload so that source calls with three arguments keep compiling (Roslyn public-API rule RS0027).
+	/// </remarks>
 	public CheatEngineFailure(CheatEngineFailureKind kind, string operation, string message,
-		Exception? exception = null)
+		Exception? exception = null, CheatEngineHostEffect hostEffect = CheatEngineHostEffect.Unknown)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(operation);
 		ArgumentException.ThrowIfNullOrWhiteSpace(message);
+		if (!Enum.IsDefined(hostEffect))
+		{
+			throw new ArgumentOutOfRangeException(nameof(hostEffect), hostEffect,
+				"The Cheat Engine host effect must be a defined value.");
+		}
+
 		Kind = kind;
 		Operation = operation;
 		Message = message;
 		Exception = exception;
+		HostEffect = hostEffect;
 	}
 
 	/// <summary>Gets the stable failure category.</summary>
@@ -28,28 +67,46 @@ public readonly record struct CheatEngineFailure
 	}
 
 	/// <summary>Gets a human-readable diagnostic message.</summary>
+	/// <remarks>The message may contain user data (addresses, expressions, paths, Lua text); do not log it by default.</remarks>
 	public string Message
 	{
 		get;
 	}
 
 	/// <summary>Gets the originating SDK exception when one exists.</summary>
+	/// <remarks>The exception may contain user data; do not log it by default.</remarks>
 	public Exception? Exception
 	{
 		get;
 	}
 
+	/// <summary>Gets what is known about the Cheat Engine side effect of the failed operation.</summary>
+	/// <remarks>
+	///     <see cref="CheatEngineHostEffect.Unknown" /> is the conservative default: any effect is possible. A cancellation
+	///     token never interrupts a Cheat Engine call that has already started.
+	/// </remarks>
+	public CheatEngineHostEffect HostEffect
+	{
+		get;
+	}
+
 	/// <summary>Throws this failure as an operation exception.</summary>
+	/// <remarks>
+	///     <see cref="CheatEngineFailureKind.ActivationExpired" /> throws <see cref="CheatEngineActivationExpiredException" />,
+	///     <see cref="CheatEngineFailureKind.InvalidState" /> throws <see cref="CheatEngineClientLifecycleException" />, and
+	///     every other kind throws <see cref="CheatEngineOperationException" />. The thrown exception's
+	///     <see cref="CheatEngineClientException.Failure" /> equals this failure, including its <see cref="HostEffect" />.
+	/// </remarks>
 	public readonly void Throw()
 	{
 		if (Kind == CheatEngineFailureKind.ActivationExpired)
 		{
-			throw new CheatEngineActivationExpiredException(Operation, Message, Exception);
+			throw new CheatEngineActivationExpiredException(this);
 		}
 
 		if (Kind == CheatEngineFailureKind.InvalidState)
 		{
-			throw new CheatEngineClientLifecycleException(Operation, Message, Exception);
+			throw new CheatEngineClientLifecycleException(this);
 		}
 
 		throw new CheatEngineOperationException(this);

@@ -627,3 +627,14 @@ CheatEngine.Client.Memory.MemoryStringReadRequest.Encoding.get -> CheatEngine.Cl
 static CheatEngine.Client.Memory.MemoryStringWriteRequest.CreateBounded(CheatEngine.SDK.Engine.Values.Address address, string! value, int maximumLength, CheatEngine.Client.Memory.MemoryStringEncoding encoding) -> CheatEngine.Client.Memory.MemoryStringWriteRequest
 CheatEngine.Client.Memory.MemoryStringWriteRequest.Encoding.get -> CheatEngine.Client.Memory.MemoryStringEncoding
 CheatEngine.Client.Memory.MemoryStringWriteRequest.MaximumLength.get -> int
+*REMOVED*CheatEngine.Client.Results.CheatEngineFailure.CheatEngineFailure(CheatEngine.Client.Results.CheatEngineFailureKind kind, string! operation, string! message, System.Exception? exception = null) -> void
+CheatEngine.Client.Results.CheatEngineFailure.CheatEngineFailure(CheatEngine.Client.Results.CheatEngineFailureKind kind, string! operation, string! message, System.Exception? exception) -> void
+CheatEngine.Client.Results.CheatEngineFailure.CheatEngineFailure(CheatEngine.Client.Results.CheatEngineFailureKind kind, string! operation, string! message, System.Exception? exception = null, CheatEngine.Client.Results.CheatEngineHostEffect hostEffect = CheatEngine.Client.Results.CheatEngineHostEffect.Unknown) -> void
+CheatEngine.Client.Results.CheatEngineFailure.HostEffect.get -> CheatEngine.Client.Results.CheatEngineHostEffect
+CheatEngine.Client.Results.CheatEngineFailureKind.IndeterminateHostResult = 16 -> CheatEngine.Client.Results.CheatEngineFailureKind
+CheatEngine.Client.Results.CheatEngineHostEffect
+CheatEngine.Client.Results.CheatEngineHostEffect.CleanupUnconfirmed = 4 -> CheatEngine.Client.Results.CheatEngineHostEffect
+CheatEngine.Client.Results.CheatEngineHostEffect.Completed = 3 -> CheatEngine.Client.Results.CheatEngineHostEffect
+CheatEngine.Client.Results.CheatEngineHostEffect.NotStarted = 1 -> CheatEngine.Client.Results.CheatEngineHostEffect
+CheatEngine.Client.Results.CheatEngineHostEffect.Started = 2 -> CheatEngine.Client.Results.CheatEngineHostEffect
+CheatEngine.Client.Results.CheatEngineHostEffect.Unknown = 0 -> CheatEngine.Client.Results.CheatEngineHostEffect

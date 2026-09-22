@@ -87,6 +87,68 @@ public sealed class CheatEngineFailureTests
 		Assert.Same(innerException, exception.InnerException);
 	}
 
+	/// <summary>Keeps the historical constructor conservative and round-trips an explicit host effect.</summary>
+	[Fact]
+	public void HostEffectDefaultsToUnknownAndRoundTripsThroughTheNewConstructor()
+	{
+		InvalidOperationException innerException = new("release failed");
+
+		CheatEngineFailure legacy = new(CheatEngineFailureKind.LuaError, "Lua.Execute", "Lua failed.");
+		CheatEngineFailure explicitEffect = new(CheatEngineFailureKind.InvalidState, "Patterns.Scan",
+			"The release was not confirmed.", innerException, CheatEngineHostEffect.CleanupUnconfirmed);
+
+		Assert.Equal(CheatEngineHostEffect.Unknown, default(CheatEngineFailure).HostEffect);
+		Assert.Equal(CheatEngineHostEffect.Unknown, legacy.HostEffect);
+		Assert.Equal(CheatEngineHostEffect.CleanupUnconfirmed, explicitEffect.HostEffect);
+		Assert.Equal(CheatEngineFailureKind.InvalidState, explicitEffect.Kind);
+		Assert.Same(innerException, explicitEffect.Exception);
+		Assert.NotEqual(explicitEffect, new CheatEngineFailure(explicitEffect.Kind, explicitEffect.Operation,
+			explicitEffect.Message, innerException, CheatEngineHostEffect.Completed));
+	}
+
+	/// <summary>Rejects a host effect outside the documented vocabulary instead of storing an unclassifiable value.</summary>
+	[Theory]
+	[InlineData(-1)]
+	[InlineData(5)]
+	[InlineData(int.MaxValue)]
+	public void ConstructorRejectsAnUndefinedHostEffect(int value)
+	{
+		ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(() =>
+			new CheatEngineFailure(CheatEngineFailureKind.Unknown, "Operation", "message", null,
+				(CheatEngineHostEffect) value));
+
+		Assert.Equal("hostEffect", exception.ParamName);
+	}
+
+	/// <summary>The indeterminate SDK 1.0.0 result is an ordinary operation failure, never a lifecycle fault.</summary>
+	[Fact]
+	[Trait("Qualification", "Q27")]
+	public void IndeterminateHostResultThrowsTheOperationException()
+	{
+		CheatEngineFailure failure = new(CheatEngineFailureKind.IndeterminateHostResult, "Patterns.Scan",
+			"Cheat Engine returned no AOB result list.", null, CheatEngineHostEffect.Completed);
+
+		CheatEngineOperationException exception = Assert.Throws<CheatEngineOperationException>(failure.Throw);
+
+		Assert.Equal(failure, exception.Failure);
+		Assert.Equal(16, (int) CheatEngineFailureKind.IndeterminateHostResult);
+	}
+
+	/// <summary>The dedicated lifecycle exceptions keep the complete failure, including its host effect.</summary>
+	[Theory]
+	[InlineData(CheatEngineFailureKind.ActivationExpired)]
+	[InlineData(CheatEngineFailureKind.InvalidState)]
+	public void ThrowPreservesTheHostEffectInLifecycleExceptions(CheatEngineFailureKind kind)
+	{
+		CheatEngineFailure failure = new(kind, "Patterns.Scan", "The release was not confirmed.", null,
+			CheatEngineHostEffect.CleanupUnconfirmed);
+
+		CheatEngineClientException exception = Assert.ThrowsAny<CheatEngineClientException>(failure.Throw);
+
+		Assert.Equal(failure, exception.Failure);
+		Assert.Equal(CheatEngineHostEffect.CleanupUnconfirmed, exception.Failure.HostEffect);
+	}
+
 	/// <summary>Assigns each concrete lifecycle exception the stable failure kind it represents.</summary>
 	[Fact]
 	public void LifecycleExceptionsClassifyTheirSpecificLifecycleFailures()
