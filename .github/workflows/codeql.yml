@@ -1,0 +1,107 @@
+# Advisory CodeQL code scanning. Not part of CI / Gate: findings appear in the Security tab and as PR annotations.
+# C# is analysed from a manual, traced Release build of the shipped product graph (src/CheatEngine.Client builds every
+# shipped assembly and the Lua source generator), so source-generator output is analysed; `build-mode: none` would skip
+# generated code. GitHub Actions workflows are analysed without a build. The Client detects no other language.
+# Keep the repository's code-scanning default setup OFF: GitHub rejects advanced uploads while it is enabled.
+# No dependency or TRAP cache (shared-contracts §1.5: no cache on any path reachable by release, sonar or codeql).
+name: CodeQL
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+  schedule:
+    - cron: '23 4 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  csharp:
+    name: Analyze C#
+    runs-on: windows-2025
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      security-events: write # upload the SARIF results
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # MinVer computes the package version from the tag history
+          persist-credentials: false
+
+      - name: Set up .NET and restore the product graph (locked)
+        uses: ./.github/actions/setup-dotnet
+        with:
+          restore: src/CheatEngine.Client/CheatEngine.Client.csproj
+          cache: 'false'
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
+        with:
+          languages: csharp
+          build-mode: manual
+          queries: security-extended
+          dependency-caching: false
+          trap-caching: false
+
+      # The compiler must run inside the traced process: no incremental skip, no compiler server, no build server.
+      # https://learn.microsoft.com/dotnet/core/tools/dotnet-build#options
+      - name: Build the shipped product graph
+        run: |
+          $ErrorActionPreference = 'Stop'
+          dotnet build src/CheatEngine.Client/CheatEngine.Client.csproj --configuration Release --no-restore `
+            --no-incremental --disable-build-servers -p:UseSharedCompilation=false `
+            -bl:artifacts/logs/codeql-csharp.binlog
+          if ($LASTEXITCODE -ne 0) {
+            throw "dotnet build failed with exit code $LASTEXITCODE."
+          }
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
+        with:
+          category: /language:csharp
+
+      - name: Upload binlog
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: binlogs-codeql-csharp
+          path: artifacts/logs/*.binlog
+          if-no-files-found: ignore
+          retention-days: 5
+
+  actions:
+    name: Analyze GitHub Actions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write # upload the SARIF results
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
+        with:
+          languages: actions
+          build-mode: none
+          queries: security-extended
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
+        with:
+          category: /language:actions
