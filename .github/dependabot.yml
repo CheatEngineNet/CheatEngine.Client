@@ -1,21 +1,76 @@
+# Dependabot version updates. Options: https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference
+# Dependabot reads this file from the default branch only.
+#
+# - Cooldown: a new release waits at least 7 days (zizmor dependabot-cooldown threshold), NuGet majors 30 days.
+#   Security updates (repository setting) are not delayed by the cooldown.
+# - Lock files: Dependabot does not regenerate every packages.lock.json (CPM + ProjectReference graphs, the
+#   SDK-implicit ILLink/ILCompiler entries). When the "Lock files" CI job fails on a Dependabot pull request, check the
+#   branch out, run ./eng/Update-LockFiles.ps1, commit "Regenerate lock files after <update>" and push; Dependabot then
+#   stops rebasing that pull request. A dotnet-sdk update always needs regenerated lock files (global.json uses
+#   rollForward: disable); apply the latest sdk-canary-patch artifact of the Scheduled health workflow.
+# - No commit-message prefix: a prefix produces "deps: ..." subjects, which the pull request title rule forbids.
+#   Dependabot pull requests are exempt from PR policy; rename "chore(deps): ..." squash subjects when merging.
 version: 2
 updates:
-  - package-ecosystem: github-actions
-    directory: /
-    schedule:
-      interval: weekly
-      day: monday
-    open-pull-requests-limit: 5
-    groups:
-      github-actions:
-        patterns: ["*"]
-
+  # Every csproj, Directory.Packages.props, the Coexistence fixture props and .config/dotnet-tools.json.
   - package-ecosystem: nuget
     directory: /
     schedule:
       interval: weekly
       day: monday
     open-pull-requests-limit: 5
+    labels: [ dependencies, packaging ]
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
     groups:
-      dotnet:
-        patterns: ["*"]
+      nuget-minor-and-patch:
+        applies-to: version-updates
+        update-types: [ minor, patch ]
+      nuget-security:
+        applies-to: security-updates
+        patterns: [ '*' ]
+    ignore:
+      # The Client stays on CheatEngine.SDK 1.x: range [1.0.0,2.0.0) (CHEATENGINECLIENT9016). This covers the CPM entry
+      # and the Coexistence fixtures' CoexistenceSdkPackageVersion property. SDK 2.0 adoption is a planned migration
+      # (docs/migration/sdk-2.0.md).
+      - dependency-name: CheatEngine.SDK
+        update-types: [ 'version-update:semver-major' ]
+      # Roslyn moves only with the Lua generator's compiler floor (CHEATENGINECLIENT9020).
+      - dependency-name: Microsoft.CodeAnalysis.CSharp
+      - dependency-name: Microsoft.CodeAnalysis.Analyzers
+      # SDK-implicit packages recorded in lock files move only with global.json.
+      - dependency-name: Microsoft.NET.ILLink.Tasks
+      - dependency-name: Microsoft.DotNet.ILCompiler
+      - dependency-name: 'runtime.*.Microsoft.DotNet.ILCompiler'
+
+  # Workflows and the composite actions under .github/actions.
+  - package-ecosystem: github-actions
+    directories:
+      - /
+      - /.github/actions/*
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [ dependencies, ci ]
+    cooldown:
+      default-days: 7 # github-actions supports default-days only
+    groups:
+      actions-minor-and-patch:
+        update-types: [ minor, patch ]
+
+  # global.json sdk.version (version updates only; the ecosystem has no security updates).
+  - package-ecosystem: dotnet-sdk
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [ dependencies, ci ]
+    cooldown:
+      default-days: 7
+    ignore:
+      # A new .NET major is a planned migration, not a dependency bump.
+      - dependency-name: '*'
+        update-types: [ 'version-update:semver-major' ]
