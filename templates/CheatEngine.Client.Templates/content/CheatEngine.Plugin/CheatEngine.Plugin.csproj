@@ -15,6 +15,10 @@
     <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
   </PropertyGroup>
 
+  <!--
+    Keep CheatEngine.SDK on 1.x: this template is built and tested against CheatEngine.SDK 1.0.0 and CheatEngine.Client
+    declares [1.0.0, 2.0.0). The packed template references the exact CheatEngine.Client version it was released with.
+  -->
   <ItemGroup>
     <PackageReference Include="CheatEngine.Client" Version="0.1.0"/>
     <PackageReference Include="CheatEngine.SDK" Version="1.0.0"/>

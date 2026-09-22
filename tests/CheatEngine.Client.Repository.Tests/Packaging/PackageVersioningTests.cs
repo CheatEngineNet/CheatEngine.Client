@@ -100,6 +100,35 @@ public sealed partial class PackageVersioningTests
 		Assert.Equal("$(MinVerMinimumMajorMinor).0", BuildProperty("VersionPrefix"));
 	}
 
+	[Fact]
+	public void TemplateProjectDefaultsMatchTheCentralVersions()
+	{
+		const string templateProject = "templates/CheatEngine.Client.Templates/content/CheatEngine.Plugin/CheatEngine.Plugin.csproj";
+		XDocument template = LoadXml(templateProject);
+		Dictionary<string, string?> expected = new(StringComparer.Ordinal)
+		{
+			["CheatEngine.Client"] = BuildProperty("MinVerMinimumMajorMinor") + ".0",
+			["CheatEngine.SDK"] = SdkPin.Version,
+			["Microsoft.Extensions.Configuration.Json"] = CentralVersion("Microsoft.Extensions.Configuration.Json")
+		};
+
+		List<string> offenders = [];
+		foreach ((string package, string? version) in expected)
+		{
+			XElement[] references = template.Descendants("PackageReference")
+				.Where(reference => (string?) reference.Attribute("Include") == package).ToArray();
+			string? declared = references.Length == 1 ? (string?) references[0].Attribute("Version") : null;
+			if (declared != version)
+			{
+				offenders.Add($"{package}: {references.Length} reference(s), version '{declared}', expected one reference with '{version}'");
+			}
+		}
+
+		Assert.True(offenders.Count == 0,
+			$"{templateProject} keeps readable defaults equal to the MinVer floor, the SDK pin and the central versions; the pack stamps the exact versions (CHEATENGINECLIENT9018):{Environment.NewLine}{string.Join(Environment.NewLine, offenders)}");
+		Assert.Equal(3, template.Descendants("PackageReference").Count());
+	}
+
 	internal static XDocument LoadXml(string repositoryRelativePath)
 	{
 		return XDocument.Load(Path.Combine(RepositoryRoot.Path, repositoryRelativePath));

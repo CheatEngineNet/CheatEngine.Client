@@ -5,12 +5,113 @@
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <NoWarn>$(NoWarn);NU5128</NoWarn>
     <Description>dotnet new template for an in-process, dependency-injection-first Cheat Engine plugin built on CheatEngine.Client and CheatEngine.SDK.</Description>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);_CheatEngineClientStampTemplateProject</TargetsForTfmSpecificContentInPackage>
   </PropertyGroup>
 
   <ItemGroup>
     <Compile Remove="**/*"/>
-    <Content Include="content/**/*" Pack="true" PackagePath="content/"/>
+    <Content Include="content/**/*" Exclude="content/**/bin/**;content/**/obj/**" Pack="true" PackagePath="content/"/>
+    <!-- Packed from its stamped copy instead (_CheatEngineClientStampTemplateProject). -->
+    <Content Update="content/CheatEngine.Plugin/CheatEngine.Plugin.csproj" Pack="false"/>
     <None Include="README.md" Pack="true" PackagePath="/"/>
   </ItemGroup>
+
+  <!--
+    Replaces the Version attribute of the named PackageReference elements and leaves every other byte of the file
+    unchanged (XmlPoke would re-serialize the document). Each package must be referenced exactly once.
+  -->
+  <UsingTask TaskName="CheatEngineClientStampPackageVersions"
+             TaskFactory="RoslynCodeTaskFactory"
+             AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <SourceFile ParameterType="System.String" Required="true"/>
+      <DestinationFile ParameterType="System.String" Required="true"/>
+      <Packages ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true"/>
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System"/>
+      <Using Namespace="System.IO"/>
+      <Using Namespace="System.Text"/>
+      <Using Namespace="System.Text.RegularExpressions"/>
+      <Code Type="Fragment" Language="cs"><![CDATA[
+byte[] bytes = File.ReadAllBytes(SourceFile);
+bool bom = bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF;
+string text = new UTF8Encoding(false).GetString(bytes, bom ? 3 : 0, bytes.Length - (bom ? 3 : 0));
+foreach (Microsoft.Build.Framework.ITaskItem package in Packages)
+{
+    string version = package.GetMetadata("Version");
+    Regex reference = new Regex("(<PackageReference\\s+Include=\"" + Regex.Escape(package.ItemSpec) + "\"\\s+Version=\")[^\"]*(\")",
+        RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+    int count = reference.Matches(text).Count;
+    if (count != 1 || string.IsNullOrWhiteSpace(version))
+    {
+        Log.LogError(null, "CHEATENGINECLIENT9018", null, SourceFile, 0, 0, 0, 0,
+            "The template project must reference {0} exactly once as <PackageReference Include=\"{0}\" Version=\"...\"/> and receive a version to stamp, but has {1} such reference(s) and version '{2}'.",
+            package.ItemSpec, count, version);
+        continue;
+    }
+
+    text = reference.Replace(text, match => match.Groups[1].Value + version + match.Groups[2].Value);
+}
+
+if (!Log.HasLoggedErrors)
+{
+    Directory.CreateDirectory(Path.GetDirectoryName(DestinationFile));
+    byte[] stamped = new UTF8Encoding(bom).GetPreamble();
+    byte[] body = new UTF8Encoding(false).GetBytes(text);
+    using (FileStream stream = File.Create(DestinationFile))
+    {
+        stream.Write(stamped, 0, stamped.Length);
+        stream.Write(body, 0, body.Length);
+    }
+}
+      ]]></Code>
+    </Task>
+  </UsingTask>
+
+  <!--
+    The generated plugin must reference the exact Client version it was packed with and the pinned CheatEngine.SDK
+    (audit A04-10, A21-01). The repository copy keeps readable defaults (PackageVersioningTests pins them); this target
+    packs a copy whose three versions are stamped after MinVer, then reads them back (CHEATENGINECLIENT9018).
+  -->
+  <Target Name="_CheatEngineClientStampTemplateProject" DependsOnTargets="MinVer">
+    <PropertyGroup>
+      <_CheatEngineClientTemplateProject>$(MSBuildProjectDirectory)/content/CheatEngine.Plugin/CheatEngine.Plugin.csproj</_CheatEngineClientTemplateProject>
+      <_CheatEngineClientStampedTemplateProject>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'template', 'CheatEngine.Plugin.csproj'))</_CheatEngineClientStampedTemplateProject>
+      <_CheatEngineClientConfigurationJsonVersion>@(PackageVersion->WithMetadataValue('Identity', 'Microsoft.Extensions.Configuration.Json')->'%(Version)')</_CheatEngineClientConfigurationJsonVersion>
+    </PropertyGroup>
+    <ItemGroup>
+      <_CheatEngineClientTemplatePackage Remove="@(_CheatEngineClientTemplatePackage)"/>
+      <_CheatEngineClientTemplatePackage Include="CheatEngine.Client" Version="$(PackageVersion)"/>
+      <_CheatEngineClientTemplatePackage Include="CheatEngine.SDK" Version="$(CheatEngineSdkVersion)"/>
+      <_CheatEngineClientTemplatePackage Include="Microsoft.Extensions.Configuration.Json" Version="$(_CheatEngineClientConfigurationJsonVersion)"/>
+    </ItemGroup>
+
+    <CheatEngineClientStampPackageVersions SourceFile="$(_CheatEngineClientTemplateProject)"
+                                           DestinationFile="$(_CheatEngineClientStampedTemplateProject)"
+                                           Packages="@(_CheatEngineClientTemplatePackage)"/>
+
+    <XmlPeek XmlInputPath="$(_CheatEngineClientStampedTemplateProject)"
+             Query="/Project/ItemGroup/PackageReference[@Include='CheatEngine.Client']/@Version">
+      <Output TaskParameter="Result" PropertyName="_CheatEngineClientStampedClientVersion"/>
+    </XmlPeek>
+    <XmlPeek XmlInputPath="$(_CheatEngineClientStampedTemplateProject)"
+             Query="/Project/ItemGroup/PackageReference[@Include='CheatEngine.SDK']/@Version">
+      <Output TaskParameter="Result" PropertyName="_CheatEngineClientStampedSdkVersion"/>
+    </XmlPeek>
+    <XmlPeek XmlInputPath="$(_CheatEngineClientStampedTemplateProject)"
+             Query="/Project/ItemGroup/PackageReference[@Include='Microsoft.Extensions.Configuration.Json']/@Version">
+      <Output TaskParameter="Result" PropertyName="_CheatEngineClientStampedConfigurationJsonVersion"/>
+    </XmlPeek>
+    <Error Condition="'$(_CheatEngineClientStampedClientVersion)' != '$(PackageVersion)' or '$(_CheatEngineClientStampedSdkVersion)' != '$(CheatEngineSdkVersion)' or '$(_CheatEngineClientStampedConfigurationJsonVersion)' != '$(_CheatEngineClientConfigurationJsonVersion)'"
+           Code="CHEATENGINECLIENT9018"
+           Text="The packed template project references CheatEngine.Client '$(_CheatEngineClientStampedClientVersion)', CheatEngine.SDK '$(_CheatEngineClientStampedSdkVersion)' and Microsoft.Extensions.Configuration.Json '$(_CheatEngineClientStampedConfigurationJsonVersion)', expected the co-packed '$(PackageVersion)', the pinned '$(CheatEngineSdkVersion)' and the central '$(_CheatEngineClientConfigurationJsonVersion)'."/>
+
+    <ItemGroup>
+      <TfmSpecificPackageFile Include="$(_CheatEngineClientStampedTemplateProject)"
+                              PackagePath="content/CheatEngine.Plugin/CheatEngine.Plugin.csproj"/>
+      <FileWrites Include="$(_CheatEngineClientStampedTemplateProject)"/>
+    </ItemGroup>
+  </Target>
 
 </Project>

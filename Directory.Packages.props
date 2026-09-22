@@ -40,5 +40,7 @@
     <PackageVersion Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="5.6.0"/>
     <!-- SPDX software bill of materials embedded in the packages at pack time. -->
     <PackageVersion Include="Microsoft.Sbom.Targets" Version="4.1.13"/>
+    <!-- Template validation at build (eng/Templates.props). Versioned with the .NET SDK line: move it together with global.json. -->
+    <PackageVersion Include="Microsoft.TemplateEngine.Authoring.Tasks" Version="10.0.401"/>
   </ItemGroup>
 </Project>
