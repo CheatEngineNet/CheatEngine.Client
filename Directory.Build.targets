@@ -70,4 +70,41 @@
            Code="CHEATENGINECLIENT9016"
            Text="SDK-facing published packages must declare CheatEngine.SDK as [1.0.0, 2.0.0)."/>
   </Target>
+
+  <!--
+    Supply-chain guards (repository only, never shipped). They run in every build so a project-level or command-line
+    override cannot silently weaken the analysis pin, the NuGet audit policy or the lock-file contract set in
+    Directory.Build.props. Diagnostic ids CHEATENGINECLIENT9030-9039 are reserved for these guards.
+  -->
+  <Target Name="CheatEngineClientValidateSupplyChainSettings"
+          BeforeTargets="BeforeBuild">
+    <PropertyGroup>
+      <!-- NoWarn and WarningsNotAsErrors accept ';' or ',' separators and any whitespace; normalise to ';CODE;' so NU19031 never matches NU1903. -->
+      <_CheatEngineClientNoWarnCodes>;$([System.Text.RegularExpressions.Regex]::Replace('$(NoWarn)', '[\s,;]+', ';').ToUpperInvariant());</_CheatEngineClientNoWarnCodes>
+      <_CheatEngineClientWarningsNotAsErrorsCodes>;$([System.Text.RegularExpressions.Regex]::Replace('$(WarningsNotAsErrors)', '[\s,;]+', ';').ToUpperInvariant());</_CheatEngineClientWarningsNotAsErrorsCodes>
+      <_CheatEngineClientDowngradesBlockingAudit>false</_CheatEngineClientDowngradesBlockingAudit>
+      <_CheatEngineClientDowngradesBlockingAudit Condition="$(_CheatEngineClientNoWarnCodes.Contains(';NU1903;')) or $(_CheatEngineClientNoWarnCodes.Contains(';NU1904;')) or $(_CheatEngineClientWarningsNotAsErrorsCodes.Contains(';NU1903;')) or $(_CheatEngineClientWarningsNotAsErrorsCodes.Contains(';NU1904;'))">true</_CheatEngineClientDowngradesBlockingAudit>
+      <!-- The Coexistence fixtures are the only projects outside Central Package Management (v1 lock files). -->
+      <_CheatEngineClientIsCoexistenceFixture>$(_CheatEngineClientFolder.StartsWith('tests/CheatEngine.Client.LivePlugin.Coexistence/', System.StringComparison.OrdinalIgnoreCase))</_CheatEngineClientIsCoexistenceFixture>
+      <!-- Documented operator override (CoexistencePlugin.props): another SDK version is a qualification input, restored without a lock file. -->
+      <_CheatEngineClientLockFileOverride>false</_CheatEngineClientLockFileOverride>
+      <_CheatEngineClientLockFileOverride Condition="'$(_CheatEngineClientIsCoexistenceFixture)' == 'true' and '$(CoexistenceSdkPackageVersion)' != '' and '$(CoexistenceSdkPackageVersion)' != '1.0.0'">true</_CheatEngineClientLockFileOverride>
+    </PropertyGroup>
+
+    <Error Condition="'$(AnalysisLevel)' != '$(_CheatEngineClientPinnedAnalysisLevel)'"
+           Code="CHEATENGINECLIENT9030"
+           Text="$(MSBuildProjectName) builds with AnalysisLevel '$(AnalysisLevel)', but the repository pins '$(_CheatEngineClientPinnedAnalysisLevel)'. Do not override it per project or on the command line: raise the pin in Directory.Build.props together with global.json."/>
+    <Error Condition="'$(NuGetAudit)' != 'true' or '$(NuGetAuditMode)' != 'all' or '$(NuGetAuditLevel)' != 'low'"
+           Code="CHEATENGINECLIENT9031"
+           Text="$(MSBuildProjectName) weakens the NuGet audit policy (NuGetAudit='$(NuGetAudit)', NuGetAuditMode='$(NuGetAuditMode)', NuGetAuditLevel='$(NuGetAuditLevel)'; required: true, all, low). Suppress a single advisory with NuGetAuditSuppress instead."/>
+    <Error Condition="'$(_CheatEngineClientDowngradesBlockingAudit)' == 'true'"
+           Code="CHEATENGINECLIENT9031"
+           Text="$(MSBuildProjectName) lists NU1903 or NU1904 in NoWarn or WarningsNotAsErrors. High and critical advisories must fail every build; suppress a single advisory with NuGetAuditSuppress (advisory URL, justification, expiry) instead."/>
+    <Error Condition="'$(RestorePackagesWithLockFile)' != 'true' and '$(_CheatEngineClientLockFileOverride)' != 'true'"
+           Code="CHEATENGINECLIENT9032"
+           Text="$(MSBuildProjectName) restores without a lock file (RestorePackagesWithLockFile='$(RestorePackagesWithLockFile)'). Every project keeps a committed packages.lock.json: regenerate with ./eng/Update-LockFiles.ps1."/>
+    <Error Condition="'$(ManagePackageVersionsCentrally)' != 'true' and '$(_CheatEngineClientIsCoexistenceFixture)' != 'true'"
+           Code="CHEATENGINECLIENT9032"
+           Text="$(MSBuildProjectName) opts out of Central Package Management (ManagePackageVersionsCentrally='$(ManagePackageVersionsCentrally)'). Only the Coexistence fixtures may; declare versions in Directory.Packages.props and regenerate with ./eng/Update-LockFiles.ps1."/>
+  </Target>
 </Project>
