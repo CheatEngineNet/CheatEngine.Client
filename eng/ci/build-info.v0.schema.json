@@ -1,0 +1,219 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/eng/ci/build-info.v0.schema.json",
+  "title": "CheatEngine.Client build info v0",
+  "description": "Identity of one CI Release build of the Client packages: source, toolchain, runner, the seven packed packages and the consumed CheatEngine.SDK. Written by eng/ci/New-BuildInfo.ps1; precursor of the Client release tuple.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "repository",
+    "commit",
+    "treeHash",
+    "ref",
+    "event",
+    "runId",
+    "runAttempt",
+    "runUrl",
+    "pullRequest",
+    "dotnetSdk",
+    "globalJsonSha256",
+    "runner",
+    "packages",
+    "consumedSdk",
+    "createdUtc"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cheatengine-build-info/v0"
+    },
+    "repository": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$"
+    },
+    "commit": {
+      "$ref": "#/$defs/gitObjectId"
+    },
+    "treeHash": {
+      "$ref": "#/$defs/gitObjectId"
+    },
+    "ref": {
+      "type": "string",
+      "pattern": "^refs/"
+    },
+    "event": {
+      "type": "string",
+      "enum": [
+        "pull_request",
+        "push",
+        "workflow_dispatch"
+      ]
+    },
+    "runId": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "runAttempt": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "runUrl": {
+      "type": "string",
+      "pattern": "^https://[^/]+/[A-Za-z0-9-]+/[A-Za-z0-9._-]+/actions/runs/[0-9]+$"
+    },
+    "pullRequest": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "number",
+            "headSha"
+          ],
+          "properties": {
+            "number": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "headSha": {
+              "$ref": "#/$defs/gitObjectId"
+            }
+          }
+        }
+      ]
+    },
+    "dotnetSdk": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]{3}$"
+    },
+    "globalJsonSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "runner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "label",
+        "imageOs",
+        "imageVersion"
+      ],
+      "properties": {
+        "label": {
+          "type": "string",
+          "enum": [
+            "windows-2025"
+          ]
+        },
+        "imageOs": {
+          "type": "string",
+          "minLength": 1
+        },
+        "imageVersion": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "packages": {
+      "type": "array",
+      "minItems": 7,
+      "maxItems": 7,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "version",
+          "file",
+          "sha256",
+          "sha512",
+          "sbomEntry"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "CheatEngine.Client",
+              "CheatEngine.Client.Abstractions",
+              "CheatEngine.Client.Core",
+              "CheatEngine.Client.Extensions.DependencyInjection",
+              "CheatEngine.Client.Fluent",
+              "CheatEngine.Client.Hosting",
+              "CheatEngine.Client.Templates"
+            ]
+          },
+          "version": {
+            "type": "string",
+            "minLength": 1
+          },
+          "file": {
+            "type": "string",
+            "pattern": "^CheatEngine\\.Client[A-Za-z.]*\\.[0-9][0-9A-Za-z.+-]*\\.nupkg$"
+          },
+          "sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "sha512": {
+            "$ref": "#/$defs/sha512Base64"
+          },
+          "sbomEntry": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "const": "_manifest/spdx_2.2/manifest.spdx.json"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "consumedSdk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version",
+        "contentHash",
+        "lockFile"
+      ],
+      "properties": {
+        "id": {
+          "const": "CheatEngine.SDK"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "contentHash": {
+          "$ref": "#/$defs/sha512Base64"
+        },
+        "lockFile": {
+          "const": "libs/CheatEngine.Client.Core/packages.lock.json"
+        }
+      }
+    },
+    "createdUtc": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+    }
+  },
+  "$defs": {
+    "gitObjectId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "sha512Base64": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9+/]{86}==$"
+    }
+  }
+}

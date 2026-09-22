@@ -29,6 +29,8 @@ project never builds, packs, restores or starts a process, so it runs in seconds
 - `Workflows/CoverageBaselineTests` keep `eng/coverage-baseline.json` equal to the shipping assemblies that compile
   source (the `CheatEngine.Client` package facade has none), its line floors valid percentages with an explicit
   tolerance, and the `dotnet-coverage` merge tool pinned to the collector's version in `.config/dotnet-tools.json`.
+- `Workflows/BuildInfoSchemaTests` keep `eng/ci/build-info.v0.schema.json`, the contract fields of `build-info.json`
+  and its writer `eng/ci/New-BuildInfo.ps1` in step, and every object of the schema closed to unknown properties.
 
 ## Run
 
