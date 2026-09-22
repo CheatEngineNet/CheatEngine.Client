@@ -252,6 +252,85 @@ public sealed class PatternScannerBehaviorTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q27")]
+	public void MissingAobResultListIsAmbiguousAndNotNotFound()
+	{
+		FakeAobScanPort port = new()
+		{
+			Status = AobScanHostStatus.NoResultList
+		};
+		PatternScanner scanner = CreateScanner(port);
+
+		bool succeeded = scanner.TryScan(CreateRequest(null, null, 1), out AobScanResult result,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(default, result);
+		Assert.Equal(CheatEngineFailureKind.IndeterminateHostResult, failure.Kind);
+		Assert.NotEqual(CheatEngineFailureKind.NotFound, failure.Kind);
+		Assert.NotEqual(CheatEngineFailureKind.OperationRejected, failure.Kind);
+		Assert.Equal("Patterns.Scan", failure.Operation);
+		Assert.Equal(
+			"Cheat Engine returned no AOB result list: zero matches or a host failure " +
+			"(indistinguishable with CheatEngine.SDK 1.0.0).",
+			failure.Message);
+		Assert.Equal(CheatEngineHostEffect.Completed, failure.HostEffect);
+		Assert.Null(failure.Exception);
+		Assert.Equal(1, port.ScanCalls);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q27")]
+	public void ScanThrowsWhenTheAobResultIsAmbiguousAndNotNotFound()
+	{
+		PatternScanner scanner = CreateScanner(new FakeAobScanPort
+		{
+			Status = AobScanHostStatus.NoResultList
+		});
+
+		CheatEngineOperationException exception = Assert.Throws<CheatEngineOperationException>(() =>
+			scanner.Scan(CreateRequest(null, null, 2), TestContext.Current.CancellationToken));
+
+		Assert.Equal(CheatEngineFailureKind.IndeterminateHostResult, exception.Failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.Completed, exception.Failure.HostEffect);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q27")]
+	public void InvalidResultListRemainsAnInvalidHostResult()
+	{
+		FakeAobScanPort port = new();
+		PatternScanner scanner = CreateScanner(port);
+
+		bool succeeded = scanner.TryScan(CreateRequest(null, null, 1), out AobScanResult result,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(default, result);
+		Assert.Equal(CheatEngineFailureKind.InvalidHostResult, failure.Kind);
+		Assert.Equal("Patterns.Scan", failure.Operation);
+		Assert.Equal(CheatEngineHostEffect.Completed, failure.HostEffect);
+		Assert.Equal(1, port.ScanCalls);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q27")]
+	public void AnEmptyReturnedListIsARealNoMatchSuccess()
+	{
+		RecordingAobMatchList matches = new([]);
+		PatternScanner scanner = CreateScanner(new FakeAobScanPort(matches));
+
+		bool succeeded = scanner.TryScan(CreateRequest(null, null, 1), out AobScanResult result,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.True(succeeded);
+		Assert.Equal(default, failure);
+		Assert.Empty(result.Matches);
+		Assert.False(result.IsTruncated);
+		Assert.Equal(1, matches.DisposeCount);
+	}
+
+	[Fact]
 	public void TryScanReportsCleanupUnconfirmedWhenTheResultListReleaseThrows()
 	{
 		InvalidOperationException releaseFailure = new("The SDK runtime detached before the list was destroyed.");

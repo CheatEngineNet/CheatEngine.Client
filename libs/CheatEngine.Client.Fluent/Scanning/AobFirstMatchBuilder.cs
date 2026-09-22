@@ -3,7 +3,24 @@ using CheatEngine.SDK.Engine.Values;
 
 namespace CheatEngine.Client.Scanning;
 
-/// <summary>An immutable terminal builder for an AOB scan that returns its first match, if any.</summary>
+/// <summary>
+///     An immutable terminal builder for an AOB scan that returns the first copied match in Cheat Engine's result-list
+///     order, if any.
+/// </summary>
+/// <remarks>
+///     <para>
+///         Core copies at most one post-filtered address from Cheat Engine's exhaustive result list. The limit bounds only
+///         that copy: it never stops Cheat Engine early and is never backed by a bounded or "first found" scan. The
+///         returned address is the first element in Cheat Engine's result-list order, which Cheat Engine does not
+///         specify: it is not guaranteed to be the lowest address or the first logical region.
+///     </para>
+///     <para>
+///         <see langword="null" /> means Cheat Engine returned a result list without any post-filtered match. With
+///         CheatEngine.SDK 1.0.0 a scan that finds nothing is usually reported as
+///         <see cref="CheatEngineFailureKind.IndeterminateHostResult" /> (no result list: zero matches or a host failure,
+///         indistinguishable with that SDK version), never converted to <see langword="null" />.
+///     </para>
+/// </remarks>
 public readonly record struct AobFirstMatchBuilder
 {
 	private readonly AobScanRequest _request;
@@ -15,10 +32,15 @@ public readonly record struct AobFirstMatchBuilder
 		_request = request;
 	}
 
-	/// <summary>Runs the scan and returns its first match, or <see langword="null" /> when no match exists.</summary>
+	/// <summary>
+	///     Runs the scan and returns its first copied match, or <see langword="null" /> when the returned list held no
+	///     post-filtered match.
+	/// </summary>
 	/// <param name="cancellationToken">Cancels before the scan reaches Cheat Engine.</param>
 	/// <returns>The first copied target address, or <see langword="null" />.</returns>
-	/// <exception cref="CheatEngineOperationException">The scan operation failed.</exception>
+	/// <exception cref="CheatEngineOperationException">
+	///     The scan operation failed, including the SDK 1.0.0 indeterminate "no result list" outcome.
+	/// </exception>
 	public Address? Execute(CancellationToken cancellationToken = default)
 	{
 		if (TryExecute(out Address? address, out CheatEngineFailure failure, cancellationToken))
@@ -30,10 +52,15 @@ public readonly record struct AobFirstMatchBuilder
 	}
 
 	/// <summary>Runs the scan and attempts to return its first match.</summary>
-	/// <param name="address">The first target address, or <see langword="null" /> when no match exists.</param>
+	/// <param name="address">
+	///     The first copied target address, or <see langword="null" /> when the returned list held no post-filtered match.
+	/// </param>
 	/// <param name="failure">The scan failure when the method returns <see langword="false" />.</param>
 	/// <param name="cancellationToken">Cancels before the scan reaches Cheat Engine.</param>
-	/// <returns><see langword="true" /> when the scan ran successfully, including a no-match result.</returns>
+	/// <returns>
+	///     <see langword="true" /> when Cheat Engine returned a result list, including an empty or fully post-filtered one;
+	///     <see langword="false" /> for every failure, including <see cref="CheatEngineFailureKind.IndeterminateHostResult" />.
+	/// </returns>
 	public bool TryExecute(out Address? address, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{

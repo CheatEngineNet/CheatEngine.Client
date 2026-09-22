@@ -21,7 +21,7 @@ internal sealed class SdkAobScanPort : IAobScanPort
 		matches = null;
 		if (!AobScanner.TryScan(pattern, options, out Owned<StringList>? owner))
 		{
-			return AobScanHostStatus.Rejected;
+			return AobScanHostStatus.NoResultList;
 		}
 
 		matches = OwnershipHandoff.Adopt(owner, static acquired => new SdkAobMatchList(acquired));

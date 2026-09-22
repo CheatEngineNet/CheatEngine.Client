@@ -2,7 +2,18 @@ using CheatEngine.Client.Results;
 
 namespace CheatEngine.Client.Scanning;
 
-/// <summary>An immutable terminal builder for a bounded, copied AOB result set.</summary>
+/// <summary>An immutable terminal builder for a materialization-bounded, copied AOB result set.</summary>
+/// <remarks>
+///     <para>
+///         The limit bounds only how many post-filtered addresses Core copies from Cheat Engine's result list; Cheat Engine
+///         still runs one global scan and is never stopped early. Inspect <see cref="AobScanResult.IsTruncated" /> before
+///         treating the copy as complete.
+///     </para>
+///     <para>
+///         With CheatEngine.SDK 1.0.0 a scan that finds nothing is usually reported as
+///         <see cref="CheatEngineFailureKind.IndeterminateHostResult" />, not as an empty result.
+///     </para>
+/// </remarks>
 public readonly record struct AobManyMatchBuilder
 {
 	private readonly AobScanRequest _request;
@@ -14,7 +25,7 @@ public readonly record struct AobManyMatchBuilder
 		_request = request;
 	}
 
-	/// <summary>Runs the bounded scan and returns its copied result set.</summary>
+	/// <summary>Runs the scan and returns its materialization-bounded copied result set.</summary>
 	/// <param name="cancellationToken">Cancels before the scan reaches Cheat Engine.</param>
 	/// <returns>
 	///     The bounded copied result set; inspect <see cref="AobScanResult.IsTruncated" /> before treating it as
@@ -31,7 +42,7 @@ public readonly record struct AobManyMatchBuilder
 		throw new CheatEngineOperationException(failure);
 	}
 
-	/// <summary>Runs the bounded scan and attempts to return its copied result set.</summary>
+	/// <summary>Runs the scan and attempts to return its materialization-bounded copied result set.</summary>
 	/// <param name="result">The bounded copied result set when the method returns <see langword="true" />.</param>
 	/// <param name="failure">The scan or materialization failure when the method returns <see langword="false" />.</param>
 	/// <param name="cancellationToken">Cancels before the scan reaches Cheat Engine.</param>

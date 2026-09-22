@@ -381,6 +381,37 @@ public sealed class AobFluentBuilderTests
 		Assert.Equal(2, Assert.IsType<AobScanRequest>(scanner.LastRequest).MaximumResults);
 	}
 
+	[Fact]
+	[Trait("Qualification", "Q27")]
+	public void AobAmbiguousFalseIsNeverReportedAsNotFound()
+	{
+		CheatEngineFailure indeterminate = new(CheatEngineFailureKind.IndeterminateHostResult, "Patterns.Scan",
+			"Cheat Engine returned no AOB result list: zero matches or a host failure " +
+			"(indistinguishable with CheatEngine.SDK 1.0.0).", null, CheatEngineHostEffect.Completed);
+		FakePatternScanner scanner = new(indeterminate);
+		AobScanBuilder builder = scanner.Aob("90 90").InModule("game.exe");
+
+		bool firstSucceeded = builder.FirstOrNone().TryExecute(out Address? first, out CheatEngineFailure firstFailure,
+			TestContext.Current.CancellationToken);
+		bool singleSucceeded = builder.RequireSingle().TryExecute(out _, out CheatEngineFailure singleFailure,
+			TestContext.Current.CancellationToken);
+		bool manySucceeded = builder.Take(3).TryExecute(out AobScanResult many, out CheatEngineFailure manyFailure,
+			TestContext.Current.CancellationToken);
+
+		Assert.False(firstSucceeded);
+		Assert.Null(first);
+		Assert.Equal(indeterminate, firstFailure);
+		Assert.False(singleSucceeded);
+		Assert.NotEqual(CheatEngineFailureKind.NotFound, singleFailure.Kind);
+		Assert.Equal(indeterminate, singleFailure);
+		Assert.False(manySucceeded);
+		Assert.Equal(default, many);
+		Assert.Equal(indeterminate, manyFailure);
+		CheatEngineOperationException thrown = Assert.Throws<CheatEngineOperationException>(() =>
+			builder.FirstOrNone().Execute(TestContext.Current.CancellationToken));
+		Assert.Equal(CheatEngineFailureKind.IndeterminateHostResult, thrown.Failure.Kind);
+	}
+
 	private sealed class FakePatternScanner : IPatternScanner
 	{
 		private readonly CheatEngineFailure _failure;
