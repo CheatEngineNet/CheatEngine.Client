@@ -13,6 +13,7 @@
     <File Path="eng/Shipping.props"/>
     <File Path="eng/Templates.props"/>
     <File Path="eng/Tests.props"/>
+    <File Path="eng/Update-LockFiles.ps1"/>
   </Folder>
   <Folder Name="/libs/">
     <Project Path="libs/CheatEngine.Client.Abstractions/CheatEngine.Client.Abstractions.csproj"/>

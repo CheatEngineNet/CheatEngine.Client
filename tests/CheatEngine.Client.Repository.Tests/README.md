@@ -21,6 +21,11 @@ project never builds, packs, restores or starts a process, so it runs in seconds
   release rather than `latest`, and the NuGet audit policy blocks high and critical advisories in every build. The
   build-time guards `CHEATENGINECLIENT9030`-`9032` (`Directory.Build.targets`) catch per-project or command-line
   overrides of the same settings.
+- `LockFiles/LockFileTests` mirror the structural checks of `eng/Update-LockFiles.ps1` offline: every project has a
+  lock file, the Coexistence fixtures keep version 1 lock files without `CentralTransitive` entries (the failure a
+  solution-level `--force-evaluate` caused), every other project has a version 2 lock file, the whole graph consumes
+  CheatEngine.SDK 1.0.0 with its recorded content hash, no Client package comes from a feed, the Native AOT probe
+  records its runtime packs, and each lock file keeps its committed final newline.
 
 ## Run
 
