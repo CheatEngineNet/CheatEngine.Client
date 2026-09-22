@@ -8,7 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../CheatEngine.Client.Abstractions/CheatEngine.Client.Abstractions.csproj"/>
-    <PackageReference Include="CheatEngine.SDK" VersionOverride="[1.0.0,2.0.0)"/>
+    <PackageReference Include="CheatEngine.SDK" VersionOverride="$(CheatEngineSdkVersionRange)"/>
   </ItemGroup>
 
   <ItemGroup>

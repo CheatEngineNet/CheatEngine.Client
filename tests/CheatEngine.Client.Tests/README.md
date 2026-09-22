@@ -21,6 +21,12 @@ through `CHEATENGINE_CLIENT_PACKAGE_SOURCE`, validates the template package, and
 not replace Core lifecycle tests or the opt-in live validation required for host-dependent capabilities such as value
 scans.
 
+`BuildGuardTests` run the repository's MSBuild guard targets against real projects with overridden global properties,
+without restoring or building: `CommittedPinPassesTheSdkGuard`, `SdkMajorTwoPinFailsWithCHEATENGINECLIENT9016`,
+`PrereleaseSdkPinFailsWithCHEATENGINECLIENT9016` and `CanarySwitchKeepsTheBuildRunningButStillBlocksPack` prove that the
+consumed `CheatEngine.SDK` pin cannot move to a 2.x or prerelease package, and that the SDK-side canary build can report
+breakage but never produce a package.
+
 ## Run
 
 From the repository root:

@@ -35,9 +35,10 @@ and retained-owner behavior remain `Specified_Not_Executed` until their exact co
 
 The fixture references the changed Client Hosting/source-generator graph so a source build exercises the new Client
 contract. It still references the released `CheatEngine.SDK` 1.0.0 package directly, which supplies the SDK entry-point
-generator and bridge assets. `CoexistenceSdkPackageVersion` can be overridden per fixture project only when an operator
-has an exact candidate SDK package source and tuple to qualify. A non-default version deliberately disables this
-fixture's lock-file write path; it is not an invitation to invent or float package versions.
+generator and bridge assets. The default `CoexistenceSdkPackageVersion` follows the repository pin in
+`eng/CheatEngineSdk.props`. It can be overridden per fixture project only when an operator has an exact candidate SDK
+package source and tuple to qualify. A version other than the pin deliberately disables this fixture's lock-file write
+path; it is not an invitation to invent or float package versions.
 
 The source fixture is not a replacement for a clean Client package consumer. The package-consumer gate is the C#
 `PackageConsumptionSmokeTests` suite, which consumes the immutable package directory supplied through

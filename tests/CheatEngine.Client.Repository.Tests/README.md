@@ -37,6 +37,15 @@ project never builds, packs, restores or starts a process, so it runs in seconds
     unless the same line negates it (audit A00-03, A20-15, A20-18).
 - `Documentation/MarkdownDocumentTests` proves the gate on in-memory text: GitHub slugs, multi-line links, opaque fences,
   code spans and comments, badges and reference definitions, local-path detection, and exact-case resolution.
+- `Packaging/SdkPinTests` proves that the Client consumes one reviewed `CheatEngine.SDK` package (audit ADR-10, A21-01,
+  A21-02):
+  - `SdkVersionAppearsAsALiteralOnlyInTheSdkPropsFile`: project files derive every SDK version from
+    `eng/CheatEngineSdk.props`;
+  - `ProseMentionsOfTheConsumedSdkEqualThePin`: documentation and diagnostics that name the SDK version name the pin;
+  - `EveryLockFileResolvesThePinnedSdkWithOneContentHash` and `ConsumedSdkIdentityMatchesThePinAndTheLockFiles`: every
+    lock resolves the pin, and `eng/sdk/consumed-sdk.json` records the content hash the locks hold;
+  - `ConsumedSdkIdentityFollowsTheEncodingRules`: the identity satisfies its schema, whose required fields are frozen;
+  - `SdkPinIsAStableVersionOfTheSupportedMajor` and `CoexistenceFixturesDeriveTheirSdkVersionFromThePin`.
 - Later work adds one folder per contract (for example `Documentation/`, `Workflows/`, `Qualification/`).
 - `Toolchain/ToolchainPinTests` keeps the build reproducible from the commit alone: `global.json` pins the exact .NET
   SDK (`rollForward: disable`, with an `errorMessage` naming the install command), `AnalysisLevel` is a numbered

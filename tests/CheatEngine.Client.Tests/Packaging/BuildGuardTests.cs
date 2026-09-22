@@ -1,0 +1,74 @@
+using CheatEngine.Client.Tests.Infrastructure;
+
+namespace CheatEngine.Client.Tests.Packaging;
+
+/// <summary>
+/// Runs the repository's MSBuild guard targets against real projects with overridden global properties. Only the guard
+/// target is evaluated and run: nothing is restored, built or packed, so each case takes a few seconds.
+/// </summary>
+public sealed class BuildGuardTests
+{
+	private const string SdkFacingLibrary = "libs/CheatEngine.Client.Hosting/CheatEngine.Client.Hosting.csproj";
+	private const string SdkPinGuard = "CheatEngineClientValidateSdkPin";
+	private const string SdkPackGuard = "CheatEngineClientRefuseUnsupportedSdkPack";
+
+	[Fact]
+	public async Task CommittedPinPassesTheSdkGuard()
+	{
+		DotNetProcessResult result = await RunGuardAsync(SdkFacingLibrary, SdkPinGuard);
+
+		Assert.True(result.ExitCode == 0, result.ToString());
+		Assert.DoesNotContain("CHEATENGINECLIENT", result.StandardOutput, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public async Task SdkMajorTwoPinFailsWithCHEATENGINECLIENT9016()
+	{
+		DotNetProcessResult result = await RunGuardAsync(SdkFacingLibrary, SdkPinGuard,
+			"-p:CheatEngineSdkVersion=2.0.0", "-p:CheatEngineSdkUpperBound=3.0.0");
+
+		Assert.True(result.ExitCode != 0, result.ToString());
+		Assert.Contains("error CHEATENGINECLIENT9016", result.StandardOutput, StringComparison.Ordinal);
+		Assert.Contains("'2.0.0' has major version 2", result.StandardOutput, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public async Task PrereleaseSdkPinFailsWithCHEATENGINECLIENT9016()
+	{
+		DotNetProcessResult result = await RunGuardAsync(SdkFacingLibrary, SdkPinGuard,
+			"-p:CheatEngineSdkVersion=1.1.0-beta.1");
+
+		Assert.True(result.ExitCode != 0, result.ToString());
+		Assert.Contains("error CHEATENGINECLIENT9016", result.StandardOutput, StringComparison.Ordinal);
+		Assert.Contains("'1.1.0-beta.1' is a prerelease", result.StandardOutput, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public async Task CanarySwitchKeepsTheBuildRunningButStillBlocksPack()
+	{
+		string[] canary =
+		[
+			"-p:CheatEngineSdkVersion=2.0.0-alpha.0.1", "-p:CheatEngineSdkUpperBound=3.0.0", "-p:CheatEngineSdkCanary=true"
+		];
+
+		DotNetProcessResult build = await RunGuardAsync(SdkFacingLibrary, SdkPinGuard, canary);
+		DotNetProcessResult pack = await RunGuardAsync(SdkFacingLibrary, SdkPackGuard, canary);
+
+		Assert.True(build.ExitCode == 0, build.ToString());
+		Assert.Contains("CHEATENGINECLIENT9016 (canary build, not enforced", build.StandardOutput, StringComparison.Ordinal);
+		Assert.DoesNotContain("error CHEATENGINECLIENT", build.StandardOutput, StringComparison.Ordinal);
+		Assert.True(pack.ExitCode != 0, pack.ToString());
+		Assert.Contains("error CHEATENGINECLIENT9016", pack.StandardOutput, StringComparison.Ordinal);
+	}
+
+	private static Task<DotNetProcessResult> RunGuardAsync(string project, string target, params string[] properties)
+	{
+		List<string> arguments =
+		[
+			"msbuild", RepositoryLayout.Combine(project), $"-t:{target}", "-nologo", "-nodeReuse:false",
+			"-verbosity:minimal", "-p:CheatEngineSdkCanary=false"
+		];
+		arguments.AddRange(properties);
+		return DotNetProcess.RunAsync(RepositoryLayout.Root, [.. arguments]);
+	}
+}

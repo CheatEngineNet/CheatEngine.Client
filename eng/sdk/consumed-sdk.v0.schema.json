@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/eng/sdk/consumed-sdk.v0.schema.json",
+  "title": "Consumed CheatEngine.SDK identity",
+  "description": "The reviewed identity of the exact CheatEngine.SDK package the Client consumes. Its field names are the consumedSdk names of the Client release tuple (cheatengine-client-tuple/v0). Four different hashes identify one package; each field names what it hashes.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "id",
+    "version",
+    "range",
+    "contentHashSha512",
+    "attestedAssetSha256",
+    "nugetOrgSignedSha256",
+    "nugetOrgSignedSha512",
+    "sourceCommit",
+    "sourceTreeHash",
+    "nativeBridge",
+    "lockFile"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cheatengine-consumed-sdk/v0"
+    },
+    "id": {
+      "const": "CheatEngine.SDK"
+    },
+    "version": {
+      "description": "The pinned version; equal to CheatEngineSdkVersion in eng/CheatEngineSdk.props. A stable release only.",
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+    },
+    "range": {
+      "description": "The dependency range the Client packages declare, in NuGet's normalized form; equal to CheatEngineSdkVersionRange.",
+      "type": "string",
+      "pattern": "^\\[[0-9]+\\.[0-9]+\\.[0-9]+, [0-9]+\\.[0-9]+\\.[0-9]+\\)$"
+    },
+    "contentHashSha512": {
+      "description": "The NuGet SHA-512 base64 content hash read from the lock file: the hash NuGet computes over the package content without its signature, as recorded in packages.lock.json and .nupkg.metadata. It is not a SHA-256 of any downloaded .nupkg file.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9+/]{86}==$"
+    },
+    "attestedAssetSha256": {
+      "description": "SHA-256 of the unsigned .nupkg attached to the SDK GitHub release and covered by its build provenance attestation.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "nugetOrgSignedSha256": {
+      "description": "SHA-256 of the repository-signed .nupkg file that nuget.org serves.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "nugetOrgSignedSha512": {
+      "description": "SHA-512 (base64) of the repository-signed .nupkg file that nuget.org serves, as NuGet writes it into <id>.<version>.nupkg.sha512 in the global packages folder and into the sha512 of a .deps.json package library.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9+/]{86}==$"
+    },
+    "sourceCommit": {
+      "description": "The SDK commit the release tag points to.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "sourceTreeHash": {
+      "description": "The git tree of that commit.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "nativeBridge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "packagePath",
+        "sha256",
+        "sourceFingerprint"
+      ],
+      "properties": {
+        "packagePath": {
+          "const": "build/native/cheatengine-sdk-lua-bridge.dll"
+        },
+        "sha256": {
+          "description": "SHA-256 of the native Lua protection bridge inside the package.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "sourceFingerprint": {
+          "description": "The bridge source fingerprint the SDK embeds: SHA-256 of the C source and of the xmake build script.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "lockFile": {
+      "description": "The repository-relative lock file whose CheatEngine.SDK entry contentHashSha512 is read from.",
+      "const": "libs/CheatEngine.Client.Core/packages.lock.json"
+    }
+  }
+}

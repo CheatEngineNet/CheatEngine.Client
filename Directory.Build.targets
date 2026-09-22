@@ -42,7 +42,7 @@
       <_CheatEngineClientSdkReference Include="@(PackageReference)"
                                       Condition="'%(PackageReference.Identity)' == 'CheatEngine.SDK' and '%(PackageReference.DefiningProjectName)' == '$(MSBuildProjectName)'"/>
       <_CheatEngineClientSdkRangeReference Include="@(_CheatEngineClientSdkReference)"
-                                           Condition="'%(_CheatEngineClientSdkReference.VersionOverride)' == '[1.0.0,2.0.0)'"/>
+                                           Condition="'%(_CheatEngineClientSdkReference.VersionOverride)' == '$(CheatEngineSdkVersionRange)'"/>
     </ItemGroup>
     <PropertyGroup>
       <_CheatEngineClientProjectReferences>@(_CheatEngineClientDirectProjectReference-&gt;'%(Filename)')</_CheatEngineClientProjectReferences>
@@ -68,7 +68,70 @@
            Text="CheatEngine.Client must reference only CheatEngine.Client.Fluent and CheatEngine.Client.Hosting."/>
     <Error Condition="('$(MSBuildProjectName)' == 'CheatEngine.Client.Abstractions' or '$(MSBuildProjectName)' == 'CheatEngine.Client.Core' or '$(MSBuildProjectName)' == 'CheatEngine.Client.Hosting') and '@(_CheatEngineClientSdkRangeReference)' == ''"
            Code="CHEATENGINECLIENT9016"
-           Text="SDK-facing published packages must declare CheatEngine.SDK as [1.0.0, 2.0.0)."/>
+           Text="SDK-facing published packages must declare CheatEngine.SDK as $(CheatEngineSdkVersionRange), the range of eng/CheatEngineSdk.props."/>
+  </Target>
+
+  <!--
+    CHEATENGINECLIENT9016 and 9017: the consumed CheatEngine.SDK comes from eng/CheatEngineSdk.props only (audit ADR-10,
+    A21-01). The checks run before NuGet collects package references, so restore and build of every project fail before
+    NuGet resolves anything (no NU1102, no silently resolved 2.x package). The canary switch turns the 9016 errors into
+    messages for the SDK-side advisory client-canary job; packing is refused regardless.
+  -->
+  <Target Name="_CheatEngineClientComputeSdkPinProblem">
+    <PropertyGroup>
+      <_CheatEngineClientSdkPinMajor>$([System.Text.RegularExpressions.Regex]::Match('$(CheatEngineSdkVersion)', '^[0-9]+').Value)</_CheatEngineClientSdkPinMajor>
+      <_CheatEngineClientSdkPinProblem></_CheatEngineClientSdkPinProblem>
+      <_CheatEngineClientSdkPinProblem Condition="!$([System.Text.RegularExpressions.Regex]::IsMatch('$(CheatEngineSdkVersion)', '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'))">is not a NuGet version</_CheatEngineClientSdkPinProblem>
+      <_CheatEngineClientSdkPinProblem Condition="'$(_CheatEngineClientSdkPinProblem)' == '' and $(CheatEngineSdkVersion.Contains('-'))">is a prerelease</_CheatEngineClientSdkPinProblem>
+      <_CheatEngineClientSdkPinProblem Condition="'$(_CheatEngineClientSdkPinProblem)' == '' and '$(_CheatEngineClientSdkPinMajor)' != '$(_CheatEngineClientSupportedSdkMajor)'">has major version $(_CheatEngineClientSdkPinMajor), but this Client supports CheatEngine.SDK $(_CheatEngineClientSupportedSdkMajor).x only</_CheatEngineClientSdkPinProblem>
+      <_CheatEngineClientSdkPinProblem Condition="'$(_CheatEngineClientSdkPinProblem)' == '' and !$(CheatEngineSdkVersionRange.StartsWith('[$(CheatEngineSdkVersion),'))">is not the lower bound of the declared range '$(CheatEngineSdkVersionRange)'</_CheatEngineClientSdkPinProblem>
+      <_CheatEngineClientSdkPinMessage>The consumed CheatEngine.SDK version '$(CheatEngineSdkVersion)' $(_CheatEngineClientSdkPinProblem). This Client is built and tested against a stable CheatEngine.SDK $(_CheatEngineClientSupportedSdkMajor).x release and declares '$(CheatEngineSdkVersionRange)'. Change the pin only with eng/sdk/Update-CheatEngineSdk.ps1; moving to another major is the migration described in docs/migration/sdk-2.0.md, not a dependency bump.</_CheatEngineClientSdkPinMessage>
+    </PropertyGroup>
+  </Target>
+
+  <Target Name="CheatEngineClientValidateSdkPin"
+          BeforeTargets="CollectPackageReferences"
+          DependsOnTargets="_CheatEngineClientComputeSdkPinProblem">
+    <Error Condition="'$(_CheatEngineClientSdkPinProblem)' != '' and '$(CheatEngineSdkCanary)' != 'true'"
+           Code="CHEATENGINECLIENT9016"
+           Text="$(_CheatEngineClientSdkPinMessage)"/>
+    <Message Condition="'$(_CheatEngineClientSdkPinProblem)' != '' and '$(CheatEngineSdkCanary)' == 'true'"
+             Importance="high"
+             Text="CHEATENGINECLIENT9016 (canary build, not enforced; packing stays refused): $(_CheatEngineClientSdkPinMessage)"/>
+
+    <PropertyGroup>
+      <_CheatEngineClientSdkFacingLibrary>false</_CheatEngineClientSdkFacingLibrary>
+      <_CheatEngineClientSdkFacingLibrary Condition="'$(MSBuildProjectName)' == 'CheatEngine.Client.Abstractions' or '$(MSBuildProjectName)' == 'CheatEngine.Client.Core' or '$(MSBuildProjectName)' == 'CheatEngine.Client.Hosting'">true</_CheatEngineClientSdkFacingLibrary>
+      <_CheatEngineClientExpectedSdkVersion>$(CheatEngineSdkVersion)</_CheatEngineClientExpectedSdkVersion>
+      <_CheatEngineClientExpectedSdkVersion Condition="'$(CoexistenceSdkPackageVersion)' != ''">$(CoexistenceSdkPackageVersion)</_CheatEngineClientExpectedSdkVersion>
+      <_CheatEngineClientCentralSdkVersion>@(PackageVersion->WithMetadataValue('Identity', 'CheatEngine.SDK')->'%(Version)')</_CheatEngineClientCentralSdkVersion>
+    </PropertyGroup>
+    <ItemGroup>
+      <_CheatEngineClientPinnedSdkReference Remove="@(_CheatEngineClientPinnedSdkReference)"/>
+      <_CheatEngineClientPinnedSdkReference Include="@(PackageReference)" Condition="'%(Identity)' == 'CheatEngine.SDK'"/>
+      <_CheatEngineClientMisversionedSdkReference Remove="@(_CheatEngineClientMisversionedSdkReference)"/>
+      <_CheatEngineClientMisversionedSdkReference Include="@(_CheatEngineClientPinnedSdkReference)"
+                                                  Condition="('$(ManagePackageVersionsCentrally)' == 'true' and '$(_CheatEngineClientSdkFacingLibrary)' == 'true' and '%(_CheatEngineClientPinnedSdkReference.VersionOverride)' != '$(CheatEngineSdkVersionRange)') or ('$(ManagePackageVersionsCentrally)' == 'true' and '$(_CheatEngineClientSdkFacingLibrary)' != 'true' and '%(_CheatEngineClientPinnedSdkReference.VersionOverride)' != '') or ('$(ManagePackageVersionsCentrally)' == 'true' and '%(_CheatEngineClientPinnedSdkReference.Version)' != '') or ('$(ManagePackageVersionsCentrally)' != 'true' and '%(_CheatEngineClientPinnedSdkReference.Version)' != '$(_CheatEngineClientExpectedSdkVersion)')"/>
+    </ItemGroup>
+    <Error Condition="'@(_CheatEngineClientMisversionedSdkReference)' != ''"
+           Code="CHEATENGINECLIENT9017"
+           Text="$(MSBuildProjectName) declares CheatEngine.SDK with Version '@(_CheatEngineClientMisversionedSdkReference->'%(Version)')' and VersionOverride '@(_CheatEngineClientMisversionedSdkReference->'%(VersionOverride)')'. The version comes from eng/CheatEngineSdk.props only: the SDK-facing libraries (Abstractions, Core, Hosting) declare VersionOverride=&quot;%24(CheatEngineSdkVersionRange)&quot; (now '$(CheatEngineSdkVersionRange)'), other centrally managed projects declare no version, and projects outside Central Package Management declare Version '$(_CheatEngineClientExpectedSdkVersion)'."/>
+    <Error Condition="'$(ManagePackageVersionsCentrally)' == 'true' and '$(_CheatEngineClientCentralSdkVersion)' != '$(CheatEngineSdkVersion)'"
+           Code="CHEATENGINECLIENT9017"
+           Text="$(MSBuildProjectName) sees the central CheatEngine.SDK PackageVersion '$(_CheatEngineClientCentralSdkVersion)', expected '$(CheatEngineSdkVersion)' from eng/CheatEngineSdk.props. Do not add or update a CheatEngine.SDK PackageVersion outside Directory.Packages.props."/>
+  </Target>
+
+  <!-- A canary or otherwise unsupported SDK pin never produces a package, even when its build was allowed to run. -->
+  <Target Name="CheatEngineClientRefuseUnsupportedSdkPack"
+          BeforeTargets="Pack"
+          DependsOnTargets="_CheatEngineClientComputeSdkPinProblem"
+          Condition="'$(IsPackable)' == 'true'">
+    <Error Condition="'$(_CheatEngineClientSdkPinProblem)' != ''"
+           Code="CHEATENGINECLIENT9016"
+           Text="$(MSBuildProjectName) cannot be packed: $(_CheatEngineClientSdkPinMessage)"/>
+    <Error Condition="'$(_CheatEngineClientSdkPinProblem)' == '' and '$(CheatEngineSdkCanary)' == 'true'"
+           Code="CHEATENGINECLIENT9016"
+           Text="$(MSBuildProjectName) cannot be packed with CheatEngineSdkCanary=true: a canary build only reports what breaks against an unreleased CheatEngine.SDK."/>
   </Target>
 
   <!--

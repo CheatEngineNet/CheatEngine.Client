@@ -15,6 +15,7 @@
     <File Path="docs/README.md"/>
   </Folder>
   <Folder Name="/eng/">
+    <File Path="eng/CheatEngineSdk.props"/>
     <File Path="eng/Shipping.props"/>
     <File Path="eng/Templates.props"/>
     <File Path="eng/Tests.props"/>
@@ -28,6 +29,12 @@
     <File Path="eng/ci/Test-CoverageBaseline.ps1"/>
     <File Path="eng/ci/Test-PackageSet.ps1"/>
     <File Path="eng/ci/Test-TestModuleInventory.ps1"/>
+  </Folder>
+  <Folder Name="/eng/sdk/">
+    <File Path="eng/sdk/consumed-sdk.json"/>
+    <File Path="eng/sdk/consumed-sdk.v0.schema.json"/>
+    <File Path="eng/sdk/README.md"/>
+    <File Path="eng/sdk/Update-CheatEngineSdk.ps1"/>
   </Folder>
   <Folder Name="/libs/">
     <Project Path="libs/CheatEngine.Client.Abstractions/CheatEngine.Client.Abstractions.csproj"/>

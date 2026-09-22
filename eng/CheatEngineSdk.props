@@ -1,0 +1,35 @@
+<Project>
+  <!--
+    The single reviewed source of the CheatEngine.SDK package this Client consumes (audit ADR-10, A21-01).
+
+    Directory.Packages.props imports this file, so every project sees these values before its own body, including the
+    Coexistence fixtures that turn Central Package Management off. Every MSBuild usage derives from them:
+    - the central PackageVersion of CheatEngine.SDK (Directory.Packages.props);
+    - the VersionOverride range of the three SDK-facing libraries (Abstractions, Core, Hosting), which becomes the
+      dependency range of their packages;
+    - the default SDK version of the Coexistence fixtures;
+    - the SDK version stamped into the packed ceplugin template;
+    - the CHEATENGINECLIENT9016/9017 guards in Directory.Build.targets.
+    The reviewed identity of the pinned package (content hash, signed-file hashes, bridge, source commit) is recorded in
+    eng/sdk/consumed-sdk.json. Tests keep the two files, the lock files and the documentation in agreement.
+
+    The properties are assigned unconditionally: an environment variable cannot change the pin, only an explicit
+    -p: global property can.
+
+    Bump procedure: eng/sdk/Update-CheatEngineSdk.ps1 -Version <x> (see eng/sdk/README.md). Never edit the version
+    by hand, and never move to another major in a dependency bump.
+
+    Canary switch (used only by the SDK-side advisory client-canary job): pass
+      -p:CheatEngineSdkVersion=<2.x prerelease> -p:CheatEngineSdkUpperBound=3.0.0 -p:CheatEngineSdkCanary=true
+      -p:RestorePackagesWithLockFile=false
+    CheatEngineSdkCanary=true turns the CHEATENGINECLIENT9016 build errors into messages so the build can report what
+    breaks; packing stays refused.
+  -->
+  <PropertyGroup Label="Consumed CheatEngine.SDK">
+    <CheatEngineSdkVersion>1.0.0</CheatEngineSdkVersion>
+    <CheatEngineSdkUpperBound>2.0.0</CheatEngineSdkUpperBound>
+    <CheatEngineSdkVersionRange>[$(CheatEngineSdkVersion),$(CheatEngineSdkUpperBound))</CheatEngineSdkVersionRange>
+    <!-- Raising this is the SDK 2.0 migration described in docs/migration/sdk-2.0.md; never raise it in a dependency bump. -->
+    <_CheatEngineClientSupportedSdkMajor>1</_CheatEngineClientSupportedSdkMajor>
+  </PropertyGroup>
+</Project>

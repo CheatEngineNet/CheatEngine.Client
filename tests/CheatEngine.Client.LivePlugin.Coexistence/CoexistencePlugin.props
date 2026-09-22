@@ -17,9 +17,10 @@
     <IsPackable>false</IsPackable>
     <CheatEngineClientPluginProject>true</CheatEngineClientPluginProject>
     <CheatEngineClientSkipPluginProjectValidation>true</CheatEngineClientSkipPluginProjectValidation>
-    <CoexistenceSdkPackageVersion Condition="'$(CoexistenceSdkPackageVersion)' == ''">1.0.0</CoexistenceSdkPackageVersion>
-    <!-- A version other than the committed 1.0.0 tuple is an operator-supplied qualification input, not a lock-file update. -->
-    <RestorePackagesWithLockFile Condition="'$(CoexistenceSdkPackageVersion)' != '1.0.0'">false</RestorePackagesWithLockFile>
+    <!-- The default follows the repository pin (eng/CheatEngineSdk.props); the fixtures stay out of Central Package Management. -->
+    <CoexistenceSdkPackageVersion Condition="'$(CoexistenceSdkPackageVersion)' == ''">$(CheatEngineSdkVersion)</CoexistenceSdkPackageVersion>
+    <!-- A version other than the pinned tuple is an operator-supplied qualification input, not a lock-file update. -->
+    <RestorePackagesWithLockFile Condition="'$(CoexistenceSdkPackageVersion)' != '$(CheatEngineSdkVersion)'">false</RestorePackagesWithLockFile>
   </PropertyGroup>
 
   <ItemGroup>
