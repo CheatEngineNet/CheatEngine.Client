@@ -146,10 +146,17 @@ public sealed class PackageConsumptionSmokeTests
 		string templatePackage)
 	{
 		string templateHome = temporary.CreateDirectory("template-home");
+		// A fresh DOTNET_CLI_HOME triggers the CLI first-run experience, which by default appends that home's
+		// .dotnet\tools folder to the user's persistent PATH. Disable every first-run side effect so the smoke test
+		// leaves no trace outside its temporary directory.
 		IReadOnlyDictionary<string, string> environment = new Dictionary<string, string>(StringComparer.Ordinal)
 		{
 			["DOTNET_CLI_HOME"] = Path.Combine(templateHome, ".dotnet-cli"),
-			["DOTNET_NEW_HOME"] = Path.Combine(templateHome, ".template-engine")
+			["DOTNET_NEW_HOME"] = Path.Combine(templateHome, ".template-engine"),
+			["DOTNET_ADD_GLOBAL_TOOLS_TO_PATH"] = "false",
+			["DOTNET_GENERATE_ASPNET_CERTIFICATE"] = "false",
+			["DOTNET_NOLOGO"] = "true",
+			["DOTNET_CLI_TELEMETRY_OPTOUT"] = "true"
 		};
 
 		await AssertDotNetSuccessAsync(templateHome, environment, "new", "install", templatePackage, "--force");
