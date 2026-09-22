@@ -18,6 +18,25 @@ project never builds, packs, restores or starts a process, so it runs in seconds
 - `Release/RepositoryDocumentsTests` proves that the repository carries what a published package links to: an MIT
   `LICENSE` equal to the package license expression, a `CHANGELOG.md` whose `[Unreleased]` section separates the four
   release categories, and a `RELEASING.md` that documents the trusted publishing policy for `CheatEngine.Client*`.
+- `Documentation/DocumentationIntegrityTests` checks every Markdown file of the repository (audit F14, ADR-12):
+  - `EveryRelativeMarkdownLinkResolvesWithExactCasing`: relative links, images, reference definitions and HTML
+    `href`/`src` resolve to a committed file or folder with GitHub's case-sensitive spelling, never to build output;
+  - `EveryMarkdownAnchorMatchesAHeadingOfItsTargetPage`: `#fragment` links match a GitHub heading slug or explicit
+    anchor, including the root README navigation;
+  - `NoMarkdownFileContainsADeveloperLocalPath`: no drive path, `file:` URI or user-profile root, fences included,
+    except the illustrative `C:\CheatEngineDeploy\` deployment root;
+  - `NoMarkdownFileLinksTheRetiredDocsTree` and `RoadmapWorkItemIdentifiersAreNotLinks`: the `docs/` pages deleted by
+    `d06fd2e` stay unlinked and unrestored, and `CLI-0xx` identifiers stay plain text;
+  - `AbsoluteLinksToThisRepositoryOnMainResolveOnTheCurrentTree`: `blob/main` and `tree/main` links, used by packed
+    READMEs, resolve on the current tree, anchors included;
+  - `PackedReadmesContainOnlyAbsoluteLinks`: the seven READMEs packed for nuget.org use `https://` links only;
+  - `EveryRebuiltDocsPageStartsWithTheRecreatedHeader`, `PlaceholderPagesNameTheirOwningLotAndWave` and
+    `DocsIndexLinksEveryTopLevelPageAndFolder`: `docs/` pages declare that they were recreated, placeholders name
+    their owner, and `docs/README.md` indexes the folder;
+  - `NoMarkdownFileClaimsCompleteCoverageOrUniversalSupport`: no page claims complete coverage or universal support
+    unless the same line negates it (audit A00-03, A20-15, A20-18).
+- `Documentation/MarkdownDocumentTests` proves the gate on in-memory text: GitHub slugs, multi-line links, opaque fences,
+  code spans and comments, badges and reference definitions, local-path detection, and exact-case resolution.
 - Later work adds one folder per contract (for example `Documentation/`, `Workflows/`, `Qualification/`).
 - `Toolchain/ToolchainPinTests` keeps the build reproducible from the commit alone: `global.json` pins the exact .NET
   SDK (`rollForward: disable`, with an `errorMessage` naming the install command), `AnalysisLevel` is a numbered
