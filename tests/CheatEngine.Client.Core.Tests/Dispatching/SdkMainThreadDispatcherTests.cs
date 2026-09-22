@@ -22,23 +22,6 @@ public sealed class SdkMainThreadDispatcherTests
 	}
 
 	[Fact]
-	public void TryInvokeReportsCancellationBeforeCallingTheSdkDispatcher()
-	{
-		using ControlledCoreLifetimeContext context = new();
-		using CoreLifetime lifetime = new(context);
-		SdkMainThreadDispatcher dispatcher = new(lifetime);
-		using CancellationTokenSource cancellation = new();
-		cancellation.Cancel();
-
-		bool succeeded = dispatcher.TryInvoke(static () => throw new InvalidOperationException("must not run"),
-			out CheatEngineFailure failure, cancellation.Token);
-
-		Assert.False(succeeded);
-		Assert.Equal(CheatEngineFailureKind.Cancelled, failure.Kind);
-		Assert.Equal("Dispatcher.Invoke", failure.Operation);
-	}
-
-	[Fact]
 	public void InvokeConvertsARejectedDispatchToThePublicFailureException()
 	{
 		using ControlledCoreLifetimeContext context = new();

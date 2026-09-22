@@ -47,13 +47,14 @@ managed deployment requirements. Keep both direct package references when adapti
 
 ## Validate the template from this repository
 
-Pack the repository first so the smoke test can restore the Client packages from `artifacts/packages`, then run the
-dedicated validation script:
+Pack the repository first so the C# consumer smoke test can restore the Client packages from `artifacts/packages`:
 
 ```powershell
-dotnet pack CheatEngine.Client.slnx --configuration Release
-.\eng\Invoke-TemplateSmoke.ps1 -PackageSource .\artifacts\packages
+dotnet pack CheatEngine.Client.slnx --configuration Release --output .\artifacts\packages
+$env:CHEATENGINE_CLIENT_PACKAGE_SOURCE = (Resolve-Path .\artifacts\packages).Path
+dotnet test --project .\tests\CheatEngine.Client.Tests\CheatEngine.Client.Tests.csproj --configuration Release --no-build --no-restore --fail-skips on
 ```
 
-The smoke test installs the locally packed template, runs `dotnet new ceplugin --dry-run`, instantiates it into a
+The package smoke test installs the locally packed template, runs `dotnet new ceplugin --dry-run`, instantiates it into
+a
 temporary directory, restores it against the local package source, and builds it in Release configuration.

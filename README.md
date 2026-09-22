@@ -176,7 +176,7 @@ therefore throws `CheatEngineActivationExpiredException` even when the requested
 cancellation token can prevent dispatch or stop Client-managed work between steps, but it does not claim to interrupt
 a Lua primitive that has already started. `ILocalProcessDiagnostics` is the explicit exception: it is an offline BCL
 catalog service, never a proof of Cheat Engine target identity, and its copied snapshots remain usable after disable.
-Read [ADR 0002](docs/adr/0002-plugin-activation-lifecycle.md) before adding a service that touches Cheat Engine.
+Services that touch Cheat Engine must preserve this activation-lifecycle contract.
 
 ## Packages and direct SDK reference
 
@@ -228,8 +228,7 @@ Target allocations; assembly and Auto Assembler; remote execution and DLL inject
 hotkeys and timers; speed; hashing; and DBVM now have public Client API contracts. Each remains
 `Unknown` or `Unavailable` until its primitive, ownership, and lifecycle behavior passes the corresponding Cheat
 Engine 7.7 x64 live gate. IPC, remote clients, UI/forms, structures, Mono/IL2CPP, and advanced ABI hooks remain
-outside v0.1 and have no placeholder public API. The full current-state rationale is in
-[ADR 0004](docs/adr/0004-capability-matrix.md).
+outside v0.1 and have no placeholder public API. The capability table above is the current public-surface contract.
 
 ## AOT, trimming, and deployment
 
@@ -243,8 +242,8 @@ framework-dependent managed plugin output folder. Deploy it as one unit: your pl
 `.runtimeconfig.json`, Client and SDK assemblies, and the SDK's `cheatengine-sdk-lua-bridge.dll` must remain together.
 
 The template sets `IsAotCompatible` and `VerifyReferenceAotCompatibility` to protect the application code path, while
-leaving the plugin itself in the SDK-supported managed form. See [ADR 0003](docs/adr/0003-package-and-aot-policy.md)
-for the package and AOT policy.
+leaving the plugin itself in the SDK-supported managed form. The package and AOT policy is enforced by the project
+files, package validation, and the probe described above.
 
 ## Build and validation
 
@@ -255,19 +254,19 @@ lock files. Run the normal Windows validation sequence from the repository root:
 dotnet restore CheatEngine.Client.slnx --locked-mode
 dotnet build CheatEngine.Client.slnx --configuration Release --no-restore
 dotnet test --solution CheatEngine.Client.slnx --configuration Release --no-build --no-restore
-dotnet pack CheatEngine.Client.slnx --configuration Release --no-build --no-restore
-./eng/Invoke-PackageSmoke.ps1 -PackageSource ./artifacts/packages
-./eng/Invoke-TemplateSmoke.ps1 -PackageSource ./artifacts/packages
+dotnet pack CheatEngine.Client.slnx --configuration Release --no-build --no-restore --output ./artifacts/packages
+$env:CHEATENGINE_CLIENT_PACKAGE_SOURCE = (Resolve-Path ./artifacts/packages).Path
+dotnet test --project ./tests/CheatEngine.Client.Tests/CheatEngine.Client.Tests.csproj --configuration Release --no-build --no-restore --fail-skips on
 dotnet publish tests/CheatEngine.Client.AotProbe/CheatEngine.Client.AotProbe.csproj --configuration Release --runtime win-x64 --no-restore --output ./artifacts/aot-probe
 ./artifacts/aot-probe/CheatEngine.Client.AotProbe.exe
 ```
 
 The [Windows CI workflow](.github/workflows/ci.yml) runs the locked restore, Release build, Microsoft Testing Platform
-tests, package API validation, isolated package smoke test, template smoke test, and Native AOT graph probe. The
+tests, package API validation, one immutable package artifact, the C# package/template consumer smoke test, and Native
+AOT graph probe. The
 Cheat Engine 7.7 x64 live suite is opt-in and intentionally excluded from ordinary CI; no CI result should be read as
-proof that an untested live-host feature is available. The required success, failure, cleanup, disable, re-enable, and
-target-change evidence for every advanced capability is defined in the
-[live-capability gate protocol](docs/live-capability-gates.md).
+proof that an untested live-host feature is available. Success, failure, cleanup, disable, re-enable, and target-change
+evidence for every advanced capability still requires the opt-in Cheat Engine 7.7 x64 qualification run.
 
 ## Security and scope
 
@@ -278,15 +277,6 @@ Table loading can execute Lua in the host. Keep `AllowedTableRoots` empty unless
 trusted import/export location; an empty set disables table file access. Arbitrary Lua source is separately opt-in and
 should remain disabled unless the plugin has a deliberate trust boundary. Avoid logging target-memory contents or Lua
 source by default.
-
-## Architecture records
-
-The decisions that constrain the public surface and delivery model are maintained as short ADRs:
-
-- [Layered in-process architecture](docs/adr/0001-layered-in-process-architecture.md)
-- [One Client activation per plugin enable epoch](docs/adr/0002-plugin-activation-lifecycle.md)
-- [Package and AOT policy](docs/adr/0003-package-and-aot-policy.md)
-- [Capability delivery matrix](docs/adr/0004-capability-matrix.md)
 
 For the SDK's bootstrap, generated Lua bindings, native bridge, and host ABI details, start with the
 [CheatEngine.SDK README](https://github.com/CheatEngineNet/CheatEngine.SDK#readme).

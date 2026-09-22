@@ -130,10 +130,20 @@ public static class CheatEngineClientServiceCollectionExtensions
 			serviceProvider.GetRequiredService<ProcessClient>());
 
 		services.TryAddSingleton<MemoryClient>(static serviceProvider =>
-			new MemoryClient(
+		{
+			CheatEngineClientOptions options =
+				serviceProvider.GetRequiredService<IOptions<CheatEngineClientOptions>>().Value;
+			MemoryResourceLimits limits = options.MemoryResourceLimits
+			                              ?? throw new InvalidOperationException(
+				                              "MemoryResourceLimits must be validated before the Client memory service is created.");
+			return new MemoryClient(
 				serviceProvider.GetRequiredService<SdkMainThreadDispatcher>(),
-				serviceProvider.GetRequiredService<CoreLifetime>()));
+				serviceProvider.GetRequiredService<CoreLifetime>(),
+				limits);
+		});
 		services.TryAddSingleton<IMemoryClient>(static serviceProvider =>
+			serviceProvider.GetRequiredService<MemoryClient>());
+		services.TryAddSingleton<IMemoryBatchClient>(static serviceProvider =>
 			serviceProvider.GetRequiredService<MemoryClient>());
 
 		services.TryAddSingleton<PatternScanner>(static serviceProvider =>

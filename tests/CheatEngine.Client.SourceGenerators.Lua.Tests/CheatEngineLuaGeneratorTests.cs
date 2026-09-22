@@ -289,6 +289,89 @@ public sealed class CheatEngineLuaGeneratorTests
 		Assert.Empty(run.GeneratedSources);
 	}
 
+	[Theory]
+	[InlineData("abstract", "concrete")]
+	[InlineData("file", "file-local")]
+	public void AbstractOrFileLocalModulesProduceDeterministicShapeDiagnostics(string modifier,
+		string expectedMessageFragment)
+	{
+		string source = ModulePrefix +
+		                "[CheatEngineLuaModule(typeof(PluginLuaBindings), \"plugin\")] " + modifier +
+		                " partial class PluginLuaModule { }";
+
+		Diagnostic first = Assert.Single(GeneratorRun.Execute(source).Diagnostics
+			.Where(static diagnostic => diagnostic.Id == "CECLUA1001"));
+		Diagnostic second = Assert.Single(GeneratorRun.Execute(source).Diagnostics
+			.Where(static diagnostic => diagnostic.Id == "CECLUA1001"));
+
+		Assert.Equal(first.GetMessage(CultureInfo.InvariantCulture), second.GetMessage(CultureInfo.InvariantCulture));
+		Assert.Contains(expectedMessageFragment, first.GetMessage(CultureInfo.InvariantCulture),
+			StringComparison.Ordinal);
+	}
+
+	[Theory]
+	[InlineData("file static partial class FileLuaBindings", "typeof(FileLuaBindings)", "file-local")]
+	[InlineData("internal static partial class GenericLuaBindings<T>", "typeof(GenericLuaBindings<>)", "non-generic")]
+	public void FileLocalOrGenericBindingsProduceDeterministicDiagnostics(string bindingsDeclaration,
+		string bindingsType, string expectedMessageFragment)
+	{
+		string source =
+			$$"""
+			  using CheatEngine.Client.Lua;
+			  using CheatEngine.SDK.Annotations.Lua;
+			  namespace TestPlugin;
+			  {{bindingsDeclaration}}
+			  {
+			    [LuaFunction("status")]
+			    public static string Status() => "ok";
+			  }
+
+			  [CheatEngineLuaModule({{bindingsType}}, "plugin")]
+			  internal sealed partial class PluginLuaModule
+			  {
+			  }
+			  """;
+
+		Diagnostic first = Assert.Single(GeneratorRun.Execute(source).Diagnostics
+			.Where(static diagnostic => diagnostic.Id == "CECLUA1002"));
+		Diagnostic second = Assert.Single(GeneratorRun.Execute(source).Diagnostics
+			.Where(static diagnostic => diagnostic.Id == "CECLUA1002"));
+
+		Assert.Equal(first.GetMessage(CultureInfo.InvariantCulture), second.GetMessage(CultureInfo.InvariantCulture));
+		Assert.Contains(expectedMessageFragment, first.GetMessage(CultureInfo.InvariantCulture),
+			StringComparison.Ordinal);
+	}
+
+	[Theory]
+	[InlineData("file static partial class Globals", "file-local")]
+	[InlineData("internal static partial class Globals<T>", "non-generic")]
+	public void FileLocalOrGenericOperationContainersProduceDeterministicDiagnostics(string containerDeclaration,
+		string expectedMessageFragment)
+	{
+		string source =
+			$$"""
+			  using CheatEngine.Client.Lua;
+			  using CheatEngine.SDK.Annotations.Lua;
+			  namespace TestPlugin;
+			  {{containerDeclaration}}
+			  {
+			    [CheatEngineLuaOperation]
+			    [LuaGlobal("readVersion")]
+			    public static partial int ReadVersion();
+			  }
+			  """;
+
+		Diagnostic first = Assert.Single(GeneratorRun.Execute(source).Diagnostics
+			.Where(static diagnostic => diagnostic.Id == "CECLUA1101"));
+		Diagnostic second = Assert.Single(GeneratorRun.Execute(source).Diagnostics
+			.Where(static diagnostic => diagnostic.Id == "CECLUA1101"));
+
+		Assert.Equal(first.GetMessage(CultureInfo.InvariantCulture), second.GetMessage(CultureInfo.InvariantCulture));
+		Assert.Contains(expectedMessageFragment, first.GetMessage(CultureInfo.InvariantCulture),
+			StringComparison.Ordinal);
+		Assert.Empty(GeneratorRun.Execute(source).GeneratedSources);
+	}
+
 	[Fact]
 	public void DuplicateModuleExportsProduceAnActionableDiagnostic()
 	{
@@ -392,6 +475,62 @@ public sealed class CheatEngineLuaGeneratorTests
 				Assert.Single(run.Diagnostics.Where(static candidate => candidate.Id == "CECLUA1106"));
 			Assert.Equal("CECLUA1106", diagnostic.Id);
 			Assert.Empty(run.GeneratedSources);
+		}
+	}
+
+	[Fact]
+	public void MapperRejectsOpaqueFrameworkAndReflectionTypesEvenInsideApprovedCollections()
+	{
+		(string ResultType, string ExpectedType)[] cases =
+		[
+			("global::System.Collections.ArrayList", "System.Collections.ArrayList"),
+			("global::System.Collections.IEnumerable", "System.Collections.IEnumerable"),
+			("global::System.Runtime.InteropServices.GCHandle", "System.Runtime.InteropServices.GCHandle"),
+			("global::Microsoft.Win32.SafeHandles.SafeFileHandle", "Microsoft.Win32.SafeHandles.SafeFileHandle"),
+			("global::System.Reflection.MemberInfo", "System.Reflection.MemberInfo"),
+			("global::System.Buffers.IMemoryOwner<byte>", "System.Buffers.IMemoryOwner<T>"),
+			("global::System.Collections.Immutable.ImmutableArray<global::Microsoft.Win32.SafeHandles.SafeFileHandle>",
+				"Microsoft.Win32.SafeHandles.SafeFileHandle")
+		];
+
+		foreach ((string resultType, string expectedType) in cases)
+		{
+			GeneratorRun run = GeneratorRun.Execute(CreateMappedOperationSource(resultType));
+			Diagnostic diagnostic =
+				Assert.Single(run.Diagnostics.Where(static candidate => candidate.Id == "CECLUA1106"));
+			Assert.Contains(expectedType, diagnostic.GetMessage(CultureInfo.InvariantCulture),
+				StringComparison.Ordinal);
+			Assert.Empty(run.GeneratedSources);
+		}
+	}
+
+	[Fact]
+	public void MapperAllowsClosedImmutableAndReadOnlyFrameworkCollections()
+	{
+		string[] resultTypes =
+		[
+			"global::System.Collections.Generic.IEnumerable<int>",
+			"global::System.Collections.Generic.IReadOnlyList<global::System.Collections.Immutable.ImmutableArray<int>>",
+			"global::System.Collections.Immutable.ImmutableDictionary<string, global::System.Collections.Generic.IReadOnlySet<int>>",
+			"global::System.Collections.ObjectModel.ReadOnlyDictionary<string, int>"
+		];
+
+		foreach (string resultType in resultTypes)
+		{
+			GeneratorRun run = GeneratorRun.Execute(CreateMappedOperationSource(resultType));
+			Assert.Empty(run.Diagnostics);
+			Assert.Single(run.GeneratedSources);
+			Compilation generatedConsumer = run.OutputCompilation.AddSyntaxTrees(CSharpSyntaxTree.ParseText(
+				"""
+				namespace TestPlugin;
+				internal static partial class Globals
+				{
+					public static partial SdkSnapshot GetUnsafe() => new();
+				}
+				""",
+				new CSharpParseOptions(LanguageVersion.CSharp14),
+				cancellationToken: TestContext.Current.CancellationToken));
+			AssertNoCompilerDiagnostics(generatedConsumer);
 		}
 	}
 

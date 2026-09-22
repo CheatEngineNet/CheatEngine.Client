@@ -32,7 +32,7 @@ public sealed class AobFluentBuilderTests
 		FakePatternScanner scanner = new();
 		AobScanBuilder original = scanner.Aob("48 8B ?? 89");
 
-		AobScanBuilder configured = original.InModule("game.exe").InRange(0x400000, 0x4FFFFF).ReadableExecutable();
+		AobScanBuilder configured = original.InModule("game.exe").InRange(0x400000, 0x4FFFFF).Executable();
 
 		Assert.Null(original.Module);
 		Assert.Null(original.Range);
@@ -41,6 +41,18 @@ public sealed class AobFluentBuilderTests
 		Assert.Equal(new AobScanRange(0x400000, 0x4FFFFF), configured.Range);
 		Assert.Equal("+X-C-W", configured.Options.ProtectionFlags);
 		Assert.Equal("48 8B ?? 89", configured.Pattern.Value);
+	}
+
+	[Fact]
+	public void ReadableExecutableRemainsACompatibleAliasForExecutable()
+	{
+		FakePatternScanner scanner = new();
+
+		AobScanBuilder executable = scanner.Aob("90").Executable();
+		AobScanBuilder readableExecutable = scanner.Aob("90").ReadableExecutable();
+
+		Assert.Equal("+X-C-W", executable.Options.ProtectionFlags);
+		Assert.Equal(executable.Options, readableExecutable.Options);
 	}
 
 	[Fact]

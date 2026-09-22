@@ -7,8 +7,18 @@ namespace CheatEngine.Client.Core.Tests.Dispatching;
 
 public sealed class SdkMainThreadDispatcherBehaviorTests
 {
-	[Fact]
-	public void TryInvokeExecutesActionAndGenericCallbacksThroughTheInjectedMainThreadInvoker()
+	public enum DispatchForm
+	{
+		Action,
+		Function,
+		StatefulFunction
+	}
+
+	[Theory]
+	[InlineData(DispatchForm.Action)]
+	[InlineData(DispatchForm.Function)]
+	[InlineData(DispatchForm.StatefulFunction)]
+	public void TryInvokeContractExecutesCallbacksAndReturnsTheirSuccessfulResults(DispatchForm form)
 	{
 		using ControlledCoreLifetimeContext context = new();
 		using CoreLifetime lifetime = new(context);
@@ -16,78 +26,127 @@ public sealed class SdkMainThreadDispatcherBehaviorTests
 		SdkMainThreadDispatcher dispatcher = new(lifetime, invoker);
 		bool callbackRan = false;
 
-		bool actionSucceeded = dispatcher.TryInvoke(() => callbackRan = true, out CheatEngineFailure actionFailure,
+		DispatchInvocation invocation = TryInvoke(form, dispatcher, () => callbackRan = true,
 			TestContext.Current.CancellationToken);
-		bool functionSucceeded = dispatcher.TryInvoke(static () => 42, out int result,
-			out CheatEngineFailure functionFailure, TestContext.Current.CancellationToken);
 
-		Assert.True(actionSucceeded);
+		Assert.True(invocation.Succeeded);
 		Assert.True(callbackRan);
-		Assert.Equal(default, actionFailure);
-		Assert.True(functionSucceeded);
-		Assert.Equal(42, result);
-		Assert.Equal(default, functionFailure);
-		Assert.Equal(1, invoker.ActionCalls);
-		Assert.Equal(1, invoker.FunctionCalls);
+		Assert.Equal(default, invocation.Failure);
+		Assert.Equal(form == DispatchForm.Action ? null : 42, invocation.Result);
+		AssertInvokedOnlyThrough(form, invoker);
 	}
 
-	[Fact]
-	public void InternalStatefulFastPathForwardsValueStateWithoutUsingThePublicClosureFallback()
+	[Theory]
+	[InlineData(DispatchForm.Action)]
+	[InlineData(DispatchForm.Function)]
+	[InlineData(DispatchForm.StatefulFunction)]
+	public void TryInvokeContractRethrowsTheSameCallbackExceptionInstance(DispatchForm form)
 	{
 		using ControlledCoreLifetimeContext context = new();
 		using CoreLifetime lifetime = new(context);
 		RecordingMainThreadInvoker invoker = new();
-#pragma warning disable CA1859 // This test intentionally dispatches through the internal interface contract.
-		IStatefulCheatEngineDispatcher dispatcher = new SdkMainThreadDispatcher(lifetime, invoker);
-#pragma warning restore CA1859
+		SdkMainThreadDispatcher dispatcher = new(lifetime, invoker);
+		InvalidOperationException expected = new("callback failure");
 
-		bool succeeded = dispatcher.TryInvoke(21, static value => value * 2, out int result,
-			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+		InvalidOperationException actual = Assert.Throws<InvalidOperationException>(() =>
+			TryInvoke(form, dispatcher, () => throw expected, TestContext.Current.CancellationToken));
 
-		Assert.True(succeeded);
-		Assert.Equal(42, result);
-		Assert.Equal(default, failure);
-		Assert.Equal(1, invoker.StateFunctionCalls);
-		Assert.Equal(0, invoker.FunctionCalls);
+		Assert.Same(expected, actual);
+		AssertInvokedOnlyThrough(form, invoker);
 	}
 
-	[Fact]
-	public void CallbackExceptionsAreRethrownWithoutBeingClassifiedAsHostFailures()
+	[Theory]
+	[InlineData(DispatchForm.Action)]
+	[InlineData(DispatchForm.Function)]
+	[InlineData(DispatchForm.StatefulFunction)]
+	public void TryInvokeContractMapsInfrastructureFailuresToStructuredClientFailures(DispatchForm form)
 	{
 		using ControlledCoreLifetimeContext context = new();
 		using CoreLifetime lifetime = new(context);
-		SdkMainThreadDispatcher dispatcher = new(lifetime, new RecordingMainThreadInvoker());
-		InvalidOperationException expectedActionException = new("action callback");
-		InvalidOperationException expectedFunctionException = new("function callback");
+		InvalidOperationException expected = new("host queue unavailable");
+		RecordingMainThreadInvoker invoker = new() { HostException = expected };
+		SdkMainThreadDispatcher dispatcher = new(lifetime, invoker);
+		bool callbackRan = false;
 
-		InvalidOperationException actionException = Assert.Throws<InvalidOperationException>(() =>
-			dispatcher.TryInvoke(() => throw expectedActionException,
-				out CheatEngineFailure _, TestContext.Current.CancellationToken));
-		InvalidOperationException functionException = Assert.Throws<InvalidOperationException>(() =>
-			dispatcher.TryInvoke<int>(() => throw expectedFunctionException, out _,
-				out CheatEngineFailure _, TestContext.Current.CancellationToken));
-
-		Assert.Same(expectedActionException, actionException);
-		Assert.Same(expectedFunctionException, functionException);
-	}
-
-	[Fact]
-	public void TryInvokeMapsMainThreadInfrastructureFailuresToStableClientFailures()
-	{
-		using ControlledCoreLifetimeContext context = new();
-		using CoreLifetime lifetime = new(context);
-		SdkMainThreadDispatcher dispatcher = new(lifetime,
-			new RecordingMainThreadInvoker { HostException = new InvalidOperationException("host queue unavailable") });
-
-		bool succeeded = dispatcher.TryInvoke(static () =>
-			{
-			}, out CheatEngineFailure failure,
+		DispatchInvocation invocation = TryInvoke(form, dispatcher, () => callbackRan = true,
 			TestContext.Current.CancellationToken);
 
-		Assert.False(succeeded);
-		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
-		Assert.Equal("Dispatcher.Invoke", failure.Operation);
-		Assert.Equal("host queue unavailable", failure.Message);
+		Assert.False(invocation.Succeeded);
+		Assert.Equal(DefaultResultForFailedInvocation(form), invocation.Result);
+		Assert.Equal(CheatEngineFailureKind.OperationRejected, invocation.Failure.Kind);
+		Assert.Equal("Dispatcher.Invoke", invocation.Failure.Operation);
+		Assert.Equal("host queue unavailable", invocation.Failure.Message);
+		Assert.Same(expected, invocation.Failure.Exception);
+		Assert.False(callbackRan);
+		AssertInvokedOnlyThrough(form, invoker);
+	}
+
+	[Theory]
+	[InlineData(DispatchForm.Action)]
+	[InlineData(DispatchForm.Function)]
+	[InlineData(DispatchForm.StatefulFunction)]
+	public void TryInvokeContractRejectsCancelledWorkBeforeDispatchAdmission(DispatchForm form)
+	{
+		using ControlledCoreLifetimeContext context = new();
+		using CoreLifetime lifetime = new(context);
+		RecordingMainThreadInvoker invoker = new();
+		SdkMainThreadDispatcher dispatcher = new(lifetime, invoker);
+		using CancellationTokenSource cancellation = new();
+		cancellation.Cancel();
+		bool callbackRan = false;
+
+		DispatchInvocation invocation = TryInvoke(form, dispatcher, () => callbackRan = true, cancellation.Token);
+
+		Assert.False(invocation.Succeeded);
+		Assert.Equal(DefaultResultForFailedInvocation(form), invocation.Result);
+		Assert.Equal(CheatEngineFailureKind.Cancelled, invocation.Failure.Kind);
+		Assert.Equal("Dispatcher.Invoke", invocation.Failure.Operation);
+		Assert.False(callbackRan);
+		Assert.Equal(0, invoker.InvocationCount);
+	}
+
+	[Theory]
+	[InlineData(DispatchForm.Action)]
+	[InlineData(DispatchForm.Function)]
+	[InlineData(DispatchForm.StatefulFunction)]
+	public void TryInvokeContractRejectsAnExpiredActivationBeforeDispatchAdmission(DispatchForm form)
+	{
+		using ControlledCoreLifetimeContext context = new() { IsCurrent = false };
+		using CoreLifetime lifetime = new(context);
+		RecordingMainThreadInvoker invoker = new();
+		SdkMainThreadDispatcher dispatcher = new(lifetime, invoker);
+		bool callbackRan = false;
+
+		CheatEngineActivationExpiredException exception = Assert.Throws<CheatEngineActivationExpiredException>(() =>
+			TryInvoke(form, dispatcher, () => callbackRan = true, TestContext.Current.CancellationToken));
+
+		Assert.Equal(CheatEngineFailureKind.ActivationExpired, exception.Failure.Kind);
+		Assert.Equal("Dispatcher.Invoke", exception.Failure.Operation);
+		Assert.False(callbackRan);
+		Assert.Equal(0, invoker.InvocationCount);
+	}
+
+	[Theory]
+	[InlineData(DispatchForm.Action)]
+	[InlineData(DispatchForm.Function)]
+	[InlineData(DispatchForm.StatefulFunction)]
+	public void TryInvokeContractPrioritizesAnExpiredActivationOverPreAdmissionCancellation(DispatchForm form)
+	{
+		using ControlledCoreLifetimeContext context = new() { IsCurrent = false };
+		using CoreLifetime lifetime = new(context);
+		RecordingMainThreadInvoker invoker = new();
+		SdkMainThreadDispatcher dispatcher = new(lifetime, invoker);
+		using CancellationTokenSource cancellation = new();
+		cancellation.Cancel();
+
+		CheatEngineActivationExpiredException exception = Assert.Throws<CheatEngineActivationExpiredException>(() =>
+			TryInvoke(form, dispatcher, static () =>
+			{
+			}, cancellation.Token));
+
+		Assert.Equal(CheatEngineFailureKind.ActivationExpired, exception.Failure.Kind);
+		Assert.Equal("Dispatcher.Invoke", exception.Failure.Operation);
+		Assert.Equal(0, invoker.InvocationCount);
 	}
 
 	[Fact]
@@ -106,8 +165,75 @@ public sealed class SdkMainThreadDispatcherBehaviorTests
 		Assert.Equal("mainThread", invokerException.ParamName);
 	}
 
+	private static DispatchInvocation TryInvoke(
+		DispatchForm form,
+		SdkMainThreadDispatcher dispatcher,
+		Action callback,
+		CancellationToken cancellationToken)
+	{
+		switch (form)
+		{
+			case DispatchForm.Action:
+			{
+				bool succeeded = dispatcher.TryInvoke(callback, out CheatEngineFailure failure, cancellationToken);
+				return new DispatchInvocation(succeeded, null, failure);
+			}
+			case DispatchForm.Function:
+			{
+				bool succeeded = dispatcher.TryInvoke(
+					() =>
+					{
+						callback();
+						return 42;
+					},
+					out int result,
+					out CheatEngineFailure failure,
+					cancellationToken);
+				return new DispatchInvocation(succeeded, result, failure);
+			}
+			case DispatchForm.StatefulFunction:
+			{
+#pragma warning disable CA1859 // This helper intentionally exercises the internal stateful dispatch contract.
+				IStatefulCheatEngineDispatcher statefulDispatcher = dispatcher;
+#pragma warning restore CA1859
+				CallbackState state = new(callback, 42);
+				bool succeeded = statefulDispatcher.TryInvoke(
+					state,
+					static current =>
+					{
+						current.Callback();
+						return current.Result;
+					},
+					out int result,
+					out CheatEngineFailure failure,
+					cancellationToken);
+				return new DispatchInvocation(succeeded, result, failure);
+			}
+			default:
+				throw new ArgumentOutOfRangeException(nameof(form), form, null);
+		}
+	}
+
+	private static void AssertInvokedOnlyThrough(DispatchForm form, RecordingMainThreadInvoker invoker)
+	{
+		Assert.Equal(form == DispatchForm.Action ? 1 : 0, invoker.ActionCalls);
+		Assert.Equal(form == DispatchForm.Function ? 1 : 0, invoker.FunctionCalls);
+		Assert.Equal(form == DispatchForm.StatefulFunction ? 1 : 0, invoker.StateFunctionCalls);
+	}
+
+	private static int? DefaultResultForFailedInvocation(DispatchForm form)
+	{
+		return form == DispatchForm.Action ? null : 0;
+	}
+
+	private readonly record struct CallbackState(Action Callback, int Result);
+
+	private readonly record struct DispatchInvocation(bool Succeeded, int? Result, CheatEngineFailure Failure);
+
 	private sealed class RecordingMainThreadInvoker : IMainThreadInvoker
 	{
+		internal int InvocationCount => ActionCalls + FunctionCalls + StateFunctionCalls;
+
 		internal int ActionCalls
 		{
 			get;

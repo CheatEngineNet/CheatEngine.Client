@@ -16,8 +16,10 @@ The smoke tests compile against the assembled consumer graph and inspect selecte
 handle types. They catch accidental dependency omissions, namespace regressions, and public leakage of `LuaState`,
 `LuaRef`, `CEObject`, `Owned<T>`, `MemScan`, or `FoundList` before package smoke tests run.
 
-The suite is activation-independent. It does not replace Core lifecycle tests, template/package smoke tests, or the
-opt-in live validation required for host-dependent capabilities such as value scans.
+The suite is activation-independent. `PackageConsumptionSmokeTests` consumes the exact package directory supplied
+through `CHEATENGINE_CLIENT_PACKAGE_SOURCE`, validates the template package, and builds isolated consumers. It does
+not replace Core lifecycle tests or the opt-in live validation required for host-dependent capabilities such as value
+scans.
 
 ## Run
 

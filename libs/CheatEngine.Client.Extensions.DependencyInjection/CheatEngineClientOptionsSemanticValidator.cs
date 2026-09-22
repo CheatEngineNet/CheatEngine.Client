@@ -20,6 +20,20 @@ public sealed class CheatEngineClientOptionsSemanticValidator : IValidateOptions
 			return ValidateOptionsResult.Fail("AllowedTableRoots must be an empty array or contain absolute paths.");
 		}
 
+		if (options.MemoryResourceLimits is null)
+		{
+			return ValidateOptionsResult.Fail("MemoryResourceLimits must be configured.");
+		}
+
+		try
+		{
+			_ = options.MemoryResourceLimits.CreateSnapshot();
+		}
+		catch (ArgumentOutOfRangeException exception)
+		{
+			return ValidateOptionsResult.Fail($"MemoryResourceLimits is invalid: {exception.Message}");
+		}
+
 		HashSet<string> roots = new(StringComparer.OrdinalIgnoreCase);
 		foreach (string root in options.AllowedTableRoots)
 		{

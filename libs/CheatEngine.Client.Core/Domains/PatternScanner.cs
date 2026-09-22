@@ -32,7 +32,8 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		AobScanResult captured = default;
 		CheatEngineFailure hostFailure = default;
 		bool succeeded = false;
-		if (!_dispatcher.TryInvoke(() => succeeded = TryScanCore(request, out captured, out hostFailure),
+		if (!_dispatcher.TryInvoke(
+			    () => succeeded = TryScanCore(request, cancellationToken, out captured, out hostFailure),
 			    out failure, cancellationToken))
 		{
 			result = default;
@@ -62,11 +63,41 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		return default;
 	}
 
-	private bool TryScanCore(AobScanRequest request, out AobScanResult result,
+	private bool TryScanCore(AobScanRequest request, CancellationToken cancellationToken, out AobScanResult result,
 		out CheatEngineFailure failure)
 	{
+		if (TryGetCancellationFailure(cancellationToken, out failure))
+		{
+			result = default;
+			return false;
+		}
+
+		bool hasModuleRange = false;
+		ModuleRange moduleRange = default;
+		if (request.Module.HasValue &&
+		    !TryGetModuleRange(request.Module.Value, out hasModuleRange, out moduleRange, out failure))
+		{
+			result = default;
+			return false;
+		}
+
+		// Module resolution is deliberately completed before the unbounded CE AOB scan. The range still acts as a
+		// managed post-filter because the SDK AOB binding does not accept a module constraint.
+		if (TryGetCancellationFailure(cancellationToken, out failure))
+		{
+			result = default;
+			return false;
+		}
+
 		AobScanHostStatus status =
 			_scanPort.TryScan(request.Pattern.Value, request.Options, out IAobMatchList? matchList);
+		if (TryGetCancellationFailure(cancellationToken, out failure))
+		{
+			matchList?.Dispose();
+			result = default;
+			return false;
+		}
+
 		if (status == AobScanHostStatus.Rejected)
 		{
 			result = default;
@@ -85,6 +116,12 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 
 		using (matchList)
 		{
+			if (TryGetCancellationFailure(cancellationToken, out failure))
+			{
+				result = default;
+				return false;
+			}
+
 			if (!matchList.TryGetCount(out int count) || count < 0)
 			{
 				result = default;
@@ -93,18 +130,8 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 				return false;
 			}
 
-			bool hasModuleRange = false;
-			ModuleRange moduleRange = default;
-			if (request.Module.HasValue &&
-			    !TryGetModuleRange(request.Module.Value, out hasModuleRange, out moduleRange,
-				    out failure))
-			{
-				result = default;
-				return false;
-			}
-
-			return TryMaterializeMatches(matchList, count, request, hasModuleRange, moduleRange, out result,
-				out failure);
+			return TryMaterializeMatches(matchList, count, request, hasModuleRange, moduleRange, cancellationToken,
+				out result, out failure);
 		}
 	}
 
@@ -114,6 +141,7 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		AobScanRequest request,
 		bool hasModuleRange,
 		ModuleRange moduleRange,
+		CancellationToken cancellationToken,
 		out AobScanResult result,
 		out CheatEngineFailure failure)
 	{
@@ -122,7 +150,19 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		ImmutableArray<Address>.Builder materialized = ImmutableArray.CreateBuilder<Address>();
 		for (int index = 0; index < count; index++)
 		{
+			if (TryGetCancellationFailure(cancellationToken, out failure))
+			{
+				result = default;
+				return false;
+			}
+
 			if (!TryGetMatchAddress(matches, index, out Address address, out failure))
+			{
+				result = default;
+				return false;
+			}
+
+			if (TryGetCancellationFailure(cancellationToken, out failure))
 			{
 				result = default;
 				return false;
@@ -143,6 +183,12 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 			materialized.Add(address);
 		}
 
+		if (TryGetCancellationFailure(cancellationToken, out failure))
+		{
+			result = default;
+			return false;
+		}
+
 		result = new AobScanResult(materialized.ToImmutable(), false);
 		failure = default;
 		return true;
@@ -161,6 +207,19 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult, _scanOperation,
 			$"AOB result {index} was not a hexadecimal address.");
 		return false;
+	}
+
+	private static bool TryGetCancellationFailure(CancellationToken cancellationToken, out CheatEngineFailure failure)
+	{
+		if (!cancellationToken.IsCancellationRequested)
+		{
+			failure = default;
+			return false;
+		}
+
+		failure = new CheatEngineFailure(CheatEngineFailureKind.Cancelled, _scanOperation,
+			"The AOB scan was cancelled.");
+		return true;
 	}
 
 	private static bool IsIncluded(Address address, AobScanRequest request, bool hasModuleRange,
@@ -208,11 +267,11 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		out CheatEngineFailure failure)
 	{
 		ModuleInfo[] modules = new ModuleInfo[_maximumModuleSnapshot];
+		hasRange = false;
+		range = default;
 		InspectionStatus status = _scanPort.EnumerateModules(modules, out int written);
 		if (status != InspectionStatus.Success)
 		{
-			hasRange = false;
-			range = default;
 			failure = new CheatEngineFailure(
 				status == InspectionStatus.DestinationTooSmall
 					? CheatEngineFailureKind.ResultLimitExceeded
@@ -221,8 +280,14 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 			return false;
 		}
 
+		if ((uint) written > modules.Length)
+		{
+			failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult, _inModuleOperation,
+				"Cheat Engine returned an invalid module count.");
+			return false;
+		}
+
 		bool found = false;
-		range = default;
 		for (int index = 0; index < written; index++)
 		{
 			ModuleInfo module = modules[index];
@@ -233,7 +298,6 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 
 			if (found)
 			{
-				hasRange = false;
 				failure = new CheatEngineFailure(CheatEngineFailureKind.AmbiguousMatch, _inModuleOperation,
 					$"More than one module named '{requested.Value}' was present in the selected target.");
 				return false;
@@ -241,7 +305,6 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 
 			if (!module.ImageSize.HasValue)
 			{
-				hasRange = false;
 				failure = new CheatEngineFailure(CheatEngineFailureKind.CapabilityUnavailable,
 					_inModuleOperation, "Cheat Engine did not report the requested module's image size.");
 				return false;
@@ -249,7 +312,6 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 
 			if (module.ImageSize.Value.Value == 0)
 			{
-				hasRange = false;
 				failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult, _inModuleOperation,
 					"Cheat Engine reported a zero-length requested module.");
 				return false;
@@ -266,7 +328,6 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 			return true;
 		}
 
-		hasRange = false;
 		failure = new CheatEngineFailure(CheatEngineFailureKind.NotFound, _inModuleOperation,
 			$"Module '{requested.Value}' was not present in the selected target.");
 		return false;

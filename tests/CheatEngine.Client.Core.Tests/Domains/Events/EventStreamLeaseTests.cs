@@ -63,6 +63,96 @@ public sealed class EventStreamLeaseTests
 		Assert.Equal(1, released);
 	}
 
+	[Fact(Timeout = 10_000)]
+	public async Task DisposeDoesNotHoldItsGateWhileExternalTeardownWaitsForReentrantCallbacks()
+	{
+		CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+		TaskCompletionSource neutralizationStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		TaskCompletionSource neutralizationCallbackStopped = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		TaskCompletionSource releaseStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		TaskCompletionSource releaseCallbackStopped = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		List<string> calls = [];
+		BoundedEventStream<int> stream = new(new EventStreamOptions(1));
+		EventStreamLease<int> lease = null!;
+
+		Task callback = Task.Run(async () =>
+		{
+			await neutralizationStarted.Task.WaitAsync(cancellationToken);
+			lease.Dispose();
+			neutralizationCallbackStopped.SetResult();
+
+			await releaseStarted.Task.WaitAsync(cancellationToken);
+			lease.Dispose();
+			releaseCallbackStopped.SetResult();
+		}, cancellationToken);
+
+		lease = new EventStreamLease<int>(
+			stream,
+			() =>
+			{
+				calls.Add("neutralize");
+				neutralizationStarted.SetResult();
+				neutralizationCallbackStopped.Task.Wait(cancellationToken);
+			},
+			() =>
+			{
+				calls.Add("release");
+				releaseStarted.SetResult();
+				releaseCallbackStopped.Task.Wait(cancellationToken);
+			},
+			_ => calls.Add("untrack"));
+
+		await Task.Run(lease.Dispose, cancellationToken).WaitAsync(cancellationToken);
+		await callback.WaitAsync(cancellationToken);
+
+		Assert.True(lease.IsReleased);
+		Assert.True(stream.IsCompleted);
+		Assert.Equal(["neutralize", "release", "untrack"], calls);
+	}
+
+	[Fact(Timeout = 10_000)]
+	public async Task ConcurrentDisposalsRunOnlyOneCleanupSequence()
+	{
+		CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+		using ManualResetEventSlim allowNeutralizationToFinish = new(false);
+		TaskCompletionSource neutralizationStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		int neutralized = 0;
+		int released = 0;
+		int untracked = 0;
+		BoundedEventStream<int> stream = new(new EventStreamOptions(1));
+		EventStreamLease<int> lease = new(
+			stream,
+			() =>
+			{
+				Interlocked.Increment(ref neutralized);
+				neutralizationStarted.SetResult();
+				allowNeutralizationToFinish.Wait();
+			},
+			() => Interlocked.Increment(ref released),
+			_ => Interlocked.Increment(ref untracked));
+
+		Task firstDispose = Task.Run(lease.Dispose, cancellationToken);
+		await neutralizationStarted.Task.WaitAsync(cancellationToken);
+		Task secondDispose = Task.Run(lease.Dispose, cancellationToken);
+
+		try
+		{
+			await secondDispose.WaitAsync(cancellationToken);
+			Assert.False(firstDispose.IsCompleted);
+		}
+		finally
+		{
+			allowNeutralizationToFinish.Set();
+		}
+
+		await firstDispose.WaitAsync(cancellationToken);
+
+		Assert.True(lease.IsReleased);
+		Assert.Equal(1, neutralized);
+		Assert.Equal(1, released);
+		Assert.Equal(1, untracked);
+	}
+
 	[Fact]
 	public async Task DisposeCompletesTheStreamAndReleasesTheHostEvenWhenNeutralizationFails()
 	{

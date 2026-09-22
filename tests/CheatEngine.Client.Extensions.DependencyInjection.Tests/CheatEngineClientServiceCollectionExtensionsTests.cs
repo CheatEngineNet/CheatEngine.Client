@@ -41,6 +41,7 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(ICheatEngineClient));
 		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(ILocalProcessDiagnostics));
 		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IMemoryCodec<int>));
+		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IMemoryBatchClient));
 		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IAllocationClient));
 		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IAssemblyClient));
 		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IRemoteExecutionClient));
@@ -122,6 +123,21 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		CheatEngineClientOptions options = provider.GetRequiredService<IOptions<CheatEngineClientOptions>>().Value;
 
 		Assert.Equal([allowedRoot], Assert.IsType<string[]>(options.AllowedTableRoots));
+	}
+
+	[Fact]
+	public void RootOverloadBindsMemoryResourceLimitsForTheActivationSnapshot()
+	{
+		using ConfigurationManager configuration = new();
+		configuration["CheatEngineClient:MemoryResourceLimits:MaximumReadBytes"] = "37";
+		ServiceCollection services = new();
+		services.AddCheatEngineClient(configuration);
+
+		using ServiceProvider provider = services.BuildServiceProvider();
+		CheatEngineClientOptions options = provider.GetRequiredService<IOptions<CheatEngineClientOptions>>().Value;
+
+		Assert.NotNull(options.MemoryResourceLimits);
+		Assert.Equal(37, options.MemoryResourceLimits.MaximumReadBytes);
 	}
 
 	[Fact]

@@ -32,28 +32,31 @@ public readonly record struct AobScanBuilder
 		get;
 	}
 
-	/// <summary>Gets the optional module-range filter that Core resolves before materializing matches.</summary>
+	/// <summary>
+	///     Gets the optional module name that Core resolves before the global scan and uses as a copied-address
+	///     post-filter.
+	/// </summary>
 	public ModuleName? Module
 	{
 		get;
 	}
 
-	/// <summary>Gets the optional inclusive copied-address range filter.</summary>
+	/// <summary>Gets the optional inclusive copied-address post-filter.</summary>
 	public AobScanRange? Range
 	{
 		get;
 	}
 
-	/// <summary>Returns an equivalent builder that restricts results to one named target module.</summary>
-	/// <param name="moduleName">The non-empty module name understood by Cheat Engine's symbol handler.</param>
+	/// <summary>Returns an equivalent builder with a named-module copied-address post-filter.</summary>
+	/// <param name="moduleName">The non-empty module name that Core resolves before starting the global scan.</param>
 	/// <returns>A new immutable builder.</returns>
 	public AobScanBuilder InModule(string moduleName)
 	{
 		return InModule(new ModuleName(moduleName));
 	}
 
-	/// <summary>Returns an equivalent builder that restricts results to one target module.</summary>
-	/// <param name="module">The module-range filter resolved by Core before result materialization.</param>
+	/// <summary>Returns an equivalent builder with a target-module copied-address post-filter.</summary>
+	/// <param name="module">The module name Core resolves before the global scan, then applies while copying results.</param>
 	/// <returns>A new immutable builder.</returns>
 	public AobScanBuilder InModule(ModuleName module)
 	{
@@ -65,28 +68,40 @@ public readonly record struct AobScanBuilder
 		return new AobScanBuilder(_scanner, Pattern, Options, module, Range);
 	}
 
-	/// <summary>Returns an equivalent builder that retains only match addresses in an inclusive target-address range.</summary>
+	/// <summary>Returns an equivalent builder with an inclusive copied-address post-filter.</summary>
 	/// <param name="start">The first included target address.</param>
 	/// <param name="end">The last included target address.</param>
 	/// <returns>A new immutable builder.</returns>
 	/// <remarks>
-	///     The SDK's string-form <c>AOBScan</c> binding has no start/end arguments. Core applies this range while
-	///     copying the owned result list, before the requested materialization limit is counted.
+	///     The SDK's string-form <c>AOBScan</c> binding has no start/end arguments. This does not narrow the global
+	///     Cheat Engine scan; Core applies the range while copying the owned result list, before the materialization
+	///     limit is counted.
 	/// </remarks>
 	public AobScanBuilder InRange(Address start, Address end)
 	{
 		return new AobScanBuilder(_scanner, Pattern, Options, Module, new AobScanRange(start, end));
 	}
 
-	/// <summary>Returns an equivalent builder that searches read-only executable memory.</summary>
+	/// <summary>Returns an equivalent builder that searches executable, non-copy-on-write, non-writable memory.</summary>
 	/// <remarks>
 	///     Cheat Engine's documented protection grammar does not expose a readable bit. <c>+X-C-W</c> therefore means
 	///     executable, not copy-on-write, and not writable memory.
 	/// </remarks>
 	/// <returns>A new immutable builder.</returns>
-	public AobScanBuilder ReadableExecutable()
+	public AobScanBuilder Executable()
 	{
 		return WithOptions(new AobScanOptions("+X-C-W", Options.AlignmentMethod, Options.AlignmentParameter));
+	}
+
+	/// <summary>Returns an equivalent executable-memory builder through the historical compatibility name.</summary>
+	/// <remarks>
+	///     This is an alias for <see cref="Executable" />. Cheat Engine's documented protection grammar has no readable
+	///     bit, so the name does not promise a readable-memory constraint.
+	/// </remarks>
+	/// <returns>A new immutable builder.</returns>
+	public AobScanBuilder ReadableExecutable()
+	{
+		return Executable();
 	}
 
 	/// <summary>Returns an equivalent builder with the exact Cheat Engine protection expression.</summary>
@@ -123,10 +138,14 @@ public readonly record struct AobScanBuilder
 		return new AobFirstMatchBuilder(RequireScanner(), BuildRequest(1));
 	}
 
-	/// <summary>Selects an operation that materializes no more than the requested number of matches.</summary>
-	/// <param name="maximumResults">The positive maximum number of copied addresses to materialize.</param>
+	/// <summary>Selects an operation that materializes no more than the requested number of post-filtered matches.</summary>
+	/// <param name="maximumResults">The positive maximum number of copied addresses that survive managed post-filters.</param>
 	/// <returns>An immutable bounded-result terminal builder.</returns>
 	/// <exception cref="ArgumentOutOfRangeException"><paramref name="maximumResults" /> is zero or negative.</exception>
+	/// <remarks>
+	///     This bound applies only while Core materializes the SDK-owned result list. It is not pushed into Cheat Engine,
+	///     does not request early termination, and does not reduce global scan work.
+	/// </remarks>
 	public AobManyMatchBuilder Take(int maximumResults)
 	{
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumResults);

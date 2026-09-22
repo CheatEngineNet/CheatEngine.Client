@@ -142,6 +142,7 @@ dotnet_naming_style.underscore_camel_case.capitalization = camel_case
 
 # CS8762: Parameter must have a non-null value when exiting in some condition.
 dotnet_diagnostic.CS8762.severity = none
+
 [libs/**.cs]
 dotnet_diagnostic.IDE0005.severity = error
 

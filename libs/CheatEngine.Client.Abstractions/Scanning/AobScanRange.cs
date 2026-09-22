@@ -4,9 +4,9 @@ namespace CheatEngine.Client.Scanning;
 
 /// <summary>An inclusive target-address range used to filter copied AOB match addresses.</summary>
 /// <remarks>
-///     String-form <c>AOBScan</c> does not accept start and stop address arguments. Core therefore applies this filter
-///     after copying each matching address from the SDK-owned result list and before it contributes to the caller's
-///     materialization limit.
+///     String-form <c>AOBScan</c> does not accept start and stop address arguments. The global scan is therefore not
+///     narrowed by this range: Core applies it while copying each matching address from the SDK-owned result list and
+///     before it contributes to the caller's materialization limit.
 /// </remarks>
 public readonly record struct AobScanRange
 {
