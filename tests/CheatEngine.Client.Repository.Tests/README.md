@@ -26,6 +26,9 @@ project never builds, packs, restores or starts a process, so it runs in seconds
   solution-level `--force-evaluate` caused), every other project has a version 2 lock file, the whole graph consumes
   CheatEngine.SDK 1.0.0 with its recorded content hash, no Client package comes from a feed, the Native AOT probe
   records its runtime packs, and each lock file keeps its committed final newline.
+- `Workflows/CoverageBaselineTests` keep `eng/coverage-baseline.json` equal to the shipping assemblies that compile
+  source (the `CheatEngine.Client` package facade has none), its line floors valid percentages with an explicit
+  tolerance, and the `dotnet-coverage` merge tool pinned to the collector's version in `.config/dotnet-tools.json`.
 
 ## Run
 
