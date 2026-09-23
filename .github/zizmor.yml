@@ -14,9 +14,3 @@ rules:
   # job) rejects it ("invalid format because ref is missing"). Keep the './' form, as CheatEngine.SDK does.
   self-repository:
     disable: true
-
-  # Temporary: .github/dependabot.yml belongs to the governance work, which adds a cooldown per ecosystem. Remove this
-  # entry in the same change.
-  dependabot-cooldown:
-    ignore:
-      - dependabot.yml
