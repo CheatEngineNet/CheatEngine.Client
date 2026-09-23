@@ -75,6 +75,26 @@ internal static class CheatEngineLuaDiagnostics
 		"Lua operation '{0}' maps an unsafe value across the Client boundary: {1}",
 		Category, DiagnosticSeverity.Error, true, helpLinkUri: HelpLinkUri);
 
+	public static readonly DiagnosticDescriptor DuplicateModuleExport = new(
+		"CECLUA1201", "Lua export is owned by more than one Lua module",
+		"Lua global '{0}' is exported by Lua module '{1}' and again by Lua module '{2}'; a Lua global has a single owning module per plugin assembly, so remove the export from one of the bindings types",
+		Category, DiagnosticSeverity.Error, true, helpLinkUri: HelpLinkUri);
+
+	public static readonly DiagnosticDescriptor ReservedModuleMember = new(
+		"CECLUA1202", "Lua module declares a member reserved by the generated registration",
+		"Lua module '{0}' declares '{1}', which is reserved by the generated ownership-aware registration; rename or remove the member",
+		Category, DiagnosticSeverity.Error, true, helpLinkUri: HelpLinkUri);
+
+	public static readonly DiagnosticDescriptor InheritedModuleImplementation = new(
+		"CECLUA1203", "Lua module inherits a Lua module implementation",
+		"Lua module '{0}' derives from '{1}', which already implements a Lua module; the generated ownership state of one of them would be bypassed, so derive the module from object",
+		Category, DiagnosticSeverity.Error, true, helpLinkUri: HelpLinkUri);
+
+	public static readonly DiagnosticDescriptor LookAlikeAnnotation = new(
+		"CECLUA1204", "Lua module annotation is not the contract type",
+		"'{0}' is declared in assembly '{1}' instead of the contract assembly '{2}'; the annotation is not a Lua module contract and no module code is generated",
+		Category, DiagnosticSeverity.Error, true, helpLinkUri: HelpLinkUri);
+
 	/// <summary>Gets every descriptor, ordered by id.</summary>
 	public static ImmutableArray<DiagnosticDescriptor> All
 	{
@@ -83,7 +103,8 @@ internal static class CheatEngineLuaDiagnostics
 	[
 		InvalidModuleShape, InvalidBindingsType, NoExports, InvalidExportSet, InvalidModuleName, NoPublicConstructor,
 		InvalidOperationShape, OverloadedOperation, UnsupportedSignature, MapperRequired, InvalidMapper,
-		UnsafeMappedType
+		UnsafeMappedType, DuplicateModuleExport, ReservedModuleMember, InheritedModuleImplementation,
+		LookAlikeAnnotation
 	];
 
 	/// <summary>Resolves a descriptor from the id stored in an equatable pipeline model.</summary>

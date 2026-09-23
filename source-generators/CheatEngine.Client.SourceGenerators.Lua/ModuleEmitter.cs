@@ -8,7 +8,7 @@ namespace CheatEngine.Client.SourceGenerators.Lua;
 /// <remarks>
 ///     <para>
 ///         The adapter wraps the SDK-generated <c>RegisterLuaFunctions</c> (called exactly once) and never the legacy
-///         <c>UnregisterLuaFunctions</c>, which writes <c>nil</c> unconditionally (F12, Q16). After a successful
+///         SDK 1.0.0 unregistration helper, which writes <c>nil</c> unconditionally (F12, Q16). After a successful
 ///         registration it pins the value it published under each export; at release it clears a global only while the
 ///         global still holds that value (primitive identity, <c>lua_rawequal</c>), so a third-party replacement survives.
 ///     </para>

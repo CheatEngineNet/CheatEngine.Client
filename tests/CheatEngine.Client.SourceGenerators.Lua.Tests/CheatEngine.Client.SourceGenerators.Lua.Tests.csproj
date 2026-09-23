@@ -4,6 +4,14 @@
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp"/>
   </ItemGroup>
 
+  <!-- The diagnostic catalog tests compare the descriptors with the release-tracking file and the generator README. -->
+  <ItemGroup>
+    <None Include="../../source-generators/CheatEngine.Client.SourceGenerators.Lua/AnalyzerReleases.Unshipped.md"
+          Link="Diagnostics/AnalyzerReleases.Unshipped.md" CopyToOutputDirectory="PreserveNewest"/>
+    <None Include="../../source-generators/CheatEngine.Client.SourceGenerators.Lua/README.md"
+          Link="Diagnostics/Generator.README.md" CopyToOutputDirectory="PreserveNewest"/>
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="../../source-generators/CheatEngine.Client.SourceGenerators.Lua/CheatEngine.Client.SourceGenerators.Lua.csproj"/>
     <ProjectReference Include="../../libs/CheatEngine.Client.Abstractions/CheatEngine.Client.Abstractions.csproj"/>

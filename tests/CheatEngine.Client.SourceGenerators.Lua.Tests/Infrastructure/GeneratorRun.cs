@@ -63,16 +63,26 @@ internal sealed class GeneratorRun
 		ArgumentNullException.ThrowIfNull(sources);
 		ArgumentNullException.ThrowIfNull(additionalReferences);
 
+		return ExecuteFiles(
+			[.. sources.Select((source, index) => (sources.Length == 1 ? string.Empty : $"Source{index}.cs", source))],
+			additionalReferences);
+	}
+
+	/// <summary>Runs the generator over source files with explicit paths, in the given syntax-tree order.</summary>
+	public static GeneratorRun ExecuteFiles((string Path, string Source)[] files,
+		MetadataReference[]? additionalReferences = null)
+	{
+		ArgumentNullException.ThrowIfNull(files);
+
 		CSharpParseOptions parseOptions = new(LanguageVersion.CSharp14);
 		SyntaxTree[] syntaxTrees =
 		[
-			.. sources.Select((source, index) => CSharpSyntaxTree.ParseText(SourceText.From(source), parseOptions,
-				sources.Length == 1 ? string.Empty : $"Source{index}.cs"))
+			.. files.Select(file => CSharpSyntaxTree.ParseText(SourceText.From(file.Source), parseOptions, file.Path))
 		];
 		CSharpCompilation compilation = CSharpCompilation.Create(
 			"CheatEngineClientLuaGeneratorTests",
 			syntaxTrees,
-			[.. GetMetadataReferences(), .. additionalReferences],
+			[.. GetMetadataReferences(), .. additionalReferences ?? []],
 			new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, allowUnsafe: true));
 		GeneratorDriver driver = CSharpGeneratorDriver.Create(
 			[new CheatEngineLuaGenerator().AsSourceGenerator()],

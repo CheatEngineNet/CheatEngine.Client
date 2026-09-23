@@ -116,6 +116,16 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 			}
 		});
 
+		// CECLUA1201: one owning module per Lua global per plugin assembly (Q16). The models are equatable, so the
+		// collected batch stays cached while no module changes.
+		context.RegisterSourceOutput(modules.Collect(), static (productionContext, models) =>
+		{
+			foreach (DiagnosticInfo diagnostic in FindDuplicateExports(models))
+			{
+				productionContext.ReportDiagnostic(diagnostic.ToDiagnostic());
+			}
+		});
+
 		IncrementalValuesProvider<OperationModel> operations = context.SyntaxProvider
 			.ForAttributeWithMetadataName(
 				LuaOperationAttributeMetadataName,
@@ -135,6 +145,45 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 				productionContext.AddSource(model.HintName, OperationEmitter.Emit(model));
 			}
 		});
+	}
+
+	/// <summary>
+	///     Reports every export that a later module (by file path, then position) publishes again. The order is
+	///     deterministic and independent of the order in which the models were collected.
+	/// </summary>
+	internal static ImmutableArray<DiagnosticInfo> FindDuplicateExports(ImmutableArray<ModuleModel> models)
+	{
+		ModuleModel[] valid = [.. models.Where(static model => model.IsValid)];
+		Array.Sort(valid, CompareDeclarationOrder);
+		Dictionary<string, ModuleModel> owners = new(StringComparer.Ordinal);
+		ImmutableArray<DiagnosticInfo>.Builder diagnostics = ImmutableArray.CreateBuilder<DiagnosticInfo>();
+		foreach (ModuleModel model in valid)
+		{
+			foreach (string export in model.Exports)
+			{
+				if (owners.TryGetValue(export, out ModuleModel? owner))
+				{
+					diagnostics.Add(DiagnosticInfo.Create(CheatEngineLuaDiagnostics.DuplicateModuleExport, model.Location,
+						export, owner.ModuleDisplayName, model.ModuleDisplayName));
+					continue;
+				}
+
+				owners.Add(export, model);
+			}
+		}
+
+		return diagnostics.ToImmutable();
+	}
+
+	private static int CompareDeclarationOrder(ModuleModel left, ModuleModel right)
+	{
+		int order = string.CompareOrdinal(left.Location?.FilePath, right.Location?.FilePath);
+		if (order == 0)
+		{
+			order = (left.Location?.TextSpan.Start ?? -1).CompareTo(right.Location?.TextSpan.Start ?? -1);
+		}
+
+		return order != 0 ? order : string.CompareOrdinal(left.ModuleDisplayName, right.ModuleDisplayName);
 	}
 
 	internal static string CSharpLiteral(string value)
