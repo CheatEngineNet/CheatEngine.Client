@@ -150,7 +150,10 @@ public readonly record struct MemoryAddressBuilder
 	}
 
 	/// <summary>Reads a bounded UTF-8 string from this address.</summary>
-	/// <param name="maximumLength">The positive maximum length passed to Cheat Engine.</param>
+	/// <param name="maximumLength">
+	///     The positive value passed unchanged as Cheat Engine's <c>readString</c> <c>maxlength</c> argument, a host-side
+	///     bound whose unit is not documented (see <see cref="MemoryStringReadRequest.MaximumLength" />).
+	/// </param>
 	/// <param name="cancellationToken">
 	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
 	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
@@ -163,7 +166,10 @@ public readonly record struct MemoryAddressBuilder
 	}
 
 	/// <summary>Reads a bounded UTF-16 string from this address.</summary>
-	/// <param name="maximumLength">The positive maximum length passed to Cheat Engine.</param>
+	/// <param name="maximumLength">
+	///     The positive value passed unchanged as Cheat Engine's <c>readString</c> <c>maxlength</c> argument, a host-side
+	///     bound whose unit is not documented (see <see cref="MemoryStringReadRequest.MaximumLength" />).
+	/// </param>
 	/// <param name="cancellationToken">
 	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
 	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
@@ -176,7 +182,10 @@ public readonly record struct MemoryAddressBuilder
 	}
 
 	/// <summary>Reads a bounded string with an explicit target encoding from this address.</summary>
-	/// <param name="maximumLength">The positive maximum length passed to Cheat Engine.</param>
+	/// <param name="maximumLength">
+	///     The positive value passed unchanged as Cheat Engine's <c>readString</c> <c>maxlength</c> argument, a host-side
+	///     bound whose unit is not documented (see <see cref="MemoryStringReadRequest.MaximumLength" />).
+	/// </param>
 	/// <param name="encoding">The UTF-8 or UTF-16 target representation.</param>
 	/// <param name="cancellationToken">
 	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
@@ -192,7 +201,10 @@ public readonly record struct MemoryAddressBuilder
 	}
 
 	/// <summary>Tries to read a bounded string with an explicit target encoding from this address.</summary>
-	/// <param name="maximumLength">The positive maximum length passed to Cheat Engine.</param>
+	/// <param name="maximumLength">
+	///     The positive value passed unchanged as Cheat Engine's <c>readString</c> <c>maxlength</c> argument, a host-side
+	///     bound whose unit is not documented (see <see cref="MemoryStringReadRequest.MaximumLength" />).
+	/// </param>
 	/// <param name="encoding">The UTF-8 or UTF-16 target representation.</param>
 	/// <param name="value">The copied target text when the method returns <see langword="true" />.</param>
 	/// <param name="failure">The classified operation failure when the method returns <see langword="false" />.</param>

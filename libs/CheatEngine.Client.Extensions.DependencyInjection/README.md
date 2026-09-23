@@ -81,3 +81,15 @@ The container disposes services it creates at their scope/provider boundary. Do 
 in a module or plugin callback, and do not register one disposable object through multiple forwarding aliases. Give the
 disposable one owning descriptor; expose an additional non-disposable facade when an application needs an alias. The
 host itself owns only its `ConfigurationManager`, which it releases after the scope and provider.
+
+## Memory resource limits
+
+`CheatEngineClientOptions.MemoryResourceLimits` (configuration keys such as
+`CheatEngineClient:MemoryResourceLimits:MaximumReadBytes`) is validated with the options and copied when the memory
+client is created, so a later change does not affect the running activation. It uses the Client limit vocabulary.
+`MaximumReadBytes`, `MaximumWriteBytes`, and `MaximumStringBytes` set the **maximum block size** of one operation.
+`MaximumBatchOperationCount`, capped by `MemoryBatchLimits.MaximumOperations` (1024), sets the **request count per
+batch**, and `MaximumBatchPayloadBytes` bounds that count multiplied by the element size. Together these budgets set the
+**maximum scratch allocation**: the largest managed buffer allocated for one operation. The target process gets no
+allocation. The **partial-effect state** of a batch write is not configurable: `MemoryBatchWriteEffectState` reports
+it, because a failed batch keeps its completed prefix and is never rolled back.

@@ -54,7 +54,10 @@ public interface IMemoryClient
 	/// <summary>Writes bytes or throws on an expected host failure.</summary>
 	public void WriteBytes(MemoryBytesWriteRequest request, CancellationToken cancellationToken = default);
 
-	/// <summary>Tries to read a string with an explicit maximum length.</summary>
+	/// <summary>
+	///     Tries to read a string bounded by <see cref="MemoryStringReadRequest.MaximumLength" />, which Cheat Engine
+	///     receives unchanged as a host-side bound of undocumented unit.
+	/// </summary>
 	public bool TryReadString(MemoryStringReadRequest request, [NotNullWhen(true)] out string? value,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default);
 

@@ -71,6 +71,96 @@ public sealed class MemoryClientTests
 		Assert.Equal(1, codec.ReadCount);
 	}
 
+	/// <summary>
+	///     A12-12: <see cref="MemoryStringReadRequest.MaximumLength" /> reaches Cheat Engine's <c>readString</c> unchanged,
+	///     for both encodings, because the host does not document its unit.
+	/// </summary>
+	[Theory]
+	[InlineData(1, false)]
+	[InlineData(1, true)]
+	[InlineData(255, false)]
+	[InlineData(255, true)]
+	[InlineData(MemoryResourceLimits.DefaultMaximumStringBytes, false)]
+	[InlineData(MemoryResourceLimits.DefaultMaximumStringBytes / sizeof(char), true)]
+	public void StringReadForwardsMaximumLengthUnchanged(int maximumLength, bool wideCharacter)
+	{
+		RecordingStringPort port = new();
+		MemoryClient client = new(new InlineDispatcher(), InertCoreLifetime.Create(), port, new MemoryResourceLimits());
+		Address address = 0x404000;
+
+		bool succeeded = client.TryReadString(new MemoryStringReadRequest(address, maximumLength, wideCharacter),
+			out string? value, out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.True(succeeded, failure.ToString());
+		Assert.Equal(RecordingStringPort.Text, value);
+		(Address Address, int MaximumLength, bool WideCharacter) call = Assert.Single(port.StringReads);
+		Assert.Equal(address, call.Address);
+		Assert.Equal(maximumLength, call.MaximumLength);
+		Assert.Equal(wideCharacter, call.WideCharacter);
+	}
+
+	[Theory]
+	[InlineData(8, false, true)]
+	[InlineData(9, false, false)]
+	[InlineData(4, true, true)]
+	[InlineData(5, true, false)]
+	public void StringReadAdmissionChargesUtf16TwiceTheForwardedLength(int maximumLength, bool wideCharacter,
+		bool admitted)
+	{
+		RecordingStringPort port = new();
+		MemoryClient client = new(new InlineDispatcher(), InertCoreLifetime.Create(), port,
+			new MemoryResourceLimits(64, 64, 8, 64, 1));
+
+		bool succeeded = client.TryReadString(new MemoryStringReadRequest(0x405000, maximumLength, wideCharacter),
+			out _, out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.Equal(admitted, succeeded);
+		if (admitted)
+		{
+			Assert.Equal(maximumLength, Assert.Single(port.StringReads).MaximumLength);
+		}
+		else
+		{
+			Assert.Empty(port.StringReads);
+			Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
+			Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
+		}
+	}
+
+	private sealed class RecordingStringPort : IMemoryCodecContextPort
+	{
+		internal const string Text = "copied";
+
+		internal List<(Address Address, int MaximumLength, bool WideCharacter)> StringReads
+		{
+			get;
+		} = [];
+
+		public bool IsTarget64Bit()
+		{
+			return true;
+		}
+
+		public bool TryReadBytes(Address address, Span<byte> destination, out string? failure)
+		{
+			throw new InvalidOperationException("A string read must not use the byte port.");
+		}
+
+		public bool TryWriteBytes(Address address, ReadOnlySpan<byte> source, out string? failure)
+		{
+			throw new InvalidOperationException("A string read must not use the byte port.");
+		}
+
+		public bool TryReadString(Address address, int maximumLength, bool wideCharacter, out string? value,
+			out string? failure)
+		{
+			StringReads.Add((address, maximumLength, wideCharacter));
+			value = Text;
+			failure = null;
+			return true;
+		}
+	}
+
 	private sealed class RecordingInt32Codec : IMemoryCodec<int>
 	{
 		internal int ReadValue

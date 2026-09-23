@@ -20,6 +20,13 @@ The suite separates deterministic policy tests from live-host validation. That l
 rollback behavior, bounded materialization, and stale-resource rejection without mocking SDK statics or requiring a
 user process. Regressions in lifecycle code fail quickly before they can leak into a plugin activation.
 
+Three suites guard the SDK boundary contracts. `Infrastructure/TryContractTests` checks that no SDK exception crosses a
+`Try*` method, that an expired activation is never reclassified, and that consumer exceptions are rethrown as the same
+instance. `Infrastructure/OwnershipHandoffTests` checks that an SDK owner is released exactly once when publication
+fails. `SdkContract/SdkMappingContractTests` checks that every SDK 1.0.0 status value and exception type the Client
+translates maps to a known Client failure kind. Tests that serve as qualification evidence carry a `Qualification` trait
+(Q27, Q28, Q29, Q33, Q43, Q48), so a Q filter selects them.
+
 ## Run
 
 From the repository root:

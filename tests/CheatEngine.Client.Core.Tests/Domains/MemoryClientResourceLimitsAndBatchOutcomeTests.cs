@@ -10,6 +10,11 @@ using CheatEngine.SDK.Engine.Values;
 
 namespace CheatEngine.Client.Core.Tests.Domains;
 
+/// <summary>
+///     Resource budgets and batch outcomes of the memory client. The batch-outcome tests carry the Q33 trait: every
+///     effect category (not started, partial with its completed prefix, complete, unknown) stays observable (A24-10,
+///     AX06-30).
+/// </summary>
 public sealed class MemoryClientResourceLimitsAndBatchOutcomeTests
 {
 	private static readonly Address _address = new(0x700000);
@@ -83,6 +88,7 @@ public sealed class MemoryClientResourceLimitsAndBatchOutcomeTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q33")]
 	public void BatchPayloadAdmissionUsesTheActualLongElementSizeBeforeDispatch()
 	{
 		CountingDispatcher dispatcher = new();
@@ -130,6 +136,7 @@ public sealed class MemoryClientResourceLimitsAndBatchOutcomeTests
 	}
 
 	[Theory]
+	[Trait("Qualification", "Q33")]
 	[InlineData(0)]
 	[InlineData(1)]
 	[InlineData(2)]
@@ -154,6 +161,7 @@ public sealed class MemoryClientResourceLimitsAndBatchOutcomeTests
 	}
 
 	[Theory]
+	[Trait("Qualification", "Q33")]
 	[InlineData(0, MemoryBatchWriteEffectState.NotStarted)]
 	[InlineData(1, MemoryBatchWriteEffectState.Partial)]
 	[InlineData(2, MemoryBatchWriteEffectState.Partial)]
@@ -183,6 +191,7 @@ public sealed class MemoryClientResourceLimitsAndBatchOutcomeTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q33")]
 	public void DetailedWriteReportsCompleteEffectAndLegacyWrappersPreserveTheOldFailureShape()
 	{
 		BatchPort successfulPort = new();
@@ -225,6 +234,7 @@ public sealed class MemoryClientResourceLimitsAndBatchOutcomeTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q33")]
 	public void DispatcherFailureLeavesWriteEffectUnknownAndDoesNotExposeAFailedIndex()
 	{
 		CheatEngineFailure expected = new(CheatEngineFailureKind.InvalidState, "Test.Dispatcher", "Rejected.");

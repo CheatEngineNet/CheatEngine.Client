@@ -165,6 +165,29 @@ user data by default. Client libraries never log user data themselves: Hosting e
 counts, and exception type names only, and a test rejects any Client `LoggerMessage` event whose parameters could carry
 an address, expression, path, script, message, exception, or failure object.
 
+### Memory limits and batch effects
+
+`MemoryResourceLimits` is copied once per activation. A byte, string, or batch request over a budget fails before dispatch
+with `OperationRejected` and `HostEffect.NotStarted`. A codec access over a budget fails that codec call before the
+access reaches Cheat Engine. The Client uses four terms for these limits:
+
+- **Maximum block size**: `MaximumReadBytes`, `MaximumWriteBytes`, and `MaximumStringBytes` bound the contiguous block that
+  one byte, codec, or string operation may copy. A custom codec's context reads and writes are charged cumulatively
+  against the same budgets during one codec call.
+- **Request count per batch**: `MaximumBatchOperationCount` can tighten, but never raise, the hard
+  `MemoryBatchLimits.MaximumOperations` (1024). `MaximumBatchPayloadBytes` also bounds the count multiplied by the
+  element size.
+- **Maximum scratch allocation**: the largest managed buffer the Client allocates for one operation is the byte array of a
+  byte read (at most `MaximumReadBytes`) or the value array of a batch read (at most `MaximumBatchPayloadBytes`). These
+  operations allocate nothing in the target process.
+- **Partial-effect state**: a batch write runs in order and is never rolled back.
+  `MemoryPrimitiveBatchWriteOutcome.EffectState` reports `NotStarted`, `Partial` (with `CompletedCount` and
+  `FailedIndex`), `Complete`, or `Unknown`.
+
+`MemoryStringReadRequest.MaximumLength` is passed unchanged as Cheat Engine's `readString` `maxlength` argument. Cheat
+Engine 7.7 does not document whether it counts bytes or characters, so treat it as a host-side bound. This is still to be
+qualified on a live host (C3). For admission, the Client charges it as bytes for UTF-8 and as twice that for UTF-16.
+
 ## Contribution and Validation
 
 Changes here are public API changes. Keep request/value types immutable, preserve functional

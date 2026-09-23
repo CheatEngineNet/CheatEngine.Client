@@ -2,8 +2,56 @@ namespace CheatEngine.Client.Memory;
 
 /// <summary>Defines the memory-work budgets captured for one Client activation.</summary>
 /// <remarks>
-///     Configuration can populate this mutable value before activation. The Core client copies and validates it when it
-///     is created, so a later configuration mutation cannot change an active client's admission policy.
+///     <para>
+///         Configuration can populate this mutable value before activation. The Core client copies and validates it
+///         when it is created, so a later configuration mutation cannot change an active client's admission policy.
+///     </para>
+///     <para>
+///         Byte, string and batch requests are admitted before dispatch: a request over a budget fails with
+///         <see cref="Results.CheatEngineFailureKind.OperationRejected" /> and
+///         <see cref="Results.CheatEngineHostEffect.NotStarted" />, and Cheat Engine is not called. The reads and writes
+///         a custom codec makes through its context are charged cumulatively against the read and write budgets during
+///         one codec call; the first one over budget fails that codec call before it reaches Cheat Engine.
+///     </para>
+///     <para>The Client documentation uses four terms for these limits:</para>
+///     <list type="table">
+///         <listheader>
+///             <term>Term</term>
+///             <description>Where it is enforced</description>
+///         </listheader>
+///         <item>
+///             <term>Maximum block size</term>
+///             <description>
+///                 <see cref="MaximumReadBytes" />, <see cref="MaximumWriteBytes" /> and
+///                 <see cref="MaximumStringBytes" />: the largest contiguous block that one byte, codec or string
+///                 operation may copy.
+///             </description>
+///         </item>
+///         <item>
+///             <term>Request count per batch</term>
+///             <description>
+///                 <see cref="MaximumBatchOperationCount" />, which can tighten but never raise
+///                 <see cref="MemoryBatchLimits.MaximumOperations" />.
+///             </description>
+///         </item>
+///         <item>
+///             <term>Maximum scratch allocation</term>
+///             <description>
+///                 The largest managed buffer the Client allocates for one operation: the byte array of a byte read
+///                 (at most <see cref="MaximumReadBytes" />) and the value array of a primitive batch read (at most
+///                 <see cref="MaximumBatchPayloadBytes" />). These operations allocate no memory in the target process.
+///             </description>
+///         </item>
+///         <item>
+///             <term>Partial-effect state</term>
+///             <description>
+///                 Not a budget: a batch write runs its operations in order and is never rolled back, so its outcome
+///                 reports <see cref="MemoryBatchWriteEffectState.NotStarted" />,
+///                 <see cref="MemoryBatchWriteEffectState.Partial" /> (with the completed prefix length),
+///                 <see cref="MemoryBatchWriteEffectState.Complete" /> or <see cref="MemoryBatchWriteEffectState.Unknown" />.
+///             </description>
+///         </item>
+///     </list>
 /// </remarks>
 public sealed class MemoryResourceLimits
 {
@@ -59,6 +107,11 @@ public sealed class MemoryResourceLimits
 	} = DefaultMaximumWriteBytes;
 
 	/// <summary>Gets or sets the maximum encoded bytes admitted for one target-string operation.</summary>
+	/// <remarks>
+	///     A write is charged its encoded byte length. A read is charged conservatively from
+	///     <see cref="MemoryStringReadRequest.MaximumLength" />: that value as bytes for UTF-8, twice it for UTF-16,
+	///     because Cheat Engine does not document the unit of its <c>readString</c> limit.
+	/// </remarks>
 	public int MaximumStringBytes
 	{
 		get;
@@ -66,6 +119,7 @@ public sealed class MemoryResourceLimits
 	} = DefaultMaximumStringBytes;
 
 	/// <summary>Gets or sets the maximum scalar payload bytes admitted for one primitive batch.</summary>
+	/// <remarks>The payload is the operation count multiplied by the size of the primitive element type.</remarks>
 	public int MaximumBatchPayloadBytes
 	{
 		get;
