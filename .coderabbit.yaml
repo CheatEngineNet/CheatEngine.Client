@@ -4,11 +4,74 @@ language: "en-US"
 early_access: false
 
 reviews:
-  profile: "chill"
+  # Assertive and advisory, as in CheatEngine.SDK: CodeRabbit reviews thoroughly but never approves, requests changes or
+  # sets a required status. The only required checks are "CI / Gate" and "PR policy".
+  profile: "assertive"
   request_changes_workflow: false
   high_level_summary: true
   review_status: false
+  commit_status: false
+  fail_commit_status: false
   poem: false
+  pre_merge_checks:
+    # Every check is a warning: none of them can block a merge. "PR policy" enforces the title and changelog rules.
+    title:
+      mode: "warning"
+      requirements: >-
+        Pull requests are squash-merged and the title becomes the commit subject on main. The required "PR policy"
+        check enforces: an imperative sentence (Add, Fix, Keep...) starting with an uppercase letter, at most 72
+        characters, no Conventional Commit prefix such as "feat:" or "fix(scope):", no trailing period.
+    description:
+      mode: "warning"
+    docstrings:
+      mode: "off" # CS1591 already fails the build for an undocumented public API
+    custom_checks:
+      - name: "Workflow and Gate contract"
+        mode: "warning"
+        instructions: >-
+          Applies only to changes under .github/; otherwise pass. Fail when: an action is referenced by tag or branch
+          instead of a full 40-character commit SHA with a version comment; a workflow uses pull_request_target, adds a
+          merge_group trigger or relies on a merge queue; pull-request-ci.yml or pr-policy.yml gains paths or
+          paths-ignore; actions/checkout omits persist-credentials: false; a job added to ci.yml is missing from the
+          needs of the gate job; the Gate accepts a skipped or failed result for any job other than sonar, or accepts a
+          skipped sonar while SONAR_EXPECTED is true; the if: expression of the sonar job and the SONAR_EXPECTED
+          expression of the Gate differ; a job runs on a label other than windows-2025 or ubuntu-24.04 or has no
+          timeout-minutes; ci.yml, sonar.yml, codeql.yml or release.yml enables a NuGet package cache (the Sonar
+          analyzer cache saved only from main is the single exception); a job that runs dotnet does not use
+          ./.github/actions/setup-dotnet with its locked restore; a run: script expands a user-controlled ${{ }} value
+          instead of reading it from env:; a PowerShell step runs a native command without checking $LASTEXITCODE; a
+          workflow grants write permissions at the top level; the caller job id ci named CI, the reusable job gate named
+          Gate or the job policy named "PR policy" is renamed; SONAR_TOKEN can reach fork or Dependabot runs; or an
+          uploaded artifact name is not in the reserved list of WorkflowContractTests. Otherwise pass.
+      - name: "Public API, documentation and changelog"
+        mode: "warning"
+        instructions: >-
+          Applies when public or protected API in libs/, src/ or source-generators/ is added, removed or changes
+          signature or behavior, when a diagnostic identifier or message changes, or when the template under templates/
+          changes what it generates; otherwise pass. Pass when the owning project's PublicAPI.Unshipped.txt declares the
+          API change, every new public member has XML documentation, the sibling README.md is updated where it
+          documents the contract, and CHANGELOG.md has an entry under "## [Unreleased]" in the matching category
+          (Added for an extension, Changed for a semantic correction, Security for a hardened refusal, Deployment for
+          what is built, packed, pinned or published). Fail otherwise.
+      - name: "SDK boundary and pin"
+        mode: "warning"
+        instructions: >-
+          Fail when: a public Client signature exposes LuaState, CEObject, Owned<T>, a native pointer, an
+          activation-bound handle or another SDK ownership type, or an SDK type outside the allowlist of
+          tests/CheatEngine.Client.Tests/PublicClientSignatureBoundaryTests.cs; a Core implementation type becomes
+          public; Client code declares a native import or binds a Lua global itself without a registered exception in
+          the architecture ratchet (tests/CheatEngine.Client.Tests/Architecture) and a removal entry in the SDK 2.0
+          migration guide; a CheatEngine.SDK version literal appears outside eng/CheatEngineSdk.props, or the pin moves
+          without eng/sdk/Update-CheatEngineSdk.ps1 or to 2.x without the migration guide; or a packages.lock.json
+          changes without a project or package change that explains it. Otherwise pass.
+      - name: "Qualification evidence"
+        mode: "warning"
+        instructions: >-
+          Pass when every validation claimed in the description states its level: C0 static contract, C1 managed tests
+          or doubles, C2 native fixture, C3 exact Cheat Engine host with a loaded plugin, C4 several components (two
+          plugins, a target switch). Fail when a C1 or C2 result, a CI run or a Native AOT publication is presented as
+          Cheat Engine host qualification, or when a capability is described as available without host evidence.
+          Otherwise pass.
 
   # The GitHub App performs automatic reviews. No CodeRabbit token, CLI, or workflow is used here.
   auto_review:
@@ -22,7 +85,8 @@ reviews:
   tools:
     github-checks:
       enabled: true
-    # pull-request-ci.yml runs the pinned, checksum-verified actionlint binary.
+    # actionlint and zizmor run in the "Lint" job of ci.yml on every event, pinned and checksum-verified, and
+    # PSScriptAnalyzer lints every tracked PowerShell file there; do not duplicate them here.
     actionlint:
       enabled: false
 
@@ -42,12 +106,15 @@ reviews:
       instructions: |
         Preserve a public, high-level Client API. Do not expose LuaState, CEObject, Owned<T>, native pointers,
         activation-bound handles, or SDK lifetime ownership. SDK values that cross this API must be stable copied values.
+        Detailed outcomes go on companion interfaces (the IMemoryBatchClient pattern), never as new members of an
+        existing public interface; every public change is declared in PublicAPI.Unshipped.txt.
 
     - path: "libs/CheatEngine.Client.Core/**"
       instructions: |
         Treat Core as the internal execution adapter to CheatEngine.SDK. Verify SDK mappings stay internal, partial
         effects and operational errors remain observable, and Client resources are released before SDK detachment.
-        Flag any public Client API that leaks an SDK handle or an SDK lifetime responsibility.
+        Flag any public Client API that leaks an SDK handle or an SDK lifetime responsibility, and any SDK exception
+        that can escape a Try* method.
 
     - path: "libs/CheatEngine.Client.Hosting/**"
       instructions: |
@@ -57,7 +124,8 @@ reviews:
     - path: "src/**"
       instructions: |
         Keep the facade developer-focused and independent from ABI, Lua binding, native ownership, and dispatcher
-        details. Direct SDK dependencies must not bypass the Client Core layer.
+        details. Direct SDK dependencies must not bypass the Client Core layer. The packed README may contain absolute
+        https links only.
 
     - path: "source-generators/**"
       instructions: |
@@ -67,34 +135,85 @@ reviews:
     - path: "templates/**"
       instructions: |
         Keep templates approachable for plugin developers while preserving the explicit SDK bootstrap and generation
-        assets they require. Package and template smoke coverage belongs in the C# test suite.
+        assets they require. Package and template smoke coverage belongs in the C# test suite. Template code must not
+        log addresses, values, Lua text or raw failures.
 
     - path: "tests/**"
       instructions: |
-        Require behavior tests for success, failure, cancellation, cleanup, and lifecycle transitions. Packaging tests
-        must consume the packages built by CI and keep realistic Client plus SDK dependencies.
+        Require behavior tests for success, failure, cancellation, cleanup, and lifecycle transitions. Tests use
+        xUnit v3 on Microsoft.Testing.Platform; CI runs the whole solution once in Debug and once in Release with
+        --fail-skips on, so a skipped test fails both: select tests by trait, never hide one with Skip. The package
+        consumption tests consume the packages the Release leg packed (CHEATENGINE_CLIENT_PACKAGE_SOURCE) and keep
+        realistic Client plus SDK dependencies. Distinguish managed, fixture and Native AOT probes from live Cheat
+        Engine host qualification.
+
+    - path: "tests/**/Architecture/**"
+      instructions: |
+        The architecture ratchet freezes the Client's ADR-01 debt. Shrinking a frozen list is always acceptable;
+        growing it requires a registered exception with a removal entry in the SDK 2.0 migration guide.
 
     - path: ".github/**"
       instructions: |
-        Review least privilege, full-SHA action pins, reusable-workflow contracts, artifact producer/consumer paths,
-        fork and secret guards, and deterministic dependency sources. Do not duplicate the actionlint check already
-        executed by pull-request-ci.yml.
+        pull-request-ci.yml, main-ci.yml and release.yml are thin callers of the reusable ci.yml through the job id
+        ci named CI; there is no merge queue and no merge_group trigger. Exactly two checks are required: "CI / Gate"
+        and "PR policy" (pr-policy.yml, job policy named "PR policy"); never rename them or add path filters to their
+        workflows. The Gate evaluates toJSON(needs): every ci.yml job (build-test Debug and Release, aot, sonar, lint,
+        format, dependency-review, lock-files) must succeed, and only sonar may be skipped, exactly when
+        SONAR_EXPECTED is false (fork or Dependabot pull request, release run); the sonar if: expression repeats
+        SONAR_EXPECTED textually. A job missing from gate.needs, an unpinned action, a runner label other than
+        windows-2025 or ubuntu-24.04, a job without timeout-minutes or an unreserved artifact name fails
+        WorkflowContractTests. The Lint job runs actionlint and the offline zizmor audits on every event and
+        PSScriptAnalyzer over every tracked PowerShell file; do not ask for a duplicate CodeRabbit actionlint run.
+        Every dotnet job uses ./.github/actions/setup-dotnet (locked restore, cache off); no NuGet cache in ci.yml,
+        sonar.yml, codeql.yml or release.yml. Require SHA-pinned actions, least privilege, persist-credentials: false,
+        user text through env: only and $LASTEXITCODE checks. CodeQL, Scorecard, zizmor-online, scheduled-health and
+        dependency-submission are advisory. scorecard.yml intentionally has no defaults, env or run steps. Write
+        permissions are granted per job with a reason comment: outside release.yml, contents: write exists only in the
+        dependency-submission.yml job submit, and issues: write only in the scheduled-health.yml job report. Never use
+        pull_request_target.
+
+    - path: ".github/workflows/release.yml"
+      instructions: |
+        Keep the contract order verify -> ci -> attest -> draft-release -> publish -> verify-publication ->
+        finalize-release. The ci job calls ci.yml with package-version and package-retention-days: 90 and never passes
+        sonar. No package cache and no binary log in the release path. NuGet/login stays in the publish job, behind
+        the nuget environment and the tag and repository guard; a dispatch run stays a dry run.
+
+    - path: "{SECURITY.md,.github/CODEOWNERS,.github/ISSUE_TEMPLATE/**}"
+      instructions: |
+        Keep the required fields of the compatibility form aligned with the Client release tuple and
+        eng/sdk/consumed-sdk.json field names. Vulnerabilities are reported privately, never in public issues.
+        CODEOWNERS stays informational.
+
+    - path: "{eng/CheatEngineSdk.props,eng/sdk/**}"
+      instructions: |
+        The consumed CheatEngine.SDK pin has a single source. It moves only through eng/sdk/Update-CheatEngineSdk.ps1,
+        together with eng/sdk/consumed-sdk.json and regenerated lock files, and never to 2.x without the SDK 2.0
+        migration guide.
 
     - path: "{Directory.Build.props,Directory.Build.targets,Directory.Packages.props,global.json}"
       instructions: |
-        Preserve the net10/MTP/package validation contracts and central dependency management. Flag a change that
-        weakens the Client to SDK layering rules or makes builds and tests less reproducible.
+        Preserve the net10/MTP/package validation contracts and central dependency management. The exact SDK pin
+        (rollForward: disable), the analysis level, the NuGet audit policy and the lock-file requirement are guarded by
+        CHEATENGINECLIENT9030-9032. Flag a change that weakens the Client to SDK layering rules or makes builds and
+        tests less reproducible.
+
+    - path: "CHANGELOG.md"
+      instructions: |
+        Keep a Changelog 1.1.0 with the exact heading "## [Unreleased]" and its four categories in order: Added,
+        Changed, Security, Deployment. The release workflow reads that section for the release notes.
 
     - path: "{README.md,ROADMAP.md,docs/**}"
       instructions: |
         Keep the architecture boundary explicit: CheatEngine.SDK owns ABI, native bindings, Lua globals, dispatcher,
         and native resource ownership; CheatEngine.Client owns high-level workflows, policies, and developer ergonomics.
+        Never present a managed, fixture or CI result as Cheat Engine host qualification.
 
 knowledge_base:
   code_guidelines:
     enabled: true
     filePatterns:
-      - "CLAUDE.md"
+      - "CONTRIBUTING.md"
   linked_repositories:
     - repository: "CheatEngineNet/CheatEngine.SDK"
       instructions: |
