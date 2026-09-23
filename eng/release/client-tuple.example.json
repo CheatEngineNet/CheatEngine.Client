@@ -19,7 +19,7 @@
       "imageVersion": "local-rehearsal"
     },
     "roslynFloor": "5.9.0",
-    "analysisLevel": "latest-recommended"
+    "analysisLevel": "10.0-recommended"
   },
   "ceProfile": {
     "profileId": "ce-7.7.0.10621-x64-managed-hostfxr",
