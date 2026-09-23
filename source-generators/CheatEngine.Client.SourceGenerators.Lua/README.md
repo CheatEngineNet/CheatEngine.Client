@@ -73,7 +73,10 @@ preflight and the reserved member prefix; the entry is tracked in docs/migration
 ## Diagnostics
 
 Every generator diagnostic is an error. Ids are allocated per range and never renumbered or reused: 1001-1006 module
-shape, 1101-1106 operation shape, 1201-1209 module ownership (Q16; 1205-1209 unused).
+shape, 1101-1106 operation shape, 1201-1209 module ownership (Q16; 1205-1209 unused). Each id is tracked in
+`AnalyzerReleases.Unshipped.md` (moved to `AnalyzerReleases.Shipped.md` at release); both files are `AdditionalFiles` of
+the generator project, so the release-tracking analyzers (RS2000-RS2008) fail the build when a descriptor and its row
+disagree.
 
 | Id | Title | Reported when |
 |---|---|---|

@@ -11,6 +11,7 @@ namespace CheatEngine.Client.SourceGenerators.Lua.Tests.Diagnostics;
 public sealed partial class CheatEngineLuaDiagnosticCatalogTests
 {
 	private const string ReleaseFile = "AnalyzerReleases.Unshipped.md";
+	private const string ShippedReleaseFile = "AnalyzerReleases.Shipped.md";
 	private const string GeneratorReadme = "Generator.README.md";
 
 	[Fact]
@@ -21,7 +22,7 @@ public sealed partial class CheatEngineLuaDiagnosticCatalogTests
 		foreach (DiagnosticDescriptor descriptor in CheatEngineLuaDiagnostics.All)
 		{
 			Assert.True(rows.TryGetValue(descriptor.Id, out (string Category, string Severity) row),
-				$"{descriptor.Id} is not tracked in {ReleaseFile}.");
+				$"{descriptor.Id} is not tracked in {ShippedReleaseFile} or {ReleaseFile}.");
 			Assert.Equal(descriptor.Category, row.Category);
 			Assert.Equal(descriptor.DefaultSeverity.ToString(), row.Severity);
 		}
@@ -77,7 +78,9 @@ public sealed partial class CheatEngineLuaDiagnosticCatalogTests
 	private static Dictionary<string, (string Category, string Severity)> ReadReleaseRows()
 	{
 		Dictionary<string, (string, string)> rows = new(StringComparer.Ordinal);
-		foreach (string line in File.ReadAllLines(Path.Combine(AppContext.BaseDirectory, "Diagnostics", ReleaseFile)))
+		IEnumerable<string> lines = File.ReadAllLines(Path.Combine(AppContext.BaseDirectory, "Diagnostics", ShippedReleaseFile))
+			.Concat(File.ReadAllLines(Path.Combine(AppContext.BaseDirectory, "Diagnostics", ReleaseFile)));
+		foreach (string line in lines)
 		{
 			Match match = ReleaseRow().Match(line);
 			if (match.Success)
