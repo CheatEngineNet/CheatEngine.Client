@@ -119,8 +119,8 @@ scope, and the Cheat Engine scan time (`HostScanElapsed`) separately from the Cl
 With CheatEngine.SDK 1.0.0 a scan that finds nothing returns `CheatEngineFailureKind.IndeterminateHostResult`: Cheat
 Engine 7.7 returns no result list for zero matches, and SDK 1.0.0 cannot distinguish that from an unresolved global, a
 protected Lua failure, or a non-object result. It is never reported as `NotFound` or as a host rejection; an empty
-result list that Cheat Engine does return remains a normal, successful no-match. The SDK 2.0 migration (see
-`docs/migration/sdk-2.0.md` once it exists) replaces this with the detailed SDK outcome.
+result list that Cheat Engine does return remains a normal, successful no-match. Moving the Client onto CheatEngine.SDK
+2.0 replaces this with the detailed SDK outcome.
 
 ### Failure, exception and cancellation contract
 
