@@ -1,4 +1,3 @@
-using System.IO.Compression;
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
 using System.Security.Cryptography;
@@ -493,14 +492,12 @@ public sealed partial class PackageConsumptionSmokeTests(PackagedClientFeedFixtu
 		fixture.RequireConsumer();
 		Assert.True(fixture.UsesPinnedSdk, $"This fact re-versions the pinned SDK; unset {PackagedClientFeedFixture.SdkPackageSourceVariable}.");
 		string feed = fixture.CreateDirectory("sdk-two-feed");
-		string cached = Path.Combine(fixture.PackageCache, "cheatengine.sdk", fixture.SdkVersion.ToLowerInvariant(),
-			$"cheatengine.sdk.{fixture.SdkVersion.ToLowerInvariant()}.nupkg");
 
 		// A 2.0.0 prerelease sorts below 2.0.0, so it satisfies [1.0.0, 2.0.0) and NuGet resolves it without any
 		// warning; a stable 2.0.0 only triggers the NU1608 warning. Both must fail the plugin build.
 		foreach ((string version, bool nuGetWarns) in (ValueTuple<string, bool>[]) [("2.0.0-cecanary.1", false), ("2.0.0", true)])
 		{
-			CreateReversionedPackage(cached, Path.Combine(feed, $"CheatEngine.SDK.{version}.nupkg"), fixture.SdkVersion, version);
+			fixture.CreateReversionedSdkPackage(feed, version);
 			string consumer = fixture.CreateDirectory($"sdk-two-consumer-{version}");
 			string project = Path.Combine(consumer, "SdkTwo.Plugin.csproj");
 			await File.WriteAllTextAsync(project, PackagedClientFeedFixture.CreateConsumerProject(fixture.ClientVersion, version),
@@ -526,30 +523,6 @@ public sealed partial class PackageConsumptionSmokeTests(PackagedClientFeedFixtu
 			PackagedClientFeedFixture.Evidence(nameof(PluginReferencingSdkTwoReportsCECLIENT017),
 				$"sdk={version} nu1608={nuGetWarns} build=CECLIENT017 error; opt-out=CECLIENT017 warning");
 		}
-	}
-
-	/// <summary>
-	/// Copies a nuget.org package under another version. The repository signature covers the original content, so the
-	/// modified copy drops <c>.signature.p7s</c>; a modified package that keeps it fails with NU3008
-	/// (https://learn.microsoft.com/nuget/consume-packages/installing-signed-packages).
-	/// </summary>
-	private static void CreateReversionedPackage(string source, string destination, string fromVersion, string toVersion)
-	{
-		File.Copy(source, destination, overwrite: true);
-		using ZipArchive archive = ZipFile.Open(destination, ZipArchiveMode.Update);
-		archive.GetEntry(".signature.p7s")?.Delete();
-		ZipArchiveEntry nuspec = archive.Entries.Single(static entry => entry.FullName.EndsWith(".nuspec", StringComparison.OrdinalIgnoreCase));
-		string text;
-		using (StreamReader reader = new(nuspec.Open()))
-		{
-			text = reader.ReadToEnd();
-		}
-
-		string name = nuspec.FullName;
-		nuspec.Delete();
-		ZipArchiveEntry replacement = archive.CreateEntry(name);
-		using StreamWriter writer = new(replacement.Open(), new UTF8Encoding(false));
-		writer.Write(text.Replace($"<version>{fromVersion}</version>", $"<version>{toVersion}</version>", StringComparison.Ordinal));
 	}
 
 	private static string PinnedSdkVersion()

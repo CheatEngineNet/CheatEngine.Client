@@ -21,10 +21,12 @@
 
     Canary switch (used only by the SDK-side advisory client-canary job): pass
       -p:CheatEngineSdkVersion=<2.x prerelease> -p:CheatEngineSdkUpperBound=3.0.0 -p:CheatEngineSdkCanary=true
-      -p:RestorePackagesWithLockFile=false -p:CheatEngineClientAllowUnsupportedSdk=true
+      -p:CheatEngineClientAllowUnsupportedSdk=true
     CheatEngineSdkCanary=true turns the CHEATENGINECLIENT9016 build errors into messages so the build can report what
     breaks; packing stays refused. CheatEngineClientAllowUnsupportedSdk=true keeps the consumer check CECLIENT017 a
-    warning in the coexistence fixtures, which import the Hosting build targets.
+    warning in the coexistence fixtures, which import the Hosting build targets. Lock files stay enabled: the canary
+    restores without locked mode, so NuGet rewrites the lock files of its throw-away checkout, which are never
+    committed (disabling them instead fails with NU1005, because every project has a committed lock file).
   -->
   <PropertyGroup Label="Consumed CheatEngine.SDK">
     <CheatEngineSdkVersion>1.0.0</CheatEngineSdkVersion>

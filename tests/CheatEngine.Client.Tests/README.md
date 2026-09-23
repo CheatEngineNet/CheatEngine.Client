@@ -57,6 +57,12 @@ TRX report keeps. The facts prove that:
 These are package-level results (fixture level C2); a Cheat Engine host run of Q40 is a separate qualification.
 `PackageSourceResolutionTests` has no category, so both CI legs check the package source rules.
 
+`SdkCanaryRecipeTests.CanaryRecipeBuildsAgainstACandidateSdkButNeverPacks` shares the same fixture and category. It
+runs the canary recipe of `eng/sdk/README.md` (the SDK-side client-canary job, audit Q48) on a throw-away copy of
+`CheatEngine.Client.Abstractions`, against the pinned SDK re-versioned as `2.0.0-alpha.0.42`: the restore rewrites the
+copy's lock file instead of failing (NU1005), `CHEATENGINECLIENT9016` reports without failing the build, and the pack
+is still refused.
+
 `BuildGuardTests` run the repository's MSBuild guard targets against real projects with overridden global properties,
 without restoring or building: `CommittedPinPassesTheSdkGuard`, `SdkMajorTwoPinFailsWithCHEATENGINECLIENT9016`,
 `PrereleaseSdkPinFailsWithCHEATENGINECLIENT9016` and `CanarySwitchKeepsTheBuildRunningButStillBlocksPack` prove that the

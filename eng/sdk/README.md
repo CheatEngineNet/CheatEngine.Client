@@ -94,16 +94,26 @@ package, and a move to 2.x also fails the build with `CHEATENGINECLIENT9016`.
 ## Canary builds
 
 The SDK repository can build this Client against an unreleased SDK to detect breaking changes early (audit Q48). That
-advisory job overrides the pin with global properties and a temporary NuGet configuration:
+advisory job overrides the pin with global properties and a temporary NuGet configuration, in a throw-away checkout of
+this repository:
 
 ```powershell
-dotnet build CheatEngine.Client.slnx -c Release `
+dotnet build CheatEngine.Client.slnx -c Release -p:RestoreConfigFile=<canary NuGet.Config> `
   -p:CheatEngineSdkVersion=2.0.0-alpha.0.42 -p:CheatEngineSdkUpperBound=3.0.0 `
-  -p:CheatEngineSdkCanary=true -p:RestorePackagesWithLockFile=false -p:CheatEngineClientAllowUnsupportedSdk=true
+  -p:CheatEngineSdkCanary=true -p:CheatEngineClientAllowUnsupportedSdk=true
 ```
 
-The `NuGet.Config` of that job maps the package id `CheatEngine.SDK` to the folder of the candidate package and every
-other id to nuget.org. `CheatEngineSdkCanary=true` turns the `CHEATENGINECLIENT9016` errors into messages so the build
-reports what breaks; `dotnet pack` still fails, so a canary build never produces a Client package.
+The canary `NuGet.Config` maps the package id `CheatEngine.SDK` to the folder of the candidate package and every other
+id to nuget.org, and the job restores into a global packages folder of its own (`NUGET_PACKAGES`), so the candidate
+never enters a shared cache. `CheatEngineSdkCanary=true` turns the `CHEATENGINECLIENT9016` errors into messages so the build reports what
+breaks; `dotnet pack` still fails, so a canary build never produces a Client package.
 `CheatEngineClientAllowUnsupportedSdk=true` keeps `CECLIENT017` a warning in the coexistence fixtures, which import the
 Hosting build targets directly.
+
+Lock files stay enabled. The canary restores without `--locked-mode`, so NuGet re-resolves the projects whose
+`CheatEngine.SDK` version changed and rewrites the lock files of the throw-away checkout; those lock files are never
+committed. Do not pass `-p:RestorePackagesWithLockFile=false`: every project has a committed lock file, so NuGet
+refuses that restore with
+[NU1005](https://learn.microsoft.com/nuget/reference/errors-and-warnings/nu1005). The package consumption test
+`SdkCanaryRecipeTests.CanaryRecipeBuildsAgainstACandidateSdkButNeverPacks` runs this recipe on a copy of
+`CheatEngine.Client.Abstractions` against a re-versioned `CheatEngine.SDK`.

@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Security;
 using System.Text;
 using System.Text.Json;
@@ -413,6 +414,37 @@ public sealed class PackagedClientFeedFixture : IAsyncLifetime
 					$"'{directory}' has '{Path.Combine(current.FullName, marker)}' above it, so its build would not be isolated from a workspace.");
 			}
 		}
+	}
+
+	/// <summary>
+	/// Copies the pinned CheatEngine.SDK package of the isolated cache into <paramref name="feed"/> under another version,
+	/// for tests that need an SDK the Client was not built for. The repository signature covers the original content, so
+	/// the modified copy drops <c>.signature.p7s</c>; a modified package that keeps it fails with NU3008
+	/// (https://learn.microsoft.com/nuget/consume-packages/installing-signed-packages).
+	/// </summary>
+	internal string CreateReversionedSdkPackage(string feed, string version)
+	{
+		RequireConsumer();
+		Assert.True(UsesPinnedSdk, $"Re-versioning needs the pinned SDK from nuget.org; unset {SdkPackageSourceVariable}.");
+		string pinned = SdkVersion.ToLowerInvariant();
+		string source = Path.Combine(PackageCache, "cheatengine.sdk", pinned, $"cheatengine.sdk.{pinned}.nupkg");
+		string destination = Path.Combine(feed, $"{SdkPackageId}.{version}.nupkg");
+		File.Copy(source, destination, overwrite: true);
+		using ZipArchive archive = ZipFile.Open(destination, ZipArchiveMode.Update);
+		archive.GetEntry(".signature.p7s")?.Delete();
+		ZipArchiveEntry nuspec = archive.Entries.Single(static entry => entry.FullName.EndsWith(".nuspec", StringComparison.OrdinalIgnoreCase));
+		string text;
+		using (StreamReader reader = new(nuspec.Open()))
+		{
+			text = reader.ReadToEnd();
+		}
+
+		string name = nuspec.FullName;
+		nuspec.Delete();
+		ZipArchiveEntry replacement = archive.CreateEntry(name);
+		using StreamWriter writer = new(replacement.Open(), new UTF8Encoding(false));
+		writer.Write(text.Replace($"<version>{SdkVersion}</version>", $"<version>{version}</version>", StringComparison.Ordinal));
+		return destination;
 	}
 
 	/// <summary>Writes a structured evidence line into the test output, which the TRX report keeps.</summary>
