@@ -611,6 +611,21 @@ public sealed class TryContractTests
 			throw Fault();
 		}
 
+		public TableActivationObservation TrySetActive(MemoryRecordId id, bool requested)
+		{
+			throw Fault();
+		}
+
+		public TableRecordMutationStatus TrySelect(MemoryRecordId id, out MemoryRecordSnapshot record)
+		{
+			throw Fault();
+		}
+
+		public RecordLookupStatus TryGetTable(int maximumItems, out AddressTableSnapshot table)
+		{
+			throw Fault();
+		}
+
 		public long GetOpenedProcessId()
 		{
 			throw Fault();

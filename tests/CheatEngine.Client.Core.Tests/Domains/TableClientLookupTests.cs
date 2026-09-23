@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 
 using CheatEngine.Client.Core.Domains;
@@ -92,6 +93,64 @@ public sealed class TableClientLookupTests
 		Assert.Equal(default, failure);
 	}
 
+	[Fact]
+	public void FindReturnsEveryRecordThatSharesADuplicatedDescription()
+	{
+		// A14-30: the Client has no single lookup by description; a search returns every match, never an arbitrary first.
+		FakeRecordLookupPort lookups = new()
+		{
+			Table = [Snapshot(1, "Ammo"), Snapshot(2, "Health"), Snapshot(3, "Ammo")]
+		};
+		TableClient client = CreateClient(lookups);
+
+		bool succeeded = client.TryFind(new MemoryRecordSearch("Ammo"), new MemoryRecordCollectionRequest(8),
+			out ImmutableArray<MemoryRecordSnapshot> records, out CheatEngineFailure failure,
+			TestContext.Current.CancellationToken);
+
+		Assert.True(succeeded);
+		Assert.Equal(default, failure);
+		Assert.Equal([new MemoryRecordId(1), new MemoryRecordId(3)], records.Select(static record => record.Id));
+	}
+
+	[Fact]
+	public void GetSnapshotReportsTheMaterializationLimitWithoutCopyingRecords()
+	{
+		FakeRecordLookupPort lookups = new()
+		{
+			Table = [Snapshot(1, "Ammo"), Snapshot(2, "Health")]
+		};
+		TableClient client = CreateClient(lookups);
+
+		bool succeeded = client.TryGetSnapshot(new MemoryRecordCollectionRequest(1), out AddressTableSnapshot table,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(default, table);
+		Assert.Equal(CheatEngineFailureKind.ResultLimitExceeded, failure.Kind);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q34")]
+	public void GetRecordWithAnIndexBeyondTheTableReportsNotFoundWithoutALuaError()
+	{
+		// A14-31: an index past the end is an absent record, not a Lua error and not an exception.
+		FakeRecordLookupPort lookups = new()
+		{
+			IndexStatus = RecordLookupStatus.NotFound
+		};
+		TableClient client = CreateClient(lookups);
+
+		bool succeeded = client.TryGetRecord(1000, out MemoryRecordSnapshot record, out CheatEngineFailure failure,
+			TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(default, record);
+		Assert.Equal(CheatEngineFailureKind.NotFound, failure.Kind);
+		Assert.NotEqual(CheatEngineFailureKind.LuaError, failure.Kind);
+		Assert.Null(failure.Exception);
+		Assert.Equal(1000, lookups.LastIndex);
+	}
+
 	private static TableClient CreateClient(FakeRecordLookupPort lookups)
 	{
 		return new TableClient(new InlineDispatcher(), CoreClientPolicy.SafeDefaults, recordLookups: lookups);
@@ -132,6 +191,18 @@ public sealed class TableClientLookupTests
 			init;
 		}
 
+		internal MemoryRecordSnapshot IndexRecord
+		{
+			get;
+			init;
+		}
+
+		internal MemoryRecordSnapshot[] Table
+		{
+			get;
+			init;
+		} = [];
+
 		internal int LastIndex
 		{
 			get;
@@ -153,7 +224,7 @@ public sealed class TableClientLookupTests
 		public RecordLookupStatus TryGetRecord(int index, out MemoryRecordSnapshot record)
 		{
 			LastIndex = index;
-			record = default;
+			record = IndexStatus == RecordLookupStatus.Success ? IndexRecord : default;
 			return IndexStatus;
 		}
 
@@ -169,6 +240,18 @@ public sealed class TableClientLookupTests
 			SelectedCalls++;
 			record = default;
 			return SelectedStatus;
+		}
+
+		public RecordLookupStatus TryGetTable(int maximumItems, out AddressTableSnapshot table)
+		{
+			if (Table.Length > maximumItems)
+			{
+				table = default;
+				return RecordLookupStatus.LimitExceeded;
+			}
+
+			table = new AddressTableSnapshot([.. Table]);
+			return RecordLookupStatus.Success;
 		}
 	}
 

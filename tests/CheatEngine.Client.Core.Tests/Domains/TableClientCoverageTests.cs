@@ -219,6 +219,19 @@ public sealed class TableClientCoverageTests
 			record = default;
 			return TableRecordMutationStatus.Success;
 		}
+
+		public TableActivationObservation TrySetActive(MemoryRecordId id, bool requested)
+		{
+			InvocationCount++;
+			return TableActivationObservation.Of(TableActivationStatus.Applied);
+		}
+
+		public TableRecordMutationStatus TrySelect(MemoryRecordId id, out MemoryRecordSnapshot record)
+		{
+			InvocationCount++;
+			record = default;
+			return TableRecordMutationStatus.Success;
+		}
 	}
 
 	private sealed class RejectingDispatcher : ICheatEngineDispatcher

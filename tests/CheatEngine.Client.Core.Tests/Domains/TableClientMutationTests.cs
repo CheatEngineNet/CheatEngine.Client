@@ -31,6 +31,7 @@ public sealed class TableClientMutationTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q34")]
 	public void TryDeleteClassifiesAnAbsentRecord()
 	{
 		TableClient client = CreateClient(new FakeRecordMutationPort
@@ -48,6 +49,7 @@ public sealed class TableClientMutationTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q34")]
 	public void DeleteThrowsTheClassifiedHostFailure()
 	{
 		TableClient client = CreateClient(new FakeRecordMutationPort
@@ -124,6 +126,7 @@ public sealed class TableClientMutationTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q34")]
 	public void TrySetParentMapsAHostRejectedMutationToTheExactHostFailure()
 	{
 		FakeRecordMutationPort mutations = new()
@@ -145,6 +148,7 @@ public sealed class TableClientMutationTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q34")]
 	public void SetParentThrowsAClassifiedMissingParentFailure()
 	{
 		TableClient client = CreateClient(new FakeRecordMutationPort
@@ -180,6 +184,7 @@ public sealed class TableClientMutationTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q34")]
 	public void ParentRelationshipGuardRejectsAnIndirectCycleBackToTheChild()
 	{
 		Dictionary<MemoryRecordId, ParentChainStep> links = new()
@@ -196,6 +201,7 @@ public sealed class TableClientMutationTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q34")]
 	public void ParentRelationshipGuardRejectsAnExistingParentLoop()
 	{
 		Dictionary<MemoryRecordId, ParentChainStep> links = new()
@@ -212,6 +218,7 @@ public sealed class TableClientMutationTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q34")]
 	public void ParentRelationshipGuardRejectsAChainThatExceedsItsBound()
 	{
 		TableRecordMutationStatus status = TableParentRelationshipGuard.Validate(new MemoryRecordId(41),
@@ -308,6 +315,203 @@ public sealed class TableClientMutationTests
 		Assert.Equal(expected, record);
 	}
 
+	[Fact]
+	[Trait("Qualification", "Q35")]
+	public void TrySetActiveReportsRefusedWhenCheatEngineLeavesTheRecordInactive()
+	{
+		FakeRecordActivation activation = new(active: false)
+		{
+			RefuseChange = true
+		};
+		TableClient client = CreateClient(new FakeRecordMutationPort { ActivationRecord = activation });
+
+		bool succeeded = client.TrySetActive(new MemoryRecordId(41), true, out MemoryRecordSnapshot record,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.Started, failure.HostEffect);
+		Assert.Equal("Tables.SetActive", failure.Operation);
+		Assert.Contains("left the memory record inactive", failure.Message, StringComparison.Ordinal);
+		Assert.Contains("partial script effects may persist", failure.Message, StringComparison.Ordinal);
+		Assert.Equal(new MemoryRecordId(41), record.Id);
+		Assert.False(record.IsActive);
+		Assert.Equal(1, activation.WriteCount);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q35")]
+	public void TrySetActiveReportsRefusedWhenCheatEngineLeavesTheRecordActive()
+	{
+		FakeRecordActivation activation = new(active: true)
+		{
+			RefuseChange = true
+		};
+		TableClient client = CreateClient(new FakeRecordMutationPort { ActivationRecord = activation });
+
+		bool succeeded = client.TrySetActive(new MemoryRecordId(41), false, out MemoryRecordSnapshot record,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
+		Assert.Contains("left the memory record active", failure.Message, StringComparison.Ordinal);
+		Assert.True(record.IsActive);
+		Assert.Equal(1, activation.WriteCount);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q35")]
+	public void TrySetActiveInTheRequestedStateDoesNotCallTheSetter()
+	{
+		FakeRecordActivation activation = new(active: true);
+		TableClient client = CreateClient(new FakeRecordMutationPort { ActivationRecord = activation });
+
+		bool succeeded = client.TrySetActive(new MemoryRecordId(41), true, out MemoryRecordSnapshot record,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.True(succeeded);
+		Assert.Equal(default, failure);
+		Assert.True(record.IsActive);
+		Assert.Equal(0, activation.WriteCount);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q35")]
+	public void TrySetActiveAppliesTheRequestedStateAndReturnsThePostChangeSnapshot()
+	{
+		FakeRecordActivation activation = new(active: false);
+		TableClient client = CreateClient(new FakeRecordMutationPort { ActivationRecord = activation });
+
+		bool succeeded = client.TrySetActive(new MemoryRecordId(41), true, out MemoryRecordSnapshot record,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.True(succeeded);
+		Assert.Equal(default, failure);
+		Assert.True(record.IsActive);
+		Assert.Equal(1, activation.WriteCount);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q35")]
+	public void TrySetActiveReportsPendingForAnAsynchronousRecordStillProcessing()
+	{
+		FakeRecordActivation activation = new(active: false)
+		{
+			ProcessingAfterWrite = true,
+			RefuseChange = true
+		};
+		TableClient client = CreateClient(new FakeRecordMutationPort { ActivationRecord = activation });
+
+		bool succeeded = client.TrySetActive(new MemoryRecordId(41), true, out MemoryRecordSnapshot record,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(CheatEngineFailureKind.IndeterminateHostResult, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.Started, failure.HostEffect);
+		Assert.Contains("asynchronously", failure.Message, StringComparison.Ordinal);
+		Assert.Equal(new MemoryRecordId(41), record.Id);
+	}
+
+	[Fact]
+	public void TrySetActiveReportsAnUnknownEffectWhenThePostChangeReadFails()
+	{
+		// A14-42: the native effect may have happened, but its result could not be copied.
+		FakeRecordActivation activation = new(active: false)
+		{
+			FailReadAfterWrite = true
+		};
+		TableClient client = CreateClient(new FakeRecordMutationPort { ActivationRecord = activation });
+
+		bool succeeded = client.TrySetActive(new MemoryRecordId(41), true, out MemoryRecordSnapshot record,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(CheatEngineFailureKind.InvalidHostResult, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.Unknown, failure.HostEffect);
+		Assert.Equal(default, record);
+		Assert.Equal(1, activation.WriteCount);
+	}
+
+	[Fact]
+	public void TrySetActiveNeverRetriesAfterARefusal()
+	{
+		// An OnActivationFailure handler that asks for a retry already loops inside Cheat Engine's single setter call.
+		FakeRecordActivation activation = new(active: false)
+		{
+			RefuseChange = true
+		};
+		TableClient client = CreateClient(new FakeRecordMutationPort { ActivationRecord = activation });
+
+		Assert.False(client.TrySetActive(new MemoryRecordId(41), true, out _, out _,
+			TestContext.Current.CancellationToken));
+
+		Assert.Equal(1, activation.WriteCount);
+		Assert.Equal(2, activation.ActiveReadCount);
+		Assert.Equal(1, activation.ProcessingReadCount);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q34")]
+	public void TrySetActiveReportsNotFoundForAnUnknownRecordWithoutTouchingTheHost()
+	{
+		FakeRecordMutationPort mutations = new()
+		{
+			Activation = TableActivationObservation.Of(TableActivationStatus.RecordNotFound)
+		};
+		TableClient client = CreateClient(mutations);
+
+		bool succeeded = client.TrySetActive(new MemoryRecordId(41), true, out MemoryRecordSnapshot record,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(default, record);
+		Assert.Equal(CheatEngineFailureKind.NotFound, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
+		Assert.Equal(1, mutations.SetActiveCallCount);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q34")]
+	public void DeletingTheSameRecordTwiceReportsNotFoundTheSecondTime()
+	{
+		// A14-38: the second delete finds no record, so destroy is never reached twice.
+		FakeRecordMutationPort mutations = new()
+		{
+			TrackDeletedRecords = true
+		};
+		TableClient client = CreateClient(mutations);
+
+		bool first = client.TryDelete(new MemoryRecordId(41), out CheatEngineFailure firstFailure,
+			TestContext.Current.CancellationToken);
+		bool second = client.TryDelete(new MemoryRecordId(41), out CheatEngineFailure secondFailure,
+			TestContext.Current.CancellationToken);
+
+		Assert.True(first);
+		Assert.Equal(default, firstFailure);
+		Assert.False(second);
+		Assert.Equal(CheatEngineFailureKind.NotFound, secondFailure.Kind);
+		Assert.Equal(1, mutations.DestroyCount);
+	}
+
+	[Fact]
+	public void SelectIsDispatchedAsAHostVisibleMutation()
+	{
+		// A14-08: changing Cheat Engine's GUI selection is a host-visible mutation, never a read of a cache.
+		FakeRecordMutationPort mutations = new()
+		{
+			SelectRecord = Snapshot(41, "Ammo")
+		};
+		TableClient client = CreateClient(mutations);
+
+		bool succeeded = client.TrySelect(new MemoryRecordId(41), out MemoryRecordSnapshot record,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.True(succeeded);
+		Assert.Equal(default, failure);
+		Assert.Equal(new MemoryRecordId(41), record.Id);
+		Assert.Equal([new MemoryRecordId(41)], mutations.SelectedIds);
+	}
+
 	private static MemoryRecordDefinition Definition()
 	{
 		return new MemoryRecordDefinition("Health", "game.exe+24", "100", VariableType.Dword);
@@ -389,6 +593,52 @@ public sealed class TableClientMutationTests
 			private set;
 		}
 
+		internal TableActivationObservation? Activation
+		{
+			get;
+			init;
+		}
+
+		internal FakeRecordActivation? ActivationRecord
+		{
+			get;
+			init;
+		}
+
+		internal int SetActiveCallCount
+		{
+			get;
+			private set;
+		}
+
+		internal bool TrackDeletedRecords
+		{
+			get;
+			init;
+		}
+
+		internal int DestroyCount
+		{
+			get;
+			private set;
+		}
+
+		internal MemoryRecordSnapshot SelectRecord
+		{
+			get;
+			init;
+		}
+
+		internal List<MemoryRecordId> SelectedIds
+		{
+			get;
+		} = [];
+
+		private HashSet<MemoryRecordId> DeletedIds
+		{
+			get;
+		} = [];
+
 		public TableRecordCreation TryCreate(MemoryRecordDefinition definition, out MemoryRecordSnapshot record)
 		{
 			CreateCallCount++;
@@ -399,7 +649,33 @@ public sealed class TableClientMutationTests
 		public TableRecordMutationStatus TryDelete(MemoryRecordId id)
 		{
 			LastDeletedId = id;
-			return DeleteStatus;
+			if (!TrackDeletedRecords)
+			{
+				return DeleteStatus;
+			}
+
+			if (!DeletedIds.Add(id))
+			{
+				return TableRecordMutationStatus.RecordNotFound;
+			}
+
+			DestroyCount++;
+			return TableRecordMutationStatus.Success;
+		}
+
+		public TableActivationObservation TrySetActive(MemoryRecordId id, bool requested)
+		{
+			SetActiveCallCount++;
+			return ActivationRecord is { } record
+				? TableRecordActivation.Apply(record, requested)
+				: Activation ?? TableActivationObservation.Of(TableActivationStatus.Applied);
+		}
+
+		public TableRecordMutationStatus TrySelect(MemoryRecordId id, out MemoryRecordSnapshot record)
+		{
+			SelectedIds.Add(id);
+			record = SelectRecord;
+			return TableRecordMutationStatus.Success;
 		}
 
 		public TableRecordMutationStatus TrySetParent(MemoryRecordId childId, MemoryRecordId? parentId,
@@ -410,6 +686,85 @@ public sealed class TableClientMutationTests
 			LastParentId = parentId;
 			record = SetParentRecord;
 			return SetParentStatus;
+		}
+	}
+
+	/// <summary>A record whose activation state, asynchronous processing and failures are scripted.</summary>
+	private sealed class FakeRecordActivation(bool active) : IRecordActivationAccess
+	{
+		private bool _active = active;
+		private bool _written;
+
+		internal bool RefuseChange
+		{
+			get;
+			init;
+		}
+
+		internal bool ProcessingAfterWrite
+		{
+			get;
+			init;
+		}
+
+		internal bool FailReadAfterWrite
+		{
+			get;
+			init;
+		}
+
+		internal int WriteCount
+		{
+			get;
+			private set;
+		}
+
+		internal int ActiveReadCount
+		{
+			get;
+			private set;
+		}
+
+		internal int ProcessingReadCount
+		{
+			get;
+			private set;
+		}
+
+		public bool TryReadActive(out bool value)
+		{
+			ActiveReadCount++;
+			value = _active;
+			return !(_written && FailReadAfterWrite);
+		}
+
+		public bool TryWriteActive(bool value)
+		{
+			WriteCount++;
+			_written = true;
+			if (!RefuseChange)
+			{
+				_active = value;
+			}
+
+			return true;
+		}
+
+		public bool TryReadAsyncProcessing(out bool processing)
+		{
+			ProcessingReadCount++;
+			processing = _written && ProcessingAfterWrite;
+			return true;
+		}
+
+		public bool TrySnapshot(out MemoryRecordSnapshot snapshot)
+		{
+			snapshot = new MemoryRecordSnapshot(
+				new MemoryRecordId(41),
+				0,
+				new MemoryRecordContentSnapshot("Health", "game.exe+24", "100", VariableType.Dword),
+				new MemoryRecordStateSnapshot(null, _active, 0));
+			return true;
 		}
 	}
 

@@ -1,12 +1,13 @@
 using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Tables;
 using CheatEngine.SDK.Engine.AddressList;
+using CheatEngine.SDK.Lua.Marshalling;
 using CheatEngine.SDK.Lua.Runtime;
 using CheatEngine.SDK.Lua.State;
 
 namespace CheatEngine.Client.Core.Domains;
 
-/// <summary>Protected SDK implementation of record destruction and parent reassignment.</summary>
+/// <summary>Protected SDK implementation of record creation, destruction, selection, activation and parent reassignment.</summary>
 internal sealed class SdkTableRecordMutationPort : ITableRecordMutationPort
 {
 	/// <inheritdoc />
@@ -60,6 +61,36 @@ internal sealed class SdkTableRecordMutationPort : ITableRecordMutationPort
 		}
 
 		return record.Handle.TryCallMethod("destroy"u8)
+			? TableRecordMutationStatus.Success
+			: TableRecordMutationStatus.HostRejected;
+	}
+
+	public TableActivationObservation TrySetActive(MemoryRecordId id, bool requested)
+	{
+		if (!AddressListAccess.TryGetCurrent(out AddressList list))
+		{
+			return TableActivationObservation.Of(TableActivationStatus.AddressListUnavailable);
+		}
+
+		return list.TryGetMemoryRecordById(id, out MemoryRecord record)
+			? TableRecordActivation.Apply(new RecordActivationAccess(record), requested)
+			: TableActivationObservation.Of(TableActivationStatus.RecordNotFound);
+	}
+
+	public TableRecordMutationStatus TrySelect(MemoryRecordId id, out MemoryRecordSnapshot record)
+	{
+		record = default;
+		if (!AddressListAccess.TryGetCurrent(out AddressList list))
+		{
+			return TableRecordMutationStatus.HostRejected;
+		}
+
+		if (!list.TryGetMemoryRecordById(id, out MemoryRecord value))
+		{
+			return TableRecordMutationStatus.RecordNotFound;
+		}
+
+		return list.TrySetSelectedRecord(value) && TableClient.TrySnapshot(value, out record)
 			? TableRecordMutationStatus.Success
 			: TableRecordMutationStatus.HostRejected;
 	}
@@ -238,5 +269,33 @@ internal sealed class SdkTableRecordMutationPort : ITableRecordMutationPort
 		Root,
 		Parent,
 		HostRejected
+	}
+
+	/// <summary>
+	///     The SDK handle calls of the activation algorithm (moved here from <see cref="TableClient" /> behind the mutation
+	///     port for C1 testability; the <c>Active</c> and <c>AsyncProcessing</c> names are Cheat Engine's MemoryRecord
+	///     properties).
+	/// </summary>
+	private readonly struct RecordActivationAccess(MemoryRecord record) : IRecordActivationAccess
+	{
+		public bool TryReadActive(out bool active)
+		{
+			return record.Handle.TryGetProperty<BooleanMarshaller, bool>("Active"u8, out active);
+		}
+
+		public bool TryWriteActive(bool active)
+		{
+			return record.Handle.TrySetProperty<BooleanMarshaller, bool>("Active"u8, active);
+		}
+
+		public bool TryReadAsyncProcessing(out bool processing)
+		{
+			return record.Handle.TryGetProperty<BooleanMarshaller, bool>("AsyncProcessing"u8, out processing);
+		}
+
+		public bool TrySnapshot(out MemoryRecordSnapshot snapshot)
+		{
+			return TableClient.TrySnapshot(record, out snapshot);
+		}
 	}
 }
