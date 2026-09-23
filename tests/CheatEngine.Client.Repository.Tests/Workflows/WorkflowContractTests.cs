@@ -290,7 +290,16 @@ public sealed partial class WorkflowContractTests
 			Yaml.NormalizeExpression(Yaml.Scalar(Yaml.Mapping(sonar.Node, "with"), "wait-quality-gate")));
 		Assert.Equal("build-test", Assert.Single(sonar.Needs));
 
+		string[] callerInputs = [.. Yaml.Keys(Yaml.Mapping(sonar.Node, "with"))];
+		Assert.Equal("wait-quality-gate", Assert.Single(callerInputs));
+
+		// CI-based analysis is the only method: no opt-out input, no repository variable deciding whether Sonar runs.
 		WorkflowFile workflow = WorkflowFile.Load(SonarWorkflow);
+		YamlMappingNode? call = Yaml.Mapping(Yaml.Mapping(workflow.Root, "on"), "workflow_call");
+		string[] inputs = [.. Yaml.Keys(Yaml.Mapping(call, "inputs")).Order(StringComparer.Ordinal)];
+		string[] expectedInputs = ["organization", "project-key", "wait-quality-gate"];
+		Assert.Equal(expectedInputs, inputs);
+		Assert.DoesNotContain("SONAR_CI_ENABLED", workflow.Text, StringComparison.Ordinal);
 		WorkflowJob analyze = workflow.Job("analyze");
 		Assert.Equal("inputs.wait-quality-gate",
 			Yaml.NormalizeExpression(Yaml.Scalar(Yaml.Mapping(analyze.Node, "env"), "SONAR_WAIT_QUALITY_GATE")));

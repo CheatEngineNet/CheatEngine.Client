@@ -3,17 +3,14 @@ name: Sonar
 # Reusable SonarQube Cloud analysis, called by ci.yml after build-test when SONAR_EXPECTED is true. It reuses the
 # coverage and nuget-packages artifacts of the same run; only the instrumented build is repeated, because the scanner
 # must observe a compilation.
+#
+# CI-based analysis only: Automatic Analysis must stay OFF for the project in SonarQube Cloud (Administration > Analysis
+# Method). SonarQube Cloud exposes no API to read that setting; with both methods on, scanner begin fails, which is the
+# earliest authoritative check.
 
 on:
   workflow_call:
     inputs:
-      # Kept until the maintainer confirms that SonarQube Cloud Automatic Analysis is OFF for this project; the
-      # scanner begin step fails when both analysis methods are enabled. Delete it with the preflight step afterwards.
-      ci_based_analysis:
-        description: Acknowledge that SonarQube Cloud Automatic Analysis is disabled for this project.
-        required: false
-        type: boolean
-        default: true
       project-key:
         description: SonarQube Cloud project key.
         type: string
@@ -51,17 +48,6 @@ jobs:
       SONAR_ORGANIZATION: ${{ inputs.organization }}
       SONAR_WAIT_QUALITY_GATE: ${{ inputs.wait-quality-gate }}
     steps:
-      # SonarQube Cloud has no API that reads a project's Automatic Analysis setting. The scanner begin step below is
-      # the earliest authoritative check and fails if Automatic Analysis was not disabled in Administration > Analysis
-      # Method.
-      - name: Preflight CI-based analysis
-        env:
-          CI_BASED_ANALYSIS: ${{ inputs.ci_based_analysis }}
-        run: |
-          if ($env:CI_BASED_ANALYSIS -ne 'true') {
-            throw 'Sonar analysis requires CI-based analysis. Disable Automatic Analysis in SonarQube Cloud before enabling this workflow.'
-          }
-
       # ci.yml never calls this workflow for forks or Dependabot, so an empty token is a configuration error. Fail
       # before the instrumented build instead of after it.
       - name: Require token
