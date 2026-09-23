@@ -35,11 +35,12 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 		"CheatEngine.SDK.Engine.Objects.ICEObject<TSelf>";
 
 	private const int ClientBoundaryMaximumDepth = 32;
+	private const int ClientBoundaryMaximumNodes = 256;
 
+	// Hint names use the namespace-qualified metadata name: keyword identifiers are not escaped ('@' is not allowed).
 	private static readonly SymbolDisplayFormat HintNameFormat = new(
 		SymbolDisplayGlobalNamespaceStyle.Omitted,
 		SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces);
-	private const int ClientBoundaryMaximumNodes = 256;
 
 	// The allowlist has a single source, ApprovedSdkClientTypes.cs, which CheatEngine.Client.Tests links unchanged.
 	private static readonly HashSet<string> ApprovedSdkClientResultTypes =
@@ -91,7 +92,6 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 		"System.Collections.ObjectModel.ReadOnlyDictionary<TKey, TValue>",
 		"System.Nullable<T>"
 	};
-
 
 	/// <inheritdoc />
 	public void Initialize(IncrementalGeneratorInitializationContext context)
