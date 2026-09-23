@@ -118,6 +118,29 @@ public sealed partial class LoggerCoreDiagnosticsTests
 	}
 
 	[Fact]
+	public void CapabilityRefusalIsLoggedLaterWhenTheProviderFaultedOnTheFirstEmission()
+	{
+		// A provider fault is contained, and the refusal is not counted as logged: the next refusal of the same
+		// capability and operation is emitted once.
+		CapturingLoggerProvider logs = new()
+		{
+			FailingLogs = 1
+		};
+		using ILoggerFactory factory = CreateFactory(logs);
+		LoggerCoreDiagnostics diagnostics = new(factory);
+
+		for (int attempt = 0; attempt < 3; attempt++)
+		{
+			diagnostics.CapabilityRefused("Client.Speed", "Speed.GetMultiplier",
+				ClientCapabilityEvidenceReasonCode.Implementation, ClientCapabilityEvidenceState.Missing);
+		}
+
+		Assert.Equal(0, logs.FailingLogs);
+		Assert.Equal(["Capability Client.Speed refused Speed.GetMultiplier: the Implementation gate is Missing."],
+			logs.Entries.Select(static entry => entry.Message));
+	}
+
+	[Fact]
 	[Trait("Qualification", "Q46")]
 	public void DiagnosticEventsCarryNoAddressValueSymbolOrPath()
 	{
@@ -206,6 +229,14 @@ public sealed partial class LoggerCoreDiagnosticsTests
 	{
 		private readonly Lock _gate = new();
 		private readonly List<LogEntry> _entries = [];
+		private int _failingLogs;
+
+		/// <summary>The number of next <c>Log</c> calls that throw instead of capturing.</summary>
+		internal int FailingLogs
+		{
+			get => Volatile.Read(ref _failingLogs);
+			init => _failingLogs = value;
+		}
 
 		internal IReadOnlyList<LogEntry> Entries
 		{
@@ -229,6 +260,12 @@ public sealed partial class LoggerCoreDiagnosticsTests
 
 		private void Add(LogEntry entry)
 		{
+			if (Interlocked.Decrement(ref _failingLogs) >= 0)
+			{
+				throw new InvalidOperationException("The logging provider failed once.");
+			}
+
+			Interlocked.Exchange(ref _failingLogs, 0);
 			lock (_gate)
 			{
 				_entries.Add(entry);

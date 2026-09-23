@@ -93,16 +93,21 @@ internal sealed class LoggerCoreDiagnostics : ICoreDiagnostics
 	public void CapabilityRefused(string capability, string operation, ClientCapabilityEvidenceReasonCode gate,
 		ClientCapabilityEvidenceState gateState)
 	{
+		(string Capability, string Operation) key = (capability, operation);
+		if (!_refusalsLogged.TryAdd(key, 0))
+		{
+			return;
+		}
+
 		try
 		{
-			if (_refusalsLogged.TryAdd((capability, operation), 0))
-			{
-				ClientCoreDiagnosticsLog.CapabilityRefused(_runtime, capability, operation, gate, gateState);
-			}
+			ClientCoreDiagnosticsLog.CapabilityRefused(_runtime, capability, operation, gate, gateState);
 		}
 		catch (Exception)
 		{
-			// Deliberately ignored: a logging provider fault never changes a Client result (A24-22).
+			// Deliberately ignored: a logging provider fault never changes a Client result (A24-22). The refusal is not
+			// counted as logged, so a later refusal of the same capability and operation is emitted again.
+			_refusalsLogged.TryRemove(key, out _);
 		}
 	}
 
