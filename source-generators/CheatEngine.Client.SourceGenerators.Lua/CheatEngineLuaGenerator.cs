@@ -35,6 +35,10 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 		"CheatEngine.SDK.Engine.Objects.ICEObject<TSelf>";
 
 	private const int ClientBoundaryMaximumDepth = 32;
+
+	private static readonly SymbolDisplayFormat HintNameFormat = new(
+		SymbolDisplayGlobalNamespaceStyle.Omitted,
+		SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces);
 	private const int ClientBoundaryMaximumNodes = 256;
 
 	// The allowlist has a single source, ApprovedSdkClientTypes.cs, which CheatEngine.Client.Tests links unchanged.
@@ -541,6 +545,15 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 	{
 		string accessibility = type.DeclaredAccessibility == Accessibility.Public ? "public" : "internal";
 		return accessibility + (isStatic ? " static" : string.Empty) + " partial class " + EscapeIdentifier(type.Name);
+	}
+
+	/// <summary>
+	///     The hint-name stem of a type: its namespace-qualified metadata name with dots replaced by underscores. Keyword
+	///     identifiers are not escaped, because a hint name cannot contain '@'.
+	/// </summary>
+	internal static string HintNameStem(INamedTypeSymbol type)
+	{
+		return type.ToDisplayString(HintNameFormat).Replace('.', '_');
 	}
 
 	internal static string TypeName(ITypeSymbol type)

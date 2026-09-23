@@ -71,7 +71,7 @@ internal static class ModuleParser
 			EquatableArray<DiagnosticInfo>.Empty,
 			location,
 			displayName,
-			displayName.Replace('.', '_') + ".CheatEngineLuaModule.g.cs",
+			CheatEngineLuaGenerator.HintNameStem(module) + ".CheatEngineLuaModule.g.cs",
 			module.ContainingNamespace.IsGlobalNamespace
 				? string.Empty
 				: module.ContainingNamespace.ToDisplayString(),

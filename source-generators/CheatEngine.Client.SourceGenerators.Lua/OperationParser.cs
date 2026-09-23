@@ -100,9 +100,8 @@ internal static class OperationParser
 		string operationTypeName = method.Name + "LuaOperation";
 		return new OperationModel(
 			EquatableArray<DiagnosticInfo>.Empty,
-			method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
-				.Replace("global::", string.Empty)
-				.Replace('.', '_') + "_" + method.Name + ".CheatEngineLuaOperation.g.cs",
+			CheatEngineLuaGenerator.HintNameStem(method.ContainingType) + "_" + method.Name +
+			".CheatEngineLuaOperation.g.cs",
 			method.ContainingNamespace.IsGlobalNamespace
 				? string.Empty
 				: method.ContainingNamespace.ToDisplayString(),
