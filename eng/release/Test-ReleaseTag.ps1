@@ -4,14 +4,18 @@
 Verifies that a release run may build and publish the seven Client packages, before anything is built.
 
 .DESCRIPTION
-Used by the verify job of .github/workflows/release.yml. On a branch (a dispatch dry run), it writes empty outputs and
-a notice. On a tag, it fails unless:
+Used by the verify job of .github/workflows/release.yml. Only a tag push releases: any other event, including a
+workflow_dispatch started from a tag, is a dry run that writes empty outputs and a notice, so no later job attests,
+drafts or publishes. A push must come from a tag, and it fails unless:
 - the tag is v<major>.<minor>.<patch> with an optional SemVer prerelease and no build metadata;
 - the tag commit is on the first-parent history of main (only a merged head may be released);
 - none of the seven package ids already lists the version on nuget.org (a version can never be replaced);
 - the pinned CheatEngine.SDK version is published, carries a valid repository signature, and has the NuGet content
   hash recorded in eng/sdk/consumed-sdk.json and in the lock file.
 It then writes version=<x.y.z[-pre]> and prerelease=true|false to the GitHub output file.
+
+.PARAMETER EventName
+github.event_name: 'push' for a tag push; anything else is a dry run.
 
 .PARAMETER RefType
 github.ref_type: 'tag' or 'branch'.
@@ -26,10 +30,13 @@ The GitHub output file (GITHUB_OUTPUT).
 The ref whose first-parent history must contain the tag commit.
 
 .EXAMPLE
-./eng/release/Test-ReleaseTag.ps1 -RefType tag -RefName v0.1.0 -OutputPath $env:GITHUB_OUTPUT
+./eng/release/Test-ReleaseTag.ps1 -EventName push -RefType tag -RefName v0.1.0 -OutputPath $env:GITHUB_OUTPUT
 #>
 [CmdletBinding()]
 param(
+	[Parameter(Mandatory)]
+	[string] $EventName,
+
 	[Parameter(Mandatory)]
 	[string] $RefType,
 
@@ -71,10 +78,15 @@ function Get-PublishedVersionList {
 	return @($index.versions)
 }
 
-if ($RefType -ne 'tag') {
-	Write-Output "::notice::Dry run on branch ${RefName}: there is no tag to verify, and the run neither drafts a release nor publishes."
+# Only a tag push releases. A dispatch started from a tag has ref type 'tag' too, and must stay a dry run: with empty
+# outputs, attest, draft-release and publish are skipped.
+if ($EventName -cne 'push') {
+	Write-Output "::notice::Dry run ($EventName on $RefType ${RefName}): the run builds and tests, and never attests, drafts a release or publishes."
 	Write-ReleaseOutput -Path $OutputPath -Version '' -Prerelease ''
 	return
+}
+if ($RefType -cne 'tag') {
+	throw "A release run started by a push must come from a v*.*.* tag; $RefType $RefName is not a tag."
 }
 
 # 1. The tag.

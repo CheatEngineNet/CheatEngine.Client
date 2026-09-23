@@ -3,7 +3,10 @@ using System.Text;
 
 namespace CheatEngine.Client.Tests.Infrastructure;
 
-/// <summary>Runs the pinned <c>dotnet</c> command without shell quoting or shared CLI state.</summary>
+/// <summary>
+/// Runs the pinned <c>dotnet</c> command, or another command-line tool such as <c>pwsh</c>, without shell quoting or
+/// shared CLI state.
+/// </summary>
 internal static class DotNetProcess
 {
 	private static readonly TimeSpan Timeout = TimeSpan.FromMinutes(10);
@@ -13,14 +16,22 @@ internal static class DotNetProcess
 		return RunAsync(workingDirectory, new Dictionary<string, string>(StringComparer.Ordinal), arguments);
 	}
 
-	internal static async Task<DotNetProcessResult> RunAsync(string workingDirectory,
+	internal static Task<DotNetProcessResult> RunAsync(string workingDirectory,
 		IReadOnlyDictionary<string, string> environment, params string[] arguments)
 	{
+		return RunToolAsync("dotnet", workingDirectory, environment, arguments);
+	}
+
+	/// <summary>Runs <paramref name="fileName"/>, found on the PATH, with the same isolation and timeout.</summary>
+	internal static async Task<DotNetProcessResult> RunToolAsync(string fileName, string workingDirectory,
+		IReadOnlyDictionary<string, string> environment, params string[] arguments)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
 		ArgumentException.ThrowIfNullOrWhiteSpace(workingDirectory);
 		ArgumentNullException.ThrowIfNull(environment);
 		ArgumentNullException.ThrowIfNull(arguments);
 
-		ProcessStartInfo startInfo = new("dotnet")
+		ProcessStartInfo startInfo = new(fileName)
 		{
 			WorkingDirectory = workingDirectory,
 			RedirectStandardOutput = true,
@@ -45,7 +56,7 @@ internal static class DotNetProcess
 		};
 		if (!process.Start())
 		{
-			throw new InvalidOperationException("The dotnet process did not start.");
+			throw new InvalidOperationException($"The {fileName} process did not start.");
 		}
 
 		Task<string> standardOutput = process.StandardOutput.ReadToEndAsync();
@@ -59,23 +70,24 @@ internal static class DotNetProcess
 		{
 			process.Kill(true);
 			await process.WaitForExitAsync();
-			throw new TimeoutException($"dotnet {string.Join(' ', arguments)} exceeded {Timeout}.");
+			throw new TimeoutException($"{fileName} {string.Join(' ', arguments)} exceeded {Timeout}.");
 		}
 
-		return new DotNetProcessResult(arguments, process.ExitCode, await standardOutput, await standardError);
+		return new DotNetProcessResult(arguments, process.ExitCode, await standardOutput, await standardError, fileName);
 	}
 }
 
-/// <summary>Captures a completed <c>dotnet</c> invocation for assertion diagnostics.</summary>
+/// <summary>Captures a completed <c>dotnet</c> (or other tool) invocation for assertion diagnostics.</summary>
 internal sealed record DotNetProcessResult(
 	IReadOnlyList<string> Arguments,
 	int ExitCode,
 	string StandardOutput,
-	string StandardError)
+	string StandardError,
+	string FileName = "dotnet")
 {
 	public override string ToString()
 	{
-		return $"dotnet {string.Join(' ', Arguments)} exited with {ExitCode}.{Environment.NewLine}" +
+		return $"{FileName} {string.Join(' ', Arguments)} exited with {ExitCode}.{Environment.NewLine}" +
 			   $"stdout:{Environment.NewLine}{StandardOutput}{Environment.NewLine}" +
 			   $"stderr:{Environment.NewLine}{StandardError}";
 	}

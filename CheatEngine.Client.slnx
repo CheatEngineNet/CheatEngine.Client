@@ -34,6 +34,7 @@
   <Folder Name="/eng/release/">
     <File Path="eng/release/client-tuple.example.json"/>
     <File Path="eng/release/client-tuple.v0.schema.json"/>
+    <File Path="eng/release/Compare-ReleaseAssets.ps1"/>
     <File Path="eng/release/Complete-GitHubRelease.ps1"/>
     <File Path="eng/release/Complete-PublicApiRelease.ps1"/>
     <File Path="eng/release/Export-ReleaseNotes.ps1"/>

@@ -66,6 +66,14 @@ packed Lua generator cannot drift from its declared floor, and `LockstepGuardAcc
 that a package version comes from MinVer only (`CHEATENGINECLIENT9019`). `SbomGuardRefusesAPackWithoutTheSbom` proves
 that a package cannot be packed without its SPDX SBOM (`CHEATENGINECLIENT9021`).
 
+`ReleaseScriptTests` run the release scripts of `eng/release` in `pwsh` against `FakeGitHubCli.ps1`, an in-memory
+stand-in for the gh CLI, so no GitHub call is made. They have no category, so both CI legs run them:
+`DispatchStartedFromATagIsADryRunWithEmptyOutputs` and `PushOfSomethingOtherThanAReleaseTagIsRefused` prove that only
+a tag push can release; `NewDraftCarriesExactlyTheFilesOfTheRun`, `DraftLeftByAnotherRunOfTheTagIsReplacedByTheFilesOfThisRun`,
+`DraftThatAlreadyCarriesTheFilesOfTheRunIsKept` and `PublishedReleaseWithOtherAssetsFailsTheDraftJobBeforeAnyPush`
+prove that a release asset is compared by SHA-256, never by name alone; `FinalizeRefusesToPublishADraftWhoseAssetsDifferFromTheRun`
+and `FinalizePublishesTheCheckedDraftById` prove that a draft is published only when every asset is a file of the run.
+
 ## Run
 
 From the repository root:

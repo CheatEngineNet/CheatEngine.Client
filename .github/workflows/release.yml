@@ -7,7 +7,8 @@ run-name: Release ${{ github.ref_name }}${{ github.event_name == 'workflow_dispa
 # The seven packages that ci builds, tests and uploads as nuget-packages are the exact files that are attested,
 # attached to the draft release and pushed to nuget.org. Nothing is published before a draft release carries every
 # asset, and the release itself is published only after nuget.org serves the attested packages, so the flow works with
-# immutable releases. A workflow_dispatch run is a dry run: it verifies and builds, and never drafts or publishes.
+# immutable releases. Only a tag push of this repository releases: a workflow_dispatch run, even one started from a
+# tag, is a dry run that verifies and builds, and never attests, drafts or publishes.
 # No job restores from or saves to a NuGet cache. RELEASING.md describes the procedure and every check.
 
 on:
@@ -47,14 +48,16 @@ jobs:
         with:
           cache: 'false'
 
-      # SemVer tag on the first-parent history of main, no published version of any of the seven ids, and the pinned
-      # CheatEngine.SDK equal to the reviewed identity (signature and content hash).
+      # Any event but a push is a dry run with empty outputs. A tag push needs a SemVer tag on the first-parent history
+      # of main, no published version of any of the seven ids, and the pinned CheatEngine.SDK equal to the reviewed
+      # identity (signature and content hash).
       - name: Verify tag
         id: tag
         env:
+          EVENT_NAME: ${{ github.event_name }}
           REF_TYPE: ${{ github.ref_type }}
           REF_NAME: ${{ github.ref_name }}
-        run: ./eng/release/Test-ReleaseTag.ps1 -RefType $env:REF_TYPE -RefName $env:REF_NAME -OutputPath $env:GITHUB_OUTPUT
+        run: ./eng/release/Test-ReleaseTag.ps1 -EventName $env:EVENT_NAME -RefType $env:REF_TYPE -RefName $env:REF_NAME -OutputPath $env:GITHUB_OUTPUT
 
       - name: Extract release notes
         if: steps.tag.outputs.version != ''
@@ -82,10 +85,12 @@ jobs:
       package-version: ${{ needs.verify.outputs.version }}
       package-retention-days: 90
 
+  # attest, draft-release and publish share one guard: a tag push of this repository that verify accepted. Every later
+  # job needs one of them, so a dry run skips the whole release path.
   attest:
     name: Attest packages
     needs: [ verify, ci ]
-    if: needs.verify.outputs.version != ''
+    if: github.event_name == 'push' && github.ref_type == 'tag' && github.repository == 'CheatEngineNet/CheatEngine.Client' && needs.verify.outputs.version != ''
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -205,14 +210,14 @@ jobs:
   draft-release:
     name: Draft GitHub release
     needs: [ verify, ci, attest ]
-    if: github.ref_type == 'tag' && needs.verify.outputs.version != ''
+    if: github.event_name == 'push' && github.ref_type == 'tag' && github.repository == 'CheatEngineNet/CheatEngine.Client' && needs.verify.outputs.version != ''
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
       contents: write # create the draft release and upload its assets
       pull-requests: read # name the pull request of the tag commit in the tuple
+    # GH_TOKEN (contents: write) is set only on the steps that call gh, never on the restore and test steps.
     env:
-      GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
       TAG: ${{ github.ref_name }}
       VERSION: ${{ needs.verify.outputs.version }}
@@ -258,6 +263,8 @@ jobs:
 
       - name: Find the pull request of the tag commit
         id: pull-request
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
           $pulls = gh api "repos/$env:GH_REPO/commits/$env:GITHUB_SHA/pulls" | ConvertFrom-Json
@@ -281,6 +288,7 @@ jobs:
 
       - name: Validate the tuple
         run: |
+          $ErrorActionPreference = 'Stop'
           dotnet test --project tests/CheatEngine.Client.Repository.Tests/CheatEngine.Client.Repository.Tests.csproj -c Release --no-restore --fail-skips on --filter-class CheatEngine.Client.Repository.Tests.Release.ClientTupleSchemaTests
           if ($LASTEXITCODE -ne 0) {
             throw "The PrePublish tuple does not satisfy its schema (exit code $LASTEXITCODE)."
@@ -289,15 +297,18 @@ jobs:
       - name: Write SHA256SUMS
         run: ./eng/release/New-ReleaseAssets.ps1 -WriteChecksums -OutputDirectory artifacts/release
 
-      # A re-run completes a draft; a published release never receives assets.
-      - name: Create or complete the draft release
+      # The draft carries exactly this run's files, compared by SHA-256: a draft left by another run of the tag is
+      # replaced, and a published release never receives assets.
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: ./eng/release/New-ReleaseDraft.ps1 -Tag $env:TAG -AssetDirectory artifacts/release -NotesPath artifacts/release-notes/release-notes.md -Prerelease:($env:PRERELEASE -eq 'true')
 
   # NuGet trusted publishing is bound to this file and the nuget environment, so login and push stay in this job.
   publish:
     name: Publish to NuGet
     needs: [ verify, ci, draft-release ]
-    if: github.event_name == 'push' && github.ref_type == 'tag' && github.repository == 'CheatEngineNet/CheatEngine.Client'
+    if: github.event_name == 'push' && github.ref_type == 'tag' && github.repository == 'CheatEngineNet/CheatEngine.Client' && needs.verify.outputs.version != ''
     runs-on: windows-2025
     timeout-minutes: 20
     environment:
@@ -410,8 +421,8 @@ jobs:
       contents: write # replace the tuple of the draft and publish it
       attestations: read # verify the attestations
       pull-requests: read # name the pull request of the tag commit in the tuple
+    # GH_TOKEN (contents: write) is set only on the steps that call gh, never on the restore and test steps.
     env:
-      GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
       TAG: ${{ github.ref_name }}
       VERSION: ${{ needs.verify.outputs.version }}
@@ -451,6 +462,8 @@ jobs:
 
       - name: Find the pull request of the tag commit
         id: pull-request
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
           $pulls = gh api "repos/$env:GH_REPO/commits/$env:GITHUB_SHA/pulls" | ConvertFrom-Json
@@ -476,6 +489,7 @@ jobs:
 
       - name: Validate the tuple
         run: |
+          $ErrorActionPreference = 'Stop'
           dotnet test --project tests/CheatEngine.Client.Repository.Tests/CheatEngine.Client.Repository.Tests.csproj -c Release --no-restore --fail-skips on --filter-class CheatEngine.Client.Repository.Tests.Release.ClientTupleSchemaTests
           if ($LASTEXITCODE -ne 0) {
             throw "The Published tuple does not satisfy its schema (exit code $LASTEXITCODE)."
@@ -484,7 +498,10 @@ jobs:
       - name: Write SHA256SUMS
         run: ./eng/release/New-ReleaseAssets.ps1 -WriteChecksums -OutputDirectory artifacts/release
 
-      # Replace the tuple while the release is a draft, verify the attestations, publish, then verify the immutable
-      # release when the repository enables immutable releases.
+      # Replace the tuple while the release is a draft, check every asset of the draft against this run's files and
+      # SHA256SUMS, verify the attestations, publish, then verify the immutable release when the repository enables
+      # immutable releases.
       - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: ./eng/release/Complete-GitHubRelease.ps1 -Tag $env:TAG -AssetDirectory artifacts/release -PackageDirectory artifacts/release

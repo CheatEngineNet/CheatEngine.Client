@@ -57,9 +57,13 @@ project never builds, packs, restores or starts a process, so it runs in seconds
   workflow runs it on the tuple it produces through `CHEATENGINE_CLIENT_TUPLE_PATH`; otherwise it validates the
   committed example.
 - `Release/ReleaseWorkflowTests` proves that `release.yml` keeps the contract job order, calls `ci.yml` with the
-  package version and a 90-day retention but no Sonar, confines the `nuget` environment and secrets to `publish`, drafts
-  and publishes only for tag pushes of this repository, never caches packages, and pushes the seven packages in
-  dependency order (audit A21-06).
+  package version and a 90-day retention but no Sonar, confines the `nuget` environment and secrets to `publish`, never
+  caches packages, and pushes the seven packages in dependency order (audit A21-06).
+  `DraftAndPublishRunOnlyForTagPushesOfThisRepository` proves that `attest`, `draft-release` and `publish` share one
+  condition (a push, a tag, this repository, a verified version), that `verify` receives the event name, so a
+  `workflow_dispatch` started from a tag stays a dry run, and that no later job can run after them once they are
+  skipped. `TheWriteTokenReachesOnlyTheStepsThatCallGitHub` proves that the `contents: write` token never reaches a
+  restore or test step.
 - Later work adds one folder per contract (for example `Documentation/`, `Workflows/`, `Qualification/`).
 - `Toolchain/ToolchainPinTests` keeps the build reproducible from the commit alone: `global.json` pins the exact .NET
   SDK (`rollForward: disable`, with an `errorMessage` naming the install command), `AnalysisLevel` is a numbered

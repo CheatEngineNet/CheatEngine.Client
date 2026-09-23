@@ -122,7 +122,10 @@ verify ─► ci ─► attest ─► draft-release ─► publish ─► verify
    ([`New-ReleaseAssets.ps1`](eng/release/New-ReleaseAssets.ps1)).
 4. `draft-release` writes the `PrePublish` Client tuple ([`New-ClientTuple.ps1`](eng/release/New-ClientTuple.ps1)),
    validates it against its schema, writes `SHA256SUMS`, and creates a draft release with every asset
-   ([`New-ReleaseDraft.ps1`](eng/release/New-ReleaseDraft.ps1)).
+   ([`New-ReleaseDraft.ps1`](eng/release/New-ReleaseDraft.ps1)). Assets are compared by content, never by name
+   alone ([`Compare-ReleaseAssets.ps1`](eng/release/Compare-ReleaseAssets.ps1)): GitHub records the SHA-256 digest
+   of every uploaded asset, and the job fails unless the draft carries exactly the files of this run, each completely
+   uploaded with the same SHA-256.
 5. `publish` waits for a required reviewer to approve the `nuget` deployment, logs in through trusted publishing and
    pushes the seven packages in dependency order (Abstractions, Fluent, Core, Extensions.DependencyInjection, Hosting,
    CheatEngine.Client, Templates). Each push also sends the package's symbol package.
@@ -130,16 +133,21 @@ verify ─► ci ─► attest ─► draft-release ─► publish ─► verify
    lists the seven versions, then checks each served file: repository signature, content hash equal to the attested
    package, and every entry except `.signature.p7s` identical. It records the nuget.org hashes.
 7. `finalize-release` ([`Complete-GitHubRelease.ps1`](eng/release/Complete-GitHubRelease.ps1)) replaces the tuple with
-   its `Published` stage, verifies both attestations of each package with `gh attestation verify`, publishes the draft
-   and, when the release is immutable, verifies it.
+   its `Published` stage, checks again that every asset of the draft is a file of this run (name, upload state and
+   SHA-256, equal to the local file and to `SHA256SUMS`), verifies both attestations of each package with
+   `gh attestation verify`, publishes that draft, addressed by its release id, and, when the release is immutable,
+   verifies it. A draft that differs stays a draft.
 
 No job of the release path restores from or saves to a NuGet cache. Only `publish` has the `nuget` environment and
-reads a secret; only `attest` and `publish` receive an OIDC token.
+reads a secret; only `attest` and `publish` receive an OIDC token; the `contents: write` token of `draft-release`
+and `finalize-release` reaches only their `gh` steps, never the restore and test steps.
 
-To rehearse the pipeline without publishing, start `Release` manually on a branch (**Actions → Release → Run
-workflow**). The dry run executes `verify` and the full `ci` job, then skips every job that attests, drafts or
-publishes. A dispatch requires the workflow on the default branch, so the first dry run happens after the remediation
-branch is merged.
+To rehearse the pipeline without publishing, start `Release` manually (**Actions → Release → Run workflow**), from a
+branch or from a tag. Only a tag push of `CheatEngineNet/CheatEngine.Client` releases: for a `workflow_dispatch`,
+even one started from a tag, `verify` writes no version, and `attest`, `draft-release` and `publish` (which share one
+condition: a push, a tag, this repository and a verified version) are skipped, with every job after them. The dry run
+executes `verify` and the full `ci` job only. A dispatch requires the workflow on the default branch, so the first dry
+run happens after the remediation branch is merged.
 
 ## What a release contains
 
@@ -162,8 +170,9 @@ a `.nupkg` is not byte-reproducible; reproducibility is promised for the assembl
 ## The Client release tuple
 
 `CheatEngine.Client.X.Y.Z.tuple.json` (schema [`client-tuple.v0.schema.json`](eng/release/client-tuple.v0.schema.json),
-example [`client-tuple.example.json`](eng/release/client-tuple.example.json)) ties the release to what a compatibility
-report needs:
+example [`client-tuple.example.json`](eng/release/client-tuple.example.json), whose version, commit, run URLs and
+package hashes are illustrative: it comes from a local rehearsal, not from a release) ties the release to what a
+compatibility report needs:
 
 - `source`: tag, commit, tree, the pull request whose squash merge produced the commit, and the run URLs;
 - `build`: .NET SDK, `global.json` hash, runner image, Roslyn floor and analysis level;
@@ -197,11 +206,19 @@ package.
 
 ## Re-run a release
 
-Use **Re-run failed jobs** only. Completed jobs are not repeated and a re-run reuses the artifacts of the original
-attempt, so the pushed packages, their attestations and the release assets stay the same files. A push of an existing
-version is skipped as a duplicate, a draft release receives only its missing assets, and a published release never
-receives assets. **Re-run all jobs** after a successful publication stops in `verify`, because the version is already
-on nuget.org.
+Use **Re-run failed jobs**. Completed jobs are not repeated and a re-run reuses the artifacts of the original attempt,
+so the pushed packages, their attestations and the release assets stay the same files. A push of an existing version
+is skipped as a duplicate, a draft that already carries exactly this run's files is kept, and a published release never
+receives assets. **Re-run all jobs** after any package reached nuget.org stops in `verify`, because the version is
+already there.
+
+A new build of the same tag produces different package bytes (the SBOM of each package has a unique namespace and
+creation time). This happens when the maintainer rejects or cancels `publish` and then re-pushes the tag, after
+moving it or not, or uses **Re-run all jobs** before any package reached nuget.org. The draft of the earlier build then
+carries packages that the new run will not push. `draft-release` detects it by SHA-256, deletes that draft (deleting a
+draft release keeps the git tag, and nothing of a draft is public) and creates it again from the new run's files, so
+the release always carries the packages `publish` pushes, the tuple names and `SHA256SUMS` lists. A published release
+whose assets differ from the run fails `draft-release` before anything is pushed: tag a new version.
 
 ## After a release
 

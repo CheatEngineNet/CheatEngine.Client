@@ -99,24 +99,97 @@ public sealed partial class ReleaseWorkflowTests
 		Assert.Equal("nuget", Scalar(environment, "name"));
 	}
 
+	/// <summary>
+	/// A workflow_dispatch started from a tag has ref type 'tag' as well, so the event is part of every guard: attest,
+	/// draft-release and publish share one condition, verify receives the event name and writes empty outputs for
+	/// anything but a push, and no later job can run once they are skipped.
+	/// </summary>
 	[Fact]
 	public void DraftAndPublishRunOnlyForTagPushesOfThisRepository()
 	{
 		YamlMappingNode jobs = Mapping(_workflow.Value, "jobs");
-		string publish = Scalar(Mapping(jobs, "publish"), "if");
-		string draft = Scalar(Mapping(jobs, "draft-release"), "if");
+		string[] clauses =
+		[
+			"github.event_name == 'push'", "github.ref_type == 'tag'",
+			"github.repository == 'CheatEngineNet/CheatEngine.Client'", "needs.verify.outputs.version != ''"
+		];
+		string[] guardedJobs = ["attest", "draft-release", "publish"];
 		string attest = Scalar(Mapping(jobs, "attest"), "if");
 
-		Assert.Contains("github.event_name == 'push'", publish, StringComparison.Ordinal);
-		Assert.Contains("github.ref_type == 'tag'", publish, StringComparison.Ordinal);
-		Assert.Contains("github.repository == 'CheatEngineNet/CheatEngine.Client'", publish, StringComparison.Ordinal);
-		Assert.Contains("github.ref_type == 'tag'", draft, StringComparison.Ordinal);
-		Assert.Contains("needs.verify.outputs.version != ''", draft, StringComparison.Ordinal);
-		Assert.Contains("needs.verify.outputs.version != ''", attest, StringComparison.Ordinal);
+		foreach (string job in guardedJobs)
+		{
+			string condition = Scalar(Mapping(jobs, job), "if");
+			Assert.Equal(attest, condition);
+			foreach (string clause in clauses)
+			{
+				Assert.True(condition.Contains(clause, StringComparison.Ordinal), $"The '{job}' condition '{condition}' lacks {clause}.");
+			}
+
+			Assert.DoesNotContain("||", condition, StringComparison.Ordinal);
+		}
+
+		// Later jobs have no condition of their own that could run them after a skipped need.
+		List<string> bypasses = [];
+		foreach ((YamlNode key, YamlNode value) in jobs.Children)
+		{
+			if (((YamlMappingNode) value).Children.TryGetValue(new YamlScalarNode("if"), out YamlNode? condition)
+				&& StatusFunction().IsMatch(Text(condition)))
+			{
+				bypasses.Add($"{((YamlScalarNode) key).Value}: {Text(condition)}");
+			}
+		}
+
+		Assert.True(bypasses.Count == 0, $"No release job may run after a skipped or failed need:{Environment.NewLine}{string.Join(Environment.NewLine, bypasses)}");
+		string[] publicationNeeds = ["verify", "publish"];
+		Assert.Equal(publicationNeeds, Needs(Mapping(jobs, "verify-publication")));
+		Assert.Contains("verify-publication", Needs(Mapping(jobs, "finalize-release")));
+
+		YamlMappingNode verifyTag = Step(Mapping(jobs, "verify"), "tag");
+		Assert.Equal("${{ github.event_name }}", Scalar(Mapping(verifyTag, "env"), "EVENT_NAME"));
+		Assert.Contains("-EventName $env:EVENT_NAME", Scalar(verifyTag, "run"), StringComparison.Ordinal);
 
 		string text = File.ReadAllText(Path.Combine(RepositoryRoot.Path, WorkflowPath));
 		Assert.DoesNotContain("gh release upload", text, StringComparison.Ordinal);
 		Assert.DoesNotContain(Mapping(_workflow.Value, "on").Children.Keys, static key => ((YamlScalarNode) key).Value!.StartsWith("pull_request", StringComparison.Ordinal));
+	}
+
+	/// <summary>
+	/// The contents: write token of draft-release and finalize-release reaches only the steps that call gh: never the
+	/// restore and test steps, which run repository MSBuild targets, NuGet package targets and test code.
+	/// </summary>
+	[Fact]
+	public void TheWriteTokenReachesOnlyTheStepsThatCallGitHub()
+	{
+		List<string> offenders = [];
+		foreach ((YamlNode key, YamlNode value) in Mapping(_workflow.Value, "jobs").Children)
+		{
+			string job = ((YamlScalarNode) key).Value!;
+			YamlMappingNode definition = (YamlMappingNode) value;
+			if (definition.Children.TryGetValue(new YamlScalarNode("env"), out YamlNode? jobEnvironment)
+				&& ((YamlMappingNode) jobEnvironment).Children.ContainsKey(new YamlScalarNode("GH_TOKEN")))
+			{
+				offenders.Add($"{job}: GH_TOKEN is set for the whole job");
+			}
+
+			if (!definition.Children.TryGetValue(new YamlScalarNode("steps"), out YamlNode? steps))
+			{
+				continue;
+			}
+
+			foreach (YamlMappingNode step in ((YamlSequenceNode) steps).Children.Cast<YamlMappingNode>())
+			{
+				string name = step.Children.TryGetValue(new YamlScalarNode("name"), out YamlNode? nameNode) ? Text(nameNode) : "(unnamed)";
+				bool hasToken = step.Children.TryGetValue(new YamlScalarNode("env"), out YamlNode? stepEnvironment)
+								&& ((YamlMappingNode) stepEnvironment).Children.ContainsKey(new YamlScalarNode("GH_TOKEN"));
+				string run = step.Children.TryGetValue(new YamlScalarNode("run"), out YamlNode? runNode) ? Text(runNode) : string.Empty;
+				if (hasToken && (run.Length == 0 || run.Contains("dotnet ", StringComparison.Ordinal)))
+				{
+					offenders.Add($"{job} / {name}: GH_TOKEN reaches a step that is not a gh call");
+				}
+			}
+		}
+
+		Assert.True(offenders.Count == 0, string.Join(Environment.NewLine, offenders));
 	}
 
 	[Fact]
@@ -243,6 +316,13 @@ public sealed partial class ReleaseWorkflowTests
 		return Assert.IsType<YamlSequenceNode>(node).Children.Select(static item => ((YamlScalarNode) item).Value!).ToArray();
 	}
 
+	private static YamlMappingNode Step(YamlMappingNode job, string id)
+	{
+		YamlSequenceNode steps = Assert.IsType<YamlSequenceNode>(job.Children[new YamlScalarNode("steps")]);
+		return Assert.Single(steps.Children.Cast<YamlMappingNode>(),
+			step => step.Children.TryGetValue(new YamlScalarNode("id"), out YamlNode? stepId) && Text(stepId) == id);
+	}
+
 	private static string[] Needs(YamlMappingNode job)
 	{
 		if (!job.Children.TryGetValue(new YamlScalarNode("needs"), out YamlNode? needs))
@@ -257,4 +337,7 @@ public sealed partial class ReleaseWorkflowTests
 
 	[GeneratedRegex(@"'(?<id>CheatEngine\.Client(?:\.[A-Za-z.]+)?)'", RegexOptions.CultureInvariant, 1000)]
 	private static partial Regex QuotedPackageId();
+
+	[GeneratedRegex(@"\b(always|cancelled|failure)\s*\(", RegexOptions.CultureInvariant, 1000)]
+	private static partial Regex StatusFunction();
 }
