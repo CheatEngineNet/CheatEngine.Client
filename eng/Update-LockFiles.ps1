@@ -267,7 +267,7 @@ try {
     }
 
     if (-not [string]::IsNullOrEmpty($env:CoexistenceSdkPackageVersion)) {
-        throw "Unset the environment variable CoexistenceSdkPackageVersion ('$env:CoexistenceSdkPackageVersion') first: MSBuild reads it as a property, and any value other than 1.0.0 turns lock files off for the Coexistence fixtures."
+        throw "Unset the environment variable CoexistenceSdkPackageVersion ('$env:CoexistenceSdkPackageVersion') first: MSBuild reads it as a property, and any value other than the pin of eng/CheatEngineSdk.props moves the Coexistence fixtures' lock files under obj/, so their committed lock files would not be regenerated or checked."
     }
 
     $globalJson = Get-Content -LiteralPath (Join-Path $repositoryRoot 'global.json') -Raw | ConvertFrom-Json -AsHashtable

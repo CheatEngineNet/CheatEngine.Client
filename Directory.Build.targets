@@ -271,9 +271,9 @@
       <_CheatEngineClientDowngradesBlockingAudit Condition="$(_CheatEngineClientNoWarnCodes.Contains(';NU1903;')) or $(_CheatEngineClientNoWarnCodes.Contains(';NU1904;')) or $(_CheatEngineClientWarningsNotAsErrorsCodes.Contains(';NU1903;')) or $(_CheatEngineClientWarningsNotAsErrorsCodes.Contains(';NU1904;'))">true</_CheatEngineClientDowngradesBlockingAudit>
       <!-- The Coexistence fixtures are the only projects outside Central Package Management (v1 lock files). -->
       <_CheatEngineClientIsCoexistenceFixture>$(_CheatEngineClientFolder.StartsWith('tests/CheatEngine.Client.LivePlugin.Coexistence/', System.StringComparison.OrdinalIgnoreCase))</_CheatEngineClientIsCoexistenceFixture>
-      <!-- Documented operator override (CoexistencePlugin.props): another SDK version is a qualification input, restored without a lock file. -->
+      <!-- Documented operator override (CoexistencePlugin.props): an SDK version other than the pin of eng/CheatEngineSdk.props is a qualification input whose restore records its closure in obj/, never in the committed lock file. -->
       <_CheatEngineClientLockFileOverride>false</_CheatEngineClientLockFileOverride>
-      <_CheatEngineClientLockFileOverride Condition="'$(_CheatEngineClientIsCoexistenceFixture)' == 'true' and '$(CoexistenceSdkPackageVersion)' != '' and '$(CoexistenceSdkPackageVersion)' != '1.0.0'">true</_CheatEngineClientLockFileOverride>
+      <_CheatEngineClientLockFileOverride Condition="'$(_CheatEngineClientIsCoexistenceFixture)' == 'true' and '$(CoexistenceSdkPackageVersion)' != '' and '$(CoexistenceSdkPackageVersion)' != '$(CheatEngineSdkVersion)'">true</_CheatEngineClientLockFileOverride>
     </PropertyGroup>
 
     <Error Condition="'$(AnalysisLevel)' != '$(_CheatEngineClientPinnedAnalysisLevel)'"
