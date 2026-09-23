@@ -99,10 +99,26 @@ public sealed class PackagedClientFeedFixture : IAsyncLifetime
 	                                      }
 	                                      """;
 
+	/// <summary>
+	/// The reviewed identity of the published CheatEngine.SDK 1.0.0 (shared-contracts.md §2.4, verified 2026-09-23):
+	/// the NuGet content hash a lock file records, the nuget.org repository-signed file's SHA-512, and the SHA-256 of
+	/// the native bridge packaged inside it. Hardcoded, not read from a reviewed-identity file: the sync mechanism
+	/// that used to keep such a file current was removed, and the Client's SDK pin (eng/CheatEngineSdk.props) does not
+	/// move without updating these literals in the same change.
+	/// </summary>
+	private static readonly JsonDocument _pinnedSdkIdentity = JsonDocument.Parse("""
+		{
+		  "version": "1.0.0",
+		  "contentHashSha512": "n7nHqZ8vzo7Vf20jF0fkh/jUtR3yo1TwRGpXE7ERxZeJ4C5S/Nsft4lqOg7zGwfsD5Nh9tTVgdw4PrybJRF0gA==",
+		  "nugetOrgSignedSha512": "1a2B/E6reX5e636hfdb+Zdj3kT6817DuNES1RWvprhRyuyztE/56Zk2iHOMQIKpGH+O2Va8rYJxXXXTVq5aN9Q==",
+		  "nativeBridge": { "sha256": "da08c2ba03019da3a8c432ef061d5d6133fd2169ba3a6a8e9ac903353856d994" }
+		}
+		""");
+
 	private readonly List<SmokeStep> _steps = [];
 	private TemporaryDirectory? _temporary;
 	private Dictionary<string, string> _environment = new(StringComparer.Ordinal);
-	private JsonDocument? _consumedSdk;
+	private bool _hasConsumedSdkIdentity;
 
 	/// <summary>Why the packages are unusable, or <see langword="null"/>.</summary>
 	internal string? SetupFailure
@@ -146,7 +162,7 @@ public sealed class PackagedClientFeedFixture : IAsyncLifetime
 		private set;
 	} = string.Empty;
 
-	/// <summary>Whether the consumers use the committed pin from nuget.org (so eng/sdk/consumed-sdk.json applies).</summary>
+	/// <summary>Whether the consumers use the committed pin from nuget.org (so the reviewed SDK identity applies).</summary>
 	internal bool UsesPinnedSdk
 	{
 		get;
@@ -221,13 +237,13 @@ public sealed class PackagedClientFeedFixture : IAsyncLifetime
 		private set;
 	}
 
-	/// <summary>The reviewed identity of the pinned SDK (<c>eng/sdk/consumed-sdk.json</c>).</summary>
+	/// <summary>The reviewed identity of the pinned SDK (the hardcoded 1.0.0 reference values above).</summary>
 	internal JsonElement ConsumedSdk
 	{
 		get
 		{
-			Assert.True(_consumedSdk is not null, "eng/sdk/consumed-sdk.json applies only when the consumers use the pinned SDK.");
-			return _consumedSdk!.RootElement;
+			Assert.True(_hasConsumedSdkIdentity, "The reviewed SDK identity applies only when the consumers use the pinned SDK.");
+			return _pinnedSdkIdentity.RootElement;
 		}
 	}
 
@@ -272,7 +288,6 @@ public sealed class PackagedClientFeedFixture : IAsyncLifetime
 	/// <inheritdoc />
 	public ValueTask DisposeAsync()
 	{
-		_consumedSdk?.Dispose();
 		_temporary?.Dispose();
 		return ValueTask.CompletedTask;
 	}
@@ -494,8 +509,8 @@ public sealed class PackagedClientFeedFixture : IAsyncLifetime
 
 		XDocument pin = XDocument.Load(RepositoryLayout.Combine("eng/CheatEngineSdk.props"));
 		SdkVersion = Assert.Single(pin.Descendants("CheatEngineSdkVersion")).Value.Trim();
-		_consumedSdk = JsonDocument.Parse(File.ReadAllText(RepositoryLayout.Combine("eng/sdk/consumed-sdk.json")));
-		Assert.Equal(SdkVersion, _consumedSdk.RootElement.GetProperty("version").GetString());
+		Assert.Equal(_pinnedSdkIdentity.RootElement.GetProperty("version").GetString(), SdkVersion);
+		_hasConsumedSdkIdentity = true;
 		return null;
 	}
 

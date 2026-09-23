@@ -42,7 +42,8 @@ TRX report keeps. The facts prove that:
   `PackedTemplateProjectDiffersFromTheRepositoryTemplateOnlyByStampedVersions` and
   `TemplatePackageInstallsListsAndUninstalls`;
 - `IsolatedConsumerResolvesClientPackagesOnlyFromTheLocalFeed`: the Client packages come from the tested directory and
-  `CheatEngine.SDK` from nuget.org with the content hash of `eng/sdk/consumed-sdk.json`;
+  `CheatEngine.SDK` from nuget.org with the content hash of the reviewed SDK identity hardcoded in
+  `PackagedClientFeedFixture` (shared-contracts.md §2.4);
 - `IsolatedConsumerDeploysTheCompleteClosureWithThePackagedBridge` and
   `InstantiatedTemplateBuildsTheCompleteDeploymentClosure`: plugin, `.deps.json`, `.runtimeconfig.json`, Client and
   SDK assemblies and the native bridge (hash equal to the packed one) sit side by side, in the output and in the
@@ -63,7 +64,7 @@ These are package-level results (fixture level C2); a Cheat Engine host run of Q
 whose `origin` is a fork or a local path produces other URLs or none, and fails that fact.
 
 `SdkCanaryRecipeTests.CanaryRecipeBuildsAgainstACandidateSdkButNeverPacks` shares the same fixture and category. It
-runs the canary recipe of `eng/sdk/README.md` (the SDK-side client-canary job, audit Q48) on a throw-away copy of
+runs the canary recipe of `eng/CheatEngineSdk.props` (the SDK-side client-canary job, audit Q48) on a throw-away copy of
 `CheatEngine.Client.Abstractions`, against the pinned SDK re-versioned as `2.0.0-alpha.0.42`: the restore rewrites the
 copy's lock file instead of failing (NU1005), `CHEATENGINECLIENT9016` reports without failing the build, and the pack
 is still refused.
@@ -76,14 +77,6 @@ breakage but never produce a package. `RoslynPinDriftFailsWithCHEATENGINECLIENT9
 packed Lua generator cannot drift from its declared floor, and `LockstepGuardAcceptsMinVerAndRefusesEveryOtherVersionSource`
 that a package version comes from MinVer only (`CHEATENGINECLIENT9019`). `SbomGuardRefusesAPackWithoutTheSbom` proves
 that a package cannot be packed without its SPDX SBOM (`CHEATENGINECLIENT9021`).
-
-`ReleaseScriptTests` run the release scripts of `eng/release` in `pwsh` against `FakeGitHubCli.ps1`, an in-memory
-stand-in for the gh CLI, so no GitHub call is made. They have no category, so both CI legs run them:
-`DispatchStartedFromATagIsADryRunWithEmptyOutputs` and `PushOfSomethingOtherThanAReleaseTagIsRefused` prove that only
-a tag push can release; `NewDraftCarriesExactlyTheFilesOfTheRun`, `DraftLeftByAnotherRunOfTheTagIsReplacedByTheFilesOfThisRun`,
-`DraftThatAlreadyCarriesTheFilesOfTheRunIsKept` and `PublishedReleaseWithOtherAssetsFailsTheDraftJobBeforeAnyPush`
-prove that a release asset is compared by SHA-256, never by name alone; `FinalizeRefusesToPublishADraftWhoseAssetsDifferFromTheRun`
-and `FinalizePublishesTheCheckedDraftById` prove that a draft is published only when every asset is a file of the run.
 
 Two metadata suites read the built Client assemblies with `System.Reflection.Metadata`. `Architecture/` is the
 ADR-01 ratchet. It freezes the direct Lua-stack and SDK-owner usages, the `[LuaGlobal]` inventory, and the absence of

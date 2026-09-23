@@ -5,8 +5,8 @@ using CheatEngine.Client.Tests.Infrastructure;
 namespace CheatEngine.Client.Tests.Packaging;
 
 /// <summary>
-/// Runs the canary recipe of <c>eng/sdk/README.md</c>, which the SDK repository's advisory client-canary job uses to build
-/// this Client against an unreleased SDK (audit Q48, A11-30), on a throw-away copy of one SDK-facing library. The
+/// Runs the canary recipe of <c>eng/CheatEngineSdk.props</c>, which the SDK repository's advisory client-canary job uses
+/// to build this Client against an unreleased SDK (audit Q48, A11-30), on a throw-away copy of one SDK-facing library. The
 /// candidate is the pinned SDK package re-versioned as a 2.0 prerelease, so the proof needs no SDK branch. It shares the
 /// isolated package cache of the package consumption fixture, which the candidate never leaves.
 /// </summary>
@@ -31,7 +31,7 @@ public sealed class SdkCanaryRecipeTests(PackagedClientFeedFixture fixture)
 			fixture.PackageCache, fixture.PackageSource, feed);
 		string project = Path.Combine(checkout, LibraryProject);
 
-		// The recipe of eng/sdk/README.md: lock files stay enabled and the restore is not locked.
+		// The recipe of eng/CheatEngineSdk.props: lock files stay enabled and the restore is not locked.
 		string[] recipe =
 		[
 			$"-p:RestoreConfigFile={configuration}", $"-p:CheatEngineSdkVersion={CandidateVersion}", "-p:CheatEngineSdkUpperBound=3.0.0",
