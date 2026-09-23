@@ -3,11 +3,17 @@
 ## Context
 
 The Client qualification harness: a real `CheatEngineClientPlugin`, composed like an application, whose Lua functions
-run the exact-host (C3/C4) Client scenarios of the [Client qualification matrix](../../docs/qualification/README.md) one
-step at a time and return one JSON observation per call (schema `cheatengine-client-qualification-observation/v0`). The
-CheatEngine.SDK qualification runner loads it into a sandbox copy of Cheat Engine 7.7 and records those observations in
-the receipts. CI compiles it through the solution so that it never rots; it is **never packed, never a test module and
-never loaded by CI**.
+run exact-host (C3/C4) Client scenarios one step at a time and return one JSON observation per call (schema
+`cheatengine-client-qualification-observation/v0`). A future qualification runner is expected to load it into a
+sandbox copy of Cheat Engine 7.7 and record those observations as evidence. CI compiles it through the solution so
+that it never rots; it is **never packed, never a test module and never loaded by CI**.
+
+> This project was prepared ahead of the Client's exact-host qualification evidence tooling. That tooling (a
+> `docs/` folder and a bespoke `eng/qualification` runner) was rejected by the maintainer (2026-09-23): no top-level
+> `docs/` folder and no custom PowerShell/JSON governance or evidence tooling under `eng/` in this repository. This
+> harness is kept because it depends on neither — it only composes the public Client API — but the scenario plan,
+> matrix and receipt schema it was designed against do not exist in this repository yet and need re-scoping before
+> the harness is wired to anything.
 
 ## Why this project exists
 
@@ -21,9 +27,8 @@ the Client.
 
 - **Client API only** (ADR-01). Every Cheat Engine interaction goes through `ICheatEngineClient` and its companions
   (`IPatternScanOutcomeClient`, `IMemoryBatchClient`). Cheat Engine-level setup (opening the target, allocating the scratch
-  region, changing the pointer size, redefining a symbol, destroying a record) belongs to the scenario's driver, which
-  the SDK runner generates from [`eng/qualification/client-scenarios.json`](../../eng/qualification/client-scenarios.json).
-  `ClientQualificationHarnessTests.QualificationPluginUsesOnlyTheClientApiForCheatEngineAccess` enforces it.
+  region, changing the pointer size, redefining a symbol, destroying a record) belongs to the scenario's driver, which a
+  future qualification runner would generate from a scenario plan (not yet re-scoped; see the note above).
 - **Honest observations.** An observation is bounded and redacted by construction: failures are written as their kind,
   operation and host effect only, address lists as their count and first and last eight entries, and any text that
   looks like a local path is replaced. The harness checks its own criteria where the Client API allows it (for example
@@ -62,8 +67,7 @@ and tested there.
 ## Lua functions
 
 Every name starts with `cheatengine_client_qualification_`. A function marked **yes** changes the target or Cheat Engine
-state and runs only behind the gate and the target check (`QualificationScenarios.RunMutating`, checked by
-`ClientQualificationHarnessTests.MutatingHarnessFunctionsAreGuardedByTheAuthorizationGate`).
+state and runs only behind the gate and the target check (`QualificationScenarios.RunMutating`).
 
 | Function                                                 | Mutating                  | Scenarios          | Returns                                                                                              |
 |----------------------------------------------------------|---------------------------|--------------------|------------------------------------------------------------------------------------------------------|
@@ -96,7 +100,7 @@ produce from this source graph:
 dotnet build .\tests\CheatEngine.Client.LivePlugin.Qualification\CheatEngine.Client.LivePlugin.Qualification.csproj -c Release -p:CheatEnginePluginOutputPath=<folder>
 ```
 
-A host run never uses that build: [`eng/qualification/Invoke-ClientQualification.ps1`](../../eng/qualification/README.md)
-compiles the same sources again outside the repository against the exact CI Client packages and CheatEngine.SDK 1.0.0
-from nuget.org, then invokes the CheatEngine.SDK runner. The procedure and the evidence rules are in
-[docs/qualification](../../docs/qualification/README.md).
+A host run never uses that build: a future qualification procedure would compile the same sources again outside the
+repository against the exact CI Client packages and CheatEngine.SDK 1.0.0 from nuget.org, then invoke a CheatEngine.SDK
+runner. That procedure and its evidence rules are not part of this repository (see the note above); nothing here starts
+Cheat Engine or the SDK runner.

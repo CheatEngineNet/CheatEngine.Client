@@ -1,10 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    Tests of the qualification harness and of eng/qualification. The Lua-free harness files are compiled in: the x64
-    plugin project itself is never referenced, because an AnyCPU test module referencing an x64 project is a
-    processor-architecture mismatch. Scripts/ runs the eng/qualification PowerShell scripts with pwsh against synthetic
-    inputs; Repository.Tests may not start a process, so those tests live here.
+    Tests of the qualification harness. The Lua-free harness files are compiled in: the x64 plugin project itself is
+    never referenced, because an AnyCPU test module referencing an x64 project is a processor-architecture mismatch.
   -->
 
   <ItemGroup>
