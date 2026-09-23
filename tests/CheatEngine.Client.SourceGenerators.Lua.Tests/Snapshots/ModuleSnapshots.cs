@@ -185,7 +185,9 @@ public sealed class ModuleSnapshots
 					if (stale)
 					{
 						status = global::CheatEngine.Client.Lua.LuaExportReleaseStatus.NotAttempted;
-						__CheatEngineLuaAddFailure(ref failures, port.Release(token));
+						// A stale release marks the pin released without touching Lua (no failure is possible); a failure here would
+						// still not be reported, matching the stale RegisterCore release above: no Lua mutation, no throw.
+						_ = port.Release(token);
 					}
 					else
 					{

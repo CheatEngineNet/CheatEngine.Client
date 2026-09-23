@@ -263,7 +263,10 @@ internal static class ModuleEmitter
 		source.WriteLine("if (stale)");
 		source.OpenBlock();
 		source.WriteLine("status = " + ReleaseStatus + ".NotAttempted;");
-		source.WriteLine(AddFailure + "(ref failures, port.Release(token));");
+		source.WriteLine(
+			"// A stale release marks the pin released without touching Lua (no failure is possible); a failure here would");
+		source.WriteLine("// still not be reported, matching the stale RegisterCore release above: no Lua mutation, no throw.");
+		source.WriteLine("_ = port.Release(token);");
 		source.CloseBlock();
 		source.WriteLine("else");
 		source.OpenBlock();
