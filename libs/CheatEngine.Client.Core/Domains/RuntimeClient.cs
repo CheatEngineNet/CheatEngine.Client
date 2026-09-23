@@ -16,6 +16,18 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 	/// </summary>
 	internal const string ConfiguredPointerSizeCapabilityValue = "Runtime.ConfiguredPointerSize";
 
+	/// <summary>
+	///     The qualification gate reason of every capability until a Client qualification receipt exists (audit A20-19):
+	///     receipts produced for the SDK branch never qualify the Client tuple.
+	/// </summary>
+	internal const string QualificationUnknownReason =
+		"No Client qualification receipt for profile ce-7.7.0.10621-x64-managed-hostfxr with CheatEngine.SDK 1.0.0 is " +
+		"embedded in this build; SDK-branch receipts never qualify the Client tuple.";
+
+	/// <summary>The package gate reason of value scanning; it names the true 1.0.0 limitation (audit A10-19, A21-21).</summary>
+	internal const string ValueScanningPackageReason =
+		"CheatEngine.SDK 1.0.0 does not provide the public MemScan and FoundList ownership factory required by Client.";
+
 	private const string _snapshotOperation = "Runtime.GetSnapshot";
 
 	private readonly Version _clientAssemblyVersion;
@@ -26,6 +38,7 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 	private readonly CoreClientPolicy _policy;
 	private readonly IRuntimeProbe _probe;
 	private readonly Version _sdkAssemblyVersion;
+	private readonly ConsumedSdkIdentity _sdkIdentity;
 
 	internal RuntimeClient(ICheatEngineDispatcher dispatcher, CoreLifetime lifetime, CoreClientPolicy policy)
 		: this(
@@ -35,12 +48,25 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 			typeof(ICheatEngineRuntime).Assembly.GetName().Version,
 			typeof(RuntimeInfo).Assembly.GetName().Version,
 			policy,
-			() => lifetime.IsCurrent)
+			() => lifetime.IsCurrent,
+			ConsumedSdkIdentity.Current)
 	{
 		ArgumentNullException.ThrowIfNull(lifetime);
 		_lifetime = lifetime;
 	}
 
+	/// <summary>Creates a runtime client with explicit seams; tests supply the probe and the consumed-SDK identity.</summary>
+	/// <param name="dispatcher">The dispatcher that runs the read-only probes on Cheat Engine's main thread.</param>
+	/// <param name="probe">The read-only runtime probe.</param>
+	/// <param name="getEpoch">Reads the current activation epoch.</param>
+	/// <param name="clientAssemblyVersion">The Client assembly version, or the version of this build.</param>
+	/// <param name="sdkAssemblyVersion">The SDK runtime assembly version, or the loaded one.</param>
+	/// <param name="policy">The activation policy, or the safe defaults.</param>
+	/// <param name="isActivationCurrent">Reads whether the activation is current; always current when omitted.</param>
+	/// <param name="sdkIdentity">
+	///     The consumed-SDK identity evidence; <see langword="null" /> means that no identity was embedded, so every
+	///     operational package gate stays unknown.
+	/// </param>
 	internal RuntimeClient(
 		ICheatEngineDispatcher dispatcher,
 		IRuntimeProbe probe,
@@ -48,9 +74,11 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 		Version? clientAssemblyVersion = null,
 		Version? sdkAssemblyVersion = null,
 		CoreClientPolicy? policy = null,
-		Func<bool>? isActivationCurrent = null)
+		Func<bool>? isActivationCurrent = null,
+		ConsumedSdkIdentity? sdkIdentity = null)
 	{
 		_dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
+		_sdkIdentity = sdkIdentity ?? ConsumedSdkIdentity.NotEmbedded;
 		_probe = probe ?? throw new ArgumentNullException(nameof(probe));
 		_getEpoch = getEpoch ?? throw new ArgumentNullException(nameof(getEpoch));
 		_isActivationCurrent = isActivationCurrent ?? (static () => true);
@@ -223,10 +251,15 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 		ClientCapabilityEvidenceGate lifetime = _isActivationCurrent()
 			? Satisfied("The Client activation is current.")
 			: Missing("The Client activation is no longer current.");
-		ClientCapabilityEvidenceGate packageUnknown = UnknownEvidence(
-			"The runtime snapshot does not establish the identity of the consumed SDK package artifact.");
-		ClientCapabilityEvidenceGate qualificationUnknown = UnknownEvidence(
-			"No complete Cheat Engine 7.7 x64 live qualification record is attached to this capability observation.");
+		// ADR-09: the package gate of an operational capability comes from evidence (the embedded consumed-SDK identity
+		// compared with the loaded CheatEngine.SDK.Engine), never from the presence of an interface or a version name.
+		ClientCapabilityEvidenceGate package = _sdkIdentity.PackageGate;
+		ClientCapabilityEvidenceGate qualificationUnknown = UnknownEvidence(QualificationUnknownReason);
+		ClientCapabilityEvidenceGate noQualifiedPrimitive = Missing(
+			"No CheatEngine.SDK release provides a qualified primitive for this capability.");
+		ClientCapabilityEvidenceGate noQualifiedEventOwner = Missing(
+			"No CheatEngine.SDK release provides a qualified primitive for this capability until the SDK 2.0 timer and " +
+			"hotkey owners are adopted.");
 		ClientCapabilityEvidenceGate policyNotRequired = Satisfied(
 			"This capability has no additional activation policy opt-in.");
 		ClientCapabilityEvidenceGate unprobedHost = UnknownEvidence(
@@ -238,48 +271,48 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 
 		ClientCapabilityAvailability[] capabilities =
 		[
-			Describe(ClientCapabilityId.ProcessSelection, implemented, packageUnknown, openedProcess.Evidence,
+			Describe(ClientCapabilityId.ProcessSelection, implemented, package, openedProcess.Evidence,
 				qualificationUnknown, policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.TypedMemory, implemented, packageUnknown, unprobedHost, qualificationUnknown,
+			Describe(ClientCapabilityId.TypedMemory, implemented, package, unprobedHost, qualificationUnknown,
 				policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.PatternScanning, implemented, packageUnknown, unprobedHost,
-				qualificationUnknown,
+			Describe(ClientCapabilityId.PatternScanning, implemented, package, unprobedHost, qualificationUnknown,
 				policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.ValueScanning, contractOnly,
-				Missing(
-					"CheatEngine.SDK 1.0.0 does not provide the public MemScan and FoundList ownership factory required by Client."),
+			Describe(ClientCapabilityId.ValueScanning, contractOnly, Missing(ValueScanningPackageReason),
 				unprobedHost, qualificationUnknown, policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.Inspection, implemented, packageUnknown, unprobedHost, qualificationUnknown,
+			Describe(ClientCapabilityId.Inspection, implemented, package, unprobedHost, qualificationUnknown,
 				policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.Tables, implemented, packageUnknown, unprobedHost, qualificationUnknown,
+			Describe(ClientCapabilityId.Tables, implemented, package, unprobedHost, qualificationUnknown,
 				policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.ProtectedLua, implemented, packageUnknown, unprobedHost, qualificationUnknown,
+			Describe(ClientCapabilityId.ProtectedLua, implemented, package, unprobedHost, qualificationUnknown,
 				policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.UnsafeLuaExecution, implemented, packageUnknown, unprobedHost,
+			Describe(ClientCapabilityId.UnsafeLuaExecution, implemented, package, unprobedHost,
 				qualificationUnknown,
 				_policy.EnableUnsafeLuaExecution
 					? Satisfied("Unsafe Lua execution was explicitly enabled for this activation.")
 					: Missing(
 						"Unsafe Lua execution requires explicit EnableUnsafeLuaExecution opt-in for this activation."),
 				lifetime),
-			Describe(ClientCapabilityId.Allocations, contractOnly, packageUnknown, unprobedHost, qualificationUnknown,
+			Describe(ClientCapabilityId.Allocations, contractOnly,
+				Missing("CheatEngine.SDK 1.0.0 provides no target-bound owned allocation primitive; see the SDK 2.0 " +
+						"migration guide."),
+				unprobedHost, qualificationUnknown, policyNotRequired, lifetime),
+			Describe(ClientCapabilityId.Assembly, contractOnly,
+				Missing("CheatEngine.SDK 1.0.0 provides no target-bound owned Auto Assembler primitive; see the SDK 2.0 " +
+						"migration guide."),
+				unprobedHost, qualificationUnknown, policyNotRequired, lifetime),
+			Describe(ClientCapabilityId.RemoteExecution, contractOnly, noQualifiedPrimitive, unprobedHost,
+				qualificationUnknown, policyNotRequired, lifetime),
+			Describe(ClientCapabilityId.Debugger, contractOnly, noQualifiedPrimitive, unprobedHost,
+				qualificationUnknown, policyNotRequired, lifetime),
+			Describe(ClientCapabilityId.Hotkeys, contractOnly, noQualifiedEventOwner, unprobedHost,
+				qualificationUnknown, policyNotRequired, lifetime),
+			Describe(ClientCapabilityId.Timers, contractOnly, noQualifiedEventOwner, unprobedHost,
+				qualificationUnknown, policyNotRequired, lifetime),
+			Describe(ClientCapabilityId.Speed, contractOnly, noQualifiedPrimitive, unprobedHost, qualificationUnknown,
 				policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.Assembly, contractOnly, packageUnknown, unprobedHost, qualificationUnknown,
-				policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.RemoteExecution, contractOnly, packageUnknown, unprobedHost,
-				qualificationUnknown,
-				policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.Debugger, contractOnly, packageUnknown, unprobedHost, qualificationUnknown,
-				policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.Hotkeys, contractOnly, packageUnknown, unprobedHost, qualificationUnknown,
-				policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.Timers, contractOnly, packageUnknown, unprobedHost, qualificationUnknown,
-				policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.Speed, contractOnly, packageUnknown, unprobedHost, qualificationUnknown,
-				policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.Hashing, contractOnly, packageUnknown, unprobedHost, qualificationUnknown,
-				policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.Dbvm, contractOnly, packageUnknown, unprobedHost, qualificationUnknown,
+			Describe(ClientCapabilityId.Hashing, contractOnly, noQualifiedPrimitive, unprobedHost,
+				qualificationUnknown, policyNotRequired, lifetime),
+			Describe(ClientCapabilityId.Dbvm, contractOnly, noQualifiedPrimitive, unprobedHost, qualificationUnknown,
 				policyNotRequired, lifetime)
 		];
 

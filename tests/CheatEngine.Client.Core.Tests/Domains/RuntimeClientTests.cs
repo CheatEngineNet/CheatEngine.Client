@@ -11,6 +11,12 @@ namespace CheatEngine.Client.Core.Tests.Domains;
 
 public sealed class RuntimeClientTests
 {
+	private const string SdkVersion = "1.0.0";
+	private const string SdkCommit = "a6fefb93e9c6f85a1bcedb68bf97e6741175b227";
+
+	private const string SdkContentHash =
+		"n7nHqZ8vzo7Vf20jF0fkh/jUtR3yo1TwRGpXE7ERxZeJ4C5S/Nsft4lqOg7zGwfsD5Nh9tTVgdw4PrybJRF0gA==";
+
 	[Fact]
 	public void SnapshotReportsOnlyTheObservedCeLineAndIndependentCapabilities()
 	{
@@ -634,6 +640,225 @@ public sealed class RuntimeClientTests
 		Assert.Equal(default, snapshot);
 		Assert.Equal("Runtime.GetSnapshot", failure.Operation);
 		Assert.Same(detached, failure.Exception);
+	}
+
+	[Fact]
+	public void PackageGateIsSatisfiedWhenTheLoadedSdkMatchesTheEmbeddedIdentity()
+	{
+		ConsumedSdkIdentity identity = new(SdkVersion, SdkCommit, SdkContentHash, $"{SdkVersion}+{SdkCommit}");
+
+		ClientCapabilityAvailability typedMemory = GetClientCapability(identity, ClientCapabilityId.TypedMemory);
+
+		Assert.Equal(ClientCapabilityEvidenceState.Satisfied, typedMemory.Evidence.Package.State);
+		Assert.Contains($"{SdkVersion}+{SdkCommit}", typedMemory.Evidence.Package.Reason, StringComparison.Ordinal);
+		Assert.Contains(SdkContentHash, typedMemory.Evidence.Package.Reason, StringComparison.Ordinal);
+		foreach (ClientCapabilityId operational in OperationalCapabilities)
+		{
+			Assert.Equal(ClientCapabilityEvidenceState.Satisfied,
+				GetClientCapability(identity, operational).Evidence.Package.State);
+		}
+	}
+
+	[Fact]
+	public void PackageGateIsMissingWhenTheLoadedSdkDiffersFromTheEmbeddedIdentity()
+	{
+		const string Loaded = "2.0.0-alpha.0.1+0123456789abcdef0123456789abcdef01234567";
+		ConsumedSdkIdentity identity = new(SdkVersion, SdkCommit, SdkContentHash, Loaded);
+
+		ClientCapabilityAvailability typedMemory = GetClientCapability(identity, ClientCapabilityId.TypedMemory);
+
+		Assert.Equal(ClientCapabilityEvidenceState.Missing, typedMemory.Evidence.Package.State);
+		Assert.Equal(ClientCapabilityAvailabilityState.Unavailable, typedMemory.State);
+		Assert.Contains(Loaded, typedMemory.Evidence.Package.Reason, StringComparison.Ordinal);
+		Assert.Contains("refuses to treat it as its SDK", typedMemory.Evidence.Package.Reason, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void PackageGateIsUnknownWithoutEmbeddedIdentity()
+	{
+		ConsumedSdkIdentity identity = new(null, null, null, $"{SdkVersion}+{SdkCommit}");
+
+		ClientCapabilityAvailability typedMemory = GetClientCapability(identity, ClientCapabilityId.TypedMemory);
+
+		Assert.False(identity.IsEmbedded);
+		Assert.Equal(ClientCapabilityEvidenceState.Unknown, typedMemory.Evidence.Package.State);
+		Assert.Contains("embeds no consumed CheatEngine.SDK identity", typedMemory.Evidence.Package.Reason,
+			StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void PackageGateIsUnknownWhenTheLoadedSdkDeclaresNoInformationalVersion()
+	{
+		ConsumedSdkIdentity identity = new(SdkVersion, SdkCommit, SdkContentHash, null);
+
+		ClientCapabilityAvailability typedMemory = GetClientCapability(identity, ClientCapabilityId.TypedMemory);
+
+		Assert.Equal(ClientCapabilityEvidenceState.Unknown, typedMemory.Evidence.Package.State);
+		Assert.Contains("declares no informational version", typedMemory.Evidence.Package.Reason,
+			StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void TheIdentityOfThisBuildMatchesTheLoadedSdkPackage()
+	{
+		// The Core assembly under test embeds eng/sdk/consumed-sdk.json and the test process loads the locked SDK
+		// package, so the production identity is Satisfied; a canary build embeds nothing and reports Unknown.
+		ConsumedSdkIdentity current = ConsumedSdkIdentity.Current;
+
+		Assert.Equal(current.IsEmbedded ? ClientCapabilityEvidenceState.Satisfied : ClientCapabilityEvidenceState.Unknown,
+			current.PackageGate.State);
+		Assert.Equal(typeof(RuntimeInfo).Assembly
+				.GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+				.Cast<System.Reflection.AssemblyInformationalVersionAttribute>().Single().InformationalVersion,
+			current.LoadedInformationalVersion);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q44")]
+	public void ValueScanningCapabilityReportsMissingWithTheSdkOneZeroReason()
+	{
+		ClientCapabilityAvailability valueScanning = GetClientCapability(MatchingIdentity(),
+			ClientCapabilityId.ValueScanning);
+
+		Assert.Equal(ClientCapabilityAvailabilityState.Unavailable, valueScanning.State);
+		Assert.Equal(ClientCapabilityEvidenceState.Missing, valueScanning.Evidence.Implementation.State);
+		Assert.Equal(ClientCapabilityEvidenceState.Missing, valueScanning.Evidence.Package.State);
+		Assert.Equal(
+			"CheatEngine.SDK 1.0.0 does not provide the public MemScan and FoundList ownership factory required by Client.",
+			valueScanning.Evidence.Package.Reason);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q44")]
+	public void AllocationAndAssemblyCapabilitiesAreUnavailableWhileTheClientConsumesSdkOneZero()
+	{
+		ConsumedSdkIdentity identity = MatchingIdentity();
+		ClientCapabilityAvailability allocations = GetClientCapability(identity, ClientCapabilityId.Allocations);
+		ClientCapabilityAvailability assembly = GetClientCapability(identity, ClientCapabilityId.Assembly);
+
+		foreach (ClientCapabilityAvailability capability in (ClientCapabilityAvailability[]) [allocations, assembly])
+		{
+			Assert.Equal(ClientCapabilityAvailabilityState.Unavailable, capability.State);
+			Assert.False(capability.IsAvailable);
+			Assert.Equal(ClientCapabilityEvidenceState.Missing, capability.Evidence.Implementation.State);
+			Assert.Equal(ClientCapabilityEvidenceState.Missing, capability.Evidence.Package.State);
+			Assert.Contains("CheatEngine.SDK 1.0.0 provides no target-bound owned", capability.Evidence.Package.Reason,
+				StringComparison.Ordinal);
+		}
+
+		Assert.Contains("allocation", allocations.Evidence.Package.Reason, StringComparison.Ordinal);
+		Assert.Contains("Auto Assembler", assembly.Evidence.Package.Reason, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q44")]
+	public void NoCapabilityIsAvailableWithoutEverySixGates()
+	{
+		// Even with a matching package, a selected target and an enabled unsafe-Lua policy, the qualification gate stays
+		// unknown and the unprobed host gates stay unknown: no capability is announced as available (ADR-09).
+		RuntimeClient runtime = new(new InlineDispatcher(), new FakeRuntimeProbe { OpenedProcessId = 42 },
+			static () => 1, policy: new CoreClientPolicy([], true), sdkIdentity: MatchingIdentity());
+
+		CheatEngineRuntimeSnapshot snapshot = runtime.GetSnapshot(TestContext.Current.CancellationToken);
+
+		Assert.Equal(17, snapshot.ClientCapabilities.Count);
+		foreach (ClientCapabilityAvailability capability in snapshot.ClientCapabilities.Entries)
+		{
+			Assert.False(capability.IsAvailable, capability.Capability.Value);
+			Assert.NotEqual(ClientCapabilityAvailabilityState.Available, capability.State);
+			Assert.False(capability.Evidence.IsExecutable);
+		}
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q44")]
+	public void QualificationGateStaysUnknownWithoutACommittedClientReceipt()
+	{
+		RuntimeClient runtime = new(new InlineDispatcher(), new FakeRuntimeProbe { OpenedProcessId = 42 },
+			static () => 1, sdkIdentity: MatchingIdentity());
+
+		CheatEngineRuntimeSnapshot snapshot = runtime.GetSnapshot(TestContext.Current.CancellationToken);
+
+		foreach (ClientCapabilityAvailability capability in snapshot.ClientCapabilities.Entries)
+		{
+			Assert.Equal(ClientCapabilityEvidenceState.Unknown, capability.Evidence.LiveQualification.State);
+			Assert.Equal(RuntimeClient.QualificationUnknownReason, capability.Evidence.LiveQualification.Reason);
+		}
+
+		Assert.Contains("SDK-branch receipts never qualify the Client tuple", RuntimeClient.QualificationUnknownReason,
+			StringComparison.Ordinal);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q44")]
+	public void ContractOnlyCapabilitiesWithoutAnSdkWaveNameTheMissingQualifiedPrimitive()
+	{
+		ConsumedSdkIdentity identity = MatchingIdentity();
+
+		foreach (ClientCapabilityId capability in (ClientCapabilityId[])
+				 [
+					 ClientCapabilityId.RemoteExecution, ClientCapabilityId.Debugger, ClientCapabilityId.Speed,
+					 ClientCapabilityId.Hashing, ClientCapabilityId.Dbvm, ClientCapabilityId.Hotkeys,
+					 ClientCapabilityId.Timers
+				 ])
+		{
+			ClientCapabilityAvailability availability = GetClientCapability(identity, capability);
+			Assert.Equal(ClientCapabilityAvailabilityState.Unavailable, availability.State);
+			Assert.Equal(ClientCapabilityEvidenceState.Missing, availability.Evidence.Package.State);
+			Assert.StartsWith("No CheatEngine.SDK release provides a qualified primitive for this capability",
+				availability.Evidence.Package.Reason, StringComparison.Ordinal);
+		}
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q45")]
+	public void IRuntimeProbeExposesOnlyObservationMembers()
+	{
+		// Q45 / ADR-09a: a runtime probe observes; it never opens a process, loads a table or changes a host setting.
+		string[] allowed =
+		[
+			nameof(IRuntimeProbe.GetCheatEngineVersion), nameof(IRuntimeProbe.GetSystemArchitecture),
+			nameof(IRuntimeProbe.GetTargetAbi), nameof(ITargetArchitectureProbe.GetOpenedProcessId),
+			nameof(ITargetArchitectureProbe.TargetIs64Bit), nameof(ITargetArchitectureProbe.TargetIsX86),
+			nameof(ITargetArchitectureProbe.TargetIsArm), nameof(ITargetArchitectureProbe.GetConfiguredPointerSize)
+		];
+		System.Reflection.MethodInfo[] members =
+		[
+			.. typeof(IRuntimeProbe).GetMethods(),
+			.. typeof(IRuntimeProbe).GetInterfaces().SelectMany(static inherited => inherited.GetMethods())
+		];
+
+		Assert.Equal(allowed.Order(StringComparer.Ordinal),
+			members.Select(static member => member.Name).Order(StringComparer.Ordinal));
+		Assert.All(members, static member =>
+		{
+			Assert.NotEqual(typeof(void), member.ReturnType);
+			Assert.Empty(member.GetParameters());
+		});
+		Assert.Empty(typeof(IRuntimeProbe).GetProperties());
+		Assert.Empty(typeof(IRuntimeProbe).GetEvents());
+	}
+
+	private static ClientCapabilityId[] OperationalCapabilities =>
+	[
+		ClientCapabilityId.ProcessSelection, ClientCapabilityId.TypedMemory, ClientCapabilityId.PatternScanning,
+		ClientCapabilityId.Inspection, ClientCapabilityId.Tables, ClientCapabilityId.ProtectedLua,
+		ClientCapabilityId.UnsafeLuaExecution
+	];
+
+	private static ConsumedSdkIdentity MatchingIdentity()
+	{
+		return new ConsumedSdkIdentity(SdkVersion, SdkCommit, SdkContentHash, $"{SdkVersion}+{SdkCommit}");
+	}
+
+	private static ClientCapabilityAvailability GetClientCapability(ConsumedSdkIdentity identity,
+		ClientCapabilityId capability)
+	{
+		RuntimeClient runtime = new(new InlineDispatcher(), new FakeRuntimeProbe { OpenedProcessId = 42 },
+			static () => 1, sdkIdentity: identity);
+		CheatEngineRuntimeSnapshot snapshot = runtime.GetSnapshot(TestContext.Current.CancellationToken);
+		Assert.True(snapshot.ClientCapabilities.TryGet(capability, out ClientCapabilityAvailability availability));
+		return availability;
 	}
 
 	private static void AssertOpenedProcessEvidence(

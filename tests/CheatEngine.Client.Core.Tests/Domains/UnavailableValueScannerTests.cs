@@ -9,6 +9,7 @@ namespace CheatEngine.Client.Core.Tests.Domains;
 public sealed class UnavailableValueScannerTests
 {
 	[Fact]
+	[Trait("Qualification", "Q44")]
 	public void TryCreateSessionReportsCapabilityUnavailableBeforeTheLiveOwnershipGate()
 	{
 		UnavailableValueScanner scanner = new();
@@ -58,6 +59,7 @@ public sealed class UnavailableValueScannerTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q44")]
 	public void CreateSessionThrowsTheClassifiedUnavailableFailure()
 	{
 		UnavailableValueScanner scanner = new();

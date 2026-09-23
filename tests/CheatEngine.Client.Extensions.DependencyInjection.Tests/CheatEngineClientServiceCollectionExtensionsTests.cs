@@ -89,6 +89,32 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q44")]
+	public void AddCheatEngineClientComposesOnlyUnavailableAdaptersForContractOnlyDomains()
+	{
+		// ADR-09 / A17-20: a contract-only interface is composed with its unavailable adapter, never an operational one.
+		ServiceCollection services = new();
+		services.AddCheatEngineClient();
+		AliasRecordingServiceProvider provider = new();
+		Type[] contractOnly =
+		[
+			typeof(IValueScanner), typeof(IAllocationClient), typeof(IAssemblyClient), typeof(IRemoteExecutionClient),
+			typeof(IDebuggerClient), typeof(IHotkeyClient), typeof(ITimerClient), typeof(ISpeedClient),
+			typeof(IHashingClient), typeof(IDbvmClient)
+		];
+
+		foreach (Type serviceType in contractOnly)
+		{
+			ServiceDescriptor descriptor = Assert.Single(services, descriptor => descriptor.ServiceType == serviceType);
+			object implementation = descriptor.ImplementationFactory!(provider);
+
+			Assert.Matches(@"^CheatEngine\.Client\.Core\.Domains(\.[A-Za-z]+)?\.Unavailable[A-Za-z]+$",
+				implementation.GetType().FullName!);
+			Assert.IsAssignableFrom(serviceType, implementation);
+		}
+	}
+
+	[Fact]
 	public void AddMemoryCodecPreservesTheFirstExplicitRegistration()
 	{
 		ServiceCollection services = new();

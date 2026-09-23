@@ -18,4 +18,28 @@
     <InternalsVisibleTo Include="CheatEngine.Client.Benchmarks"/>
   </ItemGroup>
 
+  <!--
+    Consumed CheatEngine.SDK identity (audit ADR-09, A21-35, A22-21): the version, source commit and NuGet content hash of
+    eng/sdk/consumed-sdk.json are embedded as assembly metadata, evaluation-time only, so the runtime package gate compares
+    evidence (the loaded CheatEngine.SDK.Engine informational version) instead of trusting a version name. Nothing is
+    embedded when the file does not describe $(CheatEngineSdkVersion) or for the SDK-side canary build
+    (CheatEngineSdkCanary=true), so such a build reports the package gate as Unknown instead of a false match.
+    Property functions: https://learn.microsoft.com/visualstudio/msbuild/property-functions
+    AssemblyMetadata items: https://learn.microsoft.com/dotnet/core/project-sdk/msbuild-props#assemblymetadata
+  -->
+  <PropertyGroup Label="Consumed CheatEngine.SDK identity">
+    <_CheatEngineClientConsumedSdkFile>$(RepoRoot)eng/sdk/consumed-sdk.json</_CheatEngineClientConsumedSdkFile>
+    <_CheatEngineClientConsumedSdkJson Condition="Exists('$(_CheatEngineClientConsumedSdkFile)')">$([System.IO.File]::ReadAllText('$(_CheatEngineClientConsumedSdkFile)'))</_CheatEngineClientConsumedSdkJson>
+    <_CheatEngineClientConsumedSdkVersion Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('$(_CheatEngineClientConsumedSdkJson)', '&quot;version&quot;\s*:\s*&quot;[0-9A-Za-z.+-]+&quot;'))">$([System.Text.RegularExpressions.Regex]::Replace('$(_CheatEngineClientConsumedSdkJson)', '(?s)^.*?&quot;version&quot;\s*:\s*&quot;([0-9A-Za-z.+-]+)&quot;.*$', '$1'))</_CheatEngineClientConsumedSdkVersion>
+    <_CheatEngineClientConsumedSdkCommit Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('$(_CheatEngineClientConsumedSdkJson)', '&quot;sourceCommit&quot;\s*:\s*&quot;[0-9a-f]{40}&quot;'))">$([System.Text.RegularExpressions.Regex]::Replace('$(_CheatEngineClientConsumedSdkJson)', '(?s)^.*?&quot;sourceCommit&quot;\s*:\s*&quot;([0-9a-f]{40})&quot;.*$', '$1'))</_CheatEngineClientConsumedSdkCommit>
+    <_CheatEngineClientConsumedSdkContentHash Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('$(_CheatEngineClientConsumedSdkJson)', '&quot;contentHashSha512&quot;\s*:\s*&quot;[A-Za-z0-9+/=]+&quot;'))">$([System.Text.RegularExpressions.Regex]::Replace('$(_CheatEngineClientConsumedSdkJson)', '(?s)^.*?&quot;contentHashSha512&quot;\s*:\s*&quot;([A-Za-z0-9+/=]+)&quot;.*$', '$1'))</_CheatEngineClientConsumedSdkContentHash>
+    <_CheatEngineClientEmbedConsumedSdk Condition="'$(CheatEngineSdkCanary)' != 'true' and '$(_CheatEngineClientConsumedSdkVersion)' == '$(CheatEngineSdkVersion)' and '$(_CheatEngineClientConsumedSdkCommit)' != '' and '$(_CheatEngineClientConsumedSdkContentHash)' != ''">true</_CheatEngineClientEmbedConsumedSdk>
+  </PropertyGroup>
+
+  <ItemGroup Label="Consumed CheatEngine.SDK identity" Condition="'$(_CheatEngineClientEmbedConsumedSdk)' == 'true'">
+    <AssemblyMetadata Include="CheatEngine.Client.ConsumedSdk.Version" Value="$(_CheatEngineClientConsumedSdkVersion)"/>
+    <AssemblyMetadata Include="CheatEngine.Client.ConsumedSdk.SourceCommit" Value="$(_CheatEngineClientConsumedSdkCommit)"/>
+    <AssemblyMetadata Include="CheatEngine.Client.ConsumedSdk.ContentHashSha512" Value="$(_CheatEngineClientConsumedSdkContentHash)"/>
+  </ItemGroup>
+
 </Project>

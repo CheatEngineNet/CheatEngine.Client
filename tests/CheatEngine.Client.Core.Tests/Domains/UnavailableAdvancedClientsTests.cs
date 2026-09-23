@@ -27,6 +27,7 @@ public sealed class UnavailableAdvancedClientsTests
 	private static readonly Address _address = new(0x401000);
 
 	[Fact]
+	[Trait("Qualification", "Q44")]
 	public void AllocationTryOperationReportsTheLiveGateAndLeavesNoLease()
 	{
 		UnavailableAllocationClient client = new();
@@ -42,6 +43,7 @@ public sealed class UnavailableAdvancedClientsTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q44")]
 	public void AllocationThrowingOperationPreservesTheUnavailableFailure()
 	{
 		UnavailableAllocationClient client = new();
@@ -55,6 +57,7 @@ public sealed class UnavailableAdvancedClientsTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q44")]
 	public void AssemblyTryOperationsReturnDefaultsAndAStableCapabilityFailure()
 	{
 		UnavailableAssemblyClient client = new();
@@ -94,6 +97,7 @@ public sealed class UnavailableAdvancedClientsTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q44")]
 	public void AssemblyThrowingOperationPreservesTheUnavailableFailure()
 	{
 		UnavailableAssemblyClient client = new();
@@ -107,6 +111,7 @@ public sealed class UnavailableAdvancedClientsTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q44")]
 	public void RemoteExecutionTryOperationsReturnCopiedDefaultsAndStableFailures()
 	{
 		UnavailableRemoteExecutionClient client = new();
@@ -124,6 +129,7 @@ public sealed class UnavailableAdvancedClientsTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q44")]
 	public void RemoteExecutionThrowingOperationPreservesTheUnavailableFailure()
 	{
 		UnavailableRemoteExecutionClient client = new();
@@ -138,6 +144,7 @@ public sealed class UnavailableAdvancedClientsTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q44")]
 	public void SpeedTryOperationsReturnDefaultsAndStableFailures()
 	{
 		UnavailableSpeedClient client = new();
@@ -153,6 +160,7 @@ public sealed class UnavailableAdvancedClientsTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q44")]
 	public void SpeedThrowingOperationPreservesTheUnavailableFailure()
 	{
 		UnavailableSpeedClient client = new();
@@ -166,6 +174,7 @@ public sealed class UnavailableAdvancedClientsTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q44")]
 	public void HashingKeepsMemoryAndFileFailuresAsSeparateOperations()
 	{
 		UnavailableHashingClient client = new();
@@ -184,6 +193,7 @@ public sealed class UnavailableAdvancedClientsTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q44")]
 	public void CancellationTakesPrecedenceOverTheCapabilityGate()
 	{
 		UnavailableHashingClient client = new();
@@ -199,6 +209,7 @@ public sealed class UnavailableAdvancedClientsTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q44")]
 	public void DebuggerTryRegistrationReturnsNoLeaseAndTheLiveGateFailure()
 	{
 		UnavailableDebuggerClient client = new();
@@ -215,6 +226,7 @@ public sealed class UnavailableAdvancedClientsTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q44")]
 	public void DebuggerThrowingRegistrationPreservesTheUnavailableFailure()
 	{
 		UnavailableDebuggerClient client = new();
@@ -229,6 +241,7 @@ public sealed class UnavailableAdvancedClientsTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q44")]
 	public void DebuggerRegistrationRejectsDefaultStreamOptionsAndNullHandlerBeforeCapabilityGate()
 	{
 		UnavailableDebuggerClient client = new();
@@ -242,6 +255,7 @@ public sealed class UnavailableAdvancedClientsTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q44")]
 	public void HotkeyTryRegistrationReturnsNoLeaseAndTheLiveGateFailure()
 	{
 		UnavailableHotkeyClient client = new();
@@ -259,6 +273,7 @@ public sealed class UnavailableAdvancedClientsTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q44")]
 	public void HotkeyThrowingRegistrationPreservesTheUnavailableFailure()
 	{
 		UnavailableHotkeyClient client = new();
@@ -275,6 +290,7 @@ public sealed class UnavailableAdvancedClientsTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q44")]
 	public void HotkeyRegistrationRejectsDefaultStreamOptionsAndNullHandlerBeforeCapabilityGate()
 	{
 		UnavailableHotkeyClient client = new();
@@ -289,6 +305,7 @@ public sealed class UnavailableAdvancedClientsTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q44")]
 	public void TimerTryRegistrationReturnsNoLeaseAndTheLiveGateFailure()
 	{
 		UnavailableTimerClient client = new();
@@ -306,6 +323,7 @@ public sealed class UnavailableAdvancedClientsTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q44")]
 	public void TimerThrowingRegistrationPreservesTheUnavailableFailure()
 	{
 		UnavailableTimerClient client = new();
@@ -322,6 +340,7 @@ public sealed class UnavailableAdvancedClientsTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q44")]
 	public void TimerRegistrationRejectsDefaultStreamOptionsAndNullHandlerBeforeCapabilityGate()
 	{
 		UnavailableTimerClient client = new();
@@ -336,6 +355,7 @@ public sealed class UnavailableAdvancedClientsTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q44")]
 	public void DbvmObservesWithoutInitializingAndKeepsWatchRegistrationGated()
 	{
 		UnavailableDbvmClient client = new();
@@ -359,6 +379,7 @@ public sealed class UnavailableAdvancedClientsTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q44")]
 	public void DbvmThrowingObservationPreservesTheUnavailableFailure()
 	{
 		UnavailableDbvmClient client = new();
@@ -372,6 +393,7 @@ public sealed class UnavailableAdvancedClientsTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q44")]
 	public void DbvmWatchRegistrationRejectsDefaultStreamOptionsAndNullHandlerBeforeCapabilityGate()
 	{
 		UnavailableDbvmClient client = new();
@@ -386,6 +408,7 @@ public sealed class UnavailableAdvancedClientsTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q44")]
 	public void DbvmThrowingWatchRegistrationPreservesTheUnavailableFailure()
 	{
 		UnavailableDbvmClient client = new();
