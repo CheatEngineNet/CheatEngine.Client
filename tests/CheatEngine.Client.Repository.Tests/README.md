@@ -55,7 +55,10 @@ project never builds, packs, restores or starts a process, so it runs in seconds
 - `Release/ClientTupleSchemaTests` proves that the Client release tuple (audit A21-04) satisfies its schema and the
   encoding rules, and that its `consumedSdk` equals `eng/sdk/consumed-sdk.json` and the lock file. The release
   workflow runs it on the tuple it produces through `CHEATENGINE_CLIENT_TUPLE_PATH`; otherwise it validates the
-  committed example.
+  committed example. No tuple value may hold MSBuild expression text: `UnexpandedMSBuildExpressionsFailTheSchema`
+  proves that the schema rejects an unexpanded `$(…)` analysis level or Roslyn floor, and
+  `CommittedExampleRecordsTheBuildOptionsOfThisTree` that the example records the values `Directory.Build.props`
+  evaluates to.
 - `Release/ReleaseWorkflowTests` proves that `release.yml` keeps the contract job order, calls `ci.yml` with the
   package version and a 90-day retention but no Sonar, confines the `nuget` environment and secrets to `publish`, never
   caches packages, and pushes the seven packages in dependency order (audit A21-06).

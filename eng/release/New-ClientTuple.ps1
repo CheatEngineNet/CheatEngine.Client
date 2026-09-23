@@ -10,9 +10,11 @@ release assets (schema: eng/release/client-tuple.v0.schema.json; RELEASING.md ex
 
 Every value is read, never typed: package hashes from the files, the build environment from the CI build-info.json,
 the consumed SDK from eng/sdk/consumed-sdk.json with its content hash read from the lock file, the Roslyn floor and
-analysis level from Directory.Build.props, qualification documents from docs/qualification when they exist (their
-SHA-256 is computed after CRLF-to-LF normalization, as for every committed JSON document), and the nuget.org hashes of
-the Published stage from the output of Test-PublishedPackages.ps1.
+analysis level as MSBuild evaluates them for a shipped project (dotnet msbuild -getProperty, so a property that
+Directory.Build.props defines through another property is recorded by value, never as an unexpanded $(...) text),
+qualification documents from docs/qualification when they exist (their SHA-256 is computed after CRLF-to-LF
+normalization, as for every committed JSON document), and the nuget.org hashes of the Published stage from the output
+of Test-PublishedPackages.ps1. The script therefore needs the .NET SDK of global.json.
 
 .PARAMETER Stage
 PrePublish (the draft release) or Published (after nuget.org serves the packages).
@@ -143,9 +145,35 @@ foreach ($entry in @($buildInfo.packages)) {
 	}
 }
 
-[xml] $buildProps = Get-Content -LiteralPath (Join-Path $repositoryRoot 'Directory.Build.props') -Raw
-$roslynFloor = $buildProps.SelectSingleNode('/Project/PropertyGroup/CheatEngineClientRoslynComponentFloor').InnerText.Trim()
-$analysisLevel = $buildProps.SelectSingleNode('/Project/PropertyGroup/AnalysisLevel').InnerText.Trim()
+# Build options as MSBuild evaluates them for a shipped project, never the raw text of Directory.Build.props: the
+# analysis level, for example, is defined through another property. Evaluation only, from the repository root so that
+# global.json selects the SDK; nothing is restored or built
+# (https://learn.microsoft.com/visualstudio/msbuild/evaluate-items-and-properties).
+$buildOptionsProject = 'libs/CheatEngine.Client.Core/CheatEngine.Client.Core.csproj'
+Push-Location -LiteralPath $repositoryRoot
+try {
+	$evaluation = & dotnet msbuild $buildOptionsProject -nologo -getProperty:AnalysisLevel -getProperty:CheatEngineClientRoslynComponentFloor
+	if ($LASTEXITCODE -ne 0) {
+		throw "Evaluating the build options of $buildOptionsProject failed with exit code $LASTEXITCODE."
+	}
+}
+finally {
+	Pop-Location
+}
+$evaluationText = $evaluation -join "`n"
+$jsonStart = $evaluationText.IndexOf('{', [StringComparison]::Ordinal)
+if ($jsonStart -lt 0) {
+	throw "dotnet msbuild -getProperty printed no JSON for $($buildOptionsProject): $evaluationText"
+}
+$buildOptions = $evaluationText.Substring($jsonStart) | ConvertFrom-Json
+$analysisLevel = [string]$buildOptions.Properties.AnalysisLevel
+$roslynFloor = [string]$buildOptions.Properties.CheatEngineClientRoslynComponentFloor
+if ($analysisLevel -cnotmatch '^([Ll]atest|[Pp]review|[0-9]+(\.[0-9]+)?)(-[A-Za-z]+)?$') {
+	throw "$buildOptionsProject evaluates AnalysisLevel to '$analysisLevel', which is not an analysis level."
+}
+if ($roslynFloor -cnotmatch '^[0-9]+\.[0-9]+\.[0-9]+$') {
+	throw "$buildOptionsProject evaluates CheatEngineClientRoslynComponentFloor to '$roslynFloor', which is not a version."
+}
 
 # The consumed SDK: the reviewed identity, with the content hash read from the lock file.
 $identity = Get-Content -LiteralPath (Join-Path $repositoryRoot 'eng/sdk/consumed-sdk.json') -Raw | ConvertFrom-Json

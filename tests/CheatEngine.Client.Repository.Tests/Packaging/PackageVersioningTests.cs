@@ -140,6 +140,30 @@ public sealed partial class PackageVersioningTests
 		return element.Value.Trim();
 	}
 
+	/// <summary>
+	/// A property of <c>Directory.Build.props</c> as MSBuild evaluates it when nothing else defines it: every
+	/// <c>$(Name)</c> reference to an unconditional property defined earlier in the same file is expanded at definition
+	/// time, as MSBuild does. Fails when a reference stays unexpanded, so a caller never compares against expression text.
+	/// </summary>
+	internal static string EvaluatedBuildProperty(string name)
+	{
+		Dictionary<string, string> values = new(StringComparer.OrdinalIgnoreCase);
+		IEnumerable<XElement> properties = LoadXml("Directory.Build.props").Root!.Elements("PropertyGroup")
+			.Where(static group => group.Attribute("Condition") is null)
+			.SelectMany(static group => group.Elements())
+			.Where(static property => property.Attribute("Condition") is null);
+		foreach (XElement property in properties)
+		{
+			values[property.Name.LocalName] = PropertyReference().Replace(property.Value.Trim(),
+				reference => values.TryGetValue(reference.Groups["name"].Value, out string? value) ? value : reference.Value);
+		}
+
+		Assert.True(values.TryGetValue(name, out string? evaluated), $"Directory.Build.props defines no unconditional {name}.");
+		Assert.False(evaluated.Contains("$(", StringComparison.Ordinal),
+			$"Directory.Build.props defines {name} as '{evaluated}', which references a property the file does not define unconditionally before it.");
+		return evaluated;
+	}
+
 	internal static string? CentralVersion(string packageId)
 	{
 		XElement? element = LoadXml("Directory.Packages.props").Descendants("PackageVersion")
@@ -149,4 +173,7 @@ public sealed partial class PackageVersioningTests
 
 	[GeneratedRegex(@"^\[(?<version>\d+\.\d+\.\d+),", RegexOptions.CultureInvariant, 1000)]
 	private static partial Regex LowerBound();
+
+	[GeneratedRegex(@"\$\((?<name>[A-Za-z_][A-Za-z0-9_.-]*)\)", RegexOptions.CultureInvariant, 1000)]
+	private static partial Regex PropertyReference();
 }

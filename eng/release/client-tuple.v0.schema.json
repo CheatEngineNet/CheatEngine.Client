@@ -126,13 +126,14 @@
           }
         },
         "roslynFloor": {
-          "description": "CheatEngineClientRoslynComponentFloor: the Roslyn version the packed Lua generator is compiled against.",
+          "description": "CheatEngineClientRoslynComponentFloor as MSBuild evaluates it: the Roslyn version the packed Lua generator is compiled against.",
           "type": "string",
           "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
         },
         "analysisLevel": {
+          "description": "AnalysisLevel as MSBuild evaluates it for the shipped projects (a version, latest or preview, with an optional -<mode> suffix); an unexpanded $(...) expression is rejected.",
           "type": "string",
-          "minLength": 1
+          "pattern": "^([Ll]atest|[Pp]review|[0-9]+(\\.[0-9]+)?)(-[A-Za-z]+)?$"
         }
       }
     },

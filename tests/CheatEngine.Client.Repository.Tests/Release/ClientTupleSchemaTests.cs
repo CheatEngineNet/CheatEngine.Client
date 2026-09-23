@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 
 using CheatEngine.Client.Repository.Tests.Infrastructure;
@@ -71,6 +73,10 @@ public sealed partial class ClientTupleSchemaTests
 		IReadOnlyList<string> errors = JsonSchemaSubset.Validate(schema.RootElement, root);
 		Assert.True(errors.Count == 0, $"{path} does not satisfy {SchemaPath}:{Environment.NewLine}{string.Join(Environment.NewLine, errors)}");
 		Assert.False(LocalPath().IsMatch(text), $"{path} contains an absolute local path.");
+		List<string> unexpanded = [];
+		CollectUnexpandedExpressions(root, "$", unexpanded);
+		Assert.True(unexpanded.Count == 0,
+			$"{path} records MSBuild expression text instead of evaluated values:{Environment.NewLine}{string.Join(Environment.NewLine, unexpanded)}");
 
 		string version = root.GetProperty("client").GetProperty("version").GetString()!;
 		bool published = root.GetProperty("stage").GetString() == "Published";
@@ -118,6 +124,76 @@ public sealed partial class ClientTupleSchemaTests
 			.GetProperty("contentHash").GetString()!;
 		Assert.Equal(lockContentHash, consumed.GetProperty("contentHashSha512").GetString());
 		Assert.Equal("ce-7.7.0.10621-x64-managed-hostfxr", tuple.RootElement.GetProperty("ceProfile").GetProperty("profileId").GetString());
+	}
+
+	[Fact]
+	public void UnexpandedMSBuildExpressionsFailTheSchema()
+	{
+		using JsonDocument schema = Packaging.SdkPin.ReadJson(SchemaPath);
+		JsonNode tuple = JsonNode.Parse(File.ReadAllText(Path.Combine(RepositoryRoot.Path, ExamplePath)))!;
+		tuple["build"]!["analysisLevel"] = "$(_CheatEngineClientPinnedAnalysisLevel)";
+		tuple["build"]!["roslynFloor"] = "$(CheatEngineClientRoslynComponentFloor)";
+		using JsonDocument document = JsonDocument.Parse(tuple.ToJsonString());
+
+		IReadOnlyList<string> errors = JsonSchemaSubset.Validate(schema.RootElement, document.RootElement);
+
+		Assert.Equal(2, errors.Count);
+		Assert.Contains(errors, static error => error.StartsWith("$.build.analysisLevel: ", StringComparison.Ordinal));
+		Assert.Contains(errors, static error => error.StartsWith("$.build.roslynFloor: ", StringComparison.Ordinal));
+	}
+
+	[Fact]
+	public void CommittedExampleRecordsTheBuildOptionsOfThisTree()
+	{
+		using JsonDocument example = Packaging.SdkPin.ReadJson(ExamplePath);
+		JsonElement build = example.RootElement.GetProperty("build");
+		Dictionary<string, string> expected = new(StringComparer.Ordinal)
+		{
+			["analysisLevel"] = Packaging.PackageVersioningTests.EvaluatedBuildProperty("AnalysisLevel"),
+			["roslynFloor"] = Packaging.PackageVersioningTests.EvaluatedBuildProperty("CheatEngineClientRoslynComponentFloor")
+		};
+
+		List<string> offenders = [];
+		foreach ((string field, string value) in expected)
+		{
+			string? recorded = build.GetProperty(field).GetString();
+			if (recorded != value)
+			{
+				offenders.Add($"build.{field} is '{recorded}', but Directory.Build.props evaluates to '{value}'");
+			}
+		}
+
+		Assert.True(offenders.Count == 0,
+			$"{ExamplePath} no longer describes this tree; regenerate it with eng/release/New-ClientTuple.ps1 (RELEASING.md) or correct the fields:{Environment.NewLine}{string.Join(Environment.NewLine, offenders)}");
+	}
+
+	/// <summary>Lists every string value that still holds an MSBuild property reference.</summary>
+	private static void CollectUnexpandedExpressions(JsonElement element, string path, List<string> offenders)
+	{
+		switch (element.ValueKind)
+		{
+			case JsonValueKind.Object:
+				foreach (JsonProperty property in element.EnumerateObject())
+				{
+					CollectUnexpandedExpressions(property.Value, $"{path}.{property.Name}", offenders);
+				}
+
+				break;
+			case JsonValueKind.Array:
+				int index = 0;
+				foreach (JsonElement item in element.EnumerateArray())
+				{
+					CollectUnexpandedExpressions(item, string.Create(CultureInfo.InvariantCulture, $"{path}[{index}]"), offenders);
+					index++;
+				}
+
+				break;
+			case JsonValueKind.String when element.GetString()!.Contains("$(", StringComparison.Ordinal):
+				offenders.Add($"{path}: '{element.GetString()}'");
+				break;
+			default:
+				break;
+		}
 	}
 
 	private static string TuplePath()

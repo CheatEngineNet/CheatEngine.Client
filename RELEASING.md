@@ -175,7 +175,8 @@ package hashes are illustrative: it comes from a local rehearsal, not from a rel
 compatibility report needs:
 
 - `source`: tag, commit, tree, the pull request whose squash merge produced the commit, and the run URLs;
-- `build`: .NET SDK, `global.json` hash, runner image, Roslyn floor and analysis level;
+- `build`: .NET SDK, `global.json` hash, runner image, and the Roslyn floor and analysis level as MSBuild evaluates them
+  for the shipped projects (never the expression text of `Directory.Build.props`);
 - `client.packages`: for each package, the SHA-256 of the attested file, its NuGet content hash (the SHA-512 a
   consumer's lock file records), the SHA-256 of the file nuget.org serves (`Published` stage) and of its symbol package;
 - `consumedSdk`: the reviewed `CheatEngine.SDK` identity, with its content hash read from
