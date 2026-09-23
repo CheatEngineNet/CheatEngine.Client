@@ -3,7 +3,7 @@ using CheatEngine.Client.Tables;
 namespace CheatEngine.Client.Core.Domains;
 
 /// <summary>What was observed around one request to change a memory record's <c>Active</c> state.</summary>
-/// <remarks>The names mirror the SDK 2.0 memory-record activation outcome kinds (docs/migration/sdk-2.0.md).</remarks>
+/// <remarks>The names mirror the SDK 2.0 memory-record activation outcome kinds, adopted when the Client migrates.</remarks>
 internal enum TableActivationStatus
 {
 	/// <summary>No outcome was recorded.</summary>

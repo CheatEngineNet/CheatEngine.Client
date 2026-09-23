@@ -86,7 +86,7 @@ public sealed class CapabilityRatchetTests
 	public void ContractOnlyDomainsHaveNoOperationalImplementationWhileTheSdkMajorIsOne()
 	{
 		// SRC02-08: an Allocation or Assembly folder never activates the capability; adopting CheatEngine.SDK 2.0 must
-		// update this test deliberately, together with the capability gates and docs/migration/sdk-2.0.md.
+		// update this test deliberately, together with the capability gates it locks.
 		Type[] implementations = ClientAssemblyCatalog.LoadAll()
 			.SelectMany(static assembly => assembly.GetTypes())
 			.Where(static type => type is { IsInterface: false, IsAbstract: false } &&

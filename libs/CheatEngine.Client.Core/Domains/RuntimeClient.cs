@@ -11,8 +11,7 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 {
 	/// <summary>
 	///     The capability identifier of Cheat Engine's configured pointer size. It is the same string as the SDK 2.0
-	///     <c>RuntimeCapabilityId.ConfiguredPointerSize</c>; replace it with the SDK static on migration
-	///     (docs/migration/sdk-2.0.md).
+	///     <c>RuntimeCapabilityId.ConfiguredPointerSize</c>; replace it with the SDK static once that release ships.
 	/// </summary>
 	internal const string ConfiguredPointerSizeCapabilityValue = "Runtime.ConfiguredPointerSize";
 

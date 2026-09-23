@@ -15,7 +15,7 @@ namespace CheatEngine.Client.Processes;
 ///         same ISA family, width and pointer size as an x64 target. The ISA is derived from Cheat Engine's x86 and ARM
 ///         family facts together with its 64-bit fact, never from the 64-bit fact alone; the process width is stored as
 ///         observed. Identifier reuse by another process and CEServer or file-as-process backends are not detected with
-///         CheatEngine.SDK 1.0.0; see the SDK 2.0 migration guide (docs/migration/sdk-2.0.md).
+///         CheatEngine.SDK 1.0.0; closing this gap needs target-identity evidence that only a later SDK provides.
 ///     </para>
 /// </remarks>
 public interface IProcessClient

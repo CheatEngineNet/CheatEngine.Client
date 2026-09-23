@@ -16,17 +16,17 @@ namespace CheatEngine.Client.Tests.Architecture;
 /// </summary>
 /// <remarks>
 ///     Everything is read from the compiled Client assemblies with System.Reflection.Metadata; no Client code runs. The
-///     frozen lists below are the registered ADR-01 debt of the Client on CheatEngine.SDK 1.0.0; each entry is removed
-///     when the Client migrates to SDK 2.0. Shrinking a list is always allowed; growing it requires a registered
-///     exception added to this ratchet with its reason and its SDK 2.0 removal condition.
+///     frozen lists below are the registered ADR-01 debt of the Client on CheatEngine.SDK 1.0.0; each entry names its own
+///     removal reason and is removed once the SDK 2.0 replacement it names ships. Shrinking a list is always allowed;
+///     growing it requires a registered exception with its own removal reason, here, not in an external document.
 /// </remarks>
 public sealed class ArchitectureRatchetTests
 {
 	private const string Adr01Guidance =
-		"ADR-01 exception: register it in the ratchet (tests/CheatEngine.Client.Tests/Architecture) with its SDK " +
-		"2.0 replacement noted in its Reason, or route the work through the SDK.";
+		"ADR-01 exception: register it in the ratchet (tests/CheatEngine.Client.Tests/Architecture) with its own " +
+		"removal reason naming its SDK 2.0 replacement, or route the work through the SDK.";
 
-	private const string SdkRemoval = "SDK 2.0 (remove this ratchet entry when the Client migrates)";
+	private const string SdkRemoval = "SDK 2.0";
 
 	private const string ClientLuaGlobalsType = "CheatEngine.Client.Core.Infrastructure.ClientLuaGlobals";
 

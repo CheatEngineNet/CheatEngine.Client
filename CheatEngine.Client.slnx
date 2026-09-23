@@ -15,17 +15,11 @@
   <Folder Name="/docs/">
     <File Path="docs/README.md" />
   </Folder>
-  <Folder Name="/docs/migration/">
-    <File Path="docs/migration/sdk-2.0.md" />
-  </Folder>
   <Folder Name="/eng/">
     <File Path="eng/CheatEngineSdk.props" />
     <File Path="eng/Shipping.props" />
     <File Path="eng/Templates.props" />
     <File Path="eng/Tests.props" />
-  </Folder>
-  <Folder Name="/eng/migration/">
-    <File Path="eng/migration/Update-SdkMigrationBreakList.ps1" />
   </Folder>
   <Folder Name="/libs/">
     <Project Path="libs/CheatEngine.Client.Abstractions/CheatEngine.Client.Abstractions.csproj" />

@@ -119,9 +119,9 @@ each operation with `CapabilityUnavailable` and `CheatEngineHostEffect.NotStarte
 The value-scan contract and state model are published, but Core does **not** create a live `MemScan`/`FoundList`
 session: CheatEngine.SDK 1.0.0 does not provide the public MemScan and FoundList ownership factory required by Client,
 so the package gate of `Client.ValueScanning` is `Missing`. Changing that requires a Client release that consumes an SDK
-package with such a factory, compiles against it, and passes the transfer, lifecycle and target-change tests; the SDK
-2.0 migration guide (`docs/migration/sdk-2.0.md` in the repository) lists that work. Do not treat `IValueScanner` as
-available until its capability reports it.
+package with such a factory, compiles against it, and passes the transfer, lifecycle and target-change tests; that
+work is out of scope until a qualified factory package exists. Do not treat `IValueScanner` as available until its
+capability reports it.
 
 `IUnsafeLuaClient` is intentionally separate from `ILuaClient` and is not registered by default.
 It is for explicitly trusted source only and still never exposes a raw Lua state.
@@ -152,8 +152,9 @@ scope, and the Cheat Engine scan time (`HostScanElapsed`) separately from the Cl
 With CheatEngine.SDK 1.0.0 a scan that finds nothing returns `CheatEngineFailureKind.IndeterminateHostResult`: Cheat
 Engine 7.7 returns no result list for zero matches, and SDK 1.0.0 cannot distinguish that from an unresolved global, a
 protected Lua failure, or a non-object result. It is never reported as `NotFound` or as a host rejection; an empty
-result list that Cheat Engine does return remains a normal, successful no-match. Moving the Client onto CheatEngine.SDK
-2.0 replaces this with the detailed SDK outcome.
+result list that Cheat Engine does return remains a normal, successful no-match. A future SDK release that separates
+these kinds at the source replaces this with the detailed outcome; on CheatEngine.SDK 1.0.0 the indeterminate
+category is the accurate one.
 
 ### Target selection, runtime facts and pointer width
 
