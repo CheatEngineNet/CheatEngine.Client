@@ -33,7 +33,7 @@
     <_CheatEngineClientNuGetAuditCodes>NU1900;NU1901;NU1902;NU1903;NU1904;NU1905</_CheatEngineClientNuGetAuditCodes>
     <!-- Ordinary builds: audit-source outages and low/moderate advisories are reported but do not block; high and critical advisories fail through TreatWarningsAsErrors. -->
     <WarningsNotAsErrors Condition="'$(AuditPipeline)' != 'true'">$(WarningsNotAsErrors);NU1900;NU1901;NU1902;NU1905</WarningsNotAsErrors>
-    <!-- Dedicated audit run (restore -p:AuditPipeline=true, scheduled-health.yml): every audit code is an error. -->
+    <!-- Dedicated audit run (restore -p:AuditPipeline=true): every audit code is an error. -->
     <WarningsAsErrors Condition="'$(AuditPipeline)' == 'true'">$(WarningsAsErrors);$(_CheatEngineClientNuGetAuditCodes)</WarningsAsErrors>
   </PropertyGroup>
 

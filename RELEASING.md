@@ -54,21 +54,22 @@ otherwise.
 
 1. Move the entries of `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md) to a `## [X.Y.Z] - YYYY-MM-DD` section. Its
    body becomes the GitHub release notes; a stable tag fails without it, a prerelease tag falls back to `[Unreleased]`.
-2. Ship the public API and the analyzer rules of the release:
+2. Ship the public API and the analyzer rules of the release, by hand, in every project that changed:
+   - move every entry of each project's `PublicAPI.Unshipped.txt` into its `PublicAPI.Shipped.txt` (keep `*REMOVED*`
+     lines), leaving `#nullable enable` first and the file empty otherwise;
+   - move the rows of `AnalyzerReleases.Unshipped.md` into a new `## Release X.Y.Z` section of
+     `AnalyzerReleases.Shipped.md`.
+
+   Then confirm the move compiles clean (RS0016/RS0017/RS0025, RS2000–RS2008):
 
    ```powershell
-   ./eng/release/Complete-PublicApiRelease.ps1 -Version X.Y.Z -WhatIf   # review, then run without -WhatIf
    dotnet build CheatEngine.Client.slnx -c Release
    ```
-
-   It moves every `PublicAPI.Unshipped.txt` entry into `PublicAPI.Shipped.txt` (applying `*REMOVED*` lines) and the
-   analyzer rules of `AnalyzerReleases.Unshipped.md` into a `## Release X.Y.Z` section of `AnalyzerReleases.Shipped.md`.
-   It is never run by CI.
 3. Set `MinVerMinimumMajorMinor` in [Directory.Build.props](Directory.Build.props) to the line being released. The
    exact version comes from the `vX.Y.Z` tag; the property is only the floor for untagged commits. When the value
    changes, the evaluation-time `VersionPrefix` follows it and NuGet records it in the project-reference entries of the
    lock files (the three coexistence fixture locks included), so regenerate them in the same pull request with
-   `./eng/Update-LockFiles.ps1`.
+   `dotnet restore <project> --force-evaluate` for each affected project.
 4. Check the qualification gate below.
 5. Rehearse the pack locally with the version the tag will produce, and inspect the seven packages:
 
@@ -112,34 +113,25 @@ The tag starts [`release.yml`](.github/workflows/release.yml):
 verify ─► ci ─► attest ─► draft-release ─► publish ─► verify-publication ─► finalize-release
 ```
 
-1. `verify` ([`Test-ReleaseTag.ps1`](eng/release/Test-ReleaseTag.ps1)) checks the SemVer tag, that it points to the
-   first-parent history of `main`, that none of the seven ids already has the version on nuget.org, and that the pinned
-   `CheatEngine.SDK` on nuget.org has a valid repository signature and the content hash of
-   [`eng/sdk/consumed-sdk.json`](eng/sdk/consumed-sdk.json). It extracts the release notes
-   ([`Export-ReleaseNotes.ps1`](eng/release/Export-ReleaseNotes.ps1)).
+1. `verify` checks the SemVer tag, that it points to the first-parent history of `main`, and that none of the seven ids
+   already has the version on nuget.org (a version can never be replaced). It extracts the release notes from
+   `CHANGELOG.md`.
 2. `ci` runs the reusable `ci.yml` on the tag commit with the expected version: it builds and tests Debug and Release,
    packs the tested Release build, fails unless every file is named `<Id>.X.Y.Z.nupkg`, runs the package consumption
-   tests on those exact files, and uploads them as the `nuget-packages` artifact with `build-info.json` (kept 90 days).
+   tests on those exact files, and uploads them as the `nuget-packages` artifact.
 3. `attest` signs one build provenance attestation over the seven packages and one SPDX SBOM attestation per package
-   (predicate `https://spdx.dev/Document/v2.2`), from the SBOM each package embeds
-   ([`New-ReleaseAssets.ps1`](eng/release/New-ReleaseAssets.ps1)).
-4. `draft-release` writes the `PrePublish` Client tuple ([`New-ClientTuple.ps1`](eng/release/New-ClientTuple.ps1)),
-   validates it against its schema, writes `SHA256SUMS`, and creates a draft release with every asset
-   ([`New-ReleaseDraft.ps1`](eng/release/New-ReleaseDraft.ps1)). Assets are compared by content, never by name
-   alone ([`Compare-ReleaseAssets.ps1`](eng/release/Compare-ReleaseAssets.ps1)): GitHub records the SHA-256 digest
-   of every uploaded asset, and the job fails unless the draft carries exactly the files of this run, each completely
-   uploaded with the same SHA-256.
+   (predicate `https://spdx.dev/Document/v2.2`), from the SBOM each package embeds.
+4. `draft-release` writes `SHA256SUMS` over the release assets and creates a draft release with every asset. Any draft
+   already on the tag (an interrupted run or an earlier build) is deleted first and the draft is created again from
+   this run's files, so the release always carries exactly the packages `publish` pushes, never a patched-over asset
+   set (that path breaks immutable releases).
 5. `publish` waits for a required reviewer to approve the `nuget` deployment, logs in through trusted publishing and
    pushes the seven packages in dependency order (Abstractions, Fluent, Core, Extensions.DependencyInjection, Hosting,
    CheatEngine.Client, Templates). Each push also sends the package's symbol package.
-6. `verify-publication` ([`Test-PublishedPackages.ps1`](eng/release/Test-PublishedPackages.ps1)) waits until nuget.org
-   lists the seven versions, then checks each served file: repository signature, content hash equal to the attested
-   package, and every entry except `.signature.p7s` identical. It records the nuget.org hashes.
-7. `finalize-release` ([`Complete-GitHubRelease.ps1`](eng/release/Complete-GitHubRelease.ps1)) replaces the tuple with
-   its `Published` stage, checks again that every asset of the draft is a file of this run (name, upload state and
-   SHA-256, equal to the local file and to `SHA256SUMS`), verifies both attestations of each package with
-   `gh attestation verify`, publishes that draft, addressed by its release id, and, when the release is immutable,
-   verifies it. A draft that differs stays a draft.
+6. `verify-publication` waits until nuget.org lists the seven versions, then checks each served file: repository
+   signature, content hash equal to the attested package, and every entry except `.signature.p7s` identical.
+7. `finalize-release` verifies both attestations of each package with `gh attestation verify`, publishes the draft,
+   addressed by its release id, and, when the release is immutable, verifies it with `gh release verify`.
 
 No job of the release path restores from or saves to a NuGet cache. Only `publish` has the `nuget` environment and
 reads a secret; only `attest` and `publish` receive an OIDC token; the `contents: write` token of `draft-release`
@@ -161,7 +153,6 @@ run happens after the remediation branch is merged.
 | `<Id>.X.Y.Z.spdx.json` (7)                     | The SPDX 2.2 SBOM embedded in each package, extracted                      |
 | `CheatEngine.Client.X.Y.Z.provenance.sigstore.json` | The build provenance attestation bundle                               |
 | `<Id>.X.Y.Z.sbom.sigstore.json` (7)            | The SBOM attestation bundles                                               |
-| `CheatEngine.Client.X.Y.Z.tuple.json`          | The Client release tuple                                                   |
 | `SHA256SUMS`                                   | The SHA-256 of every other asset                                           |
 
 Each SBOM describes its package (name and version equal to the nuspec) and hashes every file in it. It also lists the
@@ -169,25 +160,6 @@ package's resolved NuGet graph from the build's `project.assets.json`: runtime d
 and `Microsoft.Extensions.*`, and build-only tools such as MinVer, the analyzers, `Microsoft.Sbom.Targets` and the
 template tasks, which ship nothing into the package. Because the SBOM carries a unique namespace and a creation time,
 a `.nupkg` is not byte-reproducible; reproducibility is promised for the assemblies it contains.
-
-## The Client release tuple
-
-`CheatEngine.Client.X.Y.Z.tuple.json` (schema [`client-tuple.v0.schema.json`](eng/release/client-tuple.v0.schema.json),
-example [`client-tuple.example.json`](eng/release/client-tuple.example.json), whose version, commit, run URLs and
-package hashes are illustrative: it comes from a local rehearsal, not from a release) ties the release to what a
-compatibility report needs:
-
-- `source`: tag, commit, tree, the pull request whose squash merge produced the commit, and the run URLs;
-- `build`: .NET SDK, `global.json` hash, runner image, and the Roslyn floor and analysis level as MSBuild evaluates them
-  for the shipped projects (never the expression text of `Directory.Build.props`);
-- `client.packages`: for each package, the SHA-256 of the attested file, its NuGet content hash (the SHA-512 a
-  consumer's lock file records), the SHA-256 of the file nuget.org serves (`Published` stage) and of its symbol package;
-- `consumedSdk`: the reviewed `CheatEngine.SDK` identity, with its content hash read from
-  `libs/CheatEngine.Client.Core/packages.lock.json`, and its native bridge;
-- `ceProfile` and `qualification`: the Cheat Engine profile (`ce-7.7.0.10621-x64-managed-hostfxr`, which records the
-  Lua module, runtime configuration and load profile), the SHA-256 of the Client support profile and qualification
-  matrix once they exist, and the committed host receipts;
-- `sbom`, `attestations` and `assets`: what the release carries.
 
 ## Verify a release
 
@@ -203,32 +175,31 @@ gh release verify vX.Y.Z --repo CheatEngineNet/CheatEngine.Client   # once immut
 ```
 
 To tie a plugin to a release, compare its `packages.lock.json` (or the `sha512-…` values of the `CheatEngine.Client*`
-and `CheatEngine.SDK` libraries in its deployed `.deps.json`) with `client.packages[].contentHashSha512` and
-`consumedSdk.contentHashSha512` of the tuple. `dotnet nuget verify --all <package>` prints the same content hash for a
-package downloaded from nuget.org. [`eng/sdk/README.md`](eng/sdk/README.md) explains the different hashes of one
-package.
+and `CheatEngine.SDK` libraries in its deployed `.deps.json`) with the SHA-256 of the attested `.nupkg` and the NuGet
+content hash nuget.org serves. `dotnet nuget verify --all <package>` prints the same content hash for a package
+downloaded from nuget.org.
 
 ## Re-run a release
 
 Use **Re-run failed jobs**. Completed jobs are not repeated and a re-run reuses the artifacts of the original attempt,
-so the pushed packages, their attestations and the release assets stay the same files. A push of an existing version
-is skipped as a duplicate, a draft that already carries exactly this run's files is kept, and a published release never
-receives assets. **Re-run all jobs** after any package reached nuget.org stops in `verify`, because the version is
-already there.
+so the pushed packages and their attestations stay the same files. `draft-release` always deletes any draft already on
+the tag and creates it again from the run's artifacts (deleting a draft release keeps the git tag, and nothing of a
+draft is public), so a re-run's draft always matches that run's files. A push of an existing version is skipped as a
+duplicate, and a published release never receives assets: `draft-release` fails before anything is created if the
+release is already published. **Re-run all jobs** after any package reached nuget.org stops in `verify`, because the
+version is already there.
 
 A new build of the same tag produces different package bytes (the SBOM of each package has a unique namespace and
-creation time). This happens when the maintainer rejects or cancels `publish` and then re-pushes the tag, after
-moving it or not, or uses **Re-run all jobs** before any package reached nuget.org. The draft of the earlier build then
-carries packages that the new run will not push. `draft-release` detects it by SHA-256, deletes that draft (deleting a
-draft release keeps the git tag, and nothing of a draft is public) and creates it again from the new run's files, so
-the release always carries the packages `publish` pushes, the tuple names and `SHA256SUMS` lists. A published release
-whose assets differ from the run fails `draft-release` before anything is pushed: tag a new version.
+creation time). This happens when the maintainer rejects or cancels `publish` and then re-pushes the tag, after moving
+it or not, or uses **Re-run all jobs** before any package reached nuget.org: the earlier build's draft is deleted and
+replaced by `draft-release`, so the release always carries the packages `publish` pushes and `SHA256SUMS` lists.
 
 ## After a release
 
 1. Raise `MinVerMinimumMajorMinor` to the next development line, so later untagged builds become
    `X.(Y+1).0-alpha.0.N`. The evaluation-time `VersionPrefix` follows it and NuGet records it in the project-reference
-   entries of the lock files, so regenerate them in the same pull request with `./eng/Update-LockFiles.ps1`.
+   entries of the lock files, so regenerate them in the same pull request with `dotnet restore <project> --force-evaluate`
+   for each affected project.
 2. Set `CheatEngineClientPackageValidationBaselineVersion` in `Directory.Build.props` to the released version, so
    package validation reports breaking changes against it (the hook is in `eng/Shipping.props`).
 3. Check the [NuGet packages](https://www.nuget.org/packages/CheatEngine.Client) and the GitHub release.

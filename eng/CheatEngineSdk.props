@@ -10,14 +10,21 @@
     - the default SDK version of the Coexistence fixtures;
     - the SDK version stamped into the packed ceplugin template;
     - the CHEATENGINECLIENT9016/9017 guards in Directory.Build.targets.
-    The reviewed identity of the pinned package (content hash, signed-file hashes, bridge, source commit) is recorded in
-    eng/sdk/consumed-sdk.json. Tests keep the two files, the lock files and the documentation in agreement.
+    The reviewed identity of the pinned package (content hash, signed-file hashes, bridge) is hardcoded next to its
+    consumers: tests/CheatEngine.Client.Tests/Packaging/PackagedClientFeedFixture.cs (_pinnedSdkIdentity) and
+    tests/CheatEngine.Client.Repository.Tests/LockFiles/LockFileTests.cs (ConsumedSdkContentHash). Tests keep this
+    file, those literals, the lock files and the documentation in agreement.
 
     The properties are assigned unconditionally: an environment variable cannot change the pin, only an explicit
     -p: global property can.
 
-    Bump procedure: eng/sdk/Update-CheatEngineSdk.ps1 -Version <x> (see eng/sdk/README.md). Never edit the version
-    by hand, and never move to another major in a dependency bump.
+    Bump procedure (no script; every step lands in one pull request): update CheatEngineSdkVersion here; update the
+    reviewed identity literals named above to the new package's hashes; regenerate every packages.lock.json with a
+    force-evaluate restore of each project (Coexistence fixtures first, one by one, never the solution with a
+    force-evaluate restore: that once rewrote their legacy lock files with CentralTransitive entries and broke every
+    locked restore); update the SDK version named in prose (SdkPinTests.ProseMentionsOfTheConsumedSdkEqualThePin lists
+    the files). Never edit the version by hand without the identity literals, and never move to another major in a
+    dependency bump.
 
     Canary switch (used only by the SDK-side advisory client-canary job): pass
       -p:CheatEngineSdkVersion=<2.x prerelease> -p:CheatEngineSdkUpperBound=3.0.0 -p:CheatEngineSdkCanary=true
@@ -32,7 +39,7 @@
     <CheatEngineSdkVersion>1.0.0</CheatEngineSdkVersion>
     <CheatEngineSdkUpperBound>2.0.0</CheatEngineSdkUpperBound>
     <CheatEngineSdkVersionRange>[$(CheatEngineSdkVersion),$(CheatEngineSdkUpperBound))</CheatEngineSdkVersionRange>
-    <!-- Raising this is the SDK 2.0 migration described in docs/migration/sdk-2.0.md; never raise it in a dependency bump. -->
+    <!-- Raising this is the SDK 2.0 migration, a deliberate maintainer decision; never raise it in a dependency bump. -->
     <_CheatEngineClientSupportedSdkMajor>1</_CheatEngineClientSupportedSdkMajor>
   </PropertyGroup>
 </Project>
