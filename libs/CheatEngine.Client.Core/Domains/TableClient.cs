@@ -999,6 +999,11 @@ internal sealed class TableClient(
 				CheatEngineFailureKind.OperationRejected, operation,
 				"The requested parent relationship is invalid: it is self-referential, cyclic, or exceeds the " +
 				"supported hierarchy depth."),
+			// Same classification as TrySetActive and the lookups (ADR-08): an unavailable Address List is a capability
+			// condition, not an unexpected host result, and no record was reached.
+			TableRecordMutationStatus.AddressListUnavailable => new CheatEngineFailure(
+				CheatEngineFailureKind.CapabilityUnavailable, operation,
+				"Cheat Engine's Address List capability is unavailable.", null, CheatEngineHostEffect.NotStarted),
 			_ => HostFailure(operation)
 		};
 	}

@@ -20,7 +20,13 @@ internal sealed class SdkTableRecordMutationPort : ITableRecordMutationPort
 	public TableRecordCreation TryCreate(MemoryRecordDefinition definition, out MemoryRecordSnapshot record)
 	{
 		record = default;
-		if (!AddressListAccess.TryGetCurrent(out AddressList list) || !list.TryCreateMemoryRecord(out MemoryRecord value))
+		if (!AddressListAccess.TryGetCurrent(out AddressList list))
+		{
+			return new TableRecordCreation(TableRecordMutationStatus.AddressListUnavailable,
+				TableRecordRollback.NotRequired);
+		}
+
+		if (!list.TryCreateMemoryRecord(out MemoryRecord value))
 		{
 			return new TableRecordCreation(TableRecordMutationStatus.HostRejected, TableRecordRollback.NotRequired);
 		}
@@ -52,7 +58,7 @@ internal sealed class SdkTableRecordMutationPort : ITableRecordMutationPort
 	{
 		if (!AddressListAccess.TryGetCurrent(out AddressList list))
 		{
-			return TableRecordMutationStatus.HostRejected;
+			return TableRecordMutationStatus.AddressListUnavailable;
 		}
 
 		if (!list.TryGetMemoryRecordById(id, out MemoryRecord record))
@@ -82,7 +88,7 @@ internal sealed class SdkTableRecordMutationPort : ITableRecordMutationPort
 		record = default;
 		if (!AddressListAccess.TryGetCurrent(out AddressList list))
 		{
-			return TableRecordMutationStatus.HostRejected;
+			return TableRecordMutationStatus.AddressListUnavailable;
 		}
 
 		if (!list.TryGetMemoryRecordById(id, out MemoryRecord value))
@@ -170,7 +176,7 @@ internal sealed class SdkTableRecordMutationPort : ITableRecordMutationPort
 		parent = MemoryRecord.Null;
 		if (!AddressListAccess.TryGetCurrent(out list))
 		{
-			return TableRecordMutationStatus.HostRejected;
+			return TableRecordMutationStatus.AddressListUnavailable;
 		}
 
 		if (!list.TryGetMemoryRecordById(childId, out child))

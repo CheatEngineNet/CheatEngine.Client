@@ -512,6 +512,38 @@ public sealed class TableClientMutationTests
 		Assert.Equal([new MemoryRecordId(41)], mutations.SelectedIds);
 	}
 
+	[Fact]
+	public void MutationsReportCapabilityUnavailableWhenTheAddressListIsUnavailable()
+	{
+		// ADR-08: an unavailable Address List is the same capability condition for every mutation as for TrySetActive
+		// and the lookups, never an unexpected host result; no record was reached.
+		FakeRecordMutationPort mutations = new()
+		{
+			SelectStatus = TableRecordMutationStatus.AddressListUnavailable,
+			DeleteStatus = TableRecordMutationStatus.AddressListUnavailable,
+			SetParentStatus = TableRecordMutationStatus.AddressListUnavailable,
+			Creation = new TableRecordCreation(TableRecordMutationStatus.AddressListUnavailable,
+				TableRecordRollback.NotRequired)
+		};
+		TableClient client = CreateClient(mutations);
+		CancellationToken token = TestContext.Current.CancellationToken;
+
+		bool selected = client.TrySelect(new MemoryRecordId(41), out _, out CheatEngineFailure selectFailure, token);
+		bool deleted = client.TryDelete(new MemoryRecordId(41), out CheatEngineFailure deleteFailure, token);
+		bool reparented = client.TrySetParent(new MemoryRecordId(41), new MemoryRecordId(7), out _,
+			out CheatEngineFailure parentFailure, token);
+		bool created = client.TryCreate(Definition(), out _, out CheatEngineFailure createFailure, token);
+
+		Assert.False(selected || deleted || reparented || created);
+		foreach (CheatEngineFailure failure in (CheatEngineFailure[]) [selectFailure, deleteFailure, parentFailure,
+					 createFailure])
+		{
+			Assert.Equal(CheatEngineFailureKind.CapabilityUnavailable, failure.Kind);
+			Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
+			Assert.Equal("Cheat Engine's Address List capability is unavailable.", failure.Message);
+		}
+	}
+
 	private static MemoryRecordDefinition Definition()
 	{
 		return new MemoryRecordDefinition("Health", "game.exe+24", "100", VariableType.Dword);
@@ -629,6 +661,12 @@ public sealed class TableClientMutationTests
 			init;
 		}
 
+		internal TableRecordMutationStatus SelectStatus
+		{
+			get;
+			init;
+		} = TableRecordMutationStatus.Success;
+
 		internal List<MemoryRecordId> SelectedIds
 		{
 			get;
@@ -674,8 +712,8 @@ public sealed class TableClientMutationTests
 		public TableRecordMutationStatus TrySelect(MemoryRecordId id, out MemoryRecordSnapshot record)
 		{
 			SelectedIds.Add(id);
-			record = SelectRecord;
-			return TableRecordMutationStatus.Success;
+			record = SelectStatus == TableRecordMutationStatus.Success ? SelectRecord : default;
+			return SelectStatus;
 		}
 
 		public TableRecordMutationStatus TrySetParent(MemoryRecordId childId, MemoryRecordId? parentId,

@@ -7,5 +7,8 @@ internal enum TableRecordMutationStatus
 	RecordNotFound,
 	ParentNotFound,
 	InvalidRelationship,
-	HostRejected
+	HostRejected,
+
+	/// <summary>Cheat Engine's Address List is unavailable, so no record was reached (a capability condition, ADR-08).</summary>
+	AddressListUnavailable
 }
