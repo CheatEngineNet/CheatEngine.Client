@@ -1,8 +1,10 @@
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 
+using CheatEngine.Client.Allocations;
 using CheatEngine.Client.Core.Dispatching;
 using CheatEngine.Client.Core.Domains;
+using CheatEngine.Client.Core.Domains.Allocations;
 using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Core.Tests.TestSupport;
 using CheatEngine.Client.Inspection;
@@ -116,8 +118,8 @@ public sealed class TryContractTests
 				.TryExecute(new ConstantOperation(), out _, out _, cancelled),
 			"UnsafeLua" => () => new UnsafeLuaClient(dispatcher, policy, lifetime)
 				.TryExecute(new LuaScript("return 1"), out _, cancelled),
-			"UnavailableCapability" => () => new UnavailableValueScanner(lifetime)
-				.TryCreateSession(out _, out _, cancelled),
+			"UnavailableCapability" => () => new UnavailableAllocationClient(lifetime)
+				.TryAllocate(new TargetAllocationRequest(4096), out _, out _, cancelled),
 			_ => throw new ArgumentOutOfRangeException(nameof(family), family, null)
 		};
 
@@ -344,7 +346,8 @@ public sealed class TryContractTests
 				(new UnsafeLuaClient(dispatcher, new CoreClientPolicy([], false), lifetime)
 					.TryExecute(new LuaScript("return 1"), out CheatEngineFailure f, token), f)),
 			"UnavailableCapability" => TryFailure(() =>
-				(new UnavailableValueScanner(lifetime).TryCreateSession(out _, out CheatEngineFailure f, token), f)),
+				(new UnavailableAllocationClient(lifetime).TryAllocate(new TargetAllocationRequest(4096), out _,
+					out CheatEngineFailure f, token), f)),
 			"LuaPreDispatchCancellation" => TryFailure(() =>
 				(new LuaClient(dispatcher, lifetime).TryExecute(new ConstantOperation(), out _,
 					out CheatEngineFailure f, cancelled), f)),

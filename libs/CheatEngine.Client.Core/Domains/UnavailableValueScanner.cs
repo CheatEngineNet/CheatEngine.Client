@@ -34,9 +34,10 @@ internal sealed class UnavailableValueScanner : IValueScanner
 		session = null;
 		_lifetime?.ThrowIfInactive("Scans.CreateSession");
 		failure = cancellationToken.IsCancellationRequested
-			? CoreFailureFactory.Cancelled("Scans.CreateSession")
+			? new CheatEngineFailure(CheatEngineFailureKind.Cancelled, "Scans.CreateSession",
+				"The operation was cancelled before Cheat Engine work began.")
 			: new CheatEngineFailure(CheatEngineFailureKind.CapabilityUnavailable, "Scans.CreateSession",
-				_ownershipGateMessage, null, CheatEngineHostEffect.NotStarted);
+				_ownershipGateMessage);
 		return false;
 	}
 
