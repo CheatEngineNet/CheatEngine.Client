@@ -239,7 +239,7 @@ internal static class MetadataSurface
 	/// <summary>The display text of a decoded signature type and, for named types, their identity.</summary>
 	internal sealed record SignatureName(string Display, TypeIdentity? Identity);
 
-	private sealed class SignatureNameProvider : ISignatureTypeProvider<SignatureName, object?>
+	internal sealed class SignatureNameProvider : ISignatureTypeProvider<SignatureName, object?>
 	{
 		public SignatureName GetArrayType(SignatureName elementType, ArrayShape shape)
 		{

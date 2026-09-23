@@ -148,6 +148,23 @@ public sealed class PublicClientSignatureBoundaryTests
 	}
 
 	[Fact]
+	public void PublicSignaturesRejectDisguisedNativePointers()
+	{
+		AssertViolation(typeof(nint), "native-sized integer");
+		AssertViolation(typeof(nuint), "native-sized integer");
+		AssertViolation(typeof(IntPtr[]), "native-sized integer");
+		AssertViolation(typeof(Func<nint>), "native-sized integer");
+		AssertViolation(typeof(object), "unsupported framework type");
+		AssertViolation(typeof(void).MakePointerType(), "pointer type");
+
+		List<string> violations = [];
+		VerifyType(typeof(int), "int", violations);
+		VerifyType(typeof(ulong), "ulong", violations);
+		VerifyType(typeof(Address), "address", violations);
+		Assert.Empty(violations);
+	}
+
+	[Fact]
 	public void RecursiveVerifierAllowsApprovedSdkValuesInsideSafeContainers()
 	{
 		List<string> violations = [];
@@ -391,6 +408,12 @@ public sealed class PublicClientSignatureBoundaryTests
 			return;
 		}
 
+		if (IsNativeSized(type) && !IsApprovedNativeSizedMember(declaringMember))
+		{
+			violations.Add($"{source} exposes a native-sized integer '{type}' that could disguise a native pointer.");
+			return;
+		}
+
 		if (IsForbiddenSdkType(type, source, violations, declaringMember) ||
 			IsUnsupportedFrameworkType(type, source, violations, declaringMember))
 		{
@@ -490,10 +513,18 @@ public sealed class PublicClientSignatureBoundaryTests
 			   typeof(Attribute).IsAssignableFrom(declaringType);
 	}
 
+	/// <summary>
+	///     Scalars that can never disguise a native handle. <see cref="IntPtr" /> and <see cref="UIntPtr" /> (<c>nint</c>,
+	///     <c>nuint</c>) are primitive to the runtime but are rejected unless explicitly allowlisted (A11-29).
+	/// </summary>
 	private static bool IsScalar(Type type)
 	{
-		return type.IsPrimitive || type == typeof(void) || type == typeof(string) || type == typeof(IntPtr) ||
-			   type == typeof(UIntPtr);
+		return (type.IsPrimitive && !IsNativeSized(type)) || type == typeof(void) || type == typeof(string);
+	}
+
+	private static bool IsNativeSized(Type type)
+	{
+		return type == typeof(IntPtr) || type == typeof(UIntPtr);
 	}
 
 	private static bool IsTuple(Type type)
@@ -602,6 +633,13 @@ public sealed class PublicClientSignatureBoundaryTests
 	{
 		return method.Name == nameof(object.Equals) && !method.IsStatic && method.ReturnType == typeof(bool) &&
 			   method.GetParameters() is [ParameterInfo { ParameterType: var type }] && type == typeof(object);
+	}
+
+	/// <summary>No public Client member may expose <c>nint</c>/<c>nuint</c>; add a reviewed, named exception here if one ever must.</summary>
+	private static bool IsApprovedNativeSizedMember(MemberInfo? declaringMember)
+	{
+		_ = declaringMember;
+		return false;
 	}
 
 	private static bool IsShippedRuntimeCapabilitiesDebt(Type type, MemberInfo? declaringMember)
