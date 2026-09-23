@@ -3,7 +3,8 @@ namespace CheatEngine.Client.Lua;
 /// <summary>Classifies a completed release of a Lua module registration.</summary>
 /// <remarks>
 ///     Values 1 to 3 have the same meaning and number as the CheatEngine.SDK 2.0 <c>LuaRegistrationReleaseKind</c>, so the
-///     SDK 2.0 migration maps them one to one.
+///     SDK 2.0 migration maps them one to one. The SDK's <c>NotAttempted</c> (0) and <c>AlreadyReleased</c> (4) have no
+///     counterpart here: a generated module publishes no outcome when it owns no registration.
 /// </remarks>
 public enum LuaModuleReleaseKind
 {

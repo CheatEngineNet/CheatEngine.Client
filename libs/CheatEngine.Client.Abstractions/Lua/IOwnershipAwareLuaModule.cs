@@ -19,14 +19,16 @@ namespace CheatEngine.Client.Lua;
 public interface IOwnershipAwareLuaModule : ILuaModule
 {
 	/// <summary>
-	///     Gets the outcome of the most recent release that reached Lua or detected a stale registration, or
-	///     <see langword="null" /> before any.
+	///     Gets the outcome of the most recent <see cref="ILuaModule.Unregister" /> that released an owned registration
+	///     through Lua or detected a stale registration, or <see langword="null" /> before any.
 	/// </summary>
 	/// <remarks>
-	///     The outcome is published before <see cref="ILuaModule.Unregister" /> throws, so a caller that catches the release
-	///     failure can still read which exports were removed, replaced, absent, or failed. A call to
-	///     <see cref="ILuaModule.Unregister" /> that finds no owned registration leaves this value unchanged. Safe to read
-	///     from any thread.
+	///     The outcome is published before <see cref="ILuaModule.Unregister" /> throws a Lua failure, so a caller that catches
+	///     the release failure can still read which exports were removed, replaced, absent, or failed. A call to
+	///     <see cref="ILuaModule.Unregister" /> that finds no owned registration leaves this value unchanged, and so does a
+	///     programming or lifecycle exception that escapes the release before its end. The rollback of a failed
+	///     <see cref="ILuaModule.Register" /> also releases through Lua but publishes no outcome: its result is the exception
+	///     <see cref="ILuaModule.Register" /> throws. Safe to read from any thread.
 	/// </remarks>
 	public LuaModuleReleaseOutcome? LastReleaseOutcome
 	{

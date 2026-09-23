@@ -14,8 +14,9 @@ namespace CheatEngine.Client.Lua;
 ///         <see cref="LuaExportReleaseStatus.Absent" /> is <see cref="LuaModuleReleaseKind.Released" />.
 ///     </para>
 ///     <para>
-///         The counts map to the CheatEngine.SDK 2.0 registration lease outcome: <see cref="Kind" /> maps one to one onto
-///         <c>LuaRegistrationReleaseKind</c>, and the SDK <c>ReplacementCount</c> corresponds to
+///         The counts map to the CheatEngine.SDK 2.0 registration lease outcome: the values 1 to 3 of <see cref="Kind" />
+///         map one to one onto <c>LuaRegistrationReleaseKind</c> (whose <c>NotAttempted</c> and <c>AlreadyReleased</c>
+///         values have no Client counterpart), and the SDK <c>ReplacementCount</c> corresponds to
 ///         <see cref="ReplacedCount" /> plus <see cref="AbsentCount" />.
 ///     </para>
 /// </remarks>
@@ -138,9 +139,14 @@ public sealed class LuaModuleReleaseOutcome
 	}
 
 	/// <summary>
-	///     Gets whether nothing is left to clean up: <see cref="Kind" /> is <see cref="LuaModuleReleaseKind.Released" /> or
-	///     <see cref="LuaModuleReleaseKind.Stale" />.
+	///     Gets whether no release step failed: <see cref="Kind" /> is <see cref="LuaModuleReleaseKind.Released" /> or
+	///     <see cref="LuaModuleReleaseKind.Stale" />, the same meaning as the CheatEngine.SDK 2.0 <c>IsComplete</c>.
 	/// </summary>
+	/// <remarks>
+	///     A <see cref="LuaModuleReleaseKind.Stale" /> release attempted no Lua operation: the registration's Lua state or
+	///     attachment is gone, so nothing of it can be examined or cleared from the current state. It does not claim that
+	///     the earlier state was cleaned up.
+	/// </remarks>
 	public bool IsComplete => Kind is LuaModuleReleaseKind.Released or LuaModuleReleaseKind.Stale;
 
 	/// <summary>Formats the outcome as <c>Module=&lt;name&gt;; Kind=&lt;kind&gt;; &lt;export&gt;=&lt;status&gt;; ...</c>.</summary>
