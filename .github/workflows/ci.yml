@@ -128,6 +128,11 @@ jobs:
 
           Write-Output "Verified $($nupkgs.Count) nupkg and $($snupkgs.Count) snupkg, each embedding its SBOM."
 
+          # The Release Test step consumes these exact packages (CHEATENGINE_CLIENT_PACKAGE_SOURCE), never a package it
+          # packs itself: a self-pack would test different bits than the ones this run uploads.
+          $absolute = (Resolve-Path artifacts/nuget).Path
+          "package-source=$absolute" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
       # The solution build compiles the benchmarks; listing them proves discovery. Benchmarks never run in the Gate.
       - name: Benchmarks discovery
         if: matrix.configuration == 'Release'
