@@ -11,9 +11,10 @@ body:
         and the Cheat Engine build actually used, the .NET runtime policy of Cheat Engine, the plugin build options and
         the load profile. A file name or a version alone does not identify it.
 
-        The qualified profile is Cheat Engine 7.7.0.10621 x64 (`cheatengine-x86_64.exe`) loading a managed plugin
-        through hostfxr (`ce-7.7.0.10621-x64-managed-hostfxr`). Other builds and load profiles are welcome but are not
-        qualified.
+        The profile targeted for qualification is Cheat Engine 7.7.0.10621 x64 (`cheatengine-x86_64.exe`) loading a
+        managed plugin through hostfxr (`ce-7.7.0.10621-x64-managed-hostfxr`). Whether that profile has been qualified,
+        and at which level, is stated by the qualification matrix of the release you use, not by this form. Reports
+        from other builds and load profiles are welcome too; say which one you used.
 
         Compute every hash with `Get-FileHash <file> -Algorithm SHA256`. Remove user names and private paths.
         Never attach Cheat Engine binaries, target binaries, authorization manifests or raw DebugView dumps.
@@ -120,7 +121,7 @@ body:
     attributes:
       label: Plugin load profile
       options:
-        - Managed plugin loaded through hostfxr (qualified profile)
+        - Managed plugin loaded through hostfxr (supported route, targeted for qualification)
         - NativeAOT plugin (not supported)
         - Historical CLR route (not supported)
         - I do not know

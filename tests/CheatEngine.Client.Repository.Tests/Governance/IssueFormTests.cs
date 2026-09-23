@@ -54,6 +54,12 @@ public sealed class IssueFormTests
 
 	private static readonly Regex _elementId = new("^[A-Za-z0-9_-]+$", RegexOptions.None, TimeSpan.FromSeconds(1));
 
+	/// <summary>"qualified profile/build/route…", "(qualified", "is/are/was qualified", "host-qualified" (negations pass).</summary>
+	private static readonly Regex _qualifiedClaim = new(
+		@"\bqualified\s+(profile|build|route|setup|configuration)\b|\(\s*qualified\b|\b(is|are|was)\s+(host-)?qualified\b|(?<!never\s)\bhost-qualified\b",
+		RegexOptions.IgnoreCase,
+		TimeSpan.FromSeconds(1));
+
 	[Fact]
 	public void CompatibilityFormRequiresTheFullReleaseTuple()
 	{
@@ -129,6 +135,18 @@ public sealed class IssueFormTests
 		Assert.All(urls, url => Assert.StartsWith("https://github.com/", url, StringComparison.Ordinal));
 		Assert.All(IssueForms(), form =>
 			Assert.Contains("private vulnerability reporting", GovernanceFile.ReadText(form), StringComparison.Ordinal));
+	}
+
+	[Fact]
+	public void NoIssueFormPresentsAProfileAsQualified()
+	{
+		// Evidence discipline (audit ch.22 arbitration "Un test non exécuté reste non exécuté"): the managed hostfxr
+		// profile is only qualifiable until host receipts exist, so a form may target it but never call it qualified.
+		foreach (string form in Directory.EnumerateFiles(GovernanceFile.FullPath(TemplateFolder), "*.yml").Select(RepositoryRoot.ToRelative))
+		{
+			Match claim = _qualifiedClaim.Match(GovernanceFile.ReadText(form));
+			Assert.False(claim.Success, $"{form} presents something as qualified ('{claim.Value}'); say 'targeted for qualification'.");
+		}
 	}
 
 	[Fact]
