@@ -8,4 +8,10 @@
     <ProjectReference Include="../../src/CheatEngine.Client/CheatEngine.Client.csproj"/>
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The single SDK-type allowlist, shared with the Lua generator (Q48): never copy it. -->
+    <Compile Include="../../source-generators/CheatEngine.Client.SourceGenerators.Lua/ApprovedSdkClientTypes.cs"
+             Link="SdkContract/ApprovedSdkClientTypes.cs"/>
+  </ItemGroup>
+
 </Project>

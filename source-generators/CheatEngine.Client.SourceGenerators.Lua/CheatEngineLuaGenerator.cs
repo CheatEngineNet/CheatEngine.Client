@@ -35,31 +35,9 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 	private const int ClientBoundaryMaximumDepth = 32;
 	private const int ClientBoundaryMaximumNodes = 256;
 
-	private static readonly HashSet<string> ApprovedSdkClientResultTypes = new(StringComparer.Ordinal)
-	{
-		"CheatEngine.SDK.Engine.AddressList.MemoryRecordId",
-		"CheatEngine.SDK.Engine.Enums.FastScanMethod",
-		"CheatEngine.SDK.Engine.Enums.VariableType",
-		"CheatEngine.SDK.Engine.Inspection.AddressResolutionOptions",
-		"CheatEngine.SDK.Engine.Inspection.MemoryRegionInfo",
-		"CheatEngine.SDK.Engine.Inspection.ModuleInfo",
-		"CheatEngine.SDK.Engine.Inspection.ModuleName",
-		"CheatEngine.SDK.Engine.Inspection.ModuleSectionInfo",
-		"CheatEngine.SDK.Engine.Inspection.SymbolExpression",
-		"CheatEngine.SDK.Engine.Inspection.SymbolInfo",
-		"CheatEngine.SDK.Engine.Inspection.TargetProcessId",
-		"CheatEngine.SDK.Engine.Runtime.CheatEngineArchitecture",
-		"CheatEngine.SDK.Engine.Runtime.CheatEngineVersion",
-		"CheatEngine.SDK.Engine.Runtime.PointerSize",
-		"CheatEngine.SDK.Engine.Runtime.RuntimeCapabilityAvailability",
-		"CheatEngine.SDK.Engine.Runtime.RuntimeCapabilityId",
-		"CheatEngine.SDK.Engine.Runtime.TargetAbi",
-		"CheatEngine.SDK.Engine.Scanning.Aob.AobPattern",
-		"CheatEngine.SDK.Engine.Scanning.Aob.AobScanOptions",
-		"CheatEngine.SDK.Engine.Scanning.Values.FirstScanRequest",
-		"CheatEngine.SDK.Engine.Scanning.Values.NextScanRequest",
-		"CheatEngine.SDK.Engine.Values.Address"
-	};
+	// The allowlist has a single source, ApprovedSdkClientTypes.cs, which CheatEngine.Client.Tests links unchanged.
+	private static readonly HashSet<string> ApprovedSdkClientResultTypes =
+		new(ApprovedSdkClientTypes.Names, StringComparer.Ordinal);
 
 	// The generated Client contract is an ownership boundary, so framework provenance is not sufficient proof
 	// that a value is safe to expose. Keep this deliberately small and require all contained type arguments to
