@@ -88,8 +88,8 @@ public sealed class FakeLuaPin
 ///     Log entries are <c>read:&lt;name&gt;</c>, <c>publish:&lt;name&gt;</c>, <c>clear:&lt;name&gt;</c>,
 ///     <c>pin:&lt;name&gt;#&lt;id&gt;</c>, <c>release:&lt;name&gt;#&lt;id&gt;</c> (a current pin),
 ///     <c>release-noop:&lt;name&gt;#&lt;id&gt;</c> (a stale or already released pin), and the failed variants
-///     <c>read-failed</c>, <c>publish-failed</c>, <c>clear-failed</c>, <c>pin-failed</c>, <c>release-failed</c>. Third-party
-///     assignments made by a test are not logged.
+///     <c>read-failed</c>, <c>publish-failed</c>, <c>clear-failed</c>, <c>pin-failed</c>, <c>release-failed</c>, and
+///     <c>read-threw</c> (a read that throws instead of failing). Third-party assignments made by a test are not logged.
 /// </remarks>
 public sealed class FakeLuaGlobals
 {
@@ -146,6 +146,25 @@ public sealed class FakeLuaGlobals
 		set;
 	}
 
+	/// <summary>
+	///     Gets or sets the Lua status of the publication failure; <see langword="null" /> fails with a message only
+	///     (<see cref="LuaException.Status" /> is then <c>Ok</c>).
+	/// </summary>
+	public LuaStatus? PublishFailureStatus
+	{
+		get;
+		set;
+	}
+
+	/// <summary>
+	///     Gets the globals whose read throws an <see cref="InvalidOperationException" /> instead of reporting a Lua failure,
+	///     standing for a programming or lifecycle exception of the SDK (F15) that the generated code lets propagate.
+	/// </summary>
+	public HashSet<string> ThrowOnReads
+	{
+		get;
+	} = new(StringComparer.Ordinal);
+
 	/// <summary>Gets or sets whether a current pin cannot be pushed back (the SDK <c>TryPushRef</c> returning false).</summary>
 	public bool UnresolvablePins
 	{
@@ -190,6 +209,7 @@ public sealed class FakeLuaGlobals
 
 	public Exception? ProbeVacant(string name, out bool vacant)
 	{
+		ThrowIfLifecycleFailure(name);
 		if (FailReads.Contains(name))
 		{
 			_log.Add("read-failed:" + name);
@@ -209,7 +229,10 @@ public sealed class FakeLuaGlobals
 			if (PublishFailsAfter == index)
 			{
 				_log.Add("publish-failed:" + names[index]);
-				return new LuaException("fake publication failure: " + names[index]);
+				string message = "fake publication failure: " + names[index];
+				return PublishFailureStatus is { } status
+					? new LuaException(new LuaError(status, message))
+					: new LuaException(message);
 			}
 
 			_log.Add("publish:" + names[index]);
@@ -225,6 +248,7 @@ public sealed class FakeLuaGlobals
 	public Exception? Capture(string name, out FakeLuaPin? pin)
 	{
 		pin = null;
+		ThrowIfLifecycleFailure(name);
 		if (FailReads.Contains(name))
 		{
 			_log.Add("read-failed:" + name);
@@ -257,6 +281,7 @@ public sealed class FakeLuaGlobals
 	public FakeObservation Observe(string name, FakeLuaPin pin, out Exception? failure)
 	{
 		failure = null;
+		ThrowIfLifecycleFailure(name);
 		if (FailReads.Contains(name))
 		{
 			_log.Add("read-failed:" + name);
@@ -309,5 +334,14 @@ public sealed class FakeLuaGlobals
 
 		_log.Add("release:" + pin.Export + "#" + pin.Id);
 		return null;
+	}
+
+	private void ThrowIfLifecycleFailure(string name)
+	{
+		if (ThrowOnReads.Contains(name))
+		{
+			_log.Add("read-threw:" + name);
+			throw new InvalidOperationException("fake lifecycle failure: " + name);
+		}
 	}
 }

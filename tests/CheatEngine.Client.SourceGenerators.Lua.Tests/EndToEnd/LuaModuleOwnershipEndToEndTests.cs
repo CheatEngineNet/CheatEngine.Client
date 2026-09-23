@@ -156,6 +156,31 @@ public sealed class LuaModuleOwnershipEndToEndTests
 	}
 
 	[Fact]
+	public void UnregisterConsumesOwnershipEvenWhenAnSdkExceptionEscapesTheRelease()
+	{
+		(IOwnershipAwareLuaModule module, FakeLuaGlobals globals) = Registered();
+		globals.ThrowOnReads.Add(Ping);
+
+		InvalidOperationException escaped =
+			Assert.Throws<InvalidOperationException>(() => Harness.Unregister(module, globals));
+
+		// F15: a programming or lifecycle exception is not a Lua failure; it propagates as is, the remaining exports are
+		// not attempted, their pins stay unreleased, and no outcome is published.
+		Assert.Equal("fake lifecycle failure: ping", escaped.Message);
+		Assert.Equal(["read:status", "clear:status", "release:status#1", "read-threw:ping"], globals.Log);
+		Assert.Equal([true, false, false], globals.Pins.Select(static pin => pin.Released));
+		Assert.Null(module.LastReleaseOutcome);
+		globals.ThrowOnReads.Clear();
+		globals.ClearLog();
+
+		// The registration was consumed before the first Lua call, so the lease retry is still a no-op.
+		Harness.Unregister(module, globals);
+
+		Assert.Empty(globals.Log);
+		Assert.Null(module.LastReleaseOutcome);
+	}
+
+	[Fact]
 	public void UnregisterWithoutAnOwnedRegistrationMakesNoPortCallAndPublishesNothing()
 	{
 		IOwnershipAwareLuaModule module = Harness.CreateModule();
@@ -338,6 +363,44 @@ public sealed class LuaModuleOwnershipEndToEndTests
 	}
 
 	[Fact]
+	public void ARegistrationFailureWithoutRollbackFailureKeepsItsLuaStatus()
+	{
+		IOwnershipAwareLuaModule module = Harness.CreateModule();
+		FakeLuaGlobals globals = new()
+		{
+			PublishFailsAfter = 1,
+			PublishFailureStatus = LuaStatus.MemoryError
+		};
+
+		LuaException failure = Assert.Throws<LuaException>(() => Harness.Register(module, globals));
+
+		Assert.Equal(LuaStatus.MemoryError, failure.Status);
+		Assert.Null(failure.InnerException);
+	}
+
+	[Fact]
+	public void RollbackFailureKeepsThePrimaryLuaStatusOnTheFirstInnerException()
+	{
+		IOwnershipAwareLuaModule module = Harness.CreateModule();
+		FakeLuaGlobals globals = new()
+		{
+			PublishFailsAfter = 2,
+			PublishFailureStatus = LuaStatus.MemoryError
+		};
+		globals.FailClears.Add(Status);
+
+		LuaException failure = Assert.Throws<LuaException>(() => Harness.Register(module, globals));
+
+		// SDK 1.0.0 has no LuaException constructor that takes both a status and an inner exception: the combined
+		// exception keeps the primary type and message, and the primary status stays on the primary itself.
+		Assert.Equal(LuaStatus.Ok, failure.Status);
+		AggregateException inner = Assert.IsType<AggregateException>(failure.InnerException);
+		LuaException primary = Assert.IsType<LuaException>(inner.InnerExceptions[0]);
+		Assert.Equal(LuaStatus.MemoryError, primary.Status);
+		Assert.StartsWith(primary.Message, failure.Message, StringComparison.Ordinal);
+	}
+
+	[Fact]
 	public void RollbackFailureKeepsAnInvalidOperationPrimaryType()
 	{
 		IOwnershipAwareLuaModule module = Harness.CreateModule();
@@ -436,6 +499,8 @@ public sealed class LuaModuleOwnershipEndToEndTests
 	[InlineData(FakeLuaType.FunctionValue)]
 	public void ThirdPartyValuesOfAnyLuaTypeAreReportedAsReplaced(FakeLuaType type)
 	{
+		// The double compares by object identity: this proves that the algorithm keeps any non-owned value, not how
+		// lua_rawequal compares strings, numbers or light C functions (that needs a Lua state, C2).
 		(IOwnershipAwareLuaModule module, FakeLuaGlobals globals) = Registered();
 		FakeLuaValue thirdParty = new("third-party:" + type, type);
 		globals.AssignByThirdParty(Status, thirdParty);

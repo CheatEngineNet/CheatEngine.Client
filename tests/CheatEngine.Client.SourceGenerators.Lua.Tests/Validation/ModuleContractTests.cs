@@ -4,6 +4,7 @@ using CheatEngine.Client.Lua;
 using CheatEngine.Client.SourceGenerators.Lua.Tests.Infrastructure;
 
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Emit;
 
 namespace CheatEngine.Client.SourceGenerators.Lua.Tests.Validation;
@@ -110,6 +111,18 @@ public sealed class ModuleContractTests
 		];
 		Assert.Empty(diagnostics);
 		Assert.NotEmpty(Emit(run));
+	}
+
+	[Fact]
+	public void GeneratedModuleCompilesInAConsumerThatDisallowsUnsafeCode()
+	{
+		GeneratorRun run = GeneratorRun.Execute(ModuleWithoutLegacyHelper);
+		Compilation consumer = run.OutputCompilation.WithOptions(
+			((CSharpCompilationOptions) run.OutputCompilation.Options).WithAllowUnsafe(false));
+
+		Assert.Empty(run.Diagnostics);
+		Assert.Empty(consumer.GetDiagnostics(TestContext.Current.CancellationToken)
+			.Where(static diagnostic => diagnostic.Severity >= DiagnosticSeverity.Warning));
 	}
 
 	internal static Type LoadModuleType(string source)
