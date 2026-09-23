@@ -35,7 +35,10 @@ public readonly record struct MemoryAddressBuilder
 
 	/// <summary>Reads one built-in scalar or pointer type through the bound memory service.</summary>
 	/// <typeparam name="T">The built-in scalar or pointer type to read.</typeparam>
-	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <param name="cancellationToken">
+	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
+	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
+	/// </param>
 	/// <returns>The value read from <see cref="Address" />.</returns>
 	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
 	public T Read<T>(CancellationToken cancellationToken = default)
@@ -47,7 +50,10 @@ public readonly record struct MemoryAddressBuilder
 	/// <typeparam name="T">The built-in scalar or pointer type to read.</typeparam>
 	/// <param name="value">The value read when the method returns <see langword="true" />.</param>
 	/// <param name="failure">The classified operation failure when the method returns <see langword="false" />.</param>
-	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <param name="cancellationToken">
+	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
+	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
+	/// </param>
 	/// <returns><see langword="true" /> when a value was read.</returns>
 	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
 	public bool TryRead<T>([MaybeNullWhen(false)] out T value, out CheatEngineFailure failure,
@@ -59,7 +65,10 @@ public readonly record struct MemoryAddressBuilder
 	/// <summary>Writes one built-in scalar or pointer type through the bound memory service.</summary>
 	/// <typeparam name="T">The built-in scalar or pointer type to write.</typeparam>
 	/// <param name="value">The value to write to <see cref="Address" />.</param>
-	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <param name="cancellationToken">
+	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
+	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
+	/// </param>
 	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
 	public void Write<T>(T value, CancellationToken cancellationToken = default)
 	{
@@ -70,7 +79,10 @@ public readonly record struct MemoryAddressBuilder
 	/// <typeparam name="T">The built-in scalar or pointer type to write.</typeparam>
 	/// <param name="value">The value to write to <see cref="Address" />.</param>
 	/// <param name="failure">The classified operation failure when the method returns <see langword="false" />.</param>
-	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <param name="cancellationToken">
+	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
+	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
+	/// </param>
 	/// <returns><see langword="true" /> when Cheat Engine accepted the write.</returns>
 	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
 	public bool TryWrite<T>(T value, out CheatEngineFailure failure,
@@ -81,7 +93,10 @@ public readonly record struct MemoryAddressBuilder
 
 	/// <summary>Copies an exact, positive number of target bytes from this address.</summary>
 	/// <param name="length">The exact positive number of bytes to copy.</param>
-	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <param name="cancellationToken">
+	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
+	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
+	/// </param>
 	/// <returns>An immutable, caller-owned byte snapshot.</returns>
 	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
 	public ImmutableArray<byte> ReadBytes(int length, CancellationToken cancellationToken = default)
@@ -93,7 +108,10 @@ public readonly record struct MemoryAddressBuilder
 	/// <param name="length">The exact positive number of bytes to copy.</param>
 	/// <param name="bytes">The immutable byte snapshot when the method returns <see langword="true" />.</param>
 	/// <param name="failure">The classified operation failure when the method returns <see langword="false" />.</param>
-	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <param name="cancellationToken">
+	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
+	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
+	/// </param>
 	/// <returns><see langword="true" /> when the bytes were copied.</returns>
 	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
 	public bool TryReadBytes(int length, out ImmutableArray<byte> bytes, out CheatEngineFailure failure,
@@ -105,7 +123,10 @@ public readonly record struct MemoryAddressBuilder
 
 	/// <summary>Copies the supplied non-empty bytes to this address.</summary>
 	/// <param name="bytes">The caller-owned bytes copied into an immutable request before dispatch.</param>
-	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <param name="cancellationToken">
+	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
+	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
+	/// </param>
 	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
 	public void WriteBytes(ReadOnlySpan<byte> bytes, CancellationToken cancellationToken = default)
 	{
@@ -115,7 +136,10 @@ public readonly record struct MemoryAddressBuilder
 	/// <summary>Tries to copy the supplied non-empty bytes to this address.</summary>
 	/// <param name="bytes">The caller-owned bytes copied into an immutable request before dispatch.</param>
 	/// <param name="failure">The classified operation failure when the method returns <see langword="false" />.</param>
-	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <param name="cancellationToken">
+	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
+	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
+	/// </param>
 	/// <returns><see langword="true" /> when Cheat Engine accepted the write.</returns>
 	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
 	public bool TryWriteBytes(ReadOnlySpan<byte> bytes, out CheatEngineFailure failure,
@@ -127,7 +151,10 @@ public readonly record struct MemoryAddressBuilder
 
 	/// <summary>Reads a bounded UTF-8 string from this address.</summary>
 	/// <param name="maximumLength">The positive maximum length passed to Cheat Engine.</param>
-	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <param name="cancellationToken">
+	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
+	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
+	/// </param>
 	/// <returns>The copied UTF-8 text.</returns>
 	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
 	public string ReadUtf8(int maximumLength, CancellationToken cancellationToken = default)
@@ -137,7 +164,10 @@ public readonly record struct MemoryAddressBuilder
 
 	/// <summary>Reads a bounded UTF-16 string from this address.</summary>
 	/// <param name="maximumLength">The positive maximum length passed to Cheat Engine.</param>
-	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <param name="cancellationToken">
+	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
+	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
+	/// </param>
 	/// <returns>The copied UTF-16 text.</returns>
 	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
 	public string ReadUtf16(int maximumLength, CancellationToken cancellationToken = default)
@@ -148,7 +178,10 @@ public readonly record struct MemoryAddressBuilder
 	/// <summary>Reads a bounded string with an explicit target encoding from this address.</summary>
 	/// <param name="maximumLength">The positive maximum length passed to Cheat Engine.</param>
 	/// <param name="encoding">The UTF-8 or UTF-16 target representation.</param>
-	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <param name="cancellationToken">
+	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
+	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
+	/// </param>
 	/// <returns>The copied target text.</returns>
 	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
 	public string ReadString(int maximumLength, MemoryStringEncoding encoding,
@@ -163,7 +196,10 @@ public readonly record struct MemoryAddressBuilder
 	/// <param name="encoding">The UTF-8 or UTF-16 target representation.</param>
 	/// <param name="value">The copied target text when the method returns <see langword="true" />.</param>
 	/// <param name="failure">The classified operation failure when the method returns <see langword="false" />.</param>
-	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <param name="cancellationToken">
+	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
+	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
+	/// </param>
 	/// <returns><see langword="true" /> when the text was copied.</returns>
 	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
 	public bool TryReadString(int maximumLength, MemoryStringEncoding encoding, [NotNullWhen(true)] out string? value,
@@ -177,7 +213,10 @@ public readonly record struct MemoryAddressBuilder
 	/// <summary>Writes UTF-8 text whose encoded length is bounded explicitly at this address.</summary>
 	/// <param name="value">The managed text to copy.</param>
 	/// <param name="maximumLength">The positive maximum number of UTF-8 bytes accepted.</param>
-	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <param name="cancellationToken">
+	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
+	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
+	/// </param>
 	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
 	public void WriteUtf8(string value, int maximumLength, CancellationToken cancellationToken = default)
 	{
@@ -187,7 +226,10 @@ public readonly record struct MemoryAddressBuilder
 	/// <summary>Writes UTF-16 text whose code-unit length is bounded explicitly at this address.</summary>
 	/// <param name="value">The managed text to copy.</param>
 	/// <param name="maximumLength">The positive maximum number of UTF-16 code units accepted.</param>
-	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <param name="cancellationToken">
+	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
+	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
+	/// </param>
 	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
 	public void WriteUtf16(string value, int maximumLength, CancellationToken cancellationToken = default)
 	{
@@ -198,7 +240,10 @@ public readonly record struct MemoryAddressBuilder
 	/// <param name="value">The managed text to copy.</param>
 	/// <param name="maximumLength">The positive maximum number of UTF-8 bytes or UTF-16 code units accepted.</param>
 	/// <param name="encoding">The UTF-8 or UTF-16 target representation.</param>
-	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <param name="cancellationToken">
+	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
+	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
+	/// </param>
 	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
 	public void WriteString(string value, int maximumLength, MemoryStringEncoding encoding,
 		CancellationToken cancellationToken = default)
@@ -212,7 +257,10 @@ public readonly record struct MemoryAddressBuilder
 	/// <param name="maximumLength">The positive maximum number of UTF-8 bytes or UTF-16 code units accepted.</param>
 	/// <param name="encoding">The UTF-8 or UTF-16 target representation.</param>
 	/// <param name="failure">The classified operation failure when the method returns <see langword="false" />.</param>
-	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <param name="cancellationToken">
+	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
+	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
+	/// </param>
 	/// <returns><see langword="true" /> when Cheat Engine accepted the write.</returns>
 	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
 	public bool TryWriteString(string value, int maximumLength, MemoryStringEncoding encoding,
@@ -234,7 +282,10 @@ public readonly record struct MemoryAddressBuilder
 	/// <summary>Reads one typed value through the service bound to this builder.</summary>
 	/// <typeparam name="T">The managed value type represented by <paramref name="codec" />.</typeparam>
 	/// <param name="codec">The deterministic codec that maps <typeparamref name="T" /> to Cheat Engine memory.</param>
-	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <param name="cancellationToken">
+	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
+	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
+	/// </param>
 	/// <returns>The managed value returned by Cheat Engine.</returns>
 	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
 	/// <exception cref="ArgumentNullException"><paramref name="codec" /> is <see langword="null" />.</exception>
@@ -247,7 +298,10 @@ public readonly record struct MemoryAddressBuilder
 	/// <typeparam name="T">The managed value type represented by <paramref name="codec" />.</typeparam>
 	/// <param name="memory">The scoped target-memory service used for this operation.</param>
 	/// <param name="codec">The deterministic codec that maps <typeparamref name="T" /> to Cheat Engine memory.</param>
-	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <param name="cancellationToken">
+	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
+	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
+	/// </param>
 	/// <returns>The managed value returned by Cheat Engine.</returns>
 	/// <exception cref="ArgumentNullException">
 	///     <paramref name="memory" /> or <paramref name="codec" /> is
@@ -266,7 +320,10 @@ public readonly record struct MemoryAddressBuilder
 	/// <param name="codec">The deterministic codec that maps <typeparamref name="T" /> to Cheat Engine memory.</param>
 	/// <param name="value">The managed value when the method returns <see langword="true" />.</param>
 	/// <param name="failure">The classified operation failure when the method returns <see langword="false" />.</param>
-	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <param name="cancellationToken">
+	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
+	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
+	/// </param>
 	/// <returns><see langword="true" /> when a value was read.</returns>
 	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
 	/// <exception cref="ArgumentNullException"><paramref name="codec" /> is <see langword="null" />.</exception>
@@ -283,7 +340,10 @@ public readonly record struct MemoryAddressBuilder
 	/// <param name="codec">The deterministic codec that maps <typeparamref name="T" /> to Cheat Engine memory.</param>
 	/// <param name="value">The managed value when the method returns <see langword="true" />.</param>
 	/// <param name="failure">The classified operation failure when the method returns <see langword="false" />.</param>
-	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <param name="cancellationToken">
+	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
+	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
+	/// </param>
 	/// <returns><see langword="true" /> when a value was read.</returns>
 	/// <exception cref="ArgumentNullException">
 	///     <paramref name="memory" /> or <paramref name="codec" /> is
@@ -301,7 +361,10 @@ public readonly record struct MemoryAddressBuilder
 	/// <typeparam name="T">The managed value type represented by <paramref name="codec" />.</typeparam>
 	/// <param name="value">The managed value to write.</param>
 	/// <param name="codec">The deterministic codec that maps <typeparamref name="T" /> to Cheat Engine memory.</param>
-	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <param name="cancellationToken">
+	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
+	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
+	/// </param>
 	/// <returns>Nothing when Cheat Engine accepted the write.</returns>
 	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
 	/// <exception cref="ArgumentNullException"><paramref name="codec" /> is <see langword="null" />.</exception>
@@ -315,7 +378,10 @@ public readonly record struct MemoryAddressBuilder
 	/// <param name="memory">The scoped target-memory service used for this operation.</param>
 	/// <param name="value">The managed value to write.</param>
 	/// <param name="codec">The deterministic codec that maps <typeparamref name="T" /> to Cheat Engine memory.</param>
-	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <param name="cancellationToken">
+	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
+	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
+	/// </param>
 	/// <returns>Nothing when Cheat Engine accepted the write.</returns>
 	/// <exception cref="ArgumentNullException">
 	///     <paramref name="memory" /> or <paramref name="codec" /> is
@@ -334,7 +400,10 @@ public readonly record struct MemoryAddressBuilder
 	/// <param name="value">The managed value to write.</param>
 	/// <param name="codec">The deterministic codec that maps <typeparamref name="T" /> to Cheat Engine memory.</param>
 	/// <param name="failure">The classified operation failure when the method returns <see langword="false" />.</param>
-	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <param name="cancellationToken">
+	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
+	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
+	/// </param>
 	/// <returns><see langword="true" /> when Cheat Engine accepted the write.</returns>
 	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
 	/// <exception cref="ArgumentNullException"><paramref name="codec" /> is <see langword="null" />.</exception>
@@ -350,7 +419,10 @@ public readonly record struct MemoryAddressBuilder
 	/// <param name="value">The managed value to write.</param>
 	/// <param name="codec">The deterministic codec that maps <typeparamref name="T" /> to Cheat Engine memory.</param>
 	/// <param name="failure">The classified operation failure when the method returns <see langword="false" />.</param>
-	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <param name="cancellationToken">
+	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
+	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
+	/// </param>
 	/// <returns><see langword="true" /> when Cheat Engine accepted the write.</returns>
 	/// <exception cref="ArgumentNullException">
 	///     <paramref name="memory" /> or <paramref name="codec" /> is

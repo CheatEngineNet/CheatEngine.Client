@@ -114,3 +114,15 @@ copied addresses are discarded rather than reported as a success.
 
 With CheatEngine.SDK 1.0.0 a missing result list is `IndeterminateHostResult` ("zero matches or a host failure"), never
 `NotFound` or `OperationRejected`; classification uses SDK return values only, never Cheat Engine or Lua error text.
+
+## SDK boundary and the Try contract
+
+Every Client-internal CheatEngine.SDK call (ports, generated `ClientLuaGlobals` bindings, `TargetMemory`,
+`EngineInspection`, `AobScanner`, Address List access, protected Lua execution) runs behind `SdkBoundary`: an SDK
+exception becomes a classified `CheatEngineFailure` (by exception type, with the known `CheatEngineHostEffect`), so no
+SDK exception type crosses a `Try*` method of the Patterns, Memory, Inspection, Tables, or Unsafe Lua domains. Client
+lifecycle exceptions are never translated, and an SDK fault observed after the activation ended is reported as
+`CheatEngineActivationExpiredException`. Consumer-supplied code (dispatcher callbacks, codecs, typed Lua operations) is
+never wrapped: the dispatcher rethrows its exceptions unchanged. The per-family table lives in
+`libs/CheatEngine.Client.Abstractions/README.md` ("Failure, exception and cancellation contract"); the Runtime and
+Processes domains still catch only some SDK exception types.

@@ -34,9 +34,9 @@ internal sealed class TableClient(
 	{
 		AddressTableSnapshot captured = default;
 		bool succeeded = false;
-		if (!_dispatcher.TryInvoke(() =>
+		if (!SdkBoundary.TryInvoke(_dispatcher, "Tables.GetCurrent", () =>
 				succeeded = AddressListAccess.TryGetCurrent(out AddressList list) && list.TryGetCount(out int count) &&
-							CaptureTable(count, out captured), out failure, cancellationToken))
+							CaptureTable(count, out captured), CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
 		{
 			table = default;
 			return false;
@@ -69,9 +69,9 @@ internal sealed class TableClient(
 		AddressTableSnapshot captured = default;
 		bool succeeded = false;
 		bool exceededLimit = false;
-		if (!_dispatcher.TryInvoke(
+		if (!SdkBoundary.TryInvoke(_dispatcher, "Tables.GetSnapshot",
 				() => succeeded = TryCaptureSnapshot(request, out captured, out exceededLimit),
-				out failure, cancellationToken))
+				CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
 		{
 			table = default;
 			return false;
@@ -109,7 +109,7 @@ internal sealed class TableClient(
 		{
 			records = [];
 			failure = new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, "Tables.Find",
-				"A memory-record search must specify at least one predicate.");
+				"A memory-record search must specify at least one predicate.", null, CheatEngineHostEffect.NotStarted);
 			return false;
 		}
 
@@ -121,8 +121,11 @@ internal sealed class TableClient(
 
 		if (cancellationToken.IsCancellationRequested)
 		{
+			// The read-only snapshot has already been copied: the host call completed and left nothing behind.
 			records = [];
-			failure = CoreFailureFactory.Cancelled("Tables.Find");
+			failure = new CheatEngineFailure(CheatEngineFailureKind.Cancelled, "Tables.Find",
+				"The search was cancelled after the Address List snapshot was copied; no result was published.", null,
+				CheatEngineHostEffect.Completed);
 			return false;
 		}
 
@@ -223,9 +226,9 @@ internal sealed class TableClient(
 		MemoryRecordSnapshot captured = default;
 		bool succeeded = false;
 		TableRecordMutationStatus parentMutationStatus = TableRecordMutationStatus.Success;
-		if (!_dispatcher.TryInvoke(
+		if (!SdkBoundary.TryInvoke(_dispatcher, "Tables.Create",
 				() => succeeded = TryCreateRecord(definition, out captured, out parentMutationStatus),
-				out failure, cancellationToken))
+				CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
 		{
 			record = default;
 			return false;
@@ -260,8 +263,8 @@ internal sealed class TableClient(
 	{
 		MemoryRecordSnapshot captured = default;
 		bool succeeded = false;
-		if (!_dispatcher.TryInvoke(() => succeeded = TryUpdateRecord(update, out captured), out failure,
-				cancellationToken))
+		if (!SdkBoundary.TryInvoke(_dispatcher, "Tables.Update", () => succeeded = TryUpdateRecord(update, out captured),
+				CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
 		{
 			record = default;
 			return false;
@@ -292,7 +295,8 @@ internal sealed class TableClient(
 		CancellationToken cancellationToken = default)
 	{
 		TableRecordMutationStatus status = TableRecordMutationStatus.HostRejected;
-		if (!_dispatcher.TryInvoke(() => status = _recordMutations.TryDelete(id), out failure, cancellationToken))
+		if (!SdkBoundary.TryInvoke(_dispatcher, "Tables.Delete", () => status = _recordMutations.TryDelete(id),
+				CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
 		{
 			return false;
 		}
@@ -342,14 +346,17 @@ internal sealed class TableClient(
 		if (parentId is { } requestedParentId && requestedParentId == childId)
 		{
 			record = default;
-			failure = MutationFailure("Tables.SetParent", TableRecordMutationStatus.InvalidRelationship);
+			failure = CoreFailureFactory.WithHostEffect(
+				MutationFailure("Tables.SetParent", TableRecordMutationStatus.InvalidRelationship),
+				CheatEngineHostEffect.NotStarted);
 			return false;
 		}
 
 		MemoryRecordSnapshot captured = default;
 		TableRecordMutationStatus status = TableRecordMutationStatus.HostRejected;
-		if (!_dispatcher.TryInvoke(() => status = _recordMutations.TrySetParent(childId, parentId, out captured),
-				out failure, cancellationToken))
+		if (!SdkBoundary.TryInvoke(_dispatcher, "Tables.SetParent",
+				() => status = _recordMutations.TrySetParent(childId, parentId, out captured),
+				CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
 		{
 			record = default;
 			return false;
@@ -387,7 +394,7 @@ internal sealed class TableClient(
 		bool found = false;
 		bool succeeded = false;
 		HierarchyBuildProblem problem = HierarchyBuildProblem.None;
-		if (!_dispatcher.TryInvoke(() =>
+		if (!SdkBoundary.TryInvoke(_dispatcher, _getHierarchyOperation, () =>
 			{
 				if (!AddressListAccess.TryGetCurrent(out AddressList list) ||
 					!list.TryGetMemoryRecordById(rootId, out MemoryRecord root))
@@ -399,7 +406,7 @@ internal sealed class TableClient(
 				HashSet<MemoryRecordId> visited = [];
 				int materialized = 0;
 				succeeded = TryBuildHierarchy(root, request, 1, visited, ref materialized, out captured, out problem);
-			}, out failure, cancellationToken))
+			}, CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
 		{
 			hierarchy = default;
 			return false;
@@ -437,8 +444,10 @@ internal sealed class TableClient(
 			return false;
 		}
 
-		return _dispatcher.TryInvoke(() => ClientLuaGlobals.LoadTable(request.File.FullPath, request.Merge),
-			out failure, cancellationToken);
+		// loadTable can execute table Lua: a fault leaves the Address List state unknown.
+		return SdkBoundary.TryInvoke(_dispatcher, "Tables.LoadTrustedTable",
+			() => ClientLuaGlobals.LoadTable(request.File.FullPath, request.Merge),
+			CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken);
 	}
 
 	public void LoadTrustedTable(TableLoadRequest request, CancellationToken cancellationToken = default)
@@ -458,7 +467,8 @@ internal sealed class TableClient(
 			return false;
 		}
 
-		return _dispatcher.TryInvoke(() => ClientLuaGlobals.SaveTable(request.File.FullPath),
+		return SdkBoundary.TryInvoke(_dispatcher, "Tables.SaveTable",
+			() => ClientLuaGlobals.SaveTable(request.File.FullPath), CheatEngineHostEffect.Unknown, _lifetime,
 			out failure, cancellationToken);
 	}
 
@@ -475,7 +485,8 @@ internal sealed class TableClient(
 	{
 		MemoryRecordSnapshot captured = default;
 		RecordLookupStatus status = RecordLookupStatus.InvalidRecord;
-		if (!_dispatcher.TryInvoke(() => status = lookup(out captured), out failure, cancellationToken))
+		if (!SdkBoundary.TryInvoke(_dispatcher, operation, () => status = lookup(out captured),
+				CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
 		{
 			record = default;
 			return false;
@@ -604,7 +615,8 @@ internal sealed class TableClient(
 		if (_policy.AllowedTableRoots.Count == 0)
 		{
 			failure = new CheatEngineFailure(CheatEngineFailureKind.CapabilityUnavailable, operation,
-				"Table import and export are disabled because no allowed root is configured.");
+				"Table import and export are disabled because no allowed root is configured.", null,
+				CheatEngineHostEffect.NotStarted);
 			return false;
 		}
 
@@ -614,8 +626,8 @@ internal sealed class TableClient(
 			return true;
 		}
 
-		failure = new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, operation,
-			reason);
+		failure = new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, operation, reason, null,
+			CheatEngineHostEffect.NotStarted);
 		return false;
 	}
 
@@ -649,7 +661,7 @@ internal sealed class TableClient(
 		MemoryRecordSnapshot captured = default;
 		bool found = false;
 		bool succeeded = false;
-		if (!_dispatcher.TryInvoke(() =>
+		if (!SdkBoundary.TryInvoke(_dispatcher, operation, () =>
 			{
 				if (!AddressListAccess.TryGetCurrent(out AddressList list) ||
 					!list.TryGetMemoryRecordById(id, out MemoryRecord value))
@@ -659,7 +671,7 @@ internal sealed class TableClient(
 
 				found = true;
 				succeeded = mutation(list, value) && TrySnapshot(value, out captured);
-			}, out failure, cancellationToken))
+			}, CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
 		{
 			record = default;
 			return false;

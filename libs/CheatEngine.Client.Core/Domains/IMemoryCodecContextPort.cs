@@ -30,6 +30,35 @@ internal interface IMemoryCodecContextPort
 	{
 		return SdkMemoryPrimitivePort.TryWrite(address, value, out failure);
 	}
+
+	/// <summary>Tries one bounded string read after the Core client has admitted the operation.</summary>
+	/// <remarks><paramref name="maximumLength" /> is passed unchanged as Cheat Engine's <c>readString</c> limit.</remarks>
+	public bool TryReadString(Address address, int maximumLength, bool wideCharacter, out string? value,
+		out string? failure)
+	{
+		if (TargetMemory.TryReadString(address, maximumLength, wideCharacter, out value,
+				out MemoryAccessFailure sdkFailure))
+		{
+			failure = null;
+			return true;
+		}
+
+		failure = sdkFailure.ToString();
+		return false;
+	}
+
+	/// <summary>Tries one string write after the Core client has admitted the operation.</summary>
+	public bool TryWriteString(Address address, ReadOnlySpan<char> value, bool wideCharacter, out string? failure)
+	{
+		if (TargetMemory.TryWriteString(address, value, wideCharacter, out MemoryAccessFailure sdkFailure))
+		{
+			failure = null;
+			return true;
+		}
+
+		failure = sdkFailure.ToString();
+		return false;
+	}
 }
 
 /// <summary>Maps the Core's supported primitive set to the SDK while retaining an injectable port boundary.</summary>

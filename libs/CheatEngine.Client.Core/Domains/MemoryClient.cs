@@ -9,7 +9,6 @@ using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Memory;
 using CheatEngine.Client.Results;
-using CheatEngine.SDK.Engine.Memory;
 using CheatEngine.SDK.Engine.Values;
 
 namespace CheatEngine.Client.Core.Domains;
@@ -75,8 +74,9 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 			return new MemoryPrimitiveBatchReadOutcome<T>(attemptedCount, attemptedCount, null, null, outcome.Values);
 		}
 
-		CheatEngineFailure failure =
-			CreateBatchFailure<T>(outcome.Handled, false, outcome.FailedIndex, outcome.Failure);
+		CheatEngineFailure failure = outcome.Fault is { } fault
+			? SdkBoundary.Translate("Memory.ReadPrimitiveBatch", fault, CheatEngineHostEffect.Unknown, _lifetime)
+			: CreateBatchFailure<T>(outcome.Handled, false, outcome.FailedIndex, outcome.Failure);
 		return new MemoryPrimitiveBatchReadOutcome<T>(attemptedCount, outcome.FailedIndex, outcome.FailedIndex,
 			failure, outcome.Values);
 	}
@@ -97,8 +97,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		if (!TryInvoke(input, static current => PrimitiveMemoryCodec<T>.WriteBatch(current.Request, current.Port),
 				out PrimitiveBatchWriteOutcome outcome, out CheatEngineFailure dispatchFailure, cancellationToken))
 		{
-			return new MemoryPrimitiveBatchWriteOutcome(attemptedCount, 0, null, dispatchFailure,
-				MemoryBatchWriteEffectState.Unknown);
+			return CreateDispatchFailureOutcome(attemptedCount, dispatchFailure);
 		}
 
 		if (outcome.Succeeded)
@@ -107,10 +106,25 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 				MemoryBatchWriteEffectState.Complete);
 		}
 
+		if (outcome.Fault is { } fault)
+		{
+			// The write at FailedIndex threw inside the SDK: whether it reached the target cannot be established.
+			CheatEngineFailure faultFailure = SdkBoundary.Translate("Memory.WritePrimitiveBatch", fault,
+				CheatEngineHostEffect.Unknown, _lifetime);
+			return new MemoryPrimitiveBatchWriteOutcome(attemptedCount, outcome.FailedIndex, outcome.FailedIndex,
+				faultFailure, MemoryBatchWriteEffectState.Unknown);
+		}
+
 		CheatEngineFailure failure = CreateBatchFailure<T>(outcome.Handled, true, outcome.FailedIndex, outcome.Failure);
 		MemoryBatchWriteEffectState effectState = outcome.FailedIndex == 0
 			? MemoryBatchWriteEffectState.NotStarted
 			: MemoryBatchWriteEffectState.Partial;
+		if (effectState == MemoryBatchWriteEffectState.Partial)
+		{
+			// A completed prefix persists and is never rolled back.
+			failure = CoreFailureFactory.WithHostEffect(failure, CheatEngineHostEffect.Started);
+		}
+
 		return new MemoryPrimitiveBatchWriteOutcome(attemptedCount, outcome.FailedIndex, outcome.FailedIndex, failure,
 			effectState);
 	}
@@ -118,7 +132,8 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 	public bool TryReadPrimitive<T>(Address address, [MaybeNullWhen(false)] out T value,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
-		if (!TryInvoke(address, static current => PrimitiveMemoryCodec<T>.Read(current),
+		PrimitiveReadInput input = new(address, _codecContextPort);
+		if (!TryInvoke(input, static current => PrimitiveMemoryCodec<T>.Read(current.Port, current.Address),
 				out PrimitiveReadOutcome<T> outcome, out failure, cancellationToken))
 		{
 			value = default;
@@ -128,11 +143,12 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		if (!outcome.Succeeded)
 		{
 			value = default;
-			failure = !outcome.Handled
-				? new CheatEngineFailure(CheatEngineFailureKind.Unsupported, "Memory.ReadPrimitive",
-					$"'{typeof(T).FullName}' is not a built-in CheatEngine.Client memory type.")
-				: new CheatEngineFailure(CheatEngineFailureKind.MemoryReadFailed, "Memory.ReadPrimitive",
-					outcome.Failure ?? "Cheat Engine rejected the target-memory read.");
+			failure = outcome.Fault is { } fault
+				? SdkBoundary.Translate("Memory.ReadPrimitive", fault, CheatEngineHostEffect.Unknown, _lifetime)
+				: !outcome.Handled
+					? UnsupportedPrimitive<T>("Memory.ReadPrimitive")
+					: new CheatEngineFailure(CheatEngineFailureKind.MemoryReadFailed, "Memory.ReadPrimitive",
+						outcome.Failure ?? "Cheat Engine rejected the target-memory read.");
 			return false;
 		}
 
@@ -155,8 +171,9 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 	public bool TryWritePrimitive<T>(Address address, T value, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
-		PrimitiveWriteInput<T> input = new(address, value);
-		if (!TryInvoke(input, static current => PrimitiveMemoryCodec<T>.Write(current.Address, current.Value),
+		PrimitiveWriteInput<T> input = new(address, value, _codecContextPort);
+		if (!TryInvoke(input,
+				static current => PrimitiveMemoryCodec<T>.Write(current.Port, current.Address, current.Value),
 				out PrimitiveWriteOutcome outcome, out failure, cancellationToken))
 		{
 			return false;
@@ -164,11 +181,12 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 
 		if (!outcome.Succeeded)
 		{
-			failure = !outcome.Handled
-				? new CheatEngineFailure(CheatEngineFailureKind.Unsupported, "Memory.WritePrimitive",
-					$"'{typeof(T).FullName}' is not a built-in CheatEngine.Client memory type.")
-				: new CheatEngineFailure(CheatEngineFailureKind.MemoryWriteFailed, "Memory.WritePrimitive",
-					outcome.Failure ?? "Cheat Engine rejected the target-memory write.");
+			failure = outcome.Fault is { } fault
+				? SdkBoundary.Translate("Memory.WritePrimitive", fault, CheatEngineHostEffect.Unknown, _lifetime)
+				: !outcome.Handled
+					? UnsupportedPrimitive<T>("Memory.WritePrimitive")
+					: new CheatEngineFailure(CheatEngineFailureKind.MemoryWriteFailed, "Memory.WritePrimitive",
+						outcome.Failure ?? "Cheat Engine rejected the target-memory write.");
 			return false;
 		}
 
@@ -240,20 +258,18 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
 		T? captured = default;
-		string? hostFailure = null;
-		bool succeeded = false;
-		if (!_dispatcher.TryInvoke(() => succeeded = TryReadCore(request, out captured, out hostFailure),
-				out failure, cancellationToken))
+		CodecOutcome outcome = default;
+		if (!_dispatcher.TryInvoke(() => outcome = TryReadCore(request, out captured), out failure,
+				cancellationToken))
 		{
 			value = default;
 			return false;
 		}
 
-		if (!succeeded)
+		if (!outcome.Succeeded)
 		{
 			value = default;
-			failure = new CheatEngineFailure(CheatEngineFailureKind.MemoryReadFailed, "Memory.Read",
-				hostFailure ?? "Cheat Engine rejected the target-memory read.");
+			failure = CreateCodecFailure(outcome, false, "Memory.Read");
 			return false;
 		}
 
@@ -276,18 +292,15 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 	public bool TryWrite<T>(MemoryWriteRequest<T> request, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
-		string? hostFailure = null;
-		bool succeeded = false;
-		if (!_dispatcher.TryInvoke(() => succeeded = TryWriteCore(request, out hostFailure),
-				out failure, cancellationToken))
+		CodecOutcome outcome = default;
+		if (!_dispatcher.TryInvoke(() => outcome = TryWriteCore(request), out failure, cancellationToken))
 		{
 			return false;
 		}
 
-		if (!succeeded)
+		if (!outcome.Succeeded)
 		{
-			failure = new CheatEngineFailure(CheatEngineFailureKind.MemoryWriteFailed, "Memory.Write",
-				hostFailure ?? "Cheat Engine rejected the target-memory write.");
+			failure = CreateCodecFailure(outcome, true, "Memory.Write");
 			return false;
 		}
 
@@ -315,19 +328,16 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		}
 
 		ImmutableArray<byte> captured = ImmutableArray<byte>.Empty;
-		string? hostFailure = null;
-		bool succeeded = false;
+		HostCall call = default;
 		if (!_dispatcher.TryInvoke(() =>
 			{
 				byte[] buffer = new byte[request.Length];
-				succeeded = TargetMemory.TryReadBytes(request.Address, buffer, out MemoryAccessFailure sdkFailure);
-				if (succeeded)
+				call = HostCall.Run(_codecContextPort, buffer, request.Address,
+					static (port, destination, address, out hostFailure) =>
+						port.TryReadBytes(address, destination, out hostFailure));
+				if (call.Succeeded)
 				{
 					captured = ImmutableCollectionsMarshal.AsImmutableArray(buffer);
-				}
-				else
-				{
-					hostFailure = sdkFailure.ToString();
 				}
 			}, out failure, cancellationToken))
 		{
@@ -335,8 +345,8 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 			return false;
 		}
 
-		bytes = captured;
-		return TryMapMemoryFailure(succeeded, false, "Memory.ReadBytes", hostFailure, out failure);
+		bytes = call.Succeeded ? captured : [];
+		return TryMapMemoryFailure(call, false, "Memory.ReadBytes", out failure);
 	}
 
 	public ImmutableArray<byte> ReadBytes(MemoryBytesReadRequest request,
@@ -365,22 +375,16 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 			return false;
 		}
 
-		string? hostFailure = null;
-		bool succeeded = false;
-		if (!_dispatcher.TryInvoke(() =>
-			{
-				succeeded = TargetMemory.TryWriteBytes(request.Address, request.Bytes.AsSpan(),
-					out MemoryAccessFailure sdkFailure);
-				if (!succeeded)
-				{
-					hostFailure = sdkFailure.ToString();
-				}
-			}, out failure, cancellationToken))
+		HostCall call = default;
+		if (!_dispatcher.TryInvoke(() => call = HostCall.Run(_codecContextPort, request, request.Address,
+				static (port, current, address, out hostFailure) =>
+					port.TryWriteBytes(address, current.Bytes.AsSpan(), out hostFailure)),
+				out failure, cancellationToken))
 		{
 			return false;
 		}
 
-		return TryMapMemoryFailure(succeeded, true, "Memory.WriteBytes", hostFailure, out failure);
+		return TryMapMemoryFailure(call, true, "Memory.WriteBytes", out failure);
 	}
 
 	public void WriteBytes(MemoryBytesWriteRequest request, CancellationToken cancellationToken = default)
@@ -403,24 +407,18 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		}
 
 		string? captured = null;
-		string? hostFailure = null;
-		bool succeeded = false;
-		if (!_dispatcher.TryInvoke(() =>
-			{
-				succeeded = TargetMemory.TryReadString(request.Address, request.MaximumLength,
-					request.WideCharacter, out captured, out MemoryAccessFailure sdkFailure);
-				if (!succeeded)
-				{
-					hostFailure = sdkFailure.ToString();
-				}
-			}, out failure, cancellationToken))
+		HostCall call = default;
+		if (!_dispatcher.TryInvoke(() => call = HostCall.Run(_codecContextPort, request, request.Address,
+				(port, current, address, out hostFailure) => port.TryReadString(address,
+					current.MaximumLength, current.WideCharacter, out captured, out hostFailure)),
+				out failure, cancellationToken))
 		{
 			value = null;
 			return false;
 		}
 
-		value = captured;
-		return TryMapMemoryFailure(succeeded, false, "Memory.ReadString", hostFailure, out failure);
+		value = call.Succeeded ? captured : null;
+		return TryMapMemoryFailure(call, false, "Memory.ReadString", out failure);
 	}
 
 	public string ReadString(MemoryStringReadRequest request, CancellationToken cancellationToken = default)
@@ -450,22 +448,16 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 			return false;
 		}
 
-		string? hostFailure = null;
-		bool succeeded = false;
-		if (!_dispatcher.TryInvoke(() =>
-			{
-				succeeded = TargetMemory.TryWriteString(request.Address, request.Value.AsSpan(),
-					request.WideCharacter, out MemoryAccessFailure sdkFailure);
-				if (!succeeded)
-				{
-					hostFailure = sdkFailure.ToString();
-				}
-			}, out failure, cancellationToken))
+		HostCall call = default;
+		if (!_dispatcher.TryInvoke(() => call = HostCall.Run(_codecContextPort, request, request.Address,
+				static (port, current, address, out hostFailure) => port.TryWriteString(address,
+					current.Value.AsSpan(), current.WideCharacter, out hostFailure)),
+				out failure, cancellationToken))
 		{
 			return false;
 		}
 
-		return TryMapMemoryFailure(succeeded, true, "Memory.WriteString", hostFailure, out failure);
+		return TryMapMemoryFailure(call, true, "Memory.WriteString", out failure);
 	}
 
 	public void WriteString(MemoryStringWriteRequest request, CancellationToken cancellationToken = default)
@@ -490,32 +482,32 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		}
 
 		Address captured = request.BaseAddress;
-		string? hostFailure = null;
-		bool succeeded = false;
-		if (!_dispatcher.TryInvoke(() =>
-			{
-				Address current = request.BaseAddress;
-				foreach (long offset in request.Offsets)
+		HostCall call = default;
+		if (!_dispatcher.TryInvoke(() => call = HostCall.Run(_codecContextPort, request, request.BaseAddress,
+				(port, current, baseAddress, out hostFailure) =>
 				{
-					if (!TargetMemory.TryReadPointer(current, out Address pointer, out MemoryAccessFailure sdkFailure))
+					Address resolved = baseAddress;
+					foreach (long offset in current.Offsets)
 					{
-						hostFailure = sdkFailure.ToString();
-						return;
+						if (!port.TryReadPrimitive(resolved, out Address pointer, out hostFailure))
+						{
+							return false;
+						}
+
+						resolved = pointer + offset;
 					}
 
-					current = pointer + offset;
-				}
-
-				captured = current;
-				succeeded = true;
-			}, out failure, cancellationToken))
+					captured = resolved;
+					hostFailure = null;
+					return true;
+				}), out failure, cancellationToken))
 		{
 			address = default;
 			return false;
 		}
 
-		address = captured;
-		return TryMapMemoryFailure(succeeded, false, "Memory.ResolvePointerChain", hostFailure, out failure);
+		address = call.Succeeded ? captured : default;
+		return TryMapMemoryFailure(call, false, "Memory.ResolvePointerChain", out failure);
 	}
 
 	public Address ResolvePointerChain(PointerChainRequest request, CancellationToken cancellationToken = default)
@@ -542,21 +534,29 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		return _dispatcher.TryInvoke(() => callback(state), out result, out failure, cancellationToken);
 	}
 
-	private bool TryReadCore<T>(MemoryReadRequest<T> request, [MaybeNullWhen(false)] out T value,
-		out string? failure)
+	/// <summary>Runs a consumer codec read inside the dispatched callback.</summary>
+	/// <remarks>
+	///     Exceptions thrown by the consumer codec are rethrown unchanged by the dispatcher. SDK faults raised by the
+	///     context's Client-internal port calls are captured by the context and reported as classified failures.
+	/// </remarks>
+	private CodecOutcome TryReadCore<T>(MemoryReadRequest<T> request, out T? value)
 	{
-		failure = null;
 		TargetMemoryCodecContext context = TargetMemoryCodecContext.Create(_lifetime, _dispatcher, _codecContextPort,
 			_limits);
 		try
 		{
 			if (request.Codec.TryRead(context, request.Address, out value))
 			{
-				return true;
+				return CodecOutcome.Success;
 			}
 
-			failure = context.Failure ?? $"The codec for '{typeof(T).Name}' rejected the target-memory read.";
-			return false;
+			return context.CreateFailureOutcome(
+				$"The codec for '{typeof(T).Name}' rejected the target-memory read.");
+		}
+		catch (CheatEngineOperationException exception) when (context.IsContextFault(exception))
+		{
+			value = default;
+			return context.CreateFailureOutcome(exception.Message);
 		}
 		finally
 		{
@@ -564,9 +564,8 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		}
 	}
 
-	private bool TryWriteCore<T>(MemoryWriteRequest<T> request, out string? failure)
+	private CodecOutcome TryWriteCore<T>(MemoryWriteRequest<T> request)
 	{
-		failure = null;
 		TargetMemoryCodecContext context = TargetMemoryCodecContext.Create(_lifetime, _dispatcher, _codecContextPort,
 			_limits);
 		try
@@ -574,16 +573,58 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 			T value = request.Value;
 			if (request.Codec.TryWrite(context, request.Address, in value))
 			{
-				return true;
+				return CodecOutcome.Success;
 			}
 
-			failure = context.Failure ?? $"The codec for '{typeof(T).Name}' rejected the target-memory write.";
-			return false;
+			return context.CreateFailureOutcome(
+				$"The codec for '{typeof(T).Name}' rejected the target-memory write.");
+		}
+		catch (CheatEngineOperationException exception) when (context.IsContextFault(exception))
+		{
+			return context.CreateFailureOutcome(exception.Message);
 		}
 		finally
 		{
 			context.Expire();
 		}
+	}
+
+	private CheatEngineFailure CreateCodecFailure(CodecOutcome outcome, bool isWrite, string operation)
+	{
+		if (outcome.Fault is { } fault)
+		{
+			return SdkBoundary.Translate(operation, fault, CheatEngineHostEffect.Unknown, _lifetime);
+		}
+
+		return new CheatEngineFailure(
+			isWrite ? CheatEngineFailureKind.MemoryWriteFailed : CheatEngineFailureKind.MemoryReadFailed,
+			operation,
+			outcome.Message ?? (isWrite
+				? "Cheat Engine rejected the target-memory write."
+				: "Cheat Engine rejected the target-memory read."));
+	}
+
+	private static CheatEngineFailure UnsupportedPrimitive<T>(string operation)
+	{
+		return new CheatEngineFailure(CheatEngineFailureKind.Unsupported, operation,
+			$"'{typeof(T).FullName}' is not a built-in CheatEngine.Client memory type.", null,
+			CheatEngineHostEffect.NotStarted);
+	}
+
+	private static MemoryPrimitiveBatchWriteOutcome CreateDispatchFailureOutcome(int attemptedCount,
+		CheatEngineFailure dispatchFailure)
+	{
+		// ICheatEngineDispatcher observes cancellation before admission only, so a Cancelled dispatch failure proves that
+		// no callback ran and no write was attempted. Every other dispatch failure leaves the effect unknown.
+		if (dispatchFailure.Kind == CheatEngineFailureKind.Cancelled)
+		{
+			return new MemoryPrimitiveBatchWriteOutcome(attemptedCount, 0, null,
+				CoreFailureFactory.WithHostEffect(dispatchFailure, CheatEngineHostEffect.NotStarted),
+				MemoryBatchWriteEffectState.NotStarted);
+		}
+
+		return new MemoryPrimitiveBatchWriteOutcome(attemptedCount, 0, null, dispatchFailure,
+			MemoryBatchWriteEffectState.Unknown);
 	}
 
 	private static void ValidateBatch<T>(ImmutableArray<T> values, string parameterName)
@@ -632,7 +673,8 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		string direction = isWrite ? "write" : "read";
 		string unit = resource == "batch operation count" ? "operations" : "bytes";
 		return new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, operation,
-			$"The requested {resource} of {requestedBytes} {unit} exceeds the activation {direction} budget of {limit} {unit}.");
+			$"The requested {resource} of {requestedBytes} {unit} exceeds the activation {direction} budget of {limit} {unit}.",
+			null, CheatEngineHostEffect.NotStarted);
 	}
 
 	private static CheatEngineFailure CreateBatchFailure<T>(bool handled, bool isWrite, int failedIndex,
@@ -641,8 +683,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		string operation = isWrite ? "Memory.WritePrimitiveBatch" : "Memory.ReadPrimitiveBatch";
 		if (!handled)
 		{
-			return new CheatEngineFailure(CheatEngineFailureKind.Unsupported, operation,
-				$"'{typeof(T).FullName}' is not a built-in CheatEngine.Client memory type.");
+			return UnsupportedPrimitive<T>(operation);
 		}
 
 		CheatEngineFailureKind kind =
@@ -667,27 +708,71 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		return wideCharacter ? (long) value.Length * sizeof(char) : Encoding.UTF8.GetByteCount(value);
 	}
 
-	private static bool TryMapMemoryFailure(bool succeeded, bool isWrite, string operation, string? hostFailure,
-		out CheatEngineFailure failure)
+	private bool TryMapMemoryFailure(HostCall call, bool isWrite, string operation, out CheatEngineFailure failure)
 	{
-		if (succeeded)
+		if (call.Succeeded)
 		{
 			failure = default;
 			return true;
 		}
 
+		if (call.Fault is { } fault)
+		{
+			failure = SdkBoundary.Translate(operation, fault, CheatEngineHostEffect.Unknown, _lifetime);
+			return false;
+		}
+
 		failure = new CheatEngineFailure(
 			isWrite ? CheatEngineFailureKind.MemoryWriteFailed : CheatEngineFailureKind.MemoryReadFailed,
 			operation,
-			hostFailure ?? "Cheat Engine rejected the target-memory operation.");
+			call.HostFailure ?? "Cheat Engine rejected the target-memory operation.");
 		return false;
 	}
 
-	private readonly record struct PrimitiveWriteInput<T>(Address Address, T Value);
+	private readonly record struct PrimitiveReadInput(Address Address, IMemoryCodecContextPort Port);
 
-	private readonly record struct PrimitiveReadOutcome<T>(bool Handled, bool Succeeded, T Value, string? Failure);
+	private readonly record struct PrimitiveWriteInput<T>(Address Address, T Value, IMemoryCodecContextPort Port);
 
-	private readonly record struct PrimitiveWriteOutcome(bool Handled, bool Succeeded, string? Failure);
+	private readonly record struct PrimitiveReadOutcome<T>(
+		bool Handled,
+		bool Succeeded,
+		T Value,
+		string? Failure,
+		Exception? Fault = null);
+
+	private readonly record struct PrimitiveWriteOutcome(
+		bool Handled,
+		bool Succeeded,
+		string? Failure,
+		Exception? Fault = null);
+
+	/// <summary>The result of one Client-internal host call, with any SDK fault captured instead of thrown.</summary>
+	private readonly record struct HostCall(bool Succeeded, string? HostFailure, Exception? Fault)
+	{
+		internal static HostCall Run<TState>(IMemoryCodecContextPort port, TState state, Address address,
+			HostOperation<TState> operation)
+		{
+			try
+			{
+				return operation(port, state, address, out string? hostFailure)
+					? new HostCall(true, null, null)
+					: new HostCall(false, hostFailure, null);
+			}
+			catch (Exception exception) when (SdkBoundary.IsSdkFault(exception))
+			{
+				return new HostCall(false, null, exception);
+			}
+		}
+	}
+
+	private delegate bool HostOperation<in TState>(IMemoryCodecContextPort port, TState state, Address address,
+		out string? hostFailure);
+
+	/// <summary>The result of a consumer codec call, distinguishing a codec refusal from an SDK fault.</summary>
+	private readonly record struct CodecOutcome(bool Succeeded, string? Message, Exception? Fault)
+	{
+		internal static CodecOutcome Success => new(true, null, null);
+	}
 
 	private readonly record struct PrimitiveBatchReadInput<T>(
 		MemoryPrimitiveBatchReadRequest<T> Request,
@@ -702,13 +787,15 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		bool Succeeded,
 		T[] Values,
 		int FailedIndex,
-		string? Failure);
+		string? Failure,
+		Exception? Fault = null);
 
 	private readonly record struct PrimitiveBatchWriteOutcome(
 		bool Handled,
 		bool Succeeded,
 		int FailedIndex,
-		string? Failure);
+		string? Failure,
+		Exception? Fault = null);
 
 	private static class PrimitiveMemoryCodec<T>
 	{
@@ -725,11 +812,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 			typeof(T) == typeof(double) ||
 			typeof(T) == typeof(Address);
 
-		internal static PrimitiveReadOutcome<T> Read(Address address)
-		{
-			return Read(SdkMemoryCodecContextPort.Instance, address);
-		}
-
+		/// <summary>Reads one supported primitive; an SDK fault is captured, never thrown across a Try method.</summary>
 		internal static PrimitiveReadOutcome<T> Read(IMemoryCodecContextPort port, Address address)
 		{
 			if (!IsSupported)
@@ -737,16 +820,19 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 				return new PrimitiveReadOutcome<T>(false, false, default!, null);
 			}
 
-			return port.TryReadPrimitive(address, out T value, out string? failure)
-				? new PrimitiveReadOutcome<T>(true, true, value, null)
-				: new PrimitiveReadOutcome<T>(true, false, default!, failure);
+			try
+			{
+				return port.TryReadPrimitive(address, out T value, out string? failure)
+					? new PrimitiveReadOutcome<T>(true, true, value, null)
+					: new PrimitiveReadOutcome<T>(true, false, default!, failure);
+			}
+			catch (Exception exception) when (SdkBoundary.IsSdkFault(exception))
+			{
+				return new PrimitiveReadOutcome<T>(true, false, default!, null, exception);
+			}
 		}
 
-		internal static PrimitiveWriteOutcome Write(Address address, T value)
-		{
-			return Write(SdkMemoryCodecContextPort.Instance, address, value);
-		}
-
+		/// <summary>Writes one supported primitive; an SDK fault is captured, never thrown across a Try method.</summary>
 		internal static PrimitiveWriteOutcome Write(IMemoryCodecContextPort port, Address address, T value)
 		{
 			if (!IsSupported)
@@ -754,9 +840,16 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 				return new PrimitiveWriteOutcome(false, false, null);
 			}
 
-			return port.TryWritePrimitive(address, value, out string? failure)
-				? new PrimitiveWriteOutcome(true, true, null)
-				: new PrimitiveWriteOutcome(true, false, failure);
+			try
+			{
+				return port.TryWritePrimitive(address, value, out string? failure)
+					? new PrimitiveWriteOutcome(true, true, null)
+					: new PrimitiveWriteOutcome(true, false, failure);
+			}
+			catch (Exception exception) when (SdkBoundary.IsSdkFault(exception))
+			{
+				return new PrimitiveWriteOutcome(true, false, null, exception);
+			}
 		}
 
 		internal static long GetPayloadBytes(int operationCount)
@@ -779,7 +872,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 				if (!current.Succeeded)
 				{
 					return new PrimitiveBatchReadOutcome<T>(current.Handled, false, values[..index], index,
-						current.Failure);
+						current.Failure, current.Fault);
 				}
 
 				values[index] = current.Value;
@@ -802,7 +895,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 				PrimitiveWriteOutcome outcome = Write(port, current.Address, current.Value);
 				if (!outcome.Succeeded)
 				{
-					return new PrimitiveBatchWriteOutcome(outcome.Handled, false, index, outcome.Failure);
+					return new PrimitiveBatchWriteOutcome(outcome.Handled, false, index, outcome.Failure, outcome.Fault);
 				}
 			}
 
@@ -820,6 +913,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		private readonly MemoryResourceLimits _limits;
 		private readonly IMemoryCodecContextPort _port;
 		private readonly int _threadId;
+		private CheatEngineOperationException? _contextFault;
 		private int _expired;
 		private int _pointerSize;
 		private int _readBytesAdmitted;
@@ -845,6 +939,13 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 			private set;
 		}
 
+		/// <summary>Gets the SDK fault captured by the most recent failed context operation, if any.</summary>
+		internal Exception? Fault
+		{
+			get;
+			private set;
+		}
+
 		public int PointerSize
 		{
 			get
@@ -855,7 +956,23 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 					return _pointerSize;
 				}
 
-				int pointerSize = _port.IsTarget64Bit() ? sizeof(ulong) : sizeof(uint);
+				bool is64Bit;
+				try
+				{
+					is64Bit = _port.IsTarget64Bit();
+				}
+				catch (Exception exception) when (SdkBoundary.IsSdkFault(exception))
+				{
+					// A property cannot return a failure. Throw a Client exception that Core recognizes by identity and
+					// converts back into a classified failure after the consumer codec returns or rethrows it.
+					Fault = exception;
+					Failure = "Cheat Engine could not report the target pointer width.";
+					_contextFault = new CheatEngineOperationException(new CheatEngineFailure(
+						CoreFailureFactory.GetKind(exception), _operation, Failure, exception));
+					throw _contextFault;
+				}
+
+				int pointerSize = is64Bit ? sizeof(ulong) : sizeof(uint);
 				_pointerSize = pointerSize;
 				return pointerSize;
 			}
@@ -869,14 +986,22 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 				return false;
 			}
 
-			if (_port.TryReadBytes(address, destination, out string? failure))
+			try
 			{
-				Failure = null;
-				return true;
-			}
+				if (_port.TryReadBytes(address, destination, out string? failure))
+				{
+					ClearFailure();
+					return true;
+				}
 
-			Failure = failure;
-			return false;
+				SetFailure(failure, null);
+				return false;
+			}
+			catch (Exception exception) when (SdkBoundary.IsSdkFault(exception))
+			{
+				SetFailure(null, exception);
+				return false;
+			}
 		}
 
 		public bool TryWriteBytes(Address address, ReadOnlySpan<byte> source)
@@ -887,14 +1012,46 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 				return false;
 			}
 
-			if (_port.TryWriteBytes(address, source, out string? failure))
+			try
 			{
-				Failure = null;
-				return true;
-			}
+				if (_port.TryWriteBytes(address, source, out string? failure))
+				{
+					ClearFailure();
+					return true;
+				}
 
-			Failure = failure;
-			return false;
+				SetFailure(failure, null);
+				return false;
+			}
+			catch (Exception exception) when (SdkBoundary.IsSdkFault(exception))
+			{
+				SetFailure(null, exception);
+				return false;
+			}
+		}
+
+		/// <summary>Gets whether <paramref name="exception" /> is the pointer-width fault this context threw.</summary>
+		internal bool IsContextFault(Exception exception)
+		{
+			return _contextFault is not null && ReferenceEquals(exception, _contextFault);
+		}
+
+		/// <summary>Creates the failure outcome of a codec that returned <see langword="false" /> or threw a context fault.</summary>
+		internal CodecOutcome CreateFailureOutcome(string defaultMessage)
+		{
+			return new CodecOutcome(false, Failure ?? defaultMessage, Fault);
+		}
+
+		private void SetFailure(string? failure, Exception? fault)
+		{
+			Failure = failure ?? (fault is null ? null : "Cheat Engine raised an SDK fault during the codec operation.");
+			Fault = fault;
+		}
+
+		private void ClearFailure()
+		{
+			Failure = null;
+			Fault = null;
 		}
 
 		internal static TargetMemoryCodecContext Create(
@@ -931,7 +1088,8 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		{
 			if (requestedBytes > limit - admittedBytes)
 			{
-				Failure = $"The memory codec {direction} exceeds the activation {direction} budget of {limit} bytes.";
+				SetFailure($"The memory codec {direction} exceeds the activation {direction} budget of {limit} bytes.",
+					null);
 				return false;
 			}
 

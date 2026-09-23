@@ -30,6 +30,9 @@ internal sealed class SdkMainThreadDispatcher : ICheatEngineDispatcher, IStatefu
 
 	public bool IsMainThread => _lifetime.CanDispatch && MainThread.IsMainThread;
 
+	/// <summary>Gets the activation lifetime that admits this dispatcher's work.</summary>
+	internal CoreLifetime Lifetime => _lifetime;
+
 	public bool TryInvoke(Action callback, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{

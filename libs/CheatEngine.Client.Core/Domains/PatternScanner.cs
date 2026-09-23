@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Diagnostics;
 
 using CheatEngine.Client.Core.Dispatching;
+using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Results;
 using CheatEngine.Client.Scanning;
 using CheatEngine.SDK.Engine.Inspection;
@@ -139,8 +140,21 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		}
 
 		long hostScanStarted = Stopwatch.GetTimestamp();
-		AobScanHostStatus status =
-			_scanPort.TryScan(request.Pattern.Value, request.Options, out IAobMatchList? matchList);
+		AobScanHostStatus status;
+		IAobMatchList? matchList;
+		try
+		{
+			status = _scanPort.TryScan(request.Pattern.Value, request.Options, out matchList);
+		}
+		catch (Exception scanFault) when (SdkBoundary.IsSdkFault(scanFault))
+		{
+			// The SDK call may or may not have run CE's scan. OwnershipHandoff already released a list that was acquired
+			// before the fault, so nothing is left for this method to release.
+			return ScanOutcome.Failed(
+				SdkBoundary.Translate(_scanOperation, scanFault, CheatEngineHostEffect.Unknown, _dispatcher.Lifetime),
+				null);
+		}
+
 		TimeSpan hostScanElapsed = Stopwatch.GetElapsedTime(hostScanStarted);
 		if (matchList is null)
 		{
@@ -154,9 +168,18 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		{
 			outcome = Consume(matchList, status, request, moduleRange, hostScanElapsed, cancellationToken);
 		}
-		catch (Exception consumeFailure)
+		catch (Exception copyFault) when (SdkBoundary.IsSdkFault(copyFault))
 		{
-			ReleaseAfterUnexpectedFailure(matchList, consumeFailure);
+			// A fault while reading the SDK-owned list: CE's scan had returned, so no scan work is outstanding.
+			outcome = ScanOutcome.Failed(
+				CoreFailureFactory.FromException(_scanOperation, copyFault, CheatEngineHostEffect.Completed), null);
+			ScanOutcome released = Release(matchList, outcome);
+			SdkBoundary.ThrowIfActivationEnded(_scanOperation, copyFault, _dispatcher.Lifetime);
+			return released;
+		}
+		catch (Exception lifecycleFault)
+		{
+			ReleaseAfterUnexpectedFailure(matchList, lifecycleFault);
 			throw;
 		}
 
@@ -336,7 +359,20 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 	{
 		ModuleInfo[] modules = new ModuleInfo[_maximumModuleSnapshot];
 		range = ModuleRange.None;
-		InspectionStatus status = _scanPort.EnumerateModules(modules, out int written);
+		InspectionStatus status;
+		int written;
+		try
+		{
+			status = _scanPort.EnumerateModules(modules, out written);
+		}
+		catch (Exception inspectionFault) when (SdkBoundary.IsSdkFault(inspectionFault))
+		{
+			// Module inspection failed before the AOB scan was started.
+			failure = SdkBoundary.Translate(_inModuleOperation, inspectionFault, CheatEngineHostEffect.NotStarted,
+				_dispatcher.Lifetime);
+			return false;
+		}
+
 		if (status != InspectionStatus.Success)
 		{
 			failure = ModuleFailure(

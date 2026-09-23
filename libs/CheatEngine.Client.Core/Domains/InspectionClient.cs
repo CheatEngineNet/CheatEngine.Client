@@ -30,7 +30,7 @@ internal sealed class InspectionClient(
 	{
 		ImmutableArray<ModuleInfo> result = ImmutableArray<ModuleInfo>.Empty;
 		InspectionStatus status = InspectionStatus.InvalidResult;
-		if (!_dispatcher.TryInvoke(() =>
+		if (!SdkBoundary.TryInvoke(_dispatcher, "Inspection.GetModules", () =>
 			{
 				ModuleInfo[] buffer = new ModuleInfo[request.MaximumItems];
 				status = processId.HasValue
@@ -40,7 +40,7 @@ internal sealed class InspectionClient(
 				{
 					result = ImmutableArray.Create(buffer, 0, written);
 				}
-			}, out failure, cancellationToken))
+			}, CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
 		{
 			modules = [];
 			return false;
@@ -69,7 +69,7 @@ internal sealed class InspectionClient(
 	{
 		ImmutableArray<ModuleSectionInfo> result = ImmutableArray<ModuleSectionInfo>.Empty;
 		InspectionStatus status = InspectionStatus.InvalidResult;
-		if (!_dispatcher.TryInvoke(() =>
+		if (!SdkBoundary.TryInvoke(_dispatcher, "Inspection.GetModuleSections", () =>
 			{
 				ModuleSectionInfo[] buffer = new ModuleSectionInfo[request.MaximumItems];
 				status = _inspection.EnumerateSections(moduleName, buffer, out int written);
@@ -77,7 +77,7 @@ internal sealed class InspectionClient(
 				{
 					result = ImmutableArray.Create(buffer, 0, written);
 				}
-			}, out failure, cancellationToken))
+			}, CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
 		{
 			sections = [];
 			return false;
@@ -106,7 +106,7 @@ internal sealed class InspectionClient(
 	{
 		ImmutableArray<MemoryRegionInfo> result = [];
 		InspectionStatus status = InspectionStatus.InvalidResult;
-		if (!_dispatcher.TryInvoke(() =>
+		if (!SdkBoundary.TryInvoke(_dispatcher, "Inspection.GetMemoryRegions", () =>
 			{
 				MemoryRegionInfo[] buffer = new MemoryRegionInfo[request.MaximumItems];
 				status = _inspection.EnumerateMemoryRegions(buffer, out int written);
@@ -114,7 +114,7 @@ internal sealed class InspectionClient(
 				{
 					result = ImmutableArray.Create(buffer, 0, written);
 				}
-			}, out failure, cancellationToken))
+			}, CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
 		{
 			regions = [];
 			return false;
@@ -142,8 +142,9 @@ internal sealed class InspectionClient(
 	{
 		MemoryRegionInfo captured = default;
 		InspectionStatus status = InspectionStatus.InvalidResult;
-		if (!_dispatcher.TryInvoke(() => status = _inspection.GetMemoryRegion(address, out captured),
-				out failure, cancellationToken))
+		if (!SdkBoundary.TryInvoke(_dispatcher, "Inspection.GetMemoryRegion",
+				() => status = _inspection.GetMemoryRegion(address, out captured), CheatEngineHostEffect.Unknown,
+				_lifetime, out failure, cancellationToken))
 		{
 			region = default;
 			return false;
@@ -169,8 +170,9 @@ internal sealed class InspectionClient(
 	{
 		SymbolInfo captured = default;
 		InspectionStatus status = InspectionStatus.InvalidResult;
-		if (!_dispatcher.TryInvoke(() => status = _inspection.GetSymbol(expression, out captured),
-				out failure, cancellationToken))
+		if (!SdkBoundary.TryInvoke(_dispatcher, "Inspection.GetSymbol",
+				() => status = _inspection.GetSymbol(expression, out captured), CheatEngineHostEffect.Unknown,
+				_lifetime, out failure, cancellationToken))
 		{
 			symbol = default;
 			return false;
@@ -196,10 +198,9 @@ internal sealed class InspectionClient(
 	{
 		string? captured = null;
 		bool succeeded = false;
-		if (!_dispatcher.TryInvoke(() =>
-					succeeded = _inspection.TryResolveName(ToNativeAddress(address), out captured),
-				out failure,
-				cancellationToken))
+		if (!SdkBoundary.TryInvoke(_dispatcher, "Inspection.ResolveName",
+				() => succeeded = _inspection.TryResolveName(ToNativeAddress(address), out captured),
+				CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
 		{
 			name = null;
 			return false;
@@ -242,8 +243,11 @@ internal sealed class InspectionClient(
 			return false;
 		}
 
-		if (!_dispatcher.TryInvoke(() => _inspection.RegisterSymbol(registration.Name,
-				ToNativeAddress(registration.Address), registration.DoNotSave), out failure, cancellationToken))
+		// A fault inside registerSymbol leaves the registration unknown: the Client neither claims it nor retries an
+		// unregistration that could remove a symbol it does not own.
+		if (!SdkBoundary.TryInvoke(_dispatcher, "Inspection.RegisterSymbol",
+				() => _inspection.RegisterSymbol(registration.Name, ToNativeAddress(registration.Address),
+					registration.DoNotSave), CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
 		{
 			ReleaseSymbolName(registration.Name);
 			return false;
@@ -301,8 +305,9 @@ internal sealed class InspectionClient(
 	{
 		Address captured = Address.Zero;
 		InspectionStatus status = InspectionStatus.InvalidResult;
-		if (!_dispatcher.TryInvoke(() => status = _inspection.ResolveAddress(expression, options, out captured),
-				out failure, cancellationToken))
+		if (!SdkBoundary.TryInvoke(_dispatcher, "Inspection.ResolveAddress",
+				() => status = _inspection.ResolveAddress(expression, options, out captured),
+				CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
 		{
 			address = default;
 			return false;
@@ -325,7 +330,8 @@ internal sealed class InspectionClient(
 		return default;
 	}
 
-	private static bool TryMap(InspectionStatus status, string operation, out CheatEngineFailure failure)
+	/// <summary>Maps an SDK inspection status by value; internal so the Q48 contract tests can prove it is total.</summary>
+	internal static bool TryMap(InspectionStatus status, string operation, out CheatEngineFailure failure)
 	{
 		if (status == InspectionStatus.Success)
 		{
@@ -358,7 +364,8 @@ internal sealed class InspectionClient(
 		}
 
 		failure = new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, "Inspection.RegisterSymbol",
-			"This client activation already owns a symbol registration with the requested name.");
+			"This client activation already owns a symbol registration with the requested name.", null,
+			CheatEngineHostEffect.NotStarted);
 		return false;
 	}
 

@@ -1,7 +1,9 @@
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 
+using CheatEngine.Client.Core.Dispatching;
 using CheatEngine.Client.Core.Domains;
+using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Core.Tests.TestSupport;
 using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Memory;
@@ -111,6 +113,39 @@ public sealed class MemoryClientDispatchFailureTests
 		Assert.False(client.TryWritePrimitiveBatch(writes, out CheatEngineFailure writeFailure,
 			TestContext.Current.CancellationToken));
 		Assert.Equal(expected, writeFailure);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q33")]
+	public void PreAdmissionCancelledBatchWriteReportsNotStarted()
+	{
+		CoreLifetime lifetime = InertCoreLifetime.Create();
+		MemoryClient client = new(new SdkMainThreadDispatcher(lifetime, new InlineMainThreadInvoker()), lifetime);
+		MemoryPrimitiveBatchWriteRequest<int> writes = new([new MemoryAddressValue<int>(Address, 12)]);
+
+		MemoryPrimitiveBatchWriteOutcome outcome =
+			client.WritePrimitiveBatchDetailed(writes, new CancellationToken(true));
+
+		Assert.False(outcome.Succeeded);
+		Assert.Equal(0, outcome.CompletedCount);
+		Assert.Null(outcome.FailedIndex);
+		Assert.Equal(MemoryBatchWriteEffectState.NotStarted, outcome.EffectState);
+		Assert.Equal(CheatEngineFailureKind.Cancelled, outcome.Cause!.Value.Kind);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, outcome.Cause.Value.HostEffect);
+	}
+
+	[Fact]
+	public void NonCancellationDispatchFailureOfABatchWriteKeepsAnUnknownEffect()
+	{
+		CheatEngineFailure expected = Failure("Test.Batch");
+		MemoryClient client = new(new RejectingDispatcher(expected), InertCoreLifetime.Create());
+
+		MemoryPrimitiveBatchWriteOutcome outcome = client.WritePrimitiveBatchDetailed(
+			new MemoryPrimitiveBatchWriteRequest<int>([new MemoryAddressValue<int>(Address, 12)]),
+			TestContext.Current.CancellationToken);
+
+		Assert.Equal(MemoryBatchWriteEffectState.Unknown, outcome.EffectState);
+		Assert.Equal(expected, outcome.Cause);
 	}
 
 	[Fact]

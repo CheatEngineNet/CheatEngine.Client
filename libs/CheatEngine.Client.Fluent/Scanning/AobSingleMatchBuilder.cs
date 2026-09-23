@@ -30,7 +30,10 @@ public readonly record struct AobSingleMatchBuilder
 	}
 
 	/// <summary>Runs the scan and returns its sole match.</summary>
-	/// <param name="cancellationToken">Cancels before the scan reaches Cheat Engine.</param>
+	/// <param name="cancellationToken">
+	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
+	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
+	/// </param>
 	/// <returns>The sole target address.</returns>
 	/// <exception cref="CheatEngineOperationException">
 	///     The scan failed (including the SDK 1.0.0 indeterminate "no result list" outcome), its returned list had no
@@ -49,7 +52,10 @@ public readonly record struct AobSingleMatchBuilder
 	/// <summary>Runs the scan and attempts to return its sole match.</summary>
 	/// <param name="address">The sole target address when the method returns <see langword="true" />.</param>
 	/// <param name="failure">The scan or cardinality failure when the method returns <see langword="false" />.</param>
-	/// <param name="cancellationToken">Cancels before the scan reaches Cheat Engine.</param>
+	/// <param name="cancellationToken">
+	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
+	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
+	/// </param>
 	/// <returns><see langword="true" /> when the exhaustive result list holds exactly one post-filtered match.</returns>
 	public bool TryExecute(out Address address, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)

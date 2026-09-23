@@ -31,7 +31,10 @@ public readonly struct MemoryPointerChainBuilder
 	}
 
 	/// <summary>Resolves every pointer dereference and offset in the chain.</summary>
-	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <param name="cancellationToken">
+	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
+	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
+	/// </param>
 	/// <returns>The copied final target address.</returns>
 	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
 	public Address Resolve(CancellationToken cancellationToken = default)
@@ -42,7 +45,10 @@ public readonly struct MemoryPointerChainBuilder
 	/// <summary>Tries to resolve every pointer dereference and offset in the chain.</summary>
 	/// <param name="address">The copied final target address when the method returns <see langword="true" />.</param>
 	/// <param name="failure">The classified operation failure when the method returns <see langword="false" />.</param>
-	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <param name="cancellationToken">
+	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
+	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
+	/// </param>
 	/// <returns><see langword="true" /> when the chain was resolved.</returns>
 	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
 	public bool TryResolve(out Address address, out CheatEngineFailure failure,

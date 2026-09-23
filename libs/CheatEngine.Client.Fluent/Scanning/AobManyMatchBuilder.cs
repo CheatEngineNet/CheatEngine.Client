@@ -26,7 +26,10 @@ public readonly record struct AobManyMatchBuilder
 	}
 
 	/// <summary>Runs the scan and returns its materialization-bounded copied result set.</summary>
-	/// <param name="cancellationToken">Cancels before the scan reaches Cheat Engine.</param>
+	/// <param name="cancellationToken">
+	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
+	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
+	/// </param>
 	/// <returns>
 	///     The bounded copied result set; inspect <see cref="AobScanResult.IsTruncated" /> before treating it as
 	///     complete.
@@ -45,7 +48,10 @@ public readonly record struct AobManyMatchBuilder
 	/// <summary>Runs the scan and attempts to return its materialization-bounded copied result set.</summary>
 	/// <param name="result">The bounded copied result set when the method returns <see langword="true" />.</param>
 	/// <param name="failure">The scan or materialization failure when the method returns <see langword="false" />.</param>
-	/// <param name="cancellationToken">Cancels before the scan reaches Cheat Engine.</param>
+	/// <param name="cancellationToken">
+	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
+	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
+	/// </param>
 	/// <returns><see langword="true" /> when the bounded result set was returned.</returns>
 	public bool TryExecute(out AobScanResult result, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)

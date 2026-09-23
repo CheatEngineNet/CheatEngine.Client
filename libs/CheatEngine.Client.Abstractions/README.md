@@ -122,6 +122,38 @@ protected Lua failure, or a non-object result. It is never reported as `NotFound
 result list that Cheat Engine does return remains a normal, successful no-match. The SDK 2.0 migration (see
 `docs/migration/sdk-2.0.md` once it exists) replaces this with the detailed SDK outcome.
 
+### Failure, exception and cancellation contract
+
+`Try*` does not mean "never throws". Every family follows three rules, then the per-family details below:
+
+- **Returned as `CheatEngineFailure`:** request refusals, policy refusals, budget refusals, pre-admission cancellation,
+  Cheat Engine results that are false, absent, indeterminate, or malformed, and every CheatEngine.SDK exception raised by
+  Client-internal SDK work (mapped by exception type, never by message text). No SDK exception type crosses a `Try*`.
+- **Thrown:** `CheatEngineActivationExpiredException` when the activation has ended, `CheatEngineClientLifecycleException`
+  when it is stopping, and `ArgumentException`/`ArgumentNullException`/`ArgumentOutOfRangeException` for invalid
+  arguments (programming errors). An expired activation is never reported as `Cancelled` or `CapabilityUnavailable`.
+- **Consumer code:** exceptions thrown by application-supplied code (dispatcher callbacks, `IMemoryCodec<T>` codecs,
+  `ILuaOperation<T>` operations) are rethrown as the same instance, never converted into a failure.
+
+`CheatEngineFailure.HostEffect` states how far the Cheat Engine primitive got: `NotStarted`, `Started` (effects may
+persist), `Completed` (the primitive returned; the failure happened while Core copied or validated), `CleanupUnconfirmed`
+(a resource or change may remain), or the conservative `Unknown`. A `CancellationToken` never interrupts a Cheat Engine
+call that has started and never removes a callback, primitive, or effect that has begun: it is observed only before
+dispatch and between Client-managed steps.
+
+| Family | Cancellation stops preventing the host effect at | `HostEffect` values produced | Partial effects |
+|---|---|---|---|
+| Dispatcher (`ICheatEngineDispatcher`) | Dispatch admission: a `Cancelled` result proves the callback did not run | `NotStarted` (cancelled), `Unknown` (infrastructure failure) | Whatever the callback did; callback exceptions are rethrown unchanged |
+| Patterns / AOB (`IPatternScanner`, `IPatternScanOutcomeClient`, Fluent `Aob`) | The start of the global `AOBScan`; later cancellation discards the copy | `NotStarted` (validation, module lookup, cancellation before the scan), `Completed` (cancellation or invalid data after the scan, SDK 1.0.0 `IndeterminateHostResult`), `CleanupUnconfirmed` (result-list release not confirmed), `Unknown` (SDK fault during the scan call) | None published: a failed scan never returns a prefix |
+| Memory primitives, codecs, bytes, strings, pointer chains (`IMemoryClient`) | Dispatch admission; one call is one Cheat Engine operation | `NotStarted` (budget, unsupported type), `Unknown` (SDK fault, host refusal) | A codec may perform several reads or writes; a failed write codec can leave earlier writes in place |
+| Memory batches (`IMemoryBatchClient`) | Dispatch admission: a `Cancelled` dispatch reports `MemoryBatchWriteEffectState.NotStarted` | `NotStarted` (admission, pre-dispatch cancellation, unsupported type), `Started` (a completed prefix persists), `Unknown` (SDK fault or other dispatch failure) | `EffectState` is authoritative: `Partial` with `CompletedCount`/`FailedIndex`, never rolled back |
+| Inspection and symbol leases (`IInspectionClient`) | Dispatch admission | `NotStarted` (name already reserved by this activation), `Unknown` (SDK fault) | A faulted `registerSymbol` is not claimed and not retried |
+| Tables (`ITableClient`) | Dispatch admission; `Find` filters a copied snapshot | `NotStarted` (policy, invalid relationship), `Completed` (`Find` cancelled after the snapshot), `Unknown` (SDK fault, `loadTable` fault) | `loadTable` can execute table Lua |
+| Lua typed operations and modules (`ILuaClient`) | Dispatch admission | `NotStarted` (cancellation), otherwise the operation's own failure | Owned by the operation; operation exceptions are rethrown unchanged |
+| Unsafe Lua (`IUnsafeLuaClient`) | Dispatch admission | `NotStarted` (policy), `Unknown` (SDK fault; the script may have run partially) | The script may have run partially before a Lua error |
+| Runtime and Processes (`ICheatEngineRuntime`, `IProcessClient`) | Dispatch admission | Not yet reported (`Unknown`) | Current behavior: only some SDK `Engine*Exception` types are caught, so a `LuaException` from a generated binding can still escape a `Try*`; aligning these domains with the SDK boundary is scheduled with the SDK 2.0 migration work |
+| Capability-gated domains (allocations, assembly, remote execution, debugger, hotkeys, timers, speed, hashing, DBVM, value scans) | Not applicable: no Cheat Engine work is dispatched | `NotStarted` (`CapabilityUnavailable` or `Cancelled`) | None |
+
 ## Contribution and Validation
 
 Changes here are public API changes. Keep request/value types immutable, preserve functional

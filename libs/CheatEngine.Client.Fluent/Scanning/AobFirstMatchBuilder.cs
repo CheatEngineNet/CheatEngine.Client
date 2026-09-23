@@ -36,7 +36,10 @@ public readonly record struct AobFirstMatchBuilder
 	///     Runs the scan and returns its first copied match, or <see langword="null" /> when the returned list held no
 	///     post-filtered match.
 	/// </summary>
-	/// <param name="cancellationToken">Cancels before the scan reaches Cheat Engine.</param>
+	/// <param name="cancellationToken">
+	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
+	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
+	/// </param>
 	/// <returns>The first copied target address, or <see langword="null" />.</returns>
 	/// <exception cref="CheatEngineOperationException">
 	///     The scan operation failed, including the SDK 1.0.0 indeterminate "no result list" outcome.
@@ -56,7 +59,10 @@ public readonly record struct AobFirstMatchBuilder
 	///     The first copied target address, or <see langword="null" /> when the returned list held no post-filtered match.
 	/// </param>
 	/// <param name="failure">The scan failure when the method returns <see langword="false" />.</param>
-	/// <param name="cancellationToken">Cancels before the scan reaches Cheat Engine.</param>
+	/// <param name="cancellationToken">
+	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
+	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
+	/// </param>
 	/// <returns>
 	///     <see langword="true" /> when Cheat Engine returned a result list, including an empty or fully post-filtered one;
 	///     <see langword="false" /> for every failure, including <see cref="CheatEngineFailureKind.IndeterminateHostResult" />.

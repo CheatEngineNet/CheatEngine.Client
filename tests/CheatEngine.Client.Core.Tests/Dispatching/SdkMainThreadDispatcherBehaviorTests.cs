@@ -158,6 +158,62 @@ public sealed class SdkMainThreadDispatcherBehaviorTests
 		Assert.Equal(0, invoker.InvocationCount);
 	}
 
+	[Theory]
+	[InlineData(DispatchForm.Action)]
+	[InlineData(DispatchForm.Function)]
+	[InlineData(DispatchForm.StatefulFunction)]
+	public void TryInvokeContractThrowsLifecycleExceptionsInsteadOfReturningFailure(DispatchForm form)
+	{
+		using ControlledCoreLifetimeContext expiredContext = new()
+		{
+			IsCurrent = false
+		};
+		using CoreLifetime expired = new(expiredContext);
+		using ControlledCoreLifetimeContext stoppingContext = new();
+		using CoreLifetime stopping = new(stoppingContext);
+		stoppingContext.Stop();
+		RecordingMainThreadInvoker invoker = new();
+
+		Assert.Throws<CheatEngineActivationExpiredException>(() => TryInvoke(form,
+			new SdkMainThreadDispatcher(expired, invoker), static () =>
+			{
+			}, TestContext.Current.CancellationToken));
+		CheatEngineClientLifecycleException stoppingException = Assert.Throws<CheatEngineClientLifecycleException>(() =>
+			TryInvoke(form, new SdkMainThreadDispatcher(stopping, invoker), static () =>
+			{
+			}, TestContext.Current.CancellationToken));
+
+		Assert.Equal(CheatEngineFailureKind.InvalidState, stoppingException.Failure.Kind);
+		Assert.Equal(0, invoker.InvocationCount);
+	}
+
+	[Fact]
+	public void PreAdmissionCancellationReportsThatNoCheatEngineWorkStarted()
+	{
+		using ControlledCoreLifetimeContext context = new();
+		using CoreLifetime lifetime = new(context);
+		SdkMainThreadDispatcher dispatcher = new(lifetime, new RecordingMainThreadInvoker());
+
+		bool succeeded = dispatcher.TryInvoke(static () =>
+		{
+		}, out CheatEngineFailure failure, new CancellationToken(true));
+
+		Assert.False(succeeded);
+		Assert.Equal(CheatEngineFailureKind.Cancelled, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
+	}
+
+	[Fact]
+	public void TryInvokeRejectsANullCallbackWithArgumentNullException()
+	{
+		using ControlledCoreLifetimeContext context = new();
+		using CoreLifetime lifetime = new(context);
+		SdkMainThreadDispatcher dispatcher = new(lifetime, new RecordingMainThreadInvoker());
+
+		Assert.Throws<ArgumentNullException>(() =>
+			dispatcher.TryInvoke(null!, out _, TestContext.Current.CancellationToken));
+	}
+
 	[Fact]
 	public void ConstructorRejectsMissingLifecycleOrMainThreadInvoker()
 	{

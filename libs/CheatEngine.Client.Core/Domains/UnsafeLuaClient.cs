@@ -45,14 +45,16 @@ internal sealed class UnsafeLuaClient : IUnsafeLuaClient
 		if (!_policy.EnableUnsafeLuaExecution)
 		{
 			failure = new CheatEngineFailure(CheatEngineFailureKind.CapabilityUnavailable, "Lua.ExecuteUnsafe",
-				"Arbitrary Lua execution was not enabled for this activation.");
+				"Arbitrary Lua execution was not enabled for this activation.", null, CheatEngineHostEffect.NotStarted);
 			return false;
 		}
 
 		string luaStatus = "unknown";
 		string? luaMessage = null;
 		bool succeeded = false;
-		if (!_dispatcher.TryInvoke(() =>
+		// A protected Lua failure is a returned status; only SDK faults (for example a detached runtime) are translated,
+		// with an unknown effect because the script may have run partially.
+		if (!SdkBoundary.TryInvoke(_dispatcher, "Lua.ExecuteUnsafe", () =>
 			{
 				using LuaRuntimeOperation operation = LuaRuntime.AcquireOperation();
 				LuaState state = operation.State;
@@ -68,7 +70,7 @@ internal sealed class UnsafeLuaClient : IUnsafeLuaClient
 				{
 					luaMessage = LuaError.FromStack(state, status).Message;
 				}
-			}, out failure, cancellationToken))
+			}, CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
 		{
 			return false;
 		}

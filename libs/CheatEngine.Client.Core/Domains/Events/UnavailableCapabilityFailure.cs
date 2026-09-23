@@ -21,13 +21,14 @@ internal static class UnavailableCapabilityFailure
 		ArgumentException.ThrowIfNullOrWhiteSpace(operation);
 		lifetime?.ThrowIfInactive(operation);
 
+		// The lifetime is checked first so an expired activation is never reported as cancelled or unavailable. Neither
+		// result starts Cheat Engine work.
 		return cancellationToken.IsCancellationRequested
-			? new CheatEngineFailure(CheatEngineFailureKind.Cancelled, operation,
-				"The operation was cancelled before Cheat Engine work began.")
+			? CoreFailureFactory.Cancelled(operation)
 			: new CheatEngineFailure(CheatEngineFailureKind.CapabilityUnavailable, operation,
 				$"{capabilityName} is unavailable because this Client package currently composes an unavailable adapter. " +
 				"Promotion also requires its ownership, thread-affinity, cleanup, disable, re-enable, and target-change " +
-				"behavior to pass the required Cheat Engine 7.7 x64 live gate.");
+				"behavior to pass the required Cheat Engine 7.7 x64 live gate.", null, CheatEngineHostEffect.NotStarted);
 	}
 
 	internal static T Throw<T>(CheatEngineFailure failure)
