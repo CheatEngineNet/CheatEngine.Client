@@ -32,6 +32,10 @@ module referencing an x64 project is a processor-architecture mismatch.
   `ObservationNeverCarriesFailureMessagesOrExceptionText`, `AddressListsAreBoundedToTheFirstAndLastEntries`).
 - `CapturingLoggerProviderTests`: the Q46 sink keeps templates, never formatted messages, and counts sensitive data
   (`CapturedEventsKeepTemplatesButNeverFormattedMessages`, `SensitiveHitsCountAddressesAndDeclaredValues`).
+- `QualificationPluginSourceComplianceTests`: a source scan of the plugin's own files proves it never touches the SDK's
+  native Lua stack or interop directly (ADR-01) and that every Lua function the harness README marks mutating routes
+  through `QualificationScenarios.RunMutating`
+  (`QualificationPluginUsesOnlyTheClientApiForCheatEngineAccess`, `MutatingLuaFunctionsRouteThroughTheAuthorizationGate`).
 
 ## Run
 
