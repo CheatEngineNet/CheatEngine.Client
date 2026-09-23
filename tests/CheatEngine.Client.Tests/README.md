@@ -16,13 +16,18 @@ The smoke tests compile against the assembled consumer graph and inspect selecte
 handle types. They catch accidental dependency omissions, namespace regressions, and public leakage of `LuaState`,
 `LuaRef`, `CEObject`, `Owned<T>`, `MemScan`, or `FoundList` before package smoke tests run.
 
-The suite is activation-independent. `PackageConsumptionSmokeTests` (traits `Category=PackageConsumption` and
-`Qualification=Q40`) consumes the exact package directory supplied through `CHEATENGINE_CLIENT_PACKAGE_SOURCE`: the CI
-Release leg points it at the packages it uploads, and without it a CI run fails instead of packing its own. Locally,
-without the variable, the tests pack the repository into a temporary feed. `PackagedClientFeedFixture` restores and
-builds everything once, from folders outside any repository, with an isolated NuGet global packages folder and package
-source mapping (`CheatEngine.Client*` from the local feed only, everything else from nuget.org). Every fact writes its
-evidence (package, bridge and hash values) to the test output, which the TRX report keeps. The facts prove that:
+The suite is activation-independent. `PackageConsumptionSmokeTests` consumes the exact package directory supplied
+through `CHEATENGINE_CLIENT_PACKAGE_SOURCE`, validates the template package, and builds isolated consumers. It does
+not replace Core lifecycle tests or the opt-in live validation required for host-dependent capabilities such as value
+scans.
+
+`PackageConsumptionSmokeTests` carries the traits `Category=PackageConsumption` and `Qualification=Q40`. The CI
+Release leg points `CHEATENGINE_CLIENT_PACKAGE_SOURCE` at the packages it uploads, and without it a CI run fails
+instead of packing its own. Locally, without the variable, the tests pack the repository into a temporary feed.
+`PackagedClientFeedFixture` restores and builds everything once, from folders outside any repository, with an isolated
+NuGet global packages folder and package source mapping (`CheatEngine.Client*` from the local feed only, everything
+else from nuget.org). Every fact writes its evidence (package, bridge and hash values) to the test output, which the
+TRX report keeps. The facts prove that:
 
 - `SevenPackagesAndFiveSymbolPackagesAreProduced`, `EveryClientPackageSharesOneVersion` and
   `InterClientDependenciesRequireTheCoPackedVersion`: the seven packages share one MinVer version, the five packages
@@ -45,12 +50,12 @@ evidence (package, bridge and hash values) to the test output, which the TRX rep
 - `IsolatedConsumerDepsJsonRecordsPackagesWithoutWorkspacePaths`: `.deps.json` records the packages, with the SDK
   library carrying the NuGet content hash of the lock (measured, audit A21-02), and no workspace path;
 - `InstantiatedTemplateReferencesTheSdkDirectly` (audit A04-10) and
-  `PackagedClientPluginWithoutDirectSdkReferenceReportsCECLIENT001`.
+  `PackagedClientPluginWithoutDirectSdkReferenceReportsCECLIENT001`;
+- `PluginReferencingSdkTwoReportsCECLIENT017`: a plugin that references a re-versioned `CheatEngine.SDK` 2.x package
+  directly next to the packed Client fails its build with `CECLIENT017` (and NuGet reports NU1608).
 
 These are package-level results (fixture level C2); a Cheat Engine host run of Q40 is a separate qualification.
-`PackageSourceResolutionTests` has no category, so both CI legs check the package source rules. The suite does not
-replace Core lifecycle tests or the opt-in live validation required for host-dependent capabilities such as value
-scans.
+`PackageSourceResolutionTests` has no category, so both CI legs check the package source rules.
 
 `BuildGuardTests` run the repository's MSBuild guard targets against real projects with overridden global properties,
 without restoring or building: `CommittedPinPassesTheSdkGuard`, `SdkMajorTwoPinFailsWithCHEATENGINECLIENT9016`,
@@ -58,11 +63,19 @@ without restoring or building: `CommittedPinPassesTheSdkGuard`, `SdkMajorTwoPinF
 consumed `CheatEngine.SDK` pin cannot move to a 2.x or prerelease package, and that the SDK-side canary build can report
 breakage but never produce a package. `RoslynPinDriftFailsWithCHEATENGINECLIENT9020` proves that the Roslyn pin of the
 packed Lua generator cannot drift from its declared floor, and `LockstepGuardAcceptsMinVerAndRefusesEveryOtherVersionSource`
-that a package version comes from MinVer only (`CHEATENGINECLIENT9019`).
+that a package version comes from MinVer only (`CHEATENGINECLIENT9019`). `SbomGuardRefusesAPackWithoutTheSbom` proves
+that a package cannot be packed without its SPDX SBOM (`CHEATENGINECLIENT9021`).
 
 ## Run
 
 From the repository root:
+
+```powershell
+dotnet test --project .\tests\CheatEngine.Client.Tests\CheatEngine.Client.Tests.csproj --configuration Release
+```
+
+Without `CHEATENGINE_CLIENT_PACKAGE_SOURCE`, that run packs the repository itself. To test the exact packed files, as
+the CI Release leg does:
 
 ```powershell
 dotnet build CheatEngine.Client.slnx --configuration Release
