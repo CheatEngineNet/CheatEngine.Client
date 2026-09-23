@@ -1,6 +1,7 @@
 using CheatEngine.Client.Core.Domains;
 using CheatEngine.Client.Runtime;
 using CheatEngine.SDK.Engine.Runtime;
+using CheatEngine.SDK.Lua.Calls;
 
 namespace CheatEngine.Client.Core.Tests.Domains;
 
@@ -99,12 +100,65 @@ public sealed class TargetArchitectureObserverTests
 		Assert.True(observed.ConfiguredPointerSizeDiffersFromProcessWidth);
 	}
 
+	[Fact]
+	[Trait("Qualification", "Q32")]
+	public void ObserverReportsAFaultedClosingPidReadAsUnconfirmedRatherThanAsATargetChange()
+	{
+		RecordingProbe probe = new(42)
+		{
+			ClosingProcessIdException = new LuaException("getOpenedProcessID failed")
+		};
+
+		ObservedTargetArchitecture observed = TargetArchitectureObserver.Observe(probe, readConfiguredPointerSize: true);
+
+		Assert.False(observed.HasTarget);
+		Assert.False(observed.TargetChangedDuringObservation);
+		Assert.True(observed.TargetUnconfirmed);
+		Assert.False(observed.NoTargetSelected);
+		Assert.Equal(CheatEngineArchitecture.Unknown, observed.Architecture);
+		Assert.Equal(PointerSize.Unknown, observed.ProcessPointerSize);
+		Assert.Equal(ClientCapabilityEvidenceState.Faulted, observed.Is64Bit.Evidence.State);
+		Assert.Equal(TargetArchitectureObserver.TargetUnconfirmedReason, observed.Is64Bit.Evidence.Reason);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q32")]
+	public void ObserverReportsADifferentClosingPidAsATargetChange()
+	{
+		RecordingProbe probe = new(42)
+		{
+			ClosingProcessId = 43
+		};
+
+		ObservedTargetArchitecture observed = TargetArchitectureObserver.Observe(probe, readConfiguredPointerSize: true);
+
+		Assert.False(observed.HasTarget);
+		Assert.True(observed.TargetChangedDuringObservation);
+		Assert.False(observed.TargetUnconfirmed);
+		Assert.Equal(ClientCapabilityEvidenceState.Faulted, observed.Is64Bit.Evidence.State);
+		Assert.Equal(TargetArchitectureObserver.TargetChangedReason, observed.Is64Bit.Evidence.Reason);
+	}
+
 	private sealed class RecordingProbe(long processId) : ITargetArchitectureProbe
 	{
 		internal List<string> Calls
 		{
 			get;
 		} = [];
+
+		/// <summary>The PID returned by the reads after the first one; <see langword="null" /> repeats the first.</summary>
+		internal long? ClosingProcessId
+		{
+			get;
+			init;
+		}
+
+		/// <summary>Thrown by the reads of the opened PID after the first one.</summary>
+		internal Exception? ClosingProcessIdException
+		{
+			get;
+			init;
+		}
 
 		internal bool Is64Bit
 		{
@@ -132,8 +186,14 @@ public sealed class TargetArchitectureObserverTests
 
 		public long GetOpenedProcessId()
 		{
+			bool closing = Calls.Contains(nameof(GetOpenedProcessId));
 			Calls.Add(nameof(GetOpenedProcessId));
-			return processId;
+			if (closing && ClosingProcessIdException is { } exception)
+			{
+				throw exception;
+			}
+
+			return closing ? ClosingProcessId ?? processId : processId;
 		}
 
 		public bool TargetIs64Bit()

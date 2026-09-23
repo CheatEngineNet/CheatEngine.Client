@@ -82,6 +82,41 @@ public sealed class MemoryPointerWidthTests
 		Assert.Equal(0, port.ByteReads);
 	}
 
+	[Theory]
+	[InlineData("FaultedOpenedProcessRead")]
+	[InlineData("FileAsProcessSentinel")]
+	[InlineData("FaultedClosingProcessRead")]
+	public void CodecContextReportsAnUnobservableWidthAsIndeterminateInsteadOfNoTarget(string scenario)
+	{
+		// ADR-08: only an observed PID of zero means that no target is selected. A faulted opened-process read, a PID
+		// that is not a local target, or an unconfirmed observation leaves the width unobservable.
+		PointerWidthPort port = scenario switch
+		{
+			"FaultedOpenedProcessRead" => new PointerWidthPort
+			{
+				ProcessIdException = new LuaException("getOpenedProcessID failed")
+			},
+			"FileAsProcessSentinel" => new PointerWidthPort
+			{
+				ProcessId = 4294967295L
+			},
+			_ => new PointerWidthPort
+			{
+				ClosingProcessIdException = new LuaException("getOpenedProcessID failed")
+			}
+		};
+
+		bool succeeded = CreateClient(port).TryRead(new MemoryReadRequest<int>(_address, new FactCodec()), out _,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(CheatEngineFailureKind.IndeterminateHostResult, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
+		Assert.Contains("process width is unobservable", failure.Message, StringComparison.Ordinal);
+		Assert.DoesNotContain("No target process is selected", failure.Message, StringComparison.Ordinal);
+		Assert.Equal(0, port.ByteReads);
+	}
+
 	[Fact]
 	[Trait("Qualification", "Q31")]
 	public void CustomCodecSeesTheProcessWidthAndTheConfiguredSizeSeparately()
@@ -455,10 +490,32 @@ public sealed class MemoryPointerWidthTests
 			private set;
 		}
 
+		/// <summary>Thrown by every opened-process read (the opening read of the bracket faults).</summary>
+		internal Exception? ProcessIdException
+		{
+			get;
+			init;
+		}
+
+		/// <summary>Thrown by the opened-process reads after the first one (the closing read of the bracket faults).</summary>
+		internal Exception? ClosingProcessIdException
+		{
+			get;
+			init;
+		}
+
 		public long GetOpenedProcessId()
 		{
 			FactCalls.Add(nameof(GetOpenedProcessId));
-			return ProcessId;
+			if (ProcessIdException is { } exception)
+			{
+				throw exception;
+			}
+
+			return ClosingProcessIdException is { } closing &&
+				   FactCalls.Count(static call => call == nameof(GetOpenedProcessId)) > 1
+				? throw closing
+				: ProcessId;
 		}
 
 		public bool TargetIs64Bit()

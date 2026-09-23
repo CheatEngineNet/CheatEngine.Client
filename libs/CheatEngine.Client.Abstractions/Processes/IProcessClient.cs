@@ -24,7 +24,8 @@ public interface IProcessClient
 	/// <remarks>
 	///     Returns <see cref="CheatEngineFailureKind.TargetNotAttached" /> only when Cheat Engine has no selected target,
 	///     and <see cref="CheatEngineFailureKind.IndeterminateHostResult" /> when the selected target changed while it was
-	///     observed. Local operating-system metadata is optional enrichment; its absence leaves the Cheat Engine target
+	///     observed or the closing read of the opened process identifier failed (the facts cannot be attributed to one
+	///     target). Local operating-system metadata is optional enrichment; its absence leaves the Cheat Engine target
 	///     snapshot valid with null name and executable path. An SDK exception raised by a target-fact probe leaves that
 	///     fact unknown; any other fault of a Cheat Engine or local-catalog call is returned as a classified failure and
 	///     never crosses this method. Invalid arguments and Client lifecycle exceptions

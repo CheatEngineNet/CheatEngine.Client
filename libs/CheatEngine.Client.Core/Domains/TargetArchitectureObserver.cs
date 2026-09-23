@@ -13,7 +13,8 @@ namespace CheatEngine.Client.Core.Domains;
 ///         <c>getPointerSize</c>, then the opened PID again. A PID outside [1, <see cref="int.MaxValue" />] (no target,
 ///         a negative or malformed value, or the file-as-process sentinel 4294967295) stops the sequence before any
 ///         target fact is read, because Cheat Engine reports x86 family, 64-bit and pointer size 8 when no target is
-///         opened. A second PID that does not confirm the first discards every target fact.
+///         opened. A second PID that differs from the first (a target change) or that cannot be read (a probe fault, the
+///         target is unconfirmed) discards every target fact.
 ///     </para>
 ///     <para>
 ///         The ISA is derived from the observed families: x86 family and 64-bit is X64, x86 family and 32-bit is X86,
@@ -31,6 +32,10 @@ internal static class TargetArchitectureObserver
 
 	internal const string TargetChangedReason =
 		"The selected target changed during observation, so its facts were discarded.";
+
+	internal const string TargetUnconfirmedReason =
+		"The closing read of the opened process identifier failed, so the target facts could not be attributed to the " +
+		"selected target and were discarded.";
 
 	internal const string ConfiguredPointerSizeNotRequestedReason =
 		"The configured pointer size was not requested by this observation.";
@@ -93,7 +98,13 @@ internal static class TargetArchitectureObserver
 			? ProbeClassifier.Probe(probe.GetConfiguredPointerSize)
 			: ProbeResult<int>.Unknown(ConfiguredPointerSizeNotRequestedReason);
 		ProbeResult<long> confirmation = ProbeClassifier.Probe(probe.GetOpenedProcessId);
-		if (!confirmation.HasValue || confirmation.Value != selectedTarget)
+		if (!confirmation.HasValue)
+		{
+			// A failed closing read is a probe fault, not evidence of a different target.
+			return Unobserved(processId, false, ProbeResult<bool>.Faulted(TargetUnconfirmedReason));
+		}
+
+		if (confirmation.Value != selectedTarget)
 		{
 			return Unobserved(processId, true, ProbeResult<bool>.Faulted(TargetChangedReason));
 		}
@@ -108,7 +119,7 @@ internal static class TargetArchitectureObserver
 		PointerSize configuredKnown = ToKnownPointerSize(configuredBytes);
 		if (configuredBytes is { } raw && !configuredKnown.IsKnown)
 		{
-			// setPointerSize accepts any integer (spike C3 D3(b)): keep the raw value, never map it to a width.
+			// Cheat Engine accepts any configured size (spike C3 D3(b)): keep the raw value, never map it to a width.
 			configuredPointerSize = ProbeResult<int>.Malformed($"Configured pointer size {raw} is outside 4 and 8.");
 		}
 
@@ -183,7 +194,7 @@ internal static class TargetArchitectureObserver
 /// <summary>The copied facts of one PID-bracketed target observation, with the evidence of each fact.</summary>
 /// <param name="ProcessId">The opening PID read and its evidence.</param>
 /// <param name="HasTarget">Whether a local target was selected and confirmed by the closing PID read.</param>
-/// <param name="TargetChangedDuringObservation">Whether the closing PID read did not confirm the opening one.</param>
+/// <param name="TargetChangedDuringObservation">Whether the closing PID read returned a different PID.</param>
 /// <param name="Is64Bit">The <c>targetIs64Bit</c> fact.</param>
 /// <param name="IsX86Family">The <c>targetIsX86</c> fact.</param>
 /// <param name="IsArmFamily">The <c>targetIsArm</c> fact.</param>
@@ -214,4 +225,14 @@ internal readonly record struct ObservedTargetArchitecture(
 	internal bool ConfiguredPointerSizeDiffersFromProcessWidth =>
 		ConfiguredPointerSizeBytes is { } configured && ProcessPointerSize.IsKnown &&
 		configured != ProcessPointerSize.Bytes;
+
+	/// <summary>
+	///     Gets whether the opening read selected a local target but the closing PID read faulted, so the observed facts
+	///     could not be attributed to that target (a probe fault, not a target change).
+	/// </summary>
+	internal bool TargetUnconfirmed =>
+		!HasTarget && !TargetChangedDuringObservation && TargetArchitectureObserver.GetSelectedTarget(ProcessId) is not null;
+
+	/// <summary>Gets whether Cheat Engine reported that no process is opened (an observed PID of zero).</summary>
+	internal bool NoTargetSelected => ProcessId.HasValue && ProcessId.Value == 0;
 }

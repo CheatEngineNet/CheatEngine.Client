@@ -402,6 +402,11 @@ internal sealed class ProcessClient : IProcessClient
 			return new CurrentProcessCapture(CurrentProcessCaptureFailure.TargetChanged);
 		}
 
+		if (facts.TargetUnconfirmed)
+		{
+			return new CurrentProcessCapture(CurrentProcessCaptureFailure.TargetUnconfirmed);
+		}
+
 		ProcessSnapshot snapshot = ObserveSelection(id, hasLocalMetadata ? process : default, facts.Architecture,
 			facts.ProcessPointerSize, operation, out SelectionAdvance? advance);
 		return new CurrentProcessCapture(snapshot)
@@ -435,6 +440,13 @@ internal sealed class ProcessClient : IProcessClient
 				operation,
 				"Cheat Engine's selected target changed while the Client observed it, so the observation cannot be " +
 				"attributed to one target; read the current process again.",
+				null,
+				CheatEngineHostEffect.Completed),
+			CurrentProcessCaptureFailure.TargetUnconfirmed => new CheatEngineFailure(
+				CheatEngineFailureKind.IndeterminateHostResult,
+				operation,
+				"Cheat Engine's opened process identifier could not be read again to confirm the observed target, so " +
+				"the observation cannot be attributed to the selected target; read the current process again.",
 				null,
 				CheatEngineHostEffect.Completed),
 			CurrentProcessCaptureFailure.NoTargetSelected => new CheatEngineFailure(
@@ -638,6 +650,7 @@ internal sealed class ProcessClient : IProcessClient
 		NoTargetSelected,
 		InvalidLocalMetadata,
 		TargetChanged,
+		TargetUnconfirmed,
 		Faulted
 	}
 }

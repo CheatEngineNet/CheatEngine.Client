@@ -361,6 +361,27 @@ public sealed class ProcessClientTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q32")]
+	public void CurrentSnapshotReportsAFaultedConfirmationReadAsUnconfirmedRatherThanAsATargetChange()
+	{
+		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
+		host.LaterOpenedProcessIdException = new LuaException("getOpenedProcessID failed");
+		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
+		ProcessClient client = new(new InlineDispatcher(), host, selectionLifetime);
+
+		bool succeeded = client.TryGetCurrent(out ProcessSnapshot snapshot, out CheatEngineFailure failure,
+			TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(default, snapshot);
+		Assert.Equal(CheatEngineFailureKind.IndeterminateHostResult, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.Completed, failure.HostEffect);
+		Assert.Contains("could not be read again to confirm", failure.Message, StringComparison.Ordinal);
+		Assert.DoesNotContain("changed", failure.Message, StringComparison.Ordinal);
+		Assert.Equal(0, selectionLifetime.Epoch);
+	}
+
+	[Fact]
 	public void TryGetCurrentHonorsCancellationBeforeProductionDispatchAdmission()
 	{
 		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
@@ -900,6 +921,13 @@ public sealed class ProcessClientTests
 			set;
 		}
 
+		/// <summary>Thrown by the reads that follow the first one of a capture (a faulted confirmation read).</summary>
+		internal Exception? LaterOpenedProcessIdException
+		{
+			get;
+			set;
+		}
+
 		internal List<string> Calls
 		{
 			get;
@@ -915,6 +943,11 @@ public sealed class ProcessClientTests
 			}
 
 			int laterRead = Count(nameof(GetOpenedProcessId)) - 2;
+			if (laterRead >= 0 && LaterOpenedProcessIdException is { } laterException)
+			{
+				throw laterException;
+			}
+
 			return laterRead >= 0 && LaterOpenedProcessIds is { Length: > 0 } later
 				? later[Math.Min(laterRead, later.Length - 1)]
 				: OpenedProcessId;

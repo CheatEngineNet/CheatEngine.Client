@@ -1306,9 +1306,11 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 
 		private static CheatEngineFailureKind GetUnavailableWidthKind(ObservedTargetArchitecture facts)
 		{
-			return facts.HasTarget || facts.TargetChangedDuringObservation
-				? CheatEngineFailureKind.IndeterminateHostResult
-				: CheatEngineFailureKind.TargetNotAttached;
+			// ADR-08: only an observed "no process opened" (PID 0) is TargetNotAttached. A faulted, missing or malformed
+			// PID read, a changed or unconfirmed target, and an unreported width leave the width unobservable.
+			return facts.NoTargetSelected
+				? CheatEngineFailureKind.TargetNotAttached
+				: CheatEngineFailureKind.IndeterminateHostResult;
 		}
 
 		private static string GetUnavailableWidthMessage(ObservedTargetArchitecture facts)
@@ -1318,9 +1320,21 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 				return "The selected target changed while the codec context observed its process width.";
 			}
 
-			return facts.HasTarget
-				? "Cheat Engine did not report the process width of the selected target."
-				: "No target process is selected, so the codec context has no process width.";
+			if (facts.HasTarget)
+			{
+				return "Cheat Engine did not report the process width of the selected target.";
+			}
+
+			if (facts.NoTargetSelected)
+			{
+				return "No target process is selected, so the codec context has no process width.";
+			}
+
+			return facts.TargetUnconfirmed
+				? "Cheat Engine's opened process identifier could not be read again to confirm the selected target, so " +
+				  "the process width is unobservable."
+				: "Cheat Engine's opened process identifier could not be observed as a local target, so the process " +
+				  "width is unobservable.";
 		}
 
 		/// <summary>
