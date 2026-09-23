@@ -71,7 +71,12 @@ public sealed partial class WorkflowContractTests
 		"test-dumps-Debug",
 		"test-dumps-Release",
 		"release-notes",
-		"attestation-bundles"
+		"attestation-bundles",
+		// Advisory governance workflows (scorecard.yml, scheduled-health.yml, dependency-submission.yml).
+		"scorecard-results",
+		"sdk-canary-patch",
+		"health-repeat-results",
+		"dependency-snapshot"
 	};
 
 	/// <summary>Binary logs: binlogs-&lt;job&gt; or binlogs-&lt;job&gt;-&lt;configuration&gt;.</summary>
