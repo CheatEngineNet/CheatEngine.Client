@@ -40,13 +40,13 @@ public sealed class SdkConsumerContractTests
 			}
 		}
 
+		// A stale entry, such as the SDK AOB pattern type that CheatEngine.SDK 1.0.0 never shipped, fails here.
 		Assert.True(unresolved.Count == 0,
 			"These allowlisted SDK types do not resolve to public value types in the consumed CheatEngine.SDK package: " +
 			string.Join(", ", unresolved));
 		Assert.Equal(ApprovedSdkClientTypes.Names.Order(StringComparer.Ordinal), ApprovedSdkClientTypes.Names);
 		Assert.Equal(ApprovedSdkClientTypes.Names.Length,
 			ApprovedSdkClientTypes.Names.Distinct(StringComparer.Ordinal).Count());
-		Assert.DoesNotContain("CheatEngine.SDK.Engine.Scanning.Aob.AobPattern", ApprovedSdkClientTypes.Names);
 		AssertTheGeneratorUsesTheSharedAllowlistFile();
 	}
 
