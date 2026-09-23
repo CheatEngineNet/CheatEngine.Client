@@ -21,7 +21,10 @@ internal sealed class InspectionClient(
 	private readonly IInspectionPort _inspection = inspection ?? new SdkInspectionPort();
 
 	private readonly CoreLifetime _lifetime = lifetime ?? throw new ArgumentNullException(nameof(lifetime));
-	private readonly HashSet<string> _registeredSymbolNames = new(StringComparer.Ordinal);
+
+	// Cheat Engine's case rules for user symbols are not established, so the activation-local reservation is
+	// conservative: names that differ only by case are treated as the same name.
+	private readonly HashSet<string> _registeredSymbolNames = new(StringComparer.OrdinalIgnoreCase);
 	private readonly Lock _registeredSymbolNamesLock = new();
 
 	public bool TryGetModules(InspectionCollectionRequest request, out ImmutableArray<ModuleInfo> modules,
@@ -243,13 +246,33 @@ internal sealed class InspectionClient(
 			return false;
 		}
 
-		// A fault inside registerSymbol leaves the registration unknown: the Client neither claims it nor retries an
+		// Collision preflight inside the same dispatched callback (audit A14-25, A14-39): registerSymbol would shadow or
+		// replace a definition that already resolves, so only a name that resolves to nothing is registered. A fault
+		// inside registerSymbol leaves the registration unknown: the Client neither claims it nor retries an
 		// unregistration that could remove a symbol it does not own.
-		if (!SdkBoundary.TryInvoke(_dispatcher, "Inspection.RegisterSymbol",
-				() => _inspection.RegisterSymbol(registration.Name, ToNativeAddress(registration.Address),
-					registration.DoNotSave), CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
+		InspectionStatus preflight = InspectionStatus.InvalidResult;
+		bool registered = false;
+		if (!SdkBoundary.TryInvoke(_dispatcher, "Inspection.RegisterSymbol", () =>
+				{
+					preflight = _inspection.ResolveAddress(new SymbolExpression(registration.Name), default, out _);
+					if (preflight != InspectionStatus.NotFound)
+					{
+						return;
+					}
+
+					_inspection.RegisterSymbol(registration.Name, ToNativeAddress(registration.Address),
+						registration.DoNotSave);
+					registered = true;
+				}, CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
 		{
 			ReleaseSymbolName(registration.Name);
+			return false;
+		}
+
+		if (!registered)
+		{
+			ReleaseSymbolName(registration.Name);
+			failure = CreateCollisionFailure(preflight);
 			return false;
 		}
 
@@ -257,7 +280,7 @@ internal sealed class InspectionClient(
 			registration,
 			_dispatcher,
 			lease => _lifetime.Untrack(lease),
-			_inspection.UnregisterSymbol,
+			ReleaseOwnedSymbol,
 			ReleaseSymbolName);
 		try
 		{
@@ -350,6 +373,56 @@ internal sealed class InspectionClient(
 		};
 		failure = new CheatEngineFailure(kind, operation, $"Cheat Engine inspection returned '{status}'.");
 		return false;
+	}
+
+	/// <summary>The refusal of a registration whose name already resolves or whose collision check failed.</summary>
+	private static CheatEngineFailure CreateCollisionFailure(InspectionStatus preflight)
+	{
+		if (preflight == InspectionStatus.Success)
+		{
+			return new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, "Inspection.RegisterSymbol",
+				"The symbol name already resolves in Cheat Engine (a registered symbol, a module or an expression that " +
+				"parses as an address); registering it would shadow or replace that definition.", null,
+				CheatEngineHostEffect.NotStarted);
+		}
+
+		TryMap(preflight, "Inspection.RegisterSymbol", out CheatEngineFailure mapped);
+		return new CheatEngineFailure(mapped.Kind, mapped.Operation,
+			$"The symbol collision check returned '{preflight}', so the ownership of the name cannot be established; " +
+			"nothing was registered.", null, CheatEngineHostEffect.NotStarted);
+	}
+
+	/// <summary>
+	///     Runs on Cheat Engine's main thread for a lease: unregisters the name only when it still resolves to the leased
+	///     address (audit A14-25, same rule as the SDK 2.0 symbol leases).
+	/// </summary>
+	/// <remarks>
+	///     Best effort, not atomic: a third party can replace the name between the lookup and the unregistration, and a
+	///     re-registration by a third party at the same address is indistinguishable from the lease's own registration.
+	/// </remarks>
+	private SymbolLeaseRelease ReleaseOwnedSymbol(string name, Address leasedAddress)
+	{
+		try
+		{
+			InspectionStatus status = _inspection.ResolveAddress(new SymbolExpression(name), default,
+				out Address current);
+			switch (status)
+			{
+				case InspectionStatus.Success when current.Value == leasedAddress.Value:
+					_inspection.UnregisterSymbol(name);
+					return new SymbolLeaseRelease(SymbolLeaseReleaseKind.Released, null);
+				case InspectionStatus.Success:
+					return new SymbolLeaseRelease(SymbolLeaseReleaseKind.Replaced, null);
+				case InspectionStatus.NotFound:
+					return new SymbolLeaseRelease(SymbolLeaseReleaseKind.ExternallyRemoved, null);
+				default:
+					return new SymbolLeaseRelease(SymbolLeaseReleaseKind.CleanupUnavailable, null);
+			}
+		}
+		catch (Exception exception) when (SdkBoundary.IsSdkFault(exception))
+		{
+			return new SymbolLeaseRelease(SymbolLeaseReleaseKind.CleanupUnavailable, exception);
+		}
 	}
 
 	private bool TryReserveSymbolName(string name, out CheatEngineFailure failure)

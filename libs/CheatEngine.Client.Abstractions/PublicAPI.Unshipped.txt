@@ -677,3 +677,12 @@ CheatEngine.Client.Memory.IMemoryPointerWidthContext.ConfiguredPointerSize.get -
 CheatEngine.Client.Memory.IMemoryPointerWidthContext.ConfiguredPointerSizeBytes.get -> int?
 CheatEngine.Client.Memory.IMemoryPointerWidthContext.ConfiguredPointerSizeDiffersFromProcessWidth.get -> bool
 CheatEngine.Client.Memory.IMemoryPointerWidthContext.ProcessPointerSize.get -> CheatEngine.SDK.Engine.Runtime.PointerSize
+CheatEngine.Client.Inspection.IDetailedSymbolRegistrationLease
+CheatEngine.Client.Inspection.IDetailedSymbolRegistrationLease.ReleaseDetailed() -> CheatEngine.Client.Inspection.SymbolLeaseReleaseKind
+CheatEngine.Client.Inspection.SymbolLeaseReleaseKind
+CheatEngine.Client.Inspection.SymbolLeaseReleaseKind.AlreadyReleased = 2 -> CheatEngine.Client.Inspection.SymbolLeaseReleaseKind
+CheatEngine.Client.Inspection.SymbolLeaseReleaseKind.CleanupUnavailable = 5 -> CheatEngine.Client.Inspection.SymbolLeaseReleaseKind
+CheatEngine.Client.Inspection.SymbolLeaseReleaseKind.ExternallyRemoved = 4 -> CheatEngine.Client.Inspection.SymbolLeaseReleaseKind
+CheatEngine.Client.Inspection.SymbolLeaseReleaseKind.Released = 1 -> CheatEngine.Client.Inspection.SymbolLeaseReleaseKind
+CheatEngine.Client.Inspection.SymbolLeaseReleaseKind.Replaced = 3 -> CheatEngine.Client.Inspection.SymbolLeaseReleaseKind
+CheatEngine.Client.Inspection.SymbolLeaseReleaseKind.Unknown = 0 -> CheatEngine.Client.Inspection.SymbolLeaseReleaseKind

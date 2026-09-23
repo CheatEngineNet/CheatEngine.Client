@@ -175,6 +175,171 @@ public sealed class InspectionClientBehaviorTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q16")]
+	public void RegisterSymbolRejectsANameThatAlreadyResolvesBeforeAnyRegistration()
+	{
+		// A14-39: registerSymbol would shadow or replace a definition that already resolves (a third-party symbol, a
+		// module, or an expression that parses as an address).
+		using ControlledCoreLifetimeContext context = new();
+		using CoreLifetime lifetime = new(context);
+		FakeInspectionPort port = new();
+		port.Symbols["thirdPartySymbol"] = new Address(0x500000);
+		InspectionClient client = CreateClient(lifetime, port);
+
+		bool succeeded = client.TryRegisterSymbol(new SymbolRegistration("thirdPartySymbol", new Address(0x401000)),
+			out ISymbolRegistrationLease? lease, out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Null(lease);
+		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
+		Assert.Contains("already resolves", failure.Message, StringComparison.Ordinal);
+		Assert.Equal(0, port.RegisterCalls);
+		Assert.Equal(new SymbolExpression("thirdPartySymbol"), port.LastAddressExpression);
+		Assert.Equal(default, port.LastAddressOptions);
+		Assert.Equal(new Address(0x500000), port.Symbols["thirdPartySymbol"]);
+	}
+
+	[Theory]
+	[InlineData(InspectionStatus.GlobalUnavailable, CheatEngineFailureKind.CapabilityUnavailable)]
+	[InlineData(InspectionStatus.LuaFailure, CheatEngineFailureKind.LuaError)]
+	[InlineData(InspectionStatus.InvalidResult, CheatEngineFailureKind.InvalidHostResult)]
+	public void RegisterSymbolRejectsWhenTheCollisionLookupFails(InspectionStatus status,
+		CheatEngineFailureKind expectedKind)
+	{
+		using ControlledCoreLifetimeContext context = new();
+		using CoreLifetime lifetime = new(context);
+		FakeInspectionPort port = new()
+		{
+			ResolveStatusOverride = status
+		};
+		InspectionClient client = CreateClient(lifetime, port);
+		SymbolRegistration registration = new("fixture-symbol", new Address(0x401000));
+
+		bool succeeded = client.TryRegisterSymbol(registration, out ISymbolRegistrationLease? lease,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Null(lease);
+		Assert.Equal(expectedKind, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
+		Assert.Contains("ownership of the name cannot be established", failure.Message, StringComparison.Ordinal);
+		Assert.Equal(0, port.RegisterCalls);
+
+		port.ResolveStatusOverride = null;
+		Assert.True(client.TryRegisterSymbol(registration, out ISymbolRegistrationLease? retry, out _,
+			TestContext.Current.CancellationToken), "A failed check releases the activation-local reservation.");
+		retry!.Dispose();
+	}
+
+	[Fact]
+	public void RegisterSymbolReservationIsCaseInsensitive()
+	{
+		// Cheat Engine's case rules for user symbols are not established, so the reservation is conservative.
+		using ControlledCoreLifetimeContext context = new();
+		using CoreLifetime lifetime = new(context);
+		FakeInspectionPort port = new();
+		InspectionClient client = CreateClient(lifetime, port);
+
+		Assert.True(client.TryRegisterSymbol(new SymbolRegistration("PlayerHealth", new Address(0x401000)),
+			out ISymbolRegistrationLease? lease, out _, TestContext.Current.CancellationToken));
+		bool duplicate = client.TryRegisterSymbol(new SymbolRegistration("playerhealth", new Address(0x402000)),
+			out ISymbolRegistrationLease? second, out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.False(duplicate);
+		Assert.Null(second);
+		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
+		Assert.Equal(1, port.RegisterCalls);
+		lease!.Dispose();
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q16")]
+	public void LeaseUnregistersWhenTheNameStillMapsToTheLeasedAddress()
+	{
+		using ControlledCoreLifetimeContext context = new();
+		using CoreLifetime lifetime = new(context);
+		FakeInspectionPort port = new();
+		InspectionClient client = CreateClient(lifetime, port);
+		Assert.True(client.TryRegisterSymbol(new SymbolRegistration("fixture-symbol", new Address(0x401000)),
+			out ISymbolRegistrationLease? lease, out _, TestContext.Current.CancellationToken));
+
+		SymbolLeaseReleaseKind outcome = Assert.IsAssignableFrom<IDetailedSymbolRegistrationLease>(lease)
+			.ReleaseDetailed();
+
+		Assert.Equal(SymbolLeaseReleaseKind.Released, outcome);
+		Assert.Equal(["fixture-symbol"], port.UnregisteredNames);
+		Assert.True(lease.IsReleased);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q16")]
+	public void LeaseSkipsUnregisterWhenTheNameWasReplacedByAThirdParty()
+	{
+		// A14-25: a name that a third party re-registered at another address is never removed by the Client.
+		using ControlledCoreLifetimeContext context = new();
+		using CoreLifetime lifetime = new(context);
+		FakeInspectionPort port = new();
+		InspectionClient client = CreateClient(lifetime, port);
+		Assert.True(client.TryRegisterSymbol(new SymbolRegistration("fixture-symbol", new Address(0x401000)),
+			out ISymbolRegistrationLease? lease, out _, TestContext.Current.CancellationToken));
+		port.Symbols["fixture-symbol"] = new Address(0x777000);
+
+		SymbolLeaseReleaseKind outcome = Assert.IsAssignableFrom<IDetailedSymbolRegistrationLease>(lease)
+			.ReleaseDetailed();
+		lease.Dispose();
+
+		Assert.Equal(SymbolLeaseReleaseKind.Replaced, outcome);
+		Assert.Empty(port.UnregisteredNames);
+		Assert.Equal(new Address(0x777000), port.Symbols["fixture-symbol"]);
+		Assert.True(lease.IsReleased);
+	}
+
+	[Fact]
+	public void LeaseReportsExternallyRemovedWhenTheNameNoLongerResolves()
+	{
+		using ControlledCoreLifetimeContext context = new();
+		using CoreLifetime lifetime = new(context);
+		FakeInspectionPort port = new();
+		InspectionClient client = CreateClient(lifetime, port);
+		Assert.True(client.TryRegisterSymbol(new SymbolRegistration("fixture-symbol", new Address(0x401000)),
+			out ISymbolRegistrationLease? lease, out _, TestContext.Current.CancellationToken));
+		port.Symbols.Remove("fixture-symbol");
+
+		SymbolLeaseReleaseKind outcome = Assert.IsAssignableFrom<IDetailedSymbolRegistrationLease>(lease)
+			.ReleaseDetailed();
+
+		Assert.Equal(SymbolLeaseReleaseKind.ExternallyRemoved, outcome);
+		Assert.Empty(port.UnregisteredNames);
+		Assert.True(lease.IsReleased);
+		Assert.True(client.TryRegisterSymbol(new SymbolRegistration("fixture-symbol", new Address(0x401000)),
+			out ISymbolRegistrationLease? again, out _, TestContext.Current.CancellationToken));
+		again!.Dispose();
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q43")]
+	public void LeaseWhoseOwnershipCheckFailsStaysActiveUntilACleanupRetrySucceeds()
+	{
+		using ControlledCoreLifetimeContext context = new();
+		using CoreLifetime lifetime = new(context);
+		FakeInspectionPort port = new();
+		InspectionClient client = CreateClient(lifetime, port);
+		Assert.True(client.TryRegisterSymbol(new SymbolRegistration("fixture-symbol", new Address(0x401000)),
+			out ISymbolRegistrationLease? lease, out _, TestContext.Current.CancellationToken));
+		port.ResolveStatusOverride = InspectionStatus.LuaFailure;
+
+		CheatEngineOperationException exception = Assert.Throws<CheatEngineOperationException>(lease!.Dispose);
+		port.ResolveStatusOverride = null;
+		lease.Dispose();
+
+		Assert.Equal(CheatEngineHostEffect.CleanupUnconfirmed, exception.Failure.HostEffect);
+		Assert.True(lease.IsReleased);
+		Assert.Equal(["fixture-symbol"], port.UnregisteredNames);
+	}
+
+	[Fact]
 	public void CancelledInspectionDoesNotContactTheSdkPort()
 	{
 		using ControlledCoreLifetimeContext context = new();
@@ -391,13 +556,38 @@ public sealed class InspectionClientBehaviorTests
 			return InspectionStatus.Success;
 		}
 
+		/// <summary>Gets Cheat Engine's registered symbols as the fake models them (ordinal names).</summary>
+		internal Dictionary<string, Address> Symbols
+		{
+			get;
+		} = new(StringComparer.Ordinal);
+
+		/// <summary>Forces the status of every address resolution, for example a failed collision check.</summary>
+		internal InspectionStatus? ResolveStatusOverride
+		{
+			get;
+			set;
+		}
+
 		public InspectionStatus ResolveAddress(SymbolExpression expression, AddressResolutionOptions options,
 			out Address address)
 		{
 			LastAddressExpression = expression;
 			LastAddressOptions = options;
+			if (ResolveStatusOverride is { } forced)
+			{
+				address = default;
+				return forced;
+			}
+
+			if (Symbols.TryGetValue(expression.Value, out address))
+			{
+				return InspectionStatus.Success;
+			}
+
+			// An unregistered name does not resolve unless the test configured an address for any expression.
 			address = ResolvedAddress;
-			return InspectionStatus.Success;
+			return ResolvedAddress == Address.Zero ? InspectionStatus.NotFound : InspectionStatus.Success;
 		}
 
 		public bool TryResolveName(nuint address, out string? name)
@@ -413,11 +603,13 @@ public sealed class InspectionClientBehaviorTests
 			LastRegisteredName = name;
 			LastRegisteredAddress = address;
 			LastRegisteredDoNotSave = doNotSave;
+			Symbols[name] = Address.FromUInt64(address);
 		}
 
 		public void UnregisterSymbol(string name)
 		{
 			UnregisteredNames.Add(name);
+			Symbols.Remove(name);
 		}
 	}
 }

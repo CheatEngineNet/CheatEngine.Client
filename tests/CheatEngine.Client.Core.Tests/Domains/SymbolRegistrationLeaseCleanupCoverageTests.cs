@@ -21,7 +21,11 @@ public sealed class SymbolRegistrationLeaseCleanupCoverageTests
 				events.Add("untrack");
 				throw new InvalidOperationException("untracking failed");
 			},
-			name => events.Add("unregister:" + name),
+			(name, _) =>
+			{
+				events.Add("unregister:" + name);
+				return new SymbolLeaseRelease(SymbolLeaseReleaseKind.Released, null);
+			},
 			name => events.Add("release-name:" + name));
 
 		InvalidOperationException exception = Assert.Throws<InvalidOperationException>(lease.Dispose);

@@ -26,7 +26,11 @@ public sealed class SymbolRegistrationLeaseTests
 				registry.Untrack(registeredLease);
 				events.Add("untrack");
 			},
-			_ => events.Add("unregister"),
+			(_, _) =>
+			{
+				events.Add("unregister");
+				return new SymbolLeaseRelease(SymbolLeaseReleaseKind.Released, null);
+			},
 			_ => events.Add("release-name"));
 		registry.Track(lease);
 
@@ -41,6 +45,81 @@ public sealed class SymbolRegistrationLeaseTests
 		Assert.True(lease.IsReleased);
 		Assert.Equal(["unregister", "untrack", "release-name"], events);
 		Assert.Equal(2, dispatcher.InvocationCount);
+	}
+
+	[Theory]
+	[Trait("Qualification", "Q16")]
+	[InlineData(SymbolLeaseReleaseKind.Released)]
+	[InlineData(SymbolLeaseReleaseKind.Replaced)]
+	[InlineData(SymbolLeaseReleaseKind.ExternallyRemoved)]
+	public void TerminalReleaseOutcomesReleaseTheReservationAndReturnTheOutcome(SymbolLeaseReleaseKind outcome)
+	{
+		List<string> events = [];
+		SymbolRegistrationLease lease = CreateLease(new RetriableDispatcher(), events, outcome);
+
+		SymbolLeaseReleaseKind first = lease.ReleaseDetailed();
+		SymbolLeaseReleaseKind second = lease.ReleaseDetailed();
+
+		Assert.Equal(outcome, first);
+		Assert.Equal(SymbolLeaseReleaseKind.AlreadyReleased, second);
+		Assert.True(lease.IsReleased);
+		Assert.Equal(["release:" + outcome, "untrack", "release-name"], events);
+	}
+
+	[Fact]
+	public void ReleaseDetailedIsIdempotentAndReportsAlreadyReleased()
+	{
+		List<string> events = [];
+		RetriableDispatcher dispatcher = new();
+		SymbolRegistrationLease lease = CreateLease(dispatcher, events, SymbolLeaseReleaseKind.Released);
+
+		lease.Dispose();
+		SymbolLeaseReleaseKind again = lease.ReleaseDetailed();
+		lease.Dispose();
+
+		Assert.Equal(SymbolLeaseReleaseKind.AlreadyReleased, again);
+		Assert.Equal(1, dispatcher.InvocationCount);
+		Assert.Equal(["release:Released", "untrack", "release-name"], events);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q43")]
+	public void LeaseLookupFailureKeepsTheLeaseActiveAndDisposeReportsCleanupUnconfirmed()
+	{
+		List<string> events = [];
+		InvalidOperationException fault = new("the lookup faulted");
+		SymbolRegistrationLease lease = new(
+			new SymbolRegistration("fixture-symbol", new Address(0x401000)),
+			new RetriableDispatcher(),
+			_ => events.Add("untrack"),
+			(_, _) => new SymbolLeaseRelease(SymbolLeaseReleaseKind.CleanupUnavailable, fault),
+			_ => events.Add("release-name"));
+
+		SymbolLeaseReleaseKind detailed = lease.ReleaseDetailed();
+		CheatEngineOperationException exception = Assert.Throws<CheatEngineOperationException>(lease.Dispose);
+
+		Assert.Equal(SymbolLeaseReleaseKind.CleanupUnavailable, detailed);
+		Assert.Equal(CheatEngineFailureKind.IndeterminateHostResult, exception.Failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.CleanupUnconfirmed, exception.Failure.HostEffect);
+		Assert.Equal("Inspection.ReleaseSymbol", exception.Failure.Operation);
+		Assert.Same(fault, exception.Failure.Exception);
+		Assert.False(lease.IsReleased);
+		Assert.Empty(events);
+	}
+
+	private static SymbolRegistrationLease CreateLease(RetriableDispatcher dispatcher, List<string> events,
+		SymbolLeaseReleaseKind outcome)
+	{
+		return new SymbolRegistrationLease(
+			new SymbolRegistration("fixture-symbol", new Address(0x401000)),
+			dispatcher,
+			_ => events.Add("untrack"),
+			(_, _) =>
+			{
+				events.Add("release:" + outcome);
+				return new SymbolLeaseRelease(outcome, null);
+			},
+			_ => events.Add("release-name"));
 	}
 
 	private sealed class RetriableDispatcher : ICheatEngineDispatcher

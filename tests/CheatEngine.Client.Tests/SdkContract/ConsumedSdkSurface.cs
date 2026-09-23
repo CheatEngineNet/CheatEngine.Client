@@ -92,6 +92,7 @@ internal static class ConsumedSdkSurface
 		"CheatEngine.Client.Core M CheatEngine.SDK.Engine.Inspection.ModuleInfo::get_ImageSize()->System.Nullable`1<CheatEngine.SDK.Engine.Inspection.MemorySize>",
 		"CheatEngine.Client.Core M CheatEngine.SDK.Engine.Inspection.ModuleInfo::get_Name()->string",
 		"CheatEngine.Client.Core M CheatEngine.SDK.Engine.Inspection.ModuleName::get_Value()->string",
+		"CheatEngine.Client.Core M CheatEngine.SDK.Engine.Inspection.SymbolExpression::.ctor(string)->void",
 		"CheatEngine.Client.Core M CheatEngine.SDK.Engine.Inspection.TargetProcessId::.ctor(int32)->void",
 		"CheatEngine.Client.Core M CheatEngine.SDK.Engine.Inspection.TargetProcessId::get_Value()->int32",
 		"CheatEngine.Client.Core M CheatEngine.SDK.Engine.Inspection.TargetProcessId::op_Inequality(CheatEngine.SDK.Engine.Inspection.TargetProcessId,CheatEngine.SDK.Engine.Inspection.TargetProcessId)->boolean",
