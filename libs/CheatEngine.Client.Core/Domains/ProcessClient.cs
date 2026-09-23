@@ -16,19 +16,19 @@ internal sealed class ProcessClient : IProcessClient
 	private readonly Action<string>? _admitStatefulOperation;
 	private readonly ICheatEngineDispatcher _dispatcher;
 	private readonly IProcessHost _host;
+	private readonly CoreLifetime? _lifetime;
 	private readonly Lock _selectionGate = new();
 	private readonly TargetSelectionLifetime _selectionLifetime;
 	private ProcessSelection? _lastSelection;
 
 	internal ProcessClient(ICheatEngineDispatcher dispatcher, CoreLifetime lifetime)
-		: this(dispatcher, new LocalProcessHost(),
-			lifetime?.TargetSelection ?? throw new ArgumentNullException(nameof(lifetime)), lifetime.ThrowIfInactive)
+		: this(dispatcher, new LocalProcessHost(), lifetime)
 	{
 	}
 
 	internal ProcessClient(ICheatEngineDispatcher dispatcher, IProcessHost host, CoreLifetime lifetime)
 		: this(dispatcher, host, lifetime?.TargetSelection ?? throw new ArgumentNullException(nameof(lifetime)),
-			lifetime.ThrowIfInactive)
+			lifetime.ThrowIfInactive, lifetime)
 	{
 	}
 
@@ -41,12 +41,14 @@ internal sealed class ProcessClient : IProcessClient
 	}
 
 	internal ProcessClient(ICheatEngineDispatcher dispatcher, IProcessHost host,
-		TargetSelectionLifetime selectionLifetime, Action<string>? admitStatefulOperation)
+		TargetSelectionLifetime selectionLifetime, Action<string>? admitStatefulOperation,
+		CoreLifetime? lifetime = null)
 	{
 		_dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
 		_host = host ?? throw new ArgumentNullException(nameof(host));
 		_selectionLifetime = selectionLifetime ?? throw new ArgumentNullException(nameof(selectionLifetime));
 		_admitStatefulOperation = admitStatefulOperation;
+		_lifetime = lifetime;
 	}
 
 	public bool TryGetCurrent(
@@ -104,7 +106,17 @@ internal sealed class ProcessClient : IProcessClient
 		if (!_dispatcher.TryInvoke(
 				() =>
 				{
-					_host.OpenProcess(processId.Value);
+					try
+					{
+						// openProcess also resets Cheat Engine's configured pointer size (spike C3 D3(c)).
+						_host.OpenProcess(processId.Value);
+					}
+					catch (Exception exception) when (SdkBoundary.IsSdkFault(exception))
+					{
+						captured = new CurrentProcessCapture(exception);
+						return;
+					}
+
 					captured = CaptureCurrent("Processes.Attach");
 				},
 				out failure,
@@ -323,9 +335,23 @@ internal sealed class ProcessClient : IProcessClient
 		return TryGetCapturedSnapshot(captured, operation, out snapshot, out failure);
 	}
 
+	/// <summary>
+	///     Observes the selected target with the PID first and bracketed (spike C3 D2): the opened PID, the local
+	///     metadata, the target facts, then the opened PID again. An SDK exception from a fact probe leaves that fact
+	///     unknown; any other fault of a Cheat Engine or local-catalog call is captured and returned as a failure.
+	/// </summary>
 	private CurrentProcessCapture CaptureCurrent(string operation)
 	{
-		long processId = _host.GetOpenedProcessId();
+		long processId;
+		try
+		{
+			processId = _host.GetOpenedProcessId();
+		}
+		catch (Exception exception) when (SdkBoundary.IsSdkFault(exception))
+		{
+			return new CurrentProcessCapture(exception);
+		}
+
 		if (processId is <= 0 or > int.MaxValue)
 		{
 			ClearObservedSelection(operation);
@@ -333,18 +359,34 @@ internal sealed class ProcessClient : IProcessClient
 		}
 
 		TargetProcessId id = new(checked((int) processId));
-		bool hasLocalMetadata = _host.TryGetLocalProcess(id.Value, out LocalProcessInfo process);
-		if (hasLocalMetadata && process.Id != id.Value)
+		bool hasLocalMetadata;
+		LocalProcessInfo process;
+		ObservedTargetArchitecture facts;
+		try
 		{
-			return new CurrentProcessCapture(CurrentProcessCaptureFailure.InvalidLocalMetadata, process.Id);
+			hasLocalMetadata = _host.TryGetLocalProcess(id.Value, out process);
+			if (hasLocalMetadata && process.Id != id.Value)
+			{
+				return new CurrentProcessCapture(CurrentProcessCaptureFailure.InvalidLocalMetadata, process.Id);
+			}
+
+			facts = TargetArchitectureObserver.ObserveSelected(_host, processId, readConfiguredPointerSize: false);
+		}
+		catch (Exception exception) when (SdkBoundary.IsSdkFault(exception))
+		{
+			return new CurrentProcessCapture(exception);
 		}
 
-		CheatEngineArchitecture architecture = TryGetTargetArchitecture();
-		return new CurrentProcessCapture(ObserveSelection(id, hasLocalMetadata ? process : default, architecture,
-			operation));
+		if (facts.TargetChangedDuringObservation)
+		{
+			return new CurrentProcessCapture(CurrentProcessCaptureFailure.TargetChanged);
+		}
+
+		return new CurrentProcessCapture(ObserveSelection(id, hasLocalMetadata ? process : default,
+			facts.Architecture, facts.ProcessPointerSize, operation));
 	}
 
-	private static bool TryGetCapturedSnapshot(
+	private bool TryGetCapturedSnapshot(
 		CurrentProcessCapture captured,
 		string operation,
 		out ProcessSnapshot snapshot,
@@ -360,6 +402,17 @@ internal sealed class ProcessClient : IProcessClient
 		snapshot = default;
 		failure = captured.Failure switch
 		{
+			// A fault of openProcess, of the PID read or of the local catalog: whether a selection change happened is
+			// unknown, so the host effect stays unknown.
+			CurrentProcessCaptureFailure.Faulted => SdkBoundary.Translate(operation, captured.Fault!,
+				CheatEngineHostEffect.Unknown, _lifetime),
+			CurrentProcessCaptureFailure.TargetChanged => new CheatEngineFailure(
+				CheatEngineFailureKind.IndeterminateHostResult,
+				operation,
+				"Cheat Engine's selected target changed while the Client observed it, so the observation cannot be " +
+				"attributed to one target; read the current process again.",
+				null,
+				CheatEngineHostEffect.Completed),
 			CurrentProcessCaptureFailure.NoTargetSelected => new CheatEngineFailure(
 				CheatEngineFailureKind.TargetNotAttached,
 				operation,
@@ -378,41 +431,52 @@ internal sealed class ProcessClient : IProcessClient
 		return false;
 	}
 
-	private CheatEngineArchitecture TryGetTargetArchitecture()
-	{
-		try
-		{
-			return _host.GetTargetArchitecture();
-		}
-		catch (EngineGlobalUnavailableException)
-		{
-			return CheatEngineArchitecture.Unknown;
-		}
-		catch (EngineCapabilityUnavailableException)
-		{
-			return CheatEngineArchitecture.Unknown;
-		}
-	}
-
+	/// <summary>
+	///     Records the observed selection and advances the selection epoch when the PID changed, or when a known fact
+	///     changed to a different known value. An unknown fact neither advances the epoch nor erases the last fact known
+	///     for the same selection, so a transient probe failure does not invalidate target-bound leases and does not
+	///     weaken the identity to the PID alone.
+	/// </summary>
 	private ProcessSnapshot ObserveSelection(
 		TargetProcessId id,
 		LocalProcessInfo process,
 		CheatEngineArchitecture architecture,
+		PointerSize width,
 		string operation)
 	{
 		lock (_selectionGate)
 		{
-			ProcessSelection selection = new(id, architecture);
-			if (_lastSelection is { } previous && previous != selection)
+			ProcessSelection selection = new(id, architecture, width);
+			if (_lastSelection is { } previous)
 			{
-				_selectionLifetime.Advance(operation);
+				if (previous.Id != id || IsKnownChange(previous.Architecture, architecture) ||
+					IsKnownChange(previous.Width, width))
+				{
+					_selectionLifetime.Advance(operation);
+				}
+				else
+				{
+					selection = new ProcessSelection(id,
+						architecture == CheatEngineArchitecture.Unknown ? previous.Architecture : architecture,
+						width.IsKnown ? width : previous.Width);
+				}
 			}
 
 			_lastSelection = selection;
-			return new ProcessSnapshot(id, process.Name, process.ExecutablePath,
-				architecture,
-				_selectionLifetime.Epoch);
+			return new ProcessSnapshot(id, process.Name, process.ExecutablePath, selection.Architecture,
+				selection.Width, _selectionLifetime.Epoch);
 		}
+	}
+
+	private static bool IsKnownChange(CheatEngineArchitecture previous, CheatEngineArchitecture current)
+	{
+		return previous != CheatEngineArchitecture.Unknown && current != CheatEngineArchitecture.Unknown &&
+			   previous != current;
+	}
+
+	private static bool IsKnownChange(PointerSize previous, PointerSize current)
+	{
+		return previous.IsKnown && current.IsKnown && previous.Bytes != current.Bytes;
 	}
 
 	private void ClearObservedSelection(string operation)
@@ -498,20 +562,30 @@ internal sealed class ProcessClient : IProcessClient
 			"The operation was cancelled before process-host admission.");
 	}
 
-	private readonly record struct ProcessSelection(TargetProcessId Id, CheatEngineArchitecture Architecture);
+	/// <summary>The identity of one observed selection: PID, ISA and process width.</summary>
+	private readonly record struct ProcessSelection(
+		TargetProcessId Id,
+		CheatEngineArchitecture Architecture,
+		PointerSize Width);
 
 	private readonly record struct CurrentProcessCapture(
 		ProcessSnapshot Snapshot,
 		CurrentProcessCaptureFailure Failure,
-		int ObservedProcessId)
+		int ObservedProcessId,
+		Exception? Fault)
 	{
 		internal CurrentProcessCapture(ProcessSnapshot snapshot)
-			: this(snapshot, CurrentProcessCaptureFailure.None, 0)
+			: this(snapshot, CurrentProcessCaptureFailure.None, 0, null)
 		{
 		}
 
 		internal CurrentProcessCapture(CurrentProcessCaptureFailure failure, int observedProcessId = 0)
-			: this(default, failure, observedProcessId)
+			: this(default, failure, observedProcessId, null)
+		{
+		}
+
+		internal CurrentProcessCapture(Exception fault)
+			: this(default, CurrentProcessCaptureFailure.Faulted, 0, fault)
 		{
 		}
 	}
@@ -520,6 +594,8 @@ internal sealed class ProcessClient : IProcessClient
 	{
 		None,
 		NoTargetSelected,
-		InvalidLocalMetadata
+		InvalidLocalMetadata,
+		TargetChanged,
+		Faulted
 	}
 }

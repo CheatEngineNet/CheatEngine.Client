@@ -2,10 +2,17 @@ using System.ComponentModel;
 using System.Diagnostics;
 
 using CheatEngine.Client.Core.Infrastructure;
-using CheatEngine.SDK.Engine.Runtime;
 
 namespace CheatEngine.Client.Core.Domains;
 
+/// <summary>
+///     Production process host: Cheat Engine target facts through read-only generated bindings, and local metadata
+///     through the base class library.
+/// </summary>
+/// <remarks>
+///     Name and executable path come from <see cref="Process" /> and describe a local process only: they are not evidence
+///     of a CEServer target or of a file opened as a process, whose identifiers do not name a local process.
+/// </remarks>
 internal sealed class LocalProcessHost : IProcessHost
 {
 	public long GetOpenedProcessId()
@@ -64,11 +71,24 @@ internal sealed class LocalProcessHost : IProcessHost
 		return matches;
 	}
 
-	public CheatEngineArchitecture GetTargetArchitecture()
+	public bool TargetIs64Bit()
 	{
-		return ClientLuaGlobals.TargetIs64Bit()
-			? CheatEngineArchitecture.X64
-			: CheatEngineArchitecture.X86;
+		return ClientLuaGlobals.TargetIs64Bit();
+	}
+
+	public bool TargetIsX86()
+	{
+		return ClientLuaGlobals.TargetIsX86();
+	}
+
+	public bool TargetIsArm()
+	{
+		return ClientLuaGlobals.TargetIsArm();
+	}
+
+	public int GetConfiguredPointerSize()
+	{
+		return ClientLuaGlobals.GetConfiguredPointerSize();
 	}
 
 	private static bool TryCapture(Process process, out LocalProcessInfo captured)

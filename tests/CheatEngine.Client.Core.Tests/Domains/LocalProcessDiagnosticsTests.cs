@@ -3,7 +3,6 @@ using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Core.Tests.TestSupport;
 using CheatEngine.Client.Processes;
 using CheatEngine.Client.Results;
-using CheatEngine.SDK.Engine.Runtime;
 
 namespace CheatEngine.Client.Core.Tests.Domains;
 
@@ -151,9 +150,24 @@ public sealed class LocalProcessDiagnosticsTests
 			return [];
 		}
 
-		public CheatEngineArchitecture GetTargetArchitecture()
+		public bool TargetIs64Bit()
 		{
-			return CheatEngineArchitecture.Unknown;
+			throw new NotSupportedException();
+		}
+
+		public bool TargetIsX86()
+		{
+			throw new NotSupportedException();
+		}
+
+		public bool TargetIsArm()
+		{
+			throw new NotSupportedException();
+		}
+
+		public int GetConfiguredPointerSize()
+		{
+			throw new NotSupportedException();
 		}
 	}
 }

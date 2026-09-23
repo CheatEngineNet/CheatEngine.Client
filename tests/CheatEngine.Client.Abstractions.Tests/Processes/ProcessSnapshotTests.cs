@@ -73,6 +73,52 @@ public sealed class ProcessSnapshotTests
 		Assert.Equal(0, snapshot.SelectionEpoch);
 	}
 
+	[Fact]
+	[Trait("Qualification", "Q32")]
+	public void SnapshotStoresTheObservedWidthInsteadOfDerivingIt()
+	{
+		ProcessSnapshot unknownIsa = new(
+			new TargetProcessId(42),
+			"fixture",
+			null,
+			CheatEngineArchitecture.Unknown,
+			PointerSize.Bit64,
+			3);
+		ProcessSnapshot unknownWidth = new(
+			new TargetProcessId(42),
+			"fixture",
+			null,
+			CheatEngineArchitecture.X86,
+			PointerSize.Unknown,
+			3);
+
+		Assert.Equal(CheatEngineArchitecture.Unknown, unknownIsa.TargetArchitecture);
+		Assert.Equal(PointerSize.Bit64, unknownIsa.TargetPointerSize);
+		Assert.Equal(CheatEngineArchitecture.X86, unknownWidth.TargetArchitecture);
+		Assert.Equal(PointerSize.Unknown, unknownWidth.TargetPointerSize);
+		Assert.NotEqual(unknownIsa, new ProcessSnapshot(new TargetProcessId(42), "fixture", null,
+			CheatEngineArchitecture.Unknown, PointerSize.Bit32, 3));
+	}
+
+	[Theory]
+	[InlineData(CheatEngineArchitecture.X64, 4)]
+	[InlineData(CheatEngineArchitecture.X86, 8)]
+	[InlineData(CheatEngineArchitecture.Arm64, 4)]
+	[InlineData(CheatEngineArchitecture.Arm32, 8)]
+	public void SnapshotRejectsAKnownIsaWithAContradictoryWidth(CheatEngineArchitecture architecture,
+		int pointerBytes)
+	{
+		ArgumentException exception = Assert.Throws<ArgumentException>(() => new ProcessSnapshot(
+			new TargetProcessId(42),
+			"fixture",
+			null,
+			architecture,
+			new PointerSize(pointerBytes),
+			0));
+
+		Assert.Equal("targetPointerSize", exception.ParamName);
+	}
+
 	[Theory]
 	[InlineData(-1)]
 	[InlineData(long.MinValue)]

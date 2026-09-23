@@ -21,7 +21,6 @@ internal static class ConsumedSdkSurface
 		"CheatEngine.Client.Abstractions M CheatEngine.SDK.Engine.Inspection.ModuleName::get_Value()->string",
 		"CheatEngine.Client.Abstractions M CheatEngine.SDK.Engine.Runtime.CheatEngineVersion::get_Major()->int32",
 		"CheatEngine.Client.Abstractions M CheatEngine.SDK.Engine.Runtime.CheatEngineVersion::get_Minor()->int32",
-		"CheatEngine.Client.Abstractions M CheatEngine.SDK.Engine.Runtime.PointerSize::FromArchitecture(CheatEngine.SDK.Engine.Runtime.CheatEngineArchitecture)->CheatEngine.SDK.Engine.Runtime.PointerSize",
 		"CheatEngine.Client.Abstractions M CheatEngine.SDK.Engine.Runtime.PointerSize::get_Bit32()->CheatEngine.SDK.Engine.Runtime.PointerSize",
 		"CheatEngine.Client.Abstractions M CheatEngine.SDK.Engine.Runtime.PointerSize::get_Bit64()->CheatEngine.SDK.Engine.Runtime.PointerSize",
 		"CheatEngine.Client.Abstractions M CheatEngine.SDK.Engine.Runtime.PointerSize::get_Bytes()->int32",

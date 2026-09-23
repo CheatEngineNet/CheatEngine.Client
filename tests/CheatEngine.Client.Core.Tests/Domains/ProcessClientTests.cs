@@ -8,6 +8,7 @@ using CheatEngine.Client.Results;
 using CheatEngine.SDK.Engine.Errors;
 using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Engine.Runtime;
+using CheatEngine.SDK.Lua.Calls;
 
 namespace CheatEngine.Client.Core.Tests.Domains;
 
@@ -164,8 +165,9 @@ public sealed class ProcessClientTests
 	}
 
 	[Fact]
-	public void TryGetCurrentRethrowsUnexpectedHostExceptions()
+	public void TryGetCurrentReturnsUnexpectedHostExceptionsAsClassifiedFailures()
 	{
+		// C-CORE-A's SdkBoundary rule (F15): a fault of a Client-internal host call never crosses a Try method.
 		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
 		ObjectDisposedException expected = new("fixture process host");
 		host.GetOpenedProcessIdException = expected;
@@ -177,10 +179,185 @@ public sealed class ProcessClientTests
 			host,
 			selectionLifetime);
 
-		ObjectDisposedException actual = Assert.Throws<ObjectDisposedException>(() =>
-			client.TryGetCurrent(out _, out _, TestContext.Current.CancellationToken));
+		bool succeeded = client.TryGetCurrent(out ProcessSnapshot snapshot, out CheatEngineFailure failure,
+			TestContext.Current.CancellationToken);
 
-		Assert.Same(expected, actual);
+		Assert.False(succeeded);
+		Assert.Equal(default, snapshot);
+		Assert.Equal(CheatEngineFailureKind.InvalidState, failure.Kind);
+		Assert.Equal("Processes.GetCurrent", failure.Operation);
+		Assert.Equal(CheatEngineHostEffect.Unknown, failure.HostEffect);
+		Assert.Same(expected, failure.Exception);
+		Assert.Equal(0, selectionLifetime.Epoch);
+	}
+
+	[Fact]
+	public void TryAttachReturnsAFaultOfTheAttachCallWithAnUnknownHostEffect()
+	{
+		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
+		LuaException expected = new("openProcess failed");
+		host.OpenProcessException = expected;
+		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
+		ProcessClient client = new(new InlineDispatcher(), host, selectionLifetime);
+
+		bool succeeded = client.TryAttach(new TargetProcessId(43), out ProcessSnapshot snapshot,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(default, snapshot);
+		Assert.Equal(CheatEngineFailureKind.LuaError, failure.Kind);
+		Assert.Equal("Processes.Attach", failure.Operation);
+		Assert.Equal(CheatEngineHostEffect.Unknown, failure.HostEffect);
+		Assert.Same(expected, failure.Exception);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q32")]
+	public void RefreshWithAChangedProcessWidthForTheSamePidAdvancesTheSelectionEpoch()
+	{
+		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.Unknown);
+		host.IsX86 = false;
+		host.IsArm = false;
+		host.Is64Bit = false;
+		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
+		ProcessClient client = new(new InlineDispatcher(), host, selectionLifetime);
+		ProcessSnapshot initial = client.GetCurrent(TestContext.Current.CancellationToken);
+		RecordingDisposable lease = new();
+		selectionLifetime.Track(lease, initial.SelectionEpoch);
+		host.Is64Bit = true;
+
+		ProcessSnapshot refreshed = client.Refresh(TestContext.Current.CancellationToken);
+
+		Assert.Equal(CheatEngineArchitecture.Unknown, initial.TargetArchitecture);
+		Assert.Equal(PointerSize.Bit32, initial.TargetPointerSize);
+		Assert.Equal(PointerSize.Bit64, refreshed.TargetPointerSize);
+		Assert.Equal(initial.SelectionEpoch + 1, refreshed.SelectionEpoch);
+		Assert.Equal(1, lease.DisposeCount);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q32")]
+	public void RefreshWithTransientlyUnknownIsaFactsKeepsTheSelectionEpochAndTheLastKnownFacts()
+	{
+		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
+		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
+		ProcessClient client = new(new InlineDispatcher(), host, selectionLifetime);
+		ProcessSnapshot initial = client.GetCurrent(TestContext.Current.CancellationToken);
+		RecordingDisposable lease = new();
+		selectionLifetime.Track(lease, initial.SelectionEpoch);
+		host.IsX86Exception = new LuaException("targetIsX86 failed");
+		host.Is64BitException = new LuaException("targetIs64Bit failed");
+
+		ProcessSnapshot transient = client.Refresh(TestContext.Current.CancellationToken);
+		host.IsX86Exception = null;
+		host.Is64BitException = null;
+		ProcessSnapshot recovered = client.Refresh(TestContext.Current.CancellationToken);
+
+		Assert.Equal(initial.SelectionEpoch, transient.SelectionEpoch);
+		Assert.Equal(CheatEngineArchitecture.X64, transient.TargetArchitecture);
+		Assert.Equal(PointerSize.Bit64, transient.TargetPointerSize);
+		Assert.Equal(initial.SelectionEpoch, recovered.SelectionEpoch);
+		Assert.Equal(CheatEngineArchitecture.X64, recovered.TargetArchitecture);
+		Assert.Equal(0, lease.DisposeCount);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q32")]
+	public void RefreshAfterAPidChangeAdvancesTheEpochEvenWhenTheIsaIsUnknown()
+	{
+		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
+		host.LocalProcesses[43] = new LocalProcessInfo(43, "fixture-b", "C:\\fixtures\\fixture-b.exe");
+		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
+		ProcessClient client = new(new InlineDispatcher(), host, selectionLifetime);
+		ProcessSnapshot initial = client.GetCurrent(TestContext.Current.CancellationToken);
+		host.OpenedProcessId = 43;
+		host.IsX86Exception = new EngineGlobalUnavailableException("targetIsX86");
+
+		ProcessSnapshot refreshed = client.Refresh(TestContext.Current.CancellationToken);
+
+		Assert.Equal(new TargetProcessId(43), refreshed.Id);
+		Assert.Equal(initial.SelectionEpoch + 1, refreshed.SelectionEpoch);
+		Assert.Equal(CheatEngineArchitecture.Unknown, refreshed.TargetArchitecture);
+		Assert.Equal(PointerSize.Bit64, refreshed.TargetPointerSize);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q32")]
+	public void CurrentSnapshotStoresTheObservedProcessWidthWhenTheIsaIsUnknown()
+	{
+		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
+		host.IsX86 = false;
+		host.IsArm = false;
+		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
+		ProcessClient client = new(new InlineDispatcher(), host, selectionLifetime);
+
+		ProcessSnapshot snapshot = client.GetCurrent(TestContext.Current.CancellationToken);
+
+		Assert.Equal(CheatEngineArchitecture.Unknown, snapshot.TargetArchitecture);
+		Assert.Equal(PointerSize.Bit64, snapshot.TargetPointerSize);
+		Assert.Equal(0, host.Count(nameof(IProcessHost.GetConfiguredPointerSize)));
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q32")]
+	public void CurrentSnapshotReadsNoArchitectureFactWithoutASelectedProcess()
+	{
+		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
+		host.OpenedProcessId = 0;
+		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
+		ProcessClient client = new(new InlineDispatcher(), host, selectionLifetime);
+
+		bool succeeded = client.TryGetCurrent(out _, out CheatEngineFailure failure,
+			TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(CheatEngineFailureKind.TargetNotAttached, failure.Kind);
+		Assert.Equal(0, host.Count(nameof(IProcessHost.TargetIs64Bit)));
+		Assert.Equal(0, host.Count(nameof(IProcessHost.TargetIsX86)));
+		Assert.Equal(0, host.Count(nameof(IProcessHost.TargetIsArm)));
+		Assert.Equal(0, host.Count(nameof(IProcessHost.GetConfiguredPointerSize)));
+	}
+
+	[Fact]
+	public void TryGetCurrentMapsALuaExceptionFromAFamilyProbeToUnknownFactsWithoutEscaping()
+	{
+		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
+		host.IsArmException = new LuaException("targetIsArm failed");
+		using ControlledCoreLifetimeContext activationContext = new();
+		using CoreLifetime activationLifetime = new(activationContext);
+		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
+		ProcessClient client = new(
+			new SdkMainThreadDispatcher(activationLifetime, new InlineMainThreadInvoker()),
+			host,
+			selectionLifetime);
+
+		bool succeeded = client.TryGetCurrent(out ProcessSnapshot snapshot, out CheatEngineFailure failure,
+			TestContext.Current.CancellationToken);
+
+		Assert.True(succeeded);
+		Assert.Equal(default, failure);
+		Assert.Equal(new TargetProcessId(42), snapshot.Id);
+		Assert.Equal(CheatEngineArchitecture.Unknown, snapshot.TargetArchitecture);
+		Assert.Equal(PointerSize.Bit64, snapshot.TargetPointerSize);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q32")]
+	public void CurrentSnapshotReportsAnIndeterminateResultWhenThePidChangesDuringObservation()
+	{
+		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
+		host.LaterOpenedProcessIds = [43];
+		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
+		ProcessClient client = new(new InlineDispatcher(), host, selectionLifetime);
+
+		bool succeeded = client.TryGetCurrent(out ProcessSnapshot snapshot, out CheatEngineFailure failure,
+			TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(default, snapshot);
+		Assert.Equal(CheatEngineFailureKind.IndeterminateHostResult, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.Completed, failure.HostEffect);
+		Assert.Equal(0, selectionLifetime.Epoch);
 	}
 
 	[Fact]
@@ -663,28 +840,125 @@ public sealed class ProcessClientTests
 			set;
 		}
 
+		/// <summary>Sets the ISA-family and 64-bit facts that Cheat Engine reports for the architecture.</summary>
 		internal CheatEngineArchitecture TargetArchitecture
+		{
+			set
+			{
+				IsX86 = value is CheatEngineArchitecture.X86 or CheatEngineArchitecture.X64;
+				IsArm = value is CheatEngineArchitecture.Arm32 or CheatEngineArchitecture.Arm64;
+				Is64Bit = value is CheatEngineArchitecture.X64 or CheatEngineArchitecture.Arm64;
+			}
+		}
+
+		internal bool Is64Bit
 		{
 			get;
 			set;
 		}
 
+		internal bool IsX86
+		{
+			get;
+			set;
+		}
+
+		internal bool IsArm
+		{
+			get;
+			set;
+		}
+
+		internal Exception? Is64BitException
+		{
+			get;
+			set;
+		}
+
+		internal Exception? IsX86Exception
+		{
+			get;
+			set;
+		}
+
+		internal Exception? IsArmException
+		{
+			get;
+			set;
+		}
+
+		internal Exception? OpenProcessException
+		{
+			get;
+			set;
+		}
+
+		/// <summary>PIDs returned by the reads that follow the first one of a capture; the last entry repeats.</summary>
+		internal long[]? LaterOpenedProcessIds
+		{
+			get;
+			set;
+		}
+
+		internal List<string> Calls
+		{
+			get;
+		} = [];
+
 		public long GetOpenedProcessId()
 		{
 			GetOpenedProcessIdCalls++;
+			Calls.Add(nameof(GetOpenedProcessId));
 			if (GetOpenedProcessIdException is { } exception)
 			{
 				throw exception;
 			}
 
-			return OpenedProcessId;
+			int laterRead = Count(nameof(GetOpenedProcessId)) - 2;
+			return laterRead >= 0 && LaterOpenedProcessIds is { Length: > 0 } later
+				? later[Math.Min(laterRead, later.Length - 1)]
+				: OpenedProcessId;
 		}
 
 		public void OpenProcess(long processId)
 		{
 			OpenProcessCalls.Add(processId);
+			if (OpenProcessException is { } exception)
+			{
+				throw exception;
+			}
+
 			OpenedProcessId = SelectedAfterOpenOverride ?? processId;
 			AfterOpenProcess?.Invoke(this);
+		}
+
+		public bool TargetIs64Bit()
+		{
+			Calls.Add(nameof(TargetIs64Bit));
+			return Is64BitException is { } exception ? throw exception : Is64Bit;
+		}
+
+		public bool TargetIsX86()
+		{
+			Calls.Add(nameof(TargetIsX86));
+			return IsX86Exception is { } exception ? throw exception : IsX86;
+		}
+
+		public bool TargetIsArm()
+		{
+			Calls.Add(nameof(TargetIsArm));
+			return IsArmException is { } exception ? throw exception : IsArm;
+		}
+
+		public int GetConfiguredPointerSize()
+		{
+			Calls.Add(nameof(GetConfiguredPointerSize));
+			return Is64Bit ? sizeof(ulong) : sizeof(uint);
+		}
+
+		internal int Count(string member)
+		{
+			return Calls.Count(call => call == member);
 		}
 
 		public bool TryGetLocalProcess(int processId, out LocalProcessInfo process)
@@ -712,11 +986,6 @@ public sealed class ProcessClientTests
 			}
 
 			return NameMatches.TryGetValue(processName, out IReadOnlyList<LocalProcessInfo>? matches) ? matches : [];
-		}
-
-		public CheatEngineArchitecture GetTargetArchitecture()
-		{
-			return TargetArchitecture;
 		}
 
 		internal static FakeProcessHost CreateSelected(int processId, CheatEngineArchitecture architecture)
