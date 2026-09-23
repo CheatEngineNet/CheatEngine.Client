@@ -37,7 +37,7 @@
       "pattern": "^\\[[0-9]+\\.[0-9]+\\.[0-9]+, [0-9]+\\.[0-9]+\\.[0-9]+\\)$"
     },
     "contentHashSha512": {
-      "description": "The NuGet SHA-512 base64 content hash read from the lock file: the hash NuGet computes over the package content without its signature, as recorded in packages.lock.json and .nupkg.metadata. It is not a SHA-256 of any downloaded .nupkg file.",
+      "description": "The NuGet SHA-512 base64 content hash read from the lock file: the hash NuGet computes over the package content without its signature, as recorded in packages.lock.json, in .nupkg.metadata and (with a sha512- prefix) in the package library entry of a plugin's .deps.json. It is not a hash of any downloaded .nupkg file.",
       "type": "string",
       "pattern": "^[A-Za-z0-9+/]{86}==$"
     },
@@ -52,7 +52,7 @@
       "pattern": "^[0-9a-f]{64}$"
     },
     "nugetOrgSignedSha512": {
-      "description": "SHA-512 (base64) of the repository-signed .nupkg file that nuget.org serves, as NuGet writes it into <id>.<version>.nupkg.sha512 in the global packages folder and into the sha512 of a .deps.json package library.",
+      "description": "SHA-512 (base64) of the repository-signed .nupkg file that nuget.org serves, as NuGet writes it into <id>.<version>.nupkg.sha512 in the global packages folder.",
       "type": "string",
       "pattern": "^[A-Za-z0-9+/]{86}==$"
     },

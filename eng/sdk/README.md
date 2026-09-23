@@ -41,12 +41,13 @@ The same package has four different digests. Each field of `consumed-sdk.json` n
 
 | Field                  | What it hashes                                                                                                      | Where a consumer finds it                                           |
 |------------------------|---------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------|
-| `contentHashSha512`    | The NuGet SHA-512 base64 content hash of the package content without its signature, read from the lock file         | `packages.lock.json` (`contentHash`) and `.nupkg.metadata`           |
+| `contentHashSha512`    | The NuGet SHA-512 base64 content hash of the package content without its signature, read from the lock file         | `packages.lock.json` (`contentHash`), `.nupkg.metadata`, and the plugin's `.deps.json` (`sha512-` prefix) |
 | `nugetOrgSignedSha512` | SHA-512 (base64) of the repository-signed `.nupkg` file served by nuget.org                                         | `<id>.<version>.nupkg.sha512` in the global packages folder          |
 | `nugetOrgSignedSha256` | SHA-256 of the same repository-signed file                                                                          | `Get-FileHash` on the downloaded `.nupkg`                            |
 | `attestedAssetSha256`  | SHA-256 of the unsigned `.nupkg` attached to the SDK GitHub release and covered by its provenance attestation       | the SDK release asset and `gh attestation verify`                    |
 
-`contentHashSha512` is the value to compare with a plugin's own lock file: it is not a SHA-256 of any file. The
+`contentHashSha512` is the value to compare with a plugin's own lock file, and with the `CheatEngine.SDK` library entry
+of a deployed plugin's `.deps.json` (measured by the package consumption tests): it is not a hash of any file. The
 `nativeBridge` object records the SHA-256 of `build/native/cheatengine-sdk-lua-bridge.dll` inside the package and the
 bridge source fingerprint the SDK embeds, so a deployed bridge can be tied to this package.
 
