@@ -236,12 +236,16 @@ public sealed partial class SdkPinTests
 		XDocument props = XDocument.Load(Path.Combine(RepositoryRoot.Path, propsPath));
 
 		XElement version = Assert.Single(props.Descendants("CoexistenceSdkPackageVersion"));
-		XElement lockSwitch = Assert.Single(props.Descendants("RestorePackagesWithLockFile"));
+		XElement candidateLock = Assert.Single(props.Descendants("NuGetLockFilePath"));
 		XElement reference = Assert.Single(props.Descendants("PackageReference"),
 			static element => (string?) element.Attribute("Include") == SdkPin.PackageId);
 
 		Assert.Equal("$(CheatEngineSdkVersion)", version.Value);
-		Assert.Equal("'$(CoexistenceSdkPackageVersion)' != '$(CheatEngineSdkVersion)'", (string?) lockSwitch.Attribute("Condition"));
+		// An operator-supplied SDK version restores into a lock file under obj/: disabling lock files while the committed
+		// one exists fails the restore with NU1005, and rewriting the committed one would record an unreviewed package.
+		Assert.Equal("'$(CoexistenceSdkPackageVersion)' != '$(CheatEngineSdkVersion)'", (string?) candidateLock.Attribute("Condition"));
+		Assert.StartsWith("$(MSBuildProjectExtensionsPath)", candidateLock.Value, StringComparison.Ordinal);
+		Assert.Empty(props.Descendants("RestorePackagesWithLockFile"));
 		Assert.Equal("$(CoexistenceSdkPackageVersion)", (string?) reference.Attribute("Version"));
 		Assert.Equal("false", Assert.Single(props.Descendants("ManagePackageVersionsCentrally")).Value);
 	}
