@@ -12,7 +12,6 @@
     <GenerateSBOM>true</GenerateSBOM>
     <SbomGenerationPackageSupplier>CheatEngineNet</SbomGenerationPackageSupplier>
     <SbomGenerationNamespaceBaseUri>https://github.com/CheatEngineNet/CheatEngine.Client</SbomGenerationNamespaceBaseUri>
-    <SbomGenerationVerbosity>Warning</SbomGenerationVerbosity>
   </PropertyGroup>
 
   <!--
