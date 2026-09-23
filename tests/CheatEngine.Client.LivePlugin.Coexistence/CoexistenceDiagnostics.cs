@@ -69,7 +69,7 @@ internal static class CoexistenceDiagnostics
 			return "Target=Inactive";
 		}
 
-		return client.Processes.TryRefresh(out ProcessSnapshot snapshot, out CheatEngineFailure failure)
+		return client.Processes.TryRefresh(out ProcessSnapshot snapshot, out CheatEngineFailure failure, client.Stopping)
 			? string.Create(
 				CultureInfo.InvariantCulture,
 				$"Target=Selected; ProcessId={snapshot.Id.Value}; SelectionEpoch={snapshot.SelectionEpoch}; Architecture={snapshot.TargetArchitecture}")
@@ -96,7 +96,7 @@ internal static class CoexistenceDiagnostics
 		}
 
 		if (!client.Allocations.TryAllocate(new TargetAllocationRequest(16), out ITargetMemoryLease? owner,
-				out CheatEngineFailure failure))
+				out CheatEngineFailure failure, client.Stopping))
 		{
 			return DescribeFailure("Owner", failure);
 		}
