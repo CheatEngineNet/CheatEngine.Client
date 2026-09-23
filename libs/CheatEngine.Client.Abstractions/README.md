@@ -292,3 +292,16 @@ dotnet restore CheatEngine.Client.slnx --locked-mode
 dotnet build CheatEngine.Client.slnx --configuration Release --no-restore
 dotnet test --solution CheatEngine.Client.slnx --configuration Release --no-build --no-restore
 ```
+
+## Lua module release outcomes
+
+A module generated from `[CheatEngineLuaModule]` implements `IOwnershipAwareLuaModule`: at release it clears an exported
+Lua global only while the global still holds the value the module published, compared by primitive identity, and never
+overwrites a value a third party put there (audit finding F12, qualification scenario Q16). Every export is attempted;
+`LastReleaseOutcome` then reports a `LuaModuleReleaseOutcome` with one `LuaExportReleaseStatus` per export (`Removed`,
+`Replaced`, `Absent`, `Failed`, or `NotAttempted` for a registration that belongs to an earlier Lua state) and a computed
+`LuaModuleReleaseKind` (`Released`, `PartiallyReleased`, `Stale`). The outcome is published before `Unregister` throws
+for a failed export, and a second `Unregister` is a no-op. The outcome holds copied names and statuses only. The
+vocabulary mirrors the CheatEngine.SDK 2.0 registration leases; the migration is recorded in the repository guide
+docs/migration/sdk-2.0.md. This behavior is covered by managed tests against a Lua-globals double (C1); it is not a
+host qualification.
