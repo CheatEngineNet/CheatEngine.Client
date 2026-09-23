@@ -57,6 +57,11 @@ TRX report keeps. The facts prove that:
 These are package-level results (fixture level C2); a Cheat Engine host run of Q40 is a separate qualification.
 `PackageSourceResolutionTests` has no category, so both CI legs check the package source rules.
 
+`SymbolPackagesCarrySourceLinkToTheRepositoryCommit` expects Source Link URLs of
+`https://raw.githubusercontent.com/CheatEngineNet/CheatEngine.Client/<commit>/`, which the .NET SDK derives from the
+`origin` remote of the checkout that packs. CI checks out this repository, so it holds there; a local run in a clone
+whose `origin` is a fork or a local path produces other URLs or none, and fails that fact.
+
 `SdkCanaryRecipeTests.CanaryRecipeBuildsAgainstACandidateSdkButNeverPacks` shares the same fixture and category. It
 runs the canary recipe of `eng/sdk/README.md` (the SDK-side client-canary job, audit Q48) on a throw-away copy of
 `CheatEngine.Client.Abstractions`, against the pinned SDK re-versioned as `2.0.0-alpha.0.42`: the restore rewrites the

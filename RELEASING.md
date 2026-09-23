@@ -65,7 +65,10 @@ otherwise.
    analyzer rules of `AnalyzerReleases.Unshipped.md` into a `## Release X.Y.Z` section of `AnalyzerReleases.Shipped.md`.
    It is never run by CI.
 3. Set `MinVerMinimumMajorMinor` in [Directory.Build.props](Directory.Build.props) to the line being released. The
-   exact version comes from the `vX.Y.Z` tag; the property is only the floor for untagged commits.
+   exact version comes from the `vX.Y.Z` tag; the property is only the floor for untagged commits. When the value
+   changes, the evaluation-time `VersionPrefix` follows it and NuGet records it in the project-reference entries of the
+   lock files (the three coexistence fixture locks included), so regenerate them in the same pull request with
+   `./eng/Update-LockFiles.ps1`.
 4. Check the qualification gate below.
 5. Rehearse the pack locally with the version the tag will produce, and inspect the seven packages:
 
