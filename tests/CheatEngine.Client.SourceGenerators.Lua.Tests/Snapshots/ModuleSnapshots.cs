@@ -3,9 +3,18 @@ using CheatEngine.Client.SourceGenerators.Lua.Tests.Infrastructure;
 namespace CheatEngine.Client.SourceGenerators.Lua.Tests.Snapshots;
 
 /// <summary>
-///     Golden snapshot of one generated module. It is the only test that must change when the emitted formatting changes;
-///     behaviour is proven by the EndToEnd tests and the contract by the separate projection and descriptor tests (DoD D.8).
+///     Golden snapshot of one generated module (DoD D.8: useful, not sufficient). A formatting-only change of the emitter
+///     changes this golden and, at most, the literal-text assertions of <c>SdkPortStackDisciplineTests</c> and
+///     <c>ModuleContractTests</c>.
 /// </summary>
+/// <remarks>
+///     This golden does not prove the SDK port struct (<c>__CheatEngineLuaSdkPort</c>): the port is the only generated code
+///     that runs against the real Lua state, and the EndToEnd tests replace it with a managed double. Its decisions are
+///     pinned, formatting-free, by <c>SdkPortDecisionTests</c> (C0). A port change that also changes the expected paths of
+///     that test is a change of the Q16 contract of production code, not a formatting change: record it in the generator
+///     README and in the ADR-01 entry of docs/migration/sdk-2.0.md. The algorithm around the port is proven by the EndToEnd
+///     tests, the public contract by <c>ModuleContractTests</c>.
+/// </remarks>
 public sealed class ModuleSnapshots
 {
 	private const string ModuleSource =
