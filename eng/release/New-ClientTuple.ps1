@@ -129,6 +129,13 @@ $buildInfo = Get-Content -LiteralPath $BuildInfoPath -Raw | ConvertFrom-Json
 if ($buildInfo.schema -ne 'cheatengine-build-info/v0' -or $buildInfo.repository -ne 'CheatEngineNet/CheatEngine.Client') {
 	throw "$BuildInfoPath is not the build-info.json of CheatEngineNet/CheatEngine.Client."
 }
+[string[]] $listedIds = @(@($buildInfo.packages) | ForEach-Object { [string]$_.id })
+[System.Array]::Sort($listedIds, [System.StringComparer]::Ordinal)
+[string[]] $expectedIds = $packageIds.Clone()
+[System.Array]::Sort($expectedIds, [System.StringComparer]::Ordinal)
+if (($listedIds -join ';') -cne ($expectedIds -join ';')) {
+	throw "$BuildInfoPath lists the packages '$($listedIds -join ', ')', not exactly the seven Client packages '$($expectedIds -join ', ')'."
+}
 foreach ($entry in @($buildInfo.packages)) {
 	$file = Get-AssetPath -Name "$($entry.id).$version.nupkg"
 	if ($entry.version -ne $version -or $entry.sha256 -ne (Get-Sha256 -Path $file)) {
