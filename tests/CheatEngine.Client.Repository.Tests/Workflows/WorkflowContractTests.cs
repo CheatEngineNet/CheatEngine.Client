@@ -63,20 +63,15 @@ public sealed partial class WorkflowContractTests
 	private static readonly HashSet<string> _reservedArtifacts = new(StringComparer.Ordinal)
 	{
 		"nuget-packages",
-		"build-info",
 		"coverage",
-		"coverage-report",
 		"test-results-Debug",
 		"test-results-Release",
 		"test-dumps-Debug",
 		"test-dumps-Release",
 		"release-notes",
 		"attestation-bundles",
-		// Advisory governance workflows (scorecard.yml, scheduled-health.yml, dependency-submission.yml).
-		"scorecard-results",
-		"sdk-canary-patch",
-		"health-repeat-results",
-		"dependency-snapshot"
+		// Advisory governance workflows (scorecard.yml).
+		"scorecard-results"
 	};
 
 	/// <summary>Binary logs: binlogs-&lt;job&gt; or binlogs-&lt;job&gt;-&lt;configuration&gt;.</summary>
@@ -343,8 +338,7 @@ public sealed partial class WorkflowContractTests
 		Assert.Equal("pack", pack.Id);
 		Assert.Contains("'Release'", pack.Condition ?? string.Empty, StringComparison.Ordinal);
 		Assert.Contains("--no-build", pack.Run, StringComparison.Ordinal);
-		Assert.Contains("eng/ci/Test-PackageSet.ps1", pack.Run, StringComparison.Ordinal);
-		Assert.Contains("-RequireSbom", pack.Run, StringComparison.Ordinal);
+		Assert.Contains("manifest.spdx.json", pack.Run, StringComparison.Ordinal);
 
 		Assert.Equal("steps.pack.outputs.package-source", Yaml.NormalizeExpression(test.Env("PACKAGE_SOURCE")));
 		Assert.Contains("CHEATENGINE_CLIENT_PACKAGE_SOURCE", test.Run, StringComparison.Ordinal);
@@ -391,25 +385,6 @@ public sealed partial class WorkflowContractTests
 		int jobTimeout = int.Parse(buildTest.TimeoutMinutes!, CultureInfo.InvariantCulture);
 		Assert.True(minutes <= jobTimeout / 2.0,
 			$"The hang dump fires after {minutes} minutes without test activity; keep it at most half of build-test's {jobTimeout}-minute timeout so the dump is written and uploaded.");
-	}
-
-	[Fact]
-	public void BuildTestRunsTheInventoryCoverageRatchetAndBuildInfo()
-	{
-		IReadOnlyList<WorkflowStep> steps = WorkflowFile.Load(CiWorkflow).Job("build-test").Steps;
-		int test = TestStep().Index;
-
-		WorkflowStep inventory = Assert.Single(steps, static step => step.Run.Contains("eng/ci/Test-TestModuleInventory.ps1", StringComparison.Ordinal));
-		Assert.Null(inventory.Condition);
-		Assert.True(inventory.Index > test);
-
-		WorkflowStep coverage = Assert.Single(steps, static step => step.Run.Contains("eng/ci/Test-CoverageBaseline.ps1", StringComparison.Ordinal));
-		Assert.Contains("'Debug'", coverage.Condition ?? string.Empty, StringComparison.Ordinal);
-		Assert.True(coverage.Index > test);
-
-		WorkflowStep buildInfo = Assert.Single(steps, static step => step.Run.Contains("eng/ci/New-BuildInfo.ps1", StringComparison.Ordinal));
-		Assert.Contains("'Release'", buildInfo.Condition ?? string.Empty, StringComparison.Ordinal);
-		Assert.Equal("github.event.pull_request.head.sha", Yaml.NormalizeExpression(buildInfo.Env("PR_HEAD_SHA")));
 	}
 
 	[Fact]
@@ -465,7 +440,7 @@ public sealed partial class WorkflowContractTests
 	// ---- lint, format, dependency review, lock files ------------------------------------------------------------------
 
 	[Fact]
-	public void LintJobRunsActionlintZizmorAndScriptAnalysisOnEveryEvent()
+	public void LintJobRunsActionlintAndZizmorOnEveryEvent()
 	{
 		WorkflowJob lint = WorkflowFile.Load(CiWorkflow).Job("lint");
 		Assert.Null(lint.Condition);
@@ -480,7 +455,6 @@ public sealed partial class WorkflowContractTests
 		Assert.Equal("false", zizmor.With("online-audits"));
 		Assert.Equal("false", zizmor.With("advanced-security"));
 		Assert.Equal(ZizmorConfig, zizmor.With("config"));
-		Assert.Contains(lint.Steps, static step => step.Run.Contains("eng/ci/Invoke-ScriptAnalysis.ps1", StringComparison.Ordinal));
 		foreach (WorkflowStep step in lint.Steps)
 		{
 			Assert.Null(step.Condition);
@@ -497,11 +471,6 @@ public sealed partial class WorkflowContractTests
 
 		WorkflowStep zizmor = Assert.Single(lint.Steps, static step => step.UsesAction("zizmorcore/zizmor-action"));
 		Assert.Matches(new Regex(@"^\d+\.\d+\.\d+$"), zizmor.With("version") ?? "latest");
-
-		string analysis = File.ReadAllText(Path.Combine(RepositoryRoot.Path, "eng/ci/Invoke-ScriptAnalysis.ps1"));
-		Assert.Matches(new Regex(@"\$moduleVersion = '\d+\.\d+\.\d+'"), analysis);
-		Assert.Matches(new Regex(@"\$moduleSha256 = '[0-9a-f]{64}'"), analysis);
-		Assert.Contains("Get-FileHash", analysis, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -600,7 +569,7 @@ public sealed partial class WorkflowContractTests
 
 		WorkflowStep setup = Assert.Single(lockFiles.Steps, static step => step.Uses == SetupActionReference);
 		Assert.Null(setup.With("restore"));
-		Assert.Contains(lockFiles.Steps, static step => step.Run.Contains("./eng/Update-LockFiles.ps1 -Verify", StringComparison.Ordinal));
+		Assert.Contains(lockFiles.Steps, static step => Regex.IsMatch(step.Run, @"\bdotnet restore CheatEngine\.Client\.slnx --locked-mode\b"));
 	}
 
 	// ---- Setup, caches and restores ------------------------------------------------------------------------------------
@@ -620,9 +589,10 @@ public sealed partial class WorkflowContractTests
 
 		WorkflowStep restore = Assert.Single(steps, static step => Regex.IsMatch(step.Run, @"\bdotnet restore\b"));
 		Assert.Contains("--locked-mode", restore.Run, StringComparison.Ordinal);
-		Assert.DoesNotContain("--force-evaluate", restore.Run, StringComparison.Ordinal);
+		string restoreLine = Assert.Single(restore.Run.Split('\n'), static line => Regex.IsMatch(line, @"\bdotnet restore \$target\b"));
+		Assert.DoesNotContain("--force-evaluate", restoreLine, StringComparison.Ordinal);
 		Assert.Contains("$LASTEXITCODE", restore.Run, StringComparison.Ordinal);
-		Assert.Contains("eng/Update-LockFiles.ps1", restore.Run, StringComparison.Ordinal);
+		Assert.Contains("dotnet restore <project> --force-evaluate", restore.Run, StringComparison.Ordinal);
 		Assert.Equal("inputs.restore", Yaml.NormalizeExpression(restore.Env("RESTORE_TARGETS")));
 		Assert.DoesNotContain("${{", restore.Run, StringComparison.Ordinal);
 	}

@@ -146,7 +146,7 @@ public sealed partial class ReleaseWorkflowTests
 
 		YamlMappingNode verifyTag = Step(Mapping(jobs, "verify"), "tag");
 		Assert.Equal("${{ github.event_name }}", Scalar(Mapping(verifyTag, "env"), "EVENT_NAME"));
-		Assert.Contains("-EventName $env:EVENT_NAME", Scalar(verifyTag, "run"), StringComparison.Ordinal);
+		Assert.Contains("$env:EVENT_NAME -ne 'push'", Scalar(verifyTag, "run"), StringComparison.Ordinal);
 
 		string text = File.ReadAllText(Path.Combine(RepositoryRoot.Path, WorkflowPath));
 		Assert.DoesNotContain("gh release upload", text, StringComparison.Ordinal);

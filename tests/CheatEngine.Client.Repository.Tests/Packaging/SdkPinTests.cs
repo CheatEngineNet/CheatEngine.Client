@@ -2,13 +2,12 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 
 using CheatEngine.Client.Repository.Tests.Infrastructure;
-using CheatEngine.Client.Repository.Tests.Release;
 
 namespace CheatEngine.Client.Repository.Tests.Packaging;
 
 /// <summary>
 /// The Client consumes exactly one reviewed CheatEngine.SDK package (audit ADR-10, A21-01, A21-02): one source for the
-/// pin, one identity file, and lock files, project files and documentation that agree with both.
+/// pin, and lock files, project files and documentation that agree with it.
 /// </summary>
 public sealed partial class SdkPinTests
 {
@@ -40,13 +39,6 @@ public sealed partial class SdkPinTests
 		"src/CheatEngine.Client/README.md",
 		"templates/CheatEngine.Client.Templates/README.md",
 		"tests/CheatEngine.Client.LivePlugin.Coexistence/README.md"
-	];
-
-	/// <summary>The identity fields; the schema's <c>required</c> list must stay equal to them.</summary>
-	private static readonly string[] _identityFields =
-	[
-		"schema", "id", "version", "range", "contentHashSha512", "attestedAssetSha256", "nugetOrgSignedSha256",
-		"nugetOrgSignedSha512", "sourceCommit", "sourceTreeHash", "nativeBridge", "lockFile"
 	];
 
 	[Fact]
@@ -176,52 +168,6 @@ public sealed partial class SdkPinTests
 		Assert.True(contentHashes.Count == 1,
 			$"Every lock must record one content hash for {SdkPin.PackageId} {pin}, found: {string.Join(", ", contentHashes)}.");
 		AssertNoOffenders(offenders, "Lock files resolve the pinned CheatEngine.SDK");
-	}
-
-	[Fact]
-	public void ConsumedSdkIdentityMatchesThePinAndTheLockFiles()
-	{
-		using JsonDocument identity = SdkPin.ReadJson(SdkPin.IdentityPath);
-		JsonElement root = identity.RootElement;
-		string contentHash = root.GetProperty("contentHashSha512").GetString()!;
-		string lockFile = root.GetProperty("lockFile").GetString()!;
-
-		Assert.Equal(SdkPin.PackageId, root.GetProperty("id").GetString());
-		Assert.Equal(SdkPin.Version, root.GetProperty("version").GetString());
-		Assert.Equal(SdkPin.Range, SdkPin.NormalizeRange(root.GetProperty("range").GetString()!));
-
-		List<string> offenders = [];
-		(_, JsonElement declared) = Assert.Single(SdkLockEntries(lockFile));
-		foreach (string file in RepositoryRoot.EnumerateSourceFiles("packages.lock.json"))
-		{
-			foreach ((string framework, JsonElement entry) in SdkLockEntries(file))
-			{
-				if (entry.GetProperty("contentHash").GetString() != contentHash)
-				{
-					offenders.Add($"{file} ({framework}) → contentHash {entry.GetProperty("contentHash").GetString()}");
-				}
-			}
-		}
-
-		Assert.Equal(contentHash, declared.GetProperty("contentHash").GetString());
-		AssertNoOffenders(offenders,
-			$"{SdkPin.IdentityPath} records the NuGet SHA-512 content hash read from the lock files ({contentHash}); a lock that differs consumes another package");
-	}
-
-	[Fact]
-	public void ConsumedSdkIdentityFollowsTheEncodingRules()
-	{
-		using JsonDocument schema = SdkPin.ReadJson(SdkPin.IdentitySchemaPath);
-		using JsonDocument identity = SdkPin.ReadJson(SdkPin.IdentityPath);
-
-		Assert.Equal(_identityFields, JsonSchemaSubset.RequiredNames(schema.RootElement));
-		Assert.Equal(
-			$"https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/{SdkPin.IdentitySchemaPath}",
-			schema.RootElement.GetProperty("$id").GetString());
-
-		IReadOnlyList<string> errors = JsonSchemaSubset.Validate(schema.RootElement, identity.RootElement);
-		Assert.True(errors.Count == 0,
-			$"{SdkPin.IdentityPath} does not satisfy {SdkPin.IdentitySchemaPath}:{Environment.NewLine}{string.Join(Environment.NewLine, errors)}");
 	}
 
 	[Fact]

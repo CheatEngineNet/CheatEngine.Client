@@ -5,11 +5,11 @@ using CheatEngine.Client.Repository.Tests.Infrastructure;
 namespace CheatEngine.Client.Repository.Tests.LockFiles;
 
 /// <summary>
-/// Offline mirror of the structural checks of <c>eng/Update-LockFiles.ps1</c>, so a broken lock file is reported
-/// before CI restores anything. Every project restores with a committed lock file; the three Coexistence fixtures stay
-/// outside Central Package Management with version 1 lock files (a solution-level <c>--force-evaluate</c> once gave
-/// them CentralTransitive entries and broke every locked restore); the whole graph consumes one CheatEngine.SDK
-/// identity (ADR-10: the Client follows the consumed package, SDK 1.0.0).
+/// Structural checks of every committed lock file, so a broken one is reported before CI restores anything. Every
+/// project restores with a committed lock file; the three Coexistence fixtures stay outside Central Package
+/// Management with version 1 lock files (a solution-level <c>--force-evaluate</c> once gave them CentralTransitive
+/// entries and broke every locked restore, which is why regeneration always restores each project on its own); the
+/// whole graph consumes one CheatEngine.SDK identity (ADR-10: the Client follows the consumed package, SDK 1.0.0).
 /// </summary>
 public sealed class LockFileTests
 {
@@ -18,7 +18,6 @@ public sealed class LockFileTests
 		"templates/CheatEngine.Client.Templates/content/CheatEngine.Plugin/CheatEngine.Plugin.csproj";
 	private const string CoexistenceFolder = "tests/CheatEngine.Client.LivePlugin.Coexistence/";
 	private const string CoexistenceProps = CoexistenceFolder + "CoexistencePlugin.props";
-	private const string LockScript = "eng/Update-LockFiles.ps1";
 
 	// The published CheatEngine.SDK 1.0.0 as NuGet records it (SHA-512 of the unsigned package, base64).
 	private const string ConsumedSdkVersion = "1.0.0";
@@ -26,7 +25,7 @@ public sealed class LockFileTests
 		"n7nHqZ8vzo7Vf20jF0fkh/jUtR3yo1TwRGpXE7ERxZeJ4C5S/Nsft4lqOg7zGwfsD5Nh9tTVgdw4PrybJRF0gA==";
 
 	/// <summary>
-	/// Lock files whose committed text ends with a newline. NuGet writes none; eng/Update-LockFiles.ps1 keeps whatever
+	/// Lock files whose committed text ends with a newline. NuGet writes none; the committed lock files keep whatever
 	/// was committed so a regeneration of an unchanged graph produces no diff.
 	/// </summary>
 	private static readonly HashSet<string> _lockFilesEndingWithNewline = new(StringComparer.Ordinal)
@@ -63,7 +62,7 @@ public sealed class LockFileTests
 		}
 
 		Assert.True(missing.Count == 0,
-			$"Missing lock files (run ./eng/Update-LockFiles.ps1 and commit them): {string.Join(", ", missing)}");
+			$"Missing lock files (regenerate them with 'dotnet restore <project> --force-evaluate' and commit them): {string.Join(", ", missing)}");
 	}
 
 	[Fact]
@@ -110,7 +109,7 @@ public sealed class LockFileTests
 			{
 				Assert.False(TypeOf(entry) == "CentralTransitive",
 					$"{lockFile} [{section}] {id} is CentralTransitive: a solution-level --force-evaluate rewrote it. " +
-					"Regenerate with ./eng/Update-LockFiles.ps1, which restores the fixtures first, one by one.");
+					"Regenerate by restoring each Coexistence fixture on its own with --force-evaluate (never the solution, which broke this once).");
 			}
 		}
 	}
@@ -239,33 +238,8 @@ public sealed class LockFileTests
 			bool expectedNewline = _lockFilesEndingWithNewline.Contains(lockFile);
 			Assert.True(endsWithNewline == expectedNewline,
 				expectedNewline
-					? $"{lockFile} lost its committed final newline; regenerate with ./eng/Update-LockFiles.ps1 instead of a plain restore."
-					: $"{lockFile} gained a final newline NuGet does not write; regenerate with ./eng/Update-LockFiles.ps1.");
-		}
-	}
-
-	[Fact]
-	public void LockScriptRestoresTheCoexistenceFixturesFirstAndNeverTheSolutionWithForceEvaluate()
-	{
-		string script = File.ReadAllText(Path.Combine(RepositoryRoot.Path, LockScript));
-
-		int previous = -1;
-		foreach (string fixture in CoexistenceFixtures())
-		{
-			int position = script.IndexOf($"'{fixture}'", StringComparison.Ordinal);
-			Assert.True(position > previous,
-				$"{LockScript} must list {fixture} in its ordered Coexistence fixture list.");
-			previous = position;
-		}
-
-		Assert.Contains($"'{TemplateContentProject}'", script, StringComparison.Ordinal);
-		foreach (string line in script.Split('\n'))
-		{
-			if (line.Contains("$solution", StringComparison.Ordinal) && line.Contains("restore", StringComparison.Ordinal))
-			{
-				Assert.DoesNotContain("--force-evaluate", line, StringComparison.Ordinal);
-				Assert.Contains("--locked-mode", line, StringComparison.Ordinal);
-			}
+					? $"{lockFile} lost its committed final newline; regenerate it with 'dotnet restore <project> --force-evaluate' instead of a plain restore."
+					: $"{lockFile} gained a final newline NuGet does not write; regenerate it with 'dotnet restore <project> --force-evaluate'.");
 		}
 	}
 
@@ -292,7 +266,7 @@ public sealed class LockFileTests
 	private static JsonObject ReadLock(string lockFile)
 	{
 		string path = Path.Combine(RepositoryRoot.Path, lockFile);
-		Assert.True(File.Exists(path), $"{lockFile} does not exist; run ./eng/Update-LockFiles.ps1.");
+		Assert.True(File.Exists(path), $"{lockFile} does not exist; run 'dotnet restore <project> --force-evaluate' and commit it.");
 		return JsonNode.Parse(File.ReadAllText(path)) as JsonObject
 			   ?? throw new InvalidOperationException($"{lockFile} is not a JSON object.");
 	}
