@@ -69,6 +69,12 @@ public sealed partial class SdkPinTests
 					offenders.Add($"{file}:{LineOf(element)} → assigns {name} (only {SdkPin.PropsPath} may)");
 				}
 
+				string? condition = (string?) element.Attribute("Condition");
+				if (condition is not null && ConditionVersionLiteral().IsMatch(condition))
+				{
+					offenders.Add($"{file}:{LineOf(element)} → Condition=\"{condition}\" compares an SDK version with a literal");
+				}
+
 				if (name is not ("PackageReference" or "PackageVersion" or "GlobalPackageReference")
 					|| !IsSdk((string?) element.Attribute("Include") ?? (string?) element.Attribute("Update")))
 				{
@@ -314,6 +320,11 @@ public sealed partial class SdkPinTests
 
 	[GeneratedRegex(@"\[\s*\d+\.\d+\.\d+[^,\]\)]*\s*,\s*\d+\.\d+\.\d+[^\]\)]*\s*[\]\)]", RegexOptions.CultureInvariant, RegexTimeoutMilliseconds)]
 	private static partial Regex RangeLiteral();
+
+	/// <summary>A condition that compares a property holding the consumed SDK version with a literal version.</summary>
+	[GeneratedRegex(@"\$\((?:CheatEngineSdkVersion|CoexistenceSdkPackageVersion)\)'\s*[!=]=\s*'\d+\.\d+|'\d+\.\d+[^']*'\s*[!=]=\s*'\$\((?:CheatEngineSdkVersion|CoexistenceSdkPackageVersion)\)",
+		RegexOptions.CultureInvariant, RegexTimeoutMilliseconds)]
+	private static partial Regex ConditionVersionLiteral();
 
 	[GeneratedRegex(@"(?:(?<!\.NET\s)\bSDK|CheatEngine\.SDK`?(?:\s+package)?|Include=""CheatEngine\.SDK""\s+Version=)\s*[""`]?(?<version>\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)",
 		RegexOptions.CultureInvariant, RegexTimeoutMilliseconds)]
