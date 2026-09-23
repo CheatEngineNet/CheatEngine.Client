@@ -18,6 +18,12 @@ namespace CheatEngine.Client.Tables;
 ///         <see cref="CheatEngineFailureKind.NotFound" />, distinct from a host error.
 ///     </para>
 ///     <para>
+///         Concurrent callers: the table load, every snapshot copy and every identifier check are ordered on Cheat Engine's
+///         main thread, not by the order in which the calling threads resume. A snapshot copied before a concurrent trusted
+///         load hands out identifiers that are already refused, and an identifier-taking operation queued behind an
+///         in-flight load is checked again on the main thread and refused without calling Cheat Engine.
+///     </para>
+///     <para>
 ///         Trusted table files follow the Client path policy. Cheat Engine's file form of <c>loadTable</c> offers no
 ///         option to suppress a table's Lua scripts, so a table with scripts may prompt or execute Lua. A refused path is
 ///         never retried through another overload and never turned into a stream.

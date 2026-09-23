@@ -119,9 +119,11 @@ the process width, the Client's own pointer-typed operations are refused before 
 
 ## Address List records and symbols
 
-Every trusted table load that reaches Cheat Engine advances the table generation of the activation;
-a record identifier handed out before it is refused with `InvalidState` before dispatch until a new
-snapshot observes it. `TrySetActive` reads the record's state before and after one setter call and
+Every trusted table load that reaches Cheat Engine advances the table generation of the activation
+inside the dispatched load, on Cheat Engine's main thread; a record identifier handed out before it
+is refused with `InvalidState` (checked before dispatch and again inside the dispatched call) until
+a new snapshot observes it. Each snapshot is judged by the generation read when it was copied, so a
+snapshot copied before a concurrent load never hands out current identifiers. `TrySetActive` reads the record's state before and after one setter call and
 reports applied, unchanged, refused by the host, pending or indeterminate; it never retries.
 Symbol registration refuses a name that already resolves, and a lease unregisters its name only
 when the name still resolves to the leased address (a replaced name is left in place). Both checks

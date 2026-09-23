@@ -14,7 +14,8 @@ namespace CheatEngine.Client.Core.Tests.Domains;
 /// <summary>
 ///     Record identifiers are bound to the table load in which this activation observed them (audit ch.14, A14-01,
 ///     A14-05, A14-27, A14-29, Q34): a trusted load that reached Cheat Engine makes earlier identifiers stale, and every
-///     identifier-taking operation refuses a stale identifier before any dispatch.
+///     identifier-taking operation refuses a stale identifier before any dispatch and again on the main thread. The
+///     scripted interleavings model concurrent workers whose dispatched callbacks the main thread runs one at a time.
 /// </summary>
 public sealed class TableClientGenerationTests : IDisposable
 {
@@ -89,28 +90,8 @@ public sealed class TableClientGenerationTests : IDisposable
 		Fixture fixture = CreateFixture();
 		HandOutAndLoad(fixture);
 		int dispatchedBefore = fixture.Dispatcher.InvocationCount;
-		MemoryRecordId other = new(99);
-		CancellationToken token = TestContext.Current.CancellationToken;
 
-		(bool succeeded, CheatEngineFailure failure) = operation switch
-		{
-			"GetRecord" => (fixture.Client.TryGetRecord(_handedOut, out _, out CheatEngineFailure f, token), f),
-			"Select" => (fixture.Client.TrySelect(_handedOut, out _, out CheatEngineFailure f, token), f),
-			"Update" => (fixture.Client.TryUpdate(new MemoryRecordUpdate(_handedOut, "renamed"), out _,
-				out CheatEngineFailure f, token), f),
-			"Delete" => (fixture.Client.TryDelete(_handedOut, out CheatEngineFailure f, token), f),
-			"SetActive" => (fixture.Client.TrySetActive(_handedOut, false, out _, out CheatEngineFailure f, token), f),
-			"SetParentChild" => (fixture.Client.TrySetParent(_handedOut, other, out _, out CheatEngineFailure f, token),
-				f),
-			"SetParentParent" => (fixture.Client.TrySetParent(other, _handedOut, out _, out CheatEngineFailure f,
-				token), f),
-			"GetHierarchy" => (fixture.Client.TryGetHierarchy(_handedOut, new MemoryRecordHierarchyRequest(4, 16),
-				out _, out CheatEngineFailure f, token), f),
-			"CreateUnderParent" => (fixture.Client.TryCreate(
-				new MemoryRecordDefinition("child", "game.exe+30", "1", VariableType.Dword, _handedOut), out _,
-				out CheatEngineFailure f, token), f),
-			_ => throw new ArgumentOutOfRangeException(nameof(operation), operation, null)
-		};
+		(bool succeeded, CheatEngineFailure failure) = InvokeIdTakingOperation(fixture, operation);
 
 		Assert.False(succeeded);
 		Assert.Equal(CheatEngineFailureKind.InvalidState, failure.Kind);
@@ -118,6 +99,84 @@ public sealed class TableClientGenerationTests : IDisposable
 		Assert.Equal(TableClient.StaleRecordIdentifierMessage, failure.Message);
 		Assert.Equal(dispatchedBefore, fixture.Dispatcher.InvocationCount);
 		Assert.Equal(0, fixture.Mutations.Calls);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q34")]
+	public void SnapshotCopiedBeforeAConcurrentTrustedLoadHandsOutARefusedRecordId()
+	{
+		// Review interleaving: worker B's snapshot is copied on the main thread; worker A's trusted load then runs on the
+		// main thread and advances the generation; only then does B resume and observe its copy. B must not hand out the
+		// pre-load identifier as current.
+		Fixture fixture = CreateFixture();
+		fixture.Dispatcher.AfterNextCallback(() =>
+			Assert.True(fixture.Client.TryLoadTrustedTable(new TableLoadRequest(fixture.TableFile), out _,
+				TestContext.Current.CancellationToken)));
+
+		Assert.True(fixture.Client.TryGetRecord(0, out MemoryRecordSnapshot copiedBeforeLoad, out _,
+			TestContext.Current.CancellationToken));
+		bool succeeded = fixture.Client.TrySetActive(copiedBeforeLoad.Id, true, out _, out CheatEngineFailure failure,
+			TestContext.Current.CancellationToken);
+
+		Assert.Equal(_handedOut, copiedBeforeLoad.Id);
+		Assert.Equal(1, fixture.Client.TableGeneration);
+		Assert.Single(fixture.Files.Loads);
+		Assert.False(succeeded);
+		Assert.Equal(CheatEngineFailureKind.InvalidState, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
+		Assert.Equal(TableClient.StaleRecordIdentifierMessage, failure.Message);
+		Assert.Equal(0, fixture.Mutations.Calls);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q34")]
+	public void SnapshotCopiedAfterAConcurrentTrustedLoadKeepsItsRecordIdCurrent()
+	{
+		// Reverse interleaving: the load runs on the main thread, another worker's snapshot is copied and observed after
+		// it, and the loading worker resumes last. The generation advanced inside the load, so the later snapshot is
+		// current and its identifier is accepted instead of being turned stale by the loading worker.
+		Fixture fixture = CreateFixture();
+		Assert.True(fixture.Client.TryGetRecord(0, out _, out _, TestContext.Current.CancellationToken));
+		MemoryRecordSnapshot copiedAfterLoad = default;
+		fixture.Dispatcher.AfterNextCallback(() =>
+			Assert.True(fixture.Client.TryGetRecord(0, out copiedAfterLoad, out _,
+				TestContext.Current.CancellationToken)));
+
+		Assert.True(fixture.Client.TryLoadTrustedTable(new TableLoadRequest(fixture.TableFile), out _,
+			TestContext.Current.CancellationToken));
+		bool succeeded = fixture.Client.TrySetActive(copiedAfterLoad.Id, true, out _, out CheatEngineFailure failure,
+			TestContext.Current.CancellationToken);
+
+		Assert.Equal(_handedOut, copiedAfterLoad.Id);
+		Assert.Equal(1, fixture.Client.TableGeneration);
+		Assert.True(succeeded);
+		Assert.Equal(default, failure);
+		Assert.Equal(1, fixture.Mutations.Calls);
+	}
+
+	[Theory]
+	[Trait("Qualification", "Q34")]
+	[MemberData(nameof(IdentifierTakingOperations))]
+	public void EveryIdTakingOperationQueuedBehindAnInFlightTrustedLoadIsRefusedOnTheMainThread(string operation)
+	{
+		// The identifier is current when the caller checks it, but a trusted load dispatched by another worker runs on
+		// the main thread before this operation's callback: the callback checks again and never calls Cheat Engine.
+		Fixture fixture = CreateFixture();
+		Assert.True(fixture.Client.TryGetRecord(0, out _, out _, TestContext.Current.CancellationToken));
+		fixture.Dispatcher.BeforeNextCallback(() =>
+			Assert.True(fixture.Client.TryLoadTrustedTable(new TableLoadRequest(fixture.TableFile), out _,
+				TestContext.Current.CancellationToken)));
+
+		(bool succeeded, CheatEngineFailure failure) = InvokeIdTakingOperation(fixture, operation);
+
+		Assert.False(succeeded);
+		Assert.Equal(CheatEngineFailureKind.InvalidState, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
+		Assert.Equal(TableClient.StaleRecordIdentifierMessage, failure.Message);
+		Assert.Equal(1, fixture.Client.TableGeneration);
+		Assert.Single(fixture.Files.Loads);
+		Assert.Equal(0, fixture.Mutations.Calls);
+		Assert.Equal(1, fixture.Lookups.Calls);
 	}
 
 	[Fact]
@@ -187,7 +246,33 @@ public sealed class TableClientGenerationTests : IDisposable
 		RecordingFilePort files = new(fileFault);
 		SingleRecordLookupPort lookups = new();
 		TableClient client = new(dispatcher, new CoreClientPolicy([_root], false), mutations, null, lookups, files);
-		return new Fixture(client, dispatcher, mutations, files, new TrustedTableFile(tablePath));
+		return new Fixture(client, dispatcher, mutations, lookups, files, new TrustedTableFile(tablePath));
+	}
+
+	private static (bool Succeeded, CheatEngineFailure Failure) InvokeIdTakingOperation(Fixture fixture,
+		string operation)
+	{
+		MemoryRecordId other = new(99);
+		CancellationToken token = TestContext.Current.CancellationToken;
+		return operation switch
+		{
+			"GetRecord" => (fixture.Client.TryGetRecord(_handedOut, out _, out CheatEngineFailure f, token), f),
+			"Select" => (fixture.Client.TrySelect(_handedOut, out _, out CheatEngineFailure f, token), f),
+			"Update" => (fixture.Client.TryUpdate(new MemoryRecordUpdate(_handedOut, "renamed"), out _,
+				out CheatEngineFailure f, token), f),
+			"Delete" => (fixture.Client.TryDelete(_handedOut, out CheatEngineFailure f, token), f),
+			"SetActive" => (fixture.Client.TrySetActive(_handedOut, false, out _, out CheatEngineFailure f, token), f),
+			"SetParentChild" => (fixture.Client.TrySetParent(_handedOut, other, out _, out CheatEngineFailure f, token),
+				f),
+			"SetParentParent" => (fixture.Client.TrySetParent(other, _handedOut, out _, out CheatEngineFailure f,
+				token), f),
+			"GetHierarchy" => (fixture.Client.TryGetHierarchy(_handedOut, new MemoryRecordHierarchyRequest(4, 16),
+				out _, out CheatEngineFailure f, token), f),
+			"CreateUnderParent" => (fixture.Client.TryCreate(
+				new MemoryRecordDefinition("child", "game.exe+30", "1", VariableType.Dword, _handedOut), out _,
+				out CheatEngineFailure f, token), f),
+			_ => throw new ArgumentOutOfRangeException(nameof(operation), operation, null)
+		};
 	}
 
 	private static void HandOutAndLoad(Fixture fixture)
@@ -211,31 +296,42 @@ public sealed class TableClientGenerationTests : IDisposable
 		TableClient Client,
 		CountingDispatcher Dispatcher,
 		CountingMutationPort Mutations,
+		SingleRecordLookupPort Lookups,
 		RecordingFilePort Files,
 		TrustedTableFile TableFile);
 
 	private sealed class SingleRecordLookupPort : ITableRecordLookupPort
 	{
+		internal int Calls
+		{
+			get;
+			private set;
+		}
+
 		public RecordLookupStatus TryGetRecord(int index, out MemoryRecordSnapshot record)
 		{
+			Calls++;
 			record = Snapshot(_handedOut);
 			return RecordLookupStatus.Success;
 		}
 
 		public RecordLookupStatus TryGetRecord(MemoryRecordId id, out MemoryRecordSnapshot record)
 		{
+			Calls++;
 			record = Snapshot(id);
 			return RecordLookupStatus.Success;
 		}
 
 		public RecordLookupStatus TryGetSelected(out MemoryRecordSnapshot record)
 		{
+			Calls++;
 			record = Snapshot(_handedOut);
 			return RecordLookupStatus.Success;
 		}
 
 		public RecordLookupStatus TryGetTable(int maximumItems, out AddressTableSnapshot table)
 		{
+			Calls++;
 			table = new AddressTableSnapshot([Snapshot(_handedOut)]);
 			return RecordLookupStatus.Success;
 		}
@@ -313,8 +409,16 @@ public sealed class TableClientGenerationTests : IDisposable
 		}
 	}
 
+	/// <summary>
+	///     Runs callbacks inline, like Cheat Engine's main thread runs dispatched work one at a time, and can script another
+	///     dispatched operation right before or right after the next callback. The scripted operation is what another
+	///     worker thread's call would run on the main thread between two steps of this caller.
+	/// </summary>
 	private sealed class CountingDispatcher : ICheatEngineDispatcher
 	{
+		private Action? _afterNextCallback;
+		private Action? _beforeNextCallback;
+
 		internal int InvocationCount
 		{
 			get;
@@ -328,7 +432,9 @@ public sealed class TableClientGenerationTests : IDisposable
 		{
 			ArgumentNullException.ThrowIfNull(callback);
 			InvocationCount++;
+			RunOnce(ref _beforeNextCallback);
 			callback();
+			RunOnce(ref _afterNextCallback);
 			failure = default;
 			return true;
 		}
@@ -338,9 +444,34 @@ public sealed class TableClientGenerationTests : IDisposable
 		{
 			ArgumentNullException.ThrowIfNull(callback);
 			InvocationCount++;
+			RunOnce(ref _beforeNextCallback);
 			result = callback();
+			RunOnce(ref _afterNextCallback);
 			failure = default;
 			return true;
+		}
+
+		/// <summary>Runs <paramref name="interleaved" /> on the "main thread" right before the next callback.</summary>
+		internal void BeforeNextCallback(Action interleaved)
+		{
+			_beforeNextCallback = interleaved;
+		}
+
+		/// <summary>
+		///     Runs <paramref name="interleaved" /> on the "main thread" right after the next callback, before the caller of
+		///     that callback resumes.
+		/// </summary>
+		internal void AfterNextCallback(Action interleaved)
+		{
+			_afterNextCallback = interleaved;
+		}
+
+		private static void RunOnce(ref Action? interleaved)
+		{
+			// Cleared first: the interleaved operation dispatches through this dispatcher too.
+			Action? action = interleaved;
+			interleaved = null;
+			action?.Invoke();
 		}
 
 		public void Invoke(Action callback, CancellationToken cancellationToken = default)

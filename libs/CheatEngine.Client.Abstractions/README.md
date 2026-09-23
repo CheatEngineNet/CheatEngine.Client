@@ -189,9 +189,10 @@ established.
 
 A `MemoryRecordId` is valid in the Address List state in which this activation observed it. A trusted table load that
 reached Cheat Engine (merge or replace, even a failed one) makes every identifier handed out before it stale, and every
-identifier-taking operation refuses a stale identifier before dispatch with `InvalidState` and
-`CheatEngineHostEffect.NotStarted` until a new snapshot observes it again. Loads made outside this activation are not
-detected.
+identifier-taking operation refuses a stale identifier with `InvalidState` and `CheatEngineHostEffect.NotStarted` until a
+new snapshot observes it again. The check runs before dispatch and again on Cheat Engine's main thread, where the load
+advances the table generation, so concurrent callers cannot hand out or use an identifier of the earlier table state.
+Loads made outside this activation are not detected.
 
 `ITableClient.TrySetActive` reports what Cheat Engine did: already in the requested state (success, the setter is not
 called), applied (success), refused by an activation callback, script or record type (`OperationRejected`, `Started`,

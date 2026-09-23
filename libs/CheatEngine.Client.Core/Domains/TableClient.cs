@@ -15,7 +15,10 @@ namespace CheatEngine.Client.Core.Domains;
 /// <remarks>
 ///     Record identifiers are bound to the table load in which this activation observed them
 ///     (<see cref="TableRecordGeneration" />): every identifier-taking operation refuses an identifier captured before the
-///     last trusted table load, before any dispatch.
+///     last trusted table load. The check runs before dispatch and again inside the dispatched callback on Cheat Engine's
+///     main thread, where trusted loads advance the generation, so an operation queued behind an in-flight load is
+///     judged against the table that load produced. Every copied snapshot is observed with the generation it was copied
+///     in, read inside the same dispatched callback.
 /// </remarks>
 internal sealed class TableClient(
 	ICheatEngineDispatcher dispatcher,
@@ -86,9 +89,9 @@ internal sealed class TableClient(
 	{
 		AddressTableSnapshot captured = default;
 		RecordLookupStatus status = RecordLookupStatus.InvalidRecord;
-		if (!SdkBoundary.TryInvoke(_dispatcher, "Tables.GetSnapshot",
+		if (!TryDispatch("Tables.GetSnapshot", null, null,
 				() => status = _recordLookups.TryGetTable(request.MaximumItems, out captured),
-				CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
+				out long observedGeneration, out failure, cancellationToken))
 		{
 			table = default;
 			return false;
@@ -96,7 +99,7 @@ internal sealed class TableClient(
 
 		if (status == RecordLookupStatus.Success)
 		{
-			_generation.Observe(captured);
+			_generation.Observe(captured, observedGeneration);
 			table = captured;
 			return true;
 		}
@@ -170,7 +173,7 @@ internal sealed class TableClient(
 		CancellationToken cancellationToken = default)
 	{
 		ArgumentOutOfRangeException.ThrowIfNegative(index);
-		return TryRecord("Tables.GetRecord", (out result) =>
+		return TryRecord("Tables.GetRecord", null, (out result) =>
 			_recordLookups.TryGetRecord(index, out result), out record, out failure, cancellationToken);
 	}
 
@@ -183,7 +186,7 @@ internal sealed class TableClient(
 			return false;
 		}
 
-		return TryRecord("Tables.GetRecord", (out result) =>
+		return TryRecord("Tables.GetRecord", id, (out result) =>
 			_recordLookups.TryGetRecord(id, out result), out record, out failure, cancellationToken);
 	}
 
@@ -212,7 +215,7 @@ internal sealed class TableClient(
 	public bool TryGetSelected(out MemoryRecordSnapshot record, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
-		return TryRecord("Tables.GetSelected", _recordLookups.TryGetSelected, out record, out failure,
+		return TryRecord("Tables.GetSelected", null, _recordLookups.TryGetSelected, out record, out failure,
 			cancellationToken);
 	}
 
@@ -239,8 +242,8 @@ internal sealed class TableClient(
 		// Changing Cheat Engine's GUI selection is a host-visible mutation, so it goes through the mutation port.
 		MemoryRecordSnapshot captured = default;
 		TableRecordMutationStatus status = TableRecordMutationStatus.HostRejected;
-		if (!SdkBoundary.TryInvoke(_dispatcher, "Tables.Select", () => status = _recordMutations.TrySelect(id, out captured),
-				CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
+		if (!TryDispatch("Tables.Select", id, null, () => status = _recordMutations.TrySelect(id, out captured),
+				out long observedGeneration, out failure, cancellationToken))
 		{
 			record = default;
 			return false;
@@ -248,7 +251,7 @@ internal sealed class TableClient(
 
 		if (status == TableRecordMutationStatus.Success)
 		{
-			_generation.Observe(captured);
+			_generation.Observe(captured, observedGeneration);
 			record = captured;
 			return true;
 		}
@@ -280,9 +283,9 @@ internal sealed class TableClient(
 
 		MemoryRecordSnapshot captured = default;
 		TableRecordCreation creation = default;
-		if (!SdkBoundary.TryInvoke(_dispatcher, "Tables.Create",
+		if (!TryDispatch("Tables.Create", definition.ParentId, null,
 				() => creation = _recordMutations.TryCreate(definition, out captured),
-				CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
+				out long observedGeneration, out failure, cancellationToken))
 		{
 			record = default;
 			return false;
@@ -290,7 +293,7 @@ internal sealed class TableClient(
 
 		if (creation.Status == TableRecordMutationStatus.Success)
 		{
-			_generation.Observe(captured);
+			_generation.Observe(captured, observedGeneration);
 			record = captured;
 			return true;
 		}
@@ -323,8 +326,8 @@ internal sealed class TableClient(
 
 		MemoryRecordSnapshot captured = default;
 		bool succeeded = false;
-		if (!SdkBoundary.TryInvoke(_dispatcher, "Tables.Update", () => succeeded = TryUpdateRecord(update, out captured),
-				CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
+		if (!TryDispatch("Tables.Update", update.Id, null, () => succeeded = TryUpdateRecord(update, out captured),
+				out long observedGeneration, out failure, cancellationToken))
 		{
 			record = default;
 			return false;
@@ -333,7 +336,7 @@ internal sealed class TableClient(
 		record = captured;
 		if (succeeded)
 		{
-			_generation.Observe(captured);
+			_generation.Observe(captured, observedGeneration);
 			return true;
 		}
 
@@ -362,8 +365,8 @@ internal sealed class TableClient(
 
 		// A successful delete does not make the identifier stale: a second delete reports not found (A14-38).
 		TableRecordMutationStatus status = TableRecordMutationStatus.HostRejected;
-		if (!SdkBoundary.TryInvoke(_dispatcher, "Tables.Delete", () => status = _recordMutations.TryDelete(id),
-				CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
+		if (!TryDispatch("Tables.Delete", id, null, () => status = _recordMutations.TryDelete(id), out _,
+				out failure, cancellationToken))
 		{
 			return false;
 		}
@@ -397,9 +400,8 @@ internal sealed class TableClient(
 		}
 
 		TableActivationObservation observation = default;
-		if (!SdkBoundary.TryInvoke(_dispatcher, Operation,
-				() => observation = _recordMutations.TrySetActive(id, isActive), CheatEngineHostEffect.Unknown,
-				_lifetime, out failure, cancellationToken))
+		if (!TryDispatch(Operation, id, null, () => observation = _recordMutations.TrySetActive(id, isActive),
+				out long observedGeneration, out failure, cancellationToken))
 		{
 			record = default;
 			return false;
@@ -407,7 +409,7 @@ internal sealed class TableClient(
 
 		if (observation.Snapshot is { } snapshot)
 		{
-			_generation.Observe(snapshot);
+			_generation.Observe(snapshot, observedGeneration);
 		}
 
 		bool applied = TryMapActivation(Operation, isActive, observation, out record, out failure);
@@ -453,9 +455,9 @@ internal sealed class TableClient(
 
 		MemoryRecordSnapshot captured = default;
 		TableRecordMutationStatus status = TableRecordMutationStatus.HostRejected;
-		if (!SdkBoundary.TryInvoke(_dispatcher, "Tables.SetParent",
+		if (!TryDispatch("Tables.SetParent", childId, parentId,
 				() => status = _recordMutations.TrySetParent(childId, parentId, out captured),
-				CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
+				out long observedGeneration, out failure, cancellationToken))
 		{
 			record = default;
 			return false;
@@ -464,7 +466,7 @@ internal sealed class TableClient(
 		record = captured;
 		if (status == TableRecordMutationStatus.Success)
 		{
-			_generation.Observe(captured);
+			_generation.Observe(captured, observedGeneration);
 			failure = default;
 			return true;
 		}
@@ -500,7 +502,7 @@ internal sealed class TableClient(
 		bool found = false;
 		bool succeeded = false;
 		HierarchyBuildProblem problem = HierarchyBuildProblem.None;
-		if (!SdkBoundary.TryInvoke(_dispatcher, _getHierarchyOperation, () =>
+		if (!TryDispatch(_getHierarchyOperation, rootId, null, () =>
 			{
 				if (!AddressListAccess.TryGetCurrent(out AddressList list) ||
 					!list.TryGetMemoryRecordById(rootId, out MemoryRecord root))
@@ -512,7 +514,7 @@ internal sealed class TableClient(
 				HashSet<MemoryRecordId> visited = [];
 				int materialized = 0;
 				succeeded = TryBuildHierarchy(root, request, 1, visited, ref materialized, out captured, out problem);
-			}, CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
+			}, out long observedGeneration, out failure, cancellationToken))
 		{
 			hierarchy = default;
 			return false;
@@ -521,7 +523,7 @@ internal sealed class TableClient(
 		hierarchy = captured;
 		if (succeeded)
 		{
-			_generation.Observe(captured);
+			_generation.Observe(captured, observedGeneration);
 			return true;
 		}
 
@@ -553,16 +555,26 @@ internal sealed class TableClient(
 
 		// loadTable can execute table Lua: a fault leaves the Address List state unknown. A load that reached Cheat
 		// Engine advances the table generation whatever its result, merge or replace: Cheat Engine does not promise that
-		// an earlier record identifier survives it (A14-05, open issue O4). The refused path above never reaches here and
-		// is never retried through another overload or a stream.
+		// an earlier record identifier survives it (A14-05, open issue O4). The generation advances inside the dispatched
+		// callback, on Cheat Engine's main thread, so it is ordered with every dispatched snapshot copy and identifier
+		// check. The diagnostics event is emitted after dispatch, never inside the callback. The refused path above never
+		// reaches here and is never retried through another overload or a stream.
 		bool reachedCheatEngine = false;
+		long advancedGeneration = 0;
 		try
 		{
 			return SdkBoundary.TryInvoke(_dispatcher, "Tables.LoadTrustedTable",
 				() =>
 				{
 					reachedCheatEngine = true;
-					_tableFiles.LoadTable(request.File.FullPath, request.Merge);
+					try
+					{
+						_tableFiles.LoadTable(request.File.FullPath, request.Merge);
+					}
+					finally
+					{
+						advancedGeneration = _generation.Advance();
+					}
 				},
 				CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken);
 		}
@@ -570,8 +582,7 @@ internal sealed class TableClient(
 		{
 			if (reachedCheatEngine)
 			{
-				long generation = _generation.Advance();
-				_lifetime?.Diagnostics.TableGenerationAdvanced(_lifetime.Epoch, generation);
+				_lifetime?.Diagnostics.TableGenerationAdvanced(_lifetime.Epoch, advancedGeneration);
 			}
 		}
 	}
@@ -606,13 +617,13 @@ internal sealed class TableClient(
 		}
 	}
 
-	private bool TryRecord(string operation, RecordLookup lookup,
+	private bool TryRecord(string operation, MemoryRecordId? id, RecordLookup lookup,
 		out MemoryRecordSnapshot record, out CheatEngineFailure failure, CancellationToken cancellationToken)
 	{
 		MemoryRecordSnapshot captured = default;
 		RecordLookupStatus status = RecordLookupStatus.InvalidRecord;
-		if (!SdkBoundary.TryInvoke(_dispatcher, operation, () => status = lookup(out captured),
-				CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
+		if (!TryDispatch(operation, id, null, () => status = lookup(out captured), out long observedGeneration,
+				out failure, cancellationToken))
 		{
 			record = default;
 			return false;
@@ -621,12 +632,54 @@ internal sealed class TableClient(
 		record = captured;
 		if (status == RecordLookupStatus.Success)
 		{
-			_generation.Observe(captured);
+			_generation.Observe(captured, observedGeneration);
 			return true;
 		}
 
 		failure = LookupFailure(operation, status);
 		return false;
+	}
+
+	/// <summary>
+	///     Dispatches Client-internal Address List work after re-checking, on Cheat Engine's main thread, that no
+	///     identifier it takes became stale, and reads there the table generation the work observes.
+	/// </summary>
+	/// <remarks>
+	///     A trusted load dispatched after the pre-dispatch check and before this callback advances the generation on the
+	///     main thread first; the re-check then refuses the identifier without calling Cheat Engine. The generation is read
+	///     before the work, so a snapshot copied while a nested load ran inside the work is treated as an earlier state.
+	/// </remarks>
+	private bool TryDispatch(string operation, MemoryRecordId? firstId, MemoryRecordId? secondId, Action work,
+		out long observedGeneration, out CheatEngineFailure failure, CancellationToken cancellationToken)
+	{
+		bool stale = false;
+		long generation = 0;
+		bool dispatched = SdkBoundary.TryInvoke(_dispatcher, operation, () =>
+			{
+				if ((firstId is { } first && _generation.IsStale(first)) ||
+					(secondId is { } second && _generation.IsStale(second)))
+				{
+					stale = true;
+					return;
+				}
+
+				generation = _generation.Generation;
+				work();
+			},
+			CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken);
+		observedGeneration = generation;
+		if (!dispatched)
+		{
+			return false;
+		}
+
+		if (stale)
+		{
+			failure = RefuseStale(operation);
+			return false;
+		}
+
+		return true;
 	}
 
 	/// <summary>Refuses, before any dispatch, an identifier captured before the last trusted table load.</summary>
@@ -638,10 +691,16 @@ internal sealed class TableClient(
 			return false;
 		}
 
-		_lifetime?.Diagnostics.StaleRecordIdentifierRefused(operation, _generation.Generation);
-		failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidState, operation, StaleRecordIdentifierMessage,
-			null, CheatEngineHostEffect.NotStarted);
+		failure = RefuseStale(operation);
 		return true;
+	}
+
+	/// <summary>Creates the stale-identifier refusal and emits its diagnostics event (never inside a callback).</summary>
+	private CheatEngineFailure RefuseStale(string operation)
+	{
+		_lifetime?.Diagnostics.StaleRecordIdentifierRefused(operation, _generation.Generation);
+		return new CheatEngineFailure(CheatEngineFailureKind.InvalidState, operation, StaleRecordIdentifierMessage,
+			null, CheatEngineHostEffect.NotStarted);
 	}
 
 	/// <summary>
