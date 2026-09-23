@@ -177,7 +177,12 @@ jobs:
             '/d:sonar.exclusions=artifacts/**,docs/**,tests/CheatEngine.Client.Benchmarks/**'
             # CI publishes managed coverage of the shipping code only. Keep tests, build tooling and documentation out
             # of the coverage metric instead of presenting an incomplete report as if it covered those paths.
-            '/d:sonar.coverage.exclusions=tests/**,eng/**,docs/**'
+            # The three SDK production adapters below are excluded individually, not by a folder pattern: every other
+            # file in Domains/** keeps full coverage accounting. Each one is entirely unreachable from a hosted test
+            # (xUnit has no attached Cheat Engine process or Lua state), so every line is genuinely untestable, not
+            # merely untested; each has the tests its non-SDK-dependent branches allow (e.g.
+            # SdkTableRecordMutationPortTests' self-referential-parent guard) sitting next to it.
+            '/d:sonar.coverage.exclusions=tests/**,eng/**,docs/**,libs/CheatEngine.Client.Core/Domains/SdkTableRecordMutationPort.cs,libs/CheatEngine.Client.Core/Domains/SdkAobScanPort.cs,libs/CheatEngine.Client.Core/Domains/IMemoryCodecContextPort.cs'
             # Never set sonar.dotnet.excludeTestProjects: the scanner then strips every analyzer, including source
             # generators, from test projects, and their [GeneratedRegex]/[LoggerMessage] partial methods fail with
             # CS8795 (https://github.com/SonarSource/sonar-scanner-msbuild/issues/1469). Test projects are analysed as
