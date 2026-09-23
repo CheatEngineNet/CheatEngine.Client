@@ -10,6 +10,7 @@ which is published on nuget.org; the [repository README](../README.md) is the st
 | Document                                 | What it answers                                                                                     |
 |------------------------------------------|-----------------------------------------------------------------------------------------------------|
 | [CHANGELOG](../CHANGELOG.md)             | What changed in each release, separated into extensions, semantic corrections, refusals, deployment |
+| [CONTRIBUTING](../CONTRIBUTING.md)       | How to build, test, pack and change the repository, and the rules a pull request follows            |
 | [RELEASING](../RELEASING.md)             | How a release is built, attested, published and verified, and what it must be qualified against     |
 | [ROADMAP](../ROADMAP.md)                 | The outcome-based plan, including the `CLI-0xx` work item identifiers                               |
 | [The consumed SDK](../eng/sdk/README.md) | Which `CheatEngine.SDK` package the Client consumes, its hashes, its guards and how the pin moves    |
