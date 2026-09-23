@@ -86,8 +86,10 @@ fingerprint) come from the SDK release tuple `CheatEngine.SDK.<version>.tuple.js
 from the parameters; they are never guessed. It then regenerates the lock files with `./eng/Update-LockFiles.ps1` and
 fails unless every lock resolves the new version with the verified content hash and nothing else changed.
 
-Dependabot must not update `CheatEngine.SDK`: the repository's Dependabot configuration ignores the package, so every
-change goes through this script and a reviewed pull request.
+Dependabot must not update `CheatEngine.SDK`: every change goes through this script and a reviewed pull request. The
+Dependabot configuration is meant to ignore every version of the package. A Dependabot pull request that moves the pin
+anyway fails `ConsumedSdkIdentityMatchesThePinAndTheLockFiles`, because `consumed-sdk.json` still names the reviewed
+package, and a move to 2.x also fails the build with `CHEATENGINECLIENT9016`.
 
 ## Canary builds
 
