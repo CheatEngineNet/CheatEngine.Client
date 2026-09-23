@@ -686,46 +686,48 @@ internal static class QualificationScenarios
 		{
 			case "Client.Allocations":
 				succeeded = client.Allocations.TryAllocate(new TargetAllocationRequest(16), out ITargetMemoryLease? lease,
-					out failure);
+					out failure, client.Stopping);
 				lease?.Dispose();
 				return true;
 			case "Client.Assembly":
-				succeeded = client.Assembly.TryDisassemble(nullRegion, out _, out failure);
+				succeeded = client.Assembly.TryDisassemble(nullRegion, out _, out failure, client.Stopping);
 				return true;
 			case "Client.RemoteExecution":
 				succeeded = client.RemoteExecution.TryInjectLibrary(
-					new RemoteDllInjectionRequest(Path.Combine(Path.GetTempPath(), NamePrefix + "absent.dll")), out failure);
+					new RemoteDllInjectionRequest(Path.Combine(Path.GetTempPath(), NamePrefix + "absent.dll")), out failure,
+					client.Stopping);
 				return true;
 			case "Client.Debugger":
 				succeeded = client.Debugger.TryRegisterBreakpoint(new BreakpointRequest(nullRegion),
 					static _ => BreakpointDisposition.Continue, new EventStreamOptions(1), out IBreakpointLease? breakpoint,
-					out failure);
+					out failure, client.Stopping);
 				breakpoint?.Dispose();
 				return true;
 			case "Client.Hotkeys":
 				succeeded = client.Hotkeys.TryRegister(new HotkeyRegistration(NamePrefix + "hotkey", new HotkeyGesture(0x87)),
 					static _ =>
 					{
-					}, new EventStreamOptions(1), out IHotkeyLease? hotkey, out failure);
+					}, new EventStreamOptions(1), out IHotkeyLease? hotkey, out failure, client.Stopping);
 				hotkey?.Dispose();
 				return true;
 			case "Client.Timers":
 				succeeded = client.Timers.TryRegister(new TimerRequest(TimeSpan.FromHours(1)), static _ =>
 				{
-				}, new EventStreamOptions(1), out ITimerLease? timer, out failure);
+				}, new EventStreamOptions(1), out ITimerLease? timer, out failure, client.Stopping);
 				timer?.Dispose();
 				return true;
 			case "Client.Speed":
-				succeeded = client.Speed.TryGetMultiplier(out _, out failure);
+				succeeded = client.Speed.TryGetMultiplier(out _, out failure, client.Stopping);
 				return true;
 			case "Client.Hashing":
-				succeeded = client.Hashing.TryHashMemory(new MemoryHashRequest(nullRegion, 1), out _, out failure);
+				succeeded = client.Hashing.TryHashMemory(new MemoryHashRequest(nullRegion, 1), out _, out failure,
+					client.Stopping);
 				return true;
 			case "Client.Dbvm":
-				succeeded = client.Dbvm.TryGetStatus(out _, out failure);
+				succeeded = client.Dbvm.TryGetStatus(out _, out failure, client.Stopping);
 				return true;
 			case "Client.ValueScanning":
-				succeeded = client.Scans.TryCreateSession(out IValueScanSession? session, out failure);
+				succeeded = client.Scans.TryCreateSession(out IValueScanSession? session, out failure, client.Stopping);
 				session?.Dispose();
 				return true;
 			default:
