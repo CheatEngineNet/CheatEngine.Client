@@ -16,9 +16,10 @@ namespace CheatEngine.Client.SourceGenerators.Lua.Tests.SdkPort;
 /// </summary>
 /// <remarks>
 ///     Changing an expected path below changes the Q16 contract of production code, not its formatting: record it in the
-///     generator README and in the ADR-01 entry of docs/migration/sdk-2.0.md. <see cref="MutatedPortsAreRejected" /> proves
-///     that the check fails for the identity and decision mutations it exists to catch. Execution against a real Lua 5.3
-///     state (C2) is not available in this repository.
+///     generator README and in the
+///     <see cref="CheatEngine.Client.SourceGenerators.Lua.Tests.Architecture.GeneratedLuaSurfaceRatchetTests" /> ADR-01
+///     ratchet. <see cref="MutatedPortsAreRejected" /> proves that the check fails for the identity and decision
+///     mutations it exists to catch. Execution against a real Lua 5.3 state (C2) is not available in this repository.
 /// </remarks>
 [Trait("Qualification", "Q16")]
 public sealed class SdkPortDecisionTests

@@ -14,7 +14,8 @@ namespace CheatEngine.Client.SourceGenerators.Lua.Tests.Architecture;
 /// <summary>
 ///     C0 ratchet of the single registered ADR-01 exception of generated Client code (Q16 on CheatEngine.SDK 1.0.0): the
 ///     SDK Lua members a generated <c>[CheatEngineLuaModule]</c> adapter may use are frozen, and only its SDK port touches
-///     the Lua state. Removal: SDK 2.0 registration leases (docs/migration/sdk-2.0.md).
+///     the Lua state. Removal: SDK 2.0 registration leases, which shrinks <c>FrozenModuleSdkLuaMembers</c> below to empty
+///     when the Client migrates.
 /// </summary>
 /// <remarks>
 ///     The members are read from the emitted image with System.Reflection.Metadata (member references whose declaring
@@ -23,7 +24,8 @@ namespace CheatEngine.Client.SourceGenerators.Lua.Tests.Architecture;
 public sealed class GeneratedLuaSurfaceRatchetTests
 {
 	private const string Adr01Guidance =
-		"ADR-01 exception: generated Client Lua module code may only use the frozen SDK Lua members; register any change in the ratchet and in docs/migration/sdk-2.0.md.";
+		"ADR-01 exception: generated Client Lua module code may only use the frozen SDK Lua members; register any change " +
+		"in this ratchet's FrozenModuleSdkLuaMembers list with its SDK 2.0 replacement noted alongside it.";
 
 	private const string SdkPortName = "__CheatEngineLuaSdkPort";
 
@@ -133,7 +135,7 @@ public sealed class GeneratedLuaSurfaceRatchetTests
 			"New SDK Lua members in generated module code:" + Environment.NewLine + string.Join(Environment.NewLine, added) +
 			Environment.NewLine + Adr01Guidance);
 		Assert.True(removed.Length == 0,
-			"These frozen SDK Lua members are no longer used; shrink the ratchet and the docs/migration/sdk-2.0.md entry:" +
+			"These frozen SDK Lua members are no longer used; shrink this ratchet's FrozenModuleSdkLuaMembers list:" +
 			Environment.NewLine + string.Join(Environment.NewLine, removed));
 		Assert.Equal(FrozenModuleSdkLuaMembers.Order(StringComparer.Ordinal), FrozenModuleSdkLuaMembers);
 	}

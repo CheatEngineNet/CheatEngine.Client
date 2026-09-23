@@ -74,7 +74,8 @@ Each port method records `Top` and restores it in a `finally` block, reading the
 before that restoration. The port is the only generated code that runs against the real Lua state, and no test in this
 repository can execute it; `SdkPortDecisionTests` pins what it decides (see Tests). Removal condition: adopting the CheatEngine.SDK 2.0 registration leases
 (`TryRegisterLuaFunctions` with `RejectExisting` and `LuaRegistrationLease.ReleaseWithOutcome`) deletes the port, the
-preflight and the reserved member prefix; the entry is tracked in docs/migration/sdk-2.0.md.
+preflight and the reserved member prefix; the entry is tracked in `GeneratedLuaSurfaceRatchetTests`'s frozen member
+list, which shrinks to empty when that migration lands.
 
 ## Diagnostics
 

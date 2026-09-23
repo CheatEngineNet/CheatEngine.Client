@@ -302,6 +302,6 @@ overwrites a value a third party put there (audit finding F12, qualification sce
 `Replaced`, `Absent`, `Failed`, or `NotAttempted` for a registration that belongs to an earlier Lua state) and a computed
 `LuaModuleReleaseKind` (`Released`, `PartiallyReleased`, `Stale`). The outcome is published before `Unregister` throws
 for a failed export, and a second `Unregister` is a no-op. The outcome holds copied names and statuses only. The
-vocabulary mirrors the CheatEngine.SDK 2.0 registration leases; the migration is recorded in the repository guide
-docs/migration/sdk-2.0.md. This behavior is covered by managed tests against a Lua-globals double (C1); it is not a
-host qualification.
+vocabulary mirrors the CheatEngine.SDK 2.0 registration leases, so moving the Client onto SDK 2.0 replaces the
+generator's ownership check with the SDK's own lease outcome without renaming these types. This behavior is covered by
+managed tests against a Lua-globals double (C1); it is not a host qualification.

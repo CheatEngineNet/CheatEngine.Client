@@ -454,7 +454,7 @@ internal static class ModuleEmitter
 	private static void EmitSdkPort(SourceBuilder source, ModuleModel model)
 	{
 		source.WriteLine(
-			"// ADR-01 registered exception (Q16 on CheatEngine.SDK 1.0.0): the only raw Lua access in generated Client code. Removal: SDK 2.0 registration leases (docs/migration/sdk-2.0.md).");
+			"// ADR-01 registered exception (Q16 on CheatEngine.SDK 1.0.0): the only raw Lua access in generated Client code. Removal: SDK 2.0 registration leases (tracked in the GeneratedLuaSurfaceRatchetTests ratchet; removed from it when the Client migrates).");
 		source.WriteLine("private readonly struct " + SdkPort + " : " + Port + "<" + LuaRef + ">");
 		source.OpenBlock();
 		source.WriteLine("private readonly " + LuaState + " _state;");

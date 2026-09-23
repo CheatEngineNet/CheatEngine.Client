@@ -12,8 +12,8 @@ namespace CheatEngine.Client.SourceGenerators.Lua.Tests.Snapshots;
 ///     that runs against the real Lua state, and the EndToEnd tests replace it with a managed double. Its decisions are
 ///     pinned, formatting-free, by <c>SdkPortDecisionTests</c> (C0). A port change that also changes the expected paths of
 ///     that test is a change of the Q16 contract of production code, not a formatting change: record it in the generator
-///     README and in the ADR-01 entry of docs/migration/sdk-2.0.md. The algorithm around the port is proven by the EndToEnd
-///     tests, the public contract by <c>ModuleContractTests</c>.
+///     README and in the <c>GeneratedLuaSurfaceRatchetTests</c> ADR-01 ratchet. The algorithm around the port is proven by
+///     the EndToEnd tests, the public contract by <c>ModuleContractTests</c>.
 /// </remarks>
 public sealed class ModuleSnapshots
 {
@@ -328,7 +328,7 @@ public sealed class ModuleSnapshots
 				global::System.Exception? Release(TToken token);
 			}
 
-			// ADR-01 registered exception (Q16 on CheatEngine.SDK 1.0.0): the only raw Lua access in generated Client code. Removal: SDK 2.0 registration leases (docs/migration/sdk-2.0.md).
+			// ADR-01 registered exception (Q16 on CheatEngine.SDK 1.0.0): the only raw Lua access in generated Client code. Removal: SDK 2.0 registration leases (tracked in the GeneratedLuaSurfaceRatchetTests ratchet; removed from it when the Client migrates).
 			private readonly struct __CheatEngineLuaSdkPort : __CheatEngineLuaIGlobalPort<global::CheatEngine.SDK.Lua.References.LuaRef>
 			{
 				private readonly global::CheatEngine.SDK.Lua.State.LuaState _state;
