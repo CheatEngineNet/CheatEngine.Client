@@ -68,8 +68,9 @@ list. Because Windows cannot transactionally swap a non-empty directory, run it 
 
 ## Supported host profile
 
-This Client release consumes CheatEngine.SDK 1.0.0 and names one Cheat Engine host profile, the profile of the SDK's
-support profile. A profile is what a qualification result can name; it is not itself a qualification result.
+This Client release consumes CheatEngine.SDK 1.0.0 and names one Cheat Engine host profile, the profile that
+CheatEngine.SDK 1.0.0 targets. A profile is what a qualification result can name; it is not itself a qualification
+result.
 
 | Item | Value |
 |---|---|

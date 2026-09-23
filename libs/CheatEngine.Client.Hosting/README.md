@@ -44,8 +44,8 @@ A new provider per enable isolates this plugin's Client graph from its previous 
 state that lives outside the container. CheatEngine.SDK static state (`PluginHost` and the current plugin context) and
 Cheat Engine's Lua globals are shared by every plugin that loads the same SDK assemblies into the Cheat Engine process,
 and a DI container cannot separate them. Coexistence of two plugins that share or do not share the SDK assemblies is
-qualification scenario Q09 (C4) of the SDK repository (`docs/qualification/receipts/Q09/`): Q09 C4 pending, no receipt
-has been committed.
+audit qualification scenario Q09 (C4, two plugins in one Cheat Engine process): Q09 C4 pending, no receipt has been
+committed.
 
 Creating a second `IServiceScope` from the same provider does not create another Client activation. That second scope
 has its own scoped application services and modules, but shares the provider's singleton Client graph, options, and

@@ -75,8 +75,8 @@ does not make a second scope in the same provider a fresh Client activation.
 A fresh provider per enable does not isolate CheatEngine.SDK static state (`PluginHost` and the current plugin
 context) or Cheat Engine's Lua globals: every plugin that loads the same SDK assemblies into the Cheat Engine process
 shares them, whatever its container. Coexistence of two plugins that share or do not share the SDK assemblies is
-qualification scenario Q09 (C4) of the SDK repository (`docs/qualification/receipts/Q09/`): Q09 C4 pending, no receipt
-has been committed.
+audit qualification scenario Q09 (C4, two plugins in one Cheat Engine process): Q09 C4 pending, no receipt has been
+committed.
 
 Two scopes made from one external provider are ordinary sibling DI scopes. Their scoped services and modules differ,
 while provider singletons, options, and Client services remain shared until the provider is disposed. Do not reuse such
