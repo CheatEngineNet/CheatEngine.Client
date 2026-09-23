@@ -6,33 +6,28 @@ repeat run of the threading-sensitive test modules.
 .DESCRIPTION
 Modes:
 
-- Audit: restores CheatEngine.Client.slnx with --locked-mode --force into a fresh NUGET_PACKAGES folder, so every
-  package is downloaded again and its content hash is checked against the committed lock files (this re-validates the
-  consumed CheatEngine.SDK package weekly). The restore runs with -p:AuditPipeline=true, the repository's dedicated
-  audit switch that turns every NuGet audit warning into an error
+- Audit: restores CheatEngine.Client.slnx with --locked-mode --force into a fresh NUGET_PACKAGES folder (under
+  RUNNER_TEMP on a runner), so every package is downloaded again and its content hash is checked against the committed
+  lock files (this re-validates the consumed CheatEngine.SDK package weekly). The restore runs with
+  -p:AuditPipeline=true, the repository's dedicated audit switch that turns every NuGet audit warning into an error
   (https://learn.microsoft.com/nuget/concepts/auditing-packages#running-nuget-audit-in-ci). --force re-resolves even an
   up-to-date graph and is compatible with --locked-mode (re-evaluating is not: NU1005). Then
   `dotnet package list --vulnerable` and `--deprecated` (they cannot be combined) print summary tables. Fails when the
   restore fails or when any vulnerable package is listed, whatever its severity; deprecated packages are warnings.
-- SelectNewestSdk: reads `latest-sdk` from the .NET 10.0 release metadata and rewrites only sdk.version in the
-  global.json at -GlobalJsonPath, in place: rollForward, errorMessage and the test runner section stay byte-identical
-  (without "test.runner", dotnet test would fall back to VSTest). Run it before the composite setup action.
-- Canary: with the SDK that global.json names, regenerates every lock file through eng/Update-LockFiles.ps1 (the
-  repository's only regeneration path), writes the global.json and lock-file diff to artifacts/health/sdk-canary.patch,
-  then builds, packs and tests the solution in Release like the CI Release leg.
+- Canary: with the SDK that global.json names (eng/ci/Select-NewestDotNetSdk.ps1 points it at the newest 10.0 SDK
+  before the composite setup action installs it; that step lives in its own script because it must run before any
+  SDK exists), regenerates every lock file through eng/Update-LockFiles.ps1 (the repository's only regeneration
+  path), writes the global.json and lock-file diff to artifacts/health/sdk-canary.patch, then builds, packs and tests
+  the solution in Release like the CI Release leg.
 - Repeat: builds the threading-sensitive test modules once in Debug, runs each of them -Iterations times, and fails
   after the last iteration when any run failed, listing every test that failed at least once. No retry extension:
   a flaky test is fixed or deleted, never retried (flaky-test policy).
 
 .PARAMETER Mode
-Audit, SelectNewestSdk, Canary or Repeat.
+Audit, Canary or Repeat.
 
 .PARAMETER Iterations
 Repeat mode: number of runs per module.
-
-.PARAMETER GlobalJsonPath
-SelectNewestSdk mode: the global.json to rewrite (relative to the repository root, or absolute). Point it at a copy to
-try the mode locally without touching the working tree.
 
 .PARAMETER ResultsRoot
 Output folder for patches, test results and reports, relative to the repository root.
@@ -41,18 +36,16 @@ Output folder for patches, test results and reports, relative to the repository 
 Repeat mode: the test projects to repeat (repository-relative).
 
 .EXAMPLE
-./eng/ci/Invoke-ScheduledHealth.ps1 -Mode SelectNewestSdk -GlobalJsonPath "$env:TEMP/global.json"
+./eng/ci/Invoke-ScheduledHealth.ps1 -Mode Repeat -Iterations 1
 #>
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)]
-    [ValidateSet('Audit', 'SelectNewestSdk', 'Canary', 'Repeat')]
+    [ValidateSet('Audit', 'Canary', 'Repeat')]
     [string] $Mode,
 
     [ValidateRange(1, 50)]
     [int] $Iterations = 5,
-
-    [string] $GlobalJsonPath = 'global.json',
 
     [string] $ResultsRoot = 'artifacts/health',
 
@@ -67,7 +60,6 @@ $ErrorActionPreference = 'Stop'
 
 $RepositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $Solution = Join-Path $RepositoryRoot 'CheatEngine.Client.slnx'
-$ReleaseMetadataUrl = 'https://builds.dotnet.microsoft.com/dotnet/release-metadata/10.0/releases.json'
 
 function Resolve-RepositoryPath {
     param([string] $Path)
@@ -144,7 +136,8 @@ function Get-PackageListEntry {
 
 function Invoke-Audit {
     $folder = "cheatengine-client-audit-$([guid]::NewGuid().ToString('N'))"
-    $packages = Join-Path ([System.IO.Path]::GetTempPath()) $folder
+    $temporary = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [System.IO.Path]::GetTempPath() }
+    $packages = Join-Path $temporary $folder
     New-Item -ItemType Directory -Path $packages | Out-Null
     $env:NUGET_PACKAGES = $packages
     Write-Host "NUGET_PACKAGES=$packages (fresh: every package is downloaded and checked against the lock files)."
@@ -207,73 +200,6 @@ function Invoke-Audit {
     if ($vulnerable.Count -gt 0) {
         throw "$($vulnerable.Count) vulnerable package reference(s) found; see the summary."
     }
-}
-
-function Invoke-SelectNewestSdk {
-    param([string] $GlobalJson)
-    $path = Resolve-RepositoryPath $GlobalJson
-    $original = [System.IO.File]::ReadAllText($path)
-    $pinned = Get-GlobalJsonSdkVersion $path
-
-    $metadata = Invoke-RestMethod -Uri $ReleaseMetadataUrl -MaximumRetryCount 3 -RetryIntervalSec 5
-    $newest = [string] $metadata.'latest-sdk'
-    if (-not [regex]::IsMatch($newest, '^10\.0\.[1-9][0-9]{2}$')) {
-        throw "Unexpected latest-sdk '$newest' in $ReleaseMetadataUrl."
-    }
-
-    # Replace the value of "version" inside the "sdk" object only; everything else stays byte-identical.
-    $pattern = '("sdk"\s*:\s*\{[^{}]*?"version"\s*:\s*")([^"]*)(")'
-    $sdkVersion = [regex]::new($pattern)
-    if ($sdkVersion.Matches($original).Count -ne 1) {
-        throw "$path must contain exactly one sdk.version."
-    }
-
-    $evaluator = { param($match) $match.Groups[1].Value + $newest + $match.Groups[3].Value }
-    $updated = $sdkVersion.Replace($original, $evaluator, 1)
-    $before = $original | ConvertFrom-Json -AsHashtable
-    $after = $updated | ConvertFrom-Json -AsHashtable
-    $before['sdk']['version'] = $newest
-    if ((ConvertTo-CanonicalJson $before) -cne (ConvertTo-CanonicalJson $after)) {
-        throw "Rewriting sdk.version changed more than sdk.version in $path."
-    }
-
-    [System.IO.File]::WriteAllText($path, $updated, [System.Text.UTF8Encoding]::new($false))
-    if ($env:GITHUB_OUTPUT) {
-        "sdk-version=$newest" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-        "pinned-version=$pinned" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-    }
-
-    $verdict = if ($newest -ceq $pinned) {
-        'The newest 10.0 SDK equals the pinned SDK: the canary rebuilds with the pinned SDK.'
-    }
-    else {
-        "A newer 10.0 SDK exists: the canary builds with $newest instead of $pinned."
-    }
-
-    $versions = "Pinned: $pinned. Newest: $newest ($ReleaseMetadataUrl)."
-    Write-Summary @('## Newest .NET 10 SDK', '', $versions, '', $verdict)
-}
-
-# Deterministic text of a parsed JSON value, used only to compare two parses.
-function ConvertTo-CanonicalJson {
-    param([object] $Value)
-    if ($Value -is [System.Collections.IDictionary]) {
-        $members = foreach ($key in @($Value.Keys | Sort-Object -CaseSensitive)) {
-            "$(ConvertTo-CanonicalJson $key):$(ConvertTo-CanonicalJson $Value[$key])"
-        }
-
-        return '{' + ($members -join ',') + '}'
-    }
-
-    if ($Value -is [System.Collections.IList]) {
-        return '[' + (@($Value | ForEach-Object { ConvertTo-CanonicalJson $_ }) -join ',') + ']'
-    }
-
-    if ($null -eq $Value) {
-        return 'null'
-    }
-
-    return "$($Value.GetType().Name):$Value"
 }
 
 function Invoke-Canary {
@@ -394,7 +320,6 @@ function Invoke-Repeat {
 # ValidateSet accepts any casing of the mode names, so the dispatch ignores case too.
 switch ($Mode) {
     'Audit' { Invoke-Audit }
-    'SelectNewestSdk' { Invoke-SelectNewestSdk -GlobalJson $GlobalJsonPath }
     'Canary' { Invoke-Canary -OutputRoot $ResultsRoot }
     'Repeat' { Invoke-Repeat -TestProject $Project -Count $Iterations -OutputRoot $ResultsRoot }
 }

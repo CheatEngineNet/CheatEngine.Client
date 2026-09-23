@@ -1,3 +1,6 @@
+using System.Globalization;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 
 using YamlDotNet.RepresentationModel;
@@ -6,8 +9,9 @@ namespace CheatEngine.Client.Repository.Tests.Governance;
 
 /// <summary>
 /// Advisory scheduled health (PR-CQ-56, PR-CQ-31 flaky-test policy, CI-MS-03 strict audit): jobs select their schedule
-/// by the exact cron text, only the report job can write issues and only for scheduled failures, the canary regenerates
-/// lock files only through the repository script and keeps global.json's other settings, and nothing retries tests.
+/// by the exact cron text, only the report job can write issues and only for scheduled failures, the canary points
+/// global.json at the newest SDK without running the .NET CLI and keeps its errorMessage on that SDK, it regenerates
+/// lock files only through the repository script, and nothing retries tests.
 /// </summary>
 public sealed class ScheduledHealthWorkflowTests
 {
@@ -16,6 +20,12 @@ public sealed class ScheduledHealthWorkflowTests
 	private const string SetupAction = "./.github/actions/setup-dotnet";
 
 	private static readonly YamlMappingNode _workflow = GovernanceFile.LoadYaml(WorkflowPath);
+
+	private static readonly JsonDocumentOptions _jsonOptions = new()
+	{
+		CommentHandling = JsonCommentHandling.Skip,
+		AllowTrailingCommas = true
+	};
 
 	[Fact]
 	public void ScheduleStringsMatchTheJobConditions()
@@ -84,14 +94,82 @@ public sealed class ScheduledHealthWorkflowTests
 	[Fact]
 	public void CanaryKeepsTheTestRunnerSection()
 	{
-		string script = GovernanceFile.ReadText(ScriptPath);
+		string script = GovernanceFile.ReadText(GlobalJsonSdkRewrite.ScriptPath);
 		IReadOnlyList<YamlMappingNode> steps = GovernanceFile.Steps(GovernanceFile.Jobs(_workflow)["canary"]);
-		int select = GovernanceFile.IndexOfRun(steps, "-Mode SelectNewestSdk");
+		int select = GovernanceFile.IndexOfRun(steps, GlobalJsonSdkRewrite.ScriptPath);
 		int setup = GovernanceFile.IndexOfAction(steps, SetupAction);
 
+		// The script edits the text in place; it never writes a new JSON document, which would drop or reorder sections.
 		Assert.DoesNotContain("ConvertTo-Json", script, StringComparison.Ordinal);
-		Assert.Contains("changed more than sdk.version", script, StringComparison.Ordinal);
+		Assert.Contains("changed more than sdk.version and the SDK version named by sdk.errorMessage", script, StringComparison.Ordinal);
 		Assert.True(select >= 0 && select < setup, "Rewrite global.json before the composite action installs its SDK.");
+	}
+
+	[Fact]
+	public void SdkSelectionNeverRunsTheDotNetCli()
+	{
+		// It runs before the composite action installs any SDK: the same heuristic as
+		// WorkflowContractTests.EveryDotnetJobUsesTheCompositeSetupAction, applied to the script and to its step.
+		Regex invocation = new(@"&\s*dotnet\b|^\s*dotnet\s", RegexOptions.Multiline, TimeSpan.FromSeconds(1));
+		IReadOnlyList<YamlMappingNode> steps = GovernanceFile.Steps(GovernanceFile.Jobs(_workflow)["canary"]);
+		string run = GovernanceFile.Scalar(steps[GovernanceFile.IndexOfRun(steps, GlobalJsonSdkRewrite.ScriptPath)], "run") ?? "";
+
+		Assert.DoesNotMatch(invocation, GovernanceFile.ReadText(GlobalJsonSdkRewrite.ScriptPath));
+		Assert.Equal("./" + GlobalJsonSdkRewrite.ScriptPath, run.Trim());
+		Assert.DoesNotContain("SelectNewestSdk", GovernanceFile.ReadText(ScriptPath), StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void SdkSelectionUsesTheMirroredRewritePatterns()
+	{
+		string script = GovernanceFile.ReadText(GlobalJsonSdkRewrite.ScriptPath);
+
+		Assert.Contains($"$SdkVersionPattern = '{GlobalJsonSdkRewrite.SdkVersionPattern}'", script, StringComparison.Ordinal);
+		Assert.Contains($"$ErrorMessagePattern = '{GlobalJsonSdkRewrite.ErrorMessagePattern}'", script, StringComparison.Ordinal);
+		Assert.Contains(
+			$"'{GlobalJsonSdkRewrite.VersionStart}' + [regex]::Escape($Pinned) + '{GlobalJsonSdkRewrite.VersionEnd}'",
+			script,
+			StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void SdkSelectionMovesTheErrorMessageToTheSelectedVersion()
+	{
+		string original = GovernanceFile.ReadText("global.json");
+		(string pinned, _) = SdkSettings(original);
+		string[] parts = pinned.Split('.');
+		string selected = $"{parts[0]}.{parts[1]}.{int.Parse(parts[2], CultureInfo.InvariantCulture) + 1}";
+
+		string updated = GlobalJsonSdkRewrite.Apply(original, pinned, selected);
+		(string version, string message) = SdkSettings(updated);
+
+		Assert.Equal(selected, version);
+		// The rule of ToolchainPinTests.GlobalJsonErrorMessageNamesThePinnedSdkVersion, which the canary's Release tests run.
+		Assert.Contains($"--version {selected}", message, StringComparison.Ordinal);
+		Assert.DoesNotMatch(GlobalJsonSdkRewrite.WholeVersion(pinned), message);
+		Assert.True(JsonNode.DeepEquals(WithoutRewrittenValues(original), WithoutRewrittenValues(updated)),
+			"The rewrite changed global.json beyond sdk.version and the SDK version named by sdk.errorMessage.");
+
+		string[] before = original.Split('\n');
+		string[] after = updated.Split('\n');
+		Assert.Equal(before.Length, after.Length);
+		for (int line = 0; line < before.Length; line++)
+		{
+			if (!before[line].Contains("\"version\"", StringComparison.Ordinal) &&
+				!before[line].Contains("\"errorMessage\"", StringComparison.Ordinal))
+			{
+				Assert.Equal(before[line], after[line]);
+			}
+		}
+	}
+
+	[Fact]
+	public void SdkSelectionLeavesGlobalJsonUntouchedWhenThePinIsTheNewestSdk()
+	{
+		string original = GovernanceFile.ReadText("global.json");
+		(string pinned, _) = SdkSettings(original);
+
+		Assert.Equal(original, GlobalJsonSdkRewrite.Apply(original, pinned, pinned));
 	}
 
 	[Fact]
@@ -129,6 +207,24 @@ public sealed class ScheduledHealthWorkflowTests
 			string condition = GovernanceFile.Condition(GovernanceFile.Jobs(_workflow)[id]);
 			Assert.Contains("github.event.label.name == 'dry-run'", condition, StringComparison.Ordinal);
 		}
+
+		// Any later label event of the same pull request must not replace a pending dry run.
+		string group = GovernanceFile.Scalar(GovernanceFile.Mapping(_workflow, "concurrency")!, "group") ?? "";
+		Assert.Contains("github.event.label.name", group, StringComparison.Ordinal);
 	}
 
+	private static (string Version, string ErrorMessage) SdkSettings(string globalJson)
+	{
+		JsonNode sdk = JsonNode.Parse(globalJson, documentOptions: _jsonOptions)!["sdk"]!;
+		return (sdk["version"]!.GetValue<string>(), sdk["errorMessage"]!.GetValue<string>());
+	}
+
+	private static JsonNode WithoutRewrittenValues(string globalJson)
+	{
+		JsonNode root = JsonNode.Parse(globalJson, documentOptions: _jsonOptions)!;
+		JsonObject sdk = root["sdk"]!.AsObject();
+		sdk.Remove("version");
+		sdk.Remove("errorMessage");
+		return root;
+	}
 }
