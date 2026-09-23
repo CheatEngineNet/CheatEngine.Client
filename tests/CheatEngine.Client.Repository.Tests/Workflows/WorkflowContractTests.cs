@@ -344,6 +344,7 @@ public sealed partial class WorkflowContractTests
 		Assert.Contains("'Release'", pack.Condition ?? string.Empty, StringComparison.Ordinal);
 		Assert.Contains("--no-build", pack.Run, StringComparison.Ordinal);
 		Assert.Contains("eng/ci/Test-PackageSet.ps1", pack.Run, StringComparison.Ordinal);
+		Assert.Contains("-RequireSbom", pack.Run, StringComparison.Ordinal);
 
 		Assert.Equal("steps.pack.outputs.package-source", Yaml.NormalizeExpression(test.Env("PACKAGE_SOURCE")));
 		Assert.Contains("CHEATENGINE_CLIENT_PACKAGE_SOURCE", test.Run, StringComparison.Ordinal);

@@ -80,6 +80,8 @@ jobs:
             throw "$env:CONFIGURATION solution build failed with exit code $LASTEXITCODE."
           }
 
+      # Every .nupkg must embed its SPDX SBOM (_manifest/spdx_2.2/manifest.spdx.json): the pack generates it
+      # unconditionally (eng/Shipping.props, eng/Templates.props) and release.yml attests it.
       - name: Pack
         id: pack
         if: matrix.configuration == 'Release'
@@ -91,7 +93,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "Client package creation failed with exit code $LASTEXITCODE."
           }
-          ./eng/ci/Test-PackageSet.ps1 -PackageDirectory artifacts/nuget -PackageVersion $env:PACKAGE_VERSION
+          ./eng/ci/Test-PackageSet.ps1 -PackageDirectory artifacts/nuget -PackageVersion $env:PACKAGE_VERSION -RequireSbom
 
       - name: Write build info
         if: matrix.configuration == 'Release'
