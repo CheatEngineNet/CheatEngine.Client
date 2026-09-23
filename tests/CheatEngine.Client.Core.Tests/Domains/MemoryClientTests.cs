@@ -136,9 +136,29 @@ public sealed class MemoryClientTests
 			get;
 		} = [];
 
-		public bool IsTarget64Bit()
+		public long GetOpenedProcessId()
+		{
+			return 42;
+		}
+
+		public bool TargetIs64Bit()
 		{
 			return true;
+		}
+
+		public bool TargetIsX86()
+		{
+			return true;
+		}
+
+		public bool TargetIsArm()
+		{
+			return false;
+		}
+
+		public int GetConfiguredPointerSize()
+		{
+			return sizeof(ulong);
 		}
 
 		public bool TryReadBytes(Address address, Span<byte> destination, out string? failure)

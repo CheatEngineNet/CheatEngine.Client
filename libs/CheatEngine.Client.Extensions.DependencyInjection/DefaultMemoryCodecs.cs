@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
+using CheatEngine.Client.Core.Domains;
 using CheatEngine.Client.Memory;
 using CheatEngine.SDK.Engine.Values;
 
@@ -59,6 +60,11 @@ internal static class DefaultMemoryCodecs
 		}
 	}
 
+	/// <summary>
+	///     The built-in pointer codec: it reads and writes the target's process width in little-endian order (the local
+	///     x86/x64 profile), and asks the Core codec context to admit it first so that a Cheat Engine configured pointer
+	///     size that differs from the process width refuses the operation before any memory access.
+	/// </summary>
 	private sealed class AddressMemoryCodec : IMemoryCodec<Address>
 	{
 		internal static AddressMemoryCodec Instance
@@ -69,7 +75,7 @@ internal static class DefaultMemoryCodecs
 		public bool TryRead(IMemoryReadContext context, Address address, out Address value)
 		{
 			ArgumentNullException.ThrowIfNull(context);
-			if (!IsSupportedPointerSize(context.PointerSize))
+			if (!IsAdmitted(context) || !IsSupportedPointerSize(context.PointerSize))
 			{
 				value = default;
 				return false;
@@ -92,7 +98,7 @@ internal static class DefaultMemoryCodecs
 		public bool TryWrite(IMemoryWriteContext context, Address address, in Address value)
 		{
 			ArgumentNullException.ThrowIfNull(context);
-			if (!IsSupportedPointerSize(context.PointerSize) ||
+			if (!IsAdmitted(context) || !IsSupportedPointerSize(context.PointerSize) ||
 				(context.PointerSize == sizeof(uint) && value.Value > uint.MaxValue))
 			{
 				return false;
@@ -115,6 +121,20 @@ internal static class DefaultMemoryCodecs
 		private static bool IsSupportedPointerSize(int pointerSize)
 		{
 			return pointerSize is sizeof(uint) or sizeof(ulong);
+		}
+
+		/// <summary>
+		///     Admits the pointer operation through the Core context policy, which records the refusal on the context.
+		///     Another context is refused when it reports a configured pointer size that differs from its process width.
+		/// </summary>
+		private static bool IsAdmitted(object context)
+		{
+			return context switch
+			{
+				ICorePointerCodecPolicy policy => policy.TryAdmitPointerCodec(),
+				IMemoryPointerWidthContext widths => !widths.ConfiguredPointerSizeDiffersFromProcessWidth,
+				_ => true
+			};
 		}
 	}
 }

@@ -611,7 +611,27 @@ public sealed class TryContractTests
 			throw Fault();
 		}
 
-		public bool IsTarget64Bit()
+		public long GetOpenedProcessId()
+		{
+			throw Fault();
+		}
+
+		public bool TargetIs64Bit()
+		{
+			throw Fault();
+		}
+
+		public bool TargetIsX86()
+		{
+			throw Fault();
+		}
+
+		public bool TargetIsArm()
+		{
+			throw Fault();
+		}
+
+		public int GetConfiguredPointerSize()
 		{
 			throw Fault();
 		}

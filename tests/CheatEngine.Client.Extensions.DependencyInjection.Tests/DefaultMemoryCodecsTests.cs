@@ -1,4 +1,8 @@
+using System.Buffers.Binary;
+using System.Globalization;
+
 using CheatEngine.Client.Memory;
+using CheatEngine.SDK.Engine.Runtime;
 using CheatEngine.SDK.Engine.Values;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -108,11 +112,237 @@ public sealed class DefaultMemoryCodecsTests
 		Assert.Null(narrowTarget.LastWriteAddress);
 	}
 
+	/// <summary>
+	///     C1 codec matrix (audit A12-09, Q21): every built-in integer codec writes the exact little-endian bytes of its
+	///     boundary values and reads them back unchanged; 64-bit values above 2^53 never pass through a double.
+	/// </summary>
+	[Theory]
+	[Trait("Qualification", "Q21")]
+	[InlineData("int8", "-128", "80")]
+	[InlineData("int8", "127", "7F")]
+	[InlineData("int8", "0", "00")]
+	[InlineData("int8", "-1", "FF")]
+	[InlineData("uint8", "0", "00")]
+	[InlineData("uint8", "255", "FF")]
+	[InlineData("int16", "-32768", "0080")]
+	[InlineData("int16", "32767", "FF7F")]
+	[InlineData("int16", "-1", "FFFF")]
+	[InlineData("uint16", "0", "0000")]
+	[InlineData("uint16", "65535", "FFFF")]
+	[InlineData("int32", "-2147483648", "00000080")]
+	[InlineData("int32", "2147483647", "FFFFFF7F")]
+	[InlineData("int32", "0", "00000000")]
+	[InlineData("int32", "-1", "FFFFFFFF")]
+	[InlineData("uint32", "0", "00000000")]
+	[InlineData("uint32", "2147483648", "00000080")]
+	[InlineData("uint32", "4294967295", "FFFFFFFF")]
+	[InlineData("int64", "-9223372036854775808", "0000000000000080")]
+	[InlineData("int64", "9223372036854775807", "FFFFFFFFFFFFFF7F")]
+	[InlineData("int64", "0", "0000000000000000")]
+	[InlineData("int64", "-1", "FFFFFFFFFFFFFFFF")]
+	[InlineData("int64", "2147483648", "0000008000000000")]
+	[InlineData("int64", "9007199254740992", "0000000000002000")]
+	[InlineData("int64", "9007199254740993", "0100000000002000")]
+	[InlineData("uint64", "0", "0000000000000000")]
+	[InlineData("uint64", "2147483648", "0000008000000000")]
+	[InlineData("uint64", "9007199254740993", "0100000000002000")]
+	[InlineData("uint64", "9223372036854775808", "0000000000000080")]
+	[InlineData("uint64", "18446744073709551615", "FFFFFFFFFFFFFFFF")]
+	public void DefaultCodecsRoundTripEverySignedAndUnsignedWidthAtItsBoundaries(string type, string value,
+		string littleEndianHex)
+	{
+		using ServiceProvider provider = CreateProvider();
+		byte[] expected = Convert.FromHexString(littleEndianHex);
+
+		switch (type)
+		{
+			case "int8":
+				AssertRoundTrip(provider, sbyte.Parse(value, CultureInfo.InvariantCulture), expected);
+				break;
+			case "uint8":
+				AssertRoundTrip(provider, byte.Parse(value, CultureInfo.InvariantCulture), expected);
+				break;
+			case "int16":
+				AssertRoundTrip(provider, short.Parse(value, CultureInfo.InvariantCulture), expected);
+				break;
+			case "uint16":
+				AssertRoundTrip(provider, ushort.Parse(value, CultureInfo.InvariantCulture), expected);
+				break;
+			case "int32":
+				AssertRoundTrip(provider, int.Parse(value, CultureInfo.InvariantCulture), expected);
+				break;
+			case "uint32":
+				AssertRoundTrip(provider, uint.Parse(value, CultureInfo.InvariantCulture), expected);
+				break;
+			case "int64":
+				AssertRoundTrip(provider, long.Parse(value, CultureInfo.InvariantCulture), expected);
+				break;
+			case "uint64":
+				AssertRoundTrip(provider, ulong.Parse(value, CultureInfo.InvariantCulture), expected);
+				break;
+			default:
+				throw new ArgumentOutOfRangeException(nameof(type), type, null);
+		}
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q21")]
+	public void ReadsSignedMinusOneFromAThirtyTwoBitPrimitive()
+	{
+		// Audit ch.12 scenario #1: the same four bytes are -1 as a signed value and 4294967295 as an unsigned value.
+		using ServiceProvider provider = CreateProvider();
+		BufferMemoryContext context = new(8, [0xFF, 0xFF, 0xFF, 0xFF]);
+
+		Assert.True(provider.GetRequiredService<IMemoryCodec<int>>().TryRead(context, 0x401000, out int signed));
+		Assert.True(provider.GetRequiredService<IMemoryCodec<uint>>().TryRead(context, 0x401000, out uint unsigned));
+
+		Assert.Equal(-1, signed);
+		Assert.Equal(4294967295u, unsigned);
+	}
+
+	[Theory]
+	[Trait("Qualification", "Q21")]
+	[InlineData(0x7FC00001u)]
+	[InlineData(0xFFC00123u)]
+	[InlineData(0x80000000u)]
+	[InlineData(0x00000001u)]
+	[InlineData(0x7F800000u)]
+	[InlineData(0xFF800000u)]
+	public void FloatingPointCodecsPreserveEveryBitPattern(uint singleBits)
+	{
+		// NaN payloads, negative zero, subnormals and infinities survive a write and a read bit for bit.
+		using ServiceProvider provider = CreateProvider();
+		ulong doubleBits = singleBits switch
+		{
+			0x7FC00001u => 0x7FF8000000000001ul,
+			0xFFC00123u => 0xFFF8000000000123ul,
+			0x80000000u => 0x8000000000000000ul,
+			0x00000001u => 0x0000000000000001ul,
+			0x7F800000u => 0x7FF0000000000000ul,
+			_ => 0xFFF0000000000000ul
+		};
+
+		AssertRoundTrip(provider, BitConverter.UInt32BitsToSingle(singleBits), LittleEndian(singleBits, 4));
+		AssertRoundTrip(provider, BitConverter.UInt64BitsToDouble(doubleBits), LittleEndian(doubleBits, 8));
+		BufferMemoryContext singleContext = new(8, LittleEndian(singleBits, 4));
+		BufferMemoryContext doubleContext = new(8, LittleEndian(doubleBits, 8));
+		Assert.True(provider.GetRequiredService<IMemoryCodec<float>>().TryRead(singleContext, 0x401000,
+			out float single));
+		Assert.True(provider.GetRequiredService<IMemoryCodec<double>>().TryRead(doubleContext, 0x401000,
+			out double @double));
+		Assert.Equal(singleBits, BitConverter.SingleToUInt32Bits(single));
+		Assert.Equal(doubleBits, BitConverter.DoubleToUInt64Bits(@double));
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q21")]
+	public void AddressCodecReadsAnAddressAboveFourGibibytesOnASixtyFourBitTarget()
+	{
+		// 0x100000000 is the image base of the x64 tutorial target observed by the spike (C3, P1).
+		using ServiceProvider provider = CreateProvider();
+		IMemoryCodec<Address> codec = provider.GetRequiredService<IMemoryCodec<Address>>();
+		BufferMemoryContext context = new(8, [0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00]);
+
+		Assert.True(codec.TryRead(context, 0x401000, out Address read));
+		Assert.True(codec.TryWrite(context, 0x401000, Address.FromUInt64(0x1_0000_0000)));
+
+		Assert.Equal(Address.FromUInt64(0x1_0000_0000), read);
+		Assert.Equal([0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00], context.LastWrittenBytes);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q21")]
+	public void AddressCodecRefusesWritingAnAddressAboveFourGibibytesToAThirtyTwoBitTarget()
+	{
+		using ServiceProvider provider = CreateProvider();
+		IMemoryCodec<Address> codec = provider.GetRequiredService<IMemoryCodec<Address>>();
+		BufferMemoryContext context = new(4, [0, 0, 0, 0]);
+
+		Assert.False(codec.TryWrite(context, 0x401000, Address.FromUInt64(0x1_0000_0000)));
+		Assert.True(codec.TryWrite(context, 0x401000, Address.FromUInt64(uint.MaxValue)));
+
+		Assert.Equal([0xFF, 0xFF, 0xFF, 0xFF], context.LastWrittenBytes);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q31")]
+	public void BuiltInAddressCodecIsRefusedWhenTheConfiguredPointerSizeDiffersFromTheProcessWidth()
+	{
+		// Spike C3 D3: Cheat Engine's readPointer follows the process width; the Client never picks a width silently.
+		using ServiceProvider provider = CreateProvider();
+		IMemoryCodec<Address> codec = provider.GetRequiredService<IMemoryCodec<Address>>();
+		WidthMemoryContext mismatch = new(8, 4);
+		WidthMemoryContext matching = new(8, 8);
+
+		Assert.False(codec.TryRead(mismatch, 0x401000, out Address refused));
+		Assert.False(codec.TryWrite(mismatch, 0x401000, Address.FromUInt64(0x401000)));
+		Assert.True(codec.TryRead(matching, 0x401000, out _));
+
+		Assert.Equal(Address.Zero, refused);
+		Assert.Equal(0, mismatch.Accesses);
+		Assert.Equal(1, matching.Accesses);
+	}
+
+	private static void AssertRoundTrip<T>(ServiceProvider provider, T value, byte[] expected)
+		where T : unmanaged
+	{
+		IMemoryCodec<T> codec = provider.GetRequiredService<IMemoryCodec<T>>();
+		BufferMemoryContext writeContext = new(8, []);
+
+		Assert.True(codec.TryWrite(writeContext, 0x401000, value));
+		Assert.Equal(expected, writeContext.LastWrittenBytes);
+
+		BufferMemoryContext readContext = new(8, writeContext.LastWrittenBytes);
+		Assert.True(codec.TryRead(readContext, 0x401000, out T read));
+		Assert.Equal(value, read);
+	}
+
+	private static byte[] LittleEndian(ulong bits, int length)
+	{
+		byte[] bytes = new byte[sizeof(ulong)];
+		BinaryPrimitives.WriteUInt64LittleEndian(bytes, bits);
+		return bytes[..length];
+	}
+
 	private static ServiceProvider CreateProvider()
 	{
 		ServiceCollection services = new();
 		DefaultMemoryCodecs.Add(services);
 		return services.BuildServiceProvider();
+	}
+
+	/// <summary>A context that also reports the pointer-width facts of <see cref="IMemoryPointerWidthContext" />.</summary>
+	private sealed class WidthMemoryContext(int processBytes, int configuredBytes)
+		: IMemoryReadContext, IMemoryWriteContext, IMemoryPointerWidthContext
+	{
+		internal int Accesses
+		{
+			get;
+			private set;
+		}
+
+		public int PointerSize => processBytes;
+
+		public PointerSize ProcessPointerSize => new(processBytes);
+
+		public int? ConfiguredPointerSizeBytes => configuredBytes;
+
+		public PointerSize ConfiguredPointerSize => new(configuredBytes);
+
+		public bool ConfiguredPointerSizeDiffersFromProcessWidth => configuredBytes != processBytes;
+
+		public bool TryReadBytes(Address address, Span<byte> destination)
+		{
+			Accesses++;
+			destination.Clear();
+			return true;
+		}
+
+		public bool TryWriteBytes(Address address, ReadOnlySpan<byte> source)
+		{
+			Accesses++;
+			return true;
+		}
 	}
 
 	private sealed class BufferMemoryContext(int pointerSize, byte[] bytes) : IMemoryReadContext, IMemoryWriteContext

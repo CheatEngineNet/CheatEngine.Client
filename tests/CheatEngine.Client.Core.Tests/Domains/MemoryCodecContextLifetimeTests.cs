@@ -399,7 +399,14 @@ public sealed class MemoryCodecContextLifetimeTests
 			private set;
 		}
 
-		internal int TotalCallCount => PointerSizeReadCount + ReadBytesCallCount + WriteBytesCallCount;
+		/// <summary>Gets the number of target-fact reads (PID, width, families, configured pointer size).</summary>
+		internal int FactCallCount
+		{
+			get;
+			private set;
+		}
+
+		internal int TotalCallCount => FactCallCount + ReadBytesCallCount + WriteBytesCallCount;
 
 		internal int WriteBytesCallCount
 		{
@@ -407,10 +414,35 @@ public sealed class MemoryCodecContextLifetimeTests
 			private set;
 		}
 
-		public bool IsTarget64Bit()
+		public long GetOpenedProcessId()
 		{
+			FactCallCount++;
+			return 42;
+		}
+
+		public bool TargetIs64Bit()
+		{
+			FactCallCount++;
 			PointerSizeReadCount++;
 			return PointerSize == sizeof(ulong);
+		}
+
+		public bool TargetIsX86()
+		{
+			FactCallCount++;
+			return true;
+		}
+
+		public bool TargetIsArm()
+		{
+			FactCallCount++;
+			return false;
+		}
+
+		public int GetConfiguredPointerSize()
+		{
+			FactCallCount++;
+			return PointerSize;
 		}
 
 		public bool TryReadBytes(Address address, Span<byte> destination, out string? failure)

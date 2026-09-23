@@ -4,13 +4,26 @@ namespace CheatEngine.Client.Memory;
 
 /// <summary>Provides the bounded raw-memory operations available to an application read codec.</summary>
 /// <remarks>
-///     The Client invalidates this context immediately when the codec invocation returns or throws. Codecs must not
-///     retain the context; a later member access throws
-///     <see cref="CheatEngine.Client.Results.CheatEngineActivationExpiredException" />.
+///     <para>
+///         The Client invalidates this context immediately when the codec invocation returns or throws. Codecs must not
+///         retain the context; a later member access throws
+///         <see cref="CheatEngine.Client.Results.CheatEngineActivationExpiredException" />.
+///     </para>
+///     <para>
+///         The Client's context also implements <see cref="IMemoryPointerWidthContext" />. The built-in codecs read
+///         little-endian values, an assumption of the local x86/x64 host profile.
+///     </para>
 /// </remarks>
 public interface IMemoryReadContext
 {
-	/// <summary>Gets the selected target's pointer size in bytes.</summary>
+	/// <summary>
+	///     Gets the process width of the selected target in bytes (the width Cheat Engine's <c>readPointer</c> uses). See
+	///     <see cref="IMemoryPointerWidthContext" /> for Cheat Engine's configured pointer size.
+	/// </summary>
+	/// <exception cref="CheatEngine.Client.Results.CheatEngineOperationException">
+	///     No target is selected, or its process width could not be observed. The Client reports this exception as the
+	///     codec operation's failure when the codec lets it propagate.
+	/// </exception>
 	public int PointerSize
 	{
 		get;

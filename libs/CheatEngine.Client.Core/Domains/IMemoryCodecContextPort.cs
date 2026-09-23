@@ -9,12 +9,12 @@ namespace CheatEngine.Client.Core.Domains;
 /// <summary>Provides the SDK-backed operations available to a scoped application memory codec.</summary>
 /// <remarks>
 ///     The port is internal so Core tests can prove that an expired context never reaches SDK statics. It is not a
-///     replacement public memory abstraction.
+///     replacement public memory abstraction. Its target facts are the read-only observations of
+///     <see cref="ITargetArchitectureProbe" />: the process width of every pointer-typed path comes from them, never from
+///     the plugin's own process width.
 /// </remarks>
-internal interface IMemoryCodecContextPort
+internal interface IMemoryCodecContextPort : ITargetArchitectureProbe
 {
-	public bool IsTarget64Bit();
-
 	public bool TryReadBytes(Address address, Span<byte> destination, out string? failure);
 
 	public bool TryWriteBytes(Address address, ReadOnlySpan<byte> source, out string? failure);
@@ -231,9 +231,29 @@ internal sealed class SdkMemoryCodecContextPort : IMemoryCodecContextPort
 		get;
 	} = new();
 
-	public bool IsTarget64Bit()
+	public long GetOpenedProcessId()
+	{
+		return ClientLuaGlobals.GetOpenedProcessId();
+	}
+
+	public bool TargetIs64Bit()
 	{
 		return ClientLuaGlobals.TargetIs64Bit();
+	}
+
+	public bool TargetIsX86()
+	{
+		return ClientLuaGlobals.TargetIsX86();
+	}
+
+	public bool TargetIsArm()
+	{
+		return ClientLuaGlobals.TargetIsArm();
+	}
+
+	public int GetConfiguredPointerSize()
+	{
+		return ClientLuaGlobals.GetConfiguredPointerSize();
 	}
 
 	public bool TryReadBytes(Address address, Span<byte> destination, out string? failure)

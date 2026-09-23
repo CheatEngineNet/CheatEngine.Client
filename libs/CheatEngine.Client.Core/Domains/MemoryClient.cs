@@ -9,6 +9,7 @@ using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Memory;
 using CheatEngine.Client.Results;
+using CheatEngine.SDK.Engine.Runtime;
 using CheatEngine.SDK.Engine.Values;
 
 namespace CheatEngine.Client.Core.Domains;
@@ -69,6 +70,13 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 			return new MemoryPrimitiveBatchReadOutcome<T>(attemptedCount, 0, null, dispatchFailure, []);
 		}
 
+		if (outcome.WidthRefusal is { } widthRefusal)
+		{
+			// The whole Address batch is refused before its first read (PointerWidthPolicy).
+			return new MemoryPrimitiveBatchReadOutcome<T>(attemptedCount, 0, null,
+				PointerWidthPolicy.CreateMismatchFailure("Memory.ReadPrimitiveBatch", widthRefusal), []);
+		}
+
 		if (outcome.Succeeded)
 		{
 			return new MemoryPrimitiveBatchReadOutcome<T>(attemptedCount, attemptedCount, null, null, outcome.Values);
@@ -98,6 +106,14 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 				out PrimitiveBatchWriteOutcome outcome, out CheatEngineFailure dispatchFailure, cancellationToken))
 		{
 			return CreateDispatchFailureOutcome(attemptedCount, dispatchFailure);
+		}
+
+		if (outcome.WidthRefusal is { } widthRefusal)
+		{
+			// The whole Address batch is refused before its first write (PointerWidthPolicy): nothing was written.
+			return new MemoryPrimitiveBatchWriteOutcome(attemptedCount, 0, null,
+				PointerWidthPolicy.CreateMismatchFailure("Memory.WritePrimitiveBatch", widthRefusal),
+				MemoryBatchWriteEffectState.NotStarted);
 		}
 
 		if (outcome.Succeeded)
@@ -143,12 +159,14 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		if (!outcome.Succeeded)
 		{
 			value = default;
-			failure = outcome.Fault is { } fault
-				? SdkBoundary.Translate("Memory.ReadPrimitive", fault, CheatEngineHostEffect.Unknown, _lifetime)
-				: !outcome.Handled
-					? UnsupportedPrimitive<T>("Memory.ReadPrimitive")
-					: new CheatEngineFailure(CheatEngineFailureKind.MemoryReadFailed, "Memory.ReadPrimitive",
-						outcome.Failure ?? "Cheat Engine rejected the target-memory read.");
+			failure = outcome.WidthRefusal is { } widthRefusal
+				? PointerWidthPolicy.CreateMismatchFailure("Memory.ReadPrimitive", widthRefusal)
+				: outcome.Fault is { } fault
+					? SdkBoundary.Translate("Memory.ReadPrimitive", fault, CheatEngineHostEffect.Unknown, _lifetime)
+					: !outcome.Handled
+						? UnsupportedPrimitive<T>("Memory.ReadPrimitive")
+						: new CheatEngineFailure(CheatEngineFailureKind.MemoryReadFailed, "Memory.ReadPrimitive",
+							outcome.Failure ?? "Cheat Engine rejected the target-memory read.");
 			return false;
 		}
 
@@ -181,12 +199,14 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 
 		if (!outcome.Succeeded)
 		{
-			failure = outcome.Fault is { } fault
-				? SdkBoundary.Translate("Memory.WritePrimitive", fault, CheatEngineHostEffect.Unknown, _lifetime)
-				: !outcome.Handled
-					? UnsupportedPrimitive<T>("Memory.WritePrimitive")
-					: new CheatEngineFailure(CheatEngineFailureKind.MemoryWriteFailed, "Memory.WritePrimitive",
-						outcome.Failure ?? "Cheat Engine rejected the target-memory write.");
+			failure = outcome.WidthRefusal is { } widthRefusal
+				? PointerWidthPolicy.CreateMismatchFailure("Memory.WritePrimitive", widthRefusal)
+				: outcome.Fault is { } fault
+					? SdkBoundary.Translate("Memory.WritePrimitive", fault, CheatEngineHostEffect.Unknown, _lifetime)
+					: !outcome.Handled
+						? UnsupportedPrimitive<T>("Memory.WritePrimitive")
+						: new CheatEngineFailure(CheatEngineFailureKind.MemoryWriteFailed, "Memory.WritePrimitive",
+							outcome.Failure ?? "Cheat Engine rejected the target-memory write.");
 			return false;
 		}
 
@@ -482,27 +502,64 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		}
 
 		Address captured = request.BaseAddress;
+		ObservedTargetArchitecture? widthRefusal = null;
+		CheatEngineFailure? chainRefusal = null;
 		HostCall call = default;
 		if (!_dispatcher.TryInvoke(() => call = HostCall.Run(_codecContextPort, request, request.BaseAddress,
 				(port, current, baseAddress, out hostFailure) =>
 				{
+					hostFailure = null;
+					// Observe once, before the first hop: a configured/process width mismatch refuses the whole chain.
+					ObservedTargetArchitecture facts =
+						TargetArchitectureObserver.Observe(port, readConfiguredPointerSize: true);
+					if (facts.ConfiguredPointerSizeDiffersFromProcessWidth)
+					{
+						widthRefusal = facts;
+						return false;
+					}
+
+					bool isThirtyTwoBit = facts.ProcessPointerSize.Bytes == sizeof(uint);
 					Address resolved = baseAddress;
-					foreach (long offset in current.Offsets)
+					if (isThirtyTwoBit && resolved.Value > uint.MaxValue)
+					{
+						chainRefusal = CreateChainWidthFailure(0);
+						return false;
+					}
+
+					for (int hop = 0; hop < current.Offsets.Length; hop++)
 					{
 						if (!port.TryReadPrimitive(resolved, out Address pointer, out hostFailure))
 						{
 							return false;
 						}
 
-						resolved = pointer + offset;
+						resolved = pointer + current.Offsets[hop];
+						if (isThirtyTwoBit && resolved.Value > uint.MaxValue)
+						{
+							chainRefusal = CreateChainWidthFailure(hop + 1);
+							return false;
+						}
 					}
 
 					captured = resolved;
-					hostFailure = null;
 					return true;
 				}), out failure, cancellationToken))
 		{
 			address = default;
+			return false;
+		}
+
+		if (widthRefusal is { } refusal)
+		{
+			address = default;
+			failure = PointerWidthPolicy.CreateMismatchFailure("Memory.ResolvePointerChain", refusal);
+			return false;
+		}
+
+		if (chainRefusal is { } chainFailure)
+		{
+			address = default;
+			failure = chainFailure;
 			return false;
 		}
 
@@ -555,6 +612,8 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		}
 		catch (CheatEngineOperationException exception) when (context.IsContextFault(exception))
 		{
+			// Only the exact exception instance this context threw is converted; any other codec exception, including
+			// an application-owned CheatEngineOperationException, is rethrown unchanged by the dispatcher.
 			value = default;
 			return context.CreateFailureOutcome(exception.Message);
 		}
@@ -596,12 +655,30 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 			return SdkBoundary.Translate(operation, fault, CheatEngineHostEffect.Unknown, _lifetime);
 		}
 
+		string message = outcome.Message ?? (isWrite
+			? "Cheat Engine rejected the target-memory write."
+			: "Cheat Engine rejected the target-memory read.");
+		if (outcome.Kind is { } kind)
+		{
+			// A refusal recorded by the codec context itself (pointer-width policy, no target): nothing was accessed.
+			return new CheatEngineFailure(kind, operation, message, null, CheatEngineHostEffect.NotStarted);
+		}
+
 		return new CheatEngineFailure(
 			isWrite ? CheatEngineFailureKind.MemoryWriteFailed : CheatEngineFailureKind.MemoryReadFailed,
 			operation,
-			outcome.Message ?? (isWrite
-				? "Cheat Engine rejected the target-memory write."
-				: "Cheat Engine rejected the target-memory read."));
+			message);
+	}
+
+	private static CheatEngineFailure CreateChainWidthFailure(int completedHops)
+	{
+		return completedHops == 0
+			? new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, "Memory.ResolvePointerChain",
+				"The pointer chain base address exceeds the 32-bit process width of the target; no hop was read.", null,
+				CheatEngineHostEffect.NotStarted)
+			: new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, "Memory.ResolvePointerChain",
+				$"The address computed after pointer hop {completedHops} exceeds the 32-bit process width of the " +
+				"target; the chain stopped before the next read.", null, CheatEngineHostEffect.Started);
 	}
 
 	private static CheatEngineFailure UnsupportedPrimitive<T>(string operation)
@@ -738,13 +815,36 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		bool Succeeded,
 		T Value,
 		string? Failure,
-		Exception? Fault = null);
+		Exception? Fault = null,
+		ObservedTargetArchitecture? WidthRefusal = null);
 
 	private readonly record struct PrimitiveWriteOutcome(
 		bool Handled,
 		bool Succeeded,
 		string? Failure,
-		Exception? Fault = null);
+		Exception? Fault = null,
+		ObservedTargetArchitecture? WidthRefusal = null);
+
+	/// <summary>The pointer-width admission of an Address primitive path, observed once before any memory access.</summary>
+	private readonly record struct PointerWidthAdmission(ObservedTargetArchitecture? Refusal, Exception? Fault)
+	{
+		internal bool IsAdmitted => Refusal is null && Fault is null;
+
+		internal static PointerWidthAdmission Observe(IMemoryCodecContextPort port)
+		{
+			try
+			{
+				ObservedTargetArchitecture facts =
+					TargetArchitectureObserver.Observe(port, readConfiguredPointerSize: true);
+				return new PointerWidthAdmission(facts.ConfiguredPointerSizeDiffersFromProcessWidth ? facts : null,
+					null);
+			}
+			catch (Exception exception) when (SdkBoundary.IsSdkFault(exception))
+			{
+				return new PointerWidthAdmission(null, exception);
+			}
+		}
+	}
 
 	/// <summary>The result of one Client-internal host call, with any SDK fault captured instead of thrown.</summary>
 	private readonly record struct HostCall(bool Succeeded, string? HostFailure, Exception? Fault)
@@ -768,8 +868,15 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 	private delegate bool HostOperation<in TState>(IMemoryCodecContextPort port, TState state, Address address,
 		out string? hostFailure);
 
-	/// <summary>The result of a consumer codec call, distinguishing a codec refusal from an SDK fault.</summary>
-	private readonly record struct CodecOutcome(bool Succeeded, string? Message, Exception? Fault)
+	/// <summary>
+	///     The result of a consumer codec call, distinguishing a codec refusal, an SDK fault and a refusal recorded by the
+	///     codec context itself (<paramref name="Kind" />).
+	/// </summary>
+	private readonly record struct CodecOutcome(
+		bool Succeeded,
+		string? Message,
+		Exception? Fault,
+		CheatEngineFailureKind? Kind = null)
 	{
 		internal static CodecOutcome Success => new(true, null, null);
 	}
@@ -788,14 +895,16 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		T[] Values,
 		int FailedIndex,
 		string? Failure,
-		Exception? Fault = null);
+		Exception? Fault = null,
+		ObservedTargetArchitecture? WidthRefusal = null);
 
 	private readonly record struct PrimitiveBatchWriteOutcome(
 		bool Handled,
 		bool Succeeded,
 		int FailedIndex,
 		string? Failure,
-		Exception? Fault = null);
+		Exception? Fault = null,
+		ObservedTargetArchitecture? WidthRefusal = null);
 
 	private static class PrimitiveMemoryCodec<T>
 	{
@@ -812,7 +921,12 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 			typeof(T) == typeof(double) ||
 			typeof(T) == typeof(Address);
 
-		/// <summary>Reads one supported primitive; an SDK fault is captured, never thrown across a Try method.</summary>
+		private static bool IsPointer => typeof(T) == typeof(Address);
+
+		/// <summary>
+		///     Reads one supported primitive; an SDK fault is captured, never thrown across a Try method. An Address read
+		///     is first admitted by <see cref="PointerWidthPolicy" />.
+		/// </summary>
 		internal static PrimitiveReadOutcome<T> Read(IMemoryCodecContextPort port, Address address)
 		{
 			if (!IsSupported)
@@ -820,6 +934,20 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 				return new PrimitiveReadOutcome<T>(false, false, default!, null);
 			}
 
+			if (IsPointer)
+			{
+				PointerWidthAdmission admission = PointerWidthAdmission.Observe(port);
+				if (!admission.IsAdmitted)
+				{
+					return new PrimitiveReadOutcome<T>(true, false, default!, null, admission.Fault, admission.Refusal);
+				}
+			}
+
+			return ReadElement(port, address);
+		}
+
+		private static PrimitiveReadOutcome<T> ReadElement(IMemoryCodecContextPort port, Address address)
+		{
 			try
 			{
 				return port.TryReadPrimitive(address, out T value, out string? failure)
@@ -832,7 +960,10 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 			}
 		}
 
-		/// <summary>Writes one supported primitive; an SDK fault is captured, never thrown across a Try method.</summary>
+		/// <summary>
+		///     Writes one supported primitive; an SDK fault is captured, never thrown across a Try method. An Address
+		///     write is first admitted by <see cref="PointerWidthPolicy" />.
+		/// </summary>
 		internal static PrimitiveWriteOutcome Write(IMemoryCodecContextPort port, Address address, T value)
 		{
 			if (!IsSupported)
@@ -840,6 +971,20 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 				return new PrimitiveWriteOutcome(false, false, null);
 			}
 
+			if (IsPointer)
+			{
+				PointerWidthAdmission admission = PointerWidthAdmission.Observe(port);
+				if (!admission.IsAdmitted)
+				{
+					return new PrimitiveWriteOutcome(true, false, null, admission.Fault, admission.Refusal);
+				}
+			}
+
+			return WriteElement(port, address, value);
+		}
+
+		private static PrimitiveWriteOutcome WriteElement(IMemoryCodecContextPort port, Address address, T value)
+		{
 			try
 			{
 				return port.TryWritePrimitive(address, value, out string? failure)
@@ -865,10 +1010,19 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 				return new PrimitiveBatchReadOutcome<T>(false, false, [], 0, null);
 			}
 
+			if (IsPointer)
+			{
+				PointerWidthAdmission admission = PointerWidthAdmission.Observe(port);
+				if (!admission.IsAdmitted)
+				{
+					return new PrimitiveBatchReadOutcome<T>(true, false, [], 0, null, admission.Fault, admission.Refusal);
+				}
+			}
+
 			T[] values = new T[request.Addresses.Length];
 			for (int index = 0; index < request.Addresses.Length; index++)
 			{
-				PrimitiveReadOutcome<T> current = Read(port, request.Addresses[index]);
+				PrimitiveReadOutcome<T> current = ReadElement(port, request.Addresses[index]);
 				if (!current.Succeeded)
 				{
 					return new PrimitiveBatchReadOutcome<T>(current.Handled, false, values[..index], index,
@@ -889,10 +1043,19 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 				return new PrimitiveBatchWriteOutcome(false, false, 0, null);
 			}
 
+			if (IsPointer)
+			{
+				PointerWidthAdmission admission = PointerWidthAdmission.Observe(port);
+				if (!admission.IsAdmitted)
+				{
+					return new PrimitiveBatchWriteOutcome(true, false, 0, null, admission.Fault, admission.Refusal);
+				}
+			}
+
 			for (int index = 0; index < request.Values.Length; index++)
 			{
 				MemoryAddressValue<T> current = request.Values[index];
-				PrimitiveWriteOutcome outcome = Write(port, current.Address, current.Value);
+				PrimitiveWriteOutcome outcome = WriteElement(port, current.Address, current.Value);
 				if (!outcome.Succeeded)
 				{
 					return new PrimitiveBatchWriteOutcome(outcome.Handled, false, index, outcome.Failure, outcome.Fault);
@@ -903,7 +1066,8 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		}
 	}
 
-	private sealed class TargetMemoryCodecContext : IMemoryReadContext, IMemoryWriteContext
+	private sealed class TargetMemoryCodecContext
+		: IMemoryReadContext, IMemoryWriteContext, IMemoryPointerWidthContext, ICorePointerCodecPolicy
 	{
 		private const string _operation = "Memory.CodecContext";
 
@@ -915,7 +1079,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		private readonly int _threadId;
 		private CheatEngineOperationException? _contextFault;
 		private int _expired;
-		private int _pointerSize;
+		private ObservedTargetArchitecture? _facts;
 		private int _readBytesAdmitted;
 		private int _writeBytesAdmitted;
 
@@ -946,36 +1110,83 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 			private set;
 		}
 
+		/// <summary>Gets the failure kind of a refusal recorded by this context itself, if any.</summary>
+		internal CheatEngineFailureKind? FailureKind
+		{
+			get;
+			private set;
+		}
+
+		/// <summary>
+		///     Gets the process width of the selected target (the width Cheat Engine's readPointer uses), never the
+		///     plugin's own process width and never Cheat Engine's configured pointer size.
+		/// </summary>
 		public int PointerSize
 		{
 			get
 			{
 				ThrowIfUnusable();
-				if (_pointerSize != 0)
-				{
-					return _pointerSize;
-				}
-
-				bool is64Bit;
-				try
-				{
-					is64Bit = _port.IsTarget64Bit();
-				}
-				catch (Exception exception) when (SdkBoundary.IsSdkFault(exception))
-				{
-					// A property cannot return a failure. Throw a Client exception that Core recognizes by identity and
-					// converts back into a classified failure after the consumer codec returns or rethrows it.
-					Fault = exception;
-					Failure = "Cheat Engine could not report the target pointer width.";
-					_contextFault = new CheatEngineOperationException(new CheatEngineFailure(
-						CoreFailureFactory.GetKind(exception), _operation, Failure, exception));
-					throw _contextFault;
-				}
-
-				int pointerSize = is64Bit ? sizeof(ulong) : sizeof(uint);
-				_pointerSize = pointerSize;
-				return pointerSize;
+				ObservedTargetArchitecture facts = ObserveFacts();
+				return facts.ProcessPointerSize.IsKnown
+					? facts.ProcessPointerSize.Bytes
+					: ThrowProcessWidthUnavailable(facts);
 			}
+		}
+
+		public PointerSize ProcessPointerSize
+		{
+			get
+			{
+				ThrowIfUnusable();
+				return ObserveFacts().ProcessPointerSize;
+			}
+		}
+
+		public int? ConfiguredPointerSizeBytes
+		{
+			get
+			{
+				ThrowIfUnusable();
+				return ObserveFacts().ConfiguredPointerSizeBytes;
+			}
+		}
+
+		public PointerSize ConfiguredPointerSize
+		{
+			get
+			{
+				ThrowIfUnusable();
+				return ObserveFacts().ConfiguredPointerSizeKnown;
+			}
+		}
+
+		public bool ConfiguredPointerSizeDiffersFromProcessWidth
+		{
+			get
+			{
+				ThrowIfUnusable();
+				return ObserveFacts().ConfiguredPointerSizeDiffersFromProcessWidth;
+			}
+		}
+
+		/// <inheritdoc />
+		public bool TryAdmitPointerCodec()
+		{
+			ThrowIfUnusable();
+			ObservedTargetArchitecture facts = ObserveFacts();
+			if (!facts.ProcessPointerSize.IsKnown)
+			{
+				RecordRefusal(GetUnavailableWidthKind(facts), GetUnavailableWidthMessage(facts));
+				return false;
+			}
+
+			if (facts.ConfiguredPointerSizeDiffersFromProcessWidth)
+			{
+				RecordRefusal(CheatEngineFailureKind.OperationRejected, PointerWidthPolicy.CreateMismatchMessage(facts));
+				return false;
+			}
+
+			return true;
 		}
 
 		public bool TryReadBytes(Address address, Span<byte> destination)
@@ -1030,7 +1241,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 			}
 		}
 
-		/// <summary>Gets whether <paramref name="exception" /> is the pointer-width fault this context threw.</summary>
+		/// <summary>Gets whether <paramref name="exception" /> is the exact exception instance this context threw.</summary>
 		internal bool IsContextFault(Exception exception)
 		{
 			return _contextFault is not null && ReferenceEquals(exception, _contextFault);
@@ -1039,19 +1250,93 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		/// <summary>Creates the failure outcome of a codec that returned <see langword="false" /> or threw a context fault.</summary>
 		internal CodecOutcome CreateFailureOutcome(string defaultMessage)
 		{
-			return new CodecOutcome(false, Failure ?? defaultMessage, Fault);
+			return new CodecOutcome(false, Failure ?? defaultMessage, Fault, FailureKind);
+		}
+
+		private static CheatEngineFailureKind GetUnavailableWidthKind(ObservedTargetArchitecture facts)
+		{
+			return facts.HasTarget || facts.TargetChangedDuringObservation
+				? CheatEngineFailureKind.IndeterminateHostResult
+				: CheatEngineFailureKind.TargetNotAttached;
+		}
+
+		private static string GetUnavailableWidthMessage(ObservedTargetArchitecture facts)
+		{
+			if (facts.TargetChangedDuringObservation)
+			{
+				return "The selected target changed while the codec context observed its process width.";
+			}
+
+			return facts.HasTarget
+				? "Cheat Engine did not report the process width of the selected target."
+				: "No target process is selected, so the codec context has no process width.";
+		}
+
+		/// <summary>
+		///     Observes the target facts once per codec invocation, PID first. The observer classifies SDK Engine and Lua
+		///     exceptions itself; any other SDK fault becomes a context fault that Core reports after the codec returns.
+		/// </summary>
+		private ObservedTargetArchitecture ObserveFacts()
+		{
+			if (_facts is { } facts)
+			{
+				return facts;
+			}
+
+			try
+			{
+				facts = TargetArchitectureObserver.Observe(_port, readConfiguredPointerSize: true);
+			}
+			catch (Exception exception) when (SdkBoundary.IsSdkFault(exception))
+			{
+				Fault = exception;
+				Failure = "Cheat Engine could not report the target pointer width.";
+				throw CreateContextFault(CoreFailureFactory.GetKind(exception), Failure, exception);
+			}
+
+			_facts = facts;
+			return facts;
+		}
+
+		/// <summary>
+		///     A property cannot return a failure: throw a Client exception that Core recognizes by identity and converts
+		///     back into a classified failure after the consumer codec returns or rethrows it.
+		/// </summary>
+		private int ThrowProcessWidthUnavailable(ObservedTargetArchitecture facts)
+		{
+			CheatEngineFailureKind kind = GetUnavailableWidthKind(facts);
+			string message = GetUnavailableWidthMessage(facts);
+			RecordRefusal(kind, message);
+			throw CreateContextFault(kind, message, null);
+		}
+
+		private CheatEngineOperationException CreateContextFault(CheatEngineFailureKind kind, string message,
+			Exception? exception)
+		{
+			_contextFault = new CheatEngineOperationException(new CheatEngineFailure(kind, _operation, message,
+				exception, CheatEngineHostEffect.NotStarted));
+			return _contextFault;
+		}
+
+		private void RecordRefusal(CheatEngineFailureKind kind, string message)
+		{
+			Failure = message;
+			Fault = null;
+			FailureKind = kind;
 		}
 
 		private void SetFailure(string? failure, Exception? fault)
 		{
 			Failure = failure ?? (fault is null ? null : "Cheat Engine raised an SDK fault during the codec operation.");
 			Fault = fault;
+			FailureKind = null;
 		}
 
 		private void ClearFailure()
 		{
 			Failure = null;
 			Fault = null;
+			FailureKind = null;
 		}
 
 		internal static TargetMemoryCodecContext Create(

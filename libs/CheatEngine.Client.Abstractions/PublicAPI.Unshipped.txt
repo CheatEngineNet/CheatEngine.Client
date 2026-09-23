@@ -672,3 +672,8 @@ CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.ConfiguredPointerSizeB
 CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.ConfiguredPointerSizeDiffersFromTargetPointerSize.get -> bool?
 CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.ConfiguredPointerSize.get -> CheatEngine.SDK.Engine.Runtime.PointerSize
 CheatEngine.Client.Processes.ProcessSnapshot.ProcessSnapshot(CheatEngine.SDK.Engine.Inspection.TargetProcessId id, string? name, string? executablePath, CheatEngine.SDK.Engine.Runtime.CheatEngineArchitecture targetArchitecture, CheatEngine.SDK.Engine.Runtime.PointerSize targetPointerSize, long selectionEpoch) -> void
+CheatEngine.Client.Memory.IMemoryPointerWidthContext
+CheatEngine.Client.Memory.IMemoryPointerWidthContext.ConfiguredPointerSize.get -> CheatEngine.SDK.Engine.Runtime.PointerSize
+CheatEngine.Client.Memory.IMemoryPointerWidthContext.ConfiguredPointerSizeBytes.get -> int?
+CheatEngine.Client.Memory.IMemoryPointerWidthContext.ConfiguredPointerSizeDiffersFromProcessWidth.get -> bool
+CheatEngine.Client.Memory.IMemoryPointerWidthContext.ProcessPointerSize.get -> CheatEngine.SDK.Engine.Runtime.PointerSize
