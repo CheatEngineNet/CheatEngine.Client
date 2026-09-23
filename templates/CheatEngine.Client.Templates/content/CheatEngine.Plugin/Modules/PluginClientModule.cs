@@ -60,8 +60,8 @@ internal sealed partial class PluginClientModule(
 		// With CheatEngine.SDK 1.0.0 a scan that finds nothing fails with IndeterminateHostResult: zero matches and a
 		// host failure are indistinguishable, so it is logged as a skipped probe, never treated as "not found".
 		if (!scan.ReadableExecutable()
-			    .FirstOrNone()
-			    .TryExecute(out Address? address, out CheatEngineFailure scanFailure))
+				.FirstOrNone()
+				.TryExecute(out Address? address, out CheatEngineFailure scanFailure))
 		{
 			LogSkipped("AOB probe", scanFailure);
 			return;
@@ -104,7 +104,7 @@ internal sealed partial class PluginClientModule(
 	/// <summary>Logs the activation epoch and configured count of trusted table-file roots.</summary>
 	[LoggerMessage(Level = LogLevel.Information,
 		Message = "CheatEngine.Plugin enabled at epoch {Epoch}; " +
-		          "configured trusted table-file root count is {AllowedTableRootCount}.")]
+				  "configured trusted table-file root count is {AllowedTableRootCount}.")]
 	private static partial void LogEnabled(ILogger logger, long epoch, int allowedTableRootCount);
 
 	/// <summary>Logs the number of records in the current Address List snapshot.</summary>
