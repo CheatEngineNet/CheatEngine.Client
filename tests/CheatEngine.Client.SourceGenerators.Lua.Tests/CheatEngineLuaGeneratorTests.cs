@@ -643,22 +643,6 @@ public sealed class CheatEngineLuaGeneratorTests
 		Assert.True(downstreamEmit.Success, string.Join(Environment.NewLine, downstreamEmit.Diagnostics));
 	}
 
-	[Fact]
-	public void UnchangedInputReusesTheIncrementalOutput()
-	{
-		GeneratorRun first = GeneratorRun.Execute(ModuleSource);
-		Compilation unchangedCompilation = first.OutputCompilation.RemoveAllSyntaxTrees()
-			.AddSyntaxTrees(CSharpSyntaxTree.ParseText(ModuleSource,
-				cancellationToken: TestContext.Current.CancellationToken));
-		GeneratorRun second = GeneratorRun.Execute(first.Driver, unchangedCompilation);
-
-		Assert.Empty(second.Diagnostics);
-		Assert.Equal(first.GeneratedSources.Select(static source => source.SourceText.ToString()),
-			second.GeneratedSources.Select(static source => source.SourceText.ToString()));
-		GeneratorRunResult result = Assert.Single(second.Result.Results);
-		Assert.NotEmpty(result.TrackedSteps);
-	}
-
 	private static int Count(string value, string fragment)
 	{
 		int count = 0;

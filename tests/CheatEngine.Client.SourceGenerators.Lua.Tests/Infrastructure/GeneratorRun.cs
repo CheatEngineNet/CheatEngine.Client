@@ -14,10 +14,11 @@ namespace CheatEngine.Client.SourceGenerators.Lua.Tests.Infrastructure;
 
 internal sealed class GeneratorRun
 {
-	private GeneratorRun(GeneratorDriver driver, GeneratorDriverRunResult result, Compilation outputCompilation,
-		ImmutableArray<Diagnostic> diagnostics)
+	private GeneratorRun(GeneratorDriver driver, GeneratorDriverRunResult result, Compilation inputCompilation,
+		Compilation outputCompilation, ImmutableArray<Diagnostic> diagnostics)
 	{
 		Driver = driver;
+		InputCompilation = inputCompilation;
 		Result = result;
 		OutputCompilation = outputCompilation;
 		Diagnostics = diagnostics;
@@ -29,6 +30,12 @@ internal sealed class GeneratorRun
 	}
 
 	public GeneratorDriverRunResult Result
+	{
+		get;
+	}
+
+	/// <summary>Gets the compilation the generator ran on, without the generated trees.</summary>
+	public Compilation InputCompilation
 	{
 		get;
 	}
@@ -47,12 +54,25 @@ internal sealed class GeneratorRun
 
 	public static GeneratorRun Execute(string source)
 	{
+		return Execute([source], []);
+	}
+
+	/// <summary>Runs the generator over several source files, optionally with extra metadata references.</summary>
+	public static GeneratorRun Execute(string[] sources, MetadataReference[] additionalReferences)
+	{
+		ArgumentNullException.ThrowIfNull(sources);
+		ArgumentNullException.ThrowIfNull(additionalReferences);
+
 		CSharpParseOptions parseOptions = new(LanguageVersion.CSharp14);
-		SyntaxTree syntaxTree = CSharpSyntaxTree.ParseText(SourceText.From(source), parseOptions);
+		SyntaxTree[] syntaxTrees =
+		[
+			.. sources.Select((source, index) => CSharpSyntaxTree.ParseText(SourceText.From(source), parseOptions,
+				sources.Length == 1 ? string.Empty : $"Source{index}.cs"))
+		];
 		CSharpCompilation compilation = CSharpCompilation.Create(
 			"CheatEngineClientLuaGeneratorTests",
-			[syntaxTree],
-			GetMetadataReferences(),
+			syntaxTrees,
+			[.. GetMetadataReferences(), .. additionalReferences],
 			new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, allowUnsafe: true));
 		GeneratorDriver driver = CSharpGeneratorDriver.Create(
 			[new CheatEngineLuaGenerator().AsSourceGenerator()],
@@ -69,7 +89,7 @@ internal sealed class GeneratorRun
 			out Compilation outputCompilation,
 			out ImmutableArray<Diagnostic> diagnostics,
 			TestContext.Current.CancellationToken);
-		return new GeneratorRun(updated, updated.GetRunResult(), outputCompilation, diagnostics);
+		return new GeneratorRun(updated, updated.GetRunResult(), compilation, outputCompilation, diagnostics);
 	}
 
 	public string GeneratedText(string suffix)
