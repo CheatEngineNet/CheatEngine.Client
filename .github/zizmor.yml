@@ -8,7 +8,7 @@ rules:
   # reaches the written text, so nothing attacker-controlled can inject a variable. The line is the step's run: key.
   github-env:
     ignore:
-      - action.yml:35
+      - action.yml:34
 
   # zizmor suggests GitHub's 'uses: $/...' self-repository syntax, but actionlint 1.7.12 (the pinned linter of the same
   # job) rejects it ("invalid format because ref is missing"). Keep the './' form, as CheatEngine.SDK does.

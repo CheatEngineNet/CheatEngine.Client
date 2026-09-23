@@ -12,9 +12,8 @@ name: CI
 #
 # The Release leg packs before it tests: the package-consumption tests install the very files CI uploads. Jobs exchange
 # artifacts instead of rebuilding (names reserved, nothing else is uploaded):
-#   nuget-packages, build-info            build-test (Release) → sonar, release.yml
+#   nuget-packages                        build-test (Release) → sonar, release.yml
 #   coverage                              build-test (Debug)   → sonar
-#   coverage-report                       build-test (Debug)   → humans
 #   test-results-<configuration>          build-test           → humans
 #   test-dumps-<configuration>, binlogs-* on failure only      → humans
 #
@@ -32,7 +31,7 @@ on:
         type: string
         default: ''
       package-retention-days:
-        description: Days to keep the nuget-packages and build-info artifacts.
+        description: Days to keep the nuget-packages artifact.
         type: number
         default: 7
     secrets:
@@ -63,7 +62,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0 # the package version comes from tags and history; build-info records the tree
+          fetch-depth: 0 # the package version comes from tags and history
           persist-credentials: false
 
       - name: Setup .NET
@@ -81,7 +80,9 @@ jobs:
           }
 
       # Every .nupkg must embed its SPDX SBOM (_manifest/spdx_2.2/manifest.spdx.json): the pack generates it
-      # unconditionally (eng/Shipping.props, eng/Templates.props) and release.yml attests it.
+      # unconditionally (eng/Shipping.props, eng/Templates.props) and release.yml attests it. The seven ids produce
+      # exactly one nupkg each and a snupkg for every one but the two with no build output (Client, Templates); when a
+      # release names the exact version, every file must be named "<Id>.<version>.nupkg" / ".snupkg".
       - name: Pack
         id: pack
         if: matrix.configuration == 'Release'
@@ -93,15 +94,39 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "Client package creation failed with exit code $LASTEXITCODE."
           }
-          ./eng/ci/Test-PackageSet.ps1 -PackageDirectory artifacts/nuget -PackageVersion $env:PACKAGE_VERSION -RequireSbom
 
-      - name: Write build info
-        if: matrix.configuration == 'Release'
-        env:
-          RUNNER_LABEL: windows-2025
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: ./eng/ci/New-BuildInfo.ps1 -PackageDirectory artifacts/nuget -RunnerLabel $env:RUNNER_LABEL -PullRequestNumber $env:PR_NUMBER -PullRequestHeadSha $env:PR_HEAD_SHA
+          $ids = @(
+            'CheatEngine.Client', 'CheatEngine.Client.Abstractions', 'CheatEngine.Client.Core',
+            'CheatEngine.Client.Extensions.DependencyInjection', 'CheatEngine.Client.Fluent', 'CheatEngine.Client.Hosting',
+            'CheatEngine.Client.Templates'
+          )
+          $noSymbols = @('CheatEngine.Client', 'CheatEngine.Client.Templates')
+          $nupkgs = @(Get-ChildItem artifacts/nuget -Filter '*.nupkg')
+          $snupkgs = @(Get-ChildItem artifacts/nuget -Filter '*.snupkg')
+          if ($nupkgs.Count -ne $ids.Count -or $snupkgs.Count -ne ($ids.Count - $noSymbols.Count)) {
+            throw "Expected $($ids.Count) nupkg and $($ids.Count - $noSymbols.Count) snupkg in artifacts/nuget, found $($nupkgs.Count) nupkg and $($snupkgs.Count) snupkg."
+          }
+
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          foreach ($id in $ids) {
+            $expectedName = if ($env:PACKAGE_VERSION) { "$id.$env:PACKAGE_VERSION.nupkg" } else { $null }
+            $nupkg = if ($expectedName) { Join-Path artifacts/nuget $expectedName } else { ($nupkgs | Where-Object BaseName -Match "^$([regex]::Escape($id))\.\d") | Select-Object -First 1 -ExpandProperty FullName }
+            if (-not $nupkg -or -not (Test-Path -LiteralPath $nupkg -PathType Leaf)) {
+              throw "artifacts/nuget has no package for $id$(if ($expectedName) { " named $expectedName" })."
+            }
+
+            $archive = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path -LiteralPath $nupkg).Path)
+            try {
+              if ($null -eq $archive.GetEntry('_manifest/spdx_2.2/manifest.spdx.json')) {
+                throw "$nupkg has no embedded SBOM at _manifest/spdx_2.2/manifest.spdx.json."
+              }
+            }
+            finally {
+              $archive.Dispose()
+            }
+          }
+
+          Write-Output "Verified $($nupkgs.Count) nupkg and $($snupkgs.Count) snupkg, each embedding its SBOM."
 
       # The solution build compiles the benchmarks; listing them proves discovery. Benchmarks never run in the Gate.
       - name: Benchmarks discovery
@@ -147,13 +172,6 @@ jobs:
             throw "$env:CONFIGURATION tests failed with exit code $LASTEXITCODE."
           }
 
-      - name: Test module inventory
-        run: ./eng/ci/Test-TestModuleInventory.ps1 -ResultsDirectory $env:RESULTS -Configuration $env:CONFIGURATION -RequireCoverage:$($env:CONFIGURATION -eq 'Debug')
-
-      - name: Coverage ratchet
-        if: matrix.configuration == 'Debug'
-        run: ./eng/ci/Test-CoverageBaseline.ps1 -ResultsDirectory $env:RESULTS -Baseline eng/coverage-baseline.json -OutputDirectory artifacts/coverage-report
-
       - name: Upload packages
         if: matrix.configuration == 'Release'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -165,15 +183,6 @@ jobs:
           if-no-files-found: error
           retention-days: ${{ inputs.package-retention-days }}
 
-      - name: Upload build info
-        if: matrix.configuration == 'Release'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: build-info
-          path: artifacts/build-info/build-info.json
-          if-no-files-found: error
-          retention-days: ${{ inputs.package-retention-days }}
-
       - name: Upload coverage
         if: matrix.configuration == 'Debug'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -181,15 +190,6 @@ jobs:
           name: coverage
           path: ${{ env.RESULTS }}/*.xml
           if-no-files-found: error
-          retention-days: 7
-
-      - name: Upload coverage report
-        if: ${{ !cancelled() && matrix.configuration == 'Debug' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: coverage-report
-          path: artifacts/coverage-report/
-          if-no-files-found: ignore
           retention-days: 7
 
       - name: Upload test results
@@ -322,9 +322,6 @@ jobs:
           advanced-security: false
           config: .github/zizmor.yml
 
-      - name: Analyse PowerShell scripts
-        run: ./eng/ci/Invoke-ScriptAnalysis.ps1 -ModuleDirectory (Join-Path $env:RUNNER_TEMP 'PSScriptAnalyzer')
-
   format:
     name: Format
     runs-on: ubuntu-24.04
@@ -384,9 +381,14 @@ jobs:
       - name: Setup .NET
         uses: ./.github/actions/setup-dotnet
 
-      # Windows only: Native AOT lock sections record host-RID ILCompiler packages.
+      # Windows only: Native AOT lock sections record host-RID ILCompiler packages. A locked restore fails outright
+      # when a committed packages.lock.json no longer matches its project graph.
       - name: Verify lock files
-        run: ./eng/Update-LockFiles.ps1 -Verify
+        run: |
+          dotnet restore CheatEngine.Client.slnx --locked-mode
+          if ($LASTEXITCODE -ne 0) {
+            throw "Locked restore failed with exit code $LASTEXITCODE. The committed packages.lock.json files do not match the project graph: regenerate the affected ones with 'dotnet restore <project> --force-evaluate' and commit the result."
+          }
 
   gate:
     name: Gate

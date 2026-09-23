@@ -13,8 +13,7 @@ inputs:
   cache:
     description: >-
       Cache the NuGet global-packages folder, keyed on every packages.lock.json. Keep 'false' in every workflow a
-      release, Sonar or CodeQL run can reach (a poisoned cache would feed the published packages); only
-      scheduled-health.yml may pass 'true'.
+      release, Sonar or CodeQL run can reach (a poisoned cache would feed the published packages).
     required: false
     default: 'false'
 
@@ -47,6 +46,6 @@ runs:
         foreach ($target in $targets) {
           dotnet restore $target --locked-mode
           if ($LASTEXITCODE -ne 0) {
-            throw "Locked restore of '$target' failed with exit code $LASTEXITCODE. The committed packages.lock.json files do not match the project graph: regenerate them with ./eng/Update-LockFiles.ps1 (Windows, the .NET SDK of global.json) and commit the result."
+            throw "Locked restore of '$target' failed with exit code $LASTEXITCODE. The committed packages.lock.json files do not match the project graph: regenerate them with 'dotnet restore <project> --force-evaluate' (Windows, the .NET SDK of global.json) and commit the result."
           }
         }

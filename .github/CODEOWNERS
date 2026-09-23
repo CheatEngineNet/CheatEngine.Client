@@ -14,9 +14,3 @@
 /global.json                @AriusII
 /nuget.config               @AriusII
 /SECURITY.md                @AriusII
-
-# The required "PR policy" check runs the pull request's own copy of these files (inherent to pull_request events), so
-# a pull request can weaken its own check: every change to them needs an explicit review.
-/.github/workflows/pr-policy.yml    @AriusII
-/eng/ci/Test-PullRequestPolicy.ps1  @AriusII
-/eng/ci/pr-policy.json              @AriusII

@@ -5,11 +5,10 @@
 #   Security updates (repository setting) are not delayed by the cooldown.
 # - Lock files: Dependabot does not regenerate every packages.lock.json (CPM + ProjectReference graphs, the
 #   SDK-implicit ILLink/ILCompiler entries). When the "Lock files" CI job fails on a Dependabot pull request, check the
-#   branch out, run ./eng/Update-LockFiles.ps1, commit "Regenerate lock files after <update>" and push; Dependabot then
-#   stops rebasing that pull request. A dotnet-sdk update always needs regenerated lock files (global.json uses
-#   rollForward: disable) and an sdk.errorMessage naming the new version: apply the latest sdk-canary-patch artifact
-#   of the Scheduled health workflow. The patch is made against main, so restore main's global.json first
-#   (git checkout origin/main -- global.json, then git apply sdk-canary.patch).
+#   branch out, run 'dotnet restore <project> --force-evaluate' for each affected project, commit
+#   "Regenerate lock files after <update>" and push; Dependabot then stops rebasing that pull request. A dotnet-sdk
+#   update always needs regenerated lock files (global.json uses rollForward: disable) and an sdk.errorMessage naming
+#   the new version, moved by hand in the same commit.
 # - No commit-message prefix: a prefix produces "deps: ..." subjects, which the pull request title rule forbids.
 #   Dependabot pull requests are exempt from PR policy; rename "chore(deps): ..." squash subjects when merging.
 version: 2
@@ -34,8 +33,7 @@ updates:
         patterns: [ '*' ]
     ignore:
       # The Client stays on CheatEngine.SDK 1.x: range [1.0.0,2.0.0) (CHEATENGINECLIENT9016). This covers the CPM entry
-      # and the Coexistence fixtures' CoexistenceSdkPackageVersion property. SDK 2.0 adoption is a planned migration
-      # (docs/migration/sdk-2.0.md).
+      # and the Coexistence fixtures' CoexistenceSdkPackageVersion property. SDK 2.0 adoption is a planned migration.
       - dependency-name: CheatEngine.SDK
         update-types: [ 'version-update:semver-major' ]
       # Roslyn moves only with the Lua generator's compiler floor (CHEATENGINECLIENT9020).
