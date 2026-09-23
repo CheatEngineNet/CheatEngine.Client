@@ -10,7 +10,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Workflows/WorkflowContractTests parse .github/**/*.yml. -->
+    <!-- Workflows/WorkflowContractTests and Release/ReleaseWorkflowTests parse .github/**/*.yml. -->
     <PackageReference Include="YamlDotNet"/>
   </ItemGroup>
 

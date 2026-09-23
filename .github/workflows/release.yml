@@ -1,0 +1,490 @@
+name: Release
+
+run-name: Release ${{ github.ref_name }}${{ github.event_name == 'workflow_dispatch' && ' (dry run)' || '' }}
+
+# verify ─► ci ─► attest ─► draft-release ─► publish ─► verify-publication ─► finalize-release
+#
+# The seven packages that ci builds, tests and uploads as nuget-packages are the exact files that are attested,
+# attached to the draft release and pushed to nuget.org. Nothing is published before a draft release carries every
+# asset, and the release itself is published only after nuget.org serves the attested packages, so the flow works with
+# immutable releases. A workflow_dispatch run is a dry run: it verifies and builds, and never drafts or publishes.
+# No job restores from or saves to a NuGet cache. RELEASING.md describes the procedure and every check.
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  verify:
+    name: Verify tag
+    runs-on: windows-2025
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.tag.outputs.version }}
+      prerelease: ${{ steps.tag.outputs.prerelease }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up .NET
+        uses: ./.github/actions/setup-dotnet
+        with:
+          cache: 'false'
+
+      # SemVer tag on the first-parent history of main, no published version of any of the seven ids, and the pinned
+      # CheatEngine.SDK equal to the reviewed identity (signature and content hash).
+      - name: Verify tag
+        id: tag
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: ./eng/release/Test-ReleaseTag.ps1 -RefType $env:REF_TYPE -RefName $env:REF_NAME -OutputPath $env:GITHUB_OUTPUT
+
+      - name: Extract release notes
+        if: steps.tag.outputs.version != ''
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+          PRERELEASE: ${{ steps.tag.outputs.prerelease }}
+        run: ./eng/release/Export-ReleaseNotes.ps1 -Version $env:VERSION -Prerelease:($env:PRERELEASE -eq 'true') -OutputPath artifacts/release-notes/release-notes.md
+
+      - name: Upload release notes
+        if: steps.tag.outputs.version != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-notes
+          path: artifacts/release-notes/release-notes.md
+          if-no-files-found: error
+          retention-days: 90
+
+  # Build and test the tag commit: MinVer stamps the tag version at compile time, so a main build cannot be promoted.
+  # Sonar already analysed this commit on main and is never passed here.
+  ci:
+    name: CI
+    needs: verify
+    uses: ./.github/workflows/ci.yml
+    with:
+      package-version: ${{ needs.verify.outputs.version }}
+      package-retention-days: 90
+
+  attest:
+    name: Attest packages
+    needs: [ verify, ci ]
+    if: needs.verify.outputs.version != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write # sign the attestations with the workflow identity
+      attestations: write # store them in the repository
+    env:
+      VERSION: ${{ needs.verify.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download packages
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: nuget-packages
+          path: artifacts/nuget
+
+      - name: Extract the SBOMs
+        run: ./eng/release/New-ReleaseAssets.ps1 -ExtractSbom -PackageDirectory artifacts/nuget -Version $env:VERSION -OutputDirectory artifacts/attestations
+
+      - name: Attest build provenance
+        id: provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: artifacts/nuget/*.nupkg
+
+      - name: Attest the SBOM of CheatEngine.Client
+        id: sbom-client
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: artifacts/nuget/CheatEngine.Client.${{ env.VERSION }}.nupkg
+          sbom-path: artifacts/attestations/CheatEngine.Client.${{ env.VERSION }}.spdx.json
+
+      - name: Attest the SBOM of CheatEngine.Client.Abstractions
+        id: sbom-abstractions
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: artifacts/nuget/CheatEngine.Client.Abstractions.${{ env.VERSION }}.nupkg
+          sbom-path: artifacts/attestations/CheatEngine.Client.Abstractions.${{ env.VERSION }}.spdx.json
+
+      - name: Attest the SBOM of CheatEngine.Client.Core
+        id: sbom-core
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: artifacts/nuget/CheatEngine.Client.Core.${{ env.VERSION }}.nupkg
+          sbom-path: artifacts/attestations/CheatEngine.Client.Core.${{ env.VERSION }}.spdx.json
+
+      - name: Attest the SBOM of CheatEngine.Client.Extensions.DependencyInjection
+        id: sbom-dependency-injection
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: artifacts/nuget/CheatEngine.Client.Extensions.DependencyInjection.${{ env.VERSION }}.nupkg
+          sbom-path: artifacts/attestations/CheatEngine.Client.Extensions.DependencyInjection.${{ env.VERSION }}.spdx.json
+
+      - name: Attest the SBOM of CheatEngine.Client.Fluent
+        id: sbom-fluent
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: artifacts/nuget/CheatEngine.Client.Fluent.${{ env.VERSION }}.nupkg
+          sbom-path: artifacts/attestations/CheatEngine.Client.Fluent.${{ env.VERSION }}.spdx.json
+
+      - name: Attest the SBOM of CheatEngine.Client.Hosting
+        id: sbom-hosting
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: artifacts/nuget/CheatEngine.Client.Hosting.${{ env.VERSION }}.nupkg
+          sbom-path: artifacts/attestations/CheatEngine.Client.Hosting.${{ env.VERSION }}.spdx.json
+
+      - name: Attest the SBOM of CheatEngine.Client.Templates
+        id: sbom-templates
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: artifacts/nuget/CheatEngine.Client.Templates.${{ env.VERSION }}.nupkg
+          sbom-path: artifacts/attestations/CheatEngine.Client.Templates.${{ env.VERSION }}.spdx.json
+
+      # The bundles become release assets, named after what they attest.
+      - name: Collect the attestation bundles
+        env:
+          PROVENANCE: ${{ steps.provenance.outputs.bundle-path }}
+          SBOM_CLIENT: ${{ steps.sbom-client.outputs.bundle-path }}
+          SBOM_ABSTRACTIONS: ${{ steps.sbom-abstractions.outputs.bundle-path }}
+          SBOM_CORE: ${{ steps.sbom-core.outputs.bundle-path }}
+          SBOM_DEPENDENCY_INJECTION: ${{ steps.sbom-dependency-injection.outputs.bundle-path }}
+          SBOM_FLUENT: ${{ steps.sbom-fluent.outputs.bundle-path }}
+          SBOM_HOSTING: ${{ steps.sbom-hosting.outputs.bundle-path }}
+          SBOM_TEMPLATES: ${{ steps.sbom-templates.outputs.bundle-path }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $bundles = [ordered]@{
+            "CheatEngine.Client.$env:VERSION.provenance.sigstore.json" = $env:PROVENANCE
+            "CheatEngine.Client.$env:VERSION.sbom.sigstore.json" = $env:SBOM_CLIENT
+            "CheatEngine.Client.Abstractions.$env:VERSION.sbom.sigstore.json" = $env:SBOM_ABSTRACTIONS
+            "CheatEngine.Client.Core.$env:VERSION.sbom.sigstore.json" = $env:SBOM_CORE
+            "CheatEngine.Client.Extensions.DependencyInjection.$env:VERSION.sbom.sigstore.json" = $env:SBOM_DEPENDENCY_INJECTION
+            "CheatEngine.Client.Fluent.$env:VERSION.sbom.sigstore.json" = $env:SBOM_FLUENT
+            "CheatEngine.Client.Hosting.$env:VERSION.sbom.sigstore.json" = $env:SBOM_HOSTING
+            "CheatEngine.Client.Templates.$env:VERSION.sbom.sigstore.json" = $env:SBOM_TEMPLATES
+          }
+          foreach ($name in $bundles.Keys) {
+            if (-not $bundles[$name] -or -not (Test-Path -LiteralPath $bundles[$name] -PathType Leaf)) {
+              throw "The attestation bundle for $name was not produced."
+            }
+            Copy-Item -LiteralPath $bundles[$name] -Destination (Join-Path artifacts/attestations $name)
+          }
+
+      - name: Upload the attestation bundles and SBOMs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: attestation-bundles
+          path: artifacts/attestations
+          if-no-files-found: error
+          retention-days: 90
+
+  draft-release:
+    name: Draft GitHub release
+    needs: [ verify, ci, attest ]
+    if: github.ref_type == 'tag' && needs.verify.outputs.version != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write # create the draft release and upload its assets
+      pull-requests: read # name the pull request of the tag commit in the tuple
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ github.ref_name }}
+      VERSION: ${{ needs.verify.outputs.version }}
+      PRERELEASE: ${{ needs.verify.outputs.prerelease }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      CHEATENGINE_CLIENT_TUPLE_PATH: ${{ github.workspace }}/artifacts/release/CheatEngine.Client.${{ needs.verify.outputs.version }}.tuple.json
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up .NET
+        uses: ./.github/actions/setup-dotnet
+        with:
+          cache: 'false'
+          restore: tests/CheatEngine.Client.Repository.Tests/CheatEngine.Client.Repository.Tests.csproj
+
+      - name: Download packages
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: nuget-packages
+          path: artifacts/release
+
+      - name: Download build information
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: build-info
+          path: artifacts/build-info
+
+      - name: Download the attestation bundles and SBOMs
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: attestation-bundles
+          path: artifacts/release
+
+      - name: Download release notes
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-notes
+          path: artifacts/release-notes
+
+      - name: Find the pull request of the tag commit
+        id: pull-request
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $pulls = gh api "repos/$env:GH_REPO/commits/$env:GITHUB_SHA/pulls" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) {
+            throw "Listing the pull requests of $env:GITHUB_SHA failed with exit code $LASTEXITCODE."
+          }
+          $merged = @($pulls | Where-Object { $_.merged_at })
+          if ($merged.Count -gt 0) {
+            "number=$($merged[0].number)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            "head=$($merged[0].head.sha)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          }
+
+      - name: Write the PrePublish tuple
+        env:
+          PULL_REQUEST: ${{ steps.pull-request.outputs.number }}
+          PULL_REQUEST_HEAD: ${{ steps.pull-request.outputs.head }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $pullRequest = if ($env:PULL_REQUEST) { @{ PullRequestNumber = [int]$env:PULL_REQUEST; PullRequestHeadSha = $env:PULL_REQUEST_HEAD } } else { @{} }
+          ./eng/release/New-ClientTuple.ps1 -Stage PrePublish -Tag $env:TAG -AssetDirectory artifacts/release -BuildInfoPath artifacts/build-info/build-info.json -ReleaseRunUrl $env:RUN_URL @pullRequest
+
+      - name: Validate the tuple
+        run: |
+          dotnet test --project tests/CheatEngine.Client.Repository.Tests/CheatEngine.Client.Repository.Tests.csproj -c Release --no-restore --fail-skips on --filter-class CheatEngine.Client.Repository.Tests.Release.ClientTupleSchemaTests
+          if ($LASTEXITCODE -ne 0) {
+            throw "The PrePublish tuple does not satisfy its schema (exit code $LASTEXITCODE)."
+          }
+
+      - name: Write SHA256SUMS
+        run: ./eng/release/New-ReleaseAssets.ps1 -WriteChecksums -OutputDirectory artifacts/release
+
+      # A re-run completes a draft; a published release never receives assets.
+      - name: Create or complete the draft release
+        run: ./eng/release/New-ReleaseDraft.ps1 -Tag $env:TAG -AssetDirectory artifacts/release -NotesPath artifacts/release-notes/release-notes.md -Prerelease:($env:PRERELEASE -eq 'true')
+
+  # NuGet trusted publishing is bound to this file and the nuget environment, so login and push stay in this job.
+  publish:
+    name: Publish to NuGet
+    needs: [ verify, ci, draft-release ]
+    if: github.event_name == 'push' && github.ref_type == 'tag' && github.repository == 'CheatEngineNet/CheatEngine.Client'
+    runs-on: windows-2025
+    timeout-minutes: 20
+    environment:
+      name: nuget # required reviewers approve the publication; the environment only admits v*.*.* tags
+      url: https://www.nuget.org/packages/CheatEngine.Client/${{ needs.verify.outputs.version }}
+    permissions:
+      contents: read
+      id-token: write # exchange the OIDC token for a short-lived NuGet API key
+    env:
+      VERSION: ${{ needs.verify.outputs.version }}
+    steps:
+      # Only the .NET setup action and global.json: this job runs no repository script next to its credentials.
+      - name: Checkout the .NET setup
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            .github/actions
+            global.json
+          sparse-checkout-cone-mode: false
+
+      - name: Set up .NET
+        uses: ./.github/actions/setup-dotnet
+        with:
+          cache: 'false'
+
+      - name: Download packages
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: nuget-packages
+          path: artifacts/nuget
+
+      # The user is the nuget.org profile name that created the trusted publishing policy, not an e-mail address. The
+      # key lasts one hour, so the login comes right before the pushes.
+      - name: NuGet login
+        id: login
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      # Dependency order: every package is pushed after the Client packages it depends on. Each push also sends the
+      # sibling .snupkg. --skip-duplicate lets a re-run of this job finish a partial publication.
+      - name: Push the seven packages
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $packages = @(
+            'CheatEngine.Client.Abstractions'
+            'CheatEngine.Client.Fluent'
+            'CheatEngine.Client.Core'
+            'CheatEngine.Client.Extensions.DependencyInjection'
+            'CheatEngine.Client.Hosting'
+            'CheatEngine.Client'
+            'CheatEngine.Client.Templates'
+          )
+          foreach ($id in $packages) {
+            $package = "artifacts/nuget/$id.$env:VERSION.nupkg"
+            if (-not (Test-Path -LiteralPath $package -PathType Leaf)) {
+              throw "$package is missing from the nuget-packages artifact."
+            }
+            dotnet nuget push $package --api-key $env:NUGET_API_KEY --source https://api.nuget.org/v3/index.json --skip-duplicate
+            if ($LASTEXITCODE -ne 0) {
+              throw "Pushing $id $env:VERSION failed with exit code $LASTEXITCODE."
+            }
+          }
+
+  verify-publication:
+    name: Verify publication
+    needs: [ verify, publish ]
+    runs-on: windows-2025
+    timeout-minutes: 60
+    outputs:
+      published: ${{ steps.published.outputs.published }}
+    env:
+      VERSION: ${{ needs.verify.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up .NET
+        uses: ./.github/actions/setup-dotnet
+        with:
+          cache: 'false'
+
+      - name: Download packages
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: nuget-packages
+          path: artifacts/nuget
+
+      # Waits for nuget.org to list the seven versions, then checks the repository signature, the content hash and
+      # every entry of the served files against the attested packages, and records the nuget.org hashes.
+      - name: Verify the published packages
+        id: published
+        run: |
+          $ErrorActionPreference = 'Stop'
+          ./eng/release/Test-PublishedPackages.ps1 -PackageDirectory artifacts/nuget -Version $env:VERSION -OutputPath artifacts/publication/published-packages.json -TimeoutMinutes 45
+          $published = Get-Content -LiteralPath artifacts/publication/published-packages.json -Raw | ConvertFrom-Json | ConvertTo-Json -Compress -Depth 4
+          "published=$published" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+  finalize-release:
+    name: Finalize GitHub release
+    needs: [ verify, draft-release, verify-publication ]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write # replace the tuple of the draft and publish it
+      attestations: read # verify the attestations
+      pull-requests: read # name the pull request of the tag commit in the tuple
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ github.ref_name }}
+      VERSION: ${{ needs.verify.outputs.version }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      PUBLISHED: ${{ needs.verify-publication.outputs.published }}
+      CHEATENGINE_CLIENT_TUPLE_PATH: ${{ github.workspace }}/artifacts/release/CheatEngine.Client.${{ needs.verify.outputs.version }}.tuple.json
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up .NET
+        uses: ./.github/actions/setup-dotnet
+        with:
+          cache: 'false'
+          restore: tests/CheatEngine.Client.Repository.Tests/CheatEngine.Client.Repository.Tests.csproj
+
+      - name: Download packages
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: nuget-packages
+          path: artifacts/release
+
+      - name: Download build information
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: build-info
+          path: artifacts/build-info
+
+      - name: Download the attestation bundles and SBOMs
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: attestation-bundles
+          path: artifacts/release
+
+      - name: Find the pull request of the tag commit
+        id: pull-request
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $pulls = gh api "repos/$env:GH_REPO/commits/$env:GITHUB_SHA/pulls" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) {
+            throw "Listing the pull requests of $env:GITHUB_SHA failed with exit code $LASTEXITCODE."
+          }
+          $merged = @($pulls | Where-Object { $_.merged_at })
+          if ($merged.Count -gt 0) {
+            "number=$($merged[0].number)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            "head=$($merged[0].head.sha)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          }
+
+      - name: Write the Published tuple
+        env:
+          PULL_REQUEST: ${{ steps.pull-request.outputs.number }}
+          PULL_REQUEST_HEAD: ${{ steps.pull-request.outputs.head }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Path artifacts/publication -Force | Out-Null
+          Set-Content -LiteralPath artifacts/publication/published-packages.json -Value $env:PUBLISHED -Encoding utf8NoBOM
+          $pullRequest = if ($env:PULL_REQUEST) { @{ PullRequestNumber = [int]$env:PULL_REQUEST; PullRequestHeadSha = $env:PULL_REQUEST_HEAD } } else { @{} }
+          ./eng/release/New-ClientTuple.ps1 -Stage Published -Tag $env:TAG -AssetDirectory artifacts/release -BuildInfoPath artifacts/build-info/build-info.json -ReleaseRunUrl $env:RUN_URL -PublishedPackagesPath artifacts/publication/published-packages.json @pullRequest
+
+      - name: Validate the tuple
+        run: |
+          dotnet test --project tests/CheatEngine.Client.Repository.Tests/CheatEngine.Client.Repository.Tests.csproj -c Release --no-restore --fail-skips on --filter-class CheatEngine.Client.Repository.Tests.Release.ClientTupleSchemaTests
+          if ($LASTEXITCODE -ne 0) {
+            throw "The Published tuple does not satisfy its schema (exit code $LASTEXITCODE)."
+          }
+
+      - name: Write SHA256SUMS
+        run: ./eng/release/New-ReleaseAssets.ps1 -WriteChecksums -OutputDirectory artifacts/release
+
+      # Replace the tuple while the release is a draft, verify the attestations, publish, then verify the immutable
+      # release when the repository enables immutable releases.
+      - name: Publish the GitHub release
+        run: ./eng/release/Complete-GitHubRelease.ps1 -Tag $env:TAG -AssetDirectory artifacts/release -PackageDirectory artifacts/release

@@ -30,6 +30,18 @@
     <File Path="eng/ci/Test-PackageSet.ps1"/>
     <File Path="eng/ci/Test-TestModuleInventory.ps1"/>
   </Folder>
+  <Folder Name="/eng/release/">
+    <File Path="eng/release/client-tuple.example.json"/>
+    <File Path="eng/release/client-tuple.v0.schema.json"/>
+    <File Path="eng/release/Complete-GitHubRelease.ps1"/>
+    <File Path="eng/release/Complete-PublicApiRelease.ps1"/>
+    <File Path="eng/release/Export-ReleaseNotes.ps1"/>
+    <File Path="eng/release/New-ClientTuple.ps1"/>
+    <File Path="eng/release/New-ReleaseAssets.ps1"/>
+    <File Path="eng/release/New-ReleaseDraft.ps1"/>
+    <File Path="eng/release/Test-PublishedPackages.ps1"/>
+    <File Path="eng/release/Test-ReleaseTag.ps1"/>
+  </Folder>
   <Folder Name="/eng/sdk/">
     <File Path="eng/sdk/consumed-sdk.json"/>
     <File Path="eng/sdk/consumed-sdk.v0.schema.json"/>

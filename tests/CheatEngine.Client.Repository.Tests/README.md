@@ -46,6 +46,20 @@ project never builds, packs, restores or starts a process, so it runs in seconds
     lock resolves the pin, and `eng/sdk/consumed-sdk.json` records the content hash the locks hold;
   - `ConsumedSdkIdentityFollowsTheEncodingRules`: the identity satisfies its schema, whose required fields are frozen;
   - `SdkPinIsAStableVersionOfTheSupportedMajor` and `CoexistenceFixturesDeriveTheirSdkVersionFromThePin`.
+- `Packaging/PackageVersioningTests` and `Packaging/PackageMetadataTests` pin the package versioning and metadata:
+  MinVer configured once for every package (`MinVerIsConfiguredOnceForEveryPackage`), the Roslyn pin of the packed
+  generator equal to its floor (`RoslynPinsEqualTheDeclaredComponentFloor`,
+  `TemplateSdkConstraintDoesNotExceedTheRepositorySdk`), readable template defaults
+  (`TemplateProjectDefaultsMatchTheCentralVersions`), one description per package, the license holder as copyright, the
+  `artifacts/nuget` output folder, Source Link from the .NET SDK, and the same SPDX SBOM settings in both profiles.
+- `Release/ClientTupleSchemaTests` proves that the Client release tuple (audit A21-04) satisfies its schema and the
+  encoding rules, and that its `consumedSdk` equals `eng/sdk/consumed-sdk.json` and the lock file. The release
+  workflow runs it on the tuple it produces through `CHEATENGINE_CLIENT_TUPLE_PATH`; otherwise it validates the
+  committed example.
+- `Release/ReleaseWorkflowTests` proves that `release.yml` keeps the contract job order, calls `ci.yml` with the
+  package version and a 90-day retention but no Sonar, confines the `nuget` environment and secrets to `publish`, drafts
+  and publishes only for tag pushes of this repository, never caches packages, and pushes the seven packages in
+  dependency order (audit A21-06).
 - Later work adds one folder per contract (for example `Documentation/`, `Workflows/`, `Qualification/`).
 - `Toolchain/ToolchainPinTests` keeps the build reproducible from the commit alone: `global.json` pins the exact .NET
   SDK (`rollForward: disable`, with an `errorMessage` naming the install command), `AnalysisLevel` is a numbered
