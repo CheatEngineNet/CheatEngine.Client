@@ -8,7 +8,7 @@ file. The rules they enforce are also frozen by C# tests in `tests/CheatEngine.C
 
 | Script | CI job / step | What it guarantees |
 | --- | --- | --- |
-| [`Test-PackageSet.ps1`](Test-PackageSet.ps1) | `build-test` (Release), Pack | The pack produced exactly the seven lockstep Client packages and six symbol packages (Templates has none), one version, exact names for a release; it summarises each file's SHA-256 and exports `package-source` for the package-consumption tests. |
+| [`Test-PackageSet.ps1`](Test-PackageSet.ps1) | `build-test` (Release), Pack | The pack produced exactly the seven lockstep Client packages and five symbol packages (the `CheatEngine.Client` facade and Templates have none), one version, exact names for a release; it summarises each file's SHA-256 and exports `package-source` for the package-consumption tests. |
 | [`New-BuildInfo.ps1`](New-BuildInfo.ps1) | `build-test` (Release), Write build info | `build-info.json` records the commit, tree, run, SDK, runner, package hashes and the consumed CheatEngine.SDK read from the Core lock file; it is validated against [`build-info.v0.schema.json`](build-info.v0.schema.json). |
 | [`Test-TestModuleInventory.ps1`](Test-TestModuleInventory.ps1) | `build-test`, Test module inventory | Every tracked `tests/**/*.Tests.csproj` produced a TRX report, executed tests and skipped none; Debug also has one coverage report per module. |
 | [`Test-CoverageBaseline.ps1`](Test-CoverageBaseline.ps1) | `build-test` (Debug), Coverage ratchet | The merged line coverage of each shipping assembly stays within the tolerance of its floor in [`eng/coverage-baseline.json`](../coverage-baseline.json); the job summary suggests new floors. |

@@ -10,7 +10,8 @@
     pack output directory to hold exactly:
 
       - one *.nupkg for each of the seven lockstep Client packages, all with one version;
-      - one *.snupkg for each of them except CheatEngine.Client.Templates (a template package has no symbols);
+      - one *.snupkg for each of them except the two packages without build output, the CheatEngine.Client facade
+        and CheatEngine.Client.Templates (Directory.Build.targets turns IncludeSymbols off for them);
       - nothing else.
 
     Package identities are read from each package's .nuspec, never parsed from file names, and every file name must be
@@ -43,7 +44,8 @@ $ErrorActionPreference = 'Stop'
 
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 
-# The seven lockstep packages. CheatEngine.Client.Templates ships content only, so it has no symbol package.
+# The seven lockstep packages. The CheatEngine.Client facade (dependencies only) and CheatEngine.Client.Templates
+# (content only) have no build output, so they ship no symbol package: nuget.org rejects a .snupkg without a PDB.
 $packageIds = @(
     'CheatEngine.Client'
     'CheatEngine.Client.Abstractions'
@@ -53,7 +55,7 @@ $packageIds = @(
     'CheatEngine.Client.Hosting'
     'CheatEngine.Client.Templates'
 )
-$packagesWithoutSymbols = @('CheatEngine.Client.Templates')
+$packagesWithoutSymbols = @('CheatEngine.Client', 'CheatEngine.Client.Templates')
 $sbomEntry = '_manifest/spdx_2.2/manifest.spdx.json'
 
 function Write-Failure {
