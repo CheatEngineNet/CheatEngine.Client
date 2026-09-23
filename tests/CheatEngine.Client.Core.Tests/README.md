@@ -24,8 +24,23 @@ Three suites guard the SDK boundary contracts. `Infrastructure/TryContractTests`
 `Try*` method, that an expired activation is never reclassified, and that consumer exceptions are rethrown as the same
 instance. `Infrastructure/OwnershipHandoffTests` checks that an SDK owner is released exactly once when publication
 fails. `SdkContract/SdkMappingContractTests` checks that every SDK 1.0.0 status value and exception type the Client
-translates maps to a known Client failure kind. Tests that serve as qualification evidence carry a `Qualification` trait
-(Q27, Q28, Q29, Q33, Q43, Q48), so a Q filter selects them.
+translates maps to a known Client failure kind.
+
+The runtime and target suites pin the observed-fact model: `Domains/TargetArchitectureObserverTests` and
+`Domains/RuntimeClientTests` derive the ISA from the family facts with the PID read first and never from the 64-bit
+fact alone (Q31, Q32), `Domains/ProcessClientTests` keeps the selection identity and the observed width,
+`Domains/MemoryPointerWidthTests` refuses pointer-typed paths on a configured/process width mismatch and keeps the codec
+width at the process width, and `RuntimeClientTests` also locks the package, qualification and read-only probe gates
+(Q44, Q45). `Domains/TableClientGenerationTests` and `Domains/TableClientMutationTests` refuse record identifiers
+captured before a trusted table load and report factual activation outcomes (Q34, Q35);
+`Domains/InspectionClientBehaviorTests` and `Domains/SymbolRegistrationLeaseTests` check the symbol collision preflight
+and the ownership-checked release. `Infrastructure/CoreDiagnosticsTests` runs one operation of every emitting domain and
+proves that diagnostic events are never emitted inside a dispatched callback, carry only closed names, counts and
+epochs (Q46), and that a throwing sink changes no result.
+
+Tests that serve as qualification evidence carry a `Qualification` trait (Q16, Q21, Q27, Q28, Q29, Q31, Q32, Q33, Q34,
+Q35, Q43, Q44, Q45, Q46, Q48), so a Q filter selects them. They are C1 evidence (managed tests with doubles), never a
+Cheat Engine host result.
 
 ## Run
 

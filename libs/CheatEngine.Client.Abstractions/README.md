@@ -81,14 +81,47 @@ unavailable result.
 
 `Evidence.EffectiveReasonCode` is the stable, typed identity of the gate supplying `Evidence.EffectiveReason`; use it
 with that gate's public state instead of parsing the human-readable reason text or duplicating the Client's
-deterministic
-priority. The reason text remains available for display and diagnostics.
+deterministic priority. The reason text remains available for display and diagnostics.
 
-In particular, the value-scan contract and state model are published, but the Core implementation
-does **not** currently create a live `MemScan`/`FoundList` session. The next SDK line now contains a
-production owner factory with parent rollback and child-before-parent teardown, but Client
-enablement remains blocked by the Cheat Engine 7.7 x64 ownership and reactivation live gate. Do
-not treat `IValueScanner` as available until that gate promotes its capability.
+The table below is what this Client build reports through `ICheatEngineRuntime.TryGetClientCapability`. No Client
+capability is host-qualified yet: the qualification gate stays `Unknown` until a Client qualification receipt exists,
+so no capability reports `Available`. The package gate of an operational capability is evidence, not a version name:
+it is `Satisfied` only when the loaded `CheatEngine.SDK.Engine` declares the informational version of the
+CheatEngine.SDK 1.0.0 package this build consumed, `Missing` for any other package, and `Unknown` for a build that
+embeds no identity. Probes are read-only: taking a snapshot never loads a driver, runs remote code, changes the target
+or allocates target memory.
+
+<!-- capability-table:start -->
+| Capability id | Implementation | Package | Host | Qualification | Status reported at runtime |
+|---|---|---|---|---|---|
+| `Client.ProcessSelection` | Operational adapter | Evidence from the consumed CheatEngine.SDK 1.0.0 identity | Read-only opened-process probe | Unknown until a Client receipt exists | `Unknown`; `Unavailable` when the package or host gate is `Missing` |
+| `Client.TypedMemory` | Operational adapter | Evidence from the consumed CheatEngine.SDK 1.0.0 identity | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unknown`; `Unavailable` when the package gate is `Missing` |
+| `Client.PatternScanning` | Operational adapter | Evidence from the consumed CheatEngine.SDK 1.0.0 identity | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unknown`; `Unavailable` when the package gate is `Missing` |
+| `Client.ValueScanning` | Contract-only (Unavailable) | `Missing`: CheatEngine.SDK 1.0.0 does not provide the public MemScan and FoundList ownership factory required by Client | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unavailable` |
+| `Client.Inspection` | Operational adapter | Evidence from the consumed CheatEngine.SDK 1.0.0 identity | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unknown`; `Unavailable` when the package gate is `Missing` |
+| `Client.Tables` | Operational adapter | Evidence from the consumed CheatEngine.SDK 1.0.0 identity | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unknown`; `Unavailable` when the package gate is `Missing` |
+| `Client.ProtectedLua` | Operational adapter | Evidence from the consumed CheatEngine.SDK 1.0.0 identity | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unknown`; `Unavailable` when the package gate is `Missing` |
+| `Client.UnsafeLuaExecution` | Operational, policy opt-in | Evidence from the consumed CheatEngine.SDK 1.0.0 identity | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unavailable` without `EnableUnsafeLuaExecution()`; otherwise `Unknown` |
+| `Client.Allocations` | Contract-only (Unavailable) | `Missing`: CheatEngine.SDK 1.0.0 provides no target-bound owned allocation primitive | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unavailable` |
+| `Client.Assembly` | Contract-only (Unavailable) | `Missing`: CheatEngine.SDK 1.0.0 provides no target-bound owned Auto Assembler primitive | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unavailable` |
+| `Client.RemoteExecution` | Contract-only (Unavailable) | `Missing`: no CheatEngine.SDK release provides a qualified primitive | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unavailable` |
+| `Client.Debugger` | Contract-only (Unavailable) | `Missing`: no CheatEngine.SDK release provides a qualified primitive | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unavailable` |
+| `Client.Hotkeys` | Contract-only (Unavailable) | `Missing`: no qualified primitive until the SDK 2.0 hotkey owner is adopted | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unavailable` |
+| `Client.Timers` | Contract-only (Unavailable) | `Missing`: no qualified primitive until the SDK 2.0 timer owner is adopted | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unavailable` |
+| `Client.Speed` | Contract-only (Unavailable) | `Missing`: no CheatEngine.SDK release provides a qualified primitive | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unavailable` |
+| `Client.Hashing` | Contract-only (Unavailable) | `Missing`: no CheatEngine.SDK release provides a qualified primitive | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unavailable` |
+| `Client.Dbvm` | Contract-only (Unavailable) | `Missing`: no CheatEngine.SDK release provides a qualified primitive | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unavailable` |
+<!-- capability-table:end -->
+
+Every row also carries the lifetime gate (`Missing` once the activation has ended). A contract-only capability refuses
+each operation with `CapabilityUnavailable` and `CheatEngineHostEffect.NotStarted`; no Cheat Engine work is dispatched.
+
+The value-scan contract and state model are published, but Core does **not** create a live `MemScan`/`FoundList`
+session: CheatEngine.SDK 1.0.0 does not provide the public MemScan and FoundList ownership factory required by Client,
+so the package gate of `Client.ValueScanning` is `Missing`. Changing that requires a Client release that consumes an SDK
+package with such a factory, compiles against it, and passes the transfer, lifecycle and target-change tests; the SDK
+2.0 migration guide (`docs/migration/sdk-2.0.md` in the repository) lists that work. Do not treat `IValueScanner` as
+available until its capability reports it.
 
 `IUnsafeLuaClient` is intentionally separate from `ILuaClient` and is not registered by default.
 It is for explicitly trusted source only and still never exposes a raw Lua state.
@@ -122,6 +155,57 @@ protected Lua failure, or a non-object result. It is never reported as `NotFound
 result list that Cheat Engine does return remains a normal, successful no-match. Moving the Client onto CheatEngine.SDK
 2.0 replaces this with the detailed SDK outcome.
 
+### Target selection, runtime facts and pointer width
+
+Cheat Engine's selected target is ambient: `IProcessClient.Attach` changes Cheat Engine's global selection, and a
+snapshot or a session that holds a process identifier does not stop the user, another plugin or a script from selecting
+another process. `ProcessSnapshot.SelectionEpoch` and the PID-bracketed observation reduce that risk for Client-owned
+leases; they are not transactions. `ProcessSnapshot.Name` and `ExecutablePath` are optional local metadata from the
+operating system: they describe a local process only, never a CEServer target or a file opened as a process, and they do
+not prove liveness.
+
+Every observation reads the opened process identifier first, because Cheat Engine reports the same family, width and
+pointer size as an x64 target when no target is opened. The runtime snapshot keeps separate facts:
+
+- **Target architecture (ISA)**: derived from Cheat Engine's x86 and ARM family facts together with its 64-bit fact,
+  never from the 64-bit fact alone; contradictory or missing facts give `CheatEngineArchitecture.Unknown`.
+- **Process width** (`TargetPointerSize`, `ProcessSnapshot.TargetPointerSize`): the width of the target process as
+  observed; it can be known while the ISA is unknown.
+- **Configured pointer size** (`CheatEngineRuntimePlatformInfo.ConfiguredPointerSize`, runtime capability
+  `Runtime.ConfiguredPointerSize`): the value Cheat Engine reports through `getPointerSize()`. It is per-attachment state,
+  independent of the process width, reset when a process is opened, and can hold any integer.
+  `ConfiguredPointerSizeDiffersFromTargetPointerSize` reports a mismatch as a fact.
+
+Cheat Engine's pointer read follows the process width, not the configured size. The Client therefore keeps the process
+width for every pointer-typed operation (`Address` primitives, primitive batches, pointer chains, the built-in `Address`
+codec) and, when the configured size is known and differs, refuses the operation before any memory access with
+`OperationRejected` and `CheatEngineHostEffect.NotStarted`. A configured size that could not be observed is no evidence
+of a mismatch. A pointer chain on a 32-bit target refuses an intermediate address above 4 GiB instead of truncating it.
+Custom codecs receive the facts through `IMemoryPointerWidthContext` (`ProcessPointerSize`, `ConfiguredPointerSize`,
+`ConfiguredPointerSizeDiffersFromProcessWidth`); what the configured size affects besides the reported value is not
+established.
+
+### Address List records and symbols
+
+A `MemoryRecordId` is valid in the Address List state in which this activation observed it. A trusted table load that
+reached Cheat Engine (merge or replace, even a failed one) makes every identifier handed out before it stale, and every
+identifier-taking operation refuses a stale identifier before dispatch with `InvalidState` and
+`CheatEngineHostEffect.NotStarted` until a new snapshot observes it again. Loads made outside this activation are not
+detected.
+
+`ITableClient.TrySetActive` reports what Cheat Engine did: already in the requested state (success, the setter is not
+called), applied (success), refused by an activation callback, script or record type (`OperationRejected`, `Started`,
+with the post-change snapshot), pending asynchronous activation (`IndeterminateHostResult`, `Started`) or indeterminate
+(`InvalidHostResult`, `Unknown`). The setter is called at most once and never retried. Selecting a record is a
+host-visible effect on Cheat Engine's user interface.
+
+`IInspectionClient.TryRegisterSymbol` first resolves the name: a name that already resolves (a registered symbol, a
+module or an expression that parses as an address) is refused with `OperationRejected` and `NotStarted`, and a failed
+check registers nothing. Releasing the lease unregisters the name only when it still resolves to the leased address;
+`IDetailedSymbolRegistrationLease.ReleaseDetailed` reports `Released`, `AlreadyReleased`, `Replaced` (a third party
+replaced it, left in place), `ExternallyRemoved` or `CleanupUnavailable` (nothing confirmed; the lease stays active and
+`Dispose` throws with `CleanupUnconfirmed`). The check and the unregistration are not atomic.
+
 ### Failure, exception and cancellation contract
 
 `Try*` does not mean "never throws". Every family follows three rules, then the per-family details below:
@@ -145,13 +229,13 @@ dispatch and between Client-managed steps.
 |---|---|---|---|
 | Dispatcher (`ICheatEngineDispatcher`) | Dispatch admission: a `Cancelled` result proves the callback did not run | `NotStarted` (cancelled), `Unknown` (infrastructure failure) | Whatever the callback did; callback exceptions are rethrown unchanged |
 | Patterns / AOB (`IPatternScanner`, `IPatternScanOutcomeClient`, Fluent `Aob`) | The start of the global `AOBScan`; later cancellation discards the copy | `NotStarted` (validation, module lookup, cancellation before the scan), `Completed` (cancellation or invalid data after the scan, SDK 1.0.0 `IndeterminateHostResult`), `CleanupUnconfirmed` (result-list release not confirmed), `Unknown` (SDK fault during the scan call) | None published: a failed scan never returns a prefix |
-| Memory primitives, codecs, bytes, strings, pointer chains (`IMemoryClient`) | Dispatch admission; one call is one Cheat Engine operation | `NotStarted` (budget, unsupported type), `Unknown` (SDK fault, host refusal) | A codec may perform several reads or writes; a failed write codec can leave earlier writes in place |
+| Memory primitives, codecs, bytes, strings, pointer chains (`IMemoryClient`) | Dispatch admission; one call is one Cheat Engine operation | `NotStarted` (budget, unsupported type, configured/process pointer-width mismatch, no process width), `Started` (a pointer chain stopped at an intermediate address above a 32-bit process width), `Unknown` (SDK fault, host refusal) | A codec may perform several reads or writes; a failed write codec can leave earlier writes in place |
 | Memory batches (`IMemoryBatchClient`) | Dispatch admission: a `Cancelled` dispatch reports `MemoryBatchWriteEffectState.NotStarted` | `NotStarted` (admission, pre-dispatch cancellation, unsupported type), `Started` (a completed prefix persists), `Unknown` (SDK fault or other dispatch failure) | `EffectState` is authoritative: `Partial` with `CompletedCount`/`FailedIndex`, never rolled back |
-| Inspection and symbol leases (`IInspectionClient`) | Dispatch admission | `NotStarted` (name already reserved by this activation), `Unknown` (SDK fault) | A faulted `registerSymbol` is not claimed and not retried |
-| Tables (`ITableClient`) | Dispatch admission; `Find` filters a copied snapshot | `NotStarted` (policy, invalid relationship), `Completed` (`Find` cancelled after the snapshot, failed `Create` whose rollback was confirmed), `CleanupUnconfirmed` (record rollback not confirmed), `Unknown` (SDK fault, `loadTable` fault) | A failed `Create` destroys the partial record once and never retries; `loadTable` can execute table Lua |
+| Inspection and symbol leases (`IInspectionClient`) | Dispatch admission | `NotStarted` (name already reserved by this activation, name already resolves, failed collision check), `CleanupUnconfirmed` (lease release not confirmed), `Unknown` (SDK fault) | A faulted `registerSymbol` is not claimed and not retried; a replaced name is left in place |
+| Tables (`ITableClient`) | Dispatch admission; `Find` filters a copied snapshot | `NotStarted` (policy, invalid relationship, stale record identifier, activation of a record that was not found), `Started` (activation refused by the host or pending), `Completed` (`Find` cancelled after the snapshot, failed `Create` whose rollback was confirmed), `CleanupUnconfirmed` (record rollback not confirmed), `Unknown` (SDK fault, `loadTable` fault, indeterminate activation) | A failed `Create` destroys the partial record once and never retries; a refused activation can leave partial script effects; `loadTable` can execute table Lua |
 | Lua typed operations and modules (`ILuaClient`) | Dispatch admission | `NotStarted` (cancellation), otherwise the operation's own failure | Owned by the operation; operation exceptions are rethrown unchanged |
 | Unsafe Lua (`IUnsafeLuaClient`) | Dispatch admission | `NotStarted` (policy), `Unknown` (SDK fault; the script may have run partially) | The script may have run partially before a Lua error |
-| Runtime and Processes (`ICheatEngineRuntime`, `IProcessClient`) | Dispatch admission | Not yet reported (`Unknown`) | Current behavior: only some SDK `Engine*Exception` types are caught, so a `LuaException` from a generated binding can still escape a `Try*`; aligning these domains with the SDK boundary is scheduled with the SDK 2.0 migration work |
+| Runtime and Processes (`ICheatEngineRuntime`, `IProcessClient`) | Dispatch admission | `Completed` (the selected target changed during the observation: `IndeterminateHostResult`), `Unknown` (SDK fault, no selected target) | A fact probe that fails leaves that fact `Unknown` in the snapshot or capability evidence instead of failing the call; `Attach` changes Cheat Engine's global selection |
 | Capability-gated domains (allocations, assembly, remote execution, debugger, hotkeys, timers, speed, hashing, DBVM) | Not applicable: no Cheat Engine work is dispatched | `NotStarted` (`CapabilityUnavailable` or `Cancelled`) | None |
 | Value scans (`IValueScanner`) | Not applicable: no Cheat Engine work is dispatched | Not yet reported (`Unknown`) | None; the refusal is the same `CapabilityUnavailable` or `Cancelled`, and reporting `NotStarted` here is scheduled with the other value-scan changes |
 
@@ -164,7 +248,10 @@ explicit opt-in chosen by the application. `CheatEngineFailure.ToString()` retur
 `"{Kind} in {Operation} (host effect: {HostEffect})"`, so a structured logger that formats the failure object emits no
 user data by default. Client libraries never log user data themselves: Hosting events carry epochs, stage names,
 counts, and exception type names only, and a test rejects any Client `LoggerMessage` event whose parameters could carry
-an address, expression, path, script, message, exception, or failure object.
+an address, expression, path, script, message, exception, or failure object. The Core diagnostic events (runtime
+snapshots, capability refusals, target-selection changes, pointer-width refusals, batch counts, table generations,
+activation and symbol outcomes, scan metrics, Lua durations, cleanup failures) follow the same rule; the
+`CheatEngine.Client.Core` README lists them.
 
 ### Memory limits and batch effects
 

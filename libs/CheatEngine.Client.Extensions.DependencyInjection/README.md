@@ -72,6 +72,12 @@ deterministic codecs are intentionally provider-local singleton registrations: t
 is discarded at disable. Modules are scoped so they can consume scoped application services, but their scoped lifetime
 does not make a second scope in the same provider a fresh Client activation.
 
+A fresh provider per enable does not isolate CheatEngine.SDK static state (`PluginHost` and the current plugin
+context) or Cheat Engine's Lua globals: every plugin that loads the same SDK assemblies into the Cheat Engine process
+shares them, whatever its container. Coexistence of two plugins that share or do not share the SDK assemblies is
+qualification scenario Q09 (C4) of the SDK repository (`docs/qualification/receipts/Q09/`): Q09 C4 pending, no receipt
+has been committed.
+
 Two scopes made from one external provider are ordinary sibling DI scopes. Their scoped services and modules differ,
 while provider singletons, options, and Client services remain shared until the provider is disposed. Do not reuse such
 a provider across Cheat Engine enable epochs; Client does not offer a persistent-root hosting mode or an activation
@@ -81,6 +87,17 @@ The container disposes services it creates at their scope/provider boundary. Do 
 in a module or plugin callback, and do not register one disposable object through multiple forwarding aliases. Give the
 disposable one owning descriptor; expose an additional non-disposable facade when an application needs an alias. The
 host itself owns only its `ConfigurationManager`, which it releases after the scope and provider.
+
+## Diagnostics
+
+`AddCheatEngineClient` calls `AddLogging()` and gives the activation's Core lifetime a diagnostics sink over the
+provider's `ILoggerFactory`. Core emits bounded events (event ids 1000–1700; the `CheatEngine.Client.Core` README lists
+them) under one category per domain: `CheatEngine.Client.Runtime`, `.Processes`, `.Memory`, `.Tables`, `.Inspection`,
+`.Scanning`, `.Lua`, and `.Lifetime`. Select them with the standard `Logging:LogLevel` filters, for example
+`"CheatEngine.Client.Memory": "Debug"`; no Client option controls collection. A capability refusal is logged once per
+capability and operation per activation. The events carry epochs, counts, widths, durations, and closed names only,
+never addresses, values, symbol names, paths, or Lua text, and a logging provider that throws is contained: it cannot
+change a Client result or cleanup.
 
 ## Memory resource limits
 

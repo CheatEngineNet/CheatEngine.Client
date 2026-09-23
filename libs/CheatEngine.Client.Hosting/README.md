@@ -40,6 +40,13 @@ provider,” not “registered with Microsoft DI's `Scoped` lifetime.” A disab
 new Client graph, options cache, deterministic codecs, and module state without mechanically changing their DI
 lifetimes.
 
+A new provider per enable isolates this plugin's Client graph from its previous enable epochs; it does **not** isolate
+state that lives outside the container. CheatEngine.SDK static state (`PluginHost` and the current plugin context) and
+Cheat Engine's Lua globals are shared by every plugin that loads the same SDK assemblies into the Cheat Engine process,
+and a DI container cannot separate them. Coexistence of two plugins that share or do not share the SDK assemblies is
+qualification scenario Q09 (C4) of the SDK repository (`docs/qualification/receipts/Q09/`): Q09 C4 pending, no receipt
+has been committed.
+
 Creating a second `IServiceScope` from the same provider does not create another Client activation. That second scope
 has its own scoped application services and modules, but shares the provider's singleton Client graph, options, and
 codecs; scopes are siblings, not nested activation roots. Hosting opens exactly one such scope for an enable epoch.
@@ -138,6 +145,13 @@ cleanup scope), `ModuleCallbacks` (application hook, then modules in reverse ord
 Cheat Engine resources, while the SDK context is still attached), then `Scope`, `Provider`, and `Configuration`. One
 failure is rethrown unchanged; several are reported together as one `AggregateException` in attempt order. Core applies
 the same rule to its own resource registries, so a faulty module or lease never prevents the next release.
+
+Once per enable, before the modules start, event 20 (`ActivationIdentified`, Information) identifies the activation:
+epoch, plugin type name, CheatEngine.Client version, the consumed CheatEngine.SDK version and NuGet content hash
+embedded at build time, the informational version of the loaded `CheatEngine.SDK.Engine`, the package evidence state,
+and the supported host profile id `ce-7.7.0.10621-x64-managed-hostfxr`. It is built from assembly metadata only: no
+path, no file read, and no Lua call. The Core diagnostic events (1000–1700) are described in the
+`CheatEngine.Client.Core` README.
 
 Each failed stage is logged as event 6 with the activation epoch, the stable stage name, and the exception **type**
 name only; event 7 reports how many stages were attempted and how many failed; event 5 reports the failure count.

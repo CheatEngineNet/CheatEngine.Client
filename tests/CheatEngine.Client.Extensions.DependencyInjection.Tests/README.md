@@ -17,6 +17,12 @@ The suite verifies registration completeness, semantic options validation, expli
 ordering. It catches accidental singleton leakage, invalid configuration defaults, or registration changes that would
 make an otherwise valid plugin fail during enable.
 
+`DefaultMemoryCodecsTests` covers the built-in codec matrix (signedness, widths, float bit patterns, addresses above
+4 GiB) and the refusal of the built-in `Address` codec on a configured/process pointer-width mismatch.
+`LoggerCoreDiagnosticsTests` pins the Core diagnostic events: one logger category per domain, stable event ids
+1000–1700, one capability refusal per capability and operation, standard `Logging:LogLevel` filtering, no address,
+value, symbol or path in any event (Q46), and no logging-provider fault escaping.
+
 ## Run
 
 From the repository root:

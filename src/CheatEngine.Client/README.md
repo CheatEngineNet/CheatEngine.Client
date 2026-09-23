@@ -41,6 +41,25 @@ Replace `X.Y.Z` with the CheatEngine.Client version you install; the `ceplugin` 
 When `CheatEngineClientPluginProject` is enabled, the Hosting build target emits `CECLIENT001` if that direct SDK
 reference is missing.
 
+## Supported host profile
+
+This Client release consumes CheatEngine.SDK 1.0.0 and names one Cheat Engine host profile, the profile of the SDK's
+support profile. A profile is what a qualification result can name; it is not itself a qualification result.
+
+| Item | Value |
+|---|---|
+| Profile id | `ce-7.7.0.10621-x64-managed-hostfxr` |
+| Host executable | `cheatengine-x86_64.exe` 7.7.0.10621, machine AMD64, SHA-256 `9727076da50924e4a097b49a02155e4b34759269c3017ff31375364b8826eb4d`; not the `Cheat Engine.exe` launcher and not the `cheatengine-x86_64-SSE4-AVX2.exe` variant |
+| Load profile | `managed-hostfxr`: the plugin is a framework-dependent .NET component started by Cheat Engine's nethost/hostfxr route |
+| Runtime configuration | The qualification host's `ce.runtimeconfig.json` (`net10.0`), SHA-256 `68f5d81c0a17cc5bdac40bb3d5d88a624f4d31b414f7195ad847d57b0126ac2b`, is a local modification, not an installer baseline |
+| Consumed SDK package | `CheatEngine.SDK` 1.0.0, NuGet content hash (SHA-512, base64) `n7nHqZ8vzo7Vf20jF0fkh/jUtR3yo1TwRGpXE7ERxZeJ4C5S/Nsft4lqOg7zGwfsD5Nh9tTVgdw4PrybJRF0gA==` |
+| SDK native bridge | `build/native/cheatengine-sdk-lua-bridge.dll`, SHA-256 `da08c2ba03019da3a8c432ef061d5d6133fd2169ba3a6a8e9ac903353856d994` |
+| Client qualification | `NotExecuted` for this Client tuple until Client qualification receipts exist (the CheatEngine.Client repository's `docs/qualification/` pages will record them) |
+
+Never edit an installed Cheat Engine to match this profile: its runtime configuration applies to every managed plugin of
+the installation, and CheatEngine.Client never treats such an edit as a setup step. A stock installation is not a
+qualified profile, and a result on this profile authorizes no x86 or ARM64 plugin claim.
+
 ## How it helps improve CheatEngine.Client
 
 The package gives plugin authors a small, intentional composition boundary without exposing implementation or SDK
