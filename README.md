@@ -5,11 +5,12 @@
 **High-level, lifecycle-safe C# APIs for modern Cheat Engine plugins.**
 
 [![CI](https://img.shields.io/github/actions/workflow/status/CheatEngineNet/CheatEngine.Client/main-ci.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white&labelColor=24292f)](https://github.com/CheatEngineNet/CheatEngine.Client/actions/workflows/main-ci.yml)
+[![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/CheatEngineNet/CheatEngine.Client?style=flat-square&label=OpenSSF%20Scorecard&labelColor=24292f)](https://scorecard.dev/viewer/?uri=github.com/CheatEngineNet/CheatEngine.Client)
 [![NuGet](https://img.shields.io/nuget/vpre/CheatEngine.Client?style=flat-square&logo=nuget&logoColor=white&labelColor=24292f&color=004880)](https://www.nuget.org/packages/CheatEngine.Client)
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4?style=flat-square&logo=dotnet&logoColor=white&labelColor=24292f)](https://dotnet.microsoft.com/download/dotnet/10.0)
 [![Windows x64](https://img.shields.io/badge/platform-Windows%20x64-0078D4?style=flat-square&labelColor=24292f)](#requirements)
 
-[Quick start](#quick-start) · [Lifecycle](#the-plugin-lifecycle) · [Packages](#packages-and-direct-sdk-reference) · [Capabilities](#v010-capability-status) · [Contributing](#build-and-validation)
+[Quick start](#quick-start) · [Lifecycle](#the-plugin-lifecycle) · [Packages](#packages-and-direct-sdk-reference) · [Capabilities](#v010-capability-status) · [Contributing](CONTRIBUTING.md)
 
 </div>
 
@@ -53,16 +54,17 @@ surface reviewable: high-level APIs remain fluent for consumers while the Core r
 
 ## Requirements
 
-| Requirement                 | Baseline                                                                           |
-|-----------------------------|------------------------------------------------------------------------------------|
-| .NET SDK                    | 10.0.401 or later                                                                  |
-| Target framework / language | `net10.0` / C# 14                                                                  |
-| Cheat Engine host           | 7.7, Windows x64                                                                   |
-| Plugin form                 | Framework-dependent managed plugin output folder                                   |
-| SDK package                 | `CheatEngine.SDK` 1.x; the Client publishes a compatible range of `[1.0.0, 2.0.0)` |
+| Requirement                 | Baseline                                                                                                                             |
+|-----------------------------|--------------------------------------------------------------------------------------------------------------------------------------|
+| .NET SDK                    | 10.0.401 exactly (`global.json` `rollForward: disable`); install it with `winget install Microsoft.DotNet.SDK.10 --version 10.0.401` |
+| Target framework / language | `net10.0` / C# 14                                                                                                                    |
+| Cheat Engine host           | 7.7, Windows x64                                                                                                                     |
+| Plugin form                 | Framework-dependent managed plugin output folder                                                                                     |
+| SDK package                 | `CheatEngine.SDK` 1.0.0, pinned in `eng/CheatEngineSdk.props`; the Client declares `[1.0.0, 2.0.0)` and is not compatible with 2.x   |
 
 Cheat Engine remains the compatibility authority. The Client is not an IPC client, a remote-process service, or a
-standalone executable; v0.1 runs only inside an enabled Cheat Engine plugin.
+standalone executable; v0.1 runs only in process inside an enabled Cheat Engine plugin. It is neither Cheat Engine's
+`luaclient` library nor an RPC client of `ceserver`.
 
 ## Quick start
 
@@ -88,11 +90,15 @@ The generated project intentionally retains these direct dependencies:
 </PropertyGroup>
 
 <ItemGroup>
-  <PackageReference Include="CheatEngine.Client" Version="0.1.0" />
+  <PackageReference Include="CheatEngine.Client" Version="X.Y.Z" />
   <PackageReference Include="CheatEngine.SDK" Version="1.0.0" />
   <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.12" />
 </ItemGroup>
 ```
+
+Replace `X.Y.Z` with the CheatEngine.Client version you install; the `ceplugin` template writes it for you. Keep
+`CheatEngine.SDK` on 1.x: this Client release is built and tested against CheatEngine.SDK 1.0.0 and declares
+`[1.0.0, 2.0.0)`. Do not upgrade to 2.x until a Client release says so.
 
 `CheatEngine.SDK` must be referenced **directly by the plugin project**. Its build assets generate the Cheat Engine
 entry point and provide the native Lua bridge; NuGet transitivity is not sufficient at that host boundary. Setting
@@ -143,6 +149,12 @@ Address address = client.Patterns
 client.Memory.At(address + 0x14).Write(999);
 ```
 
+`InModule(...)` and `InRange(...)` are managed post-filters: Cheat Engine still runs one global `AOBScan` over the whole
+target, and Core copies only the addresses inside the module or range. `Take(n)`, `FirstOrNone()` and `RequireSingle()`
+bound only how many filtered addresses Core copies; they never stop Cheat Engine early, and `FirstOrNone()` follows
+Cheat Engine's unspecified result-list order. With CheatEngine.SDK 1.0.0 a scan that finds nothing is reported as
+`IndeterminateHostResult`, never as `null` or `NotFound`.
+
 Use the `Try...` terminal operations when absence of a process, scan result, or runtime capability is an expected
 condition. Do not make a worker wait for the Cheat Engine thread if that worker can call back into the Client.
 
@@ -177,6 +189,16 @@ cancellation token can prevent dispatch or stop Client-managed work between step
 a Lua primitive that has already started. `ILocalProcessDiagnostics` is the explicit exception: it is an offline BCL
 catalog service, never a proof of Cheat Engine target identity, and its copied snapshots remain usable after disable.
 Services that touch Cheat Engine must preserve this activation-lifecycle contract.
+
+### Failures, exceptions and cancellation
+
+`Try...` methods return a `CheatEngineFailure` for request, policy and budget refusals, cancellation before dispatch, and
+Cheat Engine results that are false, absent, indeterminate or malformed; no CheatEngine.SDK exception type crosses a
+`Try...` method. They still throw `CheatEngineActivationExpiredException`, `CheatEngineClientLifecycleException` and
+argument exceptions, and they rethrow exceptions from your own callbacks, codecs and Lua operations unchanged.
+`CheatEngineFailure.HostEffect` states how far the Cheat Engine primitive got: `NotStarted`, `Started`, `Completed`,
+`CleanupUnconfirmed` or `Unknown`. The per-family table is in the
+[Abstractions README](libs/CheatEngine.Client.Abstractions/README.md#failure-exception-and-cancellation-contract).
 
 ## Packages and direct SDK reference
 
@@ -218,7 +240,7 @@ following table is a delivery statement, not a substitute for a live host check.
 | Runtime facts and selected process                  | Available                       | Snapshot and attachment state are re-read through the active host                                                                                                                |
 | Typed memory and finite pointer chains              | Available                       | Built-in primitives plus explicitly registered deterministic codecs; strings and byte ranges are bounded                                                                         |
 | Modules, regions, symbols, and custom-symbol leases | Available                       | Results are copied; leases are activation-scoped                                                                                                                                 |
-| AOB scanning                                        | Available                       | Patterns are normalized; terminals are `FirstOrNone`, `RequireSingle`, or bounded `Take`                                                                                         |
+| AOB scanning                                        | Available                       | Patterns are normalized; terminals are `FirstOrNone`, `RequireSingle`, or materialization-bounded `Take` (post-filtered global scan)                                             |
 | Address List and memory records                     | Available                       | Snapshots and hierarchy materialization are bounded; table file access requires an allowed root                                                                                  |
 | Typed protected Lua and explicit Lua modules        | Available                       | No Lua state crosses the public Client contract                                                                                                                                  |
 | Value scanning                                      | **Capability-gated**            | The public state machine exists, but Client session creation stays unavailable until the internal `MemScan`/`FoundList` ownership path passes its Cheat Engine 7.7 x64 live gate |
@@ -247,26 +269,39 @@ files, package validation, and the probe described above.
 
 ## Build and validation
 
-The repository pins the .NET SDK in [global.json](global.json), uses Central Package Management, and commits NuGet
-lock files. Run the normal Windows validation sequence from the repository root:
+The repository pins the .NET SDK in [global.json](global.json) (10.0.401 exactly), uses Central Package Management, and
+commits NuGet lock files. Run the Windows validation sequence from the repository root:
 
 ```powershell
 dotnet restore CheatEngine.Client.slnx --locked-mode
-dotnet build CheatEngine.Client.slnx --configuration Release --no-restore
-dotnet test --solution CheatEngine.Client.slnx --configuration Release --no-build --no-restore
-dotnet pack CheatEngine.Client.slnx --configuration Release --no-build --no-restore --output ./artifacts/packages
-$env:CHEATENGINE_CLIENT_PACKAGE_SOURCE = (Resolve-Path ./artifacts/packages).Path
-dotnet test --project ./tests/CheatEngine.Client.Tests/CheatEngine.Client.Tests.csproj --configuration Release --no-build --no-restore --fail-skips on
-dotnet publish tests/CheatEngine.Client.AotProbe/CheatEngine.Client.AotProbe.csproj --configuration Release --runtime win-x64 --no-restore --output ./artifacts/aot-probe
+dotnet build CheatEngine.Client.slnx -c Debug --no-restore
+dotnet test --solution CheatEngine.Client.slnx -c Debug --no-build --fail-skips on --filter-not-trait "Category=PackageConsumption"
+dotnet build CheatEngine.Client.slnx -c Release --no-restore
+dotnet pack CheatEngine.Client.slnx -c Release --no-build -o artifacts/nuget
+$env:CHEATENGINE_CLIENT_PACKAGE_SOURCE = (Resolve-Path artifacts/nuget).Path
+dotnet test --solution CheatEngine.Client.slnx -c Release --no-build --fail-skips on
+dotnet publish tests/CheatEngine.Client.AotProbe/CheatEngine.Client.AotProbe.csproj -c Release --no-restore -o artifacts/aot-probe
 ./artifacts/aot-probe/CheatEngine.Client.AotProbe.exe
 ```
 
-The [Windows CI workflow](.github/workflows/ci.yml) runs the locked restore, Release build, Microsoft Testing Platform
-tests, package API validation, one immutable package artifact, the C# package/template consumer smoke test, and Native
-AOT graph probe. The
-Cheat Engine 7.7 x64 live suite is opt-in and intentionally excluded from ordinary CI; no CI result should be read as
-proof that an untested live-host feature is available. Success, failure, cleanup, disable, re-enable, and target-change
-evidence for every advanced capability still requires the opt-in Cheat Engine 7.7 x64 qualification run.
+A skipped test fails the run. The Release test run installs the packages you just packed, so the package and template
+consumption tests check the files a release would publish.
+
+Pull requests and pushes to `main` run the same checks in CI ([`ci.yml`](.github/workflows/ci.yml)): the Debug and
+Release builds with one solution test run each (hang and crash dumps on failure), the exact package set with its
+embedded SBOMs, the package consumption tests against those packages, a per-assembly line-coverage ratchet, the Native
+AOT graph probe, the SonarQube Cloud analysis, actionlint, zizmor and PSScriptAnalyzer, whitespace formatting, the
+dependency review and the lock-file guard. `CI / Gate` passes only when every one of them passes; Sonar alone may be
+skipped, and only where it cannot run (fork and Dependabot pull requests, the release run). `PR policy` checks the pull
+request title and the changelog entry. [CONTRIBUTING](CONTRIBUTING.md#continuous-integration) and the
+[CI scripts](eng/ci/README.md) describe each job and how to run it locally.
+
+The Cheat Engine 7.7 x64 live suite is opt-in and intentionally excluded from ordinary CI; no CI result should be read
+as proof that an untested live-host feature is available. Success, failure, cleanup, disable, re-enable, and
+target-change evidence for every advanced capability still requires the opt-in Cheat Engine 7.7 x64 qualification run.
+
+See also [CONTRIBUTING](CONTRIBUTING.md), [RELEASING](RELEASING.md), the [CHANGELOG](CHANGELOG.md), the
+[LICENSE](LICENSE) and the [documentation index](docs/README.md).
 
 ## Security and scope
 
@@ -277,6 +312,8 @@ Table loading can execute Lua in the host. Keep `AllowedTableRoots` empty unless
 trusted import/export location; an empty set disables table file access. Arbitrary Lua source is separately opt-in and
 should remain disabled unless the plugin has a deliberate trust boundary. Avoid logging target-memory contents or Lua
 source by default.
+
+Report vulnerabilities privately: see [SECURITY.md](SECURITY.md).
 
 For the SDK's bootstrap, generated Lua bindings, native bridge, and host ABI details, start with the
 [CheatEngine.SDK README](https://github.com/CheatEngineNet/CheatEngine.SDK#readme).
