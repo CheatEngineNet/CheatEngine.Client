@@ -78,5 +78,15 @@ them; Hosting closes the activation scope and provider after module callbacks. R
 under one owning service descriptor, and use a non-disposable facade if the application needs a second service view.
 
 Before deployment, replace the illustrative AOB pattern and offset in `Modules/PluginClientModule.cs`, and choose an
-application-specific Lua global name in `Modules/PluginLuaFunctions.cs`. Keep AOB operations bounded and avoid logging
-memory contents or Lua scripts by default.
+application-specific Lua global name in `Modules/PluginLuaFunctions.cs`. Keep AOB copies bounded: `InModule` filters the
+addresses after a global Cheat Engine scan, so it does not reduce the scan's cost, and `FirstOrNone` follows Cheat
+Engine's unspecified result order. With CheatEngine.SDK 1.0.0 a scan that finds nothing is reported as
+`IndeterminateHostResult` (zero matches or a host failure), so the example treats it as a skipped probe.
+
+## Diagnostics and redaction
+
+The example logs only data that is safe by default: counts, the activation epoch, and a failure's `Kind`, `Operation`,
+and `HostEffect`. It never logs addresses, values, symbol expressions, file paths, Lua source, or a failure's `Message`
+or `Exception`, because those are user data. If your application needs them for troubleshooting, add a separate log
+event behind an explicit, documented opt-in (for example a configuration flag that is off by default) instead of
+changing the default events.

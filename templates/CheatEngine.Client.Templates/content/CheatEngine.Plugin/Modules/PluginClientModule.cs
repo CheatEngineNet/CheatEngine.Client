@@ -74,7 +74,8 @@ internal sealed partial class PluginClientModule(
 
 		if (client.Memory.At(match + 0x14).TryReadWith(int32Codec, out _, out CheatEngineFailure readFailure))
 		{
-			LogMemoryReadSucceeded(logger, match);
+			// Addresses and values are user data: this default log records only that the probe succeeded.
+			LogMemoryReadSucceeded(logger);
 		}
 		else
 		{
@@ -88,10 +89,16 @@ internal sealed partial class PluginClientModule(
 		ArgumentNullException.ThrowIfNull(client);
 	}
 
-	/// <summary>Writes a bounded Client operation failure without exposing target-memory data.</summary>
-	private void LogSkipped(string operation, CheatEngineFailure failure)
+	/// <summary>Writes a classified Client failure without exposing user data.</summary>
+	/// <remarks>
+	///     Only <see cref="CheatEngineFailure.Kind" />, <see cref="CheatEngineFailure.Operation" /> and
+	///     <see cref="CheatEngineFailure.HostEffect" /> are logged. <see cref="CheatEngineFailure.Message" /> and
+	///     <see cref="CheatEngineFailure.Exception" /> can contain addresses, expressions, paths, or Lua text; log them only
+	///     behind an explicit opt-in chosen by your application.
+	/// </remarks>
+	private void LogSkipped(string probe, CheatEngineFailure failure)
 	{
-		LogClientFailure(logger, operation, failure);
+		LogClientFailure(logger, probe, failure.Kind, failure.Operation, failure.HostEffect);
 	}
 
 	/// <summary>Logs the activation epoch and configured count of trusted table-file roots.</summary>
@@ -104,12 +111,13 @@ internal sealed partial class PluginClientModule(
 	[LoggerMessage(Level = LogLevel.Information, Message = "Current Address List contains {RecordCount} record(s).")]
 	private static partial void LogAddressList(ILogger logger, int recordCount);
 
-	/// <summary>Logs a successful bounded Int32 memory probe without logging the value read.</summary>
-	[LoggerMessage(Level = LogLevel.Information,
-		Message = "A typed Int32 memory read succeeded near AOB match {Address}.")]
-	private static partial void LogMemoryReadSucceeded(ILogger logger, Address address);
+	/// <summary>Logs a successful bounded Int32 memory probe without logging the address or the value read.</summary>
+	[LoggerMessage(Level = LogLevel.Information, Message = "A typed Int32 memory read near the AOB match succeeded.")]
+	private static partial void LogMemoryReadSucceeded(ILogger logger);
 
-	/// <summary>Logs a classified Client failure for an optional demonstration operation.</summary>
-	[LoggerMessage(Level = LogLevel.Debug, Message = "Skipped {Operation}: {Reason}")]
-	private static partial void LogClientFailure(ILogger logger, string operation, CheatEngineFailure reason);
+	/// <summary>Logs the safe fields of a classified Client failure for an optional demonstration operation.</summary>
+	[LoggerMessage(Level = LogLevel.Debug,
+		Message = "Skipped {Probe}: {FailureKind} in {FailedOperation} (host effect: {HostEffect}).")]
+	private static partial void LogClientFailure(ILogger logger, string probe, CheatEngineFailureKind failureKind,
+		string failedOperation, CheatEngineHostEffect hostEffect);
 }

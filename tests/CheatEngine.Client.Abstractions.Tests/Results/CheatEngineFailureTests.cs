@@ -149,6 +149,26 @@ public sealed class CheatEngineFailureTests
 		Assert.Equal(CheatEngineHostEffect.CleanupUnconfirmed, exception.Failure.HostEffect);
 	}
 
+	/// <summary>Formatting the failure object, as structured loggers do, never emits user data.</summary>
+	[Fact]
+	[Trait("Qualification", "Q46")]
+	public void ToStringOmitsMessageAndException()
+	{
+		InvalidOperationException innerException = new("lua: attempt to call nil 'secretGlobal' at C:\\Users\\player\\t.ct");
+		CheatEngineFailure failure = new(CheatEngineFailureKind.LuaError, "Lua.ExecuteUnsafe",
+			"The protected Lua call failed at 0x7FFC7A0A0000 while reading game.exe+1234.", innerException,
+			CheatEngineHostEffect.Unknown);
+
+		string text = failure.ToString();
+
+		Assert.Equal("LuaError in Lua.ExecuteUnsafe (host effect: Unknown)", text);
+		Assert.DoesNotContain("0x7FFC", text, StringComparison.OrdinalIgnoreCase);
+		Assert.DoesNotContain("game.exe", text, StringComparison.OrdinalIgnoreCase);
+		Assert.DoesNotContain("secretGlobal", text, StringComparison.Ordinal);
+		Assert.DoesNotContain(nameof(InvalidOperationException), text, StringComparison.Ordinal);
+		Assert.Equal("Unknown in <no operation> (host effect: Unknown)", default(CheatEngineFailure).ToString());
+	}
+
 	/// <summary>Assigns each concrete lifecycle exception the stable failure kind it represents.</summary>
 	[Fact]
 	public void LifecycleExceptionsClassifyTheirSpecificLifecycleFailures()

@@ -665,3 +665,4 @@ override CheatEngine.Client.Scanning.PatternScanMetrics.GetHashCode() -> int
 ~override CheatEngine.Client.Scanning.PatternScanMetrics.ToString() -> string
 static CheatEngine.Client.Scanning.PatternScanMetrics.operator !=(CheatEngine.Client.Scanning.PatternScanMetrics left, CheatEngine.Client.Scanning.PatternScanMetrics right) -> bool
 static CheatEngine.Client.Scanning.PatternScanMetrics.operator ==(CheatEngine.Client.Scanning.PatternScanMetrics left, CheatEngine.Client.Scanning.PatternScanMetrics right) -> bool
+override CheatEngine.Client.Results.CheatEngineFailure.ToString() -> string!

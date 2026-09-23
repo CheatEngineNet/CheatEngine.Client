@@ -142,5 +142,5 @@ the same rule to its own resource registries, so a faulty module or lease never 
 Each failed stage is logged as event 6 with the activation epoch, the stable stage name, and the exception **type**
 name only; event 7 reports how many stages were attempted and how many failed; event 5 reports the failure count.
 Hosting never logs exception messages, addresses, values, symbol expressions, file paths, or Lua text: those are user
-data and belong to the application's explicit opt-in. Logging is best
-effort: a logging provider that throws cannot abort enable, disable, or any remaining cleanup stage.
+data and belong to the application's explicit opt-in; `CheatEngineFailure.ToString()` follows the same rule. Logging is
+best effort: a logging provider that throws cannot abort enable, disable, or any remaining cleanup stage.

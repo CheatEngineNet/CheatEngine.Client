@@ -154,6 +154,17 @@ dispatch and between Client-managed steps.
 | Runtime and Processes (`ICheatEngineRuntime`, `IProcessClient`) | Dispatch admission | Not yet reported (`Unknown`) | Current behavior: only some SDK `Engine*Exception` types are caught, so a `LuaException` from a generated binding can still escape a `Try*`; aligning these domains with the SDK boundary is scheduled with the SDK 2.0 migration work |
 | Capability-gated domains (allocations, assembly, remote execution, debugger, hotkeys, timers, speed, hashing, DBVM, value scans) | Not applicable: no Cheat Engine work is dispatched | `NotStarted` (`CapabilityUnavailable` or `Cancelled`) | None |
 
+### Diagnostics and redaction
+
+`CheatEngineFailure.Kind`, `Operation`, and `HostEffect`, together with counts and durations such as
+`PatternScanMetrics`, are safe to log. `CheatEngineFailure.Message` and `CheatEngineFailure.Exception`, addresses,
+values, symbol expressions, module names, file paths, and Lua source or error text are **user data**: log them only on an
+explicit opt-in chosen by the application. `CheatEngineFailure.ToString()` returns only
+`"{Kind} in {Operation} (host effect: {HostEffect})"`, so a structured logger that formats the failure object emits no
+user data by default. Client libraries never log user data themselves: Hosting events carry epochs, stage names,
+counts, and exception type names only, and a test rejects any Client `LoggerMessage` event whose parameters could carry
+an address, expression, path, script, message, exception, or failure object.
+
 ## Contribution and Validation
 
 Changes here are public API changes. Keep request/value types immutable, preserve functional

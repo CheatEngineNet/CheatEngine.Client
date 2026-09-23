@@ -7,6 +7,13 @@ namespace CheatEngine.Client.Results;
 ///         requested Cheat Engine primitive got. Both are stable, language-independent values: never classify a failure by
 ///         parsing <see cref="Message" /> or <see cref="Exception" /> text.
 ///     </para>
+///     <para>
+///         <b>Diagnostics and redaction (Q46).</b> <see cref="Kind" />, <see cref="Operation" /> and
+///         <see cref="HostEffect" /> are safe to log. <see cref="Message" /> and <see cref="Exception" /> are user data:
+///         they can contain addresses, values, symbol expressions, module names, file paths, or Lua source and error text.
+///         Log them only on an explicit opt-in chosen by the application. <see cref="ToString" /> returns only the safe
+///         fields, so a structured logger that formats the failure object does not emit user data by default.
+///     </para>
 /// </remarks>
 public readonly record struct CheatEngineFailure
 {
@@ -110,5 +117,12 @@ public readonly record struct CheatEngineFailure
 		}
 
 		throw new CheatEngineOperationException(this);
+	}
+
+	/// <summary>Returns only the fields that are safe to log: kind, operation, and host effect.</summary>
+	/// <returns>A redaction-safe description that never contains <see cref="Message" /> or <see cref="Exception" />.</returns>
+	public override string ToString()
+	{
+		return $"{Kind} in {Operation ?? "<no operation>"} (host effect: {HostEffect})";
 	}
 }
