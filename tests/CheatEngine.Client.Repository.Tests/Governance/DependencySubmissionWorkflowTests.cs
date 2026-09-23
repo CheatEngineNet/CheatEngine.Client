@@ -74,6 +74,36 @@ public sealed class DependencySubmissionWorkflowTests
 	}
 
 	[Fact]
+	public void SubmitJobAcceptsOnlyThisRunsCommitRefAndCorrelator()
+	{
+		// detect runs pull request code, so the artifact could name another commit or ref (for example main's).
+		YamlMappingNode detection = GovernanceFile.Steps(GovernanceFile.Jobs(_workflow)["detect"])
+			.Single(step => GovernanceFile.Scalar(step, "run")?.Contains(ScriptPath, StringComparison.Ordinal) == true);
+		YamlMappingNode submission = GovernanceFile.Steps(GovernanceFile.Jobs(_workflow)["submit"])[1];
+		YamlMappingNode detectEnvironment = GovernanceFile.Mapping(detection, "env")!;
+		YamlMappingNode submitEnvironment = GovernanceFile.Mapping(submission, "env")!;
+		string run = GovernanceFile.Scalar(submission, "run") ?? string.Empty;
+
+		foreach (string variable in new[] { "SNAPSHOT_SHA", "SNAPSHOT_REF", "SNAPSHOT_CORRELATOR" })
+		{
+			Assert.Equal(GovernanceFile.Scalar(detectEnvironment, variable), GovernanceFile.Scalar(submitEnvironment, variable));
+			Assert.Contains($"-ceq $env:{variable}", run, StringComparison.Ordinal);
+		}
+
+		Assert.Contains("'detector,job,manifests,ref,scanned,sha,version'", run, StringComparison.Ordinal);
+		Assert.True(run.IndexOf("throw", StringComparison.Ordinal) < run.IndexOf("gh api", StringComparison.Ordinal),
+			"The submit step must refuse a mismatching snapshot before it posts anything.");
+	}
+
+	[Fact]
+	public void PushSnapshotsAreNeverCancelled()
+	{
+		YamlMappingNode concurrency = GovernanceFile.Mapping(_workflow, "concurrency")!;
+
+		Assert.Equal("${{ github.event_name == 'pull_request' }}", GovernanceFile.Scalar(concurrency, "cancel-in-progress"));
+	}
+
+	[Fact]
 	public void DetectionUsesAPinnedHashVerifiedComponentDetection()
 	{
 		string script = GovernanceFile.ReadText(ScriptPath);

@@ -3,7 +3,8 @@
 # - detect: read-only token; a pinned, hash-verified Component Detection binary scans the locked restore
 #   (eng/ci/New-DependencySnapshot.ps1). The official submission action is not used: it downloads the latest
 #   Component Detection release at run time and executes it next to a contents: write token.
-# - submit: the only job with contents: write; it executes no third-party code (download-artifact + gh api).
+# - submit: the only job with contents: write; it executes no third-party code (download-artifact + gh api) and
+#   refuses a snapshot whose commit, ref or correlator is not this run's.
 # Pushes to main give dependency review its base snapshot; same-repository pull requests (Dependabot included)
 # submit a head snapshot for the pull request head commit. Fork pull requests never run it.
 name: Dependency submission
@@ -14,10 +15,11 @@ on:
   pull_request:
   workflow_dispatch:
 
-# Only the newest snapshot of a ref matters.
+# Only the newest snapshot of a pull request matters; a push to main is never cancelled, so a quick second push does not
+# drop the base snapshot of the first commit.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -79,12 +81,35 @@ jobs:
           name: dependency-snapshot
           path: snapshot
 
+      # detect ran pull request code (a restore evaluates the build files of updated packages), so the artifact is
+      # untrusted: it is submitted only with the snapshot shape and this run's commit, ref and correlator.
       - name: Submit
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
+          SNAPSHOT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          SNAPSHOT_REF: ${{ github.ref }}
+          SNAPSHOT_CORRELATOR: ${{ github.workflow }}_nuget
         run: |
           $ErrorActionPreference = 'Stop'
+          $snapshot = Get-Content -LiteralPath snapshot/snapshot.json -Raw | ConvertFrom-Json -AsHashtable
+          $properties = @($snapshot.Keys | Sort-Object) -join ','
+          if ($properties -cne 'detector,job,manifests,ref,scanned,sha,version') {
+            throw "The snapshot artifact has unexpected top-level properties ($properties); nothing was submitted."
+          }
+          $job = $snapshot['job']
+          $checks = [ordered]@{
+            version    = $snapshot['version'] -is [long] -and $snapshot['version'] -eq 0
+            sha        = $snapshot['sha'] -ceq $env:SNAPSHOT_SHA
+            ref        = $snapshot['ref'] -ceq $env:SNAPSHOT_REF
+            correlator = $job -is [System.Collections.IDictionary] -and $job['correlator'] -ceq $env:SNAPSHOT_CORRELATOR
+            detector   = $snapshot['detector'] -is [System.Collections.IDictionary]
+            manifests  = $snapshot['manifests'] -is [System.Collections.IDictionary]
+          }
+          $mismatches = @($checks.Keys | Where-Object { -not $checks[$_] })
+          if ($mismatches.Count -gt 0) {
+            throw "The snapshot artifact does not match this run ($($mismatches -join ', ')); nothing was submitted."
+          }
           gh api --method POST "repos/$env:REPOSITORY/dependency-graph/snapshots" --input snapshot/snapshot.json
           if ($LASTEXITCODE -ne 0) {
             throw "Dependency snapshot submission failed with exit code $LASTEXITCODE."

@@ -53,9 +53,13 @@ project never builds, packs, restores or starts a process, so it runs in seconds
   - `DependabotConfigurationTests` proves the cooldowns, the covered ecosystems and the ignores that protect frozen
     decisions (CheatEngine.SDK majors, Roslyn, SDK-implicit packages);
   - `ScheduledHealthWorkflowTests` and `DependencySubmissionWorkflowTests` prove the scheduled audit, canary and repeat
-    run and the split read/write dependency submission with a pinned, hash-verified detector;
+    run and the split read/write dependency submission with a pinned, hash-verified detector. `GlobalJsonSdkRewrite`
+    mirrors the canary's global.json rewrite (`eng/ci/Select-NewestDotNetSdk.ps1`, which never runs the .NET CLI):
+    sdk.version and the version named by sdk.errorMessage move together, every other byte stays. The submit job
+    refuses a snapshot that names another commit, ref or correlator than its own run;
   - `CommunityHealthTests` and `IssueFormTests` prove `SECURITY.md`, `CODE_OF_CONDUCT.md`, CODEOWNERS and the issue
-    forms, including a compatibility form that requires the full release tuple (audit Checkpoint F);
+    forms, including a compatibility form that requires the full release tuple (audit Checkpoint F) and never presents
+    a profile as qualified;
   - `RepositorySettingsTests` proves the desired state of `eng/github/` (the two frozen required checks, squash-only
     merges, no bypass actor, release tags protected without blocking their creation, a single guarded write path).
 
