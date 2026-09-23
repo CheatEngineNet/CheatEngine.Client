@@ -109,10 +109,57 @@ assert(type(cheatengine_client_coexistence_a_identity) == "function")
 assert(type(cheatengine_client_coexistence_a_ping) == "function")
 ```
 
+### Third-party replacement survives disable (Q16)
+
+Run this step once the collision attempt is recorded, with A and B enabled. The third party is an explicit operator
+script: a deliberate protocol step that replaces one of A's globals after A registered it, not a repair. In the Lua
+Engine:
+
+```lua
+cheatengine_client_coexistence_q16_third_party = function() return "ThirdParty=Q16" end
+cheatengine_client_coexistence_a_ping = cheatengine_client_coexistence_q16_third_party
+```
+
+Disable A only, then record:
+
+```lua
+assert(cheatengine_client_coexistence_a_ping == cheatengine_client_coexistence_q16_third_party)
+assert(cheatengine_client_coexistence_a_ping() == "ThirdParty=Q16")
+assert(cheatengine_client_coexistence_a_identity == nil)
+assert(cheatengine_client_coexistence_a_collision == nil)
+assert(type(cheatengine_client_coexistence_b_identity) == "function")
+print(cheatengine_client_coexistence_b_ping())
+```
+
+Expected result: A's disable removes the globals A still owns, leaves the third-party value under
+`cheatengine_client_coexistence_a_ping` in place, and does not touch B. A Client whose generated modules still release
+through the legacy SDK 1.0.0 unregistration helper writes `nil` there, so the first assertion fails. A failing assertion
+is recorded as `Failed` and is never repaired.
+
+The operator then removes the third party. While it holds the name, the generated preflight refuses to enable A again,
+because the global is defined; that refusal is expected and is not the result of this step:
+
+```lua
+cheatengine_client_coexistence_a_ping = nil
+cheatengine_client_coexistence_q16_third_party = nil
+```
+
+Re-enable A and prove its marker again:
+
+```lua
+assert(cheatengine_client_coexistence_a_collision() == "CollisionOwner=A")
+assert(type(cheatengine_client_coexistence_a_ping) == "function")
+print(cheatengine_client_coexistence_a_ping())
+```
+
+This step observes only the Lua-visible effect on the exact host. It does not observe the `Replaced` status of A's
+release outcome (`IOwnershipAwareLuaModule.LastReleaseOutcome`): that status is C1 evidence of the generator EndToEnd
+tests, not host evidence.
+
 Disable the failed contender if the host exposes it as enabled, then disable B and finally A, recording every lifecycle
 result. Stop and retain the failure evidence if a positive plugin cannot load or enable, an expected collision does not
-fail, a disabled plugin global remains, or a surviving plugin stops answering. Do not repair a failed observation by
-assigning Lua globals manually.
+fail, a disabled plugin global remains (other than the operator's third-party value of the Q16 step), or a surviving
+plugin stops answering. Do not repair a failed observation by assigning Lua globals manually.
 
 ### Target switch and retained-owner extension
 
