@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The Client qualification plugin harness (docs/qualification, eng/qualification). CI compiles it through the solution
+    so that it never rots; it is never packed, never a test module and never loaded by CI. For a host run,
+    eng/qualification/Invoke-ClientQualification.ps1 compiles the same sources again in a clean folder against the exact
+    CI Client packages and CheatEngine.SDK 1.0.0 from nuget.org, where Hosting's plugin validation runs for real.
+  -->
+  <PropertyGroup>
+    <AssemblyName>CheatEngine.Client.LivePlugin.Qualification</AssemblyName>
+    <RootNamespace>LivePlugin.Qualification</RootNamespace>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsAotCompatible>true</IsAotCompatible>
+    <VerifyReferenceAotCompatibility>true</VerifyReferenceAotCompatibility>
+    <IsPackable>false</IsPackable>
+    <CheatEngineClientPluginProject>true</CheatEngineClientPluginProject>
+    <!-- Source-graph fixture: the Client is a project reference here; package mode is validated by the bundle build. -->
+    <CheatEngineClientSkipPluginProjectValidation>true</CheatEngineClientSkipPluginProjectValidation>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../libs/CheatEngine.Client.Hosting/CheatEngine.Client.Hosting.csproj"/>
+    <ProjectReference Include="../../source-generators/CheatEngine.Client.SourceGenerators.Lua/CheatEngine.Client.SourceGenerators.Lua.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false"
+                      PrivateAssets="all"/>
+    <!-- The direct SDK reference supplies the entry-point generator and the bridge asset; its version is the central pin. -->
+    <PackageReference Include="CheatEngine.SDK"/>
+  </ItemGroup>
+
+  <!-- The complete-closure deployment target of the Hosting package (-p:CheatEnginePluginOutputPath=<folder>). -->
+  <Import Project="../../libs/CheatEngine.Client.Hosting/buildTransitive/CheatEngine.Client.Hosting.targets"/>
+
+</Project>

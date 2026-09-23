@@ -49,6 +49,10 @@
       <Platform Project="x64" />
     </Project>
     <Project Path="tests/CheatEngine.Client.SourceGenerators.Lua.Tests/CheatEngine.Client.SourceGenerators.Lua.Tests.csproj" />
+    <Project Path="tests/CheatEngine.Client.LivePlugin.Qualification.Tests/CheatEngine.Client.LivePlugin.Qualification.Tests.csproj" />
+    <Project Path="tests/CheatEngine.Client.LivePlugin.Qualification/CheatEngine.Client.LivePlugin.Qualification.csproj">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="tests/CheatEngine.Client.Repository.Tests/CheatEngine.Client.Repository.Tests.csproj" />
     <Project Path="tests/CheatEngine.Client.Tests/CheatEngine.Client.Tests.csproj" />
   </Folder>
