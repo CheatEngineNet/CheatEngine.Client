@@ -90,6 +90,7 @@ public sealed class CheatEngineClientPluginTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q06")]
 	public void FailedModuleEnableRollsBackAllEnteredModulesAndLeavesThePluginInactive()
 	{
 		List<string> events = [];
@@ -154,6 +155,7 @@ public sealed class CheatEngineClientPluginTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q06")]
 	public void ApplicationEnableFailureAndCleanupFailureAreReportedTogetherAfterRollback()
 	{
 		List<string> events = [];
@@ -179,6 +181,7 @@ public sealed class CheatEngineClientPluginTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q43")]
 	public void DisableAggregatesApplicationModuleAndResourceCleanupFailures()
 	{
 		List<string> events = [];
@@ -230,6 +233,7 @@ public sealed class CheatEngineClientPluginTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q06")]
 	public void FailedConstructionCleansEveryAcquiredStageAndAllowsANewEnableEpoch()
 	{
 		List<string> events = [];
@@ -292,6 +296,7 @@ public sealed class CheatEngineClientPluginTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q06")]
 	public void FailedModuleEnableRollsBackAndTheSamePluginCanEnableAgain()
 	{
 		List<string> events = [];

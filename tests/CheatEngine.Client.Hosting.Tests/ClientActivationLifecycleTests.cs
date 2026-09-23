@@ -44,6 +44,7 @@ public sealed class ClientActivationLifecycleTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q06")]
 	public void FailedModuleEnableStillCompensatesTheFailingModuleThenEarlierModulesInReverseOrder()
 	{
 		List<string> events = [];
@@ -79,6 +80,7 @@ public sealed class ClientActivationLifecycleTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q43")]
 	public void CleanupContinuesAfterFailuresAndIsIdempotent()
 	{
 		List<string> events = [];
