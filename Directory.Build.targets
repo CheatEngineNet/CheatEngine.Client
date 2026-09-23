@@ -239,9 +239,13 @@
            Text="$(MSBuildProjectName) sets GenerateSBOM=true but does not reference Microsoft.Sbom.Targets, so no SBOM would be generated."/>
   </Target>
 
-  <!-- A canary or otherwise unsupported SDK pin never produces a package, even when its build was allowed to run. -->
+  <!--
+    A canary or otherwise unsupported SDK pin never produces a package, even when its build was allowed to run. The
+    guard runs before GenerateNuspec, which writes the .nupkg and the .snupkg: a BeforeTargets="Pack" target would run
+    only after Pack's dependencies had already written them.
+  -->
   <Target Name="CheatEngineClientRefuseUnsupportedSdkPack"
-          BeforeTargets="Pack"
+          BeforeTargets="GenerateNuspec"
           DependsOnTargets="_CheatEngineClientComputeSdkPinProblem"
           Condition="'$(IsPackable)' == 'true'">
     <Error Condition="'$(_CheatEngineClientSdkPinProblem)' != ''"
