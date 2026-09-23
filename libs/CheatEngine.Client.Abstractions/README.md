@@ -93,6 +93,35 @@ not treat `IValueScanner` as available until that gate promotes its capability.
 `IUnsafeLuaClient` is intentionally separate from `ILuaClient` and is not registered by default.
 It is for explicitly trusted source only and still never exposes a raw Lua state.
 
+### AOB scan semantics and limits
+
+`IPatternScanner` runs one global Cheat Engine `AOBScan` per request. `AobScanRequest.Module` and
+`AobScanRequest.Range` are managed post-filters: Core resolves the module first, then Cheat Engine scans the whole
+target, and Core copies only the addresses inside the module or range. They do not reduce Cheat Engine's scan time or
+memory. `AobScanRequest.MaximumResults` bounds only how many filtered addresses Core copies; it never stops Cheat Engine
+early. The copied order is Cheat Engine's result-list order, which Cheat Engine does not specify: the first copied
+address is not guaranteed to be the lowest address or the first logical region.
+
+Four scan limits are distinct and must not be confused:
+
+| Limit                   | On the current route                                                                   |
+|-------------------------|----------------------------------------------------------------------------------------|
+| Cheat Engine work limit | None: Cheat Engine always runs a global scan (`PatternScanScope.GlobalHostScanWithManagedFilter`) |
+| Available results       | `PatternScanMetrics.HostMatchCount`, the size of Cheat Engine's result list             |
+| Materialization limit   | `AobScanRequest.MaximumResults`, which bounds `PatternScanMetrics.MaterializedCount`    |
+| Call deadline           | None: cancellation is observed only between Client-managed steps                        |
+
+`IPatternScanOutcomeClient.ScanDetailed` is a companion contract (the `IMemoryBatchClient` pattern) that returns the
+same classification as `TryScan` plus `PatternScanMetrics`: host, examined, filtered-out, and copied counts, the scan
+scope, and the Cheat Engine scan time (`HostScanElapsed`) separately from the Client copy time
+(`MaterializationElapsed`). Counts and durations never contain addresses and are safe to log.
+
+With CheatEngine.SDK 1.0.0 a scan that finds nothing returns `CheatEngineFailureKind.IndeterminateHostResult`: Cheat
+Engine 7.7 returns no result list for zero matches, and SDK 1.0.0 cannot distinguish that from an unresolved global, a
+protected Lua failure, or a non-object result. It is never reported as `NotFound` or as a host rejection; an empty
+result list that Cheat Engine does return remains a normal, successful no-match. The SDK 2.0 migration (see
+`docs/migration/sdk-2.0.md` once it exists) replaces this with the detailed SDK outcome.
+
 ## Contribution and Validation
 
 Changes here are public API changes. Keep request/value types immutable, preserve functional

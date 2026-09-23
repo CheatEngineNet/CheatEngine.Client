@@ -150,6 +150,8 @@ public static class CheatEngineClientServiceCollectionExtensions
 			new PatternScanner(serviceProvider.GetRequiredService<SdkMainThreadDispatcher>()));
 		services.TryAddSingleton<IPatternScanner>(static serviceProvider =>
 			serviceProvider.GetRequiredService<PatternScanner>());
+		services.TryAddSingleton<IPatternScanOutcomeClient>(static serviceProvider =>
+			serviceProvider.GetRequiredService<PatternScanner>());
 
 		services.TryAddSingleton<IValueScanner>(static serviceProvider =>
 			new UnavailableValueScanner(serviceProvider.GetRequiredService<CoreLifetime>()));

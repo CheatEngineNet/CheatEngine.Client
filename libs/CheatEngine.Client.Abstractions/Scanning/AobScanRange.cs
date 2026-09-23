@@ -6,7 +6,8 @@ namespace CheatEngine.Client.Scanning;
 /// <remarks>
 ///     String-form <c>AOBScan</c> does not accept start and stop address arguments. The global scan is therefore not
 ///     narrowed by this range: Core applies it while copying each matching address from the SDK-owned result list and
-///     before it contributes to the caller's materialization limit.
+///     before it contributes to the caller's materialization limit. It is a managed post-filter, not a native
+///     optimization: it does not reduce Cheat Engine's scan time or memory.
 /// </remarks>
 public readonly record struct AobScanRange
 {

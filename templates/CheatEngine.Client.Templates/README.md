@@ -23,7 +23,8 @@ contract is checked before compilation.
 ## How it helps improve CheatEngine.Client
 
 The template turns the intended consumption model into buildable source. It exercises activation-scoped DI, generated
-SDK plugin bootstrap, explicit configuration, bounded AOB probing, typed memory access, Address List inspection, and
+SDK plugin bootstrap, explicit configuration, AOB probing with a bounded copy (post-filtered global scan), typed memory
+access, Address List inspection, and
 an application-owned Lua module. Keeping this path executable prevents package, bootstrap, and documentation drift.
 
 It deliberately does not imply that a Native AOT binary is loadable by Cheat Engine. The project enables AOT

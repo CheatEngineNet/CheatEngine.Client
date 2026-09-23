@@ -382,6 +382,22 @@ public sealed class AobFluentBuilderTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q28")]
+	public void RequireSingleReportsAmbiguousWhenASecondHostMatchExists()
+	{
+		FakePatternScanner scanner = new(new AobScanResult([0x401000], true));
+
+		bool succeeded = scanner.Aob("90").RequireSingle().TryExecute(out Address address,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(default, address);
+		Assert.Equal(CheatEngineFailureKind.AmbiguousMatch, failure.Kind);
+		Assert.Equal("Aob.RequireSingle", failure.Operation);
+		Assert.Equal(2, scanner.LastRequest!.Value.MaximumResults);
+	}
+
+	[Fact]
 	[Trait("Qualification", "Q27")]
 	public void AobAmbiguousFalseIsNeverReportedAsNotFound()
 	{

@@ -15,6 +15,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="CheatEngine.Client.Extensions.DependencyInjection"/>
     <InternalsVisibleTo Include="CheatEngine.Client.Hosting"/>
+    <InternalsVisibleTo Include="CheatEngine.Client.Benchmarks"/>
   </ItemGroup>
 
 </Project>

@@ -41,19 +41,28 @@ public readonly record struct AobScanRequest
 	}
 
 	/// <summary>Gets the maximum number of copied addresses that may survive managed post-filters.</summary>
-	/// <remarks>This bounds result materialization only; it does not bound or terminate the global Cheat Engine scan.</remarks>
+	/// <remarks>
+	///     This is the materialization limit: it bounds how many filtered addresses Core copies from Cheat Engine's result
+	///     list. It does not bound or terminate the global Cheat Engine scan, and it is not the number of available
+	///     results (see <see cref="PatternScanMetrics.HostMatchCount" />).
+	/// </remarks>
 	public int MaximumResults
 	{
 		get;
 	}
 
 	/// <summary>Gets the optional module Core resolves before the global scan and applies as a copied-address post-filter.</summary>
+	/// <remarks>
+	///     Cheat Engine still scans the whole target: the module does not reduce Cheat Engine's scan time or memory
+	///     (<see cref="PatternScanScope.GlobalHostScanWithManagedFilter" />).
+	/// </remarks>
 	public ModuleName? Module
 	{
 		get;
 	}
 
 	/// <summary>Gets the optional inclusive copied-address post-filter.</summary>
+	/// <remarks>The range is applied while copying; it does not reduce Cheat Engine's scan time or memory.</remarks>
 	public AobScanRange? Range
 	{
 		get;

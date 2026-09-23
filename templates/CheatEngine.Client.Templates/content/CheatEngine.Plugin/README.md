@@ -18,8 +18,9 @@ The project provides a minimal but production-shaped plugin boundary:
   persistent root that can be reused for a later enable.
 - `Configure` explicitly loads the optional `appsettings.json` beside the plugin with `reloadOnChange: false` and
   registers the generated `PluginLuaModule` through `AddLuaModule<PluginLuaModule>()`, then the application module.
-- `PluginClientModule` demonstrates options, logging, a bounded AOB request, typed memory access, an Address List
-  snapshot, and normal Client module lifecycle callbacks.
+- `PluginClientModule` demonstrates options, logging, a materialization-bounded AOB request (the module filter is
+  applied after a global scan), typed memory access, an Address List snapshot, and normal Client module lifecycle
+  callbacks.
 
 The project references `CheatEngine.Client` **and** `CheatEngine.SDK` directly. The SDK reference must remain direct:
 its plugin generator and native Lua bridge assets are build inputs, not a transitive implementation detail.

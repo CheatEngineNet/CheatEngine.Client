@@ -6,6 +6,27 @@ using CheatEngine.SDK.Engine.Values;
 namespace CheatEngine.Client.Scanning;
 
 /// <summary>An immutable, handle-free AOB scan builder before its result cardinality is selected.</summary>
+/// <remarks>
+///     <para>
+///         <see cref="InModule(string)" /> and <see cref="InRange" /> are managed post-filters. Core resolves the module
+///         first, then Cheat Engine runs one global <c>AOBScan</c> over the whole target, and Core copies only the
+///         addresses inside the module or range. They do not reduce Cheat Engine's scan time or memory.
+///         <see cref="Take" />, <see cref="FirstOrNone" /> (1) and <see cref="RequireSingle" /> (2) bound only how many
+///         filtered addresses Core copies; they never stop Cheat Engine early.
+///     </para>
+///     <para>
+///         <see cref="FirstOrNone" /> returns the first element in Cheat Engine's result-list order, which Cheat Engine
+///         does not specify: not the lowest address and not the first logical region. <see cref="RequireSingle" /> copies
+///         up to two matches from Cheat Engine's exhaustive list, so a truncated result is reported as ambiguous; it is
+///         never backed by a bounded or "first found" scan.
+///     </para>
+///     <para>
+///         With CheatEngine.SDK 1.0.0 a scan that finds nothing is reported as
+///         <see cref="CheatEngine.Client.Results.CheatEngineFailureKind.IndeterminateHostResult" />, not as
+///         <see langword="null" /> or <see cref="CheatEngine.Client.Results.CheatEngineFailureKind.NotFound" />. A
+///         cancellation token cannot interrupt a scan that Cheat Engine has started.
+///     </para>
+/// </remarks>
 public readonly record struct AobScanBuilder
 {
 	private readonly IPatternScanner? _scanner;
@@ -50,6 +71,10 @@ public readonly record struct AobScanBuilder
 	/// <summary>Returns an equivalent builder with a named-module copied-address post-filter.</summary>
 	/// <param name="moduleName">The non-empty module name that Core resolves before starting the global scan.</param>
 	/// <returns>A new immutable builder.</returns>
+	/// <remarks>
+	///     This is not a native module scan: Cheat Engine still scans the whole target and Core keeps only the copied
+	///     addresses inside the module, so the scan cost is that of a global scan.
+	/// </remarks>
 	public AobScanBuilder InModule(string moduleName)
 	{
 		return InModule(new ModuleName(moduleName));
@@ -58,6 +83,10 @@ public readonly record struct AobScanBuilder
 	/// <summary>Returns an equivalent builder with a target-module copied-address post-filter.</summary>
 	/// <param name="module">The module name Core resolves before the global scan, then applies while copying results.</param>
 	/// <returns>A new immutable builder.</returns>
+	/// <remarks>
+	///     This is not a native module scan: Cheat Engine still scans the whole target and Core keeps only the copied
+	///     addresses inside the module, so the scan cost is that of a global scan.
+	/// </remarks>
 	public AobScanBuilder InModule(ModuleName module)
 	{
 		if (string.IsNullOrWhiteSpace(module.Value))
@@ -74,8 +103,8 @@ public readonly record struct AobScanBuilder
 	/// <returns>A new immutable builder.</returns>
 	/// <remarks>
 	///     The SDK's string-form <c>AOBScan</c> binding has no start/end arguments. This does not narrow the global
-	///     Cheat Engine scan; Core applies the range while copying the owned result list, before the materialization
-	///     limit is counted.
+	///     Cheat Engine scan and does not reduce its time or memory; Core applies the range while copying the owned
+	///     result list, before the materialization limit is counted.
 	/// </remarks>
 	public AobScanBuilder InRange(Address start, Address end)
 	{
@@ -126,13 +155,23 @@ public readonly record struct AobScanBuilder
 
 	/// <summary>Selects an operation that succeeds only when exactly one AOB match exists.</summary>
 	/// <returns>An immutable single-match terminal builder.</returns>
+	/// <remarks>
+	///     Core copies up to two post-filtered matches from Cheat Engine's exhaustive result list: a second match (a
+	///     truncated copy) is reported as ambiguous. Uniqueness is never inferred from a bounded, "unique", or
+	///     "first found" scan.
+	/// </remarks>
 	public AobSingleMatchBuilder RequireSingle()
 	{
 		return new AobSingleMatchBuilder(RequireScanner(), BuildRequest(2));
 	}
 
-	/// <summary>Selects an operation that returns the first match or <see langword="null" /> when there is no match.</summary>
+	/// <summary>Selects an operation that returns the first copied match or <see langword="null" /> when there is none.</summary>
 	/// <returns>An immutable first-match terminal builder.</returns>
+	/// <remarks>
+	///     "First" means the first element in Cheat Engine's result-list order, which Cheat Engine does not specify; it is
+	///     not guaranteed to be the lowest address or the first logical region. The copy limit of one never stops Cheat
+	///     Engine's global scan early.
+	/// </remarks>
 	public AobFirstMatchBuilder FirstOrNone()
 	{
 		return new AobFirstMatchBuilder(RequireScanner(), BuildRequest(1));

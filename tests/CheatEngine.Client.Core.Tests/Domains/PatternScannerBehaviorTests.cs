@@ -14,6 +14,7 @@ namespace CheatEngine.Client.Core.Tests.Domains;
 public sealed class PatternScannerBehaviorTests
 {
 	[Fact]
+	[Trait("Qualification", "Q28")]
 	public void TryScanResolvesModuleBeforeTheGlobalScanAndAppliesModuleAndRangeAsPostFilters()
 	{
 		RecordingAobMatchList matches = new(["3FFF", "4000", "4010", "4020", "4100"]);
@@ -40,6 +41,8 @@ public sealed class PatternScannerBehaviorTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q28")]
+	[Trait("Qualification", "Q29")]
 	public void TryScanCountsOnlyPostFilteredAddressesAgainstTheMaterializationLimit()
 	{
 		RecordingAobMatchList matches = new(["3FFF", "4000", "4001", "40FF"]);
@@ -199,6 +202,7 @@ public sealed class PatternScannerBehaviorTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q29")]
 	public void TryScanObservesCancellationAfterTheGlobalScanAndDisposesTheOwnedList()
 	{
 		using CancellationTokenSource cancellation = new();
@@ -223,6 +227,7 @@ public sealed class PatternScannerBehaviorTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q29")]
 	public void TryScanObservesCancellationDuringCopyDisposesTheOwnedListAndDoesNotPublishAPrefix()
 	{
 		using CancellationTokenSource cancellation = new();
@@ -249,6 +254,186 @@ public sealed class PatternScannerBehaviorTests
 		Assert.Equal(1, port.ScanCalls);
 		Assert.Equal(2, matches.ItemCalls);
 		Assert.True(matches.IsDisposed);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q28")]
+	public void ScanDetailedReportsHostExaminedFilteredAndMaterializedCountsForAModuleFilter()
+	{
+		RecordingAobMatchList matches = new(["3000", "4000", "4010", "5000", "6000"]);
+		FakeAobScanPort port = new(matches)
+		{
+			Modules = [Module("game.exe", 0x4000, 0x100)]
+		};
+		PatternScanner scanner = CreateScanner(port);
+
+		PatternScanOutcome outcome = scanner.ScanDetailed(CreateRequest(new ModuleName("game.exe"), null, 10),
+			TestContext.Current.CancellationToken);
+
+		Assert.True(outcome.Succeeded);
+		Assert.Null(outcome.Cause);
+		Assert.Equal([0x4000, 0x4010], outcome.Result!.Value.Matches);
+		PatternScanMetrics metrics = Assert.NotNull(outcome.Metrics);
+		Assert.Equal(5, metrics.HostMatchCount);
+		Assert.Equal(5, metrics.ExaminedCount);
+		Assert.Equal(3, metrics.FilteredOutCount);
+		Assert.Equal(2, metrics.MaterializedCount);
+		Assert.Equal(PatternScanScope.GlobalHostScanWithManagedFilter, metrics.Scope);
+		Assert.True(metrics.HostScanElapsed >= TimeSpan.Zero);
+		Assert.True(metrics.MaterializationElapsed >= TimeSpan.Zero);
+		Assert.Equal(1, matches.DisposeCount);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q29")]
+	public void ScanDetailedReportsExaminedBelowHostCountWhenMaterializationStopsEarly()
+	{
+		RecordingAobMatchList matches = new(["400000", "400010", "400020", "400030", "400040"]);
+		PatternScanner scanner = CreateScanner(new FakeAobScanPort(matches));
+
+		PatternScanOutcome outcome = scanner.ScanDetailed(CreateRequest(null, null, 1),
+			TestContext.Current.CancellationToken);
+
+		Assert.True(outcome.Succeeded);
+		Assert.True(outcome.Result!.Value.IsTruncated);
+		Assert.Equal([0x400000], outcome.Result.Value.Matches);
+		PatternScanMetrics metrics = Assert.NotNull(outcome.Metrics);
+		Assert.Equal(5, metrics.HostMatchCount);
+		Assert.Equal(2, metrics.ExaminedCount);
+		Assert.True(metrics.ExaminedCount < metrics.HostMatchCount);
+		Assert.Equal(0, metrics.FilteredOutCount);
+		Assert.Equal(1, metrics.MaterializedCount);
+		Assert.Equal(2, matches.ItemCalls);
+		Assert.Equal(1, matches.DisposeCount);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q29")]
+	public void ScanDetailedKeepsTheMetricsOfACopyCancelledAfterTheScan()
+	{
+		using CancellationTokenSource cancellation = new();
+		RecordingAobMatchList matches = new(["400000", "400001", "400002"])
+		{
+			OnTryGetItem = index =>
+			{
+				if (index == 1)
+				{
+					cancellation.Cancel();
+				}
+			}
+		};
+		PatternScanner scanner = CreateScanner(new FakeAobScanPort(matches));
+
+		PatternScanOutcome outcome = scanner.ScanDetailed(CreateRequest(null, null, 3), cancellation.Token);
+
+		Assert.False(outcome.Succeeded);
+		Assert.Null(outcome.Result);
+		Assert.Equal(CheatEngineFailureKind.Cancelled, outcome.Cause!.Value.Kind);
+		Assert.Equal(CheatEngineHostEffect.Completed, outcome.Cause.Value.HostEffect);
+		PatternScanMetrics metrics = Assert.NotNull(outcome.Metrics);
+		Assert.Equal(3, metrics.HostMatchCount);
+		Assert.Equal(2, metrics.ExaminedCount);
+		Assert.Equal(1, matches.DisposeCount);
+	}
+
+	[Theory]
+	[InlineData(ClassificationPath.Success)]
+	[InlineData(ClassificationPath.NoList)]
+	[InlineData(ClassificationPath.InvalidList)]
+	[InlineData(ClassificationPath.InvalidCount)]
+	[InlineData(ClassificationPath.InvalidItem)]
+	[InlineData(ClassificationPath.CancellationAfterScan)]
+	public void ScanDetailedClassifiesExactlyLikeTryScan(ClassificationPath path)
+	{
+		CancellationTokenSource tryCancellation = new();
+		CancellationTokenSource detailedCancellation = new();
+		using (tryCancellation)
+		using (detailedCancellation)
+		{
+			PatternScanner tryScanner = CreateScanner(CreatePort(path, tryCancellation));
+			PatternScanner detailedScanner = CreateScanner(CreatePort(path, detailedCancellation));
+
+			bool succeeded = tryScanner.TryScan(CreateRequest(null, null, 2), out AobScanResult result,
+				out CheatEngineFailure failure, tryCancellation.Token);
+			PatternScanOutcome outcome = detailedScanner.ScanDetailed(CreateRequest(null, null, 2),
+				detailedCancellation.Token);
+
+			Assert.Equal(succeeded, outcome.Succeeded);
+			Assert.Equal(path == ClassificationPath.Success, succeeded);
+			if (succeeded)
+			{
+				Assert.Equal(result.Matches, outcome.Result!.Value.Matches);
+				Assert.Equal(result.IsTruncated, outcome.Result.Value.IsTruncated);
+				Assert.NotNull(outcome.Metrics);
+			}
+			else
+			{
+				CheatEngineFailure detailed = Assert.NotNull(outcome.Cause);
+				Assert.Equal(failure.Kind, detailed.Kind);
+				Assert.Equal(failure.Operation, detailed.Operation);
+				Assert.Equal(failure.Message, detailed.Message);
+				Assert.Equal(failure.HostEffect, detailed.HostEffect);
+				Assert.Equal(path is ClassificationPath.NoList or ClassificationPath.InvalidList
+					or ClassificationPath.InvalidCount or ClassificationPath.CancellationAfterScan, outcome.Metrics is null);
+			}
+		}
+
+		static FakeAobScanPort CreatePort(ClassificationPath path, CancellationTokenSource cancellation)
+		{
+			return path switch
+			{
+				ClassificationPath.NoList => new FakeAobScanPort { Status = AobScanHostStatus.NoResultList },
+				ClassificationPath.InvalidList => new FakeAobScanPort(),
+				ClassificationPath.InvalidCount => new FakeAobScanPort(
+					new RecordingAobMatchList(["400000"]) { CountAvailable = false }),
+				ClassificationPath.InvalidItem => new FakeAobScanPort(new RecordingAobMatchList(["zz"])),
+				ClassificationPath.CancellationAfterScan => new FakeAobScanPort(new RecordingAobMatchList(["400000"]))
+				{
+					OnScan = cancellation.Cancel
+				},
+				_ => new FakeAobScanPort(new RecordingAobMatchList(["400000", "400010", "400020"]))
+			};
+		}
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q28")]
+	public void FirstOrNoneReturnsTheFirstHostListElementEvenWhenALowerAddressFollows()
+	{
+		RecordingAobMatchList matches = new(["5000", "4000"]);
+		PatternScanner scanner = CreateScanner(new FakeAobScanPort(matches));
+
+		bool succeeded = scanner.TryScan(CreateRequest(null, null, 1), out AobScanResult result,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.True(succeeded);
+		Assert.Equal(default, failure);
+		Assert.Equal([0x5000], result.Matches);
+		Assert.True(result.IsTruncated);
+	}
+
+	[Fact]
+	public void TryScanParsesUnpaddedX64AndZeroPaddedX86AddressFormats()
+	{
+		RecordingAobMatchList matches = new(["7FFC7A0A0000", "100000000", "00400000"]);
+		PatternScanner scanner = CreateScanner(new FakeAobScanPort(matches));
+
+		bool succeeded = scanner.TryScan(CreateRequest(null, null, 3), out AobScanResult result,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.True(succeeded);
+		Assert.Equal(default, failure);
+		Assert.Equal([0x7FFC7A0A0000, 0x100000000, 0x400000], result.Matches);
+	}
+
+	public enum ClassificationPath
+	{
+		Success,
+		NoList,
+		InvalidList,
+		InvalidCount,
+		InvalidItem,
+		CancellationAfterScan
 	}
 
 	[Fact]

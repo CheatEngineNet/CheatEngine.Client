@@ -638,3 +638,30 @@ CheatEngine.Client.Results.CheatEngineHostEffect.Completed = 3 -> CheatEngine.Cl
 CheatEngine.Client.Results.CheatEngineHostEffect.NotStarted = 1 -> CheatEngine.Client.Results.CheatEngineHostEffect
 CheatEngine.Client.Results.CheatEngineHostEffect.Started = 2 -> CheatEngine.Client.Results.CheatEngineHostEffect
 CheatEngine.Client.Results.CheatEngineHostEffect.Unknown = 0 -> CheatEngine.Client.Results.CheatEngineHostEffect
+CheatEngine.Client.Scanning.IPatternScanOutcomeClient
+CheatEngine.Client.Scanning.IPatternScanOutcomeClient.ScanDetailed(CheatEngine.Client.Scanning.AobScanRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Scanning.PatternScanOutcome!
+CheatEngine.Client.Scanning.PatternScanMetrics
+CheatEngine.Client.Scanning.PatternScanMetrics.Equals(CheatEngine.Client.Scanning.PatternScanMetrics other) -> bool
+CheatEngine.Client.Scanning.PatternScanMetrics.ExaminedCount.get -> int
+CheatEngine.Client.Scanning.PatternScanMetrics.FilteredOutCount.get -> int
+CheatEngine.Client.Scanning.PatternScanMetrics.HostMatchCount.get -> int
+CheatEngine.Client.Scanning.PatternScanMetrics.HostScanElapsed.get -> System.TimeSpan
+CheatEngine.Client.Scanning.PatternScanMetrics.MaterializationElapsed.get -> System.TimeSpan
+CheatEngine.Client.Scanning.PatternScanMetrics.MaterializedCount.get -> int
+CheatEngine.Client.Scanning.PatternScanMetrics.PatternScanMetrics() -> void
+CheatEngine.Client.Scanning.PatternScanMetrics.PatternScanMetrics(int hostMatchCount, int examinedCount, int filteredOutCount, int materializedCount, CheatEngine.Client.Scanning.PatternScanScope scope, System.TimeSpan hostScanElapsed, System.TimeSpan materializationElapsed) -> void
+CheatEngine.Client.Scanning.PatternScanMetrics.Scope.get -> CheatEngine.Client.Scanning.PatternScanScope
+CheatEngine.Client.Scanning.PatternScanOutcome
+CheatEngine.Client.Scanning.PatternScanOutcome.Cause.get -> CheatEngine.Client.Results.CheatEngineFailure?
+CheatEngine.Client.Scanning.PatternScanOutcome.Metrics.get -> CheatEngine.Client.Scanning.PatternScanMetrics?
+CheatEngine.Client.Scanning.PatternScanOutcome.PatternScanOutcome(CheatEngine.Client.Scanning.AobScanResult? result, CheatEngine.Client.Results.CheatEngineFailure? cause, CheatEngine.Client.Scanning.PatternScanMetrics? metrics) -> void
+CheatEngine.Client.Scanning.PatternScanOutcome.Result.get -> CheatEngine.Client.Scanning.AobScanResult?
+CheatEngine.Client.Scanning.PatternScanOutcome.Succeeded.get -> bool
+CheatEngine.Client.Scanning.PatternScanScope
+CheatEngine.Client.Scanning.PatternScanScope.GlobalHostScanWithManagedFilter = 1 -> CheatEngine.Client.Scanning.PatternScanScope
+CheatEngine.Client.Scanning.PatternScanScope.Unknown = 0 -> CheatEngine.Client.Scanning.PatternScanScope
+override CheatEngine.Client.Scanning.PatternScanMetrics.GetHashCode() -> int
+~override CheatEngine.Client.Scanning.PatternScanMetrics.Equals(object obj) -> bool
+~override CheatEngine.Client.Scanning.PatternScanMetrics.ToString() -> string
+static CheatEngine.Client.Scanning.PatternScanMetrics.operator !=(CheatEngine.Client.Scanning.PatternScanMetrics left, CheatEngine.Client.Scanning.PatternScanMetrics right) -> bool
+static CheatEngine.Client.Scanning.PatternScanMetrics.operator ==(CheatEngine.Client.Scanning.PatternScanMetrics left, CheatEngine.Client.Scanning.PatternScanMetrics right) -> bool

@@ -95,3 +95,22 @@ dotnet test --solution CheatEngine.Client.slnx --configuration Release --no-buil
 
 The ordinary test suite uses SDK-facing ports/fakes and does not replace the opt-in live Cheat
 Engine qualification gate.
+
+## AOB scan cost, classification, and release
+
+`PatternScanner` resolves an optional module, runs one global Cheat Engine `AOBScan` through the SDK, and then copies
+the result list. Module and range filters are applied while copying; `MaximumResults` bounds only the copy. Neither
+reduces Cheat Engine's scan time or memory, and a cancellation token cannot interrupt a started scan: a cancellation
+observed after the scan returns `Cancelled` with `CheatEngineHostEffect.Completed`. `ScanDetailed` measures the Cheat
+Engine scan call and the Client copy separately (`PatternScanMetrics`), and
+`tests/CheatEngine.Client.Benchmarks/PatternScannerMaterializationBenchmarks.cs` measures the copy cost alone over a fake
+port; the Cheat Engine scan cost is a live-host measurement.
+
+The SDK owner of the result list is handed to the Client wrapper through `OwnershipHandoff`, so a failure between
+acquisition and publication releases the Cheat Engine list exactly once. The scanner then releases the list exactly once
+on every path, inside the dispatched callback. With CheatEngine.SDK 1.0.0 the only "release not confirmed" signal is an
+exception from the SDK owner; the scan then fails with `InvalidState` and `CheatEngineHostEffect.CleanupUnconfirmed`, and
+copied addresses are discarded rather than reported as a success.
+
+With CheatEngine.SDK 1.0.0 a missing result list is `IndeterminateHostResult` ("zero matches or a host failure"), never
+`NotFound` or `OperationRejected`; classification uses SDK return values only, never Cheat Engine or Lua error text.

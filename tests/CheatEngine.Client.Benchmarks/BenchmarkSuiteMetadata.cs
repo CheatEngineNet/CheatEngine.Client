@@ -41,7 +41,12 @@ public static partial class BenchmarkSuiteMetadata
 					"di-client-registration",
 					1,
 					false,
-					"Informational allocation and elapsed-time baseline for DI composition.")
+					"Informational allocation and elapsed-time baseline for DI composition."),
+				new BenchmarkWorkloadDescriptor(
+					"aob-materialization",
+					1,
+					false,
+					"Client copy/parse/filter cost over a fake port; excludes CE scan time.")
 			]);
 		string content =
 			JsonSerializer.Serialize(descriptor, BenchmarkSuiteJsonContext.Default.BenchmarkSuiteDescriptor);

@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 
 using CheatEngine.Client.Allocations;
 using CheatEngine.Client.Assembly;
@@ -42,6 +43,7 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(ILocalProcessDiagnostics));
 		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IMemoryCodec<int>));
 		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IMemoryBatchClient));
+		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IPatternScanOutcomeClient));
 		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IAllocationClient));
 		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IAssemblyClient));
 		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IRemoteExecutionClient));
@@ -62,6 +64,28 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		});
 
 		Assert.NotNull(provider);
+	}
+
+	[Fact]
+	public void AddCheatEngineClientResolvesThePatternScanOutcomeClientToThePatternScannerSingleton()
+	{
+		ServiceCollection services = new();
+		services.AddCheatEngineClient();
+		ServiceDescriptor scanner =
+			Assert.Single(services, static descriptor => descriptor.ServiceType == typeof(IPatternScanner));
+		ServiceDescriptor outcomes =
+			Assert.Single(services, static descriptor => descriptor.ServiceType == typeof(IPatternScanOutcomeClient));
+		AliasRecordingServiceProvider provider = new();
+
+		object viaScanner = scanner.ImplementationFactory!(provider);
+		object viaOutcomes = outcomes.ImplementationFactory!(provider);
+
+		Assert.Equal(ServiceLifetime.Singleton, outcomes.Lifetime);
+		Assert.Same(viaScanner, viaOutcomes);
+		Assert.IsAssignableFrom<IPatternScanner>(viaOutcomes);
+		Assert.IsAssignableFrom<IPatternScanOutcomeClient>(viaScanner);
+		Type requested = Assert.Single(provider.RequestedTypes);
+		Assert.Equal("CheatEngine.Client.Core.Domains.PatternScanner", requested.FullName);
 	}
 
 	[Fact]
@@ -501,5 +525,27 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		public IHashingClient Hashing => null!;
 
 		public IDbvmClient Dbvm => null!;
+	}
+
+	/// <summary>
+	///     Resolves each requested implementation type to one uninitialized singleton so descriptor aliases can be compared
+	///     without activating Core (which requires an enabled Cheat Engine plugin context).
+	/// </summary>
+	private sealed class AliasRecordingServiceProvider : IServiceProvider
+	{
+		private readonly Dictionary<Type, object> _instances = [];
+
+		internal IReadOnlyCollection<Type> RequestedTypes => _instances.Keys;
+
+		public object? GetService(Type serviceType)
+		{
+			if (!_instances.TryGetValue(serviceType, out object? instance))
+			{
+				instance = RuntimeHelpers.GetUninitializedObject(serviceType);
+				_instances.Add(serviceType, instance);
+			}
+
+			return instance;
+		}
 	}
 }

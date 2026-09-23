@@ -14,7 +14,8 @@ using Microsoft.Extensions.Options;
 namespace CheatEngine.Plugin.Modules;
 
 /// <summary>
-///     Demonstrates DI, options, bounded AOB/memory access, Address List snapshots, and generated Lua exports.
+///     Demonstrates DI, options, materialization-bounded AOB and typed memory access, Address List snapshots, and
+///     generated Lua exports.
 /// </summary>
 internal sealed partial class PluginClientModule(
 	IMemoryCodec<int> int32Codec,
@@ -46,12 +47,18 @@ internal sealed partial class PluginClientModule(
 			return;
 		}
 
+		// Cost and order: InModule is a managed post-filter. Cheat Engine still runs one global AOBScan over the whole
+		// target, and Client keeps only the addresses inside the module; FirstOrNone copies one filtered address but
+		// never stops Cheat Engine early. "First" is Cheat Engine's result-list order, which is not specified: it is not
+		// guaranteed to be the lowest address. A cancellation token cannot interrupt a scan that has started.
 		AobScanBuilder scan = client.Patterns.Aob("48 8B ?? ?? ?? 89");
 		if (process.Name is { } processName)
 		{
 			scan = scan.InModule(processName);
 		}
 
+		// With CheatEngine.SDK 1.0.0 a scan that finds nothing fails with IndeterminateHostResult: zero matches and a
+		// host failure are indistinguishable, so it is logged as a skipped probe, never treated as "not found".
 		if (!scan.ReadableExecutable()
 			    .FirstOrNone()
 			    .TryExecute(out Address? address, out CheatEngineFailure scanFailure))

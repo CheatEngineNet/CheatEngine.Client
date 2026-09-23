@@ -24,6 +24,17 @@ Address address = client.Aob("48 8B ?? ?? ?? 89")
 client.Memory.At(address + 0x14).Write(999);
 ```
 
+`InModule(...)` and `InRange(...)` are managed post-filters. Core resolves the module first, then Cheat Engine runs one
+global `AOBScan` over the whole target, and Core copies only the addresses inside the module or range: they do not
+reduce Cheat Engine's scan time or memory. `Take(n)`, `FirstOrNone()` (1) and `RequireSingle()` (2) bound only how many
+filtered addresses Core copies; they never stop Cheat Engine early. `FirstOrNone()` returns the first element in Cheat
+Engine's result-list order, which Cheat Engine does not specify (not the lowest address, not the first logical region).
+`RequireSingle()` copies up to two matches from Cheat Engine's exhaustive list, so a truncated copy is reported as
+ambiguous. With CheatEngine.SDK 1.0.0 a scan that finds nothing is reported as `IndeterminateHostResult` (zero matches
+and a host failure are indistinguishable with that SDK version), never as `null` or `NotFound`. A cancellation token
+cannot interrupt a scan that Cheat Engine has started. `IPatternScanOutcomeClient.ScanDetailed` reports the host match
+count, the examined/filtered/copied counts, and the Cheat Engine scan time separately from the copy time.
+
 ## Why This Project Exists
 
 The public API needs expressive construction of bounded requests without coupling application code
@@ -46,8 +57,8 @@ Abstractions  ←  Fluent
   handles or mutable builders.
 - Validates and normalizes an AOB pattern and its options before a terminal operation is selected.
 - Forces explicit result cardinality: `RequireSingle()`, `FirstOrNone()`, or `Take(maximumResults)`.
-- Preserves bounded materialization rules; callers can inspect `AobScanResult.IsTruncated` when a
-  bounded scan is intentionally incomplete.
+- Preserves materialization-bounded copies: the global Cheat Engine scan is not bounded, only the number of copied
+  addresses is. Callers inspect `AobScanResult.IsTruncated` when a copy is intentionally incomplete.
 - Provides `Memory.At(...)` and `memory.At(...)` builders for primitive and codec-based reads and
   writes without retaining a live target handle, including exact byte copies, explicit UTF-8/UTF-16
   bounds, finite pointer chains, and bounded homogeneous primitive batches.
@@ -60,7 +71,7 @@ The package publishes functional namespaces only:
 
 | Namespace                     | Entry points                                                          |
 |-------------------------------|-----------------------------------------------------------------------|
-| `CheatEngine.Client.Scanning` | `Aob(...)`, AOB filters, and bounded terminal builders                |
+| `CheatEngine.Client.Scanning` | `Aob(...)`, AOB post-filters, and copy-bounded terminal builders      |
 | `CheatEngine.Client.Memory`   | `Memory.At(...)`, `IMemoryClient.At(...)`, and `MemoryAddressBuilder` |
 
 `CheatEngine.Client.Fluent` is a package/assembly name, never a consumer namespace. The builders

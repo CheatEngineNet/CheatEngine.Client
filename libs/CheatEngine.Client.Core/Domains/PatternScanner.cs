@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Diagnostics;
 
 using CheatEngine.Client.Core.Dispatching;
 using CheatEngine.Client.Results;
@@ -8,16 +9,30 @@ using CheatEngine.SDK.Engine.Values;
 
 namespace CheatEngine.Client.Core.Domains;
 
+/// <summary>Runs one global Cheat Engine AOB scan and copies post-filtered addresses from its owned result list.</summary>
+/// <remarks>
+///     <para>
+///         <b>Truthful cost (audit F07).</b> Core resolves the optional module first, then Cheat Engine runs one global
+///         <c>AOBScan</c> over the whole target, and Core copies only the addresses inside the module or range. Module and
+///         range are managed post-filters; <see cref="AobScanRequest.MaximumResults" /> bounds only the copy. None of them
+///         reduces Cheat Engine's scan time or memory, and a cancellation token cannot interrupt a started scan.
+///         <see cref="ScanDetailed" /> reports the Cheat Engine scan time separately from the copy time.
+///     </para>
+///     <para>
+///         <b>Single release authority (audit F13).</b> The owned result list is released exactly once on every path,
+///         inside the dispatched callback. A release failure is never hidden behind a success.
+///     </para>
+/// </remarks>
 internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobScanPort? scanPort = null)
-	: IPatternScanner
+	: IPatternScanner, IPatternScanOutcomeClient
 {
-	private const int _maximumModuleSnapshot = 4096;
-	private const string _inModuleOperation = "Patterns.InModule";
-	private const string _scanOperation = "Patterns.Scan";
-
 	/// <summary>The exact, documented SDK 1.0.0 message for a scan that returned no result list.</summary>
 	internal const string NoResultListMessage =
 		"Cheat Engine returned no AOB result list: zero matches or a host failure (indistinguishable with CheatEngine.SDK 1.0.0).";
+
+	private const int _maximumModuleSnapshot = 4096;
+	private const string _inModuleOperation = "Patterns.InModule";
+	private const string _scanOperation = "Patterns.Scan";
 
 	private readonly SdkMainThreadDispatcher _dispatcher =
 		dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
@@ -27,33 +42,10 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 	public bool TryScan(AobScanRequest request, out AobScanResult result, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
-		if (!TryValidateRequest(request, out failure))
-		{
-			result = default;
-			return false;
-		}
-
-		AobScanResult captured = default;
-		CheatEngineFailure hostFailure = default;
-		bool succeeded = false;
-		if (!_dispatcher.TryInvoke(
-				() => succeeded = TryScanCore(request, cancellationToken, out captured, out hostFailure),
-				out failure, cancellationToken))
-		{
-			result = default;
-			return false;
-		}
-
-		if (!succeeded)
-		{
-			result = default;
-			failure = hostFailure;
-			return false;
-		}
-
-		result = captured;
-		failure = default;
-		return true;
+		ScanOutcome outcome = Execute(request, cancellationToken);
+		result = outcome.Result;
+		failure = outcome.Failure;
+		return outcome.Succeeded;
 	}
 
 	public AobScanResult Scan(AobScanRequest request, CancellationToken cancellationToken = default)
@@ -67,48 +59,100 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		return default;
 	}
 
-	private bool TryScanCore(AobScanRequest request, CancellationToken cancellationToken, out AobScanResult result,
-		out CheatEngineFailure failure)
+	public PatternScanOutcome ScanDetailed(AobScanRequest request, CancellationToken cancellationToken = default)
 	{
-		if (TryGetCancellationFailure(cancellationToken, out failure))
+		ScanOutcome outcome = Execute(request, cancellationToken);
+		return outcome.Succeeded
+			? new PatternScanOutcome(outcome.Result, null, outcome.Metrics)
+			: new PatternScanOutcome(null, outcome.Failure, outcome.Metrics);
+	}
+
+	internal static bool TryValidateRequest(AobScanRequest request, out CheatEngineFailure failure)
+	{
+		if (string.IsNullOrWhiteSpace(request.Pattern.Value))
 		{
-			result = default;
+			failure = Rejected("An AOB scan requires a normalized, non-empty pattern.");
 			return false;
 		}
 
-		bool hasModuleRange = false;
-		ModuleRange moduleRange = default;
+		if (request.MaximumResults <= 0)
+		{
+			failure = Rejected("An AOB scan requires a positive materialization limit.");
+			return false;
+		}
+
+		if (request.Module.HasValue && string.IsNullOrWhiteSpace(request.Module.Value.Value))
+		{
+			failure = Rejected("An AOB module filter must be non-empty.");
+			return false;
+		}
+
+		if (request.Range.HasValue && request.Range.Value.End < request.Range.Value.Start)
+		{
+			failure = Rejected("An AOB range end address must not precede its start address.");
+			return false;
+		}
+
+		failure = default;
+		return true;
+	}
+
+	/// <summary>Validates, dispatches, and classifies one scan identically for every public entry point.</summary>
+	private ScanOutcome Execute(AobScanRequest request, CancellationToken cancellationToken)
+	{
+		if (!TryValidateRequest(request, out CheatEngineFailure failure))
+		{
+			return ScanOutcome.Failed(failure, null);
+		}
+
+		ScanInput input = new(this, request, cancellationToken);
+		if (!_dispatcher.TryInvoke(input, static current => current.Scanner.ScanOnDispatchThread(current),
+				out ScanOutcome outcome, out failure, cancellationToken))
+		{
+			return ScanOutcome.Failed(failure, null);
+		}
+
+		return outcome;
+	}
+
+	private ScanOutcome ScanOnDispatchThread(ScanInput input)
+	{
+		AobScanRequest request = input.Request;
+		CancellationToken cancellationToken = input.CancellationToken;
+		if (cancellationToken.IsCancellationRequested)
+		{
+			return ScanOutcome.Failed(CancelledBeforeScan(), null);
+		}
+
+		ModuleRange moduleRange = ModuleRange.None;
 		if (request.Module.HasValue &&
-			!TryGetModuleRange(request.Module.Value, out hasModuleRange, out moduleRange, out failure))
+			!TryGetModuleRange(request.Module.Value, out moduleRange, out CheatEngineFailure moduleFailure))
 		{
-			result = default;
-			return false;
+			return ScanOutcome.Failed(moduleFailure, null);
 		}
 
-		// Module resolution is deliberately completed before the unbounded CE AOB scan. The range still acts as a
-		// managed post-filter because the SDK AOB binding does not accept a module constraint.
-		if (TryGetCancellationFailure(cancellationToken, out failure))
+		// Module resolution is deliberately completed before the global CE AOB scan. The range still acts as a managed
+		// post-filter because the SDK AOB binding does not accept a module constraint.
+		if (cancellationToken.IsCancellationRequested)
 		{
-			result = default;
-			return false;
+			return ScanOutcome.Failed(CancelledBeforeScan(), null);
 		}
 
+		long hostScanStarted = Stopwatch.GetTimestamp();
 		AobScanHostStatus status =
 			_scanPort.TryScan(request.Pattern.Value, request.Options, out IAobMatchList? matchList);
+		TimeSpan hostScanElapsed = Stopwatch.GetElapsedTime(hostScanStarted);
 		if (matchList is null)
 		{
-			result = default;
-			failure = CreateMissingListFailure(status);
-			return false;
+			return ScanOutcome.Failed(CreateMissingListFailure(status), null);
 		}
 
 		// From here on this method is the single release authority for the owned list: every path below releases it
 		// exactly once, on this dispatched callback, and a release failure is never hidden behind a success.
-		bool succeeded;
+		ScanOutcome outcome;
 		try
 		{
-			succeeded = TryConsumeMatchList(matchList, status, request, hasModuleRange, moduleRange,
-				cancellationToken, out result, out failure);
+			outcome = Consume(matchList, status, request, moduleRange, hostScanElapsed, cancellationToken);
 		}
 		catch (Exception consumeFailure)
 		{
@@ -116,23 +160,7 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 			throw;
 		}
 
-		return TryReleaseMatchList(matchList, succeeded, ref result, ref failure);
-	}
-
-	/// <summary>Keeps the single-release guarantee when copying throws instead of returning a failure.</summary>
-	private static void ReleaseAfterUnexpectedFailure(IAobMatchList matchList, Exception consumeFailure)
-	{
-		try
-		{
-			matchList.Dispose();
-		}
-		catch (Exception releaseFailure)
-		{
-			throw new AggregateException(
-				"Copying the AOB result list failed, and its release was not confirmed.",
-				consumeFailure,
-				releaseFailure);
-		}
+		return Release(matchList, outcome);
 	}
 
 	/// <summary>Classifies a scan that returned no usable list, by SDK status only (never by error text).</summary>
@@ -146,57 +174,104 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		return status == AobScanHostStatus.NoResultList
 			? new CheatEngineFailure(CheatEngineFailureKind.IndeterminateHostResult, _scanOperation,
 				NoResultListMessage, null, CheatEngineHostEffect.Completed)
-			: new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult, _scanOperation,
-				"Cheat Engine returned an invalid AOB result list.", null, CheatEngineHostEffect.Completed);
+			: InvalidList();
 	}
 
-	private static bool TryConsumeMatchList(IAobMatchList matchList, AobScanHostStatus status,
-		AobScanRequest request, bool hasModuleRange, ModuleRange moduleRange, CancellationToken cancellationToken,
-		out AobScanResult result, out CheatEngineFailure failure)
+	private static ScanOutcome Consume(IAobMatchList matchList, AobScanHostStatus status, AobScanRequest request,
+		ModuleRange moduleRange, TimeSpan hostScanElapsed, CancellationToken cancellationToken)
 	{
-		result = default;
-		if (TryGetCancellationFailure(cancellationToken, out failure))
+		if (cancellationToken.IsCancellationRequested)
 		{
-			return false;
+			return ScanOutcome.Failed(CancelledAfterScan(), null);
 		}
 
 		if (status != AobScanHostStatus.Success)
 		{
-			failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult, _scanOperation,
-				"Cheat Engine returned an invalid AOB result list.");
-			return false;
+			return ScanOutcome.Failed(InvalidList(), null);
 		}
 
+		long materializationStarted = Stopwatch.GetTimestamp();
 		if (!matchList.TryGetCount(out int count) || count < 0)
 		{
-			failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult, _scanOperation,
-				"Cheat Engine returned an invalid AOB result count.");
-			return false;
+			return ScanOutcome.Failed(new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult, _scanOperation,
+				"Cheat Engine returned an invalid AOB result count.", null, CheatEngineHostEffect.Completed), null);
 		}
 
-		return TryMaterializeMatches(matchList, count, request, hasModuleRange, moduleRange, cancellationToken,
-			out result, out failure);
+		MaterializationProgress progress = new(count);
+		ScanOutcome outcome = Materialize(matchList, request, moduleRange, cancellationToken, ref progress);
+		PatternScanMetrics metrics = progress.ToMetrics(hostScanElapsed,
+			Stopwatch.GetElapsedTime(materializationStarted));
+		return outcome with
+		{
+			Metrics = metrics
+		};
+	}
+
+	private static ScanOutcome Materialize(IAobMatchList matches, AobScanRequest request, ModuleRange moduleRange,
+		CancellationToken cancellationToken, ref MaterializationProgress progress)
+	{
+		// Do not preallocate to a caller-controlled materialization limit. The limit remains strict below, while
+		// storage grows only for addresses that survived every managed filter.
+		ImmutableArray<Address>.Builder materialized = ImmutableArray.CreateBuilder<Address>();
+		for (int index = 0; index < progress.HostMatchCount; index++)
+		{
+			if (cancellationToken.IsCancellationRequested)
+			{
+				return ScanOutcome.Failed(CancelledAfterScan(), null);
+			}
+
+			if (!matches.TryGetItem(index, out string? text) || !Address.TryParse(text, out Address address))
+			{
+				return ScanOutcome.Failed(new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult,
+					_scanOperation, $"AOB result {index} was not a hexadecimal address.", null,
+					CheatEngineHostEffect.Completed), null);
+			}
+
+			progress.Examined++;
+			if (!moduleRange.Contains(address) ||
+				(request.Range.HasValue && !request.Range.Value.Contains(address)))
+			{
+				progress.FilteredOut++;
+				continue;
+			}
+
+			if (materialized.Count == request.MaximumResults)
+			{
+				// One more post-filtered address proves that the copy is incomplete. It is examined but not copied.
+				return ScanOutcome.Success(new AobScanResult(materialized.ToImmutable(), true));
+			}
+
+			materialized.Add(address);
+			progress.Materialized = materialized.Count;
+		}
+
+		if (cancellationToken.IsCancellationRequested)
+		{
+			return ScanOutcome.Failed(CancelledAfterScan(), null);
+		}
+
+		return ScanOutcome.Success(new AobScanResult(materialized.ToImmutable(), false));
 	}
 
 	/// <summary>Releases the owned list once and turns an unconfirmed release into the operation's failure.</summary>
 	/// <remarks>
 	///     A release failure is never reported as success, even when every address was copied: the copied result is
 	///     discarded (audit ch.24 cleanup row, ADR-08). When the operation had already failed, the release failure is
-	///     added to the original failure instead of replacing its cause.
+	///     added to the original failure instead of replacing its cause. The metrics are kept: they describe the work
+	///     that happened.
 	/// </remarks>
-	private static bool TryReleaseMatchList(IAobMatchList matchList, bool succeeded, ref AobScanResult result,
-		ref CheatEngineFailure failure)
+	private static ScanOutcome Release(IAobMatchList matchList, ScanOutcome outcome)
 	{
 		try
 		{
 			matchList.Dispose();
-			return succeeded;
+			return outcome;
 		}
 		catch (Exception releaseFailure)
 		{
-			result = default;
-			failure = CreateReleaseFailure(succeeded ? null : failure, releaseFailure);
-			return false;
+			return ScanOutcome.Failed(
+				CreateReleaseFailure(outcome.Succeeded ? null : outcome.Failure, releaseFailure),
+				outcome.Metrics);
 		}
 	}
 
@@ -216,154 +291,65 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 			CheatEngineHostEffect.CleanupUnconfirmed);
 	}
 
-	private static bool TryMaterializeMatches(
-		IAobMatchList matches,
-		int count,
-		AobScanRequest request,
-		bool hasModuleRange,
-		ModuleRange moduleRange,
-		CancellationToken cancellationToken,
-		out AobScanResult result,
-		out CheatEngineFailure failure)
+	/// <summary>Keeps the single-release guarantee when copying throws instead of returning a failure.</summary>
+	private static void ReleaseAfterUnexpectedFailure(IAobMatchList matchList, Exception consumeFailure)
 	{
-		// Do not preallocate to a caller-controlled materialization limit. The limit remains strict below, while
-		// storage grows only for addresses that survived every managed filter.
-		ImmutableArray<Address>.Builder materialized = ImmutableArray.CreateBuilder<Address>();
-		for (int index = 0; index < count; index++)
+		try
 		{
-			if (TryGetCancellationFailure(cancellationToken, out failure))
-			{
-				result = default;
-				return false;
-			}
-
-			if (!TryGetMatchAddress(matches, index, out Address address, out failure))
-			{
-				result = default;
-				return false;
-			}
-
-			if (TryGetCancellationFailure(cancellationToken, out failure))
-			{
-				result = default;
-				return false;
-			}
-
-			if (!IsIncluded(address, request, hasModuleRange, moduleRange))
-			{
-				continue;
-			}
-
-			if (materialized.Count == request.MaximumResults)
-			{
-				result = new AobScanResult(materialized.ToImmutable(), true);
-				failure = default;
-				return true;
-			}
-
-			materialized.Add(address);
+			matchList.Dispose();
 		}
-
-		if (TryGetCancellationFailure(cancellationToken, out failure))
+		catch (Exception releaseFailure)
 		{
-			result = default;
-			return false;
+			throw new AggregateException(
+				"Copying the AOB result list failed, and its release was not confirmed.",
+				consumeFailure,
+				releaseFailure);
 		}
-
-		result = new AobScanResult(materialized.ToImmutable(), false);
-		failure = default;
-		return true;
 	}
 
-	private static bool TryGetMatchAddress(IAobMatchList matches, int index, out Address address,
-		out CheatEngineFailure failure)
+	private static CheatEngineFailure Rejected(string message)
 	{
-		if (matches.TryGetItem(index, out string? text) && Address.TryParse(text, out address))
-		{
-			failure = default;
-			return true;
-		}
-
-		address = default;
-		failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult, _scanOperation,
-			$"AOB result {index} was not a hexadecimal address.");
-		return false;
+		return new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, _scanOperation, message, null,
+			CheatEngineHostEffect.NotStarted);
 	}
 
-	private static bool TryGetCancellationFailure(CancellationToken cancellationToken, out CheatEngineFailure failure)
+	private static CheatEngineFailure InvalidList()
 	{
-		if (!cancellationToken.IsCancellationRequested)
-		{
-			failure = default;
-			return false;
-		}
-
-		failure = new CheatEngineFailure(CheatEngineFailureKind.Cancelled, _scanOperation,
-			"The AOB scan was cancelled.");
-		return true;
+		return new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult, _scanOperation,
+			"Cheat Engine returned an invalid AOB result list.", null, CheatEngineHostEffect.Completed);
 	}
 
-	private static bool IsIncluded(Address address, AobScanRequest request, bool hasModuleRange,
-		ModuleRange moduleRange)
+	private static CheatEngineFailure CancelledBeforeScan()
 	{
-		return (!hasModuleRange || moduleRange.Contains(address)) &&
-			   (!request.Range.HasValue || request.Range.Value.Contains(address));
+		return new CheatEngineFailure(CheatEngineFailureKind.Cancelled, _scanOperation,
+			"The AOB scan was cancelled before Cheat Engine started it.", null, CheatEngineHostEffect.NotStarted);
 	}
 
-	internal static bool TryValidateRequest(AobScanRequest request, out CheatEngineFailure failure)
+	private static CheatEngineFailure CancelledAfterScan()
 	{
-		if (string.IsNullOrWhiteSpace(request.Pattern.Value))
-		{
-			failure = new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, _scanOperation,
-				"An AOB scan requires a normalized, non-empty pattern.");
-			return false;
-		}
-
-		if (request.MaximumResults <= 0)
-		{
-			failure = new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, _scanOperation,
-				"An AOB scan requires a positive materialization limit.");
-			return false;
-		}
-
-		if (request.Module.HasValue && string.IsNullOrWhiteSpace(request.Module.Value.Value))
-		{
-			failure = new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, _scanOperation,
-				"An AOB module filter must be non-empty.");
-			return false;
-		}
-
-		if (request.Range.HasValue && request.Range.Value.End < request.Range.Value.Start)
-		{
-			failure = new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, _scanOperation,
-				"An AOB range end address must not precede its start address.");
-			return false;
-		}
-
-		failure = default;
-		return true;
+		return new CheatEngineFailure(CheatEngineFailureKind.Cancelled, _scanOperation,
+			"The AOB scan was cancelled after Cheat Engine completed it; no copied result was published.", null,
+			CheatEngineHostEffect.Completed);
 	}
 
-	private bool TryGetModuleRange(ModuleName requested, out bool hasRange, out ModuleRange range,
-		out CheatEngineFailure failure)
+	private bool TryGetModuleRange(ModuleName requested, out ModuleRange range, out CheatEngineFailure failure)
 	{
 		ModuleInfo[] modules = new ModuleInfo[_maximumModuleSnapshot];
-		hasRange = false;
-		range = default;
+		range = ModuleRange.None;
 		InspectionStatus status = _scanPort.EnumerateModules(modules, out int written);
 		if (status != InspectionStatus.Success)
 		{
-			failure = new CheatEngineFailure(
+			failure = ModuleFailure(
 				status == InspectionStatus.DestinationTooSmall
 					? CheatEngineFailureKind.ResultLimitExceeded
 					: CheatEngineFailureKind.CapabilityUnavailable,
-				_inModuleOperation, $"Module inspection returned '{status}'.");
+				$"Module inspection returned '{status}'.");
 			return false;
 		}
 
 		if ((uint) written > modules.Length)
 		{
-			failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult, _inModuleOperation,
+			failure = ModuleFailure(CheatEngineFailureKind.InvalidHostResult,
 				"Cheat Engine returned an invalid module count.");
 			return false;
 		}
@@ -379,21 +365,21 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 
 			if (found)
 			{
-				failure = new CheatEngineFailure(CheatEngineFailureKind.AmbiguousMatch, _inModuleOperation,
+				failure = ModuleFailure(CheatEngineFailureKind.AmbiguousMatch,
 					$"More than one module named '{requested.Value}' was present in the selected target.");
 				return false;
 			}
 
 			if (!module.ImageSize.HasValue)
 			{
-				failure = new CheatEngineFailure(CheatEngineFailureKind.CapabilityUnavailable,
-					_inModuleOperation, "Cheat Engine did not report the requested module's image size.");
+				failure = ModuleFailure(CheatEngineFailureKind.CapabilityUnavailable,
+					"Cheat Engine did not report the requested module's image size.");
 				return false;
 			}
 
 			if (module.ImageSize.Value.Value == 0)
 			{
-				failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult, _inModuleOperation,
+				failure = ModuleFailure(CheatEngineFailureKind.InvalidHostResult,
 					"Cheat Engine reported a zero-length requested module.");
 				return false;
 			}
@@ -404,21 +390,71 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 
 		if (found)
 		{
-			hasRange = true;
 			failure = default;
 			return true;
 		}
 
-		failure = new CheatEngineFailure(CheatEngineFailureKind.NotFound, _inModuleOperation,
+		failure = ModuleFailure(CheatEngineFailureKind.NotFound,
 			$"Module '{requested.Value}' was not present in the selected target.");
 		return false;
 	}
 
-	private readonly record struct ModuleRange(ulong Start, ulong Size)
+	/// <summary>A module-resolution failure: the AOB scan itself never started.</summary>
+	private static CheatEngineFailure ModuleFailure(CheatEngineFailureKind kind, string message)
 	{
+		return new CheatEngineFailure(kind, _inModuleOperation, message, null, CheatEngineHostEffect.NotStarted);
+	}
+
+	private readonly record struct ScanInput(
+		PatternScanner Scanner,
+		AobScanRequest Request,
+		CancellationToken CancellationToken);
+
+	/// <summary>The single internal classification shared by <see cref="TryScan" /> and <see cref="ScanDetailed" />.</summary>
+	private readonly record struct ScanOutcome(
+		bool Succeeded,
+		AobScanResult Result,
+		CheatEngineFailure Failure,
+		PatternScanMetrics? Metrics)
+	{
+		internal static ScanOutcome Success(AobScanResult result)
+		{
+			return new ScanOutcome(true, result, default, null);
+		}
+
+		internal static ScanOutcome Failed(CheatEngineFailure failure, PatternScanMetrics? metrics)
+		{
+			return new ScanOutcome(false, default, failure, metrics);
+		}
+	}
+
+	/// <summary>Allocation-free counters of the copy loop.</summary>
+	private struct MaterializationProgress(int hostMatchCount)
+	{
+		internal readonly int HostMatchCount = hostMatchCount;
+		internal int Examined;
+		internal int FilteredOut;
+		internal int Materialized;
+
+		internal readonly PatternScanMetrics ToMetrics(TimeSpan hostScanElapsed, TimeSpan materializationElapsed)
+		{
+			return new PatternScanMetrics(HostMatchCount, Examined, FilteredOut, Materialized,
+				PatternScanScope.GlobalHostScanWithManagedFilter, hostScanElapsed, materializationElapsed);
+		}
+	}
+
+	private readonly record struct ModuleRange(bool IsActive, ulong Start, ulong Size)
+	{
+		internal static ModuleRange None => default;
+
+		internal ModuleRange(ulong start, ulong size)
+			: this(true, start, size)
+		{
+		}
+
 		internal bool Contains(Address address)
 		{
-			return address.Value >= Start && address.Value - Start < Size;
+			return !IsActive || (address.Value >= Start && address.Value - Start < Size);
 		}
 	}
 }
