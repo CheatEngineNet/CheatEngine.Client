@@ -293,15 +293,15 @@ embedded SBOMs, the package consumption tests against those packages, a per-asse
 AOT graph probe, the SonarQube Cloud analysis, actionlint, zizmor and PSScriptAnalyzer, whitespace formatting, the
 dependency review and the lock-file guard. `CI / Gate` passes only when every one of them passes; Sonar alone may be
 skipped, and only where it cannot run (fork and Dependabot pull requests, the release run). `PR policy` checks the pull
-request title and the changelog entry. [CONTRIBUTING](CONTRIBUTING.md#continuous-integration) and the
-[CI scripts](eng/ci/README.md) describe each job and how to run it locally.
+request title and the changelog entry. [CONTRIBUTING](CONTRIBUTING.md#continuous-integration) describes each job and
+how to run it locally.
 
 The Cheat Engine 7.7 x64 live suite is opt-in and intentionally excluded from ordinary CI; no CI result should be read
 as proof that an untested live-host feature is available. Success, failure, cleanup, disable, re-enable, and
 target-change evidence for every advanced capability still requires the opt-in Cheat Engine 7.7 x64 qualification run.
 
-See also [CONTRIBUTING](CONTRIBUTING.md), [RELEASING](RELEASING.md), the [CHANGELOG](CHANGELOG.md), the
-[LICENSE](LICENSE) and the [documentation index](docs/README.md).
+See also [CONTRIBUTING](CONTRIBUTING.md), [RELEASING](RELEASING.md), the [CHANGELOG](CHANGELOG.md) and the
+[LICENSE](LICENSE).
 
 ## Security and scope
 

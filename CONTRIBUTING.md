@@ -175,7 +175,7 @@ and opens an issue when a scheduled run fails.
   dispatcher and ports; the SDK remains the only native authority.
 - The architecture ratchet in `tests/CheatEngine.Client.Tests/Architecture` freezes the Client's remaining ADR-01 debt:
   the Lua globals it binds itself and its direct Lua and owner usages. Shrinking a list is always allowed; growing it
-  requires a registered exception with a removal entry in the SDK 2.0 migration guide (`docs/migration/sdk-2.0.md`).
+  requires a registered exception, in the ratchet itself, naming its own SDK 2.0 replacement as the removal reason.
 
 ## Evidence and qualification levels
 

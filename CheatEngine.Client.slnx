@@ -12,9 +12,6 @@
     <File Path="README.md" />
     <File Path="RELEASING.md" />
   </Folder>
-  <Folder Name="/docs/">
-    <File Path="docs/README.md" />
-  </Folder>
   <Folder Name="/eng/">
     <File Path="eng/CheatEngineSdk.props" />
     <File Path="eng/Shipping.props" />
