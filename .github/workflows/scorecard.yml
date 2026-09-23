@@ -3,8 +3,9 @@
 # `defaults`, workflow-level write permissions, `id-token: write` outside this job, `container`/`services`, `run:`
 # steps and actions outside its allowlist. This file therefore deliberately does NOT follow the repository's
 # `defaults: run: shell: pwsh` convention. Publication works from the default branch only (post-merge check).
-# Expected low checks, explained rather than fixed: Code-Review (single maintainer), Branch-Protection (until the
-# rulesets of eng/github are applied), Signed-Releases (until the first release), SAST (until CodeQL has history).
+# Expected low checks, explained rather than fixed: Code-Review (single maintainer), Branch-Protection (until branch
+# protection rules are configured on this repository), Signed-Releases (until the first release), SAST (until CodeQL
+# has history).
 name: Scorecard
 
 on:
