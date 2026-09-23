@@ -67,11 +67,22 @@ public readonly record struct CheatEngineRuntimeSnapshot
 	/// <summary>Gets the CE host architecture observed from CE's system-architecture global.</summary>
 	public CheatEngineArchitecture SystemArchitecture => Platform.SystemArchitecture;
 
-	/// <summary>Gets the target architecture observed by a target-specific probe, or unknown.</summary>
+	/// <summary>Gets the target ISA derived from Cheat Engine's ISA-family and 64-bit facts, or unknown.</summary>
 	public CheatEngineArchitecture TargetArchitecture => Platform.TargetArchitecture;
 
-	/// <summary>Gets the pointer width implied by the observed target architecture, or unknown.</summary>
+	/// <summary>
+	///     Gets the process width of the selected target (the width Cheat Engine's <c>readPointer</c> uses), or unknown.
+	///     It is observed from <c>targetIs64Bit</c>, not derived from <see cref="TargetArchitecture" />, and it is not
+	///     Cheat Engine's configured pointer size.
+	/// </summary>
 	public PointerSize TargetPointerSize => Platform.TargetPointerSize;
+
+	/// <summary>
+	///     Gets Cheat Engine's configured pointer size for the current attachment as a width when it is 4 or 8 bytes,
+	///     otherwise unknown. See <see cref="CheatEngineRuntimePlatformInfo.ConfiguredPointerSizeBytes" /> for the raw
+	///     value; it is independent of <see cref="TargetPointerSize" />.
+	/// </summary>
+	public PointerSize ConfiguredPointerSize => Platform.ConfiguredPointerSize;
 
 	/// <summary>Gets the target ABI observed from CE's ABI global, or unknown.</summary>
 	public TargetAbi TargetAbi => Platform.TargetAbi;

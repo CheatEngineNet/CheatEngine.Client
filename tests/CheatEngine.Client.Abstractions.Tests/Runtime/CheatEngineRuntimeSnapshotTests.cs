@@ -126,10 +126,12 @@ public sealed class CheatEngineRuntimeSnapshotTests
 		Assert.Equal("clientCapabilities", clientCapabilities.ParamName);
 	}
 
-	/// <summary>Rejects target pointer widths that disagree with the observed target architecture.</summary>
+	/// <summary>Rejects a known target pointer width that disagrees with a known target architecture.</summary>
 	[Theory]
 	[InlineData(CheatEngineArchitecture.X64, 4)]
 	[InlineData(CheatEngineArchitecture.X86, 8)]
+	[InlineData(CheatEngineArchitecture.Arm64, 4)]
+	[InlineData(CheatEngineArchitecture.Arm32, 8)]
 	public void PlatformInfoRejectsPointerSizeThatDoesNotMatchTargetArchitecture(
 		CheatEngineArchitecture targetArchitecture,
 		int pointerBytes)
@@ -155,6 +157,117 @@ public sealed class CheatEngineRuntimeSnapshotTests
 
 		Assert.Equal(CheatEngineArchitecture.Unknown, platform.TargetArchitecture);
 		Assert.Equal(PointerSize.Unknown, platform.TargetPointerSize);
+	}
+
+	/// <summary>Keeps a known process width when the ISA could not be derived (Q32: never infer the ISA from the width).</summary>
+	[Fact]
+	[Trait("Qualification", "Q32")]
+	public void PlatformInfoAcceptsAnUnknownIsaWithAKnownProcessWidth()
+	{
+		CheatEngineRuntimePlatformInfo platform = new(
+			CheatEngineArchitecture.X64,
+			CheatEngineArchitecture.Unknown,
+			PointerSize.Bit64,
+			TargetAbi.Windows);
+
+		Assert.Equal(CheatEngineArchitecture.Unknown, platform.TargetArchitecture);
+		Assert.Equal(PointerSize.Bit64, platform.TargetPointerSize);
+	}
+
+	/// <summary>Keeps a known ISA when the process width was not observed.</summary>
+	[Theory]
+	[InlineData(CheatEngineArchitecture.X86)]
+	[InlineData(CheatEngineArchitecture.X64)]
+	[InlineData(CheatEngineArchitecture.Arm32)]
+	[InlineData(CheatEngineArchitecture.Arm64)]
+	public void PlatformInfoAcceptsAKnownIsaWithAnUnknownProcessWidth(CheatEngineArchitecture architecture)
+	{
+		CheatEngineRuntimePlatformInfo platform = new(
+			CheatEngineArchitecture.X64,
+			architecture,
+			PointerSize.Unknown,
+			TargetAbi.Windows);
+
+		Assert.Equal(architecture, platform.TargetArchitecture);
+		Assert.Equal(PointerSize.Unknown, platform.TargetPointerSize);
+		Assert.Null(platform.ConfiguredPointerSizeDiffersFromTargetPointerSize);
+	}
+
+	/// <summary>Keeps Cheat Engine's configured pointer size separate from the process width (Q31, spike C3 D3).</summary>
+	[Fact]
+	[Trait("Qualification", "Q31")]
+	public void PlatformInfoKeepsAConfiguredPointerSizeThatDiffersFromTheProcessWidth()
+	{
+		CheatEngineRuntimePlatformInfo platform = new(
+			CheatEngineArchitecture.X64,
+			CheatEngineArchitecture.X64,
+			PointerSize.Bit64,
+			TargetAbi.Windows,
+			4);
+
+		Assert.Equal(PointerSize.Bit64, platform.TargetPointerSize);
+		Assert.Equal(4, platform.ConfiguredPointerSizeBytes);
+		Assert.Equal(PointerSize.Bit32, platform.ConfiguredPointerSize);
+		Assert.True(platform.ConfiguredPointerSizeDiffersFromTargetPointerSize);
+	}
+
+	/// <summary>Keeps any raw configured pointer size, because Cheat Engine accepts any integer (spike C3 D3(b)).</summary>
+	[Fact]
+	[Trait("Qualification", "Q31")]
+	public void PlatformInfoKeepsARawConfiguredPointerSizeOutsideFourAndEight()
+	{
+		CheatEngineRuntimePlatformInfo platform = new(
+			CheatEngineArchitecture.X64,
+			CheatEngineArchitecture.X64,
+			PointerSize.Bit64,
+			TargetAbi.Windows,
+			2);
+
+		Assert.Equal(2, platform.ConfiguredPointerSizeBytes);
+		Assert.Equal(PointerSize.Unknown, platform.ConfiguredPointerSize);
+		Assert.True(platform.ConfiguredPointerSizeDiffersFromTargetPointerSize);
+	}
+
+	/// <summary>The four-argument constructor records that the configured pointer size was not observed.</summary>
+	[Fact]
+	public void LegacyPlatformInfoConstructorLeavesTheConfiguredPointerSizeAbsent()
+	{
+		CheatEngineRuntimePlatformInfo platform = new(
+			CheatEngineArchitecture.X64,
+			CheatEngineArchitecture.X64,
+			PointerSize.Bit64,
+			TargetAbi.Windows);
+
+		Assert.Null(platform.ConfiguredPointerSizeBytes);
+		Assert.Equal(PointerSize.Unknown, platform.ConfiguredPointerSize);
+		Assert.Null(platform.ConfiguredPointerSizeDiffersFromTargetPointerSize);
+		Assert.Equal(new CheatEngineRuntimePlatformInfo(
+			CheatEngineArchitecture.X64,
+			CheatEngineArchitecture.X64,
+			PointerSize.Bit64,
+			TargetAbi.Windows,
+			null), platform);
+	}
+
+	/// <summary>The snapshot forwards the configured pointer size of its platform observations.</summary>
+	[Fact]
+	public void SnapshotForwardsTheConfiguredPointerSize()
+	{
+		CheatEngineRuntimeSnapshot snapshot = new(
+			42,
+			CreateVersionInfo(),
+			new CheatEngineRuntimePlatformInfo(
+				CheatEngineArchitecture.X64,
+				CheatEngineArchitecture.X64,
+				PointerSize.Bit64,
+				TargetAbi.Windows,
+				4),
+			RuntimeCapabilities.Empty,
+			ClientCapabilities.Empty);
+
+		Assert.Equal(PointerSize.Bit32, snapshot.ConfiguredPointerSize);
+		Assert.Equal(PointerSize.Bit64, snapshot.TargetPointerSize);
+		Assert.Equal(snapshot.Platform.ConfiguredPointerSize, snapshot.ConfiguredPointerSize);
 	}
 
 	/// <summary>Rejects the default version-info value before it can produce a partially initialized snapshot.</summary>

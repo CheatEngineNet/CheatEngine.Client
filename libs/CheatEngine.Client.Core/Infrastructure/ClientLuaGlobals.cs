@@ -4,7 +4,11 @@ using CheatEngine.SDK.Annotations.Lua;
 
 namespace CheatEngine.Client.Core.Infrastructure;
 
-/// <summary>Internal generated bindings for CE globals that the SDK does not expose as high-level services.</summary>
+/// <summary>
+///     Internal generated bindings for CE globals that CheatEngine.SDK 1.0.0 does not expose as high-level services. Every
+///     binding is a frozen ADR-01 exception registered in the architecture ratchet and listed for removal in the SDK 2.0
+///     migration guide (docs/migration/sdk-2.0.md).
+/// </summary>
 internal static partial class ClientLuaGlobals
 {
 	[LuaGlobal("getOpenedProcessID")]
@@ -24,6 +28,32 @@ internal static partial class ClientLuaGlobals
 
 	[LuaGlobal("targetIs64Bit")]
 	internal static partial bool TargetIs64Bit();
+
+	/// <summary>Reads whether the selected target belongs to the x86 ISA family (x86 or x64).</summary>
+	/// <remarks>
+	///     Temporary ADR-01 exception, frozen by the architecture ratchet; replaced by SDK 2.0
+	///     RuntimeProcessOperations.ObserveTargetArchitecture (docs/migration/sdk-2.0.md). With no target opened, Cheat
+	///     Engine still reports the x86 family, so callers read the opened process identifier first.
+	/// </remarks>
+	[LuaGlobal("targetIsX86")]
+	internal static partial bool TargetIsX86();
+
+	/// <summary>Reads whether the selected target belongs to the ARM ISA family (ARM32 or ARM64).</summary>
+	/// <remarks>
+	///     Temporary ADR-01 exception, frozen by the architecture ratchet; replaced by SDK 2.0
+	///     RuntimeProcessOperations.ObserveTargetArchitecture (docs/migration/sdk-2.0.md).
+	/// </remarks>
+	[LuaGlobal("targetIsArm")]
+	internal static partial bool TargetIsArm();
+
+	/// <summary>Reads Cheat Engine's configured pointer size for the current attachment, as the raw integer.</summary>
+	/// <remarks>
+	///     Temporary ADR-01 exception, frozen by the architecture ratchet; replaced by SDK 2.0
+	///     RuntimeProcessOperations.TryGetConfiguredPointerSize (docs/migration/sdk-2.0.md). The value is per-attachment
+	///     state that any (re)attach resets, and it is independent of the target process width.
+	/// </remarks>
+	[LuaGlobal("getPointerSize")]
+	internal static partial int GetConfiguredPointerSize();
 
 	[LuaGlobal("loadTable")]
 	internal static partial void LoadTable(string path, bool merge);

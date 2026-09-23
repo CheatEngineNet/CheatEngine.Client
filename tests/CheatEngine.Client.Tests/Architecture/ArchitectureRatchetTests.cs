@@ -45,9 +45,9 @@ public sealed class ArchitectureRatchetTests
 		new("getNameFromAddress", "Symbol name resolution; SDK 1.0.0 has no name lookup service.", false),
 		new("registerSymbol", "Activation-owned symbol registration lease.", false),
 		new("unregisterSymbol", "Release of an activation-owned symbol registration.", false),
-		new("getPointerSize", "Reserved for C-CORE-B: configured pointer size (spike C3 D3).", true),
-		new("targetIsX86", "Reserved for C-CORE-B: x86-family ISA fact (spike C3 D2).", true),
-		new("targetIsArm", "Reserved for C-CORE-B: ARM-family ISA fact (spike C3 D2).", true)
+		new("getPointerSize", "F08 ISA/pointer-size observation on SDK 1.0.0 (spike-c3 D2/D3).", false),
+		new("targetIsX86", "F08 ISA/pointer-size observation on SDK 1.0.0 (spike-c3 D2/D3).", false),
+		new("targetIsArm", "F08 ISA/pointer-size observation on SDK 1.0.0 (spike-c3 D2/D3).", false)
 	];
 
 	/// <summary>

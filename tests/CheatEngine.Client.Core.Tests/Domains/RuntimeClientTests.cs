@@ -5,6 +5,7 @@ using CheatEngine.Client.Results;
 using CheatEngine.Client.Runtime;
 using CheatEngine.SDK.Engine.Errors;
 using CheatEngine.SDK.Engine.Runtime;
+using CheatEngine.SDK.Lua.Calls;
 
 namespace CheatEngine.Client.Core.Tests.Domains;
 
@@ -317,6 +318,324 @@ public sealed class RuntimeClientTests
 		Assert.Equal(RuntimeCapabilityAvailabilityState.Unavailable, system.State);
 	}
 
+	[Fact]
+	[Trait("Qualification", "Q32")]
+	public void SnapshotDerivesX64FromTheX86FamilyAndTheSixtyFourBitFact()
+	{
+		// Spike C3 D2: on a real x64 target Cheat Engine reports the x86 family, 64-bit and pointer size 8.
+		FakeRuntimeProbe probe = new()
+		{
+			OpenedProcessId = 42,
+			TargetIsX86Value = true,
+			TargetIsArmValue = false,
+			TargetIs64BitValue = true,
+			ConfiguredPointerSizeValue = 8
+		};
+		RuntimeClient runtime = new(new InlineDispatcher(), probe, static () => 1);
+
+		CheatEngineRuntimeSnapshot snapshot = runtime.GetSnapshot(TestContext.Current.CancellationToken);
+
+		Assert.Equal(CheatEngineArchitecture.X64, snapshot.TargetArchitecture);
+		Assert.Equal(PointerSize.Bit64, snapshot.TargetPointerSize);
+		Assert.Equal(PointerSize.Bit64, snapshot.ConfiguredPointerSize);
+		Assert.Equal(8, snapshot.Platform.ConfiguredPointerSizeBytes);
+		Assert.False(snapshot.Platform.ConfiguredPointerSizeDiffersFromTargetPointerSize);
+		Assert.Equal(RuntimeCapabilityAvailabilityState.Available,
+			snapshot.SdkCapabilities.GetState(RuntimeCapabilityId.TargetArchitecture));
+	}
+
+	[Theory]
+	[Trait("Qualification", "Q32")]
+	[InlineData(true, false, true, CheatEngineArchitecture.X64)]
+	[InlineData(true, false, false, CheatEngineArchitecture.X86)]
+	[InlineData(false, true, true, CheatEngineArchitecture.Arm64)]
+	[InlineData(false, true, false, CheatEngineArchitecture.Arm32)]
+	[InlineData(true, true, true, CheatEngineArchitecture.Unknown)]
+	[InlineData(true, true, false, CheatEngineArchitecture.Unknown)]
+	[InlineData(false, false, true, CheatEngineArchitecture.Unknown)]
+	[InlineData(false, false, false, CheatEngineArchitecture.Unknown)]
+	public void SnapshotDerivesTheIsaFromEveryFamilyCombination(bool isX86, bool isArm, bool is64Bit,
+		CheatEngineArchitecture expected)
+	{
+		FakeRuntimeProbe probe = new()
+		{
+			OpenedProcessId = 42,
+			TargetIsX86Value = isX86,
+			TargetIsArmValue = isArm,
+			TargetIs64BitValue = is64Bit,
+			ConfiguredPointerSizeValue = is64Bit ? 8 : 4
+		};
+		RuntimeClient runtime = new(new InlineDispatcher(), probe, static () => 1);
+
+		CheatEngineRuntimeSnapshot snapshot = runtime.GetSnapshot(TestContext.Current.CancellationToken);
+
+		Assert.Equal(expected, snapshot.TargetArchitecture);
+		Assert.Equal(is64Bit ? PointerSize.Bit64 : PointerSize.Bit32, snapshot.TargetPointerSize);
+		Assert.Equal(
+			expected == CheatEngineArchitecture.Unknown
+				? RuntimeCapabilityAvailabilityState.Unknown
+				: RuntimeCapabilityAvailabilityState.Available,
+			snapshot.SdkCapabilities.GetState(RuntimeCapabilityId.TargetArchitecture));
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q32")]
+	public void SnapshotKeepsAnUnknownIsaWithAKnownProcessWidthWhenAFamilyProbeIsUnavailable()
+	{
+		FakeRuntimeProbe probe = new()
+		{
+			OpenedProcessId = 42,
+			TargetIsX86Exception = new LuaException("targetIsX86 failed")
+		};
+		RuntimeClient runtime = new(new InlineDispatcher(), probe, static () => 1);
+
+		bool succeeded = runtime.TryGetSnapshot(out CheatEngineRuntimeSnapshot snapshot,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.True(succeeded);
+		Assert.Equal(default, failure);
+		Assert.Equal(CheatEngineArchitecture.Unknown, snapshot.TargetArchitecture);
+		Assert.Equal(PointerSize.Bit64, snapshot.TargetPointerSize);
+		Assert.Equal(RuntimeCapabilityAvailabilityState.Unknown,
+			snapshot.SdkCapabilities.GetState(RuntimeCapabilityId.TargetArchitecture));
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q32")]
+	public void SnapshotNeverDerivesX64FromTheSixtyFourBitFactAlone()
+	{
+		FakeRuntimeProbe probe = new()
+		{
+			OpenedProcessId = 42,
+			TargetIs64BitValue = true,
+			TargetIsX86Exception = new EngineGlobalUnavailableException("targetIsX86"),
+			TargetIsArmException = new EngineGlobalUnavailableException("targetIsArm")
+		};
+		RuntimeClient runtime = new(new InlineDispatcher(), probe, static () => 1);
+
+		CheatEngineRuntimeSnapshot snapshot = runtime.GetSnapshot(TestContext.Current.CancellationToken);
+
+		Assert.Equal(CheatEngineArchitecture.Unknown, snapshot.TargetArchitecture);
+		Assert.Equal(PointerSize.Bit64, snapshot.TargetPointerSize);
+		Assert.Equal(RuntimeCapabilityAvailabilityState.Unavailable,
+			snapshot.SdkCapabilities.GetState(RuntimeCapabilityId.TargetArchitecture));
+	}
+
+	[Theory]
+	[InlineData(1, TargetAbi.Unix, RuntimeCapabilityAvailabilityState.Available)]
+	[InlineData(7, TargetAbi.Unknown, RuntimeCapabilityAvailabilityState.Unknown)]
+	public void SnapshotDerivesTheIsaIndependentlyOfTheAbi(int abiCode, TargetAbi expectedAbi,
+		RuntimeCapabilityAvailabilityState expectedAbiState)
+	{
+		FakeRuntimeProbe probe = new()
+		{
+			OpenedProcessId = 42,
+			TargetAbiCode = abiCode
+		};
+		RuntimeClient runtime = new(new InlineDispatcher(), probe, static () => 1);
+
+		CheatEngineRuntimeSnapshot snapshot = runtime.GetSnapshot(TestContext.Current.CancellationToken);
+
+		Assert.Equal(CheatEngineArchitecture.X64, snapshot.TargetArchitecture);
+		Assert.Equal(PointerSize.Bit64, snapshot.TargetPointerSize);
+		Assert.Equal(expectedAbi, snapshot.TargetAbi);
+		Assert.Equal(expectedAbiState, snapshot.SdkCapabilities.GetState(RuntimeCapabilityId.TargetAbi));
+		Assert.Equal(RuntimeCapabilityAvailabilityState.Available,
+			snapshot.SdkCapabilities.GetState(RuntimeCapabilityId.TargetArchitecture));
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q31")]
+	public void SnapshotKeepsAConfiguredPointerSizeOfFourSeparateFromAnX64Target()
+	{
+		// Spike C3 D3: setPointerSize(4) on an x64 target leaves targetIs64Bit true and readPointer 8 bytes wide.
+		FakeRuntimeProbe probe = new()
+		{
+			OpenedProcessId = 42,
+			ConfiguredPointerSizeValue = 4
+		};
+		RuntimeClient runtime = new(new InlineDispatcher(), probe, static () => 1);
+
+		bool succeeded = runtime.TryGetSnapshot(out CheatEngineRuntimeSnapshot snapshot,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.True(succeeded);
+		Assert.Equal(default, failure);
+		Assert.Equal(CheatEngineArchitecture.X64, snapshot.TargetArchitecture);
+		Assert.Equal(PointerSize.Bit64, snapshot.TargetPointerSize);
+		Assert.Equal(PointerSize.Bit32, snapshot.ConfiguredPointerSize);
+		Assert.Equal(4, snapshot.Platform.ConfiguredPointerSizeBytes);
+		Assert.True(snapshot.Platform.ConfiguredPointerSizeDiffersFromTargetPointerSize);
+		Assert.Equal(RuntimeCapabilityAvailabilityState.Available,
+			snapshot.SdkCapabilities.GetState(RuntimeClient.ConfiguredPointerSizeCapability));
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q31")]
+	public void SnapshotKeepsARawConfiguredPointerSizeOutsideFourAndEight()
+	{
+		// Spike C3 D3(b): setPointerSize accepts any integer; 2 was stored and read back.
+		FakeRuntimeProbe probe = new()
+		{
+			OpenedProcessId = 42,
+			ConfiguredPointerSizeValue = 2
+		};
+		RuntimeClient runtime = new(new InlineDispatcher(), probe, static () => 1);
+
+		CheatEngineRuntimeSnapshot snapshot = runtime.GetSnapshot(TestContext.Current.CancellationToken);
+
+		Assert.Equal(2, snapshot.Platform.ConfiguredPointerSizeBytes);
+		Assert.Equal(PointerSize.Unknown, snapshot.ConfiguredPointerSize);
+		Assert.Equal(PointerSize.Bit64, snapshot.TargetPointerSize);
+		Assert.True(snapshot.Platform.ConfiguredPointerSizeDiffersFromTargetPointerSize);
+		Assert.Equal(RuntimeCapabilityAvailabilityState.Unknown,
+			snapshot.SdkCapabilities.GetState(RuntimeClient.ConfiguredPointerSizeCapability));
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q32")]
+	public void SnapshotReadsNoTargetFactWithoutASelectedProcess()
+	{
+		// Spike C3 D2: with no target opened Cheat Engine reports x86, 64-bit and pointer size 8, so nothing is read.
+		FakeRuntimeProbe probe = new()
+		{
+			OpenedProcessId = 0
+		};
+		RuntimeClient runtime = new(new InlineDispatcher(), probe, static () => 1);
+
+		CheatEngineRuntimeSnapshot snapshot = runtime.GetSnapshot(TestContext.Current.CancellationToken);
+
+		Assert.Equal(0, probe.Count(nameof(IRuntimeProbe.TargetIs64Bit)));
+		Assert.Equal(0, probe.Count(nameof(IRuntimeProbe.TargetIsX86)));
+		Assert.Equal(0, probe.Count(nameof(IRuntimeProbe.TargetIsArm)));
+		Assert.Equal(0, probe.Count(nameof(IRuntimeProbe.GetConfiguredPointerSize)));
+		Assert.Equal(1, probe.Count(nameof(IRuntimeProbe.GetOpenedProcessId)));
+		Assert.Equal(CheatEngineArchitecture.Unknown, snapshot.TargetArchitecture);
+		Assert.Equal(PointerSize.Unknown, snapshot.TargetPointerSize);
+		Assert.Null(snapshot.Platform.ConfiguredPointerSizeBytes);
+		Assert.Null(snapshot.Platform.ConfiguredPointerSizeDiffersFromTargetPointerSize);
+		Assert.Equal(RuntimeCapabilityAvailabilityState.Unknown,
+			snapshot.SdkCapabilities.GetState(RuntimeClient.ConfiguredPointerSizeCapability));
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q32")]
+	public void SnapshotDiscardsTargetFactsWhenThePidChangesDuringObservation()
+	{
+		FakeRuntimeProbe probe = new()
+		{
+			OpenedProcessId = 42,
+			LaterOpenedProcessIds = [43]
+		};
+		RuntimeClient runtime = new(new InlineDispatcher(), probe, static () => 1);
+
+		CheatEngineRuntimeSnapshot snapshot = runtime.GetSnapshot(TestContext.Current.CancellationToken);
+
+		Assert.Equal(2, probe.Count(nameof(IRuntimeProbe.GetOpenedProcessId)));
+		Assert.Equal(CheatEngineArchitecture.Unknown, snapshot.TargetArchitecture);
+		Assert.Equal(PointerSize.Unknown, snapshot.TargetPointerSize);
+		Assert.Null(snapshot.Platform.ConfiguredPointerSizeBytes);
+		Assert.Equal(RuntimeCapabilityAvailabilityState.Unknown,
+			snapshot.SdkCapabilities.GetState(RuntimeCapabilityId.TargetArchitecture));
+		Assert.Equal(RuntimeCapabilityAvailabilityState.Unknown,
+			snapshot.SdkCapabilities.GetState(RuntimeClient.ConfiguredPointerSizeCapability));
+	}
+
+	[Theory]
+	[InlineData(nameof(IRuntimeProbe.GetCheatEngineVersion))]
+	[InlineData(nameof(IRuntimeProbe.GetSystemArchitecture))]
+	[InlineData(nameof(IRuntimeProbe.GetTargetAbi))]
+	[InlineData(nameof(IRuntimeProbe.GetOpenedProcessId))]
+	[InlineData(nameof(IRuntimeProbe.TargetIs64Bit))]
+	[InlineData(nameof(IRuntimeProbe.TargetIsX86))]
+	[InlineData(nameof(IRuntimeProbe.TargetIsArm))]
+	[InlineData(nameof(IRuntimeProbe.GetConfiguredPointerSize))]
+	public void SnapshotClassifiesLuaExceptionsFromGeneratedBindingsAsFaultedWithoutEscaping(string member)
+	{
+		// The single failure shape of a throwing-form CheatEngine.SDK 1.0.0 binding: undefined global, raised Lua
+		// error and unexpected result type all surface as LuaException.
+		LuaException fault = new("generated binding failure");
+		FakeRuntimeProbe probe = new()
+		{
+			OpenedProcessId = 42,
+			ThrowOnce = true,
+			VersionException = member == nameof(IRuntimeProbe.GetCheatEngineVersion) ? fault : null,
+			SystemArchitectureException = member == nameof(IRuntimeProbe.GetSystemArchitecture) ? fault : null,
+			TargetAbiException = member == nameof(IRuntimeProbe.GetTargetAbi) ? fault : null,
+			OpenedProcessException = member == nameof(IRuntimeProbe.GetOpenedProcessId) ? fault : null,
+			TargetIs64BitException = member == nameof(IRuntimeProbe.TargetIs64Bit) ? fault : null,
+			TargetIsX86Exception = member == nameof(IRuntimeProbe.TargetIsX86) ? fault : null,
+			TargetIsArmException = member == nameof(IRuntimeProbe.TargetIsArm) ? fault : null,
+			ConfiguredPointerSizeException = member == nameof(IRuntimeProbe.GetConfiguredPointerSize) ? fault : null
+		};
+		RuntimeClient runtime = new(new InlineDispatcher(), probe, static () => 1);
+		RuntimeCapabilityId affected = member switch
+		{
+			nameof(IRuntimeProbe.GetCheatEngineVersion) => RuntimeCapabilityId.CheatEngineVersion,
+			nameof(IRuntimeProbe.GetSystemArchitecture) => RuntimeCapabilityId.SystemArchitecture,
+			nameof(IRuntimeProbe.GetTargetAbi) => RuntimeCapabilityId.TargetAbi,
+			nameof(IRuntimeProbe.GetConfiguredPointerSize) => RuntimeClient.ConfiguredPointerSizeCapability,
+			_ => RuntimeCapabilityId.TargetArchitecture
+		};
+
+		bool succeeded = runtime.TryGetSnapshot(out CheatEngineRuntimeSnapshot faulted,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.True(succeeded);
+		Assert.Equal(default, failure);
+		Assert.Equal(RuntimeCapabilityAvailabilityState.Unknown, faulted.SdkCapabilities.GetState(affected));
+		Assert.Contains("undefined global", ProbeClassifier.IndistinguishableLuaFailureReason, StringComparison.Ordinal);
+		Assert.Contains("raised Lua error", ProbeClassifier.IndistinguishableLuaFailureReason, StringComparison.Ordinal);
+		Assert.Contains("unexpected result type", ProbeClassifier.IndistinguishableLuaFailureReason,
+			StringComparison.Ordinal);
+		if (member == nameof(IRuntimeProbe.GetOpenedProcessId))
+		{
+			Assert.True(faulted.ClientCapabilities.TryGet(ClientCapabilityId.ProcessSelection,
+				out ClientCapabilityAvailability processSelection));
+			Assert.Equal(ClientCapabilityEvidenceState.Faulted, processSelection.Evidence.Host.State);
+			Assert.Equal(ProbeClassifier.IndistinguishableLuaFailureReason, processSelection.Evidence.Host.Reason);
+		}
+
+		// Recovery (binding definition of done A9): the next snapshot on the same host succeeds with every fact.
+		CheatEngineRuntimeSnapshot recovered = runtime.GetSnapshot(TestContext.Current.CancellationToken);
+
+		Assert.Equal(CheatEngineArchitecture.X64, recovered.TargetArchitecture);
+		Assert.Equal(RuntimeCapabilityAvailabilityState.Available, recovered.SdkCapabilities.GetState(affected));
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q31")]
+	public void SnapshotReportsTheConfiguredPointerSizeCapabilityWithTheSdkTwoIdentifier()
+	{
+		RuntimeClient runtime = new(new InlineDispatcher(), new FakeRuntimeProbe { OpenedProcessId = 42 },
+			static () => 1);
+
+		CheatEngineRuntimeSnapshot snapshot = runtime.GetSnapshot(TestContext.Current.CancellationToken);
+
+		Assert.Equal("Runtime.ConfiguredPointerSize", RuntimeClient.ConfiguredPointerSizeCapability.Value);
+		Assert.True(snapshot.SdkCapabilities.TryGet(new RuntimeCapabilityId("Runtime.ConfiguredPointerSize"),
+			out RuntimeCapabilityAvailability availability));
+		Assert.Equal(RuntimeCapabilityAvailabilityState.Available, availability.State);
+	}
+
+	[Fact]
+	public void SnapshotReturnsADetachedRuntimeFaultAsAFailureInsteadOfThrowing()
+	{
+		// A detached SDK runtime throws InvalidOperationException, which the probe classifier deliberately does not
+		// catch; the SdkBoundary rule still keeps it from crossing the Try method (F15).
+		InvalidOperationException detached = new("The plugin is not enabled.");
+		RuntimeClient runtime = new(new InlineDispatcher(),
+			new FakeRuntimeProbe { VersionException = detached }, static () => 1);
+
+		bool succeeded = runtime.TryGetSnapshot(out CheatEngineRuntimeSnapshot snapshot,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(default, snapshot);
+		Assert.Equal("Runtime.GetSnapshot", failure.Operation);
+		Assert.Same(detached, failure.Exception);
+	}
+
 	private static void AssertOpenedProcessEvidence(
 		FakeRuntimeProbe probe,
 		ClientCapabilityEvidenceState expectedHostState,
@@ -334,6 +653,9 @@ public sealed class RuntimeClientTests
 
 	private sealed class FakeRuntimeProbe : IRuntimeProbe
 	{
+		private readonly HashSet<string> _thrown = new(StringComparer.Ordinal);
+		private int _openedProcessIdReads;
+
 		internal double ReportedVersion
 		{
 			get;
@@ -358,13 +680,56 @@ public sealed class RuntimeClientTests
 			init;
 		}
 
-		internal bool TargetIs64BitValue
+		/// <summary>PIDs returned by the reads that follow the first one; the last entry repeats.</summary>
+		internal long[]? LaterOpenedProcessIds
 		{
 			get;
 			init;
 		}
 
+		internal bool TargetIs64BitValue
+		{
+			get;
+			init;
+		} = true;
+
+		internal bool TargetIsX86Value
+		{
+			get;
+			init;
+		} = true;
+
+		internal bool TargetIsArmValue
+		{
+			get;
+			init;
+		}
+
+		internal int ConfiguredPointerSizeValue
+		{
+			get;
+			init;
+		} = sizeof(ulong);
+
 		internal Exception? TargetIs64BitException
+		{
+			get;
+			init;
+		}
+
+		internal Exception? TargetIsX86Exception
+		{
+			get;
+			init;
+		}
+
+		internal Exception? TargetIsArmException
+		{
+			get;
+			init;
+		}
+
+		internal Exception? ConfiguredPointerSizeException
 		{
 			get;
 			init;
@@ -394,61 +759,83 @@ public sealed class RuntimeClientTests
 			init;
 		}
 
-		internal int TargetIs64BitCallCount
+		/// <summary>When set, each configured exception is thrown by the first call of its member only.</summary>
+		internal bool ThrowOnce
 		{
 			get;
-			private set;
+			init;
 		}
+
+		internal List<string> Calls
+		{
+			get;
+		} = [];
+
+		internal int TargetIs64BitCallCount => Count(nameof(TargetIs64Bit));
 
 		public double GetCheatEngineVersion()
 		{
-			if (VersionException is not null)
-			{
-				throw VersionException;
-			}
-
+			Record(nameof(GetCheatEngineVersion), VersionException);
 			return ReportedVersion;
 		}
 
 		public int GetSystemArchitecture()
 		{
-			if (SystemArchitectureException is not null)
-			{
-				throw SystemArchitectureException;
-			}
-
+			Record(nameof(GetSystemArchitecture), SystemArchitectureException);
 			return SystemArchitectureCode;
 		}
 
 		public int GetTargetAbi()
 		{
-			if (TargetAbiException is not null)
-			{
-				throw TargetAbiException;
-			}
-
+			Record(nameof(GetTargetAbi), TargetAbiException);
 			return TargetAbiCode;
 		}
 
 		public long GetOpenedProcessId()
 		{
-			if (OpenedProcessException is not null)
-			{
-				throw OpenedProcessException;
-			}
-
-			return OpenedProcessId;
+			Record(nameof(GetOpenedProcessId), OpenedProcessException);
+			int read = _openedProcessIdReads++;
+			return read == 0 || LaterOpenedProcessIds is not { Length: > 0 } later
+				? OpenedProcessId
+				: later[Math.Min(read - 1, later.Length - 1)];
 		}
 
 		public bool TargetIs64Bit()
 		{
-			TargetIs64BitCallCount++;
-			if (TargetIs64BitException is not null)
-			{
-				throw TargetIs64BitException;
-			}
-
+			Record(nameof(TargetIs64Bit), TargetIs64BitException);
 			return TargetIs64BitValue;
+		}
+
+		public bool TargetIsX86()
+		{
+			Record(nameof(TargetIsX86), TargetIsX86Exception);
+			return TargetIsX86Value;
+		}
+
+		public bool TargetIsArm()
+		{
+			Record(nameof(TargetIsArm), TargetIsArmException);
+			return TargetIsArmValue;
+		}
+
+		public int GetConfiguredPointerSize()
+		{
+			Record(nameof(GetConfiguredPointerSize), ConfiguredPointerSizeException);
+			return ConfiguredPointerSizeValue;
+		}
+
+		internal int Count(string member)
+		{
+			return Calls.Count(call => call == member);
+		}
+
+		private void Record(string member, Exception? exception)
+		{
+			Calls.Add(member);
+			if (exception is not null && (!ThrowOnce || _thrown.Add(member)))
+			{
+				throw exception;
+			}
 		}
 	}
 

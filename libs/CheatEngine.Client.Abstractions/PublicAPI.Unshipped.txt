@@ -666,3 +666,8 @@ override CheatEngine.Client.Scanning.PatternScanMetrics.GetHashCode() -> int
 static CheatEngine.Client.Scanning.PatternScanMetrics.operator !=(CheatEngine.Client.Scanning.PatternScanMetrics left, CheatEngine.Client.Scanning.PatternScanMetrics right) -> bool
 static CheatEngine.Client.Scanning.PatternScanMetrics.operator ==(CheatEngine.Client.Scanning.PatternScanMetrics left, CheatEngine.Client.Scanning.PatternScanMetrics right) -> bool
 override CheatEngine.Client.Results.CheatEngineFailure.ToString() -> string!
+CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.CheatEngineRuntimePlatformInfo(CheatEngine.SDK.Engine.Runtime.CheatEngineArchitecture systemArchitecture, CheatEngine.SDK.Engine.Runtime.CheatEngineArchitecture targetArchitecture, CheatEngine.SDK.Engine.Runtime.PointerSize targetPointerSize, CheatEngine.SDK.Engine.Runtime.TargetAbi targetAbi, int? configuredPointerSizeBytes) -> void
+CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.ConfiguredPointerSize.get -> CheatEngine.SDK.Engine.Runtime.PointerSize
+CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.ConfiguredPointerSizeBytes.get -> int?
+CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.ConfiguredPointerSizeDiffersFromTargetPointerSize.get -> bool?
+CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.ConfiguredPointerSize.get -> CheatEngine.SDK.Engine.Runtime.PointerSize

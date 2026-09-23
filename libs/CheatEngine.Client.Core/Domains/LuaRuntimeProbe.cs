@@ -2,6 +2,7 @@ using CheatEngine.Client.Core.Infrastructure;
 
 namespace CheatEngine.Client.Core.Domains;
 
+/// <summary>Production runtime probe; it calls only the read-only <see cref="ClientLuaGlobals" /> observations.</summary>
 internal sealed class LuaRuntimeProbe : IRuntimeProbe
 {
 	public double GetCheatEngineVersion()
@@ -27,5 +28,20 @@ internal sealed class LuaRuntimeProbe : IRuntimeProbe
 	public bool TargetIs64Bit()
 	{
 		return ClientLuaGlobals.TargetIs64Bit();
+	}
+
+	public bool TargetIsX86()
+	{
+		return ClientLuaGlobals.TargetIsX86();
+	}
+
+	public bool TargetIsArm()
+	{
+		return ClientLuaGlobals.TargetIsArm();
+	}
+
+	public int GetConfiguredPointerSize()
+	{
+		return ClientLuaGlobals.GetConfiguredPointerSize();
 	}
 }
