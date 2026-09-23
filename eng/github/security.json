@@ -1,9 +1,0 @@
-{
-  "_comment": "Security features that must stay as they are. The script only verifies them and reports drift; it never changes them. Code-scanning default setup stays off because codeql.yml is an advanced setup (GitHub rejects advanced uploads while default setup is on). Immutable releases are enabled only with -EnableImmutableReleases, after the draft-first release.yml is on main.",
-  "private_vulnerability_reporting": true,
-  "vulnerability_alerts": true,
-  "dependabot_security_updates": "enabled",
-  "secret_scanning": "enabled",
-  "secret_scanning_push_protection": "enabled",
-  "code_scanning_default_setup": "not-configured"
-}

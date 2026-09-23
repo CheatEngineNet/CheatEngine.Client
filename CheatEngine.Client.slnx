@@ -1,97 +1,87 @@
 <Solution>
   <Folder Name="/Solution Items/">
-    <File Path=".editorconfig"/>
-    <File Path=".gitignore"/>
-    <File Path="CHANGELOG.md"/>
-    <File Path="CONTRIBUTING.md"/>
-    <File Path="Directory.Build.props"/>
-    <File Path="Directory.Build.targets"/>
-    <File Path="Directory.Packages.props"/>
-    <File Path="global.json"/>
-    <File Path="LICENSE"/>
-    <File Path="README.md"/>
-    <File Path="RELEASING.md"/>
+    <File Path=".editorconfig" />
+    <File Path=".gitignore" />
+    <File Path="CHANGELOG.md" />
+    <File Path="CONTRIBUTING.md" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Build.targets" />
+    <File Path="Directory.Packages.props" />
+    <File Path="global.json" />
+    <File Path="LICENSE" />
+    <File Path="README.md" />
+    <File Path="RELEASING.md" />
   </Folder>
   <Folder Name="/docs/">
-    <File Path="docs/README.md"/>
+    <File Path="docs/README.md" />
   </Folder>
   <Folder Name="/eng/">
-    <File Path="eng/CheatEngineSdk.props"/>
-    <File Path="eng/Shipping.props"/>
-    <File Path="eng/Templates.props"/>
-    <File Path="eng/Tests.props"/>
-    <File Path="eng/Update-LockFiles.ps1"/>
-    <File Path="eng/coverage-baseline.json"/>
-    <File Path="eng/PSScriptAnalyzerSettings.psd1"/>
-    <File Path="eng/ci/build-info.v0.schema.json"/>
-    <File Path="eng/ci/Invoke-ScriptAnalysis.ps1"/>
-    <File Path="eng/ci/New-BuildInfo.ps1"/>
-    <File Path="eng/ci/README.md"/>
-    <File Path="eng/ci/Test-CoverageBaseline.ps1"/>
-    <File Path="eng/ci/Test-PackageSet.ps1"/>
-    <File Path="eng/ci/Test-TestModuleInventory.ps1"/>
+    <File Path="eng/CheatEngineSdk.props" />
+    <File Path="eng/Shipping.props" />
+    <File Path="eng/Templates.props" />
+    <File Path="eng/Tests.props" />
+    <File Path="eng/ci/build-info.v0.schema.json" />
+    <File Path="eng/ci/Invoke-ScriptAnalysis.ps1" />
+    <File Path="eng/ci/New-BuildInfo.ps1" />
+    <File Path="eng/ci/README.md" />
+    <File Path="eng/ci/Test-CoverageBaseline.ps1" />
+    <File Path="eng/ci/Test-PackageSet.ps1" />
+    <File Path="eng/ci/Test-TestModuleInventory.ps1" />
   </Folder>
   <Folder Name="/eng/release/">
-    <File Path="eng/release/client-tuple.example.json"/>
-    <File Path="eng/release/client-tuple.v0.schema.json"/>
-    <File Path="eng/release/Compare-ReleaseAssets.ps1"/>
-    <File Path="eng/release/Complete-GitHubRelease.ps1"/>
-    <File Path="eng/release/Complete-PublicApiRelease.ps1"/>
-    <File Path="eng/release/Export-ReleaseNotes.ps1"/>
-    <File Path="eng/release/New-ClientTuple.ps1"/>
-    <File Path="eng/release/New-ReleaseAssets.ps1"/>
-    <File Path="eng/release/New-ReleaseDraft.ps1"/>
-    <File Path="eng/release/Test-PublishedPackages.ps1"/>
-    <File Path="eng/release/Test-ReleaseTag.ps1"/>
+    <File Path="eng/release/client-tuple.example.json" />
+    <File Path="eng/release/client-tuple.v0.schema.json" />
+    <File Path="eng/release/Compare-ReleaseAssets.ps1" />
+    <File Path="eng/release/Complete-GitHubRelease.ps1" />
+    <File Path="eng/release/Complete-PublicApiRelease.ps1" />
+    <File Path="eng/release/Export-ReleaseNotes.ps1" />
+    <File Path="eng/release/New-ClientTuple.ps1" />
+    <File Path="eng/release/New-ReleaseAssets.ps1" />
+    <File Path="eng/release/New-ReleaseDraft.ps1" />
+    <File Path="eng/release/Test-PublishedPackages.ps1" />
+    <File Path="eng/release/Test-ReleaseTag.ps1" />
   </Folder>
   <Folder Name="/eng/sdk/">
-    <File Path="eng/sdk/consumed-sdk.json"/>
-    <File Path="eng/sdk/consumed-sdk.v0.schema.json"/>
-    <File Path="eng/sdk/README.md"/>
-    <File Path="eng/sdk/Update-CheatEngineSdk.ps1"/>
+    <File Path="eng/sdk/consumed-sdk.json" />
+    <File Path="eng/sdk/consumed-sdk.v0.schema.json" />
+    <File Path="eng/sdk/README.md" />
+    <File Path="eng/sdk/Update-CheatEngineSdk.ps1" />
   </Folder>
   <Folder Name="/libs/">
-    <Project Path="libs/CheatEngine.Client.Abstractions/CheatEngine.Client.Abstractions.csproj"/>
-    <Project Path="libs/CheatEngine.Client.Core/CheatEngine.Client.Core.csproj"/>
-    <Project
-      Path="libs/CheatEngine.Client.Extensions.DependencyInjection/CheatEngine.Client.Extensions.DependencyInjection.csproj"/>
-    <Project Path="libs/CheatEngine.Client.Fluent/CheatEngine.Client.Fluent.csproj"/>
-    <Project Path="libs/CheatEngine.Client.Hosting/CheatEngine.Client.Hosting.csproj"/>
+    <Project Path="libs/CheatEngine.Client.Abstractions/CheatEngine.Client.Abstractions.csproj" />
+    <Project Path="libs/CheatEngine.Client.Core/CheatEngine.Client.Core.csproj" />
+    <Project Path="libs/CheatEngine.Client.Extensions.DependencyInjection/CheatEngine.Client.Extensions.DependencyInjection.csproj" />
+    <Project Path="libs/CheatEngine.Client.Fluent/CheatEngine.Client.Fluent.csproj" />
+    <Project Path="libs/CheatEngine.Client.Hosting/CheatEngine.Client.Hosting.csproj" />
   </Folder>
   <Folder Name="/src/">
-    <Project Path="src/CheatEngine.Client/CheatEngine.Client.csproj"/>
+    <Project Path="src/CheatEngine.Client/CheatEngine.Client.csproj" />
   </Folder>
   <Folder Name="/source-generators/">
-    <Project
-      Path="source-generators/CheatEngine.Client.SourceGenerators.Lua/CheatEngine.Client.SourceGenerators.Lua.csproj"/>
+    <Project Path="source-generators/CheatEngine.Client.SourceGenerators.Lua/CheatEngine.Client.SourceGenerators.Lua.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/CheatEngine.Client.Abstractions.Tests/CheatEngine.Client.Abstractions.Tests.csproj"/>
-    <Project Path="tests/CheatEngine.Client.AotProbe/CheatEngine.Client.AotProbe.csproj"/>
-    <Project Path="tests/CheatEngine.Client.Benchmarks/CheatEngine.Client.Benchmarks.csproj"/>
-    <Project Path="tests/CheatEngine.Client.Core.Tests/CheatEngine.Client.Core.Tests.csproj"/>
-    <Project
-      Path="tests/CheatEngine.Client.Extensions.DependencyInjection.Tests/CheatEngine.Client.Extensions.DependencyInjection.Tests.csproj"/>
-    <Project Path="tests/CheatEngine.Client.Fluent.Tests/CheatEngine.Client.Fluent.Tests.csproj"/>
-    <Project Path="tests/CheatEngine.Client.Hosting.Tests/CheatEngine.Client.Hosting.Tests.csproj"/>
-    <Project
-      Path="tests/CheatEngine.Client.LivePlugin.Coexistence/PluginA/CheatEngine.Client.LivePlugin.Coexistence.PluginA.csproj">
-      <Platform Project="x64"/>
+    <Project Path="tests/CheatEngine.Client.Abstractions.Tests/CheatEngine.Client.Abstractions.Tests.csproj" />
+    <Project Path="tests/CheatEngine.Client.AotProbe/CheatEngine.Client.AotProbe.csproj" />
+    <Project Path="tests/CheatEngine.Client.Benchmarks/CheatEngine.Client.Benchmarks.csproj" />
+    <Project Path="tests/CheatEngine.Client.Core.Tests/CheatEngine.Client.Core.Tests.csproj" />
+    <Project Path="tests/CheatEngine.Client.Extensions.DependencyInjection.Tests/CheatEngine.Client.Extensions.DependencyInjection.Tests.csproj" />
+    <Project Path="tests/CheatEngine.Client.Fluent.Tests/CheatEngine.Client.Fluent.Tests.csproj" />
+    <Project Path="tests/CheatEngine.Client.Hosting.Tests/CheatEngine.Client.Hosting.Tests.csproj" />
+    <Project Path="tests/CheatEngine.Client.LivePlugin.Coexistence/PluginA/CheatEngine.Client.LivePlugin.Coexistence.PluginA.csproj">
+      <Platform Project="x64" />
     </Project>
-    <Project
-      Path="tests/CheatEngine.Client.LivePlugin.Coexistence/PluginB/CheatEngine.Client.LivePlugin.Coexistence.PluginB.csproj">
-      <Platform Project="x64"/>
+    <Project Path="tests/CheatEngine.Client.LivePlugin.Coexistence/PluginB/CheatEngine.Client.LivePlugin.Coexistence.PluginB.csproj">
+      <Platform Project="x64" />
     </Project>
-    <Project
-      Path="tests/CheatEngine.Client.LivePlugin.Coexistence/PluginCollision/CheatEngine.Client.LivePlugin.Coexistence.PluginCollision.csproj">
-      <Platform Project="x64"/>
+    <Project Path="tests/CheatEngine.Client.LivePlugin.Coexistence/PluginCollision/CheatEngine.Client.LivePlugin.Coexistence.PluginCollision.csproj">
+      <Platform Project="x64" />
     </Project>
-    <Project
-      Path="tests/CheatEngine.Client.SourceGenerators.Lua.Tests/CheatEngine.Client.SourceGenerators.Lua.Tests.csproj"/>
-    <Project Path="tests/CheatEngine.Client.Repository.Tests/CheatEngine.Client.Repository.Tests.csproj"/>
-    <Project Path="tests/CheatEngine.Client.Tests/CheatEngine.Client.Tests.csproj"/>
+    <Project Path="tests/CheatEngine.Client.SourceGenerators.Lua.Tests/CheatEngine.Client.SourceGenerators.Lua.Tests.csproj" />
+    <Project Path="tests/CheatEngine.Client.Repository.Tests/CheatEngine.Client.Repository.Tests.csproj" />
+    <Project Path="tests/CheatEngine.Client.Tests/CheatEngine.Client.Tests.csproj" />
   </Folder>
   <Folder Name="/templates/">
-    <Project Path="templates/CheatEngine.Client.Templates/CheatEngine.Client.Templates.csproj"/>
+    <Project Path="templates/CheatEngine.Client.Templates/CheatEngine.Client.Templates.csproj" />
   </Folder>
 </Solution>
