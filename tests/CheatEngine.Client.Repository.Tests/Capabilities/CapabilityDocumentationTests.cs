@@ -22,7 +22,7 @@ public sealed partial class CapabilityDocumentationTests
 	private const string AbstractionsReadme = "libs/CheatEngine.Client.Abstractions/README.md";
 	private const string CapabilityIdSource = "libs/CheatEngine.Client.Abstractions/Runtime/ClientCapabilityId.cs";
 	private const string RuntimeClientSource = "libs/CheatEngine.Client.Core/Domains/RuntimeClient.cs";
-	private const string ConsumedSdkIdentity = "eng/sdk/consumed-sdk.json";
+	private const string CoreLockFile = "libs/CheatEngine.Client.Core/packages.lock.json";
 	private const string ContractOnly = "Contract-only (Unavailable)";
 	private const string ProfileId = "ce-7.7.0.10621-x64-managed-hostfxr";
 	private const string HostExecutableSha256 = "9727076da50924e4a097b49a02155e4b34759269c3017ff31375364b8826eb4d";
@@ -94,9 +94,12 @@ public sealed partial class CapabilityDocumentationTests
 	[Fact]
 	public void InstallGuidesStateTheQualifiedHostProfile()
 	{
-		using JsonDocument identity = JsonDocument.Parse(Read(ConsumedSdkIdentity));
-		string contentHash = identity.RootElement.GetProperty("contentHashSha512").GetString()
-							 ?? throw new InvalidOperationException($"{ConsumedSdkIdentity} has no contentHashSha512.");
+		// The consumed package identity is the resolved CheatEngine.SDK entry of Core's lock file: the same source the
+		// Core build embeds for its runtime package gate.
+		using JsonDocument lockFile = JsonDocument.Parse(Read(CoreLockFile));
+		string contentHash = lockFile.RootElement.GetProperty("dependencies").GetProperty("net10.0")
+								 .GetProperty("CheatEngine.SDK").GetProperty("contentHash").GetString()
+							 ?? throw new InvalidOperationException($"{CoreLockFile} has no CheatEngine.SDK content hash.");
 
 		foreach (string guide in InstallGuides)
 		{
@@ -105,7 +108,7 @@ public sealed partial class CapabilityDocumentationTests
 			Assert.True(text.Contains(HostExecutableSha256, StringComparison.Ordinal),
 				$"{guide} does not state the SHA-256 of cheatengine-x86_64.exe.");
 			Assert.True(text.Contains(contentHash, StringComparison.Ordinal),
-				$"{guide} does not state the NuGet content hash of {ConsumedSdkIdentity}.");
+				$"{guide} does not state the NuGet content hash that {CoreLockFile} locks for CheatEngine.SDK.");
 			Assert.True(
 				text.Split('\n').Any(static line =>
 					line.Contains(RuntimeConfigurationSha256, StringComparison.Ordinal) &&

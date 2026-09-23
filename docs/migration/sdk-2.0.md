@@ -9,8 +9,9 @@ nothing here is available to a Client built against 1.0.0.
 ## Scope and status
 
 - **Consumed today:** `CheatEngine.SDK` 1.0.0, declared as `[1.0.0, 2.0.0)`, NuGet content hash (SHA-512, base64)
-  `n7nHqZ8vzo7Vf20jF0fkh/jUtR3yo1TwRGpXE7ERxZeJ4C5S/Nsft4lqOg7zGwfsD5Nh9tTVgdw4PrybJRF0gA==`, as recorded in
-  [`eng/sdk/consumed-sdk.json`](../../eng/sdk/consumed-sdk.json) and every lock file.
+  `n7nHqZ8vzo7Vf20jF0fkh/jUtR3yo1TwRGpXE7ERxZeJ4C5S/Nsft4lqOg7zGwfsD5Nh9tTVgdw4PrybJRF0gA==`, pinned by
+  [`eng/CheatEngineSdk.props`](../../eng/CheatEngineSdk.props) and locked in every lock file (the Core build embeds the
+  resolved entry of `libs/CheatEngine.Client.Core/packages.lock.json`).
 - **Target:** CheatEngine.SDK 2.0.0, which is **not published**. Its API comes from the SDK branch
   `feat/audit-remediation-cicd` of the CheatEngine.SDK repository. Each SDK name below carries one of two labels:
   *on the SDK branch* (present in the branch sources this page was written from) or *planned (S-XXX)* (named by the
@@ -25,7 +26,7 @@ nothing here is available to a Client built against 1.0.0.
 
 A feature exists for the Client only when it is in the package the Client consumes, not when it is in the SDK
 repository (audit ADR-10). The maintainers decided that the Client stays on CheatEngine.SDK 1.0.0 until 2.0.0 is
-published, consumed through `eng/sdk/Update-CheatEngineSdk.ps1`, compiled against, and qualified.
+published, pinned in `eng/CheatEngineSdk.props`, compiled against, and qualified.
 
 The build enforces that decision:
 
@@ -44,9 +45,12 @@ names. It also removes the two-argument `AddressResolutionOptions` constructor t
 
 The move to 2.0 is one integration lot, never a dependency bump (audit A21-20, A10-19, ADR-10):
 
-1. Move the pin with `eng/sdk/Update-CheatEngineSdk.ps1 -Version 2.0.0 -AllowMajor` and raise
-   `_CheatEngineClientSupportedSdkMajor` in `eng/CheatEngineSdk.props` in the same pull request; the script regenerates
-   the lock files with `eng/Update-LockFiles.ps1` and refuses any other lock change.
+1. Move the pin in `eng/CheatEngineSdk.props` (`CheatEngineSdkVersion`, `CheatEngineSdkUpperBound`) and raise
+   `_CheatEngineClientSupportedSdkMajor` in the same pull request. Regenerate every `packages.lock.json` with the .NET
+   CLI in that pull request: `dotnet restore <project> --force-evaluate` one project at a time, the three Coexistence
+   fixtures first, never a solution-level `--force-evaluate`; then `dotnet restore CheatEngine.Client.slnx --locked-mode`
+   must pass. The Core build embeds the new identity from its lock file and the restored package
+   (`CHEATENGINECLIENT9050` fails the build when it cannot).
 2. Change together, in that lot: the production port, its test doubles, the capability gates of `RuntimeClient`, the
    examples and the `ceplugin` template, the package READMEs and the capability tables, and the qualification entries.
 3. Never remove a "factory absent" or "CheatEngine.SDK 1.0.0 does not provide …" text without wiring the adapter that
@@ -307,8 +311,9 @@ scenarios to requalify, and the audit rows it closes.
   it with the loaded `CheatEngine.SDK.Engine` informational version; Hosting logs it once per enable (event 20).
 - **SDK 2.0 API:** the 2.x informational version and the SDK's own identification diagnostic at enable (planned,
   S-HOST).
-- **Client change:** `eng/sdk/consumed-sdk.json` records the 2.0.0 identity; the package gate and event 20 follow it
-  unchanged; the Client event and the SDK event must not both log paths.
+- **Client change:** none in the embedding: the Core build takes the 2.0.0 identity from the regenerated lock file and
+  the restored package's nuspec (`CHEATENGINECLIENT9050` refuses a build that cannot embed it); the package gate and
+  event 20 follow it unchanged; the Client event and the SDK event must not both log paths.
 - **Tests to rewrite:** `ConsumedSdkIdentityEmbeddingTests`, the package-gate tests of `RuntimeClientTests`,
   `SdkPinTests`.
 - **Re-qualification:** Q40, Q48.

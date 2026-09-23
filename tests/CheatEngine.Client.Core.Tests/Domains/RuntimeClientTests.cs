@@ -590,10 +590,6 @@ public sealed class RuntimeClientTests
 		Assert.True(succeeded);
 		Assert.Equal(default, failure);
 		Assert.Equal(RuntimeCapabilityAvailabilityState.Unknown, faulted.SdkCapabilities.GetState(affected));
-		Assert.Contains("undefined global", ProbeClassifier.IndistinguishableLuaFailureReason, StringComparison.Ordinal);
-		Assert.Contains("raised Lua error", ProbeClassifier.IndistinguishableLuaFailureReason, StringComparison.Ordinal);
-		Assert.Contains("unexpected result type", ProbeClassifier.IndistinguishableLuaFailureReason,
-			StringComparison.Ordinal);
 		if (member == nameof(IRuntimeProbe.GetOpenedProcessId))
 		{
 			Assert.True(faulted.ClientCapabilities.TryGet(ClientCapabilityId.ProcessSelection,
@@ -602,11 +598,50 @@ public sealed class RuntimeClientTests
 			Assert.Equal(ProbeClassifier.IndistinguishableLuaFailureReason, processSelection.Evidence.Host.Reason);
 		}
 
+		// The public SDK capability entry carries a state only, so the evidence each probe produced is replayed through
+		// the same classification path the snapshot uses (the observer for target facts, the classifier for host facts).
+		ClientCapabilityEvidenceGate evidence = ReplayProbeEvidence(member, new LuaException("generated binding failure"));
+		Assert.Equal(ClientCapabilityEvidenceState.Faulted, evidence.State);
+		Assert.Equal(ProbeClassifier.IndistinguishableLuaFailureReason, evidence.Reason);
+		Assert.Contains("undefined global", evidence.Reason, StringComparison.Ordinal);
+		Assert.Contains("raised Lua error", evidence.Reason, StringComparison.Ordinal);
+		Assert.Contains("unexpected result type", evidence.Reason, StringComparison.Ordinal);
+
 		// Recovery (binding definition of done A9): the next snapshot on the same host succeeds with every fact.
 		CheatEngineRuntimeSnapshot recovered = runtime.GetSnapshot(TestContext.Current.CancellationToken);
 
 		Assert.Equal(CheatEngineArchitecture.X64, recovered.TargetArchitecture);
 		Assert.Equal(RuntimeCapabilityAvailabilityState.Available, recovered.SdkCapabilities.GetState(affected));
+	}
+
+	/// <summary>Replays one probe member throwing <paramref name="fault" /> through the snapshot's classification path.</summary>
+	private static ClientCapabilityEvidenceGate ReplayProbeEvidence(string member, LuaException fault)
+	{
+		FakeRuntimeProbe probe = new()
+		{
+			OpenedProcessId = 42,
+			VersionException = member == nameof(IRuntimeProbe.GetCheatEngineVersion) ? fault : null,
+			SystemArchitectureException = member == nameof(IRuntimeProbe.GetSystemArchitecture) ? fault : null,
+			TargetAbiException = member == nameof(IRuntimeProbe.GetTargetAbi) ? fault : null,
+			OpenedProcessException = member == nameof(IRuntimeProbe.GetOpenedProcessId) ? fault : null,
+			TargetIs64BitException = member == nameof(IRuntimeProbe.TargetIs64Bit) ? fault : null,
+			TargetIsX86Exception = member == nameof(IRuntimeProbe.TargetIsX86) ? fault : null,
+			TargetIsArmException = member == nameof(IRuntimeProbe.TargetIsArm) ? fault : null,
+			ConfiguredPointerSizeException = member == nameof(IRuntimeProbe.GetConfiguredPointerSize) ? fault : null
+		};
+		ObservedTargetArchitecture facts = TargetArchitectureObserver.Observe(probe, readConfiguredPointerSize: true);
+		return member switch
+		{
+			nameof(IRuntimeProbe.GetCheatEngineVersion) => ProbeClassifier.Probe(probe.GetCheatEngineVersion).Evidence,
+			nameof(IRuntimeProbe.GetSystemArchitecture) => ProbeClassifier.Probe(probe.GetSystemArchitecture).Evidence,
+			nameof(IRuntimeProbe.GetTargetAbi) => ProbeClassifier.Probe(probe.GetTargetAbi).Evidence,
+			nameof(IRuntimeProbe.GetOpenedProcessId) => facts.ProcessId.Evidence,
+			nameof(IRuntimeProbe.TargetIs64Bit) => facts.Is64Bit.Evidence,
+			nameof(IRuntimeProbe.TargetIsX86) => facts.IsX86Family.Evidence,
+			nameof(IRuntimeProbe.TargetIsArm) => facts.IsArmFamily.Evidence,
+			nameof(IRuntimeProbe.GetConfiguredPointerSize) => facts.ConfiguredPointerSize.Evidence,
+			_ => throw new ArgumentOutOfRangeException(nameof(member), member, null)
+		};
 	}
 
 	[Fact]
@@ -701,12 +736,13 @@ public sealed class RuntimeClientTests
 	[Fact]
 	public void TheIdentityOfThisBuildMatchesTheLoadedSdkPackage()
 	{
-		// The Core assembly under test embeds eng/sdk/consumed-sdk.json and the test process loads the locked SDK
-		// package, so the production identity is Satisfied; a canary build embeds nothing and reports Unknown.
+		// The Core assembly under test embeds the identity of its locked and restored CheatEngine.SDK package (a
+		// non-canary build that cannot embed it fails with CHEATENGINECLIENT9050), and the test process loads that
+		// package, so the production identity is embedded and Satisfied. Only the SDK-side canary embeds nothing.
 		ConsumedSdkIdentity current = ConsumedSdkIdentity.Current;
 
-		Assert.Equal(current.IsEmbedded ? ClientCapabilityEvidenceState.Satisfied : ClientCapabilityEvidenceState.Unknown,
-			current.PackageGate.State);
+		Assert.True(current.IsEmbedded, "The Core assembly under test embeds no consumed CheatEngine.SDK identity.");
+		Assert.Equal(ClientCapabilityEvidenceState.Satisfied, current.PackageGate.State);
 		Assert.Equal(typeof(RuntimeInfo).Assembly
 				.GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
 				.Cast<System.Reflection.AssemblyInformationalVersionAttribute>().Single().InformationalVersion,

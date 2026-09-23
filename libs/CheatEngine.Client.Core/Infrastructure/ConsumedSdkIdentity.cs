@@ -11,12 +11,15 @@ namespace CheatEngine.Client.Core.Infrastructure;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         The build embeds the version, the source commit and the NuGet content hash of <c>eng/sdk/consumed-sdk.json</c>
-///         as <see cref="AssemblyMetadataAttribute" /> values of this assembly. At runtime the package gate is
-///         <see cref="ClientCapabilityEvidenceState.Satisfied" /> only when the loaded CheatEngine.SDK.Engine informational
-///         version equals <c>{version}+{sourceCommit}</c>; a different package is
-///         <see cref="ClientCapabilityEvidenceState.Missing" />; a build without embedded identity (the SDK-side canary)
-///         or an SDK assembly without an informational version is <see cref="ClientCapabilityEvidenceState.Unknown" />.
+///         The build embeds, as <see cref="AssemblyMetadataAttribute" /> values of this assembly, the identity of the
+///         CheatEngine.SDK package it restored: the version and NuGet content hash of the resolved entry of Core's
+///         <c>packages.lock.json</c> (the version equals the pin of <c>eng/CheatEngineSdk.props</c>) and the repository
+///         commit declared by the restored package whose content hash equals the lock value. At runtime the package gate
+///         is <see cref="ClientCapabilityEvidenceState.Satisfied" /> only when the loaded CheatEngine.SDK.Engine
+///         informational version equals <c>{version}+{sourceCommit}</c>; a different package is
+///         <see cref="ClientCapabilityEvidenceState.Missing" />; a build without embedded identity (only the SDK-side
+///         canary: any other build that cannot embed it fails with <c>CHEATENGINECLIENT9050</c>) or an SDK assembly
+///         without an informational version is <see cref="ClientCapabilityEvidenceState.Unknown" />.
 ///     </para>
 ///     <para>
 ///         Only assembly-level attributes are read (AOT-safe); no file, network, or Lua access happens, so the identity is
@@ -119,8 +122,7 @@ internal sealed class ConsumedSdkIdentity
 		return string.Equals(LoadedInformationalVersion, ExpectedInformationalVersion, StringComparison.Ordinal)
 			? new ClientCapabilityEvidenceGate(ClientCapabilityEvidenceState.Satisfied,
 				$"The loaded CheatEngine.SDK.Engine {LoadedInformationalVersion} is the package this Client build " +
-				$"consumed (NuGet content hash {ContentHashSha512}, embedded from the consumed-SDK identity at build " +
-				"time).")
+				$"consumed (NuGet content hash {ContentHashSha512}, read from the lock file at build time).")
 			: new ClientCapabilityEvidenceGate(ClientCapabilityEvidenceState.Missing,
 				$"The loaded CheatEngine.SDK.Engine {LoadedInformationalVersion} is not the package this Client build " +
 				$"consumed ({ExpectedInformationalVersion}); the Client refuses to treat it as its SDK.");
