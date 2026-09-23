@@ -253,6 +253,7 @@ internal static class ConsumedSdkSurface
 		"CheatEngine.Client.Core T CheatEngine.SDK.Lua.State.LuaState",
 		"CheatEngine.Client.Extensions.DependencyInjection M CheatEngine.SDK.Engine.Values.Address::FromUInt64(uint64)->CheatEngine.SDK.Engine.Values.Address",
 		"CheatEngine.Client.Extensions.DependencyInjection M CheatEngine.SDK.Engine.Values.Address::get_Value()->uint64",
+		"CheatEngine.Client.Extensions.DependencyInjection T CheatEngine.SDK.Engine.Runtime.CheatEngineArchitecture",
 		"CheatEngine.Client.Extensions.DependencyInjection T CheatEngine.SDK.Engine.Values.Address",
 		"CheatEngine.Client.Fluent M CheatEngine.SDK.Engine.Inspection.ModuleName::.ctor(string)->void",
 		"CheatEngine.Client.Fluent M CheatEngine.SDK.Engine.Inspection.ModuleName::get_Value()->string",

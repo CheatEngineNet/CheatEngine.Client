@@ -34,6 +34,13 @@ internal sealed class ConsumedSdkIdentity
 	/// <summary>The assembly-metadata key of the consumed CheatEngine.SDK NuGet content hash (SHA-512, base64).</summary>
 	internal const string ContentHashKey = "CheatEngine.Client.ConsumedSdk.ContentHashSha512";
 
+	/// <summary>
+	///     The id of the Cheat Engine host profile the consumed CheatEngine.SDK 1.0.0 was qualified on. It names the
+	///     supported profile; it is not a Client qualification (the Client tuple stays <c>NotExecuted</c> until a Client
+	///     receipt exists).
+	/// </summary>
+	internal const string SupportedHostProfileId = "ce-7.7.0.10621-x64-managed-hostfxr";
+
 	private static readonly Lazy<ConsumedSdkIdentity> _current =
 		new(ReadCurrent, LazyThreadSafetyMode.ExecutionAndPublication);
 

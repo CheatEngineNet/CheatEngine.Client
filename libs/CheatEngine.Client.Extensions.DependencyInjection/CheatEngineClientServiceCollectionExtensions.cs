@@ -32,6 +32,7 @@ using CheatEngine.Client.Timers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace CheatEngine.Client.Extensions.DependencyInjection;
@@ -89,7 +90,10 @@ public static class CheatEngineClientServiceCollectionExtensions
 	{
 		// Every descriptor is a direct construction path. The client never scans assemblies, resolves arbitrary types,
 		// or creates a nested provider; Core internals are visible only to this composition assembly.
-		services.TryAddSingleton<CoreLifetime>(static _ => CoreLifetime.Capture());
+		// The Core diagnostics of this activation log through the activation's own logger factory (audit ch.24); Core
+		// itself references no logging assembly.
+		services.TryAddSingleton<CoreLifetime>(static serviceProvider =>
+			CoreLifetime.Capture(new LoggerCoreDiagnostics(serviceProvider.GetRequiredService<ILoggerFactory>())));
 		services.TryAddSingleton<ICheatEngineClientActivationCleanup>(static serviceProvider =>
 			new CheatEngineClientActivationCleanup(serviceProvider.GetRequiredService<CoreLifetime>()));
 		services.TryAddSingleton<CoreClientPolicy>(static serviceProvider =>

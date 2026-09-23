@@ -31,6 +31,7 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 	private const string _snapshotOperation = "Runtime.GetSnapshot";
 
 	private readonly Version _clientAssemblyVersion;
+	private readonly ICoreDiagnostics _diagnostics;
 	private readonly ICheatEngineDispatcher _dispatcher;
 	private readonly Func<long> _getEpoch;
 	private readonly Func<bool> _isActivationCurrent;
@@ -49,7 +50,8 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 			typeof(RuntimeInfo).Assembly.GetName().Version,
 			policy,
 			() => lifetime.IsCurrent,
-			ConsumedSdkIdentity.Current)
+			ConsumedSdkIdentity.Current,
+			lifetime.Diagnostics)
 	{
 		ArgumentNullException.ThrowIfNull(lifetime);
 		_lifetime = lifetime;
@@ -67,6 +69,7 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 	///     The consumed-SDK identity evidence; <see langword="null" /> means that no identity was embedded, so every
 	///     operational package gate stays unknown.
 	/// </param>
+	/// <param name="diagnostics">The diagnostics sink; nothing is emitted when omitted.</param>
 	internal RuntimeClient(
 		ICheatEngineDispatcher dispatcher,
 		IRuntimeProbe probe,
@@ -75,9 +78,11 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 		Version? sdkAssemblyVersion = null,
 		CoreClientPolicy? policy = null,
 		Func<bool>? isActivationCurrent = null,
-		ConsumedSdkIdentity? sdkIdentity = null)
+		ConsumedSdkIdentity? sdkIdentity = null,
+		ICoreDiagnostics? diagnostics = null)
 	{
 		_dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
+		_diagnostics = GuardedCoreDiagnostics.Wrap(diagnostics);
 		_sdkIdentity = sdkIdentity ?? ConsumedSdkIdentity.NotEmbedded;
 		_probe = probe ?? throw new ArgumentNullException(nameof(probe));
 		_getEpoch = getEpoch ?? throw new ArgumentNullException(nameof(getEpoch));
@@ -110,6 +115,9 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 		}
 
 		snapshot = captured;
+		_diagnostics.RuntimeSnapshotCaptured(captured.Epoch, captured.TargetArchitecture,
+			captured.TargetPointerSize.Bytes, captured.Platform.ConfiguredPointerSizeBytes ?? 0,
+			captured.Platform.ConfiguredPointerSizeDiffersFromTargetPointerSize == true);
 		return true;
 	}
 

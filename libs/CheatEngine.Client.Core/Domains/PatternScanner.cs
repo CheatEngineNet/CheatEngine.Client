@@ -113,6 +113,14 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 			return ScanOutcome.Failed(failure, null);
 		}
 
+		if (outcome.Metrics is { } metrics)
+		{
+			// Counts and durations only, after the dispatched callback returned (A24-17).
+			_dispatcher.Lifetime.Diagnostics.PatternScanCompleted(metrics.Scope, metrics.HostMatchCount,
+				metrics.MaterializedCount, outcome.Succeeded && outcome.Result.IsTruncated,
+				(long) metrics.HostScanElapsed.TotalMilliseconds, (long) metrics.MaterializationElapsed.TotalMilliseconds);
+		}
+
 		return outcome;
 	}
 

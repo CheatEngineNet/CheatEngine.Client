@@ -13,15 +13,27 @@ internal sealed class CoreLifetime : IDisposable
 	private int _disposed;
 	private int _resourcesDrained;
 
-	private CoreLifetime(PluginContext context)
-		: this(new PluginContextAdapter(context))
+	private CoreLifetime(PluginContext context, ICoreDiagnostics? diagnostics)
+		: this(new PluginContextAdapter(context), diagnostics)
 	{
 	}
 
-	internal CoreLifetime(ICoreLifetimeContext context)
+	/// <summary>Creates an activation lifetime over a context, with an optional diagnostics sink.</summary>
+	/// <param name="context">The captured plugin context.</param>
+	/// <param name="diagnostics">
+	///     The Core diagnostics sink of this activation; every emit is guarded so a throwing sink never changes a result.
+	/// </param>
+	internal CoreLifetime(ICoreLifetimeContext context, ICoreDiagnostics? diagnostics = null)
 	{
 		_context = context ?? throw new ArgumentNullException(nameof(context));
 		TargetSelection = new TargetSelectionLifetime(ThrowIfInactive);
+		Diagnostics = GuardedCoreDiagnostics.Wrap(diagnostics);
+	}
+
+	/// <summary>Gets the guarded diagnostics sink of this activation.</summary>
+	internal ICoreDiagnostics Diagnostics
+	{
+		get;
 	}
 
 	internal long Epoch => _context.Epoch;
@@ -116,7 +128,7 @@ internal sealed class CoreLifetime : IDisposable
 		List<Exception> failures = [];
 		try
 		{
-			TargetSelection.DisposeCollecting(failures);
+			TargetSelection.DisposeCollecting(failures, ReportCleanupFailure);
 		}
 		catch (Exception exception)
 		{
@@ -125,7 +137,7 @@ internal sealed class CoreLifetime : IDisposable
 
 		try
 		{
-			_resources.DisposeCollecting(failures);
+			_resources.DisposeCollecting(failures, ReportCleanupFailure);
 		}
 		catch (Exception exception)
 		{
@@ -135,7 +147,20 @@ internal sealed class CoreLifetime : IDisposable
 		CoreResourceRegistry.ThrowCleanupFailures(failures);
 	}
 
+	/// <summary>Reports one failed release with the resource and exception type names only (A24-16).</summary>
+	private void ReportCleanupFailure(IDisposable resource, Exception exception)
+	{
+		Diagnostics.CoreResourceCleanupFailed(resource.GetType().Name, exception.GetType().FullName ??
+																	   exception.GetType().Name);
+	}
+
 	internal static CoreLifetime Capture()
+	{
+		return Capture(null);
+	}
+
+	/// <summary>Captures the enabled plugin context with the diagnostics sink of this activation.</summary>
+	internal static CoreLifetime Capture(ICoreDiagnostics? diagnostics)
 	{
 		PluginContext? context = PluginHost.Context;
 		if (context is null || !context.IsCurrent)
@@ -145,7 +170,7 @@ internal sealed class CoreLifetime : IDisposable
 				"Cheat Engine has not enabled a plugin context for this client scope.");
 		}
 
-		return new CoreLifetime(context);
+		return new CoreLifetime(context, diagnostics);
 	}
 
 	internal T Track<T>(T resource)

@@ -4,6 +4,7 @@ using CheatEngine.Client.Core.Domains.Events;
 using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Events;
 using CheatEngine.Client.Results;
+using CheatEngine.Client.Runtime;
 using CheatEngine.Client.Timers;
 
 namespace CheatEngine.Client.Core.Domains.Timers;
@@ -25,7 +26,8 @@ internal sealed class UnavailableTimerClient : ITimerClient
 		ArgumentNullException.ThrowIfNull(handler);
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(streamOptions.Capacity);
 		lease = null;
-		failure = UnavailableCapabilityFailure.Create(_lifetime, "Timers", "Timers.Register", cancellationToken);
+		failure = UnavailableCapabilityFailure.Create(_lifetime, ClientCapabilityId.Timers, "Timers",
+			"Timers.Register", cancellationToken);
 		return false;
 	}
 

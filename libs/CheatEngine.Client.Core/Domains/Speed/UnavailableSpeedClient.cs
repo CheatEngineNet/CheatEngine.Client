@@ -1,6 +1,7 @@
 using CheatEngine.Client.Core.Domains.Events;
 using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Results;
+using CheatEngine.Client.Runtime;
 using CheatEngine.Client.Speed;
 
 namespace CheatEngine.Client.Core.Domains.Speed;
@@ -44,6 +45,7 @@ internal sealed class UnavailableSpeedClient : ISpeedClient
 
 	private CheatEngineFailure CreateFailure(string operation, CancellationToken cancellationToken)
 	{
-		return UnavailableCapabilityFailure.Create(_lifetime, "Target speed control", operation, cancellationToken);
+		return UnavailableCapabilityFailure.Create(_lifetime, ClientCapabilityId.Speed, "Target speed control",
+			operation, cancellationToken);
 	}
 }

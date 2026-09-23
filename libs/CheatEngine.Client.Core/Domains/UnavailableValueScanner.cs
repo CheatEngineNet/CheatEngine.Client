@@ -2,6 +2,7 @@ using System.Diagnostics;
 
 using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Results;
+using CheatEngine.Client.Runtime;
 using CheatEngine.Client.Scanning;
 
 namespace CheatEngine.Client.Core.Domains;
@@ -33,11 +34,17 @@ internal sealed class UnavailableValueScanner : IValueScanner
 	{
 		session = null;
 		_lifetime?.ThrowIfInactive("Scans.CreateSession");
-		failure = cancellationToken.IsCancellationRequested
-			? new CheatEngineFailure(CheatEngineFailureKind.Cancelled, "Scans.CreateSession",
-				"The operation was cancelled before Cheat Engine work began.")
-			: new CheatEngineFailure(CheatEngineFailureKind.CapabilityUnavailable, "Scans.CreateSession",
-				_ownershipGateMessage);
+		if (cancellationToken.IsCancellationRequested)
+		{
+			failure = new CheatEngineFailure(CheatEngineFailureKind.Cancelled, "Scans.CreateSession",
+				"The operation was cancelled before Cheat Engine work began.");
+			return false;
+		}
+
+		_lifetime?.Diagnostics.CapabilityRefused(ClientCapabilityId.ValueScanning.Value, "Scans.CreateSession",
+			ClientCapabilityEvidenceReasonCode.Implementation, ClientCapabilityEvidenceState.Missing);
+		failure = new CheatEngineFailure(CheatEngineFailureKind.CapabilityUnavailable, "Scans.CreateSession",
+			_ownershipGateMessage);
 		return false;
 	}
 

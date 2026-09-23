@@ -17,9 +17,9 @@ internal sealed class CoreResourceRegistry : IDisposable
 	}
 
 	/// <summary>Releases every tracked resource and appends each failure to <paramref name="failures" /> in attempt order.</summary>
-	internal void DisposeCollecting(List<Exception> failures)
+	internal void DisposeCollecting(List<Exception> failures, Action<IDisposable, Exception>? onFailure = null)
 	{
-		DisposeDetached(DetachAll(), failures);
+		DisposeDetached(DetachAll(), failures, onFailure);
 	}
 
 	internal T Track<T>(T resource)
@@ -114,8 +114,12 @@ internal sealed class CoreResourceRegistry : IDisposable
 		ThrowCleanupFailures(failures);
 	}
 
-	/// <summary>Disposes a snapshot in reverse order and appends each failure to <paramref name="failures" />.</summary>
-	internal static void DisposeDetached(IReadOnlyList<IDisposable> resources, List<Exception> failures)
+	/// <summary>
+	///     Disposes a snapshot in reverse order, appends each failure to <paramref name="failures" /> and reports it to
+	///     <paramref name="onFailure" /> when supplied.
+	/// </summary>
+	internal static void DisposeDetached(IReadOnlyList<IDisposable> resources, List<Exception> failures,
+		Action<IDisposable, Exception>? onFailure = null)
 	{
 		ArgumentNullException.ThrowIfNull(failures);
 		for (int index = resources.Count - 1; index >= 0; index--)
@@ -127,6 +131,7 @@ internal sealed class CoreResourceRegistry : IDisposable
 			catch (Exception exception)
 			{
 				failures.Add(exception);
+				onFailure?.Invoke(resources[index], exception);
 			}
 		}
 	}

@@ -1,5 +1,7 @@
+using System.Reflection;
 using System.Runtime.ExceptionServices;
 
+using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Extensions.DependencyInjection;
 using CheatEngine.Client.Modules;
 using CheatEngine.Client.Results;
@@ -85,6 +87,7 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 			activation = CreateActivation(construction);
 			Volatile.Write(ref _activation, activation);
 
+			LogIdentification(activation, GetType());
 			activation.Lifecycle.Enable(OnClientEnabled);
 			SafeLog(activation, static (logger, epoch) => ClientHostingLog.ActivationEnabled(logger, epoch));
 		}
@@ -230,6 +233,25 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 		report.Run(CleanupStage.Configuration, activation.Builder.ReleaseConfiguration);
 		report.Complete();
 		return report.Failures;
+	}
+
+	/// <summary>
+	///     Logs the identity of this activation once per enable (EventId 20): the Client version, the consumed and loaded
+	///     CheatEngine.SDK identity and the supported host profile. Assembly metadata only, never a path or a Lua call.
+	/// </summary>
+	private static void LogIdentification(Activation activation, Type pluginType)
+	{
+		SafeLog(activation.Logger, (Epoch: activation.Client.Epoch, PluginType: pluginType), static (logger, state) =>
+		{
+			const string NotDeclared = "unknown";
+			ConsumedSdkIdentity identity = ConsumedSdkIdentity.Current;
+			string clientVersion = typeof(CheatEngineClientPlugin).Assembly
+				.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? NotDeclared;
+			ClientHostingLog.ActivationIdentified(logger, state.Epoch, state.PluginType.FullName ?? state.PluginType.Name,
+				clientVersion, identity.Version ?? NotDeclared, identity.ContentHashSha512 ?? NotDeclared,
+				identity.LoadedInformationalVersion ?? NotDeclared, identity.PackageGate.State,
+				ConsumedSdkIdentity.SupportedHostProfileId);
+		});
 	}
 
 	/// <summary>Writes a lifecycle event without letting a logging provider fault escape the plugin callback.</summary>

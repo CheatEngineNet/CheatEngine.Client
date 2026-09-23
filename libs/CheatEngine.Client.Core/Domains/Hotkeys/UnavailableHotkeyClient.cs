@@ -5,6 +5,7 @@ using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Events;
 using CheatEngine.Client.Hotkeys;
 using CheatEngine.Client.Results;
+using CheatEngine.Client.Runtime;
 
 namespace CheatEngine.Client.Core.Domains.Hotkeys;
 
@@ -25,7 +26,8 @@ internal sealed class UnavailableHotkeyClient : IHotkeyClient
 		ArgumentNullException.ThrowIfNull(handler);
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(streamOptions.Capacity);
 		lease = null;
-		failure = UnavailableCapabilityFailure.Create(_lifetime, "Hotkeys", "Hotkeys.Register", cancellationToken);
+		failure = UnavailableCapabilityFailure.Create(_lifetime, ClientCapabilityId.Hotkeys, "Hotkeys",
+			"Hotkeys.Register", cancellationToken);
 		return false;
 	}
 

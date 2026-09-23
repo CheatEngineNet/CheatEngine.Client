@@ -2,6 +2,7 @@ using CheatEngine.Client.Core.Domains.Events;
 using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Hashing;
 using CheatEngine.Client.Results;
+using CheatEngine.Client.Runtime;
 
 namespace CheatEngine.Client.Core.Domains.Hashing;
 
@@ -45,7 +46,8 @@ internal sealed class UnavailableHashingClient : IHashingClient
 
 	private CheatEngineFailure CreateFailure(string operation, CancellationToken cancellationToken)
 	{
-		return UnavailableCapabilityFailure.Create(_lifetime, "Target-memory and file hashing", operation,
+		return UnavailableCapabilityFailure.Create(_lifetime, ClientCapabilityId.Hashing,
+			"Target-memory and file hashing", operation,
 			cancellationToken);
 	}
 }

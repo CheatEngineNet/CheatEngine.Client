@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 
 using CheatEngine.Client.Core.Dispatching;
@@ -5,6 +6,7 @@ using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Lua;
 using CheatEngine.Client.Results;
+using CheatEngine.Client.Runtime;
 using CheatEngine.SDK.Lua.Calls;
 using CheatEngine.SDK.Lua.Runtime;
 using CheatEngine.SDK.Lua.State;
@@ -44,11 +46,24 @@ internal sealed class UnsafeLuaClient : IUnsafeLuaClient
 
 		if (!_policy.EnableUnsafeLuaExecution)
 		{
+			_lifetime?.Diagnostics.CapabilityRefused(ClientCapabilityId.UnsafeLuaExecution.Value, "Lua.ExecuteUnsafe",
+				ClientCapabilityEvidenceReasonCode.Policy, ClientCapabilityEvidenceState.Missing);
 			failure = new CheatEngineFailure(CheatEngineFailureKind.CapabilityUnavailable, "Lua.ExecuteUnsafe",
 				"Arbitrary Lua execution was not enabled for this activation.", null, CheatEngineHostEffect.NotStarted);
 			return false;
 		}
 
+		long started = Stopwatch.GetTimestamp();
+		bool completed = TryExecuteCore(script, out failure, cancellationToken);
+		// Size and duration only: the script body and the Lua error text are never logged (A24-14).
+		_lifetime?.Diagnostics.LuaOperationCompleted("Lua.ExecuteUnsafe",
+			completed ? "None" : failure.Kind.ToString(), (long) Stopwatch.GetElapsedTime(started).TotalMilliseconds,
+			script.Source.Length);
+		return completed;
+	}
+
+	private bool TryExecuteCore(LuaScript script, out CheatEngineFailure failure, CancellationToken cancellationToken)
+	{
 		string luaStatus = "unknown";
 		string? luaMessage = null;
 		bool succeeded = false;

@@ -29,7 +29,7 @@ internal sealed class TargetSelectionLifetime(Action<string> activationGuard) : 
 	}
 
 	/// <summary>Releases every remaining target-bound resource and appends each failure in attempt order.</summary>
-	internal void DisposeCollecting(List<Exception> failures)
+	internal void DisposeCollecting(List<Exception> failures, Action<IDisposable, Exception>? onFailure = null)
 	{
 		IDisposable[] resources;
 		lock (_gate)
@@ -43,7 +43,7 @@ internal sealed class TargetSelectionLifetime(Action<string> activationGuard) : 
 			resources = _resources.DetachAll();
 		}
 
-		CoreResourceRegistry.DisposeDetached(resources, failures);
+		CoreResourceRegistry.DisposeDetached(resources, failures, onFailure);
 	}
 
 	/// <summary>

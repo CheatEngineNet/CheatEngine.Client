@@ -5,6 +5,7 @@ using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Dbvm;
 using CheatEngine.Client.Events;
 using CheatEngine.Client.Results;
+using CheatEngine.Client.Runtime;
 
 namespace CheatEngine.Client.Core.Domains.Dbvm;
 
@@ -67,7 +68,8 @@ internal sealed class UnavailableDbvmClient : IDbvmClient
 
 	private CheatEngineFailure CreateFailure(string operation, CancellationToken cancellationToken)
 	{
-		return UnavailableCapabilityFailure.Create(_lifetime, "DBVM observation, explicit initialization, and watches",
+		return UnavailableCapabilityFailure.Create(_lifetime, ClientCapabilityId.Dbvm,
+			"DBVM observation, explicit initialization, and watches",
 			operation,
 			cancellationToken);
 	}

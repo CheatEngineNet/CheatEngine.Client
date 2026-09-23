@@ -5,6 +5,7 @@ using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Debugger;
 using CheatEngine.Client.Events;
 using CheatEngine.Client.Results;
+using CheatEngine.Client.Runtime;
 
 namespace CheatEngine.Client.Core.Domains.Debugger;
 
@@ -26,7 +27,8 @@ internal sealed class UnavailableDebuggerClient : IDebuggerClient
 		ArgumentNullException.ThrowIfNull(handler);
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(streamOptions.Capacity);
 		lease = null;
-		failure = UnavailableCapabilityFailure.Create(_lifetime, "Debugger breakpoints", "Debugger.RegisterBreakpoint",
+		failure = UnavailableCapabilityFailure.Create(_lifetime, ClientCapabilityId.Debugger, "Debugger breakpoints",
+			"Debugger.RegisterBreakpoint",
 			cancellationToken);
 		return false;
 	}

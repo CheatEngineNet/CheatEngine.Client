@@ -103,24 +103,26 @@ internal sealed class ProcessClient : IProcessClient
 		Admit("Processes.Attach");
 
 		CurrentProcessCapture captured = default;
-		if (!_dispatcher.TryInvoke(
-				() =>
+		bool invoked = _dispatcher.TryInvoke(
+			() =>
+			{
+				try
 				{
-					try
-					{
-						// openProcess also resets Cheat Engine's configured pointer size (spike C3 D3(c)).
-						_host.OpenProcess(processId.Value);
-					}
-					catch (Exception exception) when (SdkBoundary.IsSdkFault(exception))
-					{
-						captured = new CurrentProcessCapture(exception);
-						return;
-					}
+					// openProcess also resets Cheat Engine's configured pointer size (spike C3 D3(c)).
+					_host.OpenProcess(processId.Value);
+				}
+				catch (Exception exception) when (SdkBoundary.IsSdkFault(exception))
+				{
+					captured = new CurrentProcessCapture(exception);
+					return;
+				}
 
-					captured = CaptureCurrent("Processes.Attach");
-				},
-				out failure,
-				cancellationToken))
+				captured = CaptureCurrent("Processes.Attach");
+			},
+			out failure,
+			cancellationToken);
+		ReportSelectionAdvance(captured.Advance, "Processes.Attach");
+		if (!invoked)
 		{
 			snapshot = default;
 			return false;
@@ -326,13 +328,29 @@ internal sealed class ProcessClient : IProcessClient
 		CancellationToken cancellationToken)
 	{
 		CurrentProcessCapture captured = default;
-		if (!_dispatcher.TryInvoke(() => captured = CaptureCurrent(operation), out failure, cancellationToken))
+		bool invoked = _dispatcher.TryInvoke(() => captured = CaptureCurrent(operation), out failure,
+			cancellationToken);
+		ReportSelectionAdvance(captured.Advance, operation);
+		if (!invoked)
 		{
 			snapshot = default;
 			return false;
 		}
 
 		return TryGetCapturedSnapshot(captured, operation, out snapshot, out failure);
+	}
+
+	/// <summary>
+	///     Reports a selection-epoch advance recorded by the dispatched capture, after the callback returned (EventId
+	///     1100): the epochs and the reason only, never the process identifier or name.
+	/// </summary>
+	private void ReportSelectionAdvance(SelectionAdvance? advance, string operation)
+	{
+		if (advance is { } advanced && _lifetime is { } lifetime)
+		{
+			lifetime.Diagnostics.TargetSelectionAdvanced(lifetime.Epoch, advanced.SelectionEpoch, operation,
+				advanced.Reason);
+		}
 	}
 
 	/// <summary>
@@ -354,8 +372,10 @@ internal sealed class ProcessClient : IProcessClient
 
 		if (processId is <= 0 or > int.MaxValue)
 		{
-			ClearObservedSelection(operation);
-			return new CurrentProcessCapture(CurrentProcessCaptureFailure.NoTargetSelected);
+			return new CurrentProcessCapture(CurrentProcessCaptureFailure.NoTargetSelected)
+			{
+				Advance = ClearObservedSelection(operation)
+			};
 		}
 
 		TargetProcessId id = new(checked((int) processId));
@@ -382,8 +402,12 @@ internal sealed class ProcessClient : IProcessClient
 			return new CurrentProcessCapture(CurrentProcessCaptureFailure.TargetChanged);
 		}
 
-		return new CurrentProcessCapture(ObserveSelection(id, hasLocalMetadata ? process : default,
-			facts.Architecture, facts.ProcessPointerSize, operation));
+		ProcessSnapshot snapshot = ObserveSelection(id, hasLocalMetadata ? process : default, facts.Architecture,
+			facts.ProcessPointerSize, operation, out SelectionAdvance? advance);
+		return new CurrentProcessCapture(snapshot)
+		{
+			Advance = advance
+		};
 	}
 
 	private bool TryGetCapturedSnapshot(
@@ -442,17 +466,25 @@ internal sealed class ProcessClient : IProcessClient
 		LocalProcessInfo process,
 		CheatEngineArchitecture architecture,
 		PointerSize width,
-		string operation)
+		string operation,
+		out SelectionAdvance? advance)
 	{
+		advance = null;
 		lock (_selectionGate)
 		{
 			ProcessSelection selection = new(id, architecture, width);
 			if (_lastSelection is { } previous)
 			{
-				if (previous.Id != id || IsKnownChange(previous.Architecture, architecture) ||
-					IsKnownChange(previous.Width, width))
+				string? reason = previous.Id != id
+					? "PidChanged"
+					: IsKnownChange(previous.Architecture, architecture)
+						? "ArchitectureChanged"
+						: IsKnownChange(previous.Width, width)
+							? "WidthChanged"
+							: null;
+				if (reason is not null)
 				{
-					_selectionLifetime.Advance(operation);
+					advance = new SelectionAdvance(_selectionLifetime.Advance(operation), reason);
 				}
 				else
 				{
@@ -479,17 +511,17 @@ internal sealed class ProcessClient : IProcessClient
 		return previous.IsKnown && current.IsKnown && previous.Bytes != current.Bytes;
 	}
 
-	private void ClearObservedSelection(string operation)
+	private SelectionAdvance? ClearObservedSelection(string operation)
 	{
 		lock (_selectionGate)
 		{
 			if (_lastSelection is null)
 			{
-				return;
+				return null;
 			}
 
 			_lastSelection = null;
-			_selectionLifetime.Advance(operation);
+			return new SelectionAdvance(_selectionLifetime.Advance(operation), "TargetDetached");
 		}
 	}
 
@@ -568,12 +600,22 @@ internal sealed class ProcessClient : IProcessClient
 		CheatEngineArchitecture Architecture,
 		PointerSize Width);
 
+	/// <summary>A selection-epoch advance made by a capture: the new epoch and the closed reason name.</summary>
+	private readonly record struct SelectionAdvance(long SelectionEpoch, string Reason);
+
 	private readonly record struct CurrentProcessCapture(
 		ProcessSnapshot Snapshot,
 		CurrentProcessCaptureFailure Failure,
 		int ObservedProcessId,
 		Exception? Fault)
 	{
+		/// <summary>Gets the selection-epoch advance this capture made, reported after the dispatched callback returned.</summary>
+		internal SelectionAdvance? Advance
+		{
+			get;
+			init;
+		}
+
 		internal CurrentProcessCapture(ProcessSnapshot snapshot)
 			: this(snapshot, CurrentProcessCaptureFailure.None, 0, null)
 		{

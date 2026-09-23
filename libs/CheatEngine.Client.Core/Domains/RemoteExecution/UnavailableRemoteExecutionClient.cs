@@ -2,6 +2,7 @@ using CheatEngine.Client.Core.Domains.Events;
 using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.RemoteExecution;
 using CheatEngine.Client.Results;
+using CheatEngine.Client.Runtime;
 
 namespace CheatEngine.Client.Core.Domains.RemoteExecution;
 
@@ -44,7 +45,8 @@ internal sealed class UnavailableRemoteExecutionClient : IRemoteExecutionClient
 
 	private CheatEngineFailure CreateFailure(string operation, CancellationToken cancellationToken)
 	{
-		return UnavailableCapabilityFailure.Create(_lifetime, "Remote execution and injection", operation,
+		return UnavailableCapabilityFailure.Create(_lifetime, ClientCapabilityId.RemoteExecution,
+			"Remote execution and injection", operation,
 			cancellationToken);
 	}
 }

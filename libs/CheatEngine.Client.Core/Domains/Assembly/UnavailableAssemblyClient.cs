@@ -5,6 +5,7 @@ using CheatEngine.Client.Assembly;
 using CheatEngine.Client.Core.Domains.Events;
 using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Results;
+using CheatEngine.Client.Runtime;
 using CheatEngine.SDK.Engine.Values;
 
 namespace CheatEngine.Client.Core.Domains.Assembly;
@@ -109,7 +110,8 @@ internal sealed class UnavailableAssemblyClient : IAssemblyClient
 
 	private CheatEngineFailure CreateFailure(string operation, CancellationToken cancellationToken)
 	{
-		return UnavailableCapabilityFailure.Create(_lifetime, "Assembly, disassembly, and Auto Assembler patches",
+		return UnavailableCapabilityFailure.Create(_lifetime, ClientCapabilityId.Assembly,
+			"Assembly, disassembly, and Auto Assembler patches",
 			operation,
 			cancellationToken);
 	}

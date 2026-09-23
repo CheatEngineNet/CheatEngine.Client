@@ -4,9 +4,9 @@ namespace CheatEngine.Client.Core.Tests.TestSupport;
 
 internal static class InertCoreLifetime
 {
-	internal static CoreLifetime Create()
+	internal static CoreLifetime Create(ICoreDiagnostics? diagnostics = null)
 	{
-		return new CoreLifetime(new AlwaysCurrentLifetimeContext());
+		return new CoreLifetime(new AlwaysCurrentLifetimeContext(), diagnostics);
 	}
 
 	private sealed class AlwaysCurrentLifetimeContext : ICoreLifetimeContext

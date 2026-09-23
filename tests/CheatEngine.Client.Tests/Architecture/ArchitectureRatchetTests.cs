@@ -183,6 +183,29 @@ public sealed class ArchitectureRatchetTests
 		Assert.True(violations.Count == 0, string.Join(Environment.NewLine, violations));
 	}
 
+	/// <summary>
+	///     Core stays logger-free (audit ch.24, open issue O3): its diagnostic events go through an internal sink that the
+	///     dependency-injection package implements, so Core never references a logging assembly or package.
+	/// </summary>
+	[Fact]
+	public void CoreReferencesNoLoggingAssembly()
+	{
+		List<string> references = [];
+		ClientAssemblyCatalog.ReadMetadata("CheatEngine.Client.Core", (reader, _) =>
+		{
+			foreach (AssemblyReferenceHandle handle in reader.AssemblyReferences)
+			{
+				references.Add(reader.GetString(reader.GetAssemblyReference(handle).Name));
+			}
+		});
+
+		Assert.NotEmpty(references);
+		Assert.DoesNotContain(references, static name =>
+			name.StartsWith("Microsoft.Extensions.Logging", StringComparison.Ordinal) ||
+			name.StartsWith("Microsoft.Extensions.DependencyInjection", StringComparison.Ordinal) ||
+			name.Equals("Serilog", StringComparison.Ordinal) || name.StartsWith("NLog", StringComparison.Ordinal));
+	}
+
 	[Fact]
 	public void LuaGlobalBindingsAreFrozenToTheRegisteredAdr01Exceptions()
 	{

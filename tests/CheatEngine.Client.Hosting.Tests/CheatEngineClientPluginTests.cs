@@ -438,6 +438,70 @@ public sealed class CheatEngineClientPluginTests
 		Assert.Throws<CheatEngineClientLifecycleException>(plugin.GetRequiredClientForTest);
 	}
 
+	[Fact]
+	[Trait("Qualification", "Q46")]
+	public void EnableLogsOneIdentificationEventWithoutPaths()
+	{
+		List<string> events = [];
+		CapturingLoggerProvider logs = new();
+		FakeClient client = new(53);
+		RecordingCleanup cleanup = new(events);
+		TestPlugin plugin = CreatePlugin(events, client, cleanup, builder =>
+			builder.Services.AddLogging(logging => logging.SetMinimumLevel(LogLevel.Trace).AddProvider(logs)));
+
+		plugin.EnableForTest();
+		plugin.DisableForTest();
+
+		LogEntry identification = Assert.Single(logs.Entries, static entry => entry.EventId == 20);
+		string message = identification.Message;
+		Assert.Equal(LogLevel.Information, identification.Level);
+		Assert.Null(identification.Exception);
+		Assert.Contains("activation 53 enables " + typeof(TestPlugin).FullName, message, StringComparison.Ordinal);
+		Assert.Contains("CheatEngine.SDK " + GetConsumedSdkMetadata("Version"), message, StringComparison.Ordinal);
+		Assert.Contains("NuGet content hash " + GetConsumedSdkMetadata("ContentHashSha512"), message,
+			StringComparison.Ordinal);
+		Assert.Contains("supported host profile ce-7.7.0.10621-x64-managed-hostfxr.", message, StringComparison.Ordinal);
+		Assert.DoesNotMatch(@"[A-Za-z]:\\", message);
+		Assert.DoesNotContain("\\", message, StringComparison.Ordinal);
+		Assert.DoesNotContain(".dll", message, StringComparison.OrdinalIgnoreCase);
+		Assert.DoesNotContain(".exe", message, StringComparison.OrdinalIgnoreCase);
+		Assert.DoesNotContain(Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory), message,
+			StringComparison.OrdinalIgnoreCase);
+		Assert.True(logs.Entries.ToList().FindIndex(static entry => entry.EventId == 20) <
+					logs.Entries.ToList().FindIndex(static entry => entry.EventId == 1),
+			"The identification event must precede the enabled event.");
+	}
+
+	[Fact]
+	public void ThrowingLoggerProviderCannotFailEnable()
+	{
+		List<string> events = [];
+		FakeClient client = new(54);
+		RecordingCleanup cleanup = new(events);
+		TestPlugin plugin = CreatePlugin(events, client, cleanup, static builder =>
+		{
+			builder.Services.AddLogging(logging => logging.SetMinimumLevel(LogLevel.Trace)
+				.AddProvider(new ThrowingLoggerProvider(throwFromIsEnabled: true)));
+			builder.Client.AddModule<RecordingModule>();
+		});
+
+		plugin.EnableForTest();
+
+		Assert.Same(client, plugin.GetRequiredClientForTest());
+		Assert.Equal(["configure", "module.enabled", "client.enabled"], events);
+		plugin.DisableForTest();
+		Assert.Equal(1, cleanup.DrainCount);
+	}
+
+	private static string GetConsumedSdkMetadata(string name)
+	{
+		string key = "CheatEngine.Client.ConsumedSdk." + name;
+		return System.Reflection.Assembly.Load("CheatEngine.Client.Core")
+				   .GetCustomAttributes<AssemblyMetadataAttribute>()
+				   .Single(attribute => attribute.Key == key).Value
+			   ?? throw new InvalidOperationException($"The Core assembly embeds no {key} value.");
+	}
+
 	private static void AddFailingConstructionRegistrations(CheatEnginePluginBuilder builder, List<string> events)
 	{
 		builder.Configuration.Sources.Add(new ThrowingDisposeConfigurationSource(events));
@@ -907,18 +971,18 @@ public sealed class CheatEngineClientPluginTests
 		}
 	}
 
-	private sealed class ThrowingLoggerProvider : ILoggerProvider
+	private sealed class ThrowingLoggerProvider(bool throwFromIsEnabled = false) : ILoggerProvider
 	{
 		public ILogger CreateLogger(string categoryName)
 		{
-			return new ThrowingLogger();
+			return new ThrowingLogger(throwFromIsEnabled);
 		}
 
 		public void Dispose()
 		{
 		}
 
-		private sealed class ThrowingLogger : ILogger
+		private sealed class ThrowingLogger(bool throwFromIsEnabled) : ILogger
 		{
 			public IDisposable? BeginScope<TState>(TState state)
 				where TState : notnull
@@ -928,7 +992,7 @@ public sealed class CheatEngineClientPluginTests
 
 			public bool IsEnabled(LogLevel logLevel)
 			{
-				return true;
+				return throwFromIsEnabled ? throw new InvalidOperationException("The logging filter failed.") : true;
 			}
 
 			public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,

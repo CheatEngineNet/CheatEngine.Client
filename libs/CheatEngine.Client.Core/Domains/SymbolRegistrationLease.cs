@@ -1,3 +1,4 @@
+using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Inspection;
 using CheatEngine.Client.Results;
@@ -14,16 +15,21 @@ internal readonly record struct SymbolLeaseRelease(SymbolLeaseReleaseKind Kind, 
 ///     maps to the leased address (audit A14-25). <see cref="SymbolLeaseReleaseKind.Released" />,
 ///     <see cref="SymbolLeaseReleaseKind.Replaced" /> and <see cref="SymbolLeaseReleaseKind.ExternallyRemoved" /> are
 ///     terminal and release the activation-local name reservation; <see cref="SymbolLeaseReleaseKind.CleanupUnavailable" />
-///     keeps the lease active, like a closed dispatch admission, so the hosting cleanup can retry it.
+///     keeps the lease active, like a closed dispatch admission, so the hosting cleanup can retry it. Every dispatched
+///     release attempt reports its <see cref="SymbolLeaseReleaseKind" /> to the activation diagnostics after the
+///     dispatched callback returned, never the name or the address.
 /// </remarks>
 internal sealed class SymbolRegistrationLease(
 	SymbolRegistration registration,
 	ICheatEngineDispatcher dispatcher,
 	Action<SymbolRegistrationLease> untrack,
 	Func<string, Address, SymbolLeaseRelease> release,
-	Action<string> releaseName) : IDetailedSymbolRegistrationLease
+	Action<string> releaseName,
+	ICoreDiagnostics? diagnostics = null) : IDetailedSymbolRegistrationLease
 {
 	private const string _releaseOperation = "Inspection.ReleaseSymbol";
+
+	private readonly ICoreDiagnostics _diagnostics = GuardedCoreDiagnostics.Wrap(diagnostics);
 
 	private readonly ICheatEngineDispatcher _dispatcher =
 		dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
@@ -86,6 +92,18 @@ internal sealed class SymbolRegistrationLease(
 
 	private SymbolLeaseRelease ReleaseCore()
 	{
+		SymbolLeaseRelease outcome = ReleaseUnderGate(out bool dispatched);
+		if (dispatched)
+		{
+			_diagnostics.SymbolLeaseReleased(outcome.Kind);
+		}
+
+		return outcome;
+	}
+
+	private SymbolLeaseRelease ReleaseUnderGate(out bool dispatched)
+	{
+		dispatched = false;
 		lock (_gate)
 		{
 			if (Volatile.Read(ref _released) != 0)
@@ -98,6 +116,7 @@ internal sealed class SymbolRegistrationLease(
 			// dispatcher throws and the hosting cleanup scope can retry this exact release on CE's main thread.
 			SymbolLeaseRelease outcome = default;
 			_dispatcher.Invoke(() => outcome = _release(Name, Address));
+			dispatched = true;
 			LastReleaseKind = outcome.Kind;
 			if (outcome.Kind is not (SymbolLeaseReleaseKind.Released or SymbolLeaseReleaseKind.Replaced
 				or SymbolLeaseReleaseKind.ExternallyRemoved))

@@ -272,6 +272,9 @@ internal sealed class InspectionClient(
 		if (!registered)
 		{
 			ReleaseSymbolName(registration.Name);
+			// The reason only: the symbol name is never logged (A24-13).
+			_lifetime.Diagnostics.SymbolRegistrationRejected("Inspection.RegisterSymbol",
+				preflight == InspectionStatus.Success ? "AlreadyResolves" : "LookupFailed");
 			failure = CreateCollisionFailure(preflight);
 			return false;
 		}
@@ -281,7 +284,8 @@ internal sealed class InspectionClient(
 			_dispatcher,
 			lease => _lifetime.Untrack(lease),
 			ReleaseOwnedSymbol,
-			ReleaseSymbolName);
+			ReleaseSymbolName,
+			_lifetime.Diagnostics);
 		try
 		{
 			_lifetime.Track(created);

@@ -4,6 +4,7 @@ using CheatEngine.Client.Allocations;
 using CheatEngine.Client.Core.Domains.Events;
 using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Results;
+using CheatEngine.Client.Runtime;
 
 namespace CheatEngine.Client.Core.Domains.Allocations;
 
@@ -22,7 +23,8 @@ internal sealed class UnavailableAllocationClient : IAllocationClient
 		CancellationToken cancellationToken = default)
 	{
 		lease = null;
-		failure = UnavailableCapabilityFailure.Create(_lifetime, "Target allocations", "Allocations.Allocate",
+		failure = UnavailableCapabilityFailure.Create(_lifetime, ClientCapabilityId.Allocations, "Target allocations",
+			"Allocations.Allocate",
 			cancellationToken);
 		return false;
 	}

@@ -12,6 +12,7 @@ namespace CheatEngine.Client.Core.Domains;
 internal sealed class LuaClient : ILuaClient
 {
 	private readonly Action<string>? _admitStatefulOperation;
+	private readonly ICoreDiagnostics _diagnostics;
 	private readonly ICheatEngineDispatcher _dispatcher;
 	private readonly Func<long> _epochProvider;
 
@@ -44,7 +45,8 @@ internal sealed class LuaClient : ILuaClient
 			initialization.TrackLease,
 			initialization.UntrackLease,
 			initialization.AdmitStatefulOperation,
-			initialization.IsStopping)
+			initialization.IsStopping,
+			initialization.Diagnostics)
 	{
 	}
 
@@ -56,9 +58,11 @@ internal sealed class LuaClient : ILuaClient
 		Action<ILuaModuleLease>? trackLease = null,
 		Action<ILuaModuleLease>? untrackLease = null,
 		Action<string>? admitStatefulOperation = null,
-		Func<bool>? isStopping = null)
+		Func<bool>? isStopping = null,
+		ICoreDiagnostics? diagnostics = null)
 	{
 		_dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
+		_diagnostics = GuardedCoreDiagnostics.Wrap(diagnostics);
 		_epochProvider = epochProvider ?? throw new ArgumentNullException(nameof(epochProvider));
 		_isContextCurrent = isContextCurrent ?? throw new ArgumentNullException(nameof(isContextCurrent));
 		_isStopping = isStopping ?? (static () => false);
@@ -190,14 +194,21 @@ internal sealed class LuaClient : ILuaClient
 		}
 
 		long epoch = _epochProvider();
-		if (!TryDispatchOperation(operation, epoch, out LuaOperationResult<TResult> operationResult, out failure,
+		long started = Stopwatch.GetTimestamp();
+		bool completed;
+		if (TryDispatchOperation(operation, epoch, out LuaOperationResult<TResult> operationResult, out failure,
 				cancellationToken))
 		{
+			completed = TryMaterializeOperationResult(operationResult, out result, out failure);
+		}
+		else
+		{
 			result = default;
-			return false;
+			completed = false;
 		}
 
-		return TryMaterializeOperationResult(operationResult, out result, out failure);
+		ReportOperation(completed, failure, started);
+		return completed;
 	}
 
 	public TResult Execute<TResult>(ILuaOperation<TResult> operation, CancellationToken cancellationToken = default)
@@ -223,14 +234,21 @@ internal sealed class LuaClient : ILuaClient
 		}
 
 		long epoch = _epochProvider();
-		if (!TryDispatchOperation(operation, epoch, out LuaOperationResult<TResult> operationResult, out failure,
+		long started = Stopwatch.GetTimestamp();
+		bool completed;
+		if (TryDispatchOperation(operation, epoch, out LuaOperationResult<TResult> operationResult, out failure,
 				cancellationToken))
 		{
+			completed = TryMaterializeOperationResult(operationResult, out result, out failure);
+		}
+		else
+		{
 			result = default;
-			return false;
+			completed = false;
 		}
 
-		return TryMaterializeOperationResult(operationResult, out result, out failure);
+		ReportOperation(completed, failure, started);
+		return completed;
 	}
 
 	public TResult Execute<TOperation, TResult>(TOperation operation, CancellationToken cancellationToken)
@@ -243,6 +261,16 @@ internal sealed class LuaClient : ILuaClient
 		}
 
 		return ThrowFailure<TResult>(failure);
+	}
+
+	/// <summary>
+	///     Reports a typed operation with its failure kind and duration only (EventId 1600): never the operation type, a
+	///     Lua value or the failure message.
+	/// </summary>
+	private void ReportOperation(bool completed, CheatEngineFailure failure, long started)
+	{
+		_diagnostics.LuaOperationCompleted("Lua.Execute", completed ? "None" : failure.Kind.ToString(),
+			(long) Stopwatch.GetElapsedTime(started).TotalMilliseconds, 0);
 	}
 
 	private static T ThrowFailure<T>(CheatEngineFailure failure)
@@ -440,7 +468,8 @@ internal sealed class LuaClient : ILuaClient
 			() => lifetime.Stopping.IsCancellationRequested,
 			lease => lifetime.Track(lease),
 			lease => lifetime.Untrack(lease),
-			lifetime.ThrowIfInactive);
+			lifetime.ThrowIfInactive,
+			lifetime.Diagnostics);
 	}
 
 	private void Admit(string operation)
@@ -502,7 +531,8 @@ internal sealed class LuaClient : ILuaClient
 		Func<bool> IsStopping,
 		Action<ILuaModuleLease> TrackLease,
 		Action<ILuaModuleLease> UntrackLease,
-		Action<string> AdmitStatefulOperation);
+		Action<string> AdmitStatefulOperation,
+		ICoreDiagnostics Diagnostics);
 
 	private readonly struct LuaOperationDispatchState<TResult>
 	{

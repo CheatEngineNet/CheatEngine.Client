@@ -410,7 +410,13 @@ internal sealed class TableClient(
 			_generation.Observe(snapshot);
 		}
 
-		return TryMapActivation(Operation, isActive, observation, out record, out failure);
+		bool applied = TryMapActivation(Operation, isActive, observation, out record, out failure);
+		if (GetNotAppliedStatus(observation.Status) is { } notApplied)
+		{
+			_lifetime?.Diagnostics.RecordActivationNotApplied(Operation, isActive, notApplied);
+		}
+
+		return applied;
 	}
 
 	public MemoryRecordSnapshot SetActive(MemoryRecordId id, bool isActive,
@@ -564,7 +570,8 @@ internal sealed class TableClient(
 		{
 			if (reachedCheatEngine)
 			{
-				_generation.Advance();
+				long generation = _generation.Advance();
+				_lifetime?.Diagnostics.TableGenerationAdvanced(_lifetime.Epoch, generation);
 			}
 		}
 	}
@@ -631,9 +638,26 @@ internal sealed class TableClient(
 			return false;
 		}
 
+		_lifetime?.Diagnostics.StaleRecordIdentifierRefused(operation, _generation.Generation);
 		failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidState, operation, StaleRecordIdentifierMessage,
 			null, CheatEngineHostEffect.NotStarted);
 		return true;
+	}
+
+	/// <summary>
+	///     Names an activation outcome that did not apply the requested state for the diagnostics event, or returns
+	///     <see langword="null" /> for an applied, unchanged or refused-before-start outcome.
+	/// </summary>
+	private static string? GetNotAppliedStatus(TableActivationStatus status)
+	{
+		return status switch
+		{
+			TableActivationStatus.RefusedByHost => nameof(TableActivationStatus.RefusedByHost),
+			TableActivationStatus.Pending => nameof(TableActivationStatus.Pending),
+			TableActivationStatus.Indeterminate or TableActivationStatus.Unknown =>
+				nameof(TableActivationStatus.Indeterminate),
+			_ => null
+		};
 	}
 
 	/// <summary>Maps an activation observation to the public result (audit A14-12, A14-33, A14-42, Q35).</summary>
