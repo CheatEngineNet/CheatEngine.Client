@@ -24,6 +24,10 @@ Each release separates four kinds of change, because a consumer reacts to each d
 
 ### Security
 
+- A plugin that references `CheatEngine.SDK` 2.0 or later directly next to this Client now fails to build with
+  `CECLIENT017`. `CheatEngineClientAllowUnsupportedSdk=true` turns the error into a warning; such a plugin is
+  unsupported and is expected to break at run time.
+
 ### Deployment
 
 - Every Client package is versioned by MinVer from `v*` tags, in lockstep: untagged builds are
@@ -31,9 +35,6 @@ Each release separates four kinds of change, because a consumer reacts to each d
 - The Client consumes exactly `CheatEngine.SDK` 1.0.0 and declares `[1.0.0, 2.0.0)`. The pin has a single source,
   `eng/CheatEngineSdk.props`, and a reviewed identity, `eng/sdk/consumed-sdk.json`. The build refuses a 2.x or
   prerelease pin (`CHEATENGINECLIENT9016`).
-- A plugin that references `CheatEngine.SDK` 2.0 or later directly next to this Client now fails to build with
-  `CECLIENT017`. `CheatEngineClientAllowUnsupportedSdk=true` turns the error into a warning; such a plugin is
-  unsupported and is expected to break at run time.
 - The `ceplugin` template references the exact `CheatEngine.Client` version it was packed with and the pinned
   `CheatEngine.SDK`, and the template is validated when it is built.
 - Every package embeds an SPDX 2.2 software bill of materials at `_manifest/spdx_2.2/manifest.spdx.json`, has its own
