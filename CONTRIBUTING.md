@@ -10,7 +10,7 @@ and tests that describe the behavior you change.
 - .NET SDK 10.0.401 exactly, as pinned in [`global.json`](global.json). `rollForward` is `disable`, so any other
   SDK, a newer one included, stops the build with the install command:
   `winget install Microsoft.DotNet.SDK.10 --version 10.0.401`
-- PowerShell 7.4 or later, for the scripts under `eng/`
+- PowerShell 7.4 or later, to run the CI checks locally (actionlint, zizmor, the lock-file check)
 - Git
 
 ## Build and test
@@ -42,27 +42,30 @@ To run everything except those tests, add `--filter-not-trait "Category=PackageC
 ### Lock files
 
 Never edit a `packages.lock.json` by hand, and never let an IDE restore rewrite them. After a dependency change,
-regenerate them with `./eng/Update-LockFiles.ps1`, on Windows, with the SDK of `global.json`, no IDE open on the working
-tree and `CoexistenceSdkPackageVersion` unset. The script:
+regenerate the affected projects one at a time, on Windows, with the SDK of `global.json`, no IDE open on the working
+tree: `dotnet restore <project> --force-evaluate`. Restore the three live-plugin coexistence fixtures first if they are
+affected: they stay outside Central Package Management and keep version 1 lock files, and a solution-level
+`--force-evaluate` restore rewrites them into the Central Package Management shape. Never run
+`dotnet restore CheatEngine.Client.slnx --force-evaluate` for that reason.
 
-1. restores the three live-plugin coexistence fixtures first, one project at a time: they stay outside Central Package
-   Management and keep version 1 lock files;
-2. restores every other project, one project at a time;
-3. verifies the whole solution with `--locked-mode`, keeps the final-newline state each lock file has in `HEAD`, and
-   prints the files that changed.
-
-Never run `dotnet restore CheatEngine.Client.slnx --force-evaluate`: a solution-level re-evaluation rewrites the
-fixtures' lock files in the Central Package Management shape. Commit the regenerated files on their own, as
-`Regenerate lock files after <reason>`. On a rebase conflict in a lock file, take either side and run the script again;
-never merge a lock file by hand. `./eng/Update-LockFiles.ps1 -Verify`, the `Lock files` CI job, names every lock file
-that differs from a regeneration. It is the real guard: `--locked-mode` does not notice a hand-edited resolved version.
+Commit the regenerated files on their own, as `Regenerate lock files after <reason>`. On a rebase conflict in a lock
+file, take either side and regenerate it again; never merge a lock file by hand. The `Lock files` CI job runs
+`dotnet restore CheatEngine.Client.slnx --locked-mode`: it is the real guard, because `--locked-mode` fails outright
+when a committed `packages.lock.json` no longer matches its project graph, and does not notice a hand-edited resolved
+version.
 
 ### The consumed CheatEngine.SDK
 
-The Client consumes exactly one `CheatEngine.SDK` package, pinned in [`eng/CheatEngineSdk.props`](eng/CheatEngineSdk.props)
-and identified in `eng/sdk/consumed-sdk.json`. Never write an SDK version anywhere else, and never move the pin by hand:
-[`eng/sdk/README.md`](eng/sdk/README.md) explains the policy, the guards (`CHEATENGINECLIENT9016`, `9017`, `CECLIENT017`)
-and `eng/sdk/Update-CheatEngineSdk.ps1`. Moving to another SDK major is a migration of the Client, not a dependency bump.
+The Client consumes exactly one `CheatEngine.SDK` package, pinned in the single reviewed source
+[`eng/CheatEngineSdk.props`](eng/CheatEngineSdk.props): never write an SDK version literal anywhere else. There is no
+script for the bump; the props file's own header documents the procedure, all of it in one pull request: update
+`CheatEngineSdkVersion`, update the reviewed identity literals it names
+(`tests/CheatEngine.Client.Tests/Packaging/PackagedClientFeedFixture.cs`,
+`tests/CheatEngine.Client.Repository.Tests/LockFiles/LockFileTests.cs`) to the new package's hashes, regenerate every
+`packages.lock.json` (coexistence fixtures first, one project at a time), and update the SDK version named in prose
+(`SdkPinTests.ProseMentionsOfTheConsumedSdkEqualThePin` lists the files). `CHEATENGINECLIENT9016`, `9017` and
+`CECLIENT017` guard the pin at build and consumption time. Moving to another SDK major is a migration of the Client,
+not a dependency bump.
 
 ### NuGet audit and build guards
 
@@ -71,8 +74,7 @@ NuGet audits every package, direct and transitive, from the `low` severity up:
 - high (`NU1903`) and critical (`NU1904`) advisories fail every restore and build;
 - low and moderate advisories (`NU1901`, `NU1902`), an unavailable audit source (`NU1900`) and `NU1905` stay warnings in
   ordinary builds;
-- `-p:AuditPipeline=true` turns every audit code into an error. The weekly strict audit of the `Scheduled health`
-  workflow uses it.
+- `-p:AuditPipeline=true` turns every audit code into an error, for a stricter local or ad hoc CI run.
 
 To accept one advisory, add `<NuGetAuditSuppress Include="<advisory URL>"/>` with a comment that gives the
 justification and an expiry date. Never suppress an advisory on the release path. Never lower the policy itself:
@@ -84,7 +86,7 @@ Management (the coexistence fixtures excepted).
 ## Continuous integration
 
 Pull requests run `Pull request CI`, pushes to `main` run `Main CI`, and version tags run `Release`; all three call the
-reusable `ci.yml` through a job named `CI`. There is no merge queue. Two checks are required on a pull request, and no
+reusable `ci.yml` through a job named `CI`. There is no merge queue. One check is required on a pull request, and no
 other:
 
 - `CI / Gate` requires every other `ci.yml` job to succeed. The only exception is `Sonar`: it must succeed when the
@@ -92,22 +94,22 @@ other:
   skipped otherwise (pull requests from forks or Dependabot, which receive no secrets, and the release run). A Sonar run
   that was not expected fails the Gate too: it means that the job condition and the Gate's copy of it drifted apart. The
   Gate's job summary lists every job with its result, the required result and the reason.
-- `PR policy` checks the pull request title and the changelog rule of [Pull request policy](#pull-request-policy).
 
-Drafts do not run CI until they are marked ready for review, so `CI / Gate` stays pending; `PR policy` runs on drafts
-and again after every title or description edit.
+Drafts do not run CI until they are marked ready for review, so `CI / Gate` stays pending. CodeRabbit's automatic
+review still checks the pull request title and the changelog rule of [Pull request conventions](#pull-request-conventions)
+on every push, including on drafts, but it is advisory: it never blocks a merge (see [`.coderabbit.yaml`](.coderabbit.yaml)).
 
-| Check (`CI / ...`)             | Runner         | What it does                                                                                                                                                 |
-|--------------------------------|----------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `Build and test (Debug)`       | `windows-2025` | Locked restore, build, one `dotnet test --solution` run with coverage (package consumption tests excluded by trait), test module inventory, coverage ratchet |
-| `Build and test (Release)`     | `windows-2025` | Locked restore, build, pack (exact package set, embedded SBOM), `build-info.json`, benchmark discovery, one test run against the packed packages             |
-| `Native AOT publication probe` | `windows-2025` | Publishes and runs `tests/CheatEngine.Client.AotProbe`: trim and Native AOT compatibility of the Client graph, not a Cheat Engine load                       |
-| `Sonar / Analyze`              | `windows-2025` | SonarQube Cloud CI-based analysis with the Debug coverage; waits for the quality gate except on pushes to `main`                                             |
-| `Lint`                         | `ubuntu-24.04` | actionlint and the offline zizmor audits over the workflows, PSScriptAnalyzer over every tracked PowerShell file                                             |
-| `Format`                       | `ubuntu-24.04` | `dotnet format whitespace . --folder --verify-no-changes --exclude artifacts`                                                                                |
-| `Dependency review`            | `ubuntu-24.04` | On pull requests, reviews dependency changes against `.github/dependency-review-config.yml`; a notice on other events                                        |
-| `Lock files`                   | `windows-2025` | `./eng/Update-LockFiles.ps1 -Verify`                                                                                                                         |
-| `Gate`                         | `ubuntu-24.04` | The required check described above                                                                                                                           |
+| Check (`CI / ...`)             | Runner         | What it does                                                                                                                    |
+|--------------------------------|----------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| `Build and test (Debug)`       | `windows-2025` | Locked restore, build, one `dotnet test --solution` run with coverage (package consumption tests excluded by trait)              |
+| `Build and test (Release)`     | `windows-2025` | Locked restore, build, pack (exact package set, embedded SBOM), benchmark discovery, one test run against the packed packages    |
+| `Native AOT publication probe` | `windows-2025` | Publishes and runs `tests/CheatEngine.Client.AotProbe`: trim and Native AOT compatibility of the Client graph, not a Cheat Engine load |
+| `Sonar / Analyze`              | `windows-2025` | SonarQube Cloud CI-based analysis with the Debug coverage; waits for the quality gate except on pushes to `main`                  |
+| `Lint`                         | `ubuntu-24.04` | actionlint and the offline zizmor audits over the workflows                                                                       |
+| `Format`                       | `ubuntu-24.04` | `dotnet format whitespace . --folder --verify-no-changes --exclude artifacts`                                                     |
+| `Dependency review`            | `ubuntu-24.04` | On pull requests, reviews dependency changes against `.github/dependency-review-config.yml`; a notice on other events             |
+| `Lock files`                   | `windows-2025` | `dotnet restore CheatEngine.Client.slnx --locked-mode`                                                                            |
+| `Gate`                         | `ubuntu-24.04` | The required check described above                                                                                                |
 
 A test module that shows no activity for 15 minutes is dumped and fails; on failure, `build-test` uploads the hang and
 crash dumps and the binary logs. No CI job uses a NuGet cache, because the release run reaches every job, and every job
@@ -121,10 +123,9 @@ not pinned to a full commit SHA with a version comment, a checkout that keeps cr
 `pull_request_target` or `merge_group` trigger, a path filter on the required workflows, or an artifact name outside the
 reserved list.
 
-These workflows are advisory, never required: CodeQL, OpenSSF Scorecard, the online zizmor audits, `Scheduled health`
-(strict NuGet audit, newest .NET 10 SDK canary, repeat runs of the threading-sensitive tests) and dependency submission.
-A maintainer can add the `dry-run` label to a pull request to run `Scheduled health` and the dependency detection once
-on it.
+These workflows are advisory, never required: CodeQL, OpenSSF Scorecard, the online zizmor audits and the NuGet
+dependency snapshot submission (`Dependency submission`, which runs the GitHub Component Detection action against the
+locked restore).
 
 ### Run the CI checks locally
 
@@ -135,31 +136,19 @@ actionlint 1.7.12 and zizmor 1.30.1 are the versions CI pins:
 dotnet format whitespace . --folder --verify-no-changes --exclude artifacts
 actionlint
 zizmor --offline .github
-./eng/ci/Invoke-ScriptAnalysis.ps1 -ModuleDirectory (Join-Path ([IO.Path]::GetTempPath()) 'PSScriptAnalyzer-1.25.0')
-./eng/Update-LockFiles.ps1 -Verify
+dotnet restore CheatEngine.Client.slnx --locked-mode
 ```
-
-[`eng/ci/README.md`](eng/ci/README.md) describes every CI script and how to run it locally.
-
-### Coverage floors
-
-The Debug leg merges the coverage of every test module and fails when the line coverage of a shipping assembly falls
-more than the tolerance below its floor in [`eng/coverage-baseline.json`](eng/coverage-baseline.json). Its job summary
-suggests new floors. Raise a floor by copying the suggested value into that file in a reviewed commit; CI never writes
-it. Lower a floor only with a justification in the pull request.
 
 ### Runner labels
 
 Jobs run on `windows-2025` and `ubuntu-24.04`, never on a moving `-latest` label, and Dependabot does not update
-`runs-on`. To move to a new runner image, change the label in every workflow, in `_pinnedRunners` of
-`WorkflowContractTests`, and in the runner label list of [`eng/ci/build-info.v0.schema.json`](eng/ci/build-info.v0.schema.json),
-in one pull request.
+`runs-on`. To move to a new runner image, change the label in every workflow and in `_pinnedRunners` of
+`WorkflowContractTests`, in one pull request.
 
 ### Flaky tests
 
 No required run retries a test, and `--fail-skips on` rules out skipping one. A flaky test is fixed or deleted in the
-pull request that finds it. `Scheduled health` repeats the threading-sensitive test modules every day without retries
-and opens an issue when a scheduled run fails.
+pull request that finds it; there is no scheduled job that re-runs threading-sensitive tests outside a normal CI run.
 
 ## Style and analyzers
 
@@ -199,9 +188,10 @@ Fill in the pull request template: the problem, the resulting behavior, the vali
 qualification level, the API and compatibility impact, and any remaining host-level limitation. Pull requests are
 squash-merged once the required checks pass, so the pull request title becomes the commit subject on `main`.
 
-### Pull request policy
+### Pull request conventions
 
-`PR policy` applies the rules of [`eng/ci/pr-policy.json`](eng/ci/pr-policy.json):
+No required check enforces these; CodeRabbit's automatic review checks them on every push and flags a miss, but it is
+advisory and never blocks a merge. Follow them anyway, since the title becomes the squash commit subject on `main`:
 
 - **Title:** an imperative sentence (`Add`, `Fix`, `Keep`...) that starts with an uppercase letter, has at most 72
   characters, no Conventional Commit prefix such as `feat:` and no trailing period.
@@ -210,12 +200,6 @@ squash-merged once the required checks pass, so the pull request title becomes t
   `<!-- changelog: not-needed -->` on its own line in the description instead.
 - **Dependabot:** its pull requests are exempt. Rename their `chore(deps): ...` squash subject to an imperative sentence
   when merging.
-
-Check a planned title and change set before opening the pull request (the description is read from `$env:PR_BODY`):
-
-```powershell
-./eng/ci/Test-PullRequestPolicy.ps1 -Title 'Add a Core option' -Author $env:USERNAME -ChangedPath 'libs/CheatEngine.Client.Core/X.cs', 'CHANGELOG.md'
-```
 
 ## Dependency updates
 
@@ -226,10 +210,9 @@ and patch updates are grouped. Dependabot ignores `CheatEngine.SDK` majors (a Cl
 packages (they move with `global.json`) and .NET SDK majors ([`.github/dependabot.yml`](.github/dependabot.yml)).
 
 Dependabot does not regenerate every lock file. When `Lock files` fails on a Dependabot pull request, check the branch
-out, run `./eng/Update-LockFiles.ps1`, commit `Regenerate lock files after <update>` and push; Dependabot then stops
-rebasing that pull request. A .NET SDK update also needs the new version in `sdk.errorMessage`: apply the latest
-`sdk-canary-patch` artifact of `Scheduled health` instead, after restoring the `global.json` of `main`
-(`git checkout origin/main -- global.json`, then `git apply sdk-canary.patch`).
+out, run `dotnet restore <project> --force-evaluate` for each affected project, commit `Regenerate lock files after
+<update>` and push; Dependabot then stops rebasing that pull request. A .NET SDK update also needs the new version
+moved by hand into `sdk.errorMessage` in the same commit.
 
 ## Security
 

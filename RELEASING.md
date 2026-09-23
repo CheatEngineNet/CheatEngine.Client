@@ -80,7 +80,7 @@ otherwise.
    ```
 
    Never leave `MinVerVersionOverride` set as an environment variable: MinVer reads it from the environment too.
-6. Merge the release pull request (squash) once `CI / Gate` and `PR policy` pass.
+6. Merge the release pull request (squash) once `CI / Gate` passes.
 
 ## Qualification gate
 

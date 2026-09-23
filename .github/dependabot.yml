@@ -9,8 +9,8 @@
 #   "Regenerate lock files after <update>" and push; Dependabot then stops rebasing that pull request. A dotnet-sdk
 #   update always needs regenerated lock files (global.json uses rollForward: disable) and an sdk.errorMessage naming
 #   the new version, moved by hand in the same commit.
-# - No commit-message prefix: a prefix produces "deps: ..." subjects, which the pull request title rule forbids.
-#   Dependabot pull requests are exempt from PR policy; rename "chore(deps): ..." squash subjects when merging.
+# - No commit-message prefix: a prefix produces "deps: ..." subjects, which the pull request title convention forbids.
+#   Dependabot pull requests are exempt from that convention; rename "chore(deps): ..." squash subjects when merging.
 version: 2
 updates:
   # Every csproj, Directory.Packages.props, the Coexistence fixture props and .config/dotnet-tools.json.

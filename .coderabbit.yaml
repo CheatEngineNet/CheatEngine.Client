@@ -5,7 +5,7 @@ early_access: false
 
 reviews:
   # Assertive and advisory, as in CheatEngine.SDK: CodeRabbit reviews thoroughly but never approves, requests changes or
-  # sets a required status. The only required checks are "CI / Gate" and "PR policy".
+  # sets a required status. The only required check is "CI / Gate".
   profile: "assertive"
   request_changes_workflow: false
   high_level_summary: true
@@ -14,13 +14,14 @@ reviews:
   fail_commit_status: false
   poem: false
   pre_merge_checks:
-    # Every check is a warning: none of them can block a merge. "PR policy" enforces the title and changelog rules.
+    # Every check is a warning: none of them can block a merge. No required check enforces the title or changelog
+    # rules; this review is the only thing that flags a miss.
     title:
       mode: "warning"
       requirements: >-
-        Pull requests are squash-merged and the title becomes the commit subject on main. The required "PR policy"
-        check enforces: an imperative sentence (Add, Fix, Keep...) starting with an uppercase letter, at most 72
-        characters, no Conventional Commit prefix such as "feat:" or "fix(scope):", no trailing period.
+        Pull requests are squash-merged and the title becomes the commit subject on main. The convention: an
+        imperative sentence (Add, Fix, Keep...) starting with an uppercase letter, at most 72 characters, no
+        Conventional Commit prefix such as "feat:" or "fix(scope):", no trailing period.
     description:
       mode: "warning"
     docstrings:
@@ -31,8 +32,8 @@ reviews:
         instructions: >-
           Applies only to changes under .github/; otherwise pass. Fail when: an action is referenced by tag or branch
           instead of a full 40-character commit SHA with a version comment; a workflow uses pull_request_target, adds a
-          merge_group trigger or relies on a merge queue; pull-request-ci.yml or pr-policy.yml gains paths or
-          paths-ignore; actions/checkout omits persist-credentials: false; a job added to ci.yml is missing from the
+          merge_group trigger or relies on a merge queue; pull-request-ci.yml gains paths or paths-ignore;
+          actions/checkout omits persist-credentials: false; a job added to ci.yml is missing from the
           needs of the gate job; the Gate accepts a skipped or failed result for any job other than sonar, or accepts a
           skipped sonar while SONAR_EXPECTED is true; the if: expression of the sonar job and the SONAR_EXPECTED
           expression of the Gate differ; a job runs on a label other than windows-2025 or ubuntu-24.04 or has no
@@ -40,8 +41,8 @@ reviews:
           analyzer cache saved only from main is the single exception); a job that runs dotnet does not use
           ./.github/actions/setup-dotnet with its locked restore; a run: script expands a user-controlled ${{ }} value
           instead of reading it from env:; a PowerShell step runs a native command without checking $LASTEXITCODE; a
-          workflow grants write permissions at the top level; the caller job id ci named CI, the reusable job gate named
-          Gate or the job policy named "PR policy" is renamed; SONAR_TOKEN can reach fork or Dependabot runs; or an
+          workflow grants write permissions at the top level; the caller job id ci named CI or the reusable job gate
+          named Gate is renamed; SONAR_TOKEN can reach fork or Dependabot runs; or an
           uploaded artifact name is not in the reserved list of WorkflowContractTests. Otherwise pass.
       - name: "Public API, documentation and changelog"
         mode: "warning"
@@ -60,9 +61,10 @@ reviews:
           activation-bound handle or another SDK ownership type, or an SDK type outside the allowlist of
           tests/CheatEngine.Client.Tests/PublicClientSignatureBoundaryTests.cs; a Core implementation type becomes
           public; Client code declares a native import or binds a Lua global itself without a registered exception in
-          the architecture ratchet (tests/CheatEngine.Client.Tests/Architecture) and a removal entry in the SDK 2.0
-          migration guide; a CheatEngine.SDK version literal appears outside eng/CheatEngineSdk.props, or the pin moves
-          without eng/sdk/Update-CheatEngineSdk.ps1 or to 2.x without the migration guide; or a packages.lock.json
+          the architecture ratchet (tests/CheatEngine.Client.Tests/Architecture) naming its own SDK 2.0 replacement as
+          the removal reason; a CheatEngine.SDK version literal appears outside eng/CheatEngineSdk.props, or the pin
+          moves to 2.x without that being a deliberate, reviewed migration (there is no automated migration guide; the
+          bump procedure is documented in eng/CheatEngineSdk.props itself); or a packages.lock.json
           changes without a project or package change that explains it. Otherwise pass.
       - name: "Qualification evidence"
         mode: "warning"
@@ -85,8 +87,8 @@ reviews:
   tools:
     github-checks:
       enabled: true
-    # actionlint and zizmor run in the "Lint" job of ci.yml on every event, pinned and checksum-verified, and
-    # PSScriptAnalyzer lints every tracked PowerShell file there; do not duplicate them here.
+    # actionlint and zizmor run in the "Lint" job of ci.yml on every event, pinned and checksum-verified; do not
+    # duplicate them here.
     actionlint:
       enabled: false
 
@@ -150,27 +152,26 @@ reviews:
     - path: "tests/**/Architecture/**"
       instructions: |
         The architecture ratchet freezes the Client's ADR-01 debt. Shrinking a frozen list is always acceptable;
-        growing it requires a registered exception with a removal entry in the SDK 2.0 migration guide.
+        growing it requires a registered exception, in the ratchet itself, naming its own SDK 2.0 replacement as the
+        removal reason (there is no separate migration guide file).
 
     - path: ".github/**"
       instructions: |
         pull-request-ci.yml, main-ci.yml and release.yml are thin callers of the reusable ci.yml through the job id
-        ci named CI; there is no merge queue and no merge_group trigger. Exactly two checks are required: "CI / Gate"
-        and "PR policy" (pr-policy.yml, job policy named "PR policy"); never rename them or add path filters to their
-        workflows. The Gate evaluates toJSON(needs): every ci.yml job (build-test Debug and Release, aot, sonar, lint,
-        format, dependency-review, lock-files) must succeed, and only sonar may be skipped, exactly when
-        SONAR_EXPECTED is false (fork or Dependabot pull request, release run); the sonar if: expression repeats
-        SONAR_EXPECTED textually. A job missing from gate.needs, an unpinned action, a runner label other than
-        windows-2025 or ubuntu-24.04, a job without timeout-minutes or an unreserved artifact name fails
-        WorkflowContractTests. The Lint job runs actionlint and the offline zizmor audits on every event and
-        PSScriptAnalyzer over every tracked PowerShell file; do not ask for a duplicate CodeRabbit actionlint run.
-        Every dotnet job uses ./.github/actions/setup-dotnet (locked restore, cache off); no NuGet cache in ci.yml,
-        sonar.yml, codeql.yml or release.yml. Require SHA-pinned actions, least privilege, persist-credentials: false,
-        user text through env: only and $LASTEXITCODE checks. CodeQL, Scorecard, zizmor-online, scheduled-health and
-        dependency-submission are advisory. scorecard.yml intentionally has no defaults, env or run steps. Write
-        permissions are granted per job with a reason comment: outside release.yml, contents: write exists only in the
-        dependency-submission.yml job submit, and issues: write only in the scheduled-health.yml job report. Never use
-        pull_request_target.
+        ci named CI; there is no merge queue and no merge_group trigger. Exactly one check is required: "CI / Gate";
+        never rename it or add a path filter to pull-request-ci.yml. The Gate evaluates toJSON(needs): every ci.yml
+        job (build-test Debug and Release, aot, sonar, lint, format, dependency-review, lock-files) must succeed, and
+        only sonar may be skipped, exactly when SONAR_EXPECTED is false (fork or Dependabot pull request, release
+        run); the sonar if: expression repeats SONAR_EXPECTED textually. A job missing from gate.needs, an unpinned
+        action, a runner label other than windows-2025 or ubuntu-24.04, a job without timeout-minutes or an
+        unreserved artifact name fails WorkflowContractTests. The Lint job runs actionlint and the offline zizmor
+        audits on every event; do not ask for a duplicate CodeRabbit actionlint run. Every dotnet job uses
+        ./.github/actions/setup-dotnet (locked restore, cache off); no NuGet cache in ci.yml, sonar.yml, codeql.yml or
+        release.yml. Require SHA-pinned actions, least privilege, persist-credentials: false, user text through env:
+        only and $LASTEXITCODE checks. CodeQL, Scorecard, zizmor-online and dependency-submission are advisory.
+        scorecard.yml intentionally has no defaults, env or run steps. Write permissions are granted per job with a
+        reason comment: outside release.yml, contents: write exists only in the dependency-submission.yml job submit.
+        Never use pull_request_target.
 
     - path: ".github/workflows/release.yml"
       instructions: |
@@ -181,15 +182,16 @@ reviews:
 
     - path: "{SECURITY.md,.github/CODEOWNERS,.github/ISSUE_TEMPLATE/**}"
       instructions: |
-        Keep the required fields of the compatibility form aligned with the Client release tuple and
-        eng/sdk/consumed-sdk.json field names. Vulnerabilities are reported privately, never in public issues.
-        CODEOWNERS stays informational.
+        Keep the required fields of the compatibility form aligned with the Client release tuple (package versions,
+        consumed CheatEngine.SDK identity, native bridge, host profile). Vulnerabilities are reported privately, never
+        in public issues. CODEOWNERS stays informational.
 
-    - path: "{eng/CheatEngineSdk.props,eng/sdk/**}"
+    - path: "eng/CheatEngineSdk.props"
       instructions: |
-        The consumed CheatEngine.SDK pin has a single source. It moves only through eng/sdk/Update-CheatEngineSdk.ps1,
-        together with eng/sdk/consumed-sdk.json and regenerated lock files, and never to 2.x without the SDK 2.0
-        migration guide.
+        The consumed CheatEngine.SDK pin has this single source; there is no separate identity file or bump script.
+        A version change updates the reviewed identity literals it names (in PackagedClientFeedFixture.cs and
+        LockFileTests.cs), regenerates every packages.lock.json, and updates the SDK version named in prose, all in
+        one reviewed pull request. Moving to another major is a deliberate migration, not a dependency bump.
 
     - path: "{Directory.Build.props,Directory.Build.targets,Directory.Packages.props,global.json}"
       instructions: |

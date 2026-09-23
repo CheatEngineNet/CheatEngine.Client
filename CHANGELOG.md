@@ -63,8 +63,7 @@ Each release separates four kinds of change, because a consumer reacts to each d
 - Every Client package is versioned by MinVer from `v*` tags, in lockstep: untagged builds are
   `0.1.0-alpha.0.<height>`, and the assembly version keeps the major and minor numbers (`0.1.0.0`).
 - The Client consumes exactly `CheatEngine.SDK` 1.0.0 and declares `[1.0.0, 2.0.0)`. The pin has a single source,
-  `eng/CheatEngineSdk.props`, and a reviewed identity, `eng/sdk/consumed-sdk.json`. The build refuses a 2.x or
-  prerelease pin (`CHEATENGINECLIENT9016`).
+  `eng/CheatEngineSdk.props`. The build refuses a 2.x or prerelease pin (`CHEATENGINECLIENT9016`).
 - The `ceplugin` template references the exact `CheatEngine.Client` version it was packed with and the pinned
   `CheatEngine.SDK`, and the template is validated when it is built.
 - Every package embeds an SPDX 2.2 software bill of materials at `_manifest/spdx_2.2/manifest.spdx.json`, has its own

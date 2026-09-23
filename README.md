@@ -288,13 +288,13 @@ A skipped test fails the run. The Release test run installs the packages you jus
 consumption tests check the files a release would publish.
 
 Pull requests and pushes to `main` run the same checks in CI ([`ci.yml`](.github/workflows/ci.yml)): the Debug and
-Release builds with one solution test run each (hang and crash dumps on failure), the exact package set with its
-embedded SBOMs, the package consumption tests against those packages, a per-assembly line-coverage ratchet, the Native
-AOT graph probe, the SonarQube Cloud analysis, actionlint, zizmor and PSScriptAnalyzer, whitespace formatting, the
+Release builds with one solution test run each (hang and crash dumps on failure, coverage collected in Debug), the
+exact package set with its embedded SBOMs, the package consumption tests against those packages, the Native
+AOT graph probe, the SonarQube Cloud analysis, actionlint and zizmor, whitespace formatting, the
 dependency review and the lock-file guard. `CI / Gate` passes only when every one of them passes; Sonar alone may be
-skipped, and only where it cannot run (fork and Dependabot pull requests, the release run). `PR policy` checks the pull
-request title and the changelog entry. [CONTRIBUTING](CONTRIBUTING.md#continuous-integration) describes each job and
-how to run it locally.
+skipped, and only where it cannot run (fork and Dependabot pull requests, the release run). CodeRabbit's automatic
+review advisorily checks the pull request title and the changelog entry. [CONTRIBUTING](CONTRIBUTING.md#continuous-integration)
+describes each job and how to run it locally.
 
 The Cheat Engine 7.7 x64 live suite is opt-in and intentionally excluded from ordinary CI; no CI result should be read
 as proof that an untested live-host feature is available. Success, failure, cleanup, disable, re-enable, and
