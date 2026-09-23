@@ -80,7 +80,6 @@ public sealed class IssueFormTests
 		Assert.True(problems.Count == 0, $"{CompatibilityForm}: {string.Join("; ", problems)}.");
 		Assert.Equal(["(C0)", "(C1)", "(C2)", "(C3)", "(C4)"], Options(elements["observed-level"]).Select(LevelSuffix));
 		Assert.True(elements.ContainsKey("bridge-fingerprint") && !IsRequired(elements["bridge-fingerprint"]));
-		Assert.True(elements.ContainsKey("release-tuple") && !IsRequired(elements["release-tuple"]));
 	}
 
 	[Fact]

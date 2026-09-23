@@ -166,13 +166,6 @@ body:
       placeholder: Windows 11 24H2 x64 (26100.xxxx)
     validations:
       required: true
-  - type: input
-    id: release-tuple
-    attributes:
-      label: Release tuple manifest SHA-256 (optional)
-      description: >-
-        SHA-256 of the `CheatEngine.Client.<version>.tuple.json` release asset, when you took the packages from a
-        GitHub release.
   - type: textarea
     id: reproduction
     attributes:
