@@ -20,10 +20,40 @@ Each release separates four kinds of change, because a consumer reacts to each d
 
 ### Added
 
+- `CheatEngineFailure.HostEffect` states how far the Cheat Engine primitive got before a failure: `NotStarted`,
+  `Started` (effects may persist), `Completed`, `CleanupUnconfirmed` (a resource or change may remain) or `Unknown`.
+  `CheatEngineFailureKind.IndeterminateHostResult` reports a Cheat Engine result that the Client cannot classify.
+- `IPatternScanOutcomeClient.ScanDetailed` returns the classification of `TryScan` with `PatternScanMetrics`: the
+  number of matches Cheat Engine found, the examined, filtered-out and copied counts, the `PatternScanScope`, and the
+  Cheat Engine scan time separately from the copy time.
+
 ### Changed
+
+- An AOB scan for which CheatEngine.SDK 1.0.0 returns no result list fails with `IndeterminateHostResult` instead of
+  `OperationRejected`: with that SDK, zero matches and a host failure cannot be told apart. It is never reported as
+  `null` or `NotFound`.
+- `Try...` methods no longer let a CheatEngine.SDK exception escape. An SDK fault raised by Client-internal work
+  becomes a `CheatEngineFailure` chosen by exception type, and an SDK fault after the activation ended throws
+  `CheatEngineActivationExpiredException`. Exceptions from your own callbacks, codecs and Lua operations are still
+  rethrown unchanged.
+- A batch write cancelled before dispatch reports `MemoryBatchWriteEffectState.NotStarted`. The cancellation
+  documentation now says what a token does: it is observed before dispatch and between Client-managed steps, and it
+  never interrupts a Cheat Engine call that has started.
+- An AOB result list is released exactly once on every path. When the release fails, the copied results are discarded
+  and the scan fails with `InvalidState` and `CleanupUnconfirmed`.
+- Core cleanup attempts every release in reverse order and reports every failure: a single failure is rethrown as the
+  same instance, several are aggregated. A failed Address List record creation destroys the partial record once and
+  reports `CleanupUnconfirmed` when that rollback is not confirmed. Hosting logs each failed cleanup stage.
+- `CheatEngineFailure.ToString()` returns only the kind, the operation and the host effect; it no longer includes
+  `Message` or `Exception`, which can carry addresses, expressions, paths or Lua text.
+- The documentation of `InModule`, `InRange`, `Take`, `FirstOrNone` and `RequireSingle` states that they filter and
+  bound the copy of one global Cheat Engine scan; they never reduce the scan itself.
 
 ### Security
 
+- The `ceplugin` template no longer logs the AOB match address or whole failures; it logs the failure kind, operation
+  and host effect only. A test rejects any logging event of the Client packages whose parameters could carry an
+  address, expression, path, script, message, exception or failure.
 - A plugin that references `CheatEngine.SDK` 2.0 or later directly next to this Client now fails to build with
   `CECLIENT017`. `CheatEngineClientAllowUnsupportedSdk=true` turns the error into a warning; such a plugin is
   unsupported and is expected to break at run time.
@@ -42,3 +72,7 @@ Each release separates four kinds of change, because a consumer reacts to each d
   package reference is removed: the .NET SDK provides Source Link.
 - A release workflow publishes the seven packages from a version tag through NuGet trusted publishing, after build
   provenance and SBOM attestations, into a draft GitHub release that carries a Client release tuple.
+- CI builds and tests every change in Debug and Release with exactly .NET SDK 10.0.401 and locked restores, tests the
+  packages that its Release leg packs (and that a release publishes) instead of packing them again, and requires the
+  lock-file guard, the NuGet audit policy (high and critical advisories fail every build), formatting and the workflow
+  security checks to pass before `CI / Gate` does.
