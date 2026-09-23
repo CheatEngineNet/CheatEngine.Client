@@ -191,7 +191,6 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 		return SymbolDisplay.FormatLiteral(value, true);
 	}
 
-
 	internal static bool TryGetMapperResult(INamedTypeSymbol mapper, ITypeSymbol source, out ITypeSymbol result)
 	{
 		foreach (INamedTypeSymbol contract in mapper.AllInterfaces)
