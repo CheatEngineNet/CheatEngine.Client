@@ -107,31 +107,32 @@ internal sealed class CoreLifetime : IDisposable
 		DisposeOwnedResources();
 	}
 
+	/// <summary>
+	///     Releases target-selection resources, then activation resources, attempting every release and reporting every
+	///     failure: one failure is rethrown unchanged, several are aggregated in attempt order (audit Q43).
+	/// </summary>
 	private void DisposeOwnedResources()
 	{
-		Exception? firstFailure = null;
+		List<Exception> failures = [];
 		try
 		{
-			TargetSelection.Dispose();
+			TargetSelection.DisposeCollecting(failures);
 		}
 		catch (Exception exception)
 		{
-			firstFailure = exception;
+			failures.Add(exception);
 		}
 
 		try
 		{
-			_resources.Dispose();
+			_resources.DisposeCollecting(failures);
 		}
 		catch (Exception exception)
 		{
-			firstFailure ??= exception;
+			failures.Add(exception);
 		}
 
-		if (firstFailure is not null)
-		{
-			throw firstFailure;
-		}
+		CoreResourceRegistry.ThrowCleanupFailures(failures);
 	}
 
 	internal static CoreLifetime Capture()

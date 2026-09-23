@@ -23,6 +23,7 @@ using CheatEngine.Client.Timers;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace CheatEngine.Client.Hosting.Tests;
@@ -361,6 +362,80 @@ public sealed class CheatEngineClientPluginTests
 		Assert.Equal(2, state.ModuleDisposeCount);
 		Assert.Equal(2, state.DependencyDisposeCount);
 		Assert.Equal(2, state.ProviderSingletonDisposeCount);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q43")]
+	[Trait("Qualification", "Q46")]
+	public void DisableAttemptsEveryStageAndLogsEachFailedStageWithoutExceptionMessages()
+	{
+		const string SensitiveModuleText = "module failed at 0x7FFC7A0A0000 reading C:\\Users\\player\\secret.ct";
+		const string SensitiveDrainText = "drain failed for symbol game.exe+1234 and Lua 'return readInteger(x)'";
+		List<string> events = [];
+		CapturingLoggerProvider logs = new();
+		FakeClient client = new(51);
+		RecordingCleanup cleanup = new(events, drainFailure: new InvalidOperationException(SensitiveDrainText));
+		TestPlugin plugin = CreatePlugin(events, client, cleanup, builder =>
+		{
+			builder.Services.AddLogging(logging => logging.SetMinimumLevel(LogLevel.Trace).AddProvider(logs));
+			builder.Client.AddModule<SensitiveDisableModule>();
+			builder.Services.AddSingleton(new SensitiveFailure(SensitiveModuleText));
+		});
+		plugin.EnableForTest();
+
+		AggregateException exception = Assert.Throws<AggregateException>(plugin.DisableForTest);
+
+		Assert.Equal(2, exception.InnerExceptions.Count);
+		Assert.Equal(1, cleanup.DrainCount);
+		Assert.Equal(1, cleanup.ScopeDisposeCount);
+		Assert.Contains("cleanup.exit", events);
+		Assert.Collection(
+			logs.Entries.Where(static entry => entry.EventId == 6),
+			module => Assert.Equal(
+				"Cheat Engine Client activation 51 cleanup stage ModuleCallbacks failed with System.InvalidOperationException.",
+				module.Message),
+			drain => Assert.Equal(
+				"Cheat Engine Client activation 51 cleanup stage ClientResources failed with System.InvalidOperationException.",
+				drain.Message));
+		LogEntry completed = Assert.Single(logs.Entries, static entry => entry.EventId == 7);
+		Assert.Equal("Cheat Engine Client activation 51 attempted 6 cleanup stage(s); 2 failed.", completed.Message);
+		Assert.Contains(logs.Entries, static entry => entry.EventId == 5);
+		Assert.All(logs.Entries, static entry =>
+		{
+			Assert.Null(entry.Exception);
+			Assert.DoesNotContain("0x7FFC", entry.Message, StringComparison.OrdinalIgnoreCase);
+			Assert.DoesNotContain("secret", entry.Message, StringComparison.OrdinalIgnoreCase);
+			Assert.DoesNotContain("game.exe", entry.Message, StringComparison.OrdinalIgnoreCase);
+			Assert.DoesNotContain("readInteger", entry.Message, StringComparison.Ordinal);
+		});
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q43")]
+	public void ThrowingLoggerProviderCannotAbortCleanup()
+	{
+		List<string> events = [];
+		FakeClient client = new(52);
+		RecordingCleanup cleanup = new(events);
+		TestPlugin plugin = CreatePlugin(events, client, cleanup, static builder =>
+		{
+			builder.Services.AddLogging(logging =>
+				logging.SetMinimumLevel(LogLevel.Trace).AddProvider(new ThrowingLoggerProvider()));
+			builder.Client.AddModule<RecordingModule>();
+		});
+
+		plugin.EnableForTest();
+		Assert.Same(client, plugin.GetRequiredClientForTest());
+		plugin.DisableForTest();
+
+		Assert.Equal(
+			[
+				"configure", "module.enabled", "client.enabled", "cleanup.enter", "client.disabling", "module.disabling",
+				"cleanup.drain", "cleanup.exit"
+			],
+			events);
+		Assert.Equal(1, cleanup.DrainCount);
+		Assert.Throws<CheatEngineClientLifecycleException>(plugin.GetRequiredClientForTest);
 	}
 
 	private static void AddFailingConstructionRegistrations(CheatEnginePluginBuilder builder, List<string> events)
@@ -757,6 +832,110 @@ public sealed class CheatEngineClientPluginTests
 		{
 			events.Add("configuration.dispose");
 			throw new InvalidOperationException("configuration dispose");
+		}
+	}
+
+	public sealed record SensitiveFailure(string Message);
+
+	public sealed class SensitiveDisableModule(List<string> events, SensitiveFailure failure) : ICheatEngineClientModule
+	{
+		public void OnEnabled(ICheatEngineClient client)
+		{
+			events.Add("module.enabled");
+		}
+
+		public void OnDisabling(ICheatEngineClient client)
+		{
+			events.Add("module.disabling");
+			throw new InvalidOperationException(failure.Message);
+		}
+	}
+
+	private sealed record LogEntry(int EventId, LogLevel Level, string Message, Exception? Exception);
+
+	private sealed class CapturingLoggerProvider : ILoggerProvider
+	{
+		private readonly Lock _gate = new();
+		private readonly List<LogEntry> _entries = [];
+
+		internal IReadOnlyList<LogEntry> Entries
+		{
+			get
+			{
+				lock (_gate)
+				{
+					return [.. _entries];
+				}
+			}
+		}
+
+		public ILogger CreateLogger(string categoryName)
+		{
+			return new CapturingLogger(this);
+		}
+
+		public void Dispose()
+		{
+		}
+
+		private void Add(LogEntry entry)
+		{
+			lock (_gate)
+			{
+				_entries.Add(entry);
+			}
+		}
+
+		private sealed class CapturingLogger(CapturingLoggerProvider owner) : ILogger
+		{
+			public IDisposable? BeginScope<TState>(TState state)
+				where TState : notnull
+			{
+				return null;
+			}
+
+			public bool IsEnabled(LogLevel logLevel)
+			{
+				return true;
+			}
+
+			public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+				Func<TState, Exception?, string> formatter)
+			{
+				owner.Add(new LogEntry(eventId.Id, logLevel, formatter(state, exception), exception));
+			}
+		}
+	}
+
+	private sealed class ThrowingLoggerProvider : ILoggerProvider
+	{
+		public ILogger CreateLogger(string categoryName)
+		{
+			return new ThrowingLogger();
+		}
+
+		public void Dispose()
+		{
+		}
+
+		private sealed class ThrowingLogger : ILogger
+		{
+			public IDisposable? BeginScope<TState>(TState state)
+				where TState : notnull
+			{
+				return null;
+			}
+
+			public bool IsEnabled(LogLevel logLevel)
+			{
+				return true;
+			}
+
+			public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+				Func<TState, Exception?, string> formatter)
+			{
+				throw new InvalidOperationException("The logging provider failed.");
+			}
 		}
 	}
 

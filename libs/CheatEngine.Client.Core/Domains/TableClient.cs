@@ -224,25 +224,23 @@ internal sealed class TableClient(
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
 		MemoryRecordSnapshot captured = default;
-		bool succeeded = false;
-		TableRecordMutationStatus parentMutationStatus = TableRecordMutationStatus.Success;
+		TableRecordCreation creation = default;
 		if (!SdkBoundary.TryInvoke(_dispatcher, "Tables.Create",
-				() => succeeded = TryCreateRecord(definition, out captured, out parentMutationStatus),
+				() => creation = _recordMutations.TryCreate(definition, out captured),
 				CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
 		{
 			record = default;
 			return false;
 		}
 
-		record = captured;
-		if (succeeded)
+		if (creation.Status == TableRecordMutationStatus.Success)
 		{
+			record = captured;
 			return true;
 		}
 
-		failure = parentMutationStatus == TableRecordMutationStatus.Success
-			? HostFailure("Tables.Create")
-			: MutationFailure("Tables.Create", parentMutationStatus);
+		record = default;
+		failure = CreateCreationFailure(creation);
 		return false;
 	}
 
@@ -541,53 +539,33 @@ internal sealed class TableClient(
 		return true;
 	}
 
-	private bool TryCreateRecord(MemoryRecordDefinition definition, out MemoryRecordSnapshot record,
-		out TableRecordMutationStatus parentMutationStatus)
+	/// <summary>Classifies a failed creation and states whether a partially initialized record may remain.</summary>
+	private CheatEngineFailure CreateCreationFailure(TableRecordCreation creation)
 	{
-		record = default;
-		parentMutationStatus = TableRecordMutationStatus.Success;
-		if (!AddressListAccess.TryGetCurrent(out AddressList list) ||
-			!list.TryCreateMemoryRecord(out MemoryRecord value))
+		CheatEngineFailure failure = creation.Fault is { } fault
+			? SdkBoundary.Translate("Tables.Create", fault, CheatEngineHostEffect.Unknown, _lifetime)
+			: MutationFailure("Tables.Create", creation.Status);
+		return creation.Rollback switch
 		{
-			return false;
-		}
-
-		bool succeeded = TryInitializeRecord(value, definition) &&
-						 TryCompleteRecordCreation(value, definition, out record, out parentMutationStatus);
-		if (!succeeded)
-		{
-			_ = value.Handle.TryCallMethod("destroy"u8);
-		}
-
-		return succeeded;
+			TableRecordRollback.Confirmed =>
+				CoreFailureFactory.WithHostEffect(failure, CheatEngineHostEffect.Completed),
+			TableRecordRollback.Unconfirmed => new CheatEngineFailure(failure.Kind, failure.Operation,
+				failure.Message + " The rollback of the partially initialized memory record was not confirmed, so " +
+				"it may remain in the Address List.",
+				CombineFaults(failure.Exception, creation.RollbackFault), CheatEngineHostEffect.CleanupUnconfirmed),
+			_ => failure
+		};
 	}
 
-	private static bool TryInitializeRecord(MemoryRecord value, MemoryRecordDefinition definition)
+	private static Exception? CombineFaults(Exception? primary, Exception? rollback)
 	{
-		return value.TrySetDescription(definition.Description) &&
-			   value.TrySetAddressExpression(definition.AddressExpression) &&
-			   value.TrySetVariableType(definition.VariableType) &&
-			   value.TrySetValue(definition.Value);
-	}
-
-	private bool TryCompleteRecordCreation(MemoryRecord value, MemoryRecordDefinition definition,
-		out MemoryRecordSnapshot record, out TableRecordMutationStatus parentMutationStatus)
-	{
-		record = default;
-		parentMutationStatus = TableRecordMutationStatus.Success;
-		if (definition.ParentId is not { } parentId)
+		return (primary, rollback) switch
 		{
-			return TrySnapshot(value, out record);
-		}
-
-		if (!value.TryGetId(out MemoryRecordId createdId))
-		{
-			parentMutationStatus = TableRecordMutationStatus.HostRejected;
-			return false;
-		}
-
-		parentMutationStatus = _recordMutations.TrySetParent(createdId, parentId, out record);
-		return parentMutationStatus == TableRecordMutationStatus.Success;
+			({ } first, { } second) => new AggregateException(first, second),
+			({ } first, null) => first,
+			(null, { } second) => second,
+			_ => null
+		};
 	}
 
 	private static bool TryUpdateRecord(MemoryRecordUpdate update, out MemoryRecordSnapshot record)

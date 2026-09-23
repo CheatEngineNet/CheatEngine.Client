@@ -130,3 +130,17 @@ then replaces each destination file with Windows write-through replacement seman
 Cheat Engine installation, runtime configuration, or plugin list. Windows cannot atomically replace a non-empty
 directory, so deploy while the plugin is disabled; destination files are individually never copied in a partially
 written state.
+
+## Cleanup diagnostics and redaction
+
+Disable runs every cleanup stage even after an earlier stage fails, in this order: `CleanupScope` (the main-thread
+cleanup scope), `ModuleCallbacks` (application hook, then modules in reverse order), `ClientResources` (Client-owned
+Cheat Engine resources, while the SDK context is still attached), then `Scope`, `Provider`, and `Configuration`. One
+failure is rethrown unchanged; several are reported together as one `AggregateException` in attempt order. Core applies
+the same rule to its own resource registries, so a faulty module or lease never prevents the next release.
+
+Each failed stage is logged as event 6 with the activation epoch, the stable stage name, and the exception **type**
+name only; event 7 reports how many stages were attempted and how many failed; event 5 reports the failure count.
+Hosting never logs exception messages, addresses, values, symbol expressions, file paths, or Lua text: those are user
+data and belong to the application's explicit opt-in. Logging is best
+effort: a logging provider that throws cannot abort enable, disable, or any remaining cleanup stage.

@@ -20,7 +20,16 @@ internal sealed class TargetSelectionLifetime(Action<string> activationGuard) : 
 	internal long Epoch => Volatile.Read(ref _epoch);
 
 	/// <summary>Releases every target-bound resource that remains at activation shutdown.</summary>
+	/// <exception cref="AggregateException">Several resources failed to release; the inner exceptions keep attempt order.</exception>
 	public void Dispose()
+	{
+		List<Exception> failures = [];
+		DisposeCollecting(failures);
+		CoreResourceRegistry.ThrowCleanupFailures(failures);
+	}
+
+	/// <summary>Releases every remaining target-bound resource and appends each failure in attempt order.</summary>
+	internal void DisposeCollecting(List<Exception> failures)
 	{
 		IDisposable[] resources;
 		lock (_gate)
@@ -34,7 +43,7 @@ internal sealed class TargetSelectionLifetime(Action<string> activationGuard) : 
 			resources = _resources.DetachAll();
 		}
 
-		CoreResourceRegistry.DisposeDetached(resources);
+		CoreResourceRegistry.DisposeDetached(resources, failures);
 	}
 
 	/// <summary>

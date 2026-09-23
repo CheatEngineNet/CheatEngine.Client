@@ -1,3 +1,4 @@
+using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Tables;
 using CheatEngine.SDK.Engine.AddressList;
 using CheatEngine.SDK.Lua.Runtime;
@@ -8,6 +9,44 @@ namespace CheatEngine.Client.Core.Domains;
 /// <summary>Protected SDK implementation of record destruction and parent reassignment.</summary>
 internal sealed class SdkTableRecordMutationPort : ITableRecordMutationPort
 {
+	/// <inheritdoc />
+	/// <remarks>
+	///     When initialization, snapshotting or the parent assignment fails, the record created by this call is destroyed
+	///     exactly once through its own handle. The <see langword="bool" /> result of that destroy is kept: a
+	///     <see langword="false" /> result or a fault is reported as <see cref="TableRecordRollback.Unconfirmed" /> and
+	///     never retried (audit A08-14).
+	/// </remarks>
+	public TableRecordCreation TryCreate(MemoryRecordDefinition definition, out MemoryRecordSnapshot record)
+	{
+		record = default;
+		if (!AddressListAccess.TryGetCurrent(out AddressList list) || !list.TryCreateMemoryRecord(out MemoryRecord value))
+		{
+			return new TableRecordCreation(TableRecordMutationStatus.HostRejected, TableRecordRollback.NotRequired);
+		}
+
+		TableRecordMutationStatus status;
+		Exception? fault = null;
+		try
+		{
+			status = TryInitializeRecord(value, definition)
+				? TryCompleteRecordCreation(value, definition, out record)
+				: TableRecordMutationStatus.HostRejected;
+			if (status == TableRecordMutationStatus.Success)
+			{
+				return TableRecordCreation.Created;
+			}
+		}
+		catch (Exception exception) when (SdkBoundary.IsSdkFault(exception))
+		{
+			status = TableRecordMutationStatus.HostRejected;
+			fault = exception;
+		}
+
+		record = default;
+		(TableRecordRollback rollback, Exception? rollbackFault) = RollBackCreatedRecord(value);
+		return new TableRecordCreation(status, rollback, fault, rollbackFault);
+	}
+
 	public TableRecordMutationStatus TryDelete(MemoryRecordId id)
 	{
 		if (!AddressListAccess.TryGetCurrent(out AddressList list))
@@ -51,6 +90,45 @@ internal sealed class SdkTableRecordMutationPort : ITableRecordMutationPort
 		}
 
 		return TryAssignParent(child, parent, out record);
+	}
+
+	private static bool TryInitializeRecord(MemoryRecord value, MemoryRecordDefinition definition)
+	{
+		return value.TrySetDescription(definition.Description) &&
+			   value.TrySetAddressExpression(definition.AddressExpression) &&
+			   value.TrySetVariableType(definition.VariableType) &&
+			   value.TrySetValue(definition.Value);
+	}
+
+	private TableRecordMutationStatus TryCompleteRecordCreation(MemoryRecord value, MemoryRecordDefinition definition,
+		out MemoryRecordSnapshot record)
+	{
+		record = default;
+		if (definition.ParentId is not { } parentId)
+		{
+			return TableClient.TrySnapshot(value, out record)
+				? TableRecordMutationStatus.Success
+				: TableRecordMutationStatus.HostRejected;
+		}
+
+		return value.TryGetId(out MemoryRecordId createdId)
+			? TrySetParent(createdId, parentId, out record)
+			: TableRecordMutationStatus.HostRejected;
+	}
+
+	/// <summary>Destroys the record created by this call exactly once and reports whether Cheat Engine confirmed it.</summary>
+	private static (TableRecordRollback Rollback, Exception? Fault) RollBackCreatedRecord(MemoryRecord value)
+	{
+		try
+		{
+			return (value.Handle.TryCallMethod("destroy"u8)
+				? TableRecordRollback.Confirmed
+				: TableRecordRollback.Unconfirmed, null);
+		}
+		catch (Exception exception) when (SdkBoundary.IsSdkFault(exception))
+		{
+			return (TableRecordRollback.Unconfirmed, exception);
+		}
 	}
 
 	private static TableRecordMutationStatus TryResolveMutationContext(MemoryRecordId childId, MemoryRecordId? parentId,

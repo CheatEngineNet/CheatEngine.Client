@@ -199,6 +199,13 @@ public sealed class TableClientCoverageTests
 			private set;
 		}
 
+		public TableRecordCreation TryCreate(MemoryRecordDefinition definition, out MemoryRecordSnapshot record)
+		{
+			InvocationCount++;
+			record = default;
+			return TableRecordCreation.Created;
+		}
+
 		public TableRecordMutationStatus TryDelete(MemoryRecordId id)
 		{
 			InvocationCount++;

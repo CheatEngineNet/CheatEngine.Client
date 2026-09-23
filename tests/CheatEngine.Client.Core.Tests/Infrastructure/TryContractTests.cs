@@ -592,6 +592,11 @@ public sealed class TryContractTests
 			throw Fault();
 		}
 
+		public TableRecordCreation TryCreate(MemoryRecordDefinition definition, out MemoryRecordSnapshot record)
+		{
+			throw Fault();
+		}
+
 		public TableRecordMutationStatus TryDelete(MemoryRecordId id)
 		{
 			throw Fault();

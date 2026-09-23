@@ -86,7 +86,7 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 			Volatile.Write(ref _activation, activation);
 
 			activation.Lifecycle.Enable(OnClientEnabled);
-			ClientHostingLog.ActivationEnabled(activation.Logger, activation.Client.Epoch);
+			SafeLog(activation, static (logger, epoch) => ClientHostingLog.ActivationEnabled(logger, epoch));
 		}
 		catch (Exception enableFailure)
 		{
@@ -97,7 +97,7 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 			else
 			{
 				Interlocked.CompareExchange(ref _activation, null, activation);
-				ClientHostingLog.ActivationRollingBack(activation.Logger, activation.Client.Epoch);
+				SafeLog(activation, static (logger, epoch) => ClientHostingLog.ActivationRollingBack(logger, epoch));
 				RethrowAfterCleanup(enableFailure,
 					CleanupActivation(activation));
 			}
@@ -113,15 +113,17 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 			return;
 		}
 
-		ClientHostingLog.ActivationDisabling(activation.Logger, activation.Client.Epoch);
+		SafeLog(activation, static (logger, epoch) => ClientHostingLog.ActivationDisabling(logger, epoch));
 		List<Exception> failures = CleanupActivation(activation);
 		if (failures.Count > 0)
 		{
-			ClientHostingLog.ActivationCleanupFailed(activation.Logger, activation.Client.Epoch, failures.Count);
+			int failureCount = failures.Count;
+			SafeLog(activation.Logger, (Epoch: activation.Client.Epoch, Count: failureCount),
+				static (logger, state) => ClientHostingLog.ActivationCleanupFailed(logger, state.Epoch, state.Count));
 		}
 		else
 		{
-			ClientHostingLog.ActivationDisabled(activation.Logger, activation.Client.Epoch);
+			SafeLog(activation, static (logger, epoch) => ClientHostingLog.ActivationDisabled(logger, epoch));
 		}
 
 		ThrowCleanupFailures(failures);
@@ -203,59 +205,54 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 	///     Module callbacks and Client-owned Cheat Engine resources run while the SDK context is valid. The activation scope,
 	///     root provider, and configuration are then released in that order. Each stage is attempted even after an earlier
 	///     stage fails, allowing the caller to report one aggregate failure only after all owned resources had a cleanup
-	///     opportunity.
+	///     opportunity. Each failed stage is logged with its stable stage name and the exception type name only (Q43,
+	///     Q46); a throwing logging provider cannot abort the remaining stages.
 	/// </remarks>
 	private List<Exception> CleanupActivation(Activation activation)
 	{
-		List<Exception> failures = [];
+		CleanupReport report = new(activation.Logger, activation.Client.Epoch);
 		try
 		{
+			report.Attempt(CleanupStage.CleanupScope);
 			using (activation.Cleanup.EnterCleanupScope())
 			{
-				failures.AddRange(activation.Lifecycle.Cleanup(OnClientDisabling));
-				try
-				{
-					activation.Cleanup.DrainOwnedResourcesForDisable();
-				}
-				catch (Exception exception)
-				{
-					failures.Add(exception);
-				}
+				report.Record(CleanupStage.ModuleCallbacks, activation.Lifecycle.Cleanup(OnClientDisabling));
+				report.Run(CleanupStage.ClientResources, activation.Cleanup.DrainOwnedResourcesForDisable);
 			}
 		}
 		catch (Exception exception)
 		{
-			failures.Add(exception);
+			report.Fail(CleanupStage.CleanupScope, exception);
 		}
 
+		report.Run(CleanupStage.Scope, activation.Scope.Dispose);
+		report.Run(CleanupStage.Provider, activation.Provider.Dispose);
+		report.Run(CleanupStage.Configuration, activation.Builder.ReleaseConfiguration);
+		report.Complete();
+		return report.Failures;
+	}
+
+	/// <summary>Writes a lifecycle event without letting a logging provider fault escape the plugin callback.</summary>
+	private static void SafeLog(Activation activation, Action<ILogger, long> log)
+	{
+		SafeLog(activation.Logger, activation.Client.Epoch, log);
+	}
+
+	/// <summary>Writes a lifecycle event without letting a logging provider fault escape the plugin callback.</summary>
+	/// <remarks>
+	///     Logging is best effort: a provider that throws must neither abort enable/disable cleanup nor cross the Cheat
+	///     Engine plugin callback (audit ch.24, "handlers never re-enter or throw across the ABI callback").
+	/// </remarks>
+	private static void SafeLog<TState>(ILogger logger, TState state, Action<ILogger, TState> log)
+	{
 		try
 		{
-			activation.Scope.Dispose();
+			log(logger, state);
 		}
-		catch (Exception exception)
+		catch (Exception)
 		{
-			failures.Add(exception);
+			// Deliberately ignored: diagnostics must never change the lifecycle outcome.
 		}
-
-		try
-		{
-			activation.Provider.Dispose();
-		}
-		catch (Exception exception)
-		{
-			failures.Add(exception);
-		}
-
-		try
-		{
-			activation.Builder.ReleaseConfiguration();
-		}
-		catch (Exception exception)
-		{
-			failures.Add(exception);
-		}
-
-		return failures;
 	}
 
 	private static void ThrowCleanupFailures(List<Exception> failures)
@@ -296,6 +293,103 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 		throw new CheatEngineClientLifecycleException(
 			"GetClient",
 			"The Cheat Engine client is available only while the plugin is enabled.");
+	}
+
+	/// <summary>The stable, data-free names of the activation cleanup stages, in execution order.</summary>
+	private enum CleanupStage
+	{
+		CleanupScope,
+		ModuleCallbacks,
+		ClientResources,
+		Scope,
+		Provider,
+		Configuration
+	}
+
+	/// <summary>Collects cleanup failures per stage and logs each failed stage without user data.</summary>
+	private sealed class CleanupReport(ILogger logger, long epoch)
+	{
+		private const int StageCount = (int) CleanupStage.Configuration + 1;
+
+		private readonly bool[] _attempted = new bool[StageCount];
+		private readonly bool[] _failed = new bool[StageCount];
+
+		internal List<Exception> Failures
+		{
+			get;
+		} = [];
+
+		internal void Attempt(CleanupStage stage)
+		{
+			_attempted[(int) stage] = true;
+		}
+
+		internal void Run(CleanupStage stage, Action cleanup)
+		{
+			Attempt(stage);
+			try
+			{
+				cleanup();
+			}
+			catch (Exception exception)
+			{
+				Fail(stage, exception);
+			}
+		}
+
+		internal void Record(CleanupStage stage, List<Exception> failures)
+		{
+			Attempt(stage);
+			foreach (Exception failure in failures)
+			{
+				Fail(stage, failure);
+			}
+		}
+
+		internal void Fail(CleanupStage stage, Exception exception)
+		{
+			Failures.Add(exception);
+			_failed[(int) stage] = true;
+			string exceptionType = exception.GetType().FullName ?? exception.GetType().Name;
+			SafeLog(logger, (Epoch: epoch, Stage: GetName(stage), ExceptionType: exceptionType),
+				static (target, state) =>
+					ClientHostingLog.ActivationCleanupStageFailed(target, state.Epoch, state.Stage, state.ExceptionType));
+		}
+
+		internal void Complete()
+		{
+			SafeLog(logger, (Epoch: epoch, Attempted: Count(_attempted), Failed: Count(_failed)),
+				static (target, state) =>
+					ClientHostingLog.ActivationCleanupCompleted(target, state.Epoch, state.Attempted, state.Failed));
+		}
+
+		private static int Count(bool[] stages)
+		{
+			int count = 0;
+			foreach (bool stage in stages)
+			{
+				if (stage)
+				{
+					count++;
+				}
+			}
+
+			return count;
+		}
+
+		private static string GetName(CleanupStage stage)
+		{
+			return stage switch
+			{
+				CleanupStage.CleanupScope => "CleanupScope",
+				CleanupStage.ModuleCallbacks => "ModuleCallbacks",
+				CleanupStage.ClientResources => "ClientResources",
+				CleanupStage.Scope => "Scope",
+				CleanupStage.Provider => "Provider",
+				CleanupStage.Configuration => "Configuration",
+				_ => "Unknown"
+			};
+		}
 	}
 
 	private sealed class ActivationConstruction(CheatEnginePluginBuilder builder)

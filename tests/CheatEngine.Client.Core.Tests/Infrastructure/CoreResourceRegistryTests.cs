@@ -130,6 +130,71 @@ public sealed class CoreResourceRegistryTests
 		Assert.Equal(1, last.DisposeCount);
 	}
 
+	[Fact]
+	[Trait("Qualification", "Q43")]
+	public void DisposeAggregatesEveryCleanupFailureInReverseOrder()
+	{
+		List<string> events = [];
+		InvalidOperationException firstFailure = new("first module cleanup");
+		InvalidOperationException lastFailure = new("last module cleanup");
+		RecordingDisposable first = new("first", events, firstFailure);
+		RecordingDisposable middle = new("middle", events);
+		RecordingDisposable last = new("last", events, lastFailure);
+		CoreResourceRegistry registry = new();
+		registry.Track(first);
+		registry.Track(middle);
+		registry.Track(last);
+
+		AggregateException exception = Assert.Throws<AggregateException>(registry.Dispose);
+
+		Assert.Collection(
+			exception.InnerExceptions,
+			attemptedFirst => Assert.Same(lastFailure, attemptedFirst),
+			attemptedLast => Assert.Same(firstFailure, attemptedLast));
+		Assert.Equal(["last", "middle", "first"], events);
+		Assert.Equal(1, first.DisposeCount);
+		Assert.Equal(1, middle.DisposeCount);
+		Assert.Equal(1, last.DisposeCount);
+		registry.Dispose();
+		Assert.Equal(1, first.DisposeCount);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q43")]
+	public void DisposeRethrowsASingleCleanupFailureAsTheSameInstance()
+	{
+		InvalidOperationException failure = new("single cleanup failure");
+		CoreResourceRegistry registry = new();
+		registry.Track(new RecordingDisposable("ok", []));
+		registry.Track(new RecordingDisposable("failing", [], failure));
+
+		InvalidOperationException exception = Assert.Throws<InvalidOperationException>(registry.Dispose);
+
+		Assert.Same(failure, exception);
+		Assert.Contains(nameof(RecordingDisposable), exception.StackTrace, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q43")]
+	public void DisposeTargetSelectionAggregatesEveryCleanupFailure()
+	{
+		List<string> events = [];
+		InvalidOperationException firstFailure = new("first");
+		InvalidOperationException secondFailure = new("second");
+		CoreResourceRegistry registry = new();
+		registry.Track(new RecordingDisposable("first", events, firstFailure), 3);
+		registry.Track(new RecordingDisposable("unrelated", events), 4);
+		registry.Track(new RecordingDisposable("second", events, secondFailure), 3);
+
+		AggregateException exception = Assert.Throws<AggregateException>(() => registry.DisposeTargetSelection(3));
+
+		Assert.Collection(
+			exception.InnerExceptions,
+			attemptedFirst => Assert.Same(secondFailure, attemptedFirst),
+			attemptedLast => Assert.Same(firstFailure, attemptedLast));
+		Assert.Equal(["second", "first"], events);
+	}
+
 	private sealed class RecordingDisposable(string name, List<string> events, Exception? exception = null)
 		: IDisposable
 	{

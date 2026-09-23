@@ -96,7 +96,40 @@ public sealed class CoreLifetimeBehaviorTests
 		Assert.Throws<CheatEngineActivationExpiredException>(() => lifetime.ThrowIfInactive("Test.Disposed"));
 	}
 
-	private sealed class RecordingDisposable : IDisposable
+	[Fact]
+	[Trait("Qualification", "Q43")]
+	public void DrainAggregatesTargetSelectionAndResourceCleanupFailures()
+	{
+		using ControlledCoreLifetimeContext context = new();
+		CoreLifetime lifetime = new(context);
+		InvalidOperationException targetFailure = new("target-bound lease cleanup");
+		InvalidOperationException activationFailure = new("activation resource cleanup");
+		RecordingDisposable targetBound = new(targetFailure);
+		RecordingDisposable activationBound = new(activationFailure);
+		RecordingDisposable healthy = new();
+		lifetime.TargetSelection.Track(targetBound, lifetime.TargetSelection.Epoch);
+		lifetime.Track(activationBound);
+		lifetime.Track(healthy);
+		context.Stop();
+
+		AggregateException exception;
+		using (lifetime.EnterCleanupScope())
+		{
+			exception = Assert.Throws<AggregateException>(lifetime.DrainOwnedResourcesForDisable);
+		}
+
+		Assert.Collection(
+			exception.InnerExceptions,
+			first => Assert.Same(targetFailure, first),
+			second => Assert.Same(activationFailure, second));
+		Assert.Equal(1, targetBound.DisposeCount);
+		Assert.Equal(1, activationBound.DisposeCount);
+		Assert.Equal(1, healthy.DisposeCount);
+		lifetime.Dispose();
+		Assert.Equal(1, healthy.DisposeCount);
+	}
+
+	private sealed class RecordingDisposable(Exception? failure = null) : IDisposable
 	{
 		internal int DisposeCount
 		{
@@ -107,6 +140,10 @@ public sealed class CoreLifetimeBehaviorTests
 		public void Dispose()
 		{
 			DisposeCount++;
+			if (failure is not null)
+			{
+				throw failure;
+			}
 		}
 	}
 }

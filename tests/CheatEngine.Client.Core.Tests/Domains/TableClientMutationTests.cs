@@ -226,6 +226,93 @@ public sealed class TableClientMutationTests
 		Assert.Equal(TableRecordMutationStatus.InvalidRelationship, status);
 	}
 
+	[Fact]
+	[Trait("Qualification", "Q43")]
+	public void FailedCreateWithUnconfirmedRollbackReportsCleanupUnconfirmed()
+	{
+		InvalidOperationException rollbackFault = new("destroy faulted");
+		FakeRecordMutationPort mutations = new()
+		{
+			Creation = new TableRecordCreation(TableRecordMutationStatus.ParentNotFound,
+				TableRecordRollback.Unconfirmed, RollbackFault: rollbackFault)
+		};
+		TableClient client = CreateClient(mutations);
+
+		bool succeeded = client.TryCreate(Definition(), out MemoryRecordSnapshot record,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(default, record);
+		Assert.Equal(CheatEngineFailureKind.NotFound, failure.Kind);
+		Assert.Equal("Tables.Create", failure.Operation);
+		Assert.Equal(CheatEngineHostEffect.CleanupUnconfirmed, failure.HostEffect);
+		Assert.Contains("may remain in the Address List", failure.Message, StringComparison.Ordinal);
+		Assert.Same(rollbackFault, failure.Exception);
+		Assert.Equal(1, mutations.CreateCallCount);
+	}
+
+	[Fact]
+	public void FailedCreateWithConfirmedRollbackReportsACompletedHostEffect()
+	{
+		TableClient client = CreateClient(new FakeRecordMutationPort
+		{
+			Creation = new TableRecordCreation(TableRecordMutationStatus.HostRejected, TableRecordRollback.Confirmed)
+		});
+
+		bool succeeded = client.TryCreate(Definition(), out _, out CheatEngineFailure failure,
+			TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(CheatEngineFailureKind.InvalidHostResult, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.Completed, failure.HostEffect);
+	}
+
+	[Fact]
+	public void FailedCreateKeepsBothTheCreationAndTheRollbackFaults()
+	{
+		InvalidOperationException creationFault = new("initialization faulted");
+		InvalidOperationException rollbackFault = new("destroy faulted");
+		TableClient client = CreateClient(new FakeRecordMutationPort
+		{
+			Creation = new TableRecordCreation(TableRecordMutationStatus.HostRejected, TableRecordRollback.Unconfirmed,
+				creationFault, rollbackFault)
+		});
+
+		bool succeeded = client.TryCreate(Definition(), out _, out CheatEngineFailure failure,
+			TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.CleanupUnconfirmed, failure.HostEffect);
+		AggregateException aggregate = Assert.IsType<AggregateException>(failure.Exception);
+		Assert.Collection(
+			aggregate.InnerExceptions,
+			first => Assert.Same(creationFault, first),
+			second => Assert.Same(rollbackFault, second));
+	}
+
+	[Fact]
+	public void SuccessfulCreateReturnsTheCopiedSnapshot()
+	{
+		MemoryRecordSnapshot expected = Snapshot(51, "Health");
+		TableClient client = CreateClient(new FakeRecordMutationPort
+		{
+			CreatedRecord = expected
+		});
+
+		bool succeeded = client.TryCreate(Definition(), out MemoryRecordSnapshot record,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.True(succeeded);
+		Assert.Equal(default, failure);
+		Assert.Equal(expected, record);
+	}
+
+	private static MemoryRecordDefinition Definition()
+	{
+		return new MemoryRecordDefinition("Health", "game.exe+24", "100", VariableType.Dword);
+	}
+
 	private static TableClient CreateClient(FakeRecordMutationPort mutations)
 	{
 		return new TableClient(new InlineDispatcher(), CoreClientPolicy.SafeDefaults, mutations);
@@ -260,6 +347,24 @@ public sealed class TableClientMutationTests
 			init;
 		}
 
+		internal TableRecordCreation Creation
+		{
+			get;
+			init;
+		} = TableRecordCreation.Created;
+
+		internal MemoryRecordSnapshot CreatedRecord
+		{
+			get;
+			init;
+		}
+
+		internal int CreateCallCount
+		{
+			get;
+			private set;
+		}
+
 		internal MemoryRecordId LastDeletedId
 		{
 			get;
@@ -282,6 +387,13 @@ public sealed class TableClientMutationTests
 		{
 			get;
 			private set;
+		}
+
+		public TableRecordCreation TryCreate(MemoryRecordDefinition definition, out MemoryRecordSnapshot record)
+		{
+			CreateCallCount++;
+			record = Creation.Status == TableRecordMutationStatus.Success ? CreatedRecord : default;
+			return Creation;
 		}
 
 		public TableRecordMutationStatus TryDelete(MemoryRecordId id)
