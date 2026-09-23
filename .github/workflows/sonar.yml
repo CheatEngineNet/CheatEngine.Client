@@ -178,7 +178,10 @@ jobs:
             # CI publishes managed coverage of the shipping code only. Keep tests, build tooling and documentation out
             # of the coverage metric instead of presenting an incomplete report as if it covered those paths.
             '/d:sonar.coverage.exclusions=tests/**,eng/**,docs/**'
-            '/d:sonar.dotnet.excludeTestProjects=true'
+            # Never set sonar.dotnet.excludeTestProjects: the scanner then strips every analyzer, including source
+            # generators, from test projects, and their [GeneratedRegex]/[LoggerMessage] partial methods fail with
+            # CS8795 (https://github.com/SonarSource/sonar-scanner-msbuild/issues/1469). Test projects are analysed as
+            # test code instead.
             "/d:sonar.cs.vscoveragexml.reportsPaths=$coverage/**/*.xml"
             "/d:sonar.issue.ignore.multicriteria=$(($ignoredIssues.Key) -join ',')"
             "/d:sonar.qualitygate.wait=$env:SONAR_WAIT_QUALITY_GATE"
