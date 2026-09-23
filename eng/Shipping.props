@@ -32,6 +32,8 @@
     <GenerateSBOM>true</GenerateSBOM>
     <SbomGenerationPackageSupplier>CheatEngineNet</SbomGenerationPackageSupplier>
     <SbomGenerationNamespaceBaseUri>https://github.com/CheatEngineNet/CheatEngine.Client</SbomGenerationNamespaceBaseUri>
+    <!-- The tool prints ##[information] lines, which GitHub Actions renders as annotations; keep warnings and errors only. -->
+    <SbomGenerationVerbosity>Warning</SbomGenerationVerbosity>
   </PropertyGroup>
 
   <ItemGroup>
