@@ -7,14 +7,18 @@ which is published on nuget.org; the [repository README](../README.md) is the st
 
 ## Documents
 
-| Document                                 | What it answers                                                                                     |
-|------------------------------------------|-----------------------------------------------------------------------------------------------------|
-| [CHANGELOG](../CHANGELOG.md)             | What changed in each release, separated into extensions, semantic corrections, refusals, deployment |
-| [CONTRIBUTING](../CONTRIBUTING.md)       | How to build, test, pack and change the repository, and the rules a pull request follows            |
-| [RELEASING](../RELEASING.md)             | How a release is built, attested, published and verified, and what it must be qualified against     |
-| [ROADMAP](../ROADMAP.md)                 | The outcome-based plan, including the `CLI-0xx` work item identifiers                               |
-| [The consumed SDK](../eng/sdk/README.md) | Which `CheatEngine.SDK` package the Client consumes, its hashes, its guards and how the pin moves    |
-| [LICENSE](../LICENSE)                    | The MIT license of the repository and of the seven packages                                         |
+| Document                                       | What it answers                                                                                           |
+|------------------------------------------------|-----------------------------------------------------------------------------------------------------------|
+| [CHANGELOG](../CHANGELOG.md)                   | What changed in each release, separated into extensions, semantic corrections, refusals, deployment       |
+| [CONTRIBUTING](../CONTRIBUTING.md)             | How to build, test, pack and change the repository, and the rules a pull request follows                  |
+| [RELEASING](../RELEASING.md)                   | How a release is built, attested, published and verified, and what it must be qualified against           |
+| [ROADMAP](../ROADMAP.md)                       | The outcome-based plan, including the `CLI-0xx` work item identifiers                                     |
+| [The consumed SDK](../eng/sdk/README.md)       | Which `CheatEngine.SDK` package the Client consumes, its hashes, its guards and how the pin moves         |
+| [LICENSE](../LICENSE)                          | The MIT license of the repository and of the seven packages                                               |
+| [SECURITY](../SECURITY.md)                     | Which versions receive fixes and how to report a vulnerability privately                                  |
+| [CODE_OF_CONDUCT](../CODE_OF_CONDUCT.md)       | The Contributor Covenant that applies in the community spaces, and how to report a concern privately      |
+| [CI scripts](../eng/ci/README.md)              | What each CI and governance script guarantees, and how to run it locally                                  |
+| [Repository settings](../eng/github/README.md) | The GitHub settings kept as code: merge rules, required checks, release environment and security features |
 
 ## Pages that arrive later
 
@@ -33,9 +37,9 @@ Commit `d06fd2e` deleted a `docs/` tree that the repository still linked. None o
 reconstructs it: the absence of these files is missing evidence, not proof that the work never happened, and any claim
 that relied on them stays a declaration until new evidence exists. Old links were re-pointed or removed as follows.
 
-| Retired path                                        | Replacement                                                                                | Reason                                                                           |
-|-----------------------------------------------------|--------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------|
-| `docs/engineering/EVIDENCE_AND_LIMITS.md`           | Removed, not restored. The roadmap no longer mentions the deployment receipt it held.      | It recorded a repository deployment, not product evidence.                       |
-| `docs/engineering/work-items/CLI-001.md` to `CLI-024.md` | Removed, not restored. The roadmap keeps each `CLI-0xx` identifier and title as plain text. | Issues are disabled, so no issue can replace the work item pages.                |
-| `docs/adr/0001-layered-in-process-architecture.md`  | [Packages and direct SDK reference](../README.md#packages-and-direct-sdk-reference)       | The repository README describes the package graph and the direct SDK reference. |
-| `docs/adr/0002-plugin-activation-lifecycle.md`      | [The plugin lifecycle](../README.md#the-plugin-lifecycle)                                 | The repository README describes the per-enable lifecycle.                        |
+| Retired path                                             | Replacement                                                                                 | Reason                                                                          |
+|----------------------------------------------------------|---------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------|
+| `docs/engineering/EVIDENCE_AND_LIMITS.md`                | Removed, not restored. The roadmap no longer mentions the deployment receipt it held.       | It recorded a repository deployment, not product evidence.                      |
+| `docs/engineering/work-items/CLI-001.md` to `CLI-024.md` | Removed, not restored. The roadmap keeps each `CLI-0xx` identifier and title as plain text. | Issues are disabled, so no issue can replace the work item pages.               |
+| `docs/adr/0001-layered-in-process-architecture.md`       | [Packages and direct SDK reference](../README.md#packages-and-direct-sdk-reference)         | The repository README describes the package graph and the direct SDK reference. |
+| `docs/adr/0002-plugin-activation-lifecycle.md`           | [The plugin lifecycle](../README.md#the-plugin-lifecycle)                                   | The repository README describes the per-enable lifecycle.                       |
