@@ -36,6 +36,46 @@
   </Target>
 
   <!--
+    CECLIENT017: this Client release is built and tested against CheatEngine.SDK below $(_CheatEngineClientSdkUpperMajor).0.
+    A plugin that references a newer SDK directly makes NuGet resolve it with only an NU1608 warning, and the Client then
+    breaks at run time, so the resolved SDK major is checked after package assets are resolved. Setting
+    CheatEngineClientAllowUnsupportedSdk=true turns the error into a warning for an author who accepts an unsupported
+    combination.
+
+    _CheatEngineClientSdkUpperMajor is the first SDK major this release does not support, the exclusive upper bound of
+    the range its packages declare. It is a literal because a consumer build has no access to the Client repository, and it lives in this
+    file because the repository's coexistence fixtures import only the targets. A repository test keeps it equal to the
+    major of CheatEngineSdkUpperBound in eng/CheatEngineSdk.props.
+  -->
+  <PropertyGroup>
+    <_CheatEngineClientSdkUpperMajor>2</_CheatEngineClientSdkUpperMajor>
+  </PropertyGroup>
+
+  <Target Name="CheatEngineClientValidateResolvedSdkMajor"
+          AfterTargets="ResolvePackageAssets"
+          Condition="'$(CheatEngineClientPluginProject)' == 'true'">
+    <ItemGroup>
+      <_CheatEngineClientResolvedSdkAsset Remove="@(_CheatEngineClientResolvedSdkAsset)"/>
+      <_CheatEngineClientResolvedSdkAsset Include="@(ResolvedCompileFileDefinitions)"
+                                          Condition="'%(ResolvedCompileFileDefinitions.NuGetPackageId)' == 'CheatEngine.SDK'"/>
+      <_CheatEngineClientResolvedSdkAsset Include="@(RuntimeCopyLocalItems)"
+                                          Condition="'%(RuntimeCopyLocalItems.NuGetPackageId)' == 'CheatEngine.SDK'"/>
+    </ItemGroup>
+    <PropertyGroup>
+      <_CheatEngineClientResolvedSdkVersion>@(_CheatEngineClientResolvedSdkAsset->'%(NuGetPackageVersion)'->Distinct())</_CheatEngineClientResolvedSdkVersion>
+      <_CheatEngineClientResolvedSdkMajor>$([System.Text.RegularExpressions.Regex]::Match('$(_CheatEngineClientResolvedSdkVersion)', '^[0-9]+').Value)</_CheatEngineClientResolvedSdkMajor>
+      <_CheatEngineClientUnsupportedSdk>false</_CheatEngineClientUnsupportedSdk>
+      <_CheatEngineClientUnsupportedSdk Condition="'$(_CheatEngineClientResolvedSdkMajor)' != '' and $(_CheatEngineClientResolvedSdkMajor) &gt;= $(_CheatEngineClientSdkUpperMajor)">true</_CheatEngineClientUnsupportedSdk>
+    </PropertyGroup>
+    <Error Condition="'$(_CheatEngineClientUnsupportedSdk)' == 'true' and '$(CheatEngineClientAllowUnsupportedSdk)' != 'true'"
+           Code="CECLIENT017"
+           Text="This plugin resolves CheatEngine.SDK $(_CheatEngineClientResolvedSdkVersion), but CheatEngine.Client is built and tested against CheatEngine.SDK below $(_CheatEngineClientSdkUpperMajor).0 and will break at run time. Reference the CheatEngine.SDK version the Client documents, or a Client release that supports this SDK. CheatEngineClientAllowUnsupportedSdk=true turns this error into a warning for an unsupported combination."/>
+    <Warning Condition="'$(_CheatEngineClientUnsupportedSdk)' == 'true' and '$(CheatEngineClientAllowUnsupportedSdk)' == 'true'"
+             Code="CECLIENT017"
+             Text="This plugin resolves CheatEngine.SDK $(_CheatEngineClientResolvedSdkVersion), which CheatEngine.Client does not support (below $(_CheatEngineClientSdkUpperMajor).0 only). CheatEngineClientAllowUnsupportedSdk=true keeps building; expect run-time failures."/>
+  </Target>
+
+  <!--
     This task opens only ECMA-335 metadata from the intermediate assembly.  It deliberately does not load the plugin,
     execute user code, or inspect an activation-scoped SDK object.  SDK diagnostics remain authoritative for plugin shape;
     the Client profile adds its own requirement that exactly one generated Client host derives from

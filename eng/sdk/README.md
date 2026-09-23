@@ -57,6 +57,15 @@ bridge source fingerprint the SDK embeds, so a deployed bridge can be tied to th
 |-------------------------|----------------------------------------------|---------------------------------------------------------------------------------------------------------|
 | `CHEATENGINECLIENT9016` | every restore and build of this repository   | a pin that is a prerelease, of another major than `_CheatEngineClientSupportedSdkMajor`, or outside its range; packing with such a pin |
 | `CHEATENGINECLIENT9017` | every restore and build of this repository   | a `CheatEngine.SDK` version written anywhere but `eng/CheatEngineSdk.props`                             |
+| `CECLIENT017`           | every build of a plugin that consumes `CheatEngine.Client.Hosting` | a `CheatEngine.SDK` resolved at 2.0 or later next to this Client |
+
+NuGet alone does not protect a plugin from an SDK major the Client was not built for. A stable `CheatEngine.SDK` 2.0.0
+referenced directly only raises the
+[NU1608](https://learn.microsoft.com/nuget/reference/errors-and-warnings/nu1608) warning, and a 2.0.0 prerelease raises
+nothing at all: it sorts below 2.0.0, so it satisfies `[1.0.0, 2.0.0)`. In both cases the plugin would fail at run time.
+`CECLIENT017` fails the plugin build instead (the package consumption tests prove both cases). A plugin author who
+accepts an unsupported combination sets `CheatEngineClientAllowUnsupportedSdk=true`, which turns the error into a
+warning.
 
 ## Move the pin
 
@@ -88,9 +97,11 @@ advisory job overrides the pin with global properties and a temporary NuGet conf
 ```powershell
 dotnet build CheatEngine.Client.slnx -c Release `
   -p:CheatEngineSdkVersion=2.0.0-alpha.0.42 -p:CheatEngineSdkUpperBound=3.0.0 `
-  -p:CheatEngineSdkCanary=true -p:RestorePackagesWithLockFile=false
+  -p:CheatEngineSdkCanary=true -p:RestorePackagesWithLockFile=false -p:CheatEngineClientAllowUnsupportedSdk=true
 ```
 
 The `NuGet.Config` of that job maps the package id `CheatEngine.SDK` to the folder of the candidate package and every
 other id to nuget.org. `CheatEngineSdkCanary=true` turns the `CHEATENGINECLIENT9016` errors into messages so the build
 reports what breaks; `dotnet pack` still fails, so a canary build never produces a Client package.
+`CheatEngineClientAllowUnsupportedSdk=true` keeps `CECLIENT017` a warning in the coexistence fixtures, which import the
+Hosting build targets directly.

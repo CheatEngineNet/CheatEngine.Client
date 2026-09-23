@@ -246,6 +246,17 @@ public sealed partial class SdkPinTests
 		Assert.Equal("false", Assert.Single(props.Descendants("ManagePackageVersionsCentrally")).Value);
 	}
 
+	[Fact]
+	public void ConsumerSdkMajorGuardMatchesThePinUpperBound()
+	{
+		const string consumerTargets = "libs/CheatEngine.Client.Hosting/buildTransitive/CheatEngine.Client.Hosting.targets";
+		XDocument targets = XDocument.Load(Path.Combine(RepositoryRoot.Path, consumerTargets));
+		XElement upperMajor = Assert.Single(targets.Descendants("_CheatEngineClientSdkUpperMajor"));
+
+		Assert.Equal(SdkPin.UpperBound.Split('.')[0], upperMajor.Value.Trim());
+		Assert.Single(targets.Descendants("Error"), static error => (string?) error.Attribute("Code") == "CECLIENT017");
+	}
+
 	private static IEnumerable<string> EnumerateMsBuildFiles()
 	{
 		foreach (string pattern in (string[]) ["*.csproj", "*.props", "*.targets"])
