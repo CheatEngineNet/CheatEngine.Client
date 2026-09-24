@@ -298,8 +298,7 @@ internal sealed class ValueScanSession : HostResourceLease, IValueScanSession
 		}
 		catch (OperationCanceledException)
 		{
-			return new CheatEngineFailure(CheatEngineFailureKind.Cancelled, operation, ScanNotAwaitedMessage, null,
-				CheatEngineHostEffect.Started);
+			return CancellationMapping.BetweenNativeCalls(operation, ScanNotAwaitedMessage);
 		}
 		catch (Exception fault) when (SdkBoundary.IsSdkFault(fault))
 		{
