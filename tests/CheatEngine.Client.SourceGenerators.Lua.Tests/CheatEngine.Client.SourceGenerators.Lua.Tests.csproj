@@ -14,6 +14,17 @@
           Link="Diagnostics/Generator.README.md" CopyToOutputDirectory="PreserveNewest"/>
   </ItemGroup>
 
+  <!--
+    RealSdkGeneratorCompositionTests runs the CheatEngine.SDK LuaBindings generator of the restored, pinned package next to
+    the Client generator (CRIT-07). The folder is resolved here, from the NuGet package root and the pin, never from a
+    user path.
+  -->
+  <ItemGroup>
+    <AssemblyMetadata Include="CheatEngine.Client.Tests.SdkGeneratorDirectory"
+                      Value="$(NuGetPackageRoot)cheatengine.sdk/$(CheatEngineSdkVersion)/analyzers/dotnet/cs"/>
+    <AssemblyMetadata Include="CheatEngine.Client.Tests.SdkVersion" Value="$(CheatEngineSdkVersion)"/>
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="../../source-generators/CheatEngine.Client.SourceGenerators.Lua/CheatEngine.Client.SourceGenerators.Lua.csproj"/>
     <ProjectReference Include="../../libs/CheatEngine.Client.Abstractions/CheatEngine.Client.Abstractions.csproj"/>

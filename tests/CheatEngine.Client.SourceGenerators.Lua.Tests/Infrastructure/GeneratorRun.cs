@@ -72,7 +72,18 @@ internal sealed class GeneratorRun
 	public static GeneratorRun ExecuteFiles((string Path, string Source)[] files,
 		MetadataReference[]? additionalReferences = null)
 	{
+		return ExecuteFiles(files, additionalReferences, []);
+	}
+
+	/// <summary>
+	///     Runs the Client generator next to <paramref name="otherGenerators" /> over source files with explicit paths, so
+	///     the output compilation contains what every generator emitted.
+	/// </summary>
+	public static GeneratorRun ExecuteFiles((string Path, string Source)[] files,
+		MetadataReference[]? additionalReferences, ISourceGenerator[] otherGenerators)
+	{
 		ArgumentNullException.ThrowIfNull(files);
+		ArgumentNullException.ThrowIfNull(otherGenerators);
 
 		CSharpParseOptions parseOptions = new(LanguageVersion.CSharp14);
 		SyntaxTree[] syntaxTrees =
@@ -85,7 +96,7 @@ internal sealed class GeneratorRun
 			[.. GetMetadataReferences(), .. additionalReferences ?? []],
 			new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, allowUnsafe: true));
 		GeneratorDriver driver = CSharpGeneratorDriver.Create(
-			[new CheatEngineLuaGenerator().AsSourceGenerator()],
+			[new CheatEngineLuaGenerator().AsSourceGenerator(), .. otherGenerators],
 			parseOptions: parseOptions,
 			driverOptions: new GeneratorDriverOptions(IncrementalGeneratorOutputKind.None,
 				true));

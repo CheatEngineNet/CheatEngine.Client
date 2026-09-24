@@ -86,6 +86,26 @@ admission (`LuaRuntime.TryAcquireOperationWithOutcome`, `LuaRuntimeOperation.Sta
 admitted operation is only passed to the SDK: generated code never reads or writes the Lua stack. The list is exact and
 may only shrink; the module part and the registrar name SDK enum values only.
 
+## With the CheatEngine.SDK generator
+
+The Client generator and the CheatEngine.SDK LuaBindings generator run on the same compilation, and each consumes what
+the other emits: the module calls the SDK-generated `TryRegisterLuaFunctions`, and an operation calls the SDK-generated
+body of its `[LuaGlobal]` method. `RealSdkGeneratorCompositionTests` loads the SDK generator of the pinned package and
+requires both outputs to compile together. Two CheatEngine.SDK 2.0.0 behaviours follow (CRIT-07):
+
+- **Kept functions fail closed.** `TryRegisterLuaFunctions` publishes through `LuaRegistrationSet`, which wraps each
+  thunk in a closure that captures the attachment and Lua state identity. A script that kept one of the module's
+  functions after disable, reset or re-enable gets an ordinary Lua error instead of a call into an ended activation.
+- **Integers and addresses are never rounded.** The SDK integer and address marshallers refuse a Lua float at or above
+  2^53. For an operation, the throwing form of the binding raises a `LuaException` whose status is `LUA_OK`, and the Try
+  form returns `false`; the generated operation reports both as a `LuaError` failure, with the SDK exception attached
+  for the throwing form, and never lets the exception escape `TryExecute`. These forms cannot tell such a refusal from
+  an unresolved global; the SDK Outcome form (`LuaOperationStatus`) could, but `[CheatEngineLuaOperation]` does not
+  support it in 1.0.
+
+`LuaOptional<T>` is deferred past 1.0: an operation takes scalar inputs only (CECLUA1103), and the Client has no
+contract for an omitted result yet.
+
 ## Diagnostics
 
 Every generator diagnostic is an error. Ids are allocated per range and never renumbered or reused: 1001-1006 module
@@ -94,24 +114,24 @@ shape, 1101-1106 operation shape, 1201-1209 module ownership (Q16; 1205-1209 unu
 the generator project, so the release-tracking analyzers (RS2000-RS2008) fail the build when a descriptor and its row
 disagree.
 
-| Id | Title | Reported when |
-|---|---|---|
-| CECLUA1001 | Lua module must be a non-static partial class | The module is not a top-level, concrete, non-static, non-generic, non-file-local partial class. |
-| CECLUA1002 | Lua module requires a static SDK bindings type | The bindings type is not a non-generic, non-file-local static class. |
-| CECLUA1003 | Lua module bindings export nothing | The bindings type declares no `[LuaFunction]` export. |
-| CECLUA1004 | Lua module exports must have unique names | An export name is missing, blank, or declared twice. |
-| CECLUA1005 | Lua module name cannot be blank | The explicit module name is empty or whitespace. |
-| CECLUA1006 | Lua module needs a public constructor | Only non-public explicit constructors exist, so dependency injection cannot create the module. |
-| CECLUA1101 | Lua operation requires a supported SDK global declaration | The operation is not a static partial `[LuaGlobal]` method of a top-level static partial class. |
-| CECLUA1102 | Lua operation method cannot be overloaded | Several `[CheatEngineLuaOperation]` methods share a name. |
-| CECLUA1103 | Lua operation has an unsupported result shape | Inputs are not scalar, or the result is not one return value or one trailing `out` value. |
-| CECLUA1104 | Lua operation result requires a mapper | A non-scalar SDK result has no `ILuaResultMapper`. |
-| CECLUA1105 | Lua operation mapper does not match the SDK result | The mapper does not implement `ILuaResultMapper` for that SDK result. |
-| CECLUA1106 | Lua operation mapper must project a safe Client result | The mapped graph exposes an SDK lifetime, interop, callback, or opaque framework type. |
-| CECLUA1201 | Lua export is owned by more than one Lua module | Two modules of one compilation export the same Lua global; reported on the later module (file path, then position). |
-| CECLUA1202 | Lua module declares a member reserved by the generated registration | The module declares `Register`, `Unregister`, `Descriptor`, `s_descriptor`, `_luaRegistration`, or an explicit implementation of `ILuaModule`. No source is generated. |
-| CECLUA1203 | Lua module inherits a Lua module implementation | A base type already implements `ILuaModule` or is itself a `[CheatEngineLuaModule]`. No source is generated. |
-| CECLUA1204 | Lua module annotation is not the contract type | `[CheatEngineLuaModule]` does not come from `CheatEngine.Client.Abstractions`, or a `[LuaFunction]` on the bindings type does not come from `CheatEngine.SDK.Annotations`. Look-alike exports are never counted; no source is generated. |
+| Id | Title | Reported when | What to do |
+|---|---|---|---|
+| CECLUA1001 | Lua module must be a non-static partial class | The module is not a top-level, concrete, non-static, non-generic, non-file-local partial class. | Declare `internal sealed partial class MyModule : ILuaModule;` at namespace level. |
+| CECLUA1002 | Lua module requires a static SDK bindings type | The bindings type is not a non-generic, non-file-local static class. | Point `[CheatEngineLuaModule(typeof(...))]` at the `static partial` class that holds the `[LuaFunction]` methods. |
+| CECLUA1003 | Lua module bindings export nothing | The bindings type declares no `[LuaFunction]` export. | Add at least one `[LuaFunction("name")]` static method, or remove the module. |
+| CECLUA1004 | Lua module exports must have unique names | An export name is missing, blank, or declared twice. | Give every `[LuaFunction]` of the bindings type its own non-blank Lua name. |
+| CECLUA1005 | Lua module name cannot be blank | The explicit module name is empty or whitespace. | Pass a non-blank name, or omit it to use the module type name. |
+| CECLUA1006 | Lua module needs a public constructor | Only non-public explicit constructors exist, so dependency injection cannot create the module. | Make one constructor public, or remove the explicit constructors. |
+| CECLUA1101 | Lua operation requires a supported SDK global declaration | The operation is not a static partial `[LuaGlobal]` method of a top-level static partial class. | Declare `[CheatEngineLuaOperation][LuaGlobal("name")] public static partial T Name(...);` in a top-level `static partial` class. |
+| CECLUA1102 | Lua operation method cannot be overloaded | Several `[CheatEngineLuaOperation]` methods share a name. | Rename the overloads: each operation needs its own method name. |
+| CECLUA1103 | Lua operation has an unsupported result shape | Inputs are not scalar, or the result is not one return value or one trailing `out` value. | Use scalar inputs and one result; `LuaOptional<T>` inputs are deferred past 1.0. |
+| CECLUA1104 | Lua operation result requires a mapper | A non-scalar SDK result has no `ILuaResultMapper`. | Pass `typeof(MyMapper)` to `[CheatEngineLuaOperation]`, where `MyMapper` implements `ILuaResultMapper<TSource, TResult>`. |
+| CECLUA1105 | Lua operation mapper does not match the SDK result | The mapper does not implement `ILuaResultMapper` for that SDK result. | Implement `ILuaResultMapper<TSource, TResult>` with `TSource` equal to the declared SDK result. |
+| CECLUA1106 | Lua operation mapper must project a safe Client result | The mapped graph exposes an SDK lifetime, interop, callback, or opaque framework type. | Map to a copied value: scalars, approved SDK value types, closed immutable collections or closed DTOs of them. |
+| CECLUA1201 | Lua export is owned by more than one Lua module | Two modules of one compilation export the same Lua global; reported on the later module (file path, then position). | Remove the export from one of the bindings types: a Lua global has one owning module per plugin assembly. |
+| CECLUA1202 | Lua module declares a member reserved by the generated registration | The module declares `Register`, `Unregister`, `Descriptor`, `s_descriptor`, `_luaRegistration`, or an explicit implementation of `ILuaModule`. No source is generated. | Rename or remove the member; the generator implements `ILuaModule`. |
+| CECLUA1203 | Lua module inherits a Lua module implementation | A base type already implements `ILuaModule` or is itself a `[CheatEngineLuaModule]`. No source is generated. | Derive the module from `object`; compose shared behavior instead of inheriting a module. |
+| CECLUA1204 | Lua module annotation is not the contract type | `[CheatEngineLuaModule]` does not come from `CheatEngine.Client.Abstractions`, or a `[LuaFunction]` on the bindings type does not come from `CheatEngine.SDK.Annotations`. Look-alike exports are never counted; no source is generated. | Remove the look-alike attribute type and use the contract attributes. |
 
 ## Limits
 
@@ -145,6 +165,9 @@ generated SDK adapter; the module and the registrar run unchanged.
 | Every SDK outcome enum is mapped totally and fails closed | `GeneratedRegistrarMappingTests` |
 | The SDK surface is exact and confined to the adapter | `GeneratedLuaSurfaceRatchetTests` |
 | No legacy registration; contract, projection and emitted text compared separately; no `unsafe` code required; refused without an attached SDK runtime | `ModuleContractTests`, `ModuleSnapshots` |
+| The Client and SDK generators compile together; the module publishes through `LuaRegistrationSet`; integer results use the refusing marshallers | `RealSdkGeneratorCompositionTests` |
+| A refused integer result is a `LuaError` failure and never an exception out of `TryExecute` | `OperationRefusalEndToEndTests` |
+| A function kept after disable raises a Lua error (modelled by the double) | `LuaModuleOwnershipEndToEndTests.AFunctionKeptAfterDisableRaisesALuaErrorInsteadOfEnteringTheModule` |
 | Diagnostics are tracked, located and deterministic; models stay cached | `CheatEngineLuaDiagnosticCatalogTests`, `ModuleShapeDiagnosticTests`, `IncrementalityTests`, `IdentifierStabilityTests` |
 
 The EndToEnd and outcome tests carry `[Trait("Qualification", "Q16")]`.

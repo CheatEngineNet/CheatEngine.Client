@@ -100,8 +100,11 @@ print(cheatengine_client_coexistence_b_ping())
 ```
 
 Re-enable A. Before introducing `PluginCollision`, prove A's owner marker again, then add and attempt to enable the
-collision DLL. The generated Client module must refuse to replace the non-`nil` A global. Record the host-visible enable
-failure, then prove the established plugin survived untouched:
+collision DLL. Its generated Client module registers through the CheatEngine.SDK registration lease with the
+`RejectExisting` policy, so the SDK preflight finds A's non-`nil` global and publishes nothing. The expected host-visible
+enable failure carries the classification the Client reported:
+`Collision=Refused; Kind=OperationRejected; HostEffect=NotApplied; Operation=Lua.RegisterModule`. Record it, then prove
+the established plugin survived untouched:
 
 ```lua
 assert(cheatengine_client_coexistence_a_collision() == "CollisionOwner=A")
@@ -131,12 +134,13 @@ assert(type(cheatengine_client_coexistence_b_identity) == "function")
 print(cheatengine_client_coexistence_b_ping())
 ```
 
-Expected result: A's disable removes the globals A still owns, leaves the third-party value under
-`cheatengine_client_coexistence_a_ping` in place, and does not touch B. A failing assertion is recorded as `Failed` and
-is never repaired.
+Expected result: A's disable releases its CheatEngine.SDK registration lease, which removes the globals that still
+hold the functions A installed, leaves the third-party value under `cheatengine_client_coexistence_a_ping` in place (the
+SDK compares by primitive identity and writes nothing to a replaced global), and does not touch B. A failing assertion
+is recorded as `Failed` and is never repaired.
 
-The operator then removes the third party. While it holds the name, the generated preflight refuses to enable A again,
-because the global is defined; that refusal is expected and is not the result of this step:
+The operator then removes the third party. While it holds the name, the SDK registration preflight refuses to enable A
+again, because the global is defined; that refusal is expected and is not the result of this step:
 
 ```lua
 cheatengine_client_coexistence_a_ping = nil
