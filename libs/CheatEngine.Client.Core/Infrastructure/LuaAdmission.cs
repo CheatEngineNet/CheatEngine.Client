@@ -44,6 +44,14 @@ namespace CheatEngine.Client.Core.Infrastructure;
 ///     <para>
 ///         A refusal is never <see cref="CheatEngineFailureKind.OperationRejected" />: nothing reached Cheat Engine.
 ///     </para>
+///     <para>
+///         It classifies only the admissions Core asks for itself (unsafe Lua execution). A CheatEngine.SDK command that
+///         acquires its own admission, such as an <c>AddressListMutations</c> command or a <c>CheatTableFiles</c> call,
+///         raises a plain <see cref="InvalidOperationException" /> when it is refused: <see cref="SdkBoundary" /> reports
+///         it as <see cref="CheatEngineFailureKind.OperationRejected" /> with an unknown effect, unless the activation
+///         ended (<see cref="CheatEngineActivationExpiredException" />) or the SDK detected an external Lua state reset
+///         (<see cref="CheatEngineFailureKind.RuntimeChanged" />).
+///     </para>
 /// </remarks>
 internal static class LuaAdmission
 {
@@ -81,22 +89,6 @@ internal static class LuaAdmission
 		// The SDK hands out an admitted operation only with Admitted, the only status classified as a success; for every
 		// other status the operation is the default value, which owns no admission.
 		return TryClassify(LuaRuntime.TryAcquireOperationWithOutcome(out admitted), operation, out failure);
-	}
-
-	/// <summary>Admits a Lua operation, or throws the classified refusal for SDK work without a failure channel.</summary>
-	/// <param name="operation">The public Client operation name used in the failure.</param>
-	/// <returns>The admitted operation; dispose it before returning to Cheat Engine.</returns>
-	/// <exception cref="LuaAdmissionRefusedException">
-	///     The SDK refused the operation. <see cref="CoreFailureFactory" /> classifies it as the carried failure kind.
-	/// </exception>
-	internal static LuaRuntimeOperation Acquire(string operation)
-	{
-		if (!TryAcquire(operation, out LuaRuntimeOperation admitted, out CheatEngineFailure failure))
-		{
-			throw new LuaAdmissionRefusedException(failure);
-		}
-
-		return admitted;
 	}
 
 	/// <summary>Classifies an SDK admission outcome; the seam that the mapping-totality tests exercise.</summary>

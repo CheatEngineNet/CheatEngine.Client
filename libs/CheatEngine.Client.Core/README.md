@@ -323,7 +323,11 @@ fault observed after the activation ended is reported as `CheatEngineActivationE
 Lua work that Core runs itself asks for its admission through `LuaAdmission`
 (`LuaRuntime.TryAcquireOperationWithOutcome`): a refusal is classified from the SDK's admission status, with
 `NotStarted` and never as a rejection: `ActivationExpired` (plugin detached or transitioning), `RuntimeChanged`
-(external Lua state reset) or `InvalidState` (called off the main thread, or an unrecognized status). Consumer-supplied code (dispatcher callbacks, codecs, typed Lua operations) is
+(external Lua state reset) or `InvalidState` (called off the main thread, or an unrecognized status). Every other
+CheatEngine.SDK call (`AddressListMutations`, `CheatTableFiles`, `SymbolRegistry`, `TargetMemory`, scans) acquires its
+own admission and raises a plain `InvalidOperationException` when it is refused: `SdkBoundary` reports it as
+`OperationRejected` with `Unknown`, unless the activation ended or the SDK detected an external Lua state reset
+(`RuntimeChanged`). Consumer-supplied code (dispatcher callbacks, codecs, typed Lua operations) is
 never wrapped: the dispatcher rethrows its exceptions unchanged. The per-family table lives in
 `libs/CheatEngine.Client.Abstractions/README.md` ("Failure, exception and cancellation contract"). The Runtime and
 Processes domains follow the same boundary: a fact probe that fails leaves the fact `Unknown` in the snapshot, and any

@@ -161,13 +161,13 @@ public sealed class CoreFailureFactoryTests
 	[InlineData(CheatEngineFailureKind.RuntimeChanged)]
 	public void ARefusedLuaAdmissionKeepsItsClassifiedKind(CheatEngineFailureKind kind)
 	{
-		LuaAdmissionRefusedException exception = new(new CheatEngineFailure(kind, "Tables.ReadParent",
+		LuaAdmissionRefusedException exception = new(new CheatEngineFailure(kind, "Lua.Contract",
 			"The Lua operation was refused.", null, CheatEngineHostEffect.NotStarted));
 
-		CheatEngineFailure failure = CoreFailureFactory.FromException("Tables.SetParent", exception);
+		CheatEngineFailure failure = CoreFailureFactory.FromException("Lua.ExecuteUnsafe", exception);
 
 		Assert.Equal(kind, failure.Kind);
-		Assert.Equal("Tables.SetParent", failure.Operation);
+		Assert.Equal("Lua.ExecuteUnsafe", failure.Operation);
 		Assert.Equal("The Lua operation was refused.", failure.Message);
 		Assert.Same(exception, failure.Exception);
 	}

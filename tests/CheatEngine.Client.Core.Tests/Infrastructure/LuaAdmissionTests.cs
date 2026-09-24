@@ -1,5 +1,4 @@
 using CheatEngine.Client.Core.Infrastructure;
-using CheatEngine.Client.Core.Tests.TestSupport;
 using CheatEngine.Client.Results;
 using CheatEngine.SDK.Lua.Runtime;
 
@@ -41,7 +40,7 @@ public sealed class LuaAdmissionTests
 	[InlineData(LuaAdmissionStatus.NoStateForThread)]
 	public void AnOffMainThreadRefusalIsReportedAsAClientBug(LuaAdmissionStatus status)
 	{
-		Assert.False(LuaAdmission.TryClassify(status, "Tables.ReadParent", out CheatEngineFailure failure));
+		Assert.False(LuaAdmission.TryClassify(status, "Lua.ExecuteUnsafe", out CheatEngineFailure failure));
 
 		Assert.StartsWith("Client bug: called off the main thread.", failure.Message, StringComparison.Ordinal);
 	}
@@ -66,25 +65,6 @@ public sealed class LuaAdmissionTests
 		Assert.Equal(CheatEngineFailureKind.ActivationExpired, failure.Kind);
 		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
 		Assert.Equal("Lua.ExecuteUnsafe", failure.Operation);
-	}
-
-	[Fact]
-	public void AcquireThrowsTheClassifiedRefusalThatSdkBoundaryTranslates()
-	{
-		LuaAdmissionRefusedException refused = Assert.Throws<LuaAdmissionRefusedException>(static () =>
-		{
-			using LuaRuntimeOperation operation = LuaAdmission.Acquire("Tables.ReadParent");
-		});
-
-		CheatEngineFailure translated = SdkBoundary.Translate("Tables.SetParent", refused,
-			CheatEngineHostEffect.Unknown, InertCoreLifetime.Create());
-
-		Assert.Equal(CheatEngineFailureKind.ActivationExpired, refused.Failure.Kind);
-		Assert.Equal("Tables.ReadParent", refused.Failure.Operation);
-		Assert.Equal(refused.Failure.Message, refused.Message);
-		Assert.Equal(CheatEngineFailureKind.ActivationExpired, translated.Kind);
-		Assert.Equal("Tables.SetParent", translated.Operation);
-		Assert.Same(refused, translated.Exception);
 	}
 
 	[Theory]

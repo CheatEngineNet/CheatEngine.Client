@@ -3,14 +3,21 @@ using CheatEngine.Client.Results;
 namespace CheatEngine.Client.Core.Infrastructure;
 
 /// <summary>
-///     Carries a classified Lua admission refusal out of Client-internal SDK work that has no failure channel of its own,
-///     such as a port step nested inside a dispatched mutation.
+///     Carries a classified Lua admission refusal out of Client-internal SDK work that has no failure channel of its own.
 /// </summary>
 /// <remarks>
-///     It never leaves Core: <see cref="SdkBoundary" /> translates it like any SDK fault, and
-///     <see cref="CoreFailureFactory" /> reports the carried <see cref="CheatEngineFailure.Kind" />
-///     (<see cref="CheatEngineFailureKind.ActivationExpired" />, <see cref="CheatEngineFailureKind.InvalidState" /> or
-///     <see cref="CheatEngineFailureKind.RuntimeChanged" />), so a refused admission is never reported as a rejection.
+///     <para>
+///         It never leaves Core: <see cref="SdkBoundary" /> translates it like any SDK fault, and
+///         <see cref="CoreFailureFactory" /> reports the carried <see cref="CheatEngineFailure.Kind" />
+///         (<see cref="CheatEngineFailureKind.ActivationExpired" />, <see cref="CheatEngineFailureKind.InvalidState" /> or
+///         <see cref="CheatEngineFailureKind.RuntimeChanged" />), so a refused admission is never reported as a
+///         rejection.
+///     </para>
+///     <para>
+///         No Core path raises it any more: the Address List mutations, whose parent-chain read was its only producer,
+///         are CheatEngine.SDK commands that acquire their own admission. <see cref="CoreFailureFactory" /> still
+///         classifies it, which is why the type remains.
+///     </para>
 /// </remarks>
 internal sealed class LuaAdmissionRefusedException : Exception
 {

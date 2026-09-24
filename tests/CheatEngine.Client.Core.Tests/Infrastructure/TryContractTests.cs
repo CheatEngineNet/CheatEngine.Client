@@ -27,7 +27,6 @@ using CheatEngine.SDK.Engine.Scanning.Values;
 using CheatEngine.SDK.Engine.Targets;
 using CheatEngine.SDK.Engine.Values;
 using CheatEngine.SDK.Lua.Calls;
-using CheatEngine.SDK.Lua.Runtime;
 
 namespace CheatEngine.Client.Core.Tests.Infrastructure;
 
@@ -377,23 +376,15 @@ public sealed class TryContractTests
 		}
 	}
 
-	[Theory]
-	[InlineData(LuaAdmissionStatus.Detached, CheatEngineFailureKind.ActivationExpired)]
-	[InlineData(LuaAdmissionStatus.TransitionInProgress, CheatEngineFailureKind.ActivationExpired)]
-	[InlineData(LuaAdmissionStatus.ExternalStateReset, CheatEngineFailureKind.RuntimeChanged)]
-	[InlineData(LuaAdmissionStatus.ThreadNotAdmitted, CheatEngineFailureKind.InvalidState)]
-	[InlineData(LuaAdmissionStatus.NoStateForThread, CheatEngineFailureKind.InvalidState)]
-	[InlineData(LuaAdmissionStatus.Unknown, CheatEngineFailureKind.InvalidState)]
-	[InlineData((LuaAdmissionStatus) 99, CheatEngineFailureKind.InvalidState)]
-	public void ARefusedLuaAdmissionInsidePortWorkIsNeverReportedAsARejection(LuaAdmissionStatus status,
-		CheatEngineFailureKind expectedKind)
+	[Fact]
+	public void AnAdmissionRefusedInsideAnSdkAddressListCommandIsARejectionWhileTheActivationIsCurrent()
 	{
-		Assert.False(LuaAdmission.TryClassify(status, "Tables.SetParent", out CheatEngineFailure refusal));
-		LuaAdmissionRefusedException fault = new(refusal);
-		ThrowingPorts ports = new(fault);
+		// LuaAdmission classifies only the admissions Core asks for itself (unsafe Lua, above). AddressListMutations
+		// acquires its own admission and raises a plain InvalidOperationException when it is refused. No Lua runtime is
+		// attached in unit tests, so the SDK refuses it as Detached while this Client activation is still current.
 		CoreLifetime lifetime = InertCoreLifetime.Create();
 		TableClient tables = new(new SdkMainThreadDispatcher(lifetime, new InlineMainThreadInvoker()),
-			new CoreClientPolicy([], false), ports, lifetime, ports);
+			new CoreClientPolicy([], false), lifetime: lifetime);
 
 		bool succeeded = tables.TrySetParent(new MemoryRecordId(7), new MemoryRecordId(8), out _,
 			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
@@ -401,12 +392,11 @@ public sealed class TryContractTests
 			tables.SetParent(new MemoryRecordId(7), new MemoryRecordId(8), TestContext.Current.CancellationToken));
 
 		Assert.False(succeeded);
-		Assert.Equal(expectedKind, failure.Kind);
-		Assert.True(failure.Kind is CheatEngineFailureKind.ActivationExpired or CheatEngineFailureKind.InvalidState
-			or CheatEngineFailureKind.RuntimeChanged);
+		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.Unknown, failure.HostEffect);
 		Assert.Equal("Tables.SetParent", failure.Operation);
-		Assert.Same(fault, failure.Exception);
-		Assert.Equal(expectedKind, thrown.Failure.Kind);
+		Assert.IsType<InvalidOperationException>(failure.Exception);
+		Assert.Equal(CheatEngineFailureKind.OperationRejected, thrown.Failure.Kind);
 	}
 
 	[Fact]
