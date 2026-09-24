@@ -226,7 +226,7 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 		MemoryPrimitiveBatchReadOutcome<int> batch = memory.ReadPrimitiveBatchDetailed(
 			new MemoryPrimitiveBatchReadRequest<int>([new Address(SensitiveAddress), new Address(SensitiveAddress + 4)]),
 			cancellationToken);
-		outcomes.Add($"Memory.Batch:{batch.Succeeded}:{batch.CompletedCount}");
+		outcomes.Add($"Memory.Batch:{batch.IsSuccess}:{batch.CompletedCount}");
 
 		string tablePath = Path.Combine(_root, "trusted.ct");
 		File.WriteAllText(tablePath, "<CheatTable/>");

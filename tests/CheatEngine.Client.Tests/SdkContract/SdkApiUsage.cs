@@ -150,6 +150,7 @@ internal static class SdkApiUsage
 		_ = pointerSize.Bytes;
 		_ = pointerSize.IsKnown;
 		_ = pointerSize != PointerSize.Bit32;
+		_ = pointerSize == PointerSize.Bit64;
 		_ = capabilities.TryGet(id, out RuntimeCapabilityAvailability availability);
 		_ = availability.State;
 		_ = capabilities.GetState(id);

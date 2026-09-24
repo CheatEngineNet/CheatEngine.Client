@@ -133,8 +133,6 @@ public static class CheatEngineClientServiceCollectionExtensions
 		});
 		services.TryAddSingleton<IMemoryClient>(static serviceProvider =>
 			serviceProvider.GetRequiredService<MemoryClient>());
-		services.TryAddSingleton<IMemoryBatchClient>(static serviceProvider =>
-			serviceProvider.GetRequiredService<MemoryClient>());
 
 		services.TryAddSingleton<PatternScanner>(static serviceProvider =>
 			new PatternScanner(serviceProvider.GetRequiredService<SdkMainThreadDispatcher>()));

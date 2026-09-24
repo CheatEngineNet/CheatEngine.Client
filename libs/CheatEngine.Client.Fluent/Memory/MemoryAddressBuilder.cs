@@ -42,6 +42,7 @@ public readonly record struct MemoryAddressBuilder
 	/// <returns>The value read from <see cref="Address" />.</returns>
 	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
 	public T Read<T>(CancellationToken cancellationToken = default)
+		where T : unmanaged
 	{
 		return RequireMemory().ReadPrimitive<T>(Address, cancellationToken);
 	}
@@ -58,6 +59,7 @@ public readonly record struct MemoryAddressBuilder
 	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
 	public bool TryRead<T>([MaybeNullWhen(false)] out T value, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
+		where T : unmanaged
 	{
 		return RequireMemory().TryReadPrimitive(Address, out value, out failure, cancellationToken);
 	}
@@ -71,6 +73,7 @@ public readonly record struct MemoryAddressBuilder
 	/// </param>
 	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
 	public void Write<T>(T value, CancellationToken cancellationToken = default)
+		where T : unmanaged
 	{
 		RequireMemory().WritePrimitive(Address, value, cancellationToken);
 	}
@@ -87,6 +90,7 @@ public readonly record struct MemoryAddressBuilder
 	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
 	public bool TryWrite<T>(T value, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
+		where T : unmanaged
 	{
 		return RequireMemory().TryWritePrimitive(Address, value, out failure, cancellationToken);
 	}

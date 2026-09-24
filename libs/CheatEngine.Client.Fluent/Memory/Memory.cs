@@ -28,11 +28,14 @@ public static class Memory
 	}
 
 	/// <summary>Creates a fluent terminal for one bounded homogeneous primitive batch.</summary>
-	/// <typeparam name="T">The built-in scalar or target-aware pointer type.</typeparam>
+	/// <typeparam name="T">
+	///     The built-in scalar or target-aware pointer type, one of the primitives <see cref="IMemoryClient" /> supports.
+	/// </typeparam>
 	/// <param name="memory">The scoped target-memory service used by terminal operations.</param>
 	/// <returns>An immutable batch builder bound to <paramref name="memory" />.</returns>
 	/// <exception cref="ArgumentNullException"><paramref name="memory" /> is <see langword="null" />.</exception>
 	public static MemoryPrimitiveBatchBuilder<T> Batch<T>(IMemoryClient memory)
+		where T : unmanaged
 	{
 		ArgumentNullException.ThrowIfNull(memory);
 		return new MemoryPrimitiveBatchBuilder<T>(memory);

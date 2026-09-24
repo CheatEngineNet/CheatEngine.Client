@@ -34,8 +34,7 @@ public sealed class MemoryPointerWidthTests
 		Assert.True(CreateClient(port).TryRead(new MemoryReadRequest<int>(TestAddress, codec), out _, out _,
 			TestContext.Current.CancellationToken));
 
-		Assert.Equal(sizeof(ulong), codec.PointerSize);
-		Assert.Equal(PointerSize.Bit64, codec.ProcessPointerSize);
+		Assert.Equal(PointerSize.Bit64, codec.Bitness);
 		Assert.Equal(4, codec.ConfiguredPointerSizeBytes);
 		Assert.Equal(PointerSize.Bit32, codec.ConfiguredPointerSize);
 		Assert.True(codec.Differs);
@@ -57,8 +56,7 @@ public sealed class MemoryPointerWidthTests
 		Assert.True(CreateClient(port).TryRead(new MemoryReadRequest<int>(TestAddress, codec), out _, out _,
 			TestContext.Current.CancellationToken));
 
-		Assert.Equal(sizeof(uint), codec.PointerSize);
-		Assert.Equal(PointerSize.Bit32, codec.ProcessPointerSize);
+		Assert.Equal(PointerSize.Bit32, codec.Bitness);
 		Assert.False(codec.Differs);
 	}
 
@@ -140,7 +138,7 @@ public sealed class MemoryPointerWidthTests
 		Assert.True(succeeded);
 		Assert.Equal(default, failure);
 		Assert.Equal(sizeof(ulong), value);
-		Assert.Equal(PointerSize.Bit64, codec.ProcessPointerSize);
+		Assert.Equal(PointerSize.Bit64, codec.Bitness);
 		Assert.Equal(PointerSize.Bit32, codec.ConfiguredPointerSize);
 		Assert.Equal(1, port.ByteReads);
 	}
@@ -224,17 +222,17 @@ public sealed class MemoryPointerWidthTests
 			new MemoryPrimitiveBatchReadRequest<Address>([TestAddress, TestAddress + 8]),
 			TestContext.Current.CancellationToken);
 
-		Assert.False(write.Succeeded);
+		Assert.False(write.IsSuccess);
 		Assert.Equal(2, write.AttemptedCount);
 		Assert.Equal(0, write.CompletedCount);
 		Assert.Null(write.FailedIndex);
 		Assert.Equal(MemoryBatchWriteEffectState.NotStarted, write.EffectState);
-		Assert.Equal(CheatEngineFailureKind.OperationRejected, write.Cause!.Value.Kind);
-		Assert.Equal(CheatEngineHostEffect.NotStarted, write.Cause.Value.HostEffect);
-		Assert.False(read.Succeeded);
+		Assert.Equal(CheatEngineFailureKind.OperationRejected, write.Failure!.Value.Kind);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, write.Failure.Value.HostEffect);
+		Assert.False(read.IsSuccess);
 		Assert.Equal(0, read.CompletedCount);
 		Assert.True(read.ReadPrefix.IsEmpty);
-		Assert.Equal(CheatEngineFailureKind.OperationRejected, read.Cause!.Value.Kind);
+		Assert.Equal(CheatEngineFailureKind.OperationRejected, read.Failure!.Value.Kind);
 		Assert.Equal(0, port.PointerReads);
 		Assert.Equal(0, port.PointerWrites);
 	}
@@ -400,8 +398,8 @@ public sealed class MemoryPointerWidthTests
 		Assert.Equal(1, outcome.CompletedCount);
 		Assert.Equal(1, outcome.FailedIndex);
 		Assert.Equal(MemoryBatchWriteEffectState.Partial, outcome.EffectState);
-		Assert.Equal(CheatEngineFailureKind.OperationRejected, outcome.Cause!.Value.Kind);
-		Assert.Equal(CheatEngineHostEffect.Started, outcome.Cause.Value.HostEffect);
+		Assert.Equal(CheatEngineFailureKind.OperationRejected, outcome.Failure!.Value.Kind);
+		Assert.Equal(CheatEngineHostEffect.Started, outcome.Failure.Value.HostEffect);
 		Assert.Equal(2, port.PointerWrites);
 		Assert.Single(port.Pointers);
 	}
@@ -430,10 +428,10 @@ public sealed class MemoryPointerWidthTests
 			"WritePrimitive" => Refused(client.TryWritePrimitive(TestAddress, TestAddress, out CheatEngineFailure f,
 				token), f),
 			"ReadBatch" => client.ReadPrimitiveBatchDetailed(new MemoryPrimitiveBatchReadRequest<Address>([TestAddress]),
-				token).Cause!.Value,
+				token).Failure!.Value,
 			"WriteBatch" => client.WritePrimitiveBatchDetailed(new MemoryPrimitiveBatchWriteRequest<Address>([
 				new MemoryAddressValue<Address>(TestAddress, TestAddress)
-			]), token).Cause!.Value,
+			]), token).Failure!.Value,
 			"PointerChain" => Refused(client.TryResolvePointerChain(new PointerChainRequest(TestAddress, [0x10L]),
 				out _, out CheatEngineFailure f, token), f),
 			_ => Refused(client.TryRead(new MemoryReadRequest<Address>(TestAddress, new PolicyCodec()), out _,
@@ -487,16 +485,18 @@ public sealed class MemoryPointerWidthTests
 	[Fact]
 	public void CodecContextExceptionIsReturnedAsAFailureButConsumerCodecExceptionsAreRethrown()
 	{
-		// The width fault is the exact instance the context threw: Core converts it. An application-owned
-		// CheatEngineOperationException with the same shape is not that instance and is rethrown unchanged.
-		PointerWidthPort noTarget = new()
+		// An SDK fault while the context observes the width reaches the codec as the exact instance the context threw:
+		// Core converts it. An application-owned CheatEngineOperationException with the same shape is not that instance
+		// and is rethrown unchanged.
+		InvalidOperationException sdkFault = new("detached while the width was observed");
+		PointerWidthPort faulting = new()
 		{
-			ProcessId = 0
+			TargetFault = sdkFault
 		};
 		CheatEngineOperationException applicationFault = new(new CheatEngineFailure(
 			CheatEngineFailureKind.TargetNotAttached, "Memory.CodecContext", "application-owned"));
 
-		bool succeeded = CreateClient(noTarget).TryRead(new MemoryReadRequest<int>(TestAddress, new FactCodec()), out _,
+		bool succeeded = CreateClient(faulting).TryRead(new MemoryReadRequest<int>(TestAddress, new FactCodec()), out _,
 			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
 		CheatEngineOperationException rethrown = Assert.Throws<CheatEngineOperationException>(() =>
 			CreateClient(new PointerWidthPort()).TryRead(
@@ -504,7 +504,8 @@ public sealed class MemoryPointerWidthTests
 				TestContext.Current.CancellationToken));
 
 		Assert.False(succeeded);
-		Assert.Equal(CheatEngineFailureKind.TargetNotAttached, failure.Kind);
+		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
+		Assert.Same(sdkFault, failure.Exception);
 		Assert.Same(applicationFault, rethrown);
 	}
 
@@ -534,13 +535,7 @@ public sealed class MemoryPointerWidthTests
 			init;
 		}
 
-		internal int PointerSize
-		{
-			get;
-			private set;
-		}
-
-		internal PointerSize ProcessPointerSize
+		internal PointerSize Bitness
 		{
 			get;
 			private set;
@@ -571,19 +566,24 @@ public sealed class MemoryPointerWidthTests
 				throw Throw;
 			}
 
-			PointerSize = context.PointerSize;
-			IMemoryPointerWidthContext widths = Assert.IsAssignableFrom<IMemoryPointerWidthContext>(context);
-			ProcessPointerSize = widths.ProcessPointerSize;
-			ConfiguredPointerSizeBytes = widths.ConfiguredPointerSizeBytes;
-			ConfiguredPointerSize = widths.ConfiguredPointerSize;
-			Differs = widths.ConfiguredPointerSizeDiffersFromProcessWidth;
-			if (ReadBytes && !context.TryReadBytes(address, new byte[PointerSize]))
+			Bitness = context.Bitness;
+			if (!Bitness.IsKnown)
+			{
+				// The context recorded why the width is unknown; returning false reports it.
+				value = 0;
+				return false;
+			}
+
+			ConfiguredPointerSizeBytes = context.ConfiguredPointerSizeBytes;
+			ConfiguredPointerSize = context.ConfiguredPointerSize;
+			Differs = context.ConfiguredPointerSizeDiffersFromBitness;
+			if (ReadBytes && !context.TryReadBytes(address, new byte[Bitness.Bytes]))
 			{
 				value = 0;
 				return false;
 			}
 
-			value = PointerSize;
+			value = Bitness.Bytes;
 			return true;
 		}
 
@@ -600,13 +600,13 @@ public sealed class MemoryPointerWidthTests
 		{
 			value = default;
 			return ((ICorePointerCodecPolicy) context).TryAdmitPointerCodec() &&
-				   context.TryReadBytes(address, new byte[context.PointerSize]);
+				   context.TryReadBytes(address, new byte[context.Bitness.Bytes]);
 		}
 
 		public bool TryWrite(IMemoryWriteContext context, Address address, in Address value)
 		{
 			return ((ICorePointerCodecPolicy) context).TryAdmitPointerCodec() &&
-				   context.TryWriteBytes(address, new byte[context.PointerSize]);
+				   context.TryWriteBytes(address, new byte[context.Bitness.Bytes]);
 		}
 	}
 

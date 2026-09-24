@@ -46,7 +46,13 @@ public static partial class BenchmarkSuiteMetadata
 					"aob-materialization",
 					1,
 					false,
-					"Client copy/parse/filter cost over a fake port; excludes CE scan time.")
+					"Client copy/parse/filter cost over a fake port; excludes CE scan time."),
+				new BenchmarkWorkloadDescriptor(
+					"memory-batch",
+					1,
+					false,
+					"Client admission, dispatch and outcome cost of a primitive batch over a fake port; excludes CE " +
+					"memory access time.")
 			]);
 		string content =
 			JsonSerializer.Serialize(descriptor, BenchmarkSuiteJsonContext.Default.BenchmarkSuiteDescriptor);

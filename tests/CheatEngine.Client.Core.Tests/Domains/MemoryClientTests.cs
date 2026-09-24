@@ -90,7 +90,8 @@ public sealed class MemoryClientTests
 		MemoryClient client = new(new InlineDispatcher(), InertCoreLifetime.Create(), port, new MemoryResourceLimits());
 		Address address = 0x404000;
 
-		bool succeeded = client.TryReadString(new MemoryStringReadRequest(address, maximumLength, wideCharacter),
+		bool succeeded = client.TryReadString(MemoryStringReadRequest.Create(address, maximumLength,
+				wideCharacter ? MemoryStringEncoding.Utf16 : MemoryStringEncoding.Utf8),
 			out string? value, out CheatEngineFailure failure, TestContext.Current.CancellationToken);
 
 		Assert.True(succeeded, failure.ToString());
@@ -113,7 +114,8 @@ public sealed class MemoryClientTests
 		MemoryClient client = new(new InlineDispatcher(), InertCoreLifetime.Create(), port,
 			new MemoryResourceLimits(64, 64, 8, 64, 1));
 
-		bool succeeded = client.TryReadString(new MemoryStringReadRequest(0x405000, maximumLength, wideCharacter),
+		bool succeeded = client.TryReadString(MemoryStringReadRequest.Create(0x405000, maximumLength,
+				wideCharacter ? MemoryStringEncoding.Utf16 : MemoryStringEncoding.Utf8),
 			out _, out CheatEngineFailure failure, TestContext.Current.CancellationToken);
 
 		Assert.Equal(admitted, succeeded);

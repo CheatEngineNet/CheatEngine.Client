@@ -1,3 +1,5 @@
+using System.Reflection;
+
 using CheatEngine.Client.Memory;
 using CheatEngine.Client.Results;
 
@@ -65,9 +67,9 @@ public sealed class MemoryResourceLimitsAndBatchOutcomeTests
 		Assert.Equal(3, outcome.AttemptedCount);
 		Assert.Equal(2, outcome.CompletedCount);
 		Assert.Equal(2, outcome.FailedIndex);
-		Assert.Equal(cause, outcome.Cause);
+		Assert.Equal(cause, outcome.Failure);
 		Assert.Equal([11, 22], outcome.ReadPrefix);
-		Assert.False(outcome.Succeeded);
+		Assert.False(outcome.IsSuccess);
 	}
 
 	[Fact]
@@ -82,7 +84,36 @@ public sealed class MemoryResourceLimitsAndBatchOutcomeTests
 		Assert.Equal(2, partial.CompletedCount);
 		Assert.Equal(MemoryBatchWriteEffectState.Unknown, unknown.EffectState);
 		Assert.Null(unknown.FailedIndex);
-		Assert.False(partial.Succeeded);
+		Assert.False(partial.IsSuccess);
+	}
+
+	[Fact]
+	public void AnUnassignedWriteEffectStateIsUnknownAndNeverAnEstablishedEffect()
+	{
+		Assert.Equal(MemoryBatchWriteEffectState.Unknown, default(MemoryBatchWriteEffectState));
+		Assert.Equal(0, (int) MemoryBatchWriteEffectState.Unknown);
+		Assert.Throws<ArgumentException>(() => new MemoryPrimitiveBatchWriteOutcome(1, 1, null, null, default));
+	}
+
+	/// <summary>A5: every primitive member of <see cref="IMemoryClient" /> constrains its type to <c>unmanaged</c>.</summary>
+	[Fact]
+	public void EveryPrimitiveMemberConstrainsItsTypeToUnmanaged()
+	{
+		MethodInfo[] primitives =
+		[
+			.. typeof(IMemoryClient).GetMethods()
+				.Where(static method => method.Name.Contains("Primitive", StringComparison.Ordinal))
+		];
+
+		Assert.Equal(10, primitives.Length);
+		Assert.All(primitives, static method =>
+		{
+			Type parameter = Assert.Single(method.GetGenericArguments());
+			Assert.True(parameter.GenericParameterAttributes.HasFlag(
+				GenericParameterAttributes.NotNullableValueTypeConstraint), method.Name);
+			Assert.Contains(parameter.GetCustomAttributesData(), static attribute =>
+				attribute.AttributeType.FullName == "System.Runtime.CompilerServices.IsUnmanagedAttribute");
+		});
 	}
 
 	[Fact]

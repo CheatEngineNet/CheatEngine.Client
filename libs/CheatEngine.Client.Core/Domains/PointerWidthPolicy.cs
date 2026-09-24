@@ -23,7 +23,8 @@ namespace CheatEngine.Client.Core.Domains;
 ///     <para>
 ///         What the configured size affects besides the value Cheat Engine reports (pointer scanner, address parsing,
 ///         display) is not established; custom codecs receive the facts through
-///         <see cref="CheatEngine.Client.Memory.IMemoryPointerWidthContext" /> and decide for themselves.
+///         <see cref="CheatEngine.Client.Memory.IMemoryReadContext" /> and
+///         <see cref="CheatEngine.Client.Memory.IMemoryWriteContext" /> and decide for themselves.
 ///     </para>
 /// </remarks>
 internal static class PointerWidthPolicy

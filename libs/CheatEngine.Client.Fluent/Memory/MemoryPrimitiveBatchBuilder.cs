@@ -6,8 +6,11 @@ using CheatEngine.SDK.Engine.Values;
 namespace CheatEngine.Client.Memory;
 
 /// <summary>An immutable, handle-free fluent terminal for one bounded homogeneous scalar batch.</summary>
-/// <typeparam name="T">The built-in scalar or target-aware pointer type.</typeparam>
+/// <typeparam name="T">
+///     The built-in scalar or target-aware pointer type, one of the primitives <see cref="IMemoryClient" /> supports.
+/// </typeparam>
 public readonly struct MemoryPrimitiveBatchBuilder<T>
+	where T : unmanaged
 {
 	private readonly IMemoryClient? _memory;
 

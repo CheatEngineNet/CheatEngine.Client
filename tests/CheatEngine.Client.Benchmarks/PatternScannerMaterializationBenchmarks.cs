@@ -3,9 +3,7 @@ using System.Globalization;
 
 using BenchmarkDotNet.Attributes;
 
-using CheatEngine.Client.Core.Dispatching;
 using CheatEngine.Client.Core.Domains;
-using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Scanning;
 using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Engine.Scanning.Aob;
@@ -67,9 +65,7 @@ public class PatternScannerMaterializationBenchmarks
 		}
 
 		ModuleInfo module = new("game.exe", new Address(ModuleBase), new MemorySize(ModuleSize), true, "game.exe");
-		_scanner = new PatternScanner(
-			new SdkMainThreadDispatcher(new CoreLifetime(new AlwaysCurrentLifetimeContext()),
-				new InlineMainThreadInvoker()),
+		_scanner = new PatternScanner(InlineCoreHost.CreateDispatcher(InlineCoreHost.CreateLifetime()),
 			new InMemoryAobScanPort(entries, module));
 		_request = new AobScanRequest(new AobPattern("48 8B ?? ?? ?? 89"), AobScanOptions.Default, HostMatchCount,
 			ModuleFilter ? new ModuleName("game.exe") : null);
@@ -121,45 +117,6 @@ public class PatternScannerMaterializationBenchmarks
 
 		public void Dispose()
 		{
-		}
-	}
-
-	private sealed class AlwaysCurrentLifetimeContext : ICoreLifetimeContext
-	{
-		public long Epoch => 1;
-
-		public bool IsCurrent => true;
-
-		public bool IsMainThread => true;
-
-		public CancellationToken Stopping => CancellationToken.None;
-	}
-
-	private sealed class InlineMainThreadInvoker : IMainThreadInvoker
-	{
-		public Exception? Invoke(Action callback)
-		{
-			try
-			{
-				callback();
-				return null;
-			}
-			catch (Exception exception)
-			{
-				return exception;
-			}
-		}
-
-		public MainThreadInvocationResult<T> Invoke<T>(Func<T> callback)
-		{
-			try
-			{
-				return new MainThreadInvocationResult<T>(callback(), null);
-			}
-			catch (Exception exception)
-			{
-				return new MainThreadInvocationResult<T>(default!, exception);
-			}
 		}
 	}
 }

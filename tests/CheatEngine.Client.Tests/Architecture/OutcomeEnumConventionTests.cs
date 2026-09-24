@@ -46,7 +46,6 @@ public sealed partial class OutcomeEnumConventionTests
 			"values are implicit; replaced by AllocationProtection (L16)",
 		["CheatEngine.Client.Inspection.SymbolLeaseReleaseKind"] =
 			"backed by byte; removed with IDetailedSymbolRegistrationLease (L12)",
-		["CheatEngine.Client.Memory.MemoryBatchWriteEffectState"] = "Unknown is 3, not 0 (L10)",
 		["CheatEngine.Client.Scanning.ValueScanSessionState"] = "no Unknown = 0 (L15)"
 	};
 

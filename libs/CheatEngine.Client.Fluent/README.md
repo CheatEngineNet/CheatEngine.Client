@@ -62,7 +62,9 @@ Abstractions  ←  Fluent
   addresses is. Callers inspect `AobScanResult.IsTruncated` when a copy is intentionally incomplete.
 - Provides `Memory.At(...)` and `memory.At(...)` builders for primitive and codec-based reads and
   writes without retaining a live target handle, including exact byte copies, explicit UTF-8/UTF-16
-  bounds, finite pointer chains, and bounded homogeneous primitive batches.
+  bounds, finite pointer chains, and bounded homogeneous primitive batches. The primitive terminals
+  and `Batch<T>` take `where T : unmanaged`, like `IMemoryClient`, which supports the 8- to 64-bit
+  integers, `float`, `double` and `Address`; other types go through `ReadWith`/`WriteWith` and a codec.
 - Uses the normal `Try...` plus `CheatEngineFailure` pattern and leaves the actual lifecycle,
   dispatch, and SDK translation to the supplied contract implementation.
 

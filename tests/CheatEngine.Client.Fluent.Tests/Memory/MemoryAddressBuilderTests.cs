@@ -311,6 +311,7 @@ public sealed class MemoryAddressBuilderTests
 
 		public bool TryReadPrimitive<T>(Address address, [MaybeNullWhen(false)] out T value,
 			out CheatEngineFailure failure, CancellationToken cancellationToken = default)
+			where T : unmanaged
 		{
 			LastPrimitiveReadAddress = address;
 			LastPrimitiveReadType = typeof(T);
@@ -320,13 +321,15 @@ public sealed class MemoryAddressBuilderTests
 		}
 
 		public T ReadPrimitive<T>(Address address, CancellationToken cancellationToken = default)
+			where T : unmanaged
 		{
-			_ = TryReadPrimitive(address, out T? value, out _, cancellationToken);
-			return value!;
+			_ = TryReadPrimitive(address, out T value, out _, cancellationToken);
+			return value;
 		}
 
 		public bool TryWritePrimitive<T>(Address address, T value, out CheatEngineFailure failure,
 			CancellationToken cancellationToken = default)
+			where T : unmanaged
 		{
 			LastPrimitiveWriteAddress = address;
 			LastPrimitiveWriteType = typeof(T);
@@ -336,6 +339,7 @@ public sealed class MemoryAddressBuilderTests
 		}
 
 		public void WritePrimitive<T>(Address address, T value, CancellationToken cancellationToken = default)
+			where T : unmanaged
 		{
 			_ = TryWritePrimitive(address, value, out _, cancellationToken);
 		}
@@ -343,18 +347,19 @@ public sealed class MemoryAddressBuilderTests
 		public bool TryReadPrimitiveBatch<T>(MemoryPrimitiveBatchReadRequest<T> request,
 			out ImmutableArray<T> values, out CheatEngineFailure failure,
 			CancellationToken cancellationToken = default)
+			where T : unmanaged
 		{
 			LastPrimitiveBatchReadCount = request.Addresses.Length;
 			T[] result = new T[request.Addresses.Length];
 			for (int index = 0; index < result.Length; index++)
 			{
-				if (!TryReadPrimitive(request.Addresses[index], out T? value, out failure, cancellationToken))
+				if (!TryReadPrimitive(request.Addresses[index], out T value, out failure, cancellationToken))
 				{
 					values = [];
 					return false;
 				}
 
-				result[index] = value!;
+				result[index] = value;
 			}
 
 			values = ImmutableArray.Create(result);
@@ -364,6 +369,7 @@ public sealed class MemoryAddressBuilderTests
 
 		public ImmutableArray<T> ReadPrimitiveBatch<T>(MemoryPrimitiveBatchReadRequest<T> request,
 			CancellationToken cancellationToken = default)
+			where T : unmanaged
 		{
 			_ = TryReadPrimitiveBatch(request, out ImmutableArray<T> values, out _, cancellationToken);
 			return values;
@@ -371,6 +377,7 @@ public sealed class MemoryAddressBuilderTests
 
 		public bool TryWritePrimitiveBatch<T>(MemoryPrimitiveBatchWriteRequest<T> request,
 			out CheatEngineFailure failure, CancellationToken cancellationToken = default)
+			where T : unmanaged
 		{
 			for (int index = 0; index < request.Values.Length; index++)
 			{
@@ -387,8 +394,26 @@ public sealed class MemoryAddressBuilderTests
 
 		public void WritePrimitiveBatch<T>(MemoryPrimitiveBatchWriteRequest<T> request,
 			CancellationToken cancellationToken = default)
+			where T : unmanaged
 		{
 			_ = TryWritePrimitiveBatch(request, out _, cancellationToken);
+		}
+
+		public MemoryPrimitiveBatchReadOutcome<T> ReadPrimitiveBatchDetailed<T>(
+			MemoryPrimitiveBatchReadRequest<T> request, CancellationToken cancellationToken = default)
+			where T : unmanaged
+		{
+			_ = TryReadPrimitiveBatch(request, out ImmutableArray<T> values, out _, cancellationToken);
+			return new MemoryPrimitiveBatchReadOutcome<T>(values.Length, values.Length, null, null, values.AsSpan());
+		}
+
+		public MemoryPrimitiveBatchWriteOutcome WritePrimitiveBatchDetailed<T>(
+			MemoryPrimitiveBatchWriteRequest<T> request, CancellationToken cancellationToken = default)
+			where T : unmanaged
+		{
+			_ = TryWritePrimitiveBatch(request, out _, cancellationToken);
+			return new MemoryPrimitiveBatchWriteOutcome(request.Values.Length, request.Values.Length, null, null,
+				MemoryBatchWriteEffectState.Complete);
 		}
 
 		public bool TryReadBytes(MemoryBytesReadRequest request, out ImmutableArray<byte> bytes,

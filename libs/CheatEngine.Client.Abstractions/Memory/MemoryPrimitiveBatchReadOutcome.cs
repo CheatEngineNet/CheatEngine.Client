@@ -5,14 +5,17 @@ using CheatEngine.Client.Results;
 namespace CheatEngine.Client.Memory;
 
 /// <summary>Describes the sequential outcome of one primitive batch read.</summary>
-/// <typeparam name="T">The homogeneous primitive value type.</typeparam>
+/// <typeparam name="T">
+///     The homogeneous primitive value type, one of the types <see cref="IMemoryClient" /> supports.
+/// </typeparam>
 public sealed class MemoryPrimitiveBatchReadOutcome<T>
+	where T : unmanaged
 {
 	/// <summary>Creates a read outcome and copies the completed value prefix.</summary>
 	public MemoryPrimitiveBatchReadOutcome(int attemptedCount, int completedCount, int? failedIndex,
-		CheatEngineFailure? cause, ReadOnlySpan<T> readPrefix)
+		CheatEngineFailure? failure, ReadOnlySpan<T> readPrefix)
 	{
-		ValidateCounts(attemptedCount, completedCount, failedIndex, cause);
+		ValidateCounts(attemptedCount, completedCount, failedIndex, failure);
 		if (readPrefix.Length != completedCount)
 		{
 			throw new ArgumentException("The read prefix length must equal the completed operation count.",
@@ -22,7 +25,7 @@ public sealed class MemoryPrimitiveBatchReadOutcome<T>
 		AttemptedCount = attemptedCount;
 		CompletedCount = completedCount;
 		FailedIndex = failedIndex;
-		Cause = cause;
+		Failure = failure;
 		ReadPrefix = ImmutableArray.Create(readPrefix.ToArray());
 	}
 
@@ -45,7 +48,7 @@ public sealed class MemoryPrimitiveBatchReadOutcome<T>
 	}
 
 	/// <summary>Gets the expected admission, dispatch, or target-memory failure when the batch did not complete.</summary>
-	public CheatEngineFailure? Cause
+	public CheatEngineFailure? Failure
 	{
 		get;
 	}
@@ -57,10 +60,10 @@ public sealed class MemoryPrimitiveBatchReadOutcome<T>
 	}
 
 	/// <summary>Gets whether every requested read completed successfully.</summary>
-	public bool Succeeded => Cause is null && CompletedCount == AttemptedCount;
+	public bool IsSuccess => Failure is null && CompletedCount == AttemptedCount;
 
 	private static void ValidateCounts(int attemptedCount, int completedCount, int? failedIndex,
-		CheatEngineFailure? cause)
+		CheatEngineFailure? failure)
 	{
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(attemptedCount);
 		if (completedCount < 0 || completedCount > attemptedCount)
@@ -73,14 +76,14 @@ public sealed class MemoryPrimitiveBatchReadOutcome<T>
 			throw new ArgumentOutOfRangeException(nameof(failedIndex));
 		}
 
-		if (cause is null && (failedIndex is not null || completedCount != attemptedCount))
+		if (failure is null && (failedIndex is not null || completedCount != attemptedCount))
 		{
-			throw new ArgumentException("An incomplete read outcome requires a failure cause.", nameof(cause));
+			throw new ArgumentException("An incomplete read outcome requires a failure.", nameof(failure));
 		}
 
-		if (cause is not null && completedCount == attemptedCount)
+		if (failure is not null && completedCount == attemptedCount)
 		{
-			throw new ArgumentException("A completed read outcome cannot contain a failure cause.", nameof(cause));
+			throw new ArgumentException("A completed read outcome cannot contain a failure.", nameof(failure));
 		}
 	}
 }

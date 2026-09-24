@@ -161,8 +161,7 @@ Four scan limits are distinct and must not be confused:
 | Materialization limit   | `AobScanRequest.MaximumResults`, which bounds `PatternScanMetrics.MaterializedCount`    |
 | Call deadline           | None: cancellation is observed only between Client-managed steps                        |
 
-`IPatternScanOutcomeClient.ScanDetailed` is a companion contract (the `IMemoryBatchClient` pattern) that returns the
-same classification as `TryScan` plus `PatternScanMetrics`: host, examined, filtered-out, and copied counts, the scan
+`IPatternScanOutcomeClient.ScanDetailed` is a companion contract that returns the same classification as `TryScan` plus `PatternScanMetrics`: host, examined, filtered-out, and copied counts, the scan
 scope, and the Cheat Engine scan time (`HostScanElapsed`) separately from the Client copy time
 (`MaterializationElapsed`). Counts and durations never contain addresses and are safe to log.
 
@@ -220,9 +219,10 @@ observed is no evidence of a mismatch. On a 32-bit target nothing is truncated: 
 refused with `OperationRejected` and `NotStarted`, a pointer value above 4 GiB returned by Cheat Engine is refused with
 `OperationRejected` and `Completed`, and a pointer chain refuses a base or computed address above 4 GiB and names the hop
 in its message.
-Custom codecs receive the facts through `IMemoryPointerWidthContext` (`ProcessPointerSize`, `ConfiguredPointerSize`,
-`ConfiguredPointerSizeDiffersFromProcessWidth`); what the configured size affects besides the reported value is not
-established.
+Custom codecs receive the facts on `IMemoryReadContext` and `IMemoryWriteContext` (`Bitness`, `ConfiguredPointerSize`,
+`ConfiguredPointerSizeBytes`, `ConfiguredPointerSizeDiffersFromBitness`); an unknown bitness is `PointerSize.Unknown`, and
+the reason is reported if the codec then returns `false`. What the configured size affects besides the reported value is
+not established.
 
 ### Address List records and symbols
 
@@ -295,7 +295,7 @@ dispatch and between Client-managed steps.
 | Dispatcher (`ICheatEngineDispatcher`) | Dispatch admission: a `Cancelled` result proves the callback did not run | `NotStarted` (cancelled), `Unknown` (infrastructure failure) | Whatever the callback did; callback exceptions are rethrown unchanged |
 | Patterns / AOB (`IPatternScanner`, `IPatternScanOutcomeClient`, Fluent `Aob`) | The start of the global `AOBScan`; later cancellation discards the copy | `NotStarted` (validation, module lookup, cancellation before the scan), `Completed` (cancellation or invalid data after the scan, `IndeterminateHostResult` when no result list is returned), `CleanupUnconfirmed` (result-list release not confirmed), `Unknown` (SDK fault during the scan call) | None published: a failed scan never returns a prefix |
 | Memory primitives, codecs, bytes, strings, pointer chains (`IMemoryClient`) | Dispatch admission; one call is one Cheat Engine operation | `NotStarted` (budget, unsupported type, unknown or mismatched pointer width, unavailable memory global, a pointer value above a 32-bit target on a write, a pointer chain base address above it), `Completed` (a pointer value or computed chain address above a 32-bit target after the reads returned), `Unknown` (SDK fault, host refusal, a failed codec) | `ReadBytesDetailed` reports the confirmed prefix of a partial byte read; a codec may perform several reads or writes, and a failed write codec can leave earlier writes in place |
-| Memory batches (`IMemoryBatchClient`) | Dispatch admission: a `Cancelled` dispatch reports `MemoryBatchWriteEffectState.NotStarted` | `NotStarted` (admission, pre-dispatch cancellation, unsupported type), `Started` (a completed prefix persists), `Unknown` (SDK fault or other dispatch failure) | `EffectState` is authoritative: `Partial` with `CompletedCount`/`FailedIndex`, never rolled back |
+| Memory batches (`IMemoryClient.ReadPrimitiveBatchDetailed`, `WritePrimitiveBatchDetailed`) | Dispatch admission: a `Cancelled` dispatch reports `MemoryBatchWriteEffectState.NotStarted` | `NotStarted` (admission, pre-dispatch cancellation, unsupported type), `Started` (a completed prefix persists), `Unknown` (SDK fault or other dispatch failure) | `EffectState` is authoritative: `Partial` with `CompletedCount`/`FailedIndex`, never rolled back; `IsSuccess` is `true` only when every operation completed |
 | Inspection and symbol leases (`IInspectionClient`) | Dispatch admission | `NotStarted` (name already reserved by this activation, name already resolves, failed collision check), `CleanupUnconfirmed` (lease release not confirmed), `Unknown` (SDK fault) | A faulted `registerSymbol` is not claimed and not retried; a replaced name is left in place |
 | Tables (`ITableClient`) | Dispatch admission; `Find` filters a copied snapshot | `NotStarted` (policy, invalid relationship, stale record identifier, activation of a record that was not found), `Started` (activation refused by the host or pending), `Completed` (`Find` cancelled after the snapshot, failed `Create` whose rollback was confirmed), `CleanupUnconfirmed` (record rollback not confirmed), `Unknown` (SDK fault, `loadTable` fault, indeterminate activation) | A failed `Create` destroys the partial record once and never retries; a refused activation can leave partial script effects; `loadTable` can execute table Lua |
 | Lua typed operations and modules (`ILuaClient`) | Dispatch admission | `NotStarted` (cancellation), otherwise the operation's own failure | Owned by the operation; operation exceptions are rethrown unchanged |
@@ -413,6 +413,21 @@ an address, expression, path, script, message, exception, or failure object. The
 snapshots, capability refusals, target-selection changes, pointer-width refusals, batch counts, table generations,
 activation and symbol outcomes, scan metrics, Lua durations, cleanup failures) follow the same rule; the
 `CheatEngine.Client.Core` README lists them.
+
+### Typed memory routes
+
+`IMemoryClient` has two typed routes, and it never resolves a codec implicitly:
+
+- **Primitives** (`TryReadPrimitive<T>`, `TryWritePrimitive<T>`, the primitive batches and their throwing forms) take
+  `where T : unmanaged` and support exactly `sbyte`, `byte`, `short`, `ushort`, `int`, `uint`, `long`, `ulong`, `float`,
+  `double` and `Address` (a target pointer, read and written at the observed bitness). Any other `T` is refused with
+  `OperationRejected` and `HostEffect.NotStarted` before dispatch, without a Cheat Engine call.
+- **Codecs** (`TryRead<T>`, `TryWrite<T>` and their throwing forms): the `MemoryReadRequest<T>` or `MemoryWriteRequest<T>`
+  carries the `IMemoryCodec<T>` the application built or resolved.
+
+String requests carry an explicit `MemoryStringEncoding` (`MemoryStringReadRequest.Create`,
+`MemoryStringWriteRequest.CreateBounded`). The primitive batch outcomes expose `Failure` and `IsSuccess`, and
+`MemoryBatchWriteEffectState` is `Unknown` (0), `NotStarted`, `Partial` or `Complete`.
 
 ### Memory limits and batch effects
 

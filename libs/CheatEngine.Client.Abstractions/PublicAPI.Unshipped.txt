@@ -202,15 +202,13 @@ CheatEngine.Client.Lua.LuaScript.Equals(CheatEngine.Client.Lua.LuaScript other) 
 CheatEngine.Client.Lua.LuaScript.LuaScript() -> void
 CheatEngine.Client.Lua.LuaScript.LuaScript(string! source, string? chunkName = null) -> void
 CheatEngine.Client.Lua.LuaScript.Source.get -> string!
-CheatEngine.Client.Memory.IMemoryBatchClient
-CheatEngine.Client.Memory.IMemoryBatchClient.ReadPrimitiveBatchDetailed<T>(CheatEngine.Client.Memory.MemoryPrimitiveBatchReadRequest<T> request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Memory.MemoryPrimitiveBatchReadOutcome<T>!
-CheatEngine.Client.Memory.IMemoryBatchClient.WritePrimitiveBatchDetailed<T>(CheatEngine.Client.Memory.MemoryPrimitiveBatchWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Memory.MemoryPrimitiveBatchWriteOutcome!
 CheatEngine.Client.Memory.IMemoryClient
 CheatEngine.Client.Memory.IMemoryClient.Read<T>(CheatEngine.Client.Memory.MemoryReadRequest<T> request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> T
 CheatEngine.Client.Memory.IMemoryClient.ReadBytes(CheatEngine.Client.Memory.MemoryBytesReadRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Immutable.ImmutableArray<byte>
 CheatEngine.Client.Memory.IMemoryClient.ReadBytesDetailed(CheatEngine.Client.Memory.MemoryBytesReadRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Memory.MemoryBytesReadOutcome!
 CheatEngine.Client.Memory.IMemoryClient.ReadPrimitive<T>(CheatEngine.SDK.Engine.Values.Address address, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> T
 CheatEngine.Client.Memory.IMemoryClient.ReadPrimitiveBatch<T>(CheatEngine.Client.Memory.MemoryPrimitiveBatchReadRequest<T> request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Immutable.ImmutableArray<T>
+CheatEngine.Client.Memory.IMemoryClient.ReadPrimitiveBatchDetailed<T>(CheatEngine.Client.Memory.MemoryPrimitiveBatchReadRequest<T> request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Memory.MemoryPrimitiveBatchReadOutcome<T>!
 CheatEngine.Client.Memory.IMemoryClient.ReadString(CheatEngine.Client.Memory.MemoryStringReadRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> string!
 CheatEngine.Client.Memory.IMemoryClient.ResolvePointerChain(CheatEngine.Client.Memory.PointerChainRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.SDK.Engine.Values.Address
 CheatEngine.Client.Memory.IMemoryClient.TryRead<T>(CheatEngine.Client.Memory.MemoryReadRequest<T> request, out T value, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
@@ -228,20 +226,22 @@ CheatEngine.Client.Memory.IMemoryClient.Write<T>(CheatEngine.Client.Memory.Memor
 CheatEngine.Client.Memory.IMemoryClient.WriteBytes(CheatEngine.Client.Memory.MemoryBytesWriteRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> void
 CheatEngine.Client.Memory.IMemoryClient.WritePrimitive<T>(CheatEngine.SDK.Engine.Values.Address address, T value, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> void
 CheatEngine.Client.Memory.IMemoryClient.WritePrimitiveBatch<T>(CheatEngine.Client.Memory.MemoryPrimitiveBatchWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> void
+CheatEngine.Client.Memory.IMemoryClient.WritePrimitiveBatchDetailed<T>(CheatEngine.Client.Memory.MemoryPrimitiveBatchWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Memory.MemoryPrimitiveBatchWriteOutcome!
 CheatEngine.Client.Memory.IMemoryClient.WriteString(CheatEngine.Client.Memory.MemoryStringWriteRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> void
 CheatEngine.Client.Memory.IMemoryCodec<T>
 CheatEngine.Client.Memory.IMemoryCodec<T>.TryRead(CheatEngine.Client.Memory.IMemoryReadContext! context, CheatEngine.SDK.Engine.Values.Address address, out T value) -> bool
 CheatEngine.Client.Memory.IMemoryCodec<T>.TryWrite(CheatEngine.Client.Memory.IMemoryWriteContext! context, CheatEngine.SDK.Engine.Values.Address address, in T value) -> bool
-CheatEngine.Client.Memory.IMemoryPointerWidthContext
-CheatEngine.Client.Memory.IMemoryPointerWidthContext.ConfiguredPointerSize.get -> CheatEngine.SDK.Engine.Runtime.PointerSize
-CheatEngine.Client.Memory.IMemoryPointerWidthContext.ConfiguredPointerSizeBytes.get -> int?
-CheatEngine.Client.Memory.IMemoryPointerWidthContext.ConfiguredPointerSizeDiffersFromProcessWidth.get -> bool
-CheatEngine.Client.Memory.IMemoryPointerWidthContext.ProcessPointerSize.get -> CheatEngine.SDK.Engine.Runtime.PointerSize
 CheatEngine.Client.Memory.IMemoryReadContext
-CheatEngine.Client.Memory.IMemoryReadContext.PointerSize.get -> int
+CheatEngine.Client.Memory.IMemoryReadContext.Bitness.get -> CheatEngine.SDK.Engine.Runtime.PointerSize
+CheatEngine.Client.Memory.IMemoryReadContext.ConfiguredPointerSize.get -> CheatEngine.SDK.Engine.Runtime.PointerSize
+CheatEngine.Client.Memory.IMemoryReadContext.ConfiguredPointerSizeBytes.get -> int?
+CheatEngine.Client.Memory.IMemoryReadContext.ConfiguredPointerSizeDiffersFromBitness.get -> bool
 CheatEngine.Client.Memory.IMemoryReadContext.TryReadBytes(CheatEngine.SDK.Engine.Values.Address address, System.Span<byte> destination) -> bool
 CheatEngine.Client.Memory.IMemoryWriteContext
-CheatEngine.Client.Memory.IMemoryWriteContext.PointerSize.get -> int
+CheatEngine.Client.Memory.IMemoryWriteContext.Bitness.get -> CheatEngine.SDK.Engine.Runtime.PointerSize
+CheatEngine.Client.Memory.IMemoryWriteContext.ConfiguredPointerSize.get -> CheatEngine.SDK.Engine.Runtime.PointerSize
+CheatEngine.Client.Memory.IMemoryWriteContext.ConfiguredPointerSizeBytes.get -> int?
+CheatEngine.Client.Memory.IMemoryWriteContext.ConfiguredPointerSizeDiffersFromBitness.get -> bool
 CheatEngine.Client.Memory.IMemoryWriteContext.TryWriteBytes(CheatEngine.SDK.Engine.Values.Address address, System.ReadOnlySpan<byte> source) -> bool
 CheatEngine.Client.Memory.MemoryAddressValue<T>
 CheatEngine.Client.Memory.MemoryAddressValue<T>.Address.get -> CheatEngine.SDK.Engine.Values.Address
@@ -250,10 +250,10 @@ CheatEngine.Client.Memory.MemoryAddressValue<T>.MemoryAddressValue(CheatEngine.S
 CheatEngine.Client.Memory.MemoryAddressValue<T>.Value.get -> T
 CheatEngine.Client.Memory.MemoryBatchLimits
 CheatEngine.Client.Memory.MemoryBatchWriteEffectState
-CheatEngine.Client.Memory.MemoryBatchWriteEffectState.Complete = 2 -> CheatEngine.Client.Memory.MemoryBatchWriteEffectState
-CheatEngine.Client.Memory.MemoryBatchWriteEffectState.NotStarted = 0 -> CheatEngine.Client.Memory.MemoryBatchWriteEffectState
-CheatEngine.Client.Memory.MemoryBatchWriteEffectState.Partial = 1 -> CheatEngine.Client.Memory.MemoryBatchWriteEffectState
-CheatEngine.Client.Memory.MemoryBatchWriteEffectState.Unknown = 3 -> CheatEngine.Client.Memory.MemoryBatchWriteEffectState
+CheatEngine.Client.Memory.MemoryBatchWriteEffectState.Complete = 3 -> CheatEngine.Client.Memory.MemoryBatchWriteEffectState
+CheatEngine.Client.Memory.MemoryBatchWriteEffectState.NotStarted = 1 -> CheatEngine.Client.Memory.MemoryBatchWriteEffectState
+CheatEngine.Client.Memory.MemoryBatchWriteEffectState.Partial = 2 -> CheatEngine.Client.Memory.MemoryBatchWriteEffectState
+CheatEngine.Client.Memory.MemoryBatchWriteEffectState.Unknown = 0 -> CheatEngine.Client.Memory.MemoryBatchWriteEffectState
 CheatEngine.Client.Memory.MemoryBytesReadOutcome
 CheatEngine.Client.Memory.MemoryBytesReadOutcome.Bytes.get -> System.Collections.Immutable.ImmutableArray<byte>
 CheatEngine.Client.Memory.MemoryBytesReadOutcome.ConfirmedLength.get -> int
@@ -276,24 +276,24 @@ CheatEngine.Client.Memory.MemoryBytesWriteRequest.MemoryBytesWriteRequest() -> v
 CheatEngine.Client.Memory.MemoryBytesWriteRequest.MemoryBytesWriteRequest(CheatEngine.SDK.Engine.Values.Address address, System.ReadOnlySpan<byte> bytes) -> void
 CheatEngine.Client.Memory.MemoryPrimitiveBatchReadOutcome<T>
 CheatEngine.Client.Memory.MemoryPrimitiveBatchReadOutcome<T>.AttemptedCount.get -> int
-CheatEngine.Client.Memory.MemoryPrimitiveBatchReadOutcome<T>.Cause.get -> CheatEngine.Client.Results.CheatEngineFailure?
 CheatEngine.Client.Memory.MemoryPrimitiveBatchReadOutcome<T>.CompletedCount.get -> int
 CheatEngine.Client.Memory.MemoryPrimitiveBatchReadOutcome<T>.FailedIndex.get -> int?
-CheatEngine.Client.Memory.MemoryPrimitiveBatchReadOutcome<T>.MemoryPrimitiveBatchReadOutcome(int attemptedCount, int completedCount, int? failedIndex, CheatEngine.Client.Results.CheatEngineFailure? cause, System.ReadOnlySpan<T> readPrefix) -> void
+CheatEngine.Client.Memory.MemoryPrimitiveBatchReadOutcome<T>.Failure.get -> CheatEngine.Client.Results.CheatEngineFailure?
+CheatEngine.Client.Memory.MemoryPrimitiveBatchReadOutcome<T>.IsSuccess.get -> bool
+CheatEngine.Client.Memory.MemoryPrimitiveBatchReadOutcome<T>.MemoryPrimitiveBatchReadOutcome(int attemptedCount, int completedCount, int? failedIndex, CheatEngine.Client.Results.CheatEngineFailure? failure, System.ReadOnlySpan<T> readPrefix) -> void
 CheatEngine.Client.Memory.MemoryPrimitiveBatchReadOutcome<T>.ReadPrefix.get -> System.Collections.Immutable.ImmutableArray<T>
-CheatEngine.Client.Memory.MemoryPrimitiveBatchReadOutcome<T>.Succeeded.get -> bool
 CheatEngine.Client.Memory.MemoryPrimitiveBatchReadRequest<T>
 CheatEngine.Client.Memory.MemoryPrimitiveBatchReadRequest<T>.Addresses.get -> System.Collections.Immutable.ImmutableArray<CheatEngine.SDK.Engine.Values.Address>
 CheatEngine.Client.Memory.MemoryPrimitiveBatchReadRequest<T>.MemoryPrimitiveBatchReadRequest() -> void
 CheatEngine.Client.Memory.MemoryPrimitiveBatchReadRequest<T>.MemoryPrimitiveBatchReadRequest(System.ReadOnlySpan<CheatEngine.SDK.Engine.Values.Address> addresses) -> void
 CheatEngine.Client.Memory.MemoryPrimitiveBatchWriteOutcome
 CheatEngine.Client.Memory.MemoryPrimitiveBatchWriteOutcome.AttemptedCount.get -> int
-CheatEngine.Client.Memory.MemoryPrimitiveBatchWriteOutcome.Cause.get -> CheatEngine.Client.Results.CheatEngineFailure?
 CheatEngine.Client.Memory.MemoryPrimitiveBatchWriteOutcome.CompletedCount.get -> int
 CheatEngine.Client.Memory.MemoryPrimitiveBatchWriteOutcome.EffectState.get -> CheatEngine.Client.Memory.MemoryBatchWriteEffectState
 CheatEngine.Client.Memory.MemoryPrimitiveBatchWriteOutcome.FailedIndex.get -> int?
-CheatEngine.Client.Memory.MemoryPrimitiveBatchWriteOutcome.MemoryPrimitiveBatchWriteOutcome(int attemptedCount, int completedCount, int? failedIndex, CheatEngine.Client.Results.CheatEngineFailure? cause, CheatEngine.Client.Memory.MemoryBatchWriteEffectState effectState) -> void
-CheatEngine.Client.Memory.MemoryPrimitiveBatchWriteOutcome.Succeeded.get -> bool
+CheatEngine.Client.Memory.MemoryPrimitiveBatchWriteOutcome.Failure.get -> CheatEngine.Client.Results.CheatEngineFailure?
+CheatEngine.Client.Memory.MemoryPrimitiveBatchWriteOutcome.IsSuccess.get -> bool
+CheatEngine.Client.Memory.MemoryPrimitiveBatchWriteOutcome.MemoryPrimitiveBatchWriteOutcome(int attemptedCount, int completedCount, int? failedIndex, CheatEngine.Client.Results.CheatEngineFailure? failure, CheatEngine.Client.Memory.MemoryBatchWriteEffectState effectState) -> void
 CheatEngine.Client.Memory.MemoryPrimitiveBatchWriteRequest<T>
 CheatEngine.Client.Memory.MemoryPrimitiveBatchWriteRequest<T>.MemoryPrimitiveBatchWriteRequest() -> void
 CheatEngine.Client.Memory.MemoryPrimitiveBatchWriteRequest<T>.MemoryPrimitiveBatchWriteRequest(System.ReadOnlySpan<CheatEngine.Client.Memory.MemoryAddressValue<T>> values) -> void
@@ -327,17 +327,13 @@ CheatEngine.Client.Memory.MemoryStringReadRequest.Encoding.get -> CheatEngine.Cl
 CheatEngine.Client.Memory.MemoryStringReadRequest.Equals(CheatEngine.Client.Memory.MemoryStringReadRequest other) -> bool
 CheatEngine.Client.Memory.MemoryStringReadRequest.MaximumLength.get -> int
 CheatEngine.Client.Memory.MemoryStringReadRequest.MemoryStringReadRequest() -> void
-CheatEngine.Client.Memory.MemoryStringReadRequest.MemoryStringReadRequest(CheatEngine.SDK.Engine.Values.Address address, int maximumLength, bool wideCharacter = false) -> void
-CheatEngine.Client.Memory.MemoryStringReadRequest.WideCharacter.get -> bool
 CheatEngine.Client.Memory.MemoryStringWriteRequest
 CheatEngine.Client.Memory.MemoryStringWriteRequest.Address.get -> CheatEngine.SDK.Engine.Values.Address
 CheatEngine.Client.Memory.MemoryStringWriteRequest.Encoding.get -> CheatEngine.Client.Memory.MemoryStringEncoding
 CheatEngine.Client.Memory.MemoryStringWriteRequest.Equals(CheatEngine.Client.Memory.MemoryStringWriteRequest other) -> bool
 CheatEngine.Client.Memory.MemoryStringWriteRequest.MaximumLength.get -> int
 CheatEngine.Client.Memory.MemoryStringWriteRequest.MemoryStringWriteRequest() -> void
-CheatEngine.Client.Memory.MemoryStringWriteRequest.MemoryStringWriteRequest(CheatEngine.SDK.Engine.Values.Address address, string! value, bool wideCharacter = false) -> void
 CheatEngine.Client.Memory.MemoryStringWriteRequest.Value.get -> string!
-CheatEngine.Client.Memory.MemoryStringWriteRequest.WideCharacter.get -> bool
 CheatEngine.Client.Memory.MemoryWriteRequest<T>
 CheatEngine.Client.Memory.MemoryWriteRequest<T>.Address.get -> CheatEngine.SDK.Engine.Values.Address
 CheatEngine.Client.Memory.MemoryWriteRequest<T>.Codec.get -> CheatEngine.Client.Memory.IMemoryCodec<T>!

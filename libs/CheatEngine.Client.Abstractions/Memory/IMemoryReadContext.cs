@@ -1,8 +1,11 @@
+using CheatEngine.SDK.Engine.Runtime;
 using CheatEngine.SDK.Engine.Values;
 
 namespace CheatEngine.Client.Memory;
 
-/// <summary>Provides the bounded raw-memory operations available to an application read codec.</summary>
+/// <summary>
+///     Provides the bounded raw-memory operations and target width facts available to an application read codec.
+/// </summary>
 /// <remarks>
 ///     <para>
 ///         <b>Call-only.</b> The Client implements this interface and applications call it. A minor release can add
@@ -14,25 +17,74 @@ namespace CheatEngine.Client.Memory;
 ///         <see cref="CheatEngine.Client.Results.CheatEngineActivationExpiredException" />.
 ///     </para>
 ///     <para>
-///         The Client's context also implements <see cref="IMemoryPointerWidthContext" />. The built-in codecs read
-///         little-endian values, an assumption of the local x86/x64 host profile.
+///         The width facts are observed once per codec invocation and expire with the context. Cheat Engine's
+///         <c>readPointer</c> follows the bitness, not the configured pointer size (a Lua-only host observation; not
+///         host-qualified); what the configured size affects besides the value Cheat Engine reports is not established.
+///         The Client's own pointer-typed operations are refused when the bitness is unknown or the two differ; an
+///         application codec decides for itself. The built-in codecs read little-endian values, an assumption of the
+///         local x86/x64 host profile.
 ///     </para>
 /// </remarks>
 public interface IMemoryReadContext
 {
 	/// <summary>
-	///     Gets the process width of the selected target in bytes (the width Cheat Engine's <c>readPointer</c> uses). See
-	///     <see cref="IMemoryPointerWidthContext" /> for Cheat Engine's configured pointer size.
+	///     Gets the bitness of the selected target: the process width Cheat Engine's <c>readPointer</c> follows, never the
+	///     plugin's own width, or <see cref="PointerSize.Unknown" /> when no target is selected or the width could not
+	///     be observed.
+	/// </summary>
+	/// <remarks>
+	///     When the bitness is unknown and the codec then returns <see langword="false" />, the Client reports why:
+	///     <see cref="CheatEngine.Client.Results.CheatEngineFailureKind.TargetNotAttached" /> when no target is selected,
+	///     otherwise the kind of the status Cheat Engine reported.
+	/// </remarks>
+	/// <exception cref="CheatEngine.Client.Results.CheatEngineOperationException">
+	///     Cheat Engine could not be asked for the target facts. The Client reports this exception as the codec
+	///     operation's failure when the codec lets it propagate.
+	/// </exception>
+	public PointerSize Bitness
+	{
+		get;
+	}
+
+	/// <summary>
+	///     Gets Cheat Engine's configured pointer size as a width when it is 4 or 8 bytes, otherwise
+	///     <see cref="PointerSize.Unknown" />. It is per-attachment Cheat Engine state, independent of the bitness.
 	/// </summary>
 	/// <exception cref="CheatEngine.Client.Results.CheatEngineOperationException">
-	///     No target is selected, or its process width could not be observed. The Client reports this exception as the
-	///     codec operation's failure when the codec lets it propagate.
+	///     Cheat Engine could not be asked for the target facts.
 	/// </exception>
-	public int PointerSize
+	public PointerSize ConfiguredPointerSize
+	{
+		get;
+	}
+
+	/// <summary>
+	///     Gets the raw value of Cheat Engine's configured pointer size, or <see langword="null" /> when it was not
+	///     observed. It can hold a value other than 4 or 8.
+	/// </summary>
+	/// <exception cref="CheatEngine.Client.Results.CheatEngineOperationException">
+	///     Cheat Engine could not be asked for the target facts.
+	/// </exception>
+	public int? ConfiguredPointerSizeBytes
+	{
+		get;
+	}
+
+	/// <summary>
+	///     Gets whether the observed configured pointer size differs from a known bitness; <see langword="false" /> when
+	///     either value is unknown, which is no evidence of a mismatch.
+	/// </summary>
+	/// <exception cref="CheatEngine.Client.Results.CheatEngineOperationException">
+	///     Cheat Engine could not be asked for the target facts.
+	/// </exception>
+	public bool ConfiguredPointerSizeDiffersFromBitness
 	{
 		get;
 	}
 
 	/// <summary>Tries to fill the exact caller-provided buffer from target memory.</summary>
+	/// <returns>
+	///     <see langword="true" /> when every byte was read; otherwise <see langword="false" />, with the buffer cleared.
+	/// </returns>
 	public bool TryReadBytes(Address address, Span<byte> destination);
 }

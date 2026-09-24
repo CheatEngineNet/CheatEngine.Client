@@ -7,13 +7,13 @@ public sealed class MemoryPrimitiveBatchWriteOutcome
 {
 	/// <summary>Creates a write outcome with a known or explicitly unknown target effect state.</summary>
 	public MemoryPrimitiveBatchWriteOutcome(int attemptedCount, int completedCount, int? failedIndex,
-		CheatEngineFailure? cause, MemoryBatchWriteEffectState effectState)
+		CheatEngineFailure? failure, MemoryBatchWriteEffectState effectState)
 	{
-		Validate(attemptedCount, completedCount, failedIndex, cause, effectState);
+		Validate(attemptedCount, completedCount, failedIndex, failure, effectState);
 		AttemptedCount = attemptedCount;
 		CompletedCount = completedCount;
 		FailedIndex = failedIndex;
-		Cause = cause;
+		Failure = failure;
 		EffectState = effectState;
 	}
 
@@ -36,7 +36,7 @@ public sealed class MemoryPrimitiveBatchWriteOutcome
 	}
 
 	/// <summary>Gets the expected admission, dispatch, or target-memory failure when the batch did not complete.</summary>
-	public CheatEngineFailure? Cause
+	public CheatEngineFailure? Failure
 	{
 		get;
 	}
@@ -48,10 +48,10 @@ public sealed class MemoryPrimitiveBatchWriteOutcome
 	}
 
 	/// <summary>Gets whether every requested write completed successfully.</summary>
-	public bool Succeeded => Cause is null && EffectState == MemoryBatchWriteEffectState.Complete;
+	public bool IsSuccess => Failure is null && EffectState == MemoryBatchWriteEffectState.Complete;
 
 	private static void Validate(int attemptedCount, int completedCount, int? failedIndex,
-		CheatEngineFailure? cause, MemoryBatchWriteEffectState effectState)
+		CheatEngineFailure? failure, MemoryBatchWriteEffectState effectState)
 	{
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(attemptedCount);
 		if (completedCount < 0 || completedCount > attemptedCount)
@@ -69,15 +69,15 @@ public sealed class MemoryPrimitiveBatchWriteOutcome
 			throw new ArgumentOutOfRangeException(nameof(failedIndex));
 		}
 
-		if (cause is null && (completedCount != attemptedCount || effectState != MemoryBatchWriteEffectState.Complete))
+		if (failure is null && (completedCount != attemptedCount || effectState != MemoryBatchWriteEffectState.Complete))
 		{
-			throw new ArgumentException("An incomplete write outcome requires a failure cause.", nameof(cause));
+			throw new ArgumentException("An incomplete write outcome requires a failure.", nameof(failure));
 		}
 
-		if (cause is not null &&
+		if (failure is not null &&
 			(effectState == MemoryBatchWriteEffectState.Complete || completedCount == attemptedCount))
 		{
-			throw new ArgumentException("A completed write outcome cannot contain a failure cause.", nameof(cause));
+			throw new ArgumentException("A completed write outcome cannot contain a failure.", nameof(failure));
 		}
 
 		if (effectState == MemoryBatchWriteEffectState.NotStarted && completedCount != 0)

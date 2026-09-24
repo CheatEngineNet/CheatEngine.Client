@@ -5,8 +5,11 @@ using CheatEngine.SDK.Engine.Values;
 namespace CheatEngine.Client.Memory;
 
 /// <summary>A copied, bounded request to read one homogeneous built-in scalar from multiple target addresses.</summary>
-/// <typeparam name="T">The built-in scalar or target-aware pointer type to read.</typeparam>
+/// <typeparam name="T">
+///     The built-in scalar or target-aware pointer type to read, one of the types <see cref="IMemoryClient" /> supports.
+/// </typeparam>
 public readonly struct MemoryPrimitiveBatchReadRequest<T>
+	where T : unmanaged
 {
 	/// <summary>Creates a bounded batch by copying every target address.</summary>
 	/// <param name="addresses">The non-empty target addresses to read in order.</param>

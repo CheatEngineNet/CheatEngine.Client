@@ -249,12 +249,12 @@ public sealed class TryContractTests
 				new MemoryAddressValue<int>(Target + 8, 3)
 			]), TestContext.Current.CancellationToken);
 
-		Assert.False(outcome.Succeeded);
+		Assert.False(outcome.IsSuccess);
 		Assert.Equal(1, outcome.CompletedCount);
 		Assert.Equal(1, outcome.FailedIndex);
 		Assert.Equal(MemoryBatchWriteEffectState.Unknown, outcome.EffectState);
-		Assert.Same(fault, outcome.Cause!.Value.Exception);
-		Assert.Equal(CheatEngineHostEffect.Unknown, outcome.Cause.Value.HostEffect);
+		Assert.Same(fault, outcome.Failure!.Value.Exception);
+		Assert.Equal(CheatEngineHostEffect.Unknown, outcome.Failure.Value.HostEffect);
 	}
 
 	[Fact]
@@ -453,7 +453,7 @@ public sealed class TryContractTests
 			"MemoryBatchPreDispatchCancellation" => new MemoryClient(dispatcher, lifetime, ports)
 				.WritePrimitiveBatchDetailed(
 					new MemoryPrimitiveBatchWriteRequest<int>([new MemoryAddressValue<int>(Target, 1)]), cancelled)
-				.Cause!.Value,
+				.Failure!.Value,
 			"MemoryBytesDetailedBudget" => new MemoryClient(dispatcher, lifetime, ports,
 					new MemoryResourceLimits(1, 1, 1, 64, 2))
 				.ReadBytesDetailed(new MemoryBytesReadRequest(Target, 2), token).Failure!.Value,
@@ -577,13 +577,13 @@ public sealed class TryContractTests
 				new MemoryAddressValue<int>(Target + 8, 3), new MemoryAddressValue<int>(Target + 12, 4)
 			]), TestContext.Current.CancellationToken);
 
-		Assert.False(outcome.Succeeded);
+		Assert.False(outcome.IsSuccess);
 		Assert.Equal(4, outcome.AttemptedCount);
 		Assert.Equal(2, outcome.CompletedCount);
 		Assert.Equal(2, outcome.FailedIndex);
 		Assert.Equal(MemoryBatchWriteEffectState.Partial, outcome.EffectState);
-		Assert.Equal(CheatEngineFailureKind.MemoryWriteFailed, outcome.Cause!.Value.Kind);
-		Assert.Equal(CheatEngineHostEffect.Started, outcome.Cause.Value.HostEffect);
+		Assert.Equal(CheatEngineFailureKind.MemoryWriteFailed, outcome.Failure!.Value.Kind);
+		Assert.Equal(CheatEngineHostEffect.Started, outcome.Failure.Value.HostEffect);
 	}
 
 	[Fact]

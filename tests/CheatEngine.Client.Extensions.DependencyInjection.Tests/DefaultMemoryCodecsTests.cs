@@ -311,9 +311,9 @@ public sealed class DefaultMemoryCodecsTests
 		return services.BuildServiceProvider();
 	}
 
-	/// <summary>A context that also reports the pointer-width facts of <see cref="IMemoryPointerWidthContext" />.</summary>
+	/// <summary>A context that reports a configured pointer size apart from the bitness.</summary>
 	private sealed class WidthMemoryContext(int processBytes, int configuredBytes)
-		: IMemoryReadContext, IMemoryWriteContext, IMemoryPointerWidthContext
+		: IMemoryReadContext, IMemoryWriteContext
 	{
 		internal int Accesses
 		{
@@ -321,15 +321,13 @@ public sealed class DefaultMemoryCodecsTests
 			private set;
 		}
 
-		public int PointerSize => processBytes;
-
-		public PointerSize ProcessPointerSize => new(processBytes);
+		public PointerSize Bitness => new(processBytes);
 
 		public int? ConfiguredPointerSizeBytes => configuredBytes;
 
 		public PointerSize ConfiguredPointerSize => new(configuredBytes);
 
-		public bool ConfiguredPointerSizeDiffersFromProcessWidth => configuredBytes != processBytes;
+		public bool ConfiguredPointerSizeDiffersFromBitness => configuredBytes != processBytes;
 
 		public bool TryReadBytes(Address address, Span<byte> destination)
 		{
@@ -345,6 +343,7 @@ public sealed class DefaultMemoryCodecsTests
 		}
 	}
 
+	/// <summary>A context over a byte buffer; a pointer size other than 4 or 8 bytes is an unknown bitness.</summary>
 	private sealed class BufferMemoryContext(int pointerSize, byte[] bytes) : IMemoryReadContext, IMemoryWriteContext
 	{
 		private readonly byte[] _bytes = bytes;
@@ -367,10 +366,16 @@ public sealed class DefaultMemoryCodecsTests
 			private set;
 		} = [];
 
-		public int PointerSize
+		public PointerSize Bitness
 		{
 			get;
-		} = pointerSize;
+		} = pointerSize is sizeof(uint) or sizeof(ulong) ? new PointerSize(pointerSize) : PointerSize.Unknown;
+
+		public PointerSize ConfiguredPointerSize => Bitness;
+
+		public int? ConfiguredPointerSizeBytes => Bitness.IsKnown ? Bitness.Bytes : null;
+
+		public bool ConfiguredPointerSizeDiffersFromBitness => false;
 
 		public bool TryReadBytes(Address address, Span<byte> destination)
 		{

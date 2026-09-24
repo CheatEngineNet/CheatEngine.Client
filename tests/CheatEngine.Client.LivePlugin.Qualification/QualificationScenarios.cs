@@ -368,7 +368,7 @@ internal static class QualificationScenarios
 				.Number("completed", outcome.CompletedCount)
 				.Number("failedIndex", outcome.FailedIndex ?? -1)
 				.String("effectState", outcome.EffectState.ToString());
-			if (outcome.Cause is { } cause)
+			if (outcome.Failure is { } cause)
 			{
 				observation.Failure("cause", cause);
 			}
@@ -776,12 +776,13 @@ internal static class QualificationScenarios
 			return observation.Complete();
 		}
 
-		bool written = active.Client.Memory.TryWriteString(new MemoryStringWriteRequest(address, value, wide),
-			out CheatEngineFailure failure);
+		MemoryStringEncoding encoding = wide ? MemoryStringEncoding.Utf16 : MemoryStringEncoding.Utf8;
+		bool written = active.Client.Memory.TryWriteString(
+			MemoryStringWriteRequest.CreateBounded(address, value, expected.Length, encoding), out CheatEngineFailure failure);
 		bool readBytes = active.Client.Memory.TryReadBytes(new MemoryBytesReadRequest(address, expected.Length),
 			out ImmutableArray<byte> readBack, out CheatEngineFailure readFailure);
-		bool readText = active.Client.Memory.TryReadString(new MemoryStringReadRequest(address, value.Length, wide),
-			out string? text, out _);
+		bool readText = active.Client.Memory.TryReadString(
+			MemoryStringReadRequest.Create(address, value.Length, encoding), out string? text, out _);
 		Restore(observation, active, address, original);
 		observation.Boolean("ok", written && readBytes)
 			.String("encoding", wide ? "Utf16" : "Utf8")

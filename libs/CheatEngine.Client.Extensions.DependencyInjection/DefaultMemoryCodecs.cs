@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 
 using CheatEngine.Client.Core.Domains;
 using CheatEngine.Client.Memory;
+using CheatEngine.SDK.Engine.Runtime;
 using CheatEngine.SDK.Engine.Values;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -61,9 +62,9 @@ internal static class DefaultMemoryCodecs
 	}
 
 	/// <summary>
-	///     The built-in pointer codec: it reads and writes the target's process width in little-endian order (the local
-	///     x86/x64 profile), and asks the Core codec context to admit it first so that a Cheat Engine configured pointer
-	///     size that differs from the process width refuses the operation before any memory access.
+	///     The built-in pointer codec: it reads and writes the target's bitness in little-endian order (the local x86/x64
+	///     profile), and asks the Core codec context to admit it first so that an unknown bitness, or a Cheat Engine
+	///     configured pointer size that differs from it, refuses the operation before any memory access.
 	/// </summary>
 	private sealed class AddressMemoryCodec : IMemoryCodec<Address>
 	{
@@ -75,21 +76,18 @@ internal static class DefaultMemoryCodecs
 		public bool TryRead(IMemoryReadContext context, Address address, out Address value)
 		{
 			ArgumentNullException.ThrowIfNull(context);
-			if (!IsAdmitted(context) || !IsSupportedPointerSize(context.PointerSize))
-			{
-				value = default;
-				return false;
-			}
-
+			PointerSize width = context is ICorePointerCodecPolicy policy
+				? policy.TryAdmitPointerCodec() ? context.Bitness : PointerSize.Unknown
+				: context.ConfiguredPointerSizeDiffersFromBitness ? PointerSize.Unknown : context.Bitness;
 			Span<byte> bytes = stackalloc byte[sizeof(ulong)];
-			Span<byte> target = bytes[..context.PointerSize];
-			if (!context.TryReadBytes(address, target))
+			Span<byte> target = bytes[..width.Bytes];
+			if (!width.IsKnown || !context.TryReadBytes(address, target))
 			{
 				value = default;
 				return false;
 			}
 
-			value = Address.FromUInt64(context.PointerSize == sizeof(ulong)
+			value = Address.FromUInt64(width == PointerSize.Bit64
 				? BinaryPrimitives.ReadUInt64LittleEndian(target)
 				: BinaryPrimitives.ReadUInt32LittleEndian(target));
 			return true;
@@ -98,15 +96,18 @@ internal static class DefaultMemoryCodecs
 		public bool TryWrite(IMemoryWriteContext context, Address address, in Address value)
 		{
 			ArgumentNullException.ThrowIfNull(context);
-			if (!IsAdmitted(context) || !IsSupportedPointerSize(context.PointerSize) ||
-				(context.PointerSize == sizeof(uint) && value.Value > uint.MaxValue))
+			PointerSize width = context is ICorePointerCodecPolicy policy
+				? policy.TryAdmitPointerCodec() ? context.Bitness : PointerSize.Unknown
+				: context.ConfiguredPointerSizeDiffersFromBitness ? PointerSize.Unknown : context.Bitness;
+			// A value wider than a 32-bit target is refused instead of truncated.
+			if (!width.IsKnown || (width == PointerSize.Bit32 && value.Value > uint.MaxValue))
 			{
 				return false;
 			}
 
 			Span<byte> bytes = stackalloc byte[sizeof(ulong)];
-			Span<byte> target = bytes[..context.PointerSize];
-			if (context.PointerSize == sizeof(ulong))
+			Span<byte> target = bytes[..width.Bytes];
+			if (width == PointerSize.Bit64)
 			{
 				BinaryPrimitives.WriteUInt64LittleEndian(target, value.Value);
 			}
@@ -116,25 +117,6 @@ internal static class DefaultMemoryCodecs
 			}
 
 			return context.TryWriteBytes(address, target);
-		}
-
-		private static bool IsSupportedPointerSize(int pointerSize)
-		{
-			return pointerSize is sizeof(uint) or sizeof(ulong);
-		}
-
-		/// <summary>
-		///     Admits the pointer operation through the Core context policy, which records the refusal on the context.
-		///     Another context is refused when it reports a configured pointer size that differs from its process width.
-		/// </summary>
-		private static bool IsAdmitted(object context)
-		{
-			return context switch
-			{
-				ICorePointerCodecPolicy policy => policy.TryAdmitPointerCodec(),
-				IMemoryPointerWidthContext widths => !widths.ConfiguredPointerSizeDiffersFromProcessWidth,
-				_ => true
-			};
 		}
 	}
 }

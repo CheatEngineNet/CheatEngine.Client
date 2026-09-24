@@ -15,7 +15,7 @@ using CheatEngine.SDK.Engine.Values;
 
 namespace CheatEngine.Client.Core.Domains;
 
-internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
+internal sealed class MemoryClient : IMemoryClient
 {
 	/// <summary>The effect state reported for a read batch, which never changes the target.</summary>
 	private const string ReadBatchEffectState = "ReadOnly";
@@ -58,6 +58,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 
 	public MemoryPrimitiveBatchReadOutcome<T> ReadPrimitiveBatchDetailed<T>(MemoryPrimitiveBatchReadRequest<T> request,
 		CancellationToken cancellationToken = default)
+		where T : unmanaged
 	{
 		MemoryPrimitiveBatchReadOutcome<T> outcome = ReadPrimitiveBatchCore(request, cancellationToken);
 		// Counts only, never an address or a value (A24-17); a read batch has no target effect.
@@ -68,6 +69,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 
 	public MemoryPrimitiveBatchWriteOutcome WritePrimitiveBatchDetailed<T>(MemoryPrimitiveBatchWriteRequest<T> request,
 		CancellationToken cancellationToken = default)
+		where T : unmanaged
 	{
 		MemoryPrimitiveBatchWriteOutcome outcome = WritePrimitiveBatchCore(request, cancellationToken);
 		_lifetime.Diagnostics.MemoryBatchCompleted("Memory.WritePrimitiveBatch", outcome.AttemptedCount,
@@ -77,9 +79,16 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 
 	private MemoryPrimitiveBatchReadOutcome<T> ReadPrimitiveBatchCore<T>(MemoryPrimitiveBatchReadRequest<T> request,
 		CancellationToken cancellationToken)
+		where T : unmanaged
 	{
 		ValidateBatch(request.Addresses, nameof(request));
 		int attemptedCount = request.Addresses.Length;
+		if (!PrimitiveMemoryCodec<T>.IsSupported)
+		{
+			return new MemoryPrimitiveBatchReadOutcome<T>(attemptedCount, 0, null,
+				UnsupportedPrimitive<T>("Memory.ReadPrimitiveBatch"), []);
+		}
+
 		if (!TryAdmitBatch<T>(attemptedCount, false, "Memory.ReadPrimitiveBatch",
 				out CheatEngineFailure admissionFailure))
 		{
@@ -115,16 +124,23 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 
 		CheatEngineFailure failure = outcome.Fault is { } fault
 			? SdkBoundary.Translate("Memory.ReadPrimitiveBatch", fault, CheatEngineHostEffect.Unknown, _lifetime)
-			: CreateBatchFailure<T>(outcome.Handled, false, outcome.FailedIndex, outcome.Failure);
+			: CreateBatchFailure(false, outcome.FailedIndex, outcome.Failure);
 		return new MemoryPrimitiveBatchReadOutcome<T>(attemptedCount, outcome.FailedIndex, outcome.FailedIndex,
 			failure, outcome.Values);
 	}
 
 	private MemoryPrimitiveBatchWriteOutcome WritePrimitiveBatchCore<T>(MemoryPrimitiveBatchWriteRequest<T> request,
 		CancellationToken cancellationToken)
+		where T : unmanaged
 	{
 		ValidateBatch(request.Values, nameof(request));
 		int attemptedCount = request.Values.Length;
+		if (!PrimitiveMemoryCodec<T>.IsSupported)
+		{
+			return new MemoryPrimitiveBatchWriteOutcome(attemptedCount, 0, null,
+				UnsupportedPrimitive<T>("Memory.WritePrimitiveBatch"), MemoryBatchWriteEffectState.NotStarted);
+		}
+
 		if (!TryAdmitBatch<T>(attemptedCount, true, "Memory.WritePrimitiveBatch",
 				out CheatEngineFailure admissionFailure))
 		{
@@ -170,7 +186,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 				faultFailure, MemoryBatchWriteEffectState.Unknown);
 		}
 
-		CheatEngineFailure failure = CreateBatchFailure<T>(outcome.Handled, true, outcome.FailedIndex, outcome.Failure);
+		CheatEngineFailure failure = CreateBatchFailure(true, outcome.FailedIndex, outcome.Failure);
 		MemoryBatchWriteEffectState effectState = outcome.FailedIndex == 0
 			? MemoryBatchWriteEffectState.NotStarted
 			: MemoryBatchWriteEffectState.Partial;
@@ -186,7 +202,15 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 
 	public bool TryReadPrimitive<T>(Address address, [MaybeNullWhen(false)] out T value,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
+		where T : unmanaged
 	{
+		if (!PrimitiveMemoryCodec<T>.IsSupported)
+		{
+			value = default;
+			failure = UnsupportedPrimitive<T>("Memory.ReadPrimitive");
+			return false;
+		}
+
 		PrimitiveReadInput input = new(address, _codecContextPort);
 		if (!TryInvoke(input, static current => PrimitiveMemoryCodec<T>.Read(current.Port, current.Address),
 				out PrimitiveReadOutcome<T> outcome, out failure, cancellationToken))
@@ -202,9 +226,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 				? RefuseWidth("Memory.ReadPrimitive", widthRefusal)
 				: outcome.Fault is { } fault
 					? SdkBoundary.Translate("Memory.ReadPrimitive", fault, CheatEngineHostEffect.Unknown, _lifetime)
-					: !outcome.Handled
-						? UnsupportedPrimitive<T>("Memory.ReadPrimitive")
-						: MemoryAccessFailureMapping.ToFailure("Memory.ReadPrimitive", outcome.Failure, false);
+					: MemoryAccessFailureMapping.ToFailure("Memory.ReadPrimitive", outcome.Failure, false);
 			return false;
 		}
 
@@ -214,19 +236,27 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 	}
 
 	public T ReadPrimitive<T>(Address address, CancellationToken cancellationToken = default)
+		where T : unmanaged
 	{
-		if (TryReadPrimitive(address, out T? value, out CheatEngineFailure failure, cancellationToken))
+		if (TryReadPrimitive(address, out T value, out CheatEngineFailure failure, cancellationToken))
 		{
-			return value!;
+			return value;
 		}
 
 		failure.Throw(cancellationToken);
-		return default!;
+		return default;
 	}
 
 	public bool TryWritePrimitive<T>(Address address, T value, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
+		where T : unmanaged
 	{
+		if (!PrimitiveMemoryCodec<T>.IsSupported)
+		{
+			failure = UnsupportedPrimitive<T>("Memory.WritePrimitive");
+			return false;
+		}
+
 		PrimitiveWriteInput<T> input = new(address, value, _codecContextPort);
 		if (!TryInvoke(input,
 				static current => PrimitiveMemoryCodec<T>.Write(current.Port, current.Address, current.Value),
@@ -241,9 +271,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 				? RefuseWidth("Memory.WritePrimitive", widthRefusal)
 				: outcome.Fault is { } fault
 					? SdkBoundary.Translate("Memory.WritePrimitive", fault, CheatEngineHostEffect.Unknown, _lifetime)
-					: !outcome.Handled
-						? UnsupportedPrimitive<T>("Memory.WritePrimitive")
-						: MemoryAccessFailureMapping.ToFailure("Memory.WritePrimitive", outcome.Failure, true);
+					: MemoryAccessFailureMapping.ToFailure("Memory.WritePrimitive", outcome.Failure, true);
 			return false;
 		}
 
@@ -252,6 +280,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 	}
 
 	public void WritePrimitive<T>(Address address, T value, CancellationToken cancellationToken = default)
+		where T : unmanaged
 	{
 		if (!TryWritePrimitive(address, value, out CheatEngineFailure failure, cancellationToken))
 		{
@@ -261,22 +290,24 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 
 	public bool TryReadPrimitiveBatch<T>(MemoryPrimitiveBatchReadRequest<T> request, out ImmutableArray<T> values,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
+		where T : unmanaged
 	{
 		MemoryPrimitiveBatchReadOutcome<T> outcome = ReadPrimitiveBatchDetailed(request, cancellationToken);
-		if (outcome.Succeeded)
+		if (outcome.Failure is { } readFailure)
 		{
-			values = outcome.ReadPrefix;
-			failure = default;
-			return true;
+			values = [];
+			failure = readFailure;
+			return false;
 		}
 
-		values = [];
-		failure = outcome.Cause!.Value;
-		return false;
+		values = outcome.ReadPrefix;
+		failure = default;
+		return true;
 	}
 
 	public ImmutableArray<T> ReadPrimitiveBatch<T>(MemoryPrimitiveBatchReadRequest<T> request,
 		CancellationToken cancellationToken = default)
+		where T : unmanaged
 	{
 		if (TryReadPrimitiveBatch(request, out ImmutableArray<T> values, out CheatEngineFailure failure,
 				cancellationToken))
@@ -290,20 +321,22 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 
 	public bool TryWritePrimitiveBatch<T>(MemoryPrimitiveBatchWriteRequest<T> request,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
+		where T : unmanaged
 	{
 		MemoryPrimitiveBatchWriteOutcome outcome = WritePrimitiveBatchDetailed(request, cancellationToken);
-		if (outcome.Succeeded)
+		if (outcome.Failure is { } writeFailure)
 		{
-			failure = default;
-			return true;
+			failure = writeFailure;
+			return false;
 		}
 
-		failure = outcome.Cause!.Value;
-		return false;
+		failure = default;
+		return true;
 	}
 
 	public void WritePrimitiveBatch<T>(MemoryPrimitiveBatchWriteRequest<T> request,
 		CancellationToken cancellationToken = default)
+		where T : unmanaged
 	{
 		if (!TryWritePrimitiveBatch(request, out CheatEngineFailure failure, cancellationToken))
 		{
@@ -487,7 +520,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(request.MaximumLength);
-		if (!TryAdmitPayload(GetEncodedByteLength(request.MaximumLength, request.WideCharacter),
+		if (!TryAdmitPayload(GetEncodedByteLength(request.MaximumLength, request.Encoding == MemoryStringEncoding.Utf16),
 				_limits.MaximumStringBytes, false, "Memory.ReadString", "string read", out failure))
 		{
 			value = null;
@@ -498,7 +531,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		HostCall call = default;
 		if (!_dispatcher.TryInvoke(() => call = HostCall.Run(_codecContextPort, request, request.Address,
 				(port, current, address, out hostFailure) => port.TryReadString(address,
-					current.MaximumLength, current.WideCharacter, out captured, out hostFailure)),
+					current.MaximumLength, current.Encoding == MemoryStringEncoding.Utf16, out captured, out hostFailure)),
 				out failure, cancellationToken))
 		{
 			value = null;
@@ -524,13 +557,14 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(request.Value);
-		int encodedLength = GetEncodedLength(request.Value, request.WideCharacter);
-		if (request.MaximumLength > 0 && encodedLength > request.MaximumLength)
+		bool wideCharacter = request.Encoding == MemoryStringEncoding.Utf16;
+		int encodedLength = GetEncodedLength(request.Value, wideCharacter);
+		if (encodedLength > request.MaximumLength)
 		{
 			throw new ArgumentException("The encoded text exceeds the explicit maximum length.", nameof(request));
 		}
 
-		if (!TryAdmitPayload(GetEncodedByteLength(request.Value, request.WideCharacter), _limits.MaximumStringBytes,
+		if (!TryAdmitPayload(GetEncodedByteLength(request.Value, wideCharacter), _limits.MaximumStringBytes,
 				true, "Memory.WriteString", "string write", out failure))
 		{
 			return false;
@@ -539,7 +573,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		HostCall call = default;
 		if (!_dispatcher.TryInvoke(() => call = HostCall.Run(_codecContextPort, request, request.Address,
 				static (port, current, address, out hostFailure) => port.TryWriteString(address,
-					current.Value.AsSpan(), current.WideCharacter, out hostFailure)),
+					current.Value.AsSpan(), current.Encoding == MemoryStringEncoding.Utf16, out hostFailure)),
 				out failure, cancellationToken))
 		{
 			return false;
@@ -814,10 +848,16 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 			$"The pointer read of hop {hop} of {hopCount} failed: {mapped.Message}", null, mapped.HostEffect);
 	}
 
+	/// <summary>
+	///     Creates the refusal of a primitive type outside the supported set (A5): <c>OperationRejected</c> and
+	///     <c>NotStarted</c>, before dispatch and without a Cheat Engine call.
+	/// </summary>
 	private static CheatEngineFailure UnsupportedPrimitive<T>(string operation)
+		where T : unmanaged
 	{
-		return new CheatEngineFailure(CheatEngineFailureKind.Unsupported, operation,
-			$"'{typeof(T).FullName}' is not a built-in CheatEngine.Client memory type.", null,
+		return new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, operation,
+			$"'{typeof(T).FullName}' is not a primitive the Client supports: use an 8- to 64-bit integer, float, double " +
+			"or Address, or pass a codec through a MemoryReadRequest or MemoryWriteRequest.", null,
 			CheatEngineHostEffect.NotStarted);
 	}
 
@@ -852,6 +892,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 	}
 
 	private bool TryAdmitBatch<T>(int attemptedCount, bool isWrite, string operation, out CheatEngineFailure failure)
+		where T : unmanaged
 	{
 		if (attemptedCount > _limits.MaximumBatchOperationCount)
 		{
@@ -887,15 +928,9 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 			null, CheatEngineHostEffect.NotStarted);
 	}
 
-	private static CheatEngineFailure CreateBatchFailure<T>(bool handled, bool isWrite, int failedIndex,
-		MemoryAccessFailure hostFailure)
+	private static CheatEngineFailure CreateBatchFailure(bool isWrite, int failedIndex, MemoryAccessFailure hostFailure)
 	{
 		string operation = isWrite ? "Memory.WritePrimitiveBatch" : "Memory.ReadPrimitiveBatch";
-		if (!handled)
-		{
-			return UnsupportedPrimitive<T>(operation);
-		}
-
 		CheatEngineFailure mapped = MemoryAccessFailureMapping.ToFailure(operation, hostFailure, isWrite);
 		string action = isWrite ? "write" : "read";
 		return new CheatEngineFailure(mapped.Kind, operation,
@@ -937,18 +972,18 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 
 	private readonly record struct PrimitiveReadInput(Address Address, IMemoryCodecContextPort Port);
 
-	private readonly record struct PrimitiveWriteInput<T>(Address Address, T Value, IMemoryCodecContextPort Port);
+	private readonly record struct PrimitiveWriteInput<T>(Address Address, T Value, IMemoryCodecContextPort Port)
+		where T : unmanaged;
 
 	private readonly record struct PrimitiveReadOutcome<T>(
-		bool Handled,
 		bool Succeeded,
 		T Value,
 		MemoryAccessFailure Failure,
 		Exception? Fault = null,
-		ObservedTarget? WidthRefusal = null);
+		ObservedTarget? WidthRefusal = null)
+		where T : unmanaged;
 
 	private readonly record struct PrimitiveWriteOutcome(
-		bool Handled,
 		bool Succeeded,
 		MemoryAccessFailure Failure,
 		Exception? Fault = null,
@@ -1018,40 +1053,47 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 
 	private readonly record struct PrimitiveBatchReadInput<T>(
 		MemoryPrimitiveBatchReadRequest<T> Request,
-		IMemoryCodecContextPort Port);
+		IMemoryCodecContextPort Port)
+		where T : unmanaged;
 
 	private readonly record struct PrimitiveBatchWriteInput<T>(
 		MemoryPrimitiveBatchWriteRequest<T> Request,
-		IMemoryCodecContextPort Port);
+		IMemoryCodecContextPort Port)
+		where T : unmanaged;
 
 	/// <summary>
 	///     The outcome of a primitive batch inside the dispatched call; <paramref name="FailedIndex" /> is negative when no
 	///     element failed (success, or a refusal or fault before the first element).
 	/// </summary>
 	private readonly record struct PrimitiveBatchReadOutcome<T>(
-		bool Handled,
 		bool Succeeded,
 		T[] Values,
 		int FailedIndex,
 		MemoryAccessFailure Failure,
 		Exception? Fault = null,
-		ObservedTarget? WidthRefusal = null);
+		ObservedTarget? WidthRefusal = null)
+		where T : unmanaged;
 
 	/// <summary>
 	///     The outcome of a primitive batch inside the dispatched call; <paramref name="FailedIndex" /> is negative when no
 	///     element failed (success, or a refusal or fault before the first element).
 	/// </summary>
 	private readonly record struct PrimitiveBatchWriteOutcome(
-		bool Handled,
 		bool Succeeded,
 		int FailedIndex,
 		MemoryAccessFailure Failure,
 		Exception? Fault = null,
 		ObservedTarget? WidthRefusal = null);
 
+	/// <summary>The supported primitive set (A5) and its SDK route, admitted before dispatch.</summary>
 	private static class PrimitiveMemoryCodec<T>
+		where T : unmanaged
 	{
-		private static bool IsSupported =>
+		/// <summary>
+		///     Gets whether <typeparamref name="T" /> is one of the supported primitives: the 8- to 64-bit integers,
+		///     <see cref="float" />, <see cref="double" /> and <see cref="Address" />.
+		/// </summary>
+		internal static bool IsSupported =>
 			typeof(T) == typeof(byte) ||
 			typeof(T) == typeof(sbyte) ||
 			typeof(T) == typeof(ushort) ||
@@ -1072,18 +1114,13 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		/// </summary>
 		internal static PrimitiveReadOutcome<T> Read(IMemoryCodecContextPort port, Address address)
 		{
-			if (!IsSupported)
-			{
-				return new PrimitiveReadOutcome<T>(false, false, default!, MemoryAccessFailure.None);
-			}
-
 			PointerSize width = PointerSize.Unknown;
 			if (IsPointer)
 			{
 				PointerWidthAdmission admission = PointerWidthAdmission.Observe(port);
 				if (!admission.IsAdmitted)
 				{
-					return new PrimitiveReadOutcome<T>(true, false, default!, MemoryAccessFailure.None,
+					return new PrimitiveReadOutcome<T>(false, default!, MemoryAccessFailure.None,
 						admission.Fault, admission.Refusal);
 				}
 
@@ -1112,12 +1149,12 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 				}
 
 				return succeeded
-					? new PrimitiveReadOutcome<T>(true, true, value, MemoryAccessFailure.None)
-					: new PrimitiveReadOutcome<T>(true, false, default!, failure);
+					? new PrimitiveReadOutcome<T>(true, value, MemoryAccessFailure.None)
+					: new PrimitiveReadOutcome<T>(false, default!, failure);
 			}
 			catch (Exception exception) when (SdkBoundary.IsSdkFault(exception))
 			{
-				return new PrimitiveReadOutcome<T>(true, false, default!, MemoryAccessFailure.None, exception);
+				return new PrimitiveReadOutcome<T>(false, default!, MemoryAccessFailure.None, exception);
 			}
 		}
 
@@ -1127,18 +1164,13 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		/// </summary>
 		internal static PrimitiveWriteOutcome Write(IMemoryCodecContextPort port, Address address, T value)
 		{
-			if (!IsSupported)
-			{
-				return new PrimitiveWriteOutcome(false, false, MemoryAccessFailure.None);
-			}
-
 			PointerSize width = PointerSize.Unknown;
 			if (IsPointer)
 			{
 				PointerWidthAdmission admission = PointerWidthAdmission.Observe(port);
 				if (!admission.IsAdmitted)
 				{
-					return new PrimitiveWriteOutcome(true, false, MemoryAccessFailure.None, admission.Fault,
+					return new PrimitiveWriteOutcome(false, MemoryAccessFailure.None, admission.Fault,
 						admission.Refusal);
 				}
 
@@ -1158,12 +1190,12 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 					? port.TryWritePointer(address, Unsafe.As<T, Address>(ref value), width, out failure)
 					: port.TryWritePrimitive(address, value, out failure);
 				return succeeded
-					? new PrimitiveWriteOutcome(true, true, MemoryAccessFailure.None)
-					: new PrimitiveWriteOutcome(true, false, failure);
+					? new PrimitiveWriteOutcome(true, MemoryAccessFailure.None)
+					: new PrimitiveWriteOutcome(false, failure);
 			}
 			catch (Exception exception) when (SdkBoundary.IsSdkFault(exception))
 			{
-				return new PrimitiveWriteOutcome(true, false, MemoryAccessFailure.None, exception);
+				return new PrimitiveWriteOutcome(false, MemoryAccessFailure.None, exception);
 			}
 		}
 
@@ -1175,18 +1207,13 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		internal static PrimitiveBatchReadOutcome<T> ReadBatch(MemoryPrimitiveBatchReadRequest<T> request,
 			IMemoryCodecContextPort port)
 		{
-			if (!IsSupported)
-			{
-				return new PrimitiveBatchReadOutcome<T>(false, false, [], 0, MemoryAccessFailure.None);
-			}
-
 			PointerSize width = PointerSize.Unknown;
 			if (IsPointer)
 			{
 				PointerWidthAdmission admission = PointerWidthAdmission.Observe(port);
 				if (!admission.IsAdmitted)
 				{
-					return new PrimitiveBatchReadOutcome<T>(true, false, [], -1, MemoryAccessFailure.None,
+					return new PrimitiveBatchReadOutcome<T>(false, [], -1, MemoryAccessFailure.None,
 						admission.Fault, admission.Refusal);
 				}
 
@@ -1199,31 +1226,26 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 				PrimitiveReadOutcome<T> current = ReadElement(port, request.Addresses[index], width);
 				if (!current.Succeeded)
 				{
-					return new PrimitiveBatchReadOutcome<T>(current.Handled, false, values[..index], index,
+					return new PrimitiveBatchReadOutcome<T>(false, values[..index], index,
 						current.Failure, current.Fault);
 				}
 
 				values[index] = current.Value;
 			}
 
-			return new PrimitiveBatchReadOutcome<T>(true, true, values, -1, MemoryAccessFailure.None);
+			return new PrimitiveBatchReadOutcome<T>(true, values, -1, MemoryAccessFailure.None);
 		}
 
 		internal static PrimitiveBatchWriteOutcome WriteBatch(MemoryPrimitiveBatchWriteRequest<T> request,
 			IMemoryCodecContextPort port)
 		{
-			if (!IsSupported)
-			{
-				return new PrimitiveBatchWriteOutcome(false, false, 0, MemoryAccessFailure.None);
-			}
-
 			PointerSize width = PointerSize.Unknown;
 			if (IsPointer)
 			{
 				PointerWidthAdmission admission = PointerWidthAdmission.Observe(port);
 				if (!admission.IsAdmitted)
 				{
-					return new PrimitiveBatchWriteOutcome(true, false, -1, MemoryAccessFailure.None, admission.Fault,
+					return new PrimitiveBatchWriteOutcome(false, -1, MemoryAccessFailure.None, admission.Fault,
 						admission.Refusal);
 				}
 
@@ -1236,16 +1258,16 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 				PrimitiveWriteOutcome outcome = WriteElement(port, current.Address, current.Value, width);
 				if (!outcome.Succeeded)
 				{
-					return new PrimitiveBatchWriteOutcome(outcome.Handled, false, index, outcome.Failure, outcome.Fault);
+					return new PrimitiveBatchWriteOutcome(false, index, outcome.Failure, outcome.Fault);
 				}
 			}
 
-			return new PrimitiveBatchWriteOutcome(true, true, -1, MemoryAccessFailure.None);
+			return new PrimitiveBatchWriteOutcome(true, -1, MemoryAccessFailure.None);
 		}
 	}
 
 	private sealed class TargetMemoryCodecContext
-		: IMemoryReadContext, IMemoryWriteContext, IMemoryPointerWidthContext, ICorePointerCodecPolicy
+		: IMemoryReadContext, IMemoryWriteContext, ICorePointerCodecPolicy
 	{
 		private const string Operation = "Memory.CodecContext";
 
@@ -1310,27 +1332,23 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		}
 
 		/// <summary>
-		///     Gets the process width of the selected target (the width Cheat Engine's readPointer uses), never the
-		///     plugin's own process width and never Cheat Engine's configured pointer size.
+		///     Gets the bitness of the selected target (the width Cheat Engine's readPointer uses), never the plugin's own
+		///     process width and never Cheat Engine's configured pointer size. An unknown bitness is recorded as the reason
+		///     a codec that then returns <see langword="false" /> failed, without a throw.
 		/// </summary>
-		public int PointerSize
+		public PointerSize Bitness
 		{
 			get
 			{
 				ThrowIfUnusable();
 				ObservedTarget facts = ObserveFacts();
-				return facts.Bitness.IsKnown
-					? facts.Bitness.Bytes
-					: ThrowProcessWidthUnavailable(facts);
-			}
-		}
+				if (!facts.Bitness.IsKnown)
+				{
+					RecordRefusal(PointerWidthPolicy.GetUnknownWidthKind(facts),
+						PointerWidthPolicy.CreateUnknownWidthMessage(facts));
+				}
 
-		public PointerSize ProcessPointerSize
-		{
-			get
-			{
-				ThrowIfUnusable();
-				return ObserveFacts().Bitness;
+				return facts.Bitness;
 			}
 		}
 
@@ -1352,7 +1370,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 			}
 		}
 
-		public bool ConfiguredPointerSizeDiffersFromProcessWidth
+		public bool ConfiguredPointerSizeDiffersFromBitness
 		{
 			get
 			{
@@ -1480,18 +1498,6 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 
 			_facts = facts;
 			return facts;
-		}
-
-		/// <summary>
-		///     A property cannot return a failure: throw a Client exception that Core recognizes by identity and converts
-		///     back into a classified failure after the consumer codec returns or rethrows it.
-		/// </summary>
-		private int ThrowProcessWidthUnavailable(ObservedTarget facts)
-		{
-			CheatEngineFailureKind kind = PointerWidthPolicy.GetUnknownWidthKind(facts);
-			string message = PointerWidthPolicy.CreateUnknownWidthMessage(facts);
-			RecordRefusal(kind, message);
-			throw CreateContextFault(kind, message, null);
 		}
 
 		private CheatEngineOperationException CreateContextFault(CheatEngineFailureKind kind, string message,

@@ -62,8 +62,9 @@ public sealed class MemoryClientDispatchFailureTests
 		MemoryClient client = new(new RejectingDispatcher(expected), InertCoreLifetime.Create());
 		MemoryBytesReadRequest byteRead = new(Address, 2);
 		MemoryBytesWriteRequest byteWrite = new(Address, [0x10, 0x20]);
-		MemoryStringReadRequest stringRead = new(Address, 12, true);
-		MemoryStringWriteRequest stringWrite = new(Address, "health", true);
+		MemoryStringReadRequest stringRead = MemoryStringReadRequest.Create(Address, 12, MemoryStringEncoding.Utf16);
+		MemoryStringWriteRequest stringWrite =
+			MemoryStringWriteRequest.CreateBounded(Address, "health", 6, MemoryStringEncoding.Utf16);
 
 		Assert.False(client.TryReadBytes(byteRead, out ImmutableArray<byte> bytes,
 			out CheatEngineFailure byteReadFailure,
@@ -126,12 +127,12 @@ public sealed class MemoryClientDispatchFailureTests
 		MemoryPrimitiveBatchWriteOutcome outcome =
 			client.WritePrimitiveBatchDetailed(writes, new CancellationToken(true));
 
-		Assert.False(outcome.Succeeded);
+		Assert.False(outcome.IsSuccess);
 		Assert.Equal(0, outcome.CompletedCount);
 		Assert.Null(outcome.FailedIndex);
 		Assert.Equal(MemoryBatchWriteEffectState.NotStarted, outcome.EffectState);
-		Assert.Equal(CheatEngineFailureKind.Cancelled, outcome.Cause!.Value.Kind);
-		Assert.Equal(CheatEngineHostEffect.NotStarted, outcome.Cause.Value.HostEffect);
+		Assert.Equal(CheatEngineFailureKind.Cancelled, outcome.Failure!.Value.Kind);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, outcome.Failure.Value.HostEffect);
 	}
 
 	[Fact]
@@ -145,7 +146,7 @@ public sealed class MemoryClientDispatchFailureTests
 			TestContext.Current.CancellationToken);
 
 		Assert.Equal(MemoryBatchWriteEffectState.Unknown, outcome.EffectState);
-		Assert.Equal(expected, outcome.Cause);
+		Assert.Equal(expected, outcome.Failure);
 	}
 
 	[Fact]
@@ -161,23 +162,24 @@ public sealed class MemoryClientDispatchFailureTests
 			TestContext.Current.CancellationToken));
 	}
 
+	/// <summary>
+	///     A5: the primitive members support exactly the 8- to 64-bit integers, float, double and Address. Any other
+	///     unmanaged type is refused before dispatch: a rejecting dispatcher would otherwise report its own failure.
+	/// </summary>
 	[Fact]
-	public void UnsupportedPrimitiveTypesReturnTheSpecificUnsupportedFailureWithoutAccessingTheHost()
+	[Trait("Qualification", "Q20")]
+	public void UnsupportedPrimitiveTypesAreRefusedBeforeDispatchWithoutAHostCall()
 	{
-		MemoryClient client = new(new InlineDispatcher(), InertCoreLifetime.Create());
+		MemoryClient client = new(new RejectingDispatcher(Failure("Test.ShouldNotDispatch")),
+			InertCoreLifetime.Create());
 
-		bool readSucceeded = client.TryReadPrimitive(Address, out DateTime readValue,
-			out CheatEngineFailure readFailure, TestContext.Current.CancellationToken);
-		bool writeSucceeded = client.TryWritePrimitive(Address, DateTime.UnixEpoch, out CheatEngineFailure writeFailure,
-			TestContext.Current.CancellationToken);
-
-		Assert.False(readSucceeded);
-		Assert.Equal(default, readValue);
-		Assert.Equal(CheatEngineFailureKind.Unsupported, readFailure.Kind);
-		Assert.Equal("Memory.ReadPrimitive", readFailure.Operation);
-		Assert.False(writeSucceeded);
-		Assert.Equal(CheatEngineFailureKind.Unsupported, writeFailure.Kind);
-		Assert.Equal("Memory.WritePrimitive", writeFailure.Operation);
+		AssertRefusedBeforeDispatch(client, DateTime.UnixEpoch);
+		AssertRefusedBeforeDispatch(client, 'A');
+		AssertRefusedBeforeDispatch(client, true);
+		AssertRefusedBeforeDispatch(client, (nint) 1);
+		AssertRefusedBeforeDispatch(client, 1m);
+		AssertRefusedBeforeDispatch(client, Guid.Empty);
+		AssertRefusedBeforeDispatch(client, (Half) 1);
 	}
 
 	[Fact]
@@ -236,6 +238,33 @@ public sealed class MemoryClientDispatchFailureTests
 			client.TryWriteBytes(default, out _, TestContext.Current.CancellationToken));
 		Assert.Throws<ArgumentNullException>(() =>
 			client.TryWriteString(default, out _, TestContext.Current.CancellationToken));
+	}
+
+	private static void AssertRefusedBeforeDispatch<T>(MemoryClient client, T sample)
+		where T : unmanaged
+	{
+		CancellationToken token = TestContext.Current.CancellationToken;
+		bool read = client.TryReadPrimitive(Address, out T _, out CheatEngineFailure readFailure, token);
+		bool written = client.TryWritePrimitive(Address, sample, out CheatEngineFailure writeFailure, token);
+		MemoryPrimitiveBatchReadOutcome<T> readBatch =
+			client.ReadPrimitiveBatchDetailed(new MemoryPrimitiveBatchReadRequest<T>([Address]), token);
+		MemoryPrimitiveBatchWriteOutcome writeBatch = client.WritePrimitiveBatchDetailed(
+			new MemoryPrimitiveBatchWriteRequest<T>([new MemoryAddressValue<T>(Address, sample)]), token);
+
+		Assert.False(read);
+		Assert.False(written);
+		Assert.Equal(MemoryBatchWriteEffectState.NotStarted, writeBatch.EffectState);
+		Assert.Equal(0, readBatch.CompletedCount);
+		foreach ((CheatEngineFailure failure, string operation) in (ReadOnlySpan<(CheatEngineFailure, string)>)
+				 [
+					 (readFailure, "Memory.ReadPrimitive"), (writeFailure, "Memory.WritePrimitive"),
+					 (readBatch.Failure!.Value, "Memory.ReadPrimitiveBatch"),
+					 (writeBatch.Failure!.Value, "Memory.WritePrimitiveBatch")
+				 ])
+		{
+			Assert.Equal((CheatEngineFailureKind.OperationRejected, CheatEngineHostEffect.NotStarted, operation),
+				(failure.Kind, failure.HostEffect, failure.Operation));
+		}
 	}
 
 	private static CheatEngineFailure Failure(string operation)

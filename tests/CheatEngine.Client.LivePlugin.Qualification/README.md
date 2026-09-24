@@ -25,8 +25,8 @@ the Client.
 
 ## How it helps improve CheatEngine.Client
 
-- **Client API only** (ADR-01). Every Cheat Engine interaction goes through `ICheatEngineClient` and its companions
-  (`IPatternScanOutcomeClient`, `IMemoryBatchClient`). Cheat Engine-level setup (opening the target, allocating the scratch
+- **Client API only** (ADR-01). Every Cheat Engine interaction goes through `ICheatEngineClient` and its companion
+  `IPatternScanOutcomeClient`. Cheat Engine-level setup (opening the target, allocating the scratch
   region, changing the pointer size, redefining a symbol, destroying a record) belongs to the scenario's driver, which a
   future qualification runner would generate from a scenario plan (not yet re-scoped; see the note above).
 - **Honest observations.** An observation is bounded and redacted by construction: failures are written as their kind,
