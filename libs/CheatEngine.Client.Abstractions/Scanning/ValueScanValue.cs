@@ -8,11 +8,18 @@ namespace CheatEngine.Client.Scanning;
 /// <remarks>
 ///     <para>
 ///         Create a value with a typed factory: it chooses the <see cref="ValueScanValueType" /> and formats the text with
-///         the invariant culture. Integers are decimal; <see cref="FromSingle" /> and <see cref="FromDouble" /> use the
-///         shortest round-trip form with a <c>.</c> separator; <see cref="FromBytes" /> writes each byte as two
-///         hexadecimal digits separated by spaces. The wider integer factories take signed values: pass an unsigned value
-///         as its bit-identical signed value, for example <c>unchecked((int)value)</c>. An exact comparison matches the
-///         same bits either way; an ordered comparison follows Cheat Engine's own rules.
+///         the invariant culture. Integers are decimal; <see cref="FromBytes" /> writes each byte as two hexadecimal digits
+///         separated by spaces. The wider integer factories take signed values: pass an unsigned value as its
+///         bit-identical signed value, for example <c>unchecked((int)value)</c>. An exact comparison matches the same bits
+///         either way; an ordered comparison follows Cheat Engine's own rules.
+///     </para>
+///     <para>
+///         <b>Floating-point precision.</b> <see cref="FromSingle" /> and <see cref="FromDouble" /> write the value in
+///         fixed-point notation, never in exponent notation, rounded to the number of decimals the caller passes, with a
+///         <c>.</c> separator: <c>FromDouble(100, 2)</c> is <c>100.00</c>. Cheat Engine's rounded exact comparison takes
+///         its precision from the digits of that text: its Lua documentation (<c>rtRounded</c>) states that <c>3</c>
+///         matches 3.0 to 3.4999 and <c>3.0</c> matches 3.00 to 3.0499. Choose the decimals the scan needs, knowing that
+///         each one fewer widens the match tenfold. No Client receipt covers this tolerance yet (Q25).
 ///     </para>
 ///     <para>
 ///         A <see langword="default" /> value has no <see cref="Text" /> and every scan request refuses it. The text is user
@@ -22,6 +29,8 @@ namespace CheatEngine.Client.Scanning;
 [Experimental(ClientExperimentalDiagnostics.ValueScans, UrlFormat = ClientExperimentalDiagnostics.UrlFormat)]
 public readonly record struct ValueScanValue
 {
+	private const int MaximumFloatDecimals = 15;
+
 	private ValueScanValue(ValueScanValueType type, string text)
 	{
 		Type = type;
@@ -75,32 +84,44 @@ public readonly record struct ValueScanValue
 		return new ValueScanValue(ValueScanValueType.Integer64, value.ToString(CultureInfo.InvariantCulture));
 	}
 
-	/// <summary>Creates a single-precision value.</summary>
+	/// <summary>Creates a single-precision value, written with a fixed number of decimals.</summary>
 	/// <param name="value">A finite value.</param>
+	/// <param name="decimals">
+	///     The number of decimals, from 0 to 15, which Cheat Engine's rounded exact comparison uses as its precision.
+	/// </param>
 	/// <returns>A <see cref="ValueScanValueType.SingleFloat" /> value.</returns>
-	/// <exception cref="ArgumentOutOfRangeException"><paramref name="value" /> is not finite.</exception>
-	public static ValueScanValue FromSingle(float value)
+	/// <exception cref="ArgumentOutOfRangeException">
+	///     <paramref name="value" /> is not finite, or <paramref name="decimals" /> is outside 0 to 15.
+	/// </exception>
+	public static ValueScanValue FromSingle(float value, int decimals)
 	{
 		if (!float.IsFinite(value))
 		{
 			throw new ArgumentOutOfRangeException(nameof(value), value, "A scanned floating-point value must be finite.");
 		}
 
-		return new ValueScanValue(ValueScanValueType.SingleFloat, value.ToString("R", CultureInfo.InvariantCulture));
+		return new ValueScanValue(ValueScanValueType.SingleFloat,
+			value.ToString(FixedPointFormat(decimals), CultureInfo.InvariantCulture));
 	}
 
-	/// <summary>Creates a double-precision value.</summary>
+	/// <summary>Creates a double-precision value, written with a fixed number of decimals.</summary>
 	/// <param name="value">A finite value.</param>
+	/// <param name="decimals">
+	///     The number of decimals, from 0 to 15, which Cheat Engine's rounded exact comparison uses as its precision.
+	/// </param>
 	/// <returns>A <see cref="ValueScanValueType.DoubleFloat" /> value.</returns>
-	/// <exception cref="ArgumentOutOfRangeException"><paramref name="value" /> is not finite.</exception>
-	public static ValueScanValue FromDouble(double value)
+	/// <exception cref="ArgumentOutOfRangeException">
+	///     <paramref name="value" /> is not finite, or <paramref name="decimals" /> is outside 0 to 15.
+	/// </exception>
+	public static ValueScanValue FromDouble(double value, int decimals)
 	{
 		if (!double.IsFinite(value))
 		{
 			throw new ArgumentOutOfRangeException(nameof(value), value, "A scanned floating-point value must be finite.");
 		}
 
-		return new ValueScanValue(ValueScanValueType.DoubleFloat, value.ToString("R", CultureInfo.InvariantCulture));
+		return new ValueScanValue(ValueScanValueType.DoubleFloat,
+			value.ToString(FixedPointFormat(decimals), CultureInfo.InvariantCulture));
 	}
 
 	/// <summary>Creates a case-sensitive UTF-8 text.</summary>
@@ -146,5 +167,13 @@ public readonly record struct ValueScanValue
 		}
 
 		return new ValueScanValue(ValueScanValueType.ByteArray, text.ToString());
+	}
+
+	/// <summary>Returns the fixed-point format of a number of decimals, which is never exponent notation.</summary>
+	private static string FixedPointFormat(int decimals)
+	{
+		ArgumentOutOfRangeException.ThrowIfNegative(decimals);
+		ArgumentOutOfRangeException.ThrowIfGreaterThan(decimals, MaximumFloatDecimals);
+		return "F" + decimals.ToString(CultureInfo.InvariantCulture);
 	}
 }

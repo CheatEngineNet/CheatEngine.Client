@@ -39,7 +39,7 @@ public sealed class ValueScanRequestsTests
 	public void TheRangeProtectionAndAlignmentBecomeCheatEngineArguments()
 	{
 		ValueScanFirstRequest client = ValueScanFirstRequest
-			.Between(ValueScanValue.FromDouble(1.5), ValueScanValue.FromDouble(2.5))
+			.Between(ValueScanValue.FromDouble(1.5, 1), ValueScanValue.FromDouble(2.5, 1))
 			.WithRange(new Address(0x1000), new Address(0x2000))
 			.WithProtection(new ScanProtectionFilter(ScanProtectionRequirement.Any, ScanProtectionRequirement.Excluded,
 				ScanProtectionRequirement.Required))

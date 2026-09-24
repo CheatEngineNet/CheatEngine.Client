@@ -898,11 +898,11 @@ CheatEngine.Client.Tables.TrustedTableFile.TrustedTableFile(string! path) -> voi
 [CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanReadRequest.operator ==(CheatEngine.Client.Scanning.ValueScanReadRequest left, CheatEngine.Client.Scanning.ValueScanReadRequest right) -> bool
 [CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanValue.FromByte(byte value) -> CheatEngine.Client.Scanning.ValueScanValue
 [CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanValue.FromBytes(System.ReadOnlySpan<byte> bytes) -> CheatEngine.Client.Scanning.ValueScanValue
-[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanValue.FromDouble(double value) -> CheatEngine.Client.Scanning.ValueScanValue
+[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanValue.FromDouble(double value, int decimals) -> CheatEngine.Client.Scanning.ValueScanValue
 [CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanValue.FromInt16(short value) -> CheatEngine.Client.Scanning.ValueScanValue
 [CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanValue.FromInt32(int value) -> CheatEngine.Client.Scanning.ValueScanValue
 [CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanValue.FromInt64(long value) -> CheatEngine.Client.Scanning.ValueScanValue
-[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanValue.FromSingle(float value) -> CheatEngine.Client.Scanning.ValueScanValue
+[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanValue.FromSingle(float value, int decimals) -> CheatEngine.Client.Scanning.ValueScanValue
 [CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanValue.FromUtf16String(string! text) -> CheatEngine.Client.Scanning.ValueScanValue
 [CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanValue.FromUtf8String(string! text) -> CheatEngine.Client.Scanning.ValueScanValue
 [CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanValue.operator !=(CheatEngine.Client.Scanning.ValueScanValue left, CheatEngine.Client.Scanning.ValueScanValue right) -> bool

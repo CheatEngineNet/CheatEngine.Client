@@ -153,9 +153,11 @@ exact host profile of the release; the documentation link of each diagnostic poi
 - **Known limits:** on Cheat Engine 7.7 the stop address is exclusive and the start address is not byte-exact. Cheat
   Engine's wait runs queued main-thread work, and a call to the same session from that work is refused with
   `InvalidState`. A scan cancelled after it started and before the Client waited for it stays `Scanning` until its
-  release asks Cheat Engine to stop it. Floating-point values are written with a `.` separator, an alignment divisor as
-  decimal text, and an ordered comparison follows Cheat Engine's own signedness rules; none of this has a Client receipt
-  yet.
+  release asks Cheat Engine to stop it. `ValueScanValue.FromSingle` and `FromDouble` write the value in fixed-point
+  notation with the number of decimals the application passes (0 to 15) and a `.` separator, never in exponent notation:
+  Cheat Engine's rounded exact comparison takes its precision from those digits, and its Lua documentation states that
+  `3` matches 3.0 to 3.4999 while `3.0` matches 3.00 to 3.0499. An alignment divisor is written as decimal text, and an
+  ordered comparison follows Cheat Engine's own signedness rules; none of this has a Client receipt yet.
 - **Exit criteria:** the Client receipts of Q25 (session lifecycle, results, release) and Q26 (target change and stale
   owners) on the exact host profile; the capability's qualification gate stays `Unknown` until then.
 

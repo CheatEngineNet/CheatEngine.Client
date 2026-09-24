@@ -71,8 +71,8 @@ public sealed class ValueScanContractTests
 			Assert.Equal((ValueScanValueType.Integer32, "-100000"), Describe(ValueScanValue.FromInt32(-100_000)));
 			Assert.Equal((ValueScanValueType.Integer64, "9223372036854775807"),
 				Describe(ValueScanValue.FromInt64(long.MaxValue)));
-			Assert.Equal((ValueScanValueType.SingleFloat, "1.5"), Describe(ValueScanValue.FromSingle(1.5f)));
-			Assert.Equal((ValueScanValueType.DoubleFloat, "-0.25"), Describe(ValueScanValue.FromDouble(-0.25)));
+			Assert.Equal((ValueScanValueType.SingleFloat, "1.50"), Describe(ValueScanValue.FromSingle(1.5f, 2)));
+			Assert.Equal((ValueScanValueType.DoubleFloat, "-0.250"), Describe(ValueScanValue.FromDouble(-0.25, 3)));
 			Assert.Equal((ValueScanValueType.Utf8String, "Gold"), Describe(ValueScanValue.FromUtf8String("Gold")));
 			Assert.Equal((ValueScanValueType.Utf16String, "Gold"), Describe(ValueScanValue.FromUtf16String("Gold")));
 			Assert.Equal((ValueScanValueType.ByteArray, "48 8B 05"),
@@ -83,16 +83,41 @@ public sealed class ValueScanContractTests
 			CultureInfo.CurrentCulture = previous;
 		}
 
-		Assert.True(ValueScanValue.FromDouble(2).IsNumeric);
+		Assert.True(ValueScanValue.FromDouble(2, 0).IsNumeric);
 		Assert.False(ValueScanValue.FromBytes([1]).IsNumeric);
 		Assert.Null(default(ValueScanValue).Text);
+	}
+
+	[Theory]
+	[InlineData(0.00001, 5, "0.00001")]
+	[InlineData(0.00001, 7, "0.0000100")]
+	[InlineData(100.0, 0, "100")]
+	[InlineData(100.0, 2, "100.00")]
+	[InlineData(1048576.0, 1, "1048576.0")]
+	[InlineData(2.5, 15, "2.500000000000000")]
+	public void FloatingPointValuesAreWrittenInFixedPointWithTheRequestedDecimals(double value, int decimals,
+		string expected)
+	{
+		// The number of decimals is the precision of Cheat Engine's rounded exact comparison: exponent notation, which a
+		// round-trip format produces for 0.00001 ("1E-05"), would carry none.
+		Assert.Equal(expected, ValueScanValue.FromDouble(value, decimals).Text);
+		Assert.Equal(expected, ValueScanValue.FromSingle((float) value, decimals).Text);
+	}
+
+	[Fact]
+	public void DoublesFarFromOneAreNeverWrittenInExponentNotation()
+	{
+		Assert.Equal("100000000000000000000.0", ValueScanValue.FromDouble(1e20, 1).Text);
+		Assert.Equal("0.000000000000000", ValueScanValue.FromDouble(1e-20, 15).Text);
 	}
 
 	[Fact]
 	public void ValueFactoriesRejectValuesCheatEngineCannotParse()
 	{
-		Assert.Throws<ArgumentOutOfRangeException>(() => ValueScanValue.FromSingle(float.NaN));
-		Assert.Throws<ArgumentOutOfRangeException>(() => ValueScanValue.FromDouble(double.PositiveInfinity));
+		Assert.Throws<ArgumentOutOfRangeException>(() => ValueScanValue.FromSingle(float.NaN, 2));
+		Assert.Throws<ArgumentOutOfRangeException>(() => ValueScanValue.FromDouble(double.PositiveInfinity, 2));
+		Assert.Throws<ArgumentOutOfRangeException>(() => ValueScanValue.FromDouble(1, -1));
+		Assert.Throws<ArgumentOutOfRangeException>(() => ValueScanValue.FromSingle(1, 16));
 		Assert.Throws<ArgumentException>(() => ValueScanValue.FromUtf8String(string.Empty));
 		Assert.Throws<ArgumentNullException>(() => ValueScanValue.FromUtf16String(null!));
 		Assert.Throws<ArgumentException>(() => ValueScanValue.FromBytes([]));
