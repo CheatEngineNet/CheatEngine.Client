@@ -1,4 +1,5 @@
 using CheatEngine.SDK.Engine.AddressList;
+using CheatEngine.SDK.Engine.Allocation;
 using CheatEngine.SDK.Engine.Enums;
 using CheatEngine.SDK.Engine.Errors;
 using CheatEngine.SDK.Engine.Inspection;
@@ -360,6 +361,22 @@ internal static class SdkApiUsage
 		_ = result.Address;
 		_ = result.Value;
 		_ = address > other;
+	}
+
+	internal static void AllocationSurface(TargetAllocationAcquireOutcome outcome, AllocatedRegion region,
+		Address address)
+	{
+		TargetAllocationRequest request = new(new TargetAllocationSize(16), address, MemoryProtection.ReadWrite);
+		_ = new TargetMemoryAllocator().TryAllocate(request, out _);
+		_ = outcome.Allocation.Operation.Kind;
+		_ = outcome.Allocation.Address;
+		_ = outcome.Effect;
+		_ = outcome.Compensation;
+		_ = outcome.HasOwner;
+		_ = region.ReleaseWithTargetOutcome();
+		_ = region.IsDisposed;
+		_ = region.LastReleaseOutcome;
+		_ = address.IsZero;
 	}
 
 	private sealed class CompileOnlyPlugin : CheatEnginePlugin

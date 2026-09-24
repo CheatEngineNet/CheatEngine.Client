@@ -86,10 +86,10 @@ public sealed partial class ClientCapabilityCatalogTests
 	}
 
 	[Fact]
-	public void TheContractOnlyCapabilitiesAreAllocationsAndAssembly()
+	public void TheContractOnlyCapabilityIsAssembly()
 	{
 		Assert.Equal(
-			[ClientCapabilityId.Allocations, ClientCapabilityId.Assembly],
+			[ClientCapabilityId.Assembly],
 			ClientCapabilityCatalog.Entries
 				.Where(static entry => entry.Implementation == CapabilityImplementation.ContractOnly)
 				.Select(static entry => entry.Id));
@@ -99,7 +99,7 @@ public sealed partial class ClientCapabilityCatalogTests
 	public void OnlyOperationalCapabilitiesCanBeExperimentalAndValueScanningIsCeclient5001()
 	{
 		Assert.Equal(
-			[(ClientCapabilityId.ValueScanning, "CECLIENT5001")],
+			[(ClientCapabilityId.ValueScanning, "CECLIENT5001"), (ClientCapabilityId.Allocations, "CECLIENT5002")],
 			ClientCapabilityCatalog.Entries
 				.Where(static entry => entry.ExperimentalDiagnosticId is not null)
 				.Select(static entry => (entry.Id, entry.ExperimentalDiagnosticId!)));

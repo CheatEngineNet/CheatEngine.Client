@@ -681,9 +681,11 @@ internal static class QualificationScenarios
 		switch (capability.Value)
 		{
 			case "Client.Allocations":
-				succeeded = client.Allocations.TryAllocate(new TargetAllocationRequest(16), out ITargetMemoryLease? lease,
+#pragma warning disable CECLIENT5002 // The harness exercises the experimental allocations; the source is compiled standalone.
+				succeeded = client.Allocations.TryAllocate(new AllocationRequest(16), out ITargetMemoryLease? lease,
 					out failure, client.Stopping);
 				lease?.Dispose();
+#pragma warning restore CECLIENT5002
 				return true;
 			case "Client.Assembly":
 				succeeded = client.Assembly.TryDisassemble(nullRegion, out _, out failure, client.Stopping);

@@ -36,8 +36,6 @@ _ = typeof(ILuaResultMapper<,>);
 _ = typeof(LuaModuleDescriptor);
 _ = typeof(AotProbeLuaModule);
 _ = AotProbeMapperInvocation.Map<AotProbeScalarMapper>(42);
-_ = typeof(IAllocationClient);
-_ = typeof(ITargetMemoryLease);
 _ = typeof(IAssemblyClient);
 _ = typeof(IAutoAssemblerPatchLease);
 _ = typeof(AssemblyInstructionRequest);
@@ -69,5 +67,16 @@ if (firstScan.ValueType != ValueScanValueType.Integer32 || firstScan.Alignment.D
 	return 1;
 }
 #pragma warning restore CECLIENT5001
+
+#pragma warning disable CECLIENT5002 // The probe keeps the experimental target allocations in the NativeAOT graph.
+_ = typeof(IAllocationClient);
+_ = typeof(ITargetMemoryLease);
+AllocationRequest allocation = new(4096, AllocationProtection.ExecuteReadWrite);
+if (allocation.Size != 4096 || allocation.Protection != AllocationProtection.ExecuteReadWrite ||
+	allocation.PreferredAddress is not null)
+{
+	return 1;
+}
+#pragma warning restore CECLIENT5002
 
 return services.Count == 0 ? 1 : 0;

@@ -1,21 +1,4 @@
 #nullable enable
-CheatEngine.Client.Allocations.IAllocationClient
-CheatEngine.Client.Allocations.IAllocationClient.Allocate(CheatEngine.Client.Allocations.TargetAllocationRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Allocations.ITargetMemoryLease!
-CheatEngine.Client.Allocations.IAllocationClient.TryAllocate(CheatEngine.Client.Allocations.TargetAllocationRequest request, out CheatEngine.Client.Allocations.ITargetMemoryLease? lease, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
-CheatEngine.Client.Allocations.ITargetMemoryLease
-CheatEngine.Client.Allocations.ITargetMemoryLease.Address.get -> CheatEngine.SDK.Engine.Values.Address
-CheatEngine.Client.Allocations.ITargetMemoryLease.IsReleased.get -> bool
-CheatEngine.Client.Allocations.ITargetMemoryLease.SelectionEpoch.get -> long
-CheatEngine.Client.Allocations.ITargetMemoryLease.Size.get -> long
-CheatEngine.Client.Allocations.TargetAllocationAccess
-CheatEngine.Client.Allocations.TargetAllocationAccess.ExecuteReadWrite = 1 -> CheatEngine.Client.Allocations.TargetAllocationAccess
-CheatEngine.Client.Allocations.TargetAllocationAccess.ReadWrite = 0 -> CheatEngine.Client.Allocations.TargetAllocationAccess
-CheatEngine.Client.Allocations.TargetAllocationRequest
-CheatEngine.Client.Allocations.TargetAllocationRequest.Access.get -> CheatEngine.Client.Allocations.TargetAllocationAccess
-CheatEngine.Client.Allocations.TargetAllocationRequest.Equals(CheatEngine.Client.Allocations.TargetAllocationRequest other) -> bool
-CheatEngine.Client.Allocations.TargetAllocationRequest.Size.get -> long
-CheatEngine.Client.Allocations.TargetAllocationRequest.TargetAllocationRequest() -> void
-CheatEngine.Client.Allocations.TargetAllocationRequest.TargetAllocationRequest(long size, CheatEngine.Client.Allocations.TargetAllocationAccess access = CheatEngine.Client.Allocations.TargetAllocationAccess.ReadWrite) -> void
 CheatEngine.Client.Assembly.AssemblyInstructionRequest
 CheatEngine.Client.Assembly.AssemblyInstructionRequest.Address.get -> CheatEngine.SDK.Engine.Values.Address
 CheatEngine.Client.Assembly.AssemblyInstructionRequest.AssemblyInstructionRequest() -> void
@@ -62,7 +45,6 @@ CheatEngine.Client.Dispatching.ICheatEngineDispatcher.TryInvoke(System.Action! c
 CheatEngine.Client.Dispatching.ICheatEngineDispatcher.TryInvoke<T>(System.Func<T>! callback, out T result, out CheatEngine.Client.Results.CheatEngineFailure failure) -> bool
 CheatEngine.Client.Dispatching.ICheatEngineDispatcher.TryInvoke<T>(System.Func<T>! callback, out T result, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken) -> bool
 CheatEngine.Client.ICheatEngineClient
-CheatEngine.Client.ICheatEngineClient.Allocations.get -> CheatEngine.Client.Allocations.IAllocationClient!
 CheatEngine.Client.ICheatEngineClient.Assembly.get -> CheatEngine.Client.Assembly.IAssemblyClient!
 CheatEngine.Client.ICheatEngineClient.Dispatcher.get -> CheatEngine.Client.Dispatching.ICheatEngineDispatcher!
 CheatEngine.Client.ICheatEngineClient.Epoch.get -> long
@@ -925,13 +907,35 @@ CheatEngine.Client.Tables.TrustedTableFile.TrustedTableFile(string! path) -> voi
 [CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanValue.FromUtf8String(string! text) -> CheatEngine.Client.Scanning.ValueScanValue
 [CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanValue.operator !=(CheatEngine.Client.Scanning.ValueScanValue left, CheatEngine.Client.Scanning.ValueScanValue right) -> bool
 [CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanValue.operator ==(CheatEngine.Client.Scanning.ValueScanValue left, CheatEngine.Client.Scanning.ValueScanValue right) -> bool
+[CECLIENT5002]CheatEngine.Client.Allocations.AllocationProtection
+[CECLIENT5002]CheatEngine.Client.Allocations.AllocationProtection.ExecuteReadWrite = 1 -> CheatEngine.Client.Allocations.AllocationProtection
+[CECLIENT5002]CheatEngine.Client.Allocations.AllocationProtection.ReadWrite = 0 -> CheatEngine.Client.Allocations.AllocationProtection
+[CECLIENT5002]CheatEngine.Client.Allocations.AllocationRequest
+[CECLIENT5002]CheatEngine.Client.Allocations.AllocationRequest.AllocationRequest() -> void
+[CECLIENT5002]CheatEngine.Client.Allocations.AllocationRequest.AllocationRequest(long size, CheatEngine.Client.Allocations.AllocationProtection protection = CheatEngine.Client.Allocations.AllocationProtection.ReadWrite, CheatEngine.SDK.Engine.Values.Address? preferredAddress = null) -> void
+[CECLIENT5002]CheatEngine.Client.Allocations.AllocationRequest.Equals(CheatEngine.Client.Allocations.AllocationRequest other) -> bool
+[CECLIENT5002]CheatEngine.Client.Allocations.AllocationRequest.PreferredAddress.get -> CheatEngine.SDK.Engine.Values.Address?
+[CECLIENT5002]CheatEngine.Client.Allocations.AllocationRequest.Protection.get -> CheatEngine.Client.Allocations.AllocationProtection
+[CECLIENT5002]CheatEngine.Client.Allocations.AllocationRequest.Size.get -> long
+[CECLIENT5002]CheatEngine.Client.Allocations.IAllocationClient
+[CECLIENT5002]CheatEngine.Client.Allocations.IAllocationClient.Allocate(CheatEngine.Client.Allocations.AllocationRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Allocations.ITargetMemoryLease!
+[CECLIENT5002]CheatEngine.Client.Allocations.IAllocationClient.TryAllocate(CheatEngine.Client.Allocations.AllocationRequest request, out CheatEngine.Client.Allocations.ITargetMemoryLease? lease, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
+[CECLIENT5002]CheatEngine.Client.Allocations.ITargetMemoryLease
+[CECLIENT5002]CheatEngine.Client.Allocations.ITargetMemoryLease.Address.get -> CheatEngine.SDK.Engine.Values.Address
+[CECLIENT5002]CheatEngine.Client.Allocations.ITargetMemoryLease.Protection.get -> CheatEngine.Client.Allocations.AllocationProtection
+[CECLIENT5002]CheatEngine.Client.Allocations.ITargetMemoryLease.RequiresManualRecovery.get -> bool
+[CECLIENT5002]CheatEngine.Client.Allocations.ITargetMemoryLease.SelectionEpoch.get -> long
+[CECLIENT5002]CheatEngine.Client.Allocations.ITargetMemoryLease.Size.get -> long
+[CECLIENT5002]CheatEngine.Client.ICheatEngineClient.Allocations.get -> CheatEngine.Client.Allocations.IAllocationClient!
+[CECLIENT5002]override CheatEngine.Client.Allocations.AllocationRequest.GetHashCode() -> int
+[CECLIENT5002]static CheatEngine.Client.Allocations.AllocationRequest.operator !=(CheatEngine.Client.Allocations.AllocationRequest left, CheatEngine.Client.Allocations.AllocationRequest right) -> bool
+[CECLIENT5002]static CheatEngine.Client.Allocations.AllocationRequest.operator ==(CheatEngine.Client.Allocations.AllocationRequest left, CheatEngine.Client.Allocations.AllocationRequest right) -> bool
 const CheatEngine.Client.Memory.MemoryBatchLimits.MaximumOperations = 1024 -> int
 const CheatEngine.Client.Memory.MemoryResourceLimits.DefaultMaximumBatchOperationCount = 1024 -> int
 const CheatEngine.Client.Memory.MemoryResourceLimits.DefaultMaximumBatchPayloadBytes = 65536 -> int
 const CheatEngine.Client.Memory.MemoryResourceLimits.DefaultMaximumReadBytes = 1048576 -> int
 const CheatEngine.Client.Memory.MemoryResourceLimits.DefaultMaximumStringBytes = 65536 -> int
 const CheatEngine.Client.Memory.MemoryResourceLimits.DefaultMaximumWriteBytes = 1048576 -> int
-override CheatEngine.Client.Allocations.TargetAllocationRequest.GetHashCode() -> int
 override CheatEngine.Client.Assembly.AssemblyInstructionRequest.GetHashCode() -> int
 override CheatEngine.Client.Assembly.AssemblyInstructionSnapshot.GetHashCode() -> int
 override CheatEngine.Client.Assembly.AutoAssemblerScript.GetHashCode() -> int
@@ -990,8 +994,6 @@ override CheatEngine.Client.Tables.MemoryRecordUpdate.GetHashCode() -> int
 override CheatEngine.Client.Tables.TableLoadRequest.GetHashCode() -> int
 override CheatEngine.Client.Tables.TableSaveRequest.GetHashCode() -> int
 override CheatEngine.Client.Tables.TrustedTableFile.GetHashCode() -> int
-static CheatEngine.Client.Allocations.TargetAllocationRequest.operator !=(CheatEngine.Client.Allocations.TargetAllocationRequest left, CheatEngine.Client.Allocations.TargetAllocationRequest right) -> bool
-static CheatEngine.Client.Allocations.TargetAllocationRequest.operator ==(CheatEngine.Client.Allocations.TargetAllocationRequest left, CheatEngine.Client.Allocations.TargetAllocationRequest right) -> bool
 static CheatEngine.Client.Assembly.AssemblyInstructionRequest.operator !=(CheatEngine.Client.Assembly.AssemblyInstructionRequest left, CheatEngine.Client.Assembly.AssemblyInstructionRequest right) -> bool
 static CheatEngine.Client.Assembly.AssemblyInstructionRequest.operator ==(CheatEngine.Client.Assembly.AssemblyInstructionRequest left, CheatEngine.Client.Assembly.AssemblyInstructionRequest right) -> bool
 static CheatEngine.Client.Assembly.AssemblyInstructionSnapshot.operator !=(CheatEngine.Client.Assembly.AssemblyInstructionSnapshot left, CheatEngine.Client.Assembly.AssemblyInstructionSnapshot right) -> bool
@@ -1128,8 +1130,8 @@ static CheatEngine.Client.Tables.TrustedTableFile.operator ==(CheatEngine.Client
 ~[CECLIENT5001]override CheatEngine.Client.Scanning.ValueScanReadRequest.ToString() -> string
 ~[CECLIENT5001]override CheatEngine.Client.Scanning.ValueScanValue.Equals(object obj) -> bool
 ~[CECLIENT5001]override CheatEngine.Client.Scanning.ValueScanValue.ToString() -> string
-~override CheatEngine.Client.Allocations.TargetAllocationRequest.Equals(object obj) -> bool
-~override CheatEngine.Client.Allocations.TargetAllocationRequest.ToString() -> string
+~[CECLIENT5002]override CheatEngine.Client.Allocations.AllocationRequest.Equals(object obj) -> bool
+~[CECLIENT5002]override CheatEngine.Client.Allocations.AllocationRequest.ToString() -> string
 ~override CheatEngine.Client.Assembly.AssemblyInstructionRequest.Equals(object obj) -> bool
 ~override CheatEngine.Client.Assembly.AssemblyInstructionRequest.ToString() -> string
 ~override CheatEngine.Client.Assembly.AssemblyInstructionSnapshot.Equals(object obj) -> bool

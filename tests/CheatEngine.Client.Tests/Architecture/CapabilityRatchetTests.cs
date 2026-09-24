@@ -1,6 +1,5 @@
 using System.Reflection.Metadata;
 
-using CheatEngine.Client.Allocations;
 using CheatEngine.Client.Assembly;
 using CheatEngine.Client.Tests.Infrastructure;
 
@@ -183,13 +182,13 @@ public sealed class CapabilityRatchetTests
 	[Trait("Qualification", "Q44")]
 	public void ContractOnlyDomainsHaveNoOperationalImplementationOnTheSupportedSdkMajor()
 	{
-		// SRC02-08: an Allocation or Assembly folder never activates the capability; composing an operational adapter
-		// for either domain must update this test deliberately, together with the capability gates it locks.
+		// SRC02-08: an Assembly folder never activates the capability; composing an operational adapter for it must
+		// update this test deliberately, together with the capability gates it locks. The allocations became an
+		// operational experimental adapter (CECLIENT5002) in plan L16.
 		Type[] implementations = ClientAssemblyCatalog.LoadAll()
 			.SelectMany(static assembly => assembly.GetTypes())
 			.Where(static type => type is { IsInterface: false, IsAbstract: false } &&
-								  (typeof(IAllocationClient).IsAssignableFrom(type) ||
-								   typeof(IAssemblyClient).IsAssignableFrom(type)))
+								  typeof(IAssemblyClient).IsAssignableFrom(type))
 			.ToArray();
 		int referencedSdkMajor = ClientAssemblyCatalog.Load(CoreAssembly).GetReferencedAssemblies()
 			.Single(static name => name.Name == "CheatEngine.SDK.Engine").Version!.Major;
@@ -197,7 +196,6 @@ public sealed class CapabilityRatchetTests
 		Assert.Equal(SdkPin.SupportedMajor, referencedSdkMajor);
 		Assert.Equal(
 			[
-				"CheatEngine.Client.Core.Domains.Allocations.UnavailableAllocationClient",
 				"CheatEngine.Client.Core.Domains.Assembly.UnavailableAssemblyClient"
 			],
 			implementations.Select(static type => type.FullName!).Order(StringComparer.Ordinal));

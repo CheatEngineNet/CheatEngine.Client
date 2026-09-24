@@ -32,7 +32,8 @@ public sealed partial class ClientExperimentalDiagnosticsTests
 	/// <summary>The experimental Client diagnostics, one entry per id.</summary>
 	private static readonly ExperimentalDiagnostic[] Catalog =
 	[
-		new("CECLIENT5001", "Value scans: IValueScanner, IValueScanSession and their request and result types")
+		new("CECLIENT5001", "Value scans: IValueScanner, IValueScanSession and their request and result types"),
+		new("CECLIENT5002", "Target allocations: IAllocationClient, ITargetMemoryLease, AllocationRequest and AllocationProtection")
 	];
 
 	/// <summary>The only places that may suppress an experimental Client diagnostic.</summary>

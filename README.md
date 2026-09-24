@@ -254,12 +254,13 @@ following table is a delivery statement, not a substitute for a live host check.
 | Address List and memory records                     | Available                       | Snapshots and hierarchy materialization are bounded; table file access requires an allowed root                                                                                  |
 | Typed protected Lua and explicit Lua modules        | Available                       | No Lua state crosses the public Client contract                                                                                                                                  |
 | Value scanning                                      | Experimental (`CECLIENT5001`)   | Sessions over CheatEngine.SDK's owned `MemScan`/`FoundList`: first and next scans, bounded pages of copied results; the API can change until Q25 and Q26 have receipts           |
+| Target allocations                                  | Experimental (`CECLIENT5002`)   | Leases over CheatEngine.SDK's `AllocatedRegion`, freed only in the process that made them; executable memory needs no opt-in; the API can change until Q30.a has receipts        |
 | Arbitrary Lua source                                | Policy-gated and off by default | Requires explicit unsafe opt-in; raw Lua state remains hidden                                                                                                                    |
 
-Target allocations and assembly with Auto Assembler patches now have public Client API contracts. Each remains
-`Unknown` or `Unavailable` until its primitive, ownership, and lifecycle behavior passes the corresponding Cheat
-Engine 7.7 x64 live gate. IPC, remote clients, UI/forms, structures, Mono/IL2CPP, and advanced ABI hooks remain
-outside 1.0 and have no placeholder public API. The capability table above is the current public-surface contract.
+Assembly with Auto Assembler patches now has a public Client API contract. It remains `Unavailable` until its
+primitive, ownership, and lifecycle behavior passes the corresponding Cheat Engine 7.7 x64 live gate. IPC, remote
+clients, UI/forms, structures, Mono/IL2CPP, and advanced ABI hooks remain outside 1.0 and have no placeholder public
+API. The capability table above is the current public-surface contract.
 
 ### Not offered in 1.0
 

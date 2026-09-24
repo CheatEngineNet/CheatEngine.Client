@@ -111,8 +111,11 @@ internal static class ClientCapabilityCatalog
 		// Arbitrary Lua is never qualified: no scenario, so its qualification gate stays unknown.
 		Entry(ClientCapabilityId.UnsafeLuaExecution, CapabilityImplementation.Operational,
 			CapabilityPolicySource.UnsafeLuaExecutionOptIn, CapabilityHostSource.NotProbed),
-		Entry(ClientCapabilityId.Allocations, CapabilityImplementation.ContractOnly,
-			CapabilityPolicySource.NotRequired, CapabilityHostSource.NotProbed, "Q30.a"),
+		Entry(ClientCapabilityId.Allocations, CapabilityImplementation.Operational,
+			CapabilityPolicySource.NotRequired, CapabilityHostSource.NotProbed, "Q30.a") with
+		{
+			ExperimentalDiagnosticId = "CECLIENT5002"
+		},
 		Entry(ClientCapabilityId.Assembly, CapabilityImplementation.ContractOnly,
 			CapabilityPolicySource.NotRequired, CapabilityHostSource.NotProbed, "Q32")
 	];

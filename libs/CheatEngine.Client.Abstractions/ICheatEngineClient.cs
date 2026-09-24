@@ -134,7 +134,9 @@ public interface ICheatEngineClient
 		get;
 	}
 
-	/// <summary>Gets owned target-memory allocation operations.</summary>
+	/// <summary>Gets target-memory allocations, each owned by a lease bound to the selected target.</summary>
+	/// <remarks>Experimental (<c>CECLIENT5002</c>): see the Abstractions README.</remarks>
+	[Experimental(ClientExperimentalDiagnostics.Allocations, UrlFormat = ClientExperimentalDiagnostics.UrlFormat)]
 	public IAllocationClient Allocations
 	{
 		get;

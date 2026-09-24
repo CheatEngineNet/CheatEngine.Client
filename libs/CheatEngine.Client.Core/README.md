@@ -77,7 +77,9 @@ Core implements Client mappings, not host-qualified, for runtime facts and capab
 selection, typed memory, bounded pointer chains and strings, AOB scans, copied inspection, Address
 List operations, trusted table paths, and protected typed Lua work, and the experimental value
 scans (`CECLIENT5001`): sessions over CheatEngine.SDK's `MemoryScanSessions` owners, released as
-leases on Cheat Engine's main thread before the SDK detaches. They are tested against ports
+leases on Cheat Engine's main thread before the SDK detaches. The experimental target allocations
+(`CECLIENT5002`) are leases over CheatEngine.SDK's `TargetMemoryAllocator` regions, released the same
+way and never through another target. They are tested against ports
 and fakes; no Client qualification receipt exists yet, so their qualification gate reports
 `Unknown` and no capability reports `Available`. All CE calls remain synchronous; a cancellation
 token is observed before dispatch or between Client-managed steps, not as an interruption of an
@@ -89,8 +91,7 @@ Cheat Engine work, and a capability test keeps them that way on the supported SD
 (`_CheatEngineClientSupportedSdkMajor` in `eng/CheatEngineSdk.props`). Their implementation gate
 is `Missing`; their package gate is the same consumed-SDK evidence as every other capability.
 
-- **Allocations and assembly**: Core composes no operational allocation or Auto Assembler adapter,
-  and no allocation owner is wired.
+- **Assembly**: Core composes no operational assembly or Auto Assembler adapter.
 
 Core composes nothing for the domains that no CheatEngine.SDK primitive backs (timers, hotkeys, the debugger,
 the speed hack, hashing, DBVM and remote execution): the Client has no contract for them, as the

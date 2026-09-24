@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- These tests use the experimental Client value scans (CECLIENT5001); ClientExperimentalDiagnosticsTests allows it under tests/. -->
-    <NoWarn>$(NoWarn);CECLIENT5001</NoWarn>
+    <!-- These tests use the experimental Client value scans (CECLIENT5001) and allocations (CECLIENT5002); ClientExperimentalDiagnosticsTests allows it under tests/. -->
+    <NoWarn>$(NoWarn);CECLIENT5001;CECLIENT5002</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

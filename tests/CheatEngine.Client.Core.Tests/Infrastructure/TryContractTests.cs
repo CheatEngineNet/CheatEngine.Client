@@ -6,6 +6,7 @@ using CheatEngine.Client.Allocations;
 using CheatEngine.Client.Core.Dispatching;
 using CheatEngine.Client.Core.Domains;
 using CheatEngine.Client.Core.Domains.Allocations;
+using CheatEngine.Client.Core.Domains.Assembly;
 using CheatEngine.Client.Core.Domains.ValueScanning;
 using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Core.Tests.TestSupport;
@@ -58,7 +59,8 @@ public sealed class TryContractTests
 		"UnavailableCapability",
 		"Processes",
 		"Runtime",
-		"ValueScans"
+		"ValueScans",
+		"Allocations"
 	};
 
 	public static TheoryData<string, string> SdkFaultCases
@@ -124,7 +126,8 @@ public sealed class TryContractTests
 		"Runtime.GetSnapshot",
 		"Lua.RegisterModule",
 		"Scans.CreateSession",
-		"Scans.GetResultCount"
+		"Scans.GetResultCount",
+		"Allocations.Allocate"
 	];
 
 	[Theory]
@@ -140,6 +143,7 @@ public sealed class TryContractTests
 		CancellationToken cancelled = new(true);
 		ThrowingPorts ports = new(new InvalidOperationException("never reached"));
 		FakeValueScanPort scans = new();
+		FakeAllocationPort allocations = new();
 		CoreClientPolicy policy = new([], enableUnsafeLuaExecution: true);
 
 		Action entryPoint = family switch
@@ -161,12 +165,14 @@ public sealed class TryContractTests
 				.TryRegisterModule(new PortBackedModule(ports), out _, out _, cancelled),
 			"UnsafeLua" => () => new UnsafeLuaClient(dispatcher, policy, lifetime)
 				.TryExecute(new LuaScript("return 1"), out _, cancelled),
-			"UnavailableCapability" => () => new UnavailableAllocationClient(lifetime)
-				.TryAllocate(new TargetAllocationRequest(4096), out _, out _, cancelled),
+			"UnavailableCapability" => () => new UnavailableAssemblyClient(lifetime)
+				.TryDisassemble(Target, out _, out _, cancelled),
 			"Processes" => () => new ProcessClient(dispatcher, ports, ports, ports, lifetime)
 				.TryGetCurrent(out _, out _, cancelled),
 			"Runtime" => () => new RuntimeClient(dispatcher, ports, static () => 1).TryGetSnapshot(out _, out _, cancelled),
 			"ValueScans" => () => new ValueScanner(dispatcher, scans).TryCreateSession(out _, out _, cancelled),
+			"Allocations" => () => new AllocationClient(dispatcher, allocations)
+				.TryAllocate(new AllocationRequest(4096), out _, out _, cancelled),
 			_ => throw new ArgumentOutOfRangeException(nameof(family), family, null)
 		};
 
@@ -176,6 +182,7 @@ public sealed class TryContractTests
 		Assert.Equal(CheatEngineFailureKind.ActivationExpired, exception.Failure.Kind);
 		Assert.Equal(0, ports.Calls);
 		Assert.Equal(0, scans.Creations);
+		Assert.Equal(0, allocations.Allocations);
 	}
 
 	[Theory]
@@ -258,6 +265,11 @@ public sealed class TryContractTests
 			"Scans.GetResultCount" => Run(CreateScanSession(dispatcher, fault, token), 0,
 				static (session, _, t) => (session.TryGetResultCount(out ulong _, out CheatEngineFailure f, t), f),
 				static (session, _, t) => session.GetResultCount(t), token),
+			"Allocations.Allocate" => Run(new AllocationClient(dispatcher, new FakeAllocationPort { Fault = fault }),
+				new AllocationRequest(4096),
+				static (client, request, t) => (client.TryAllocate(request, out ITargetMemoryLease? _,
+					out CheatEngineFailure f, t), f),
+				static (client, request, t) => client.Allocate(request, t), token),
 			_ => throw new ArgumentOutOfRangeException(nameof(entryPoint), entryPoint, null)
 		};
 
@@ -348,6 +360,7 @@ public sealed class TryContractTests
 			PatternScanner patterns = new(dispatcher);
 			UnsafeLuaClient unsafeLua = new(dispatcher, new CoreClientPolicy([], true), lifetime);
 			ValueScanner scans = new(dispatcher);
+			AllocationClient allocations = new(dispatcher);
 			CancellationToken token = TestContext.Current.CancellationToken;
 
 			// No Lua runtime is attached in unit tests: every SDK static below throws InvalidOperationException, and the
@@ -370,16 +383,20 @@ public sealed class TryContractTests
 			// MemoryScanSessions.TryCreateWithOutcome, behind the value-scan session factory.
 			Assert.False(scans.TryCreateSession(out IValueScanSession? session, out CheatEngineFailure createFailure,
 				token));
+			// TargetMemoryAllocator.TryAllocate, behind the allocation client.
+			Assert.False(allocations.TryAllocate(new AllocationRequest(4096), out ITargetMemoryLease? allocation,
+				out CheatEngineFailure allocateFailure, token));
 
 			Assert.Null(lease);
 			Assert.Null(name);
 			Assert.Null(session);
+			Assert.Null(allocation);
 			Assert.True(bytes.IsEmpty);
 			Assert.Equal(0, detailed.ConfirmedLength);
 			CheatEngineFailure[] failures =
 				[
 					loadFailure, deleteFailure, registerFailure, nameFailure, readFailure, detailed.Failure!.Value,
-					scanFailure, createFailure
+					scanFailure, createFailure, allocateFailure
 				];
 			Assert.All(
 				failures,
@@ -516,6 +533,8 @@ public sealed class TryContractTests
 	[InlineData("LuaModuleRegistrationPreDispatchCancellation")]
 	[InlineData("ValueScansPreDispatchCancellation")]
 	[InlineData("ValueScansInvalidRequest")]
+	[InlineData("AllocationsPreDispatchCancellation")]
+	[InlineData("AllocationsInvalidRequest")]
 	public void RefusalBeforeStartReportsNotStarted(string refusal)
 	{
 		CoreLifetime lifetime = InertCoreLifetime.Create();
@@ -547,8 +566,8 @@ public sealed class TryContractTests
 				(new UnsafeLuaClient(dispatcher, new CoreClientPolicy([], false), lifetime)
 					.TryExecute(new LuaScript("return 1"), out CheatEngineFailure f, token), f)),
 			"UnavailableCapability" => TryFailure(() =>
-				(new UnavailableAllocationClient(lifetime).TryAllocate(new TargetAllocationRequest(4096), out _,
-					out CheatEngineFailure f, token), f)),
+				(new UnavailableAssemblyClient(lifetime).TryDisassemble(Target, out _, out CheatEngineFailure f, token),
+					f)),
 			"LuaPreDispatchCancellation" => TryFailure(() =>
 				(new LuaClient(dispatcher, lifetime).TryExecute<ConstantOperation, int>(new ConstantOperation(), out _,
 					out CheatEngineFailure f, cancelled), f)),
@@ -563,6 +582,12 @@ public sealed class TryContractTests
 					out CheatEngineFailure f, cancelled), f)),
 			"ValueScansInvalidRequest" => TryFailure(() =>
 				(new ValueScanner(dispatcher, new FakeValueScanPort()).CreateSession(token).TryFirstScan(default,
+					out CheatEngineFailure f, token), f)),
+			"AllocationsPreDispatchCancellation" => TryFailure(() =>
+				(new AllocationClient(dispatcher, new FakeAllocationPort()).TryAllocate(new AllocationRequest(4096),
+					out _, out CheatEngineFailure f, cancelled), f)),
+			"AllocationsInvalidRequest" => TryFailure(() =>
+				(new AllocationClient(dispatcher, new FakeAllocationPort()).TryAllocate(default, out _,
 					out CheatEngineFailure f, token), f)),
 			_ => throw new ArgumentOutOfRangeException(nameof(refusal), refusal, null)
 		};
@@ -586,6 +611,7 @@ public sealed class TryContractTests
 	[InlineData("Runtime")]
 	[InlineData("LuaModuleRegistration")]
 	[InlineData("ValueScans")]
+	[InlineData("Allocations")]
 	public void ThrowingFormsRaiseTheCancellationExceptionOfTheirTryForm(string family)
 	{
 		CoreLifetime lifetime = InertCoreLifetime.Create();
@@ -601,6 +627,7 @@ public sealed class TryContractTests
 		RuntimeClient runtime = new(dispatcher, ports, static () => 1);
 		PortBackedModule module = new(ports);
 		ValueScanner scans = new(dispatcher, new FakeValueScanPort());
+		AllocationClient allocations = new(dispatcher, new FakeAllocationPort());
 		CancellationToken cancelled = new(true);
 
 		(CheatEngineFailure Expected, Action ThrowingForm) scenario = family switch
@@ -630,6 +657,9 @@ public sealed class TryContractTests
 				() => _ = lua.RegisterModule(module, cancelled)),
 			"ValueScans" => (TryFailure(() => (scans.TryCreateSession(out _, out CheatEngineFailure f, cancelled), f)),
 				() => _ = scans.CreateSession(cancelled)),
+			"Allocations" => (TryFailure(() => (allocations.TryAllocate(new AllocationRequest(4096), out _,
+					out CheatEngineFailure f, cancelled), f)),
+				() => _ = allocations.Allocate(new AllocationRequest(4096), cancelled)),
 			_ => throw new ArgumentOutOfRangeException(nameof(family), family, null)
 		};
 

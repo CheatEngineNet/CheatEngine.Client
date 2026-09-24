@@ -75,7 +75,7 @@ for 1.0: `int` backing, explicit values, and `Unknown = 0` on an outcome enum (`
 ### Capability Boundary
 
 The contracts describe runtime, process, memory, inspection, AOB scanning, tables, protected Lua,
-and explicitly disposable value-scan sessions. A contract is not an availability promise: callers
+explicitly disposable value-scan sessions and target allocations. A contract is not an availability promise: callers
 must inspect `ICheatEngineRuntime` capability observations or handle `CapabilityUnavailable`.
 
 Each `ClientCapabilityAvailability` also exposes immutable `Evidence`: implementation, consumed package artifact,
@@ -110,7 +110,7 @@ memory. Each capability's qualification gate requires receipts for the live scen
 | `Client.Tables` | Operational adapter | Loaded CheatEngine.SDK 2.x at or above the consumed 2.0.0 | Not probed by the snapshot (`Unknown`) | Unknown until Client receipts for Q34 exist | `Unknown`; `Unavailable` when the package gate is `Missing` |
 | `Client.ProtectedLua` | Operational adapter | Loaded CheatEngine.SDK 2.x at or above the consumed 2.0.0 | Not probed by the snapshot (`Unknown`) | Unknown until Client receipts for Q05, Q16 and Q19 exist | `Unknown`; `Unavailable` when the package gate is `Missing` |
 | `Client.UnsafeLuaExecution` | Operational, policy opt-in | Loaded CheatEngine.SDK 2.x at or above the consumed 2.0.0 | Not probed by the snapshot (`Unknown`) | Stays `Unknown`: no scenario covers arbitrary Lua | `Unavailable` without `EnableUnsafeLuaExecution()`; otherwise `Unknown` |
-| `Client.Allocations` | Contract-only (Unavailable) | Loaded CheatEngine.SDK 2.x at or above the consumed 2.0.0 | Not probed by the snapshot (`Unknown`) | Unknown until Client receipts for Q30.a exist | `Unavailable` |
+| `Client.Allocations` | Operational adapter, experimental (CECLIENT5002) | Loaded CheatEngine.SDK 2.x at or above the consumed 2.0.0 | Not probed by the snapshot (`Unknown`) | Unknown until Client receipts for Q30.a exist | `Unknown`; `Unavailable` when the package gate is `Missing` |
 | `Client.Assembly` | Contract-only (Unavailable) | Loaded CheatEngine.SDK 2.x at or above the consumed 2.0.0 | Not probed by the snapshot (`Unknown`) | Unknown until Client receipts for Q32 exist | `Unavailable` |
 <!-- capability-table:end -->
 
@@ -120,6 +120,10 @@ each operation with `CapabilityUnavailable` and `CheatEngineHostEffect.NotStarte
 `Client.ValueScanning` is an operational adapter over CheatEngine.SDK's scan sessions, published as an experimental
 API (see "Experimental APIs" below): its implementation gate is `Satisfied`, and its qualification gate stays
 `Unknown` until Client receipts for Q25 and Q26 exist.
+
+`Client.Allocations` is an operational adapter over CheatEngine.SDK's target allocator, also published as an
+experimental API: its implementation gate is `Satisfied`, and its qualification gate stays `Unknown` until Client
+receipts for Q30.a exist.
 
 `IUnsafeLuaClient` is intentionally separate from `ILuaClient` and is not registered by default.
 It is for explicitly trusted source only and still never exposes a raw Lua state.
@@ -154,6 +158,32 @@ exact host profile of the release; the documentation link of each diagnostic poi
   yet.
 - **Exit criteria:** the Client receipts of Q25 (session lifecycle, results, release) and Q26 (target change and stale
   owners) on the exact host profile; the capability's qualification gate stays `Unknown` until then.
+
+<a id="CECLIENT5002"></a>
+
+#### CECLIENT5002: target allocations
+
+- **Scope:** `ICheatEngineClient.Allocations`, `IAllocationClient`, `ITargetMemoryLease`, `AllocationRequest` and
+  `AllocationProtection`.
+- **Behavior:** an allocation runs Cheat Engine's `allocateMemory` through CheatEngine.SDK's allocator, on Cheat
+  Engine's main thread, for a target whose identity it could establish, with the requested size, an explicit protection
+  (`PAGE_READWRITE` or `PAGE_EXECUTE_READWRITE`) and an optional preferred address. The allocation is a lease
+  (`ICheatEngineLease`): its release frees it with `deAlloc` on the main thread, only in the process incarnation and
+  the Lua runtime that made it. After Cheat Engine selected another process, or when the process identifier names
+  another process, the release is refused (`RefusedTargetChanged`) and nothing is freed in the new target: the Client
+  never selects the old process again. A refused or unconfirmed release sets `RequiresManualRecovery`, keeps
+  `Address` and `Size` readable, is never retried, and is reported when the plugin is disabled. The lease is released
+  when Cheat Engine selects another process and before the plugin is disabled. When Cheat Engine allocated but no lease
+  could be published, the one compensating release is reported: `CleanupUnconfirmed`, with the address in the failure
+  message, when it was not confirmed.
+- **Executable memory:** `AllocationProtection.ExecuteReadWrite` needs no opt-in beyond this diagnostic. The allocation
+  itself runs nothing; what the application writes into it, and executes, is its own responsibility.
+- **Known limits:** Cheat Engine may round the size up to its page size and may allocate away from the preferred
+  address; the release passes the requested size back to `deAlloc`. CheatEngine.SDK cannot make its check of the
+  selected target atomic with the `deAlloc` that follows, so a selection change in that interval is not covered. None of
+  this has a Client receipt yet.
+- **Exit criteria:** the Client receipt of Q30.a (allocation, release, and the refusal after a target change) on the
+  exact host profile; the capability's qualification gate stays `Unknown` until then.
 
 ### Not offered in 1.0
 
@@ -424,8 +454,9 @@ dispatch and between Client-managed steps.
 | Lua typed operations and modules (`ILuaClient`) | Dispatch admission | `NotStarted` (cancellation, name already reserved by this activation, a Lua admission refused by CheatEngine.SDK), `NotApplied` (a global already defined, or a failed lookup or publication that the SDK rolled back completely), `CleanupUnconfirmed` (a publication whose rollback left a global), `Unknown` (SDK fault); otherwise the operation's own failure | A module release that fails is reported as `PartiallyReleased` with its failed globals and never retried; operation exceptions are rethrown unchanged |
 | Unsafe Lua (`IUnsafeLuaClient`) | Dispatch admission | `NotStarted` (policy, or a Lua admission refused by CheatEngine.SDK), `Unknown` (SDK fault; the script may have run partially) | The script may have run partially before a Lua error |
 | Runtime and Processes (`ICheatEngineRuntime`, `IProcessClient`) | Dispatch admission; `AttachExactName` also observes it before the local process catalog, and `GetLocalProcesses`, which never dispatches, between catalog steps (`NotStarted`) | `Completed` (CheatEngine.SDK reported a status that establishes no target: `TargetChanged`, `TargetIdentityUnavailable` for a file opened as a process, `CapabilityUnavailable`, `LuaError`, `InvalidHostResult`), `Unknown` (SDK fault, no selected target, an attach that CheatEngine.SDK refused or could not confirm) | A fact CheatEngine.SDK could not read stays `Unknown` in the snapshot instead of failing the call; `Attach` changes Cheat Engine's global selection |
-| Capability-gated domains (allocations, assembly) | Not applicable: no Cheat Engine work is dispatched | `NotStarted` (`CapabilityUnavailable` or `Cancelled`) | None |
+| Capability-gated domains (assembly) | Not applicable: no Cheat Engine work is dispatched | `NotStarted` (`CapabilityUnavailable` or `Cancelled`) | None |
 | Value scans (`IValueScanner`, `IValueScanSession`) | The start of Cheat Engine's first or next scan; a cancellation between the start and the wait leaves the session `Scanning`, and a later one discards the result | `NotStarted` (validation, session state, re-entrant call, changed target or runtime, cancellation before the start), `Started` (a scan, wait or reset call that failed or was cancelled before the wait), `Completed` (cancellation after the wait or the copy, a malformed count or page), `NotApplied` (a refused creation that CheatEngine.SDK rolled back), `CleanupUnconfirmed` (creation rollback not confirmed), `Unknown` (SDK fault) | A read publishes a whole page or nothing; a failed scan leaves the session `Invalidated` until a reset |
+| Allocations (`IAllocationClient`, `ITargetMemoryLease`) | The `allocateMemory` call; a later cancellation frees the new allocation and publishes no lease | `NotStarted` (validation, cancellation before the call, target identity unavailable or changed, unavailable global), `NotApplied` (`allocateMemory` returned nil), `Completed` (cancellation after the call, or an allocation without owner whose compensating release was confirmed), `CleanupUnconfirmed` (that release was refused or not confirmed; the message carries the address), `Unknown` (SDK fault, Lua error, malformed result) | An allocation is published as a lease or released at once; a refused or unconfirmed release is never retried and requires manual recovery |
 
 ### Failure kinds and host effects
 

@@ -21,4 +21,7 @@ internal static class ClientExperimentalDiagnostics
 
 	/// <summary>Value scans over Cheat Engine scan sessions (<c>IValueScanner</c> and its types).</summary>
 	internal const string ValueScans = "CECLIENT5001";
+
+	/// <summary>Target allocations over CheatEngine.SDK's allocator (<c>IAllocationClient</c> and its types).</summary>
+	internal const string Allocations = "CECLIENT5002";
 }

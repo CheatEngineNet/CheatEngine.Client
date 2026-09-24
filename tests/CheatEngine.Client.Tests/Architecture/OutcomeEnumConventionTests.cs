@@ -34,7 +34,7 @@ public sealed partial class OutcomeEnumConventionTests
 	/// <summary>Option enums: zero is a valid, documented choice, never <c>Unknown</c>.</summary>
 	private static readonly Dictionary<string, string> OptionEnums = new(StringComparer.Ordinal)
 	{
-		["CheatEngine.Client.Allocations.TargetAllocationAccess"] =
+		["CheatEngine.Client.Allocations.AllocationProtection"] =
 			"ReadWrite (0) is the default protection of an allocation request.",
 		["CheatEngine.Client.Inspection.AddressResolutionMode"] =
 			"Default (0) is Cheat Engine's ordinary address resolution.",
@@ -45,11 +45,7 @@ public sealed partial class OutcomeEnumConventionTests
 	};
 
 	/// <summary>Enums that break the charter today, with the rule they break and the lot that fixes them.</summary>
-	private static readonly Dictionary<string, string> PendingCharterEnums = new(StringComparer.Ordinal)
-	{
-		["CheatEngine.Client.Allocations.TargetAllocationAccess"] =
-			"values are implicit; replaced by AllocationProtection (L16)"
-	};
+	private static readonly Dictionary<string, string> PendingCharterEnums = new(StringComparer.Ordinal);
 
 	[Fact]
 	public void PublicEnumsFollowTheCharterOrAreStillPending()

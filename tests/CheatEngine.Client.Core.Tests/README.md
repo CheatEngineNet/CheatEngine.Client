@@ -14,6 +14,9 @@ result ownership, process/runtime adapters, table mutations, and symbol-registra
 It also runs the value-scan battery of the audit (chapter 13) against a scripted port that emulates CheatEngine.SDK's
 scan session: results, cancellation, target and runtime changes, re-entrant calls and releases. It does not fabricate
 SDK-owned scan handles or present an unvalidated Cheat Engine 7.7 x64 value-scan lifecycle as supported.
+`Domains/Allocations` runs the allocation lifecycle against a scripted CheatEngine.SDK allocator the same way: the
+published lease and its one release, the refusal after a target change or a reused process identifier, which frees
+nothing in the new target (Q30), the compensation of an allocation that got no owner, and cancellation.
 
 ## How it helps improve CheatEngine.Client
 

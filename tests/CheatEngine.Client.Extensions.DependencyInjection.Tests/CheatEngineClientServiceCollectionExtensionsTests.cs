@@ -95,6 +95,24 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q30.a")]
+	public void AddCheatEngineClientComposesTheOperationalAllocationClientAsASingleton()
+	{
+		ServiceCollection services = new();
+		services.AddCheatEngineClient();
+		ServiceDescriptor descriptor =
+			Assert.Single(services, static descriptor => descriptor.ServiceType == typeof(IAllocationClient));
+		AliasRecordingServiceProvider provider = new();
+
+		object allocations = descriptor.ImplementationFactory!(provider);
+
+		Assert.Equal(ServiceLifetime.Singleton, descriptor.Lifetime);
+		Assert.IsAssignableFrom<IAllocationClient>(allocations);
+		Type requested = Assert.Single(provider.RequestedTypes);
+		Assert.Equal("CheatEngine.Client.Core.Domains.Allocations.AllocationClient", requested.FullName);
+	}
+
+	[Fact]
 	[Trait("Qualification", "Q44")]
 	public void AddCheatEngineClientComposesOnlyUnavailableAdaptersForContractOnlyDomains()
 	{
@@ -102,7 +120,7 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		ServiceCollection services = new();
 		services.AddCheatEngineClient();
 		AliasRecordingServiceProvider provider = new();
-		Type[] contractOnly = [typeof(IAllocationClient), typeof(IAssemblyClient)];
+		Type[] contractOnly = [typeof(IAssemblyClient)];
 
 		foreach (Type serviceType in contractOnly)
 		{

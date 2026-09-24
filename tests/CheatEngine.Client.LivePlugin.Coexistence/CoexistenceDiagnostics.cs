@@ -9,6 +9,9 @@ using CheatEngine.Client.Processes;
 using CheatEngine.Client.Results;
 using CheatEngine.SDK.Hosting.Bootstrap;
 
+// The fixture retains an experimental allocation lease; the source is compiled standalone by each fixture project.
+#pragma warning disable CECLIENT5002
+
 namespace LivePlugin.Coexistence;
 
 /// <summary>
@@ -95,7 +98,7 @@ internal static class CoexistenceDiagnostics
 			return DescribeOwner("Owner=AlreadyRetained", prior);
 		}
 
-		if (!client.Allocations.TryAllocate(new TargetAllocationRequest(16), out ITargetMemoryLease? owner,
+		if (!client.Allocations.TryAllocate(new AllocationRequest(16), out ITargetMemoryLease? owner,
 				out CheatEngineFailure failure, client.Stopping))
 		{
 			return DescribeFailure("Owner", failure);
