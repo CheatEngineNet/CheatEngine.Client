@@ -52,6 +52,7 @@ public sealed class TryContractTests
 		"Inspection",
 		"Tables",
 		"LuaTypedOperation",
+		"LuaModuleRegistration",
 		"UnsafeLua",
 		"UnavailableCapability",
 		"Processes",
@@ -118,7 +119,8 @@ public sealed class TryContractTests
 		"Memory.ResolvePointerChain",
 		"Processes.GetCurrent",
 		"Processes.Attach",
-		"Runtime.GetSnapshot"
+		"Runtime.GetSnapshot",
+		"Lua.RegisterModule"
 	];
 
 	[Theory]
@@ -150,6 +152,8 @@ public sealed class TryContractTests
 				.TryGetRecord(new MemoryRecordId(1), out _, out _, cancelled),
 			"LuaTypedOperation" => () => new LuaClient(dispatcher, lifetime)
 				.TryExecute<ConstantOperation, int>(new ConstantOperation(), out _, out _, cancelled),
+			"LuaModuleRegistration" => () => new LuaClient(dispatcher, lifetime)
+				.TryRegisterModule(new PortBackedModule(ports), out _, out _, cancelled),
 			"UnsafeLua" => () => new UnsafeLuaClient(dispatcher, policy, lifetime)
 				.TryExecute(new LuaScript("return 1"), out _, cancelled),
 			"UnavailableCapability" => () => new UnavailableAllocationClient(lifetime)
@@ -237,6 +241,10 @@ public sealed class TryContractTests
 			"Runtime.GetSnapshot" => Run(new RuntimeClient(dispatcher, ports, static () => 1), 0,
 				static (client, _, t) => (client.TryGetSnapshot(out CheatEngineRuntimeSnapshot _, out CheatEngineFailure f, t), f),
 				static (client, _, t) => client.GetSnapshot(t), token),
+			// A generated module's Register surfaces the SDK faults of its registration; the Client classifies them.
+			"Lua.RegisterModule" => Run(new LuaClient(dispatcher, lifetime), new PortBackedModule(ports),
+				static (client, module, t) => (client.TryRegisterModule(module, out _, out CheatEngineFailure f, t), f),
+				static (client, module, t) => client.RegisterModule(module, t), token),
 			_ => throw new ArgumentOutOfRangeException(nameof(entryPoint), entryPoint, null)
 		};
 
@@ -487,6 +495,7 @@ public sealed class TryContractTests
 	[InlineData("UnavailableCapability")]
 	[InlineData("LuaPreDispatchCancellation")]
 	[InlineData("ProcessesAttachExactNameCancellation")]
+	[InlineData("LuaModuleRegistrationPreDispatchCancellation")]
 	public void RefusalBeforeStartReportsNotStarted(string refusal)
 	{
 		CoreLifetime lifetime = InertCoreLifetime.Create();
@@ -526,6 +535,9 @@ public sealed class TryContractTests
 			"ProcessesAttachExactNameCancellation" => TryFailure(() =>
 				(new ProcessClient(dispatcher, ports, ports, ports, lifetime).TryAttachExactName("fixture.exe", out _,
 					out CheatEngineFailure f, cancelled), f)),
+			"LuaModuleRegistrationPreDispatchCancellation" => TryFailure(() =>
+				(new LuaClient(dispatcher, lifetime).TryRegisterModule(new PortBackedModule(ports), out _,
+					out CheatEngineFailure f, cancelled), f)),
 			_ => throw new ArgumentOutOfRangeException(nameof(refusal), refusal, null)
 		};
 
@@ -546,6 +558,7 @@ public sealed class TryContractTests
 	[InlineData("Dispatcher")]
 	[InlineData("Processes")]
 	[InlineData("Runtime")]
+	[InlineData("LuaModuleRegistration")]
 	public void ThrowingFormsRaiseTheCancellationExceptionOfTheirTryForm(string family)
 	{
 		CoreLifetime lifetime = InertCoreLifetime.Create();
@@ -559,6 +572,7 @@ public sealed class TryContractTests
 		LuaClient lua = new(dispatcher, lifetime);
 		ProcessClient processes = new(dispatcher, ports, ports, ports, lifetime);
 		RuntimeClient runtime = new(dispatcher, ports, static () => 1);
+		PortBackedModule module = new(ports);
 		CancellationToken cancelled = new(true);
 
 		(CheatEngineFailure Expected, Action ThrowingForm) scenario = family switch
@@ -583,6 +597,9 @@ public sealed class TryContractTests
 				() => _ = processes.Refresh(cancelled)),
 			"Runtime" => (TryFailure(() => (runtime.TryGetSnapshot(out _, out CheatEngineFailure f, cancelled), f)),
 				() => _ = runtime.GetSnapshot(cancelled)),
+			"LuaModuleRegistration" => (TryFailure(() =>
+					(lua.TryRegisterModule(module, out _, out CheatEngineFailure f, cancelled), f)),
+				() => _ = lua.RegisterModule(module, cancelled)),
 			_ => throw new ArgumentOutOfRangeException(nameof(family), family, null)
 		};
 
@@ -1074,6 +1091,25 @@ public sealed class TryContractTests
 			out CheatEngineFailure failure)
 		{
 			throw fault;
+		}
+	}
+
+	/// <summary>A Lua module whose registration makes one port call, standing for the SDK work of a generated module.</summary>
+	private sealed class PortBackedModule(ThrowingPorts ports) : ILuaModule
+	{
+		public LuaModuleDescriptor Descriptor
+		{
+			get;
+		} = new("contract", [new LuaExportDescriptor("contract_global")]);
+
+		public void Register()
+		{
+			_ = ports.ObserveSelection();
+		}
+
+		public LuaModuleReleaseOutcome Unregister()
+		{
+			return LuaModuleReleaseOutcome.Released("contract", 1, 0, 0);
 		}
 	}
 

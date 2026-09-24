@@ -686,6 +686,29 @@ public sealed class LuaModuleRegistrationTests
 	}
 
 	[Fact]
+	public void TryRegisterModuleNeverReturnsADefaultFailureForARefusalThatDescribesNone()
+	{
+		ImmediateDispatcher dispatcher = new();
+		CheatEngineOperationException undescribed = new(default);
+		RecordingModule module = new("diagnostics", undescribed);
+		LuaClient client = CreateClient(dispatcher, static () => true);
+
+		bool succeeded = client.TryRegisterModule(module, out ILuaModuleLease? lease, out CheatEngineFailure failure,
+			TestContext.Current.CancellationToken);
+		CheatEngineOperationException thrown = Assert.Throws<CheatEngineOperationException>(() =>
+			client.RegisterModule(module, TestContext.Current.CancellationToken));
+
+		Assert.False(succeeded);
+		Assert.Null(lease);
+		Assert.False(failure.IsDefault);
+		Assert.Equal(CheatEngineFailureKind.Unknown, failure.Kind);
+		Assert.Equal("Lua.RegisterModule", failure.Operation);
+		Assert.Equal(CheatEngineHostEffect.Unknown, failure.HostEffect);
+		Assert.Same(undescribed, failure.Exception);
+		Assert.Equal(failure, thrown.Failure);
+	}
+
+	[Fact]
 	public void TryRegisterModuleRefusesAModuleWithoutADescriptorBeforeAnyDispatch()
 	{
 		ImmediateDispatcher dispatcher = new();

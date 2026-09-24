@@ -384,11 +384,22 @@ internal sealed class LuaClient : ILuaClient
 	///     <see cref="CheatEngineOperationException" /> carries (a generated module classifies its own refusals), otherwise
 	///     the <see cref="SdkBoundary" /> classification with an unknown host effect.
 	/// </summary>
+	/// <remarks>
+	///     Unlike a codec or a typed operation, whose exceptions are rethrown unchanged, a module's registration is
+	///     classified: a generated module surfaces the CheatEngine.SDK faults of its registration from
+	///     <see cref="ILuaModule.Register" />, and no SDK exception may cross <see cref="TryRegisterModule" /> (F15). A
+	///     <see cref="CheatEngineOperationException" /> that carries the <see langword="default" /> failure describes
+	///     none, so it is reported as <see cref="CheatEngineFailureKind.Unknown" /> with the exception attached, the rule
+	///     of a typed operation that fails without a failure.
+	/// </remarks>
 	private static CheatEngineFailure ClassifyRegistrationFault(Exception? fault)
 	{
 		return fault switch
 		{
-			CheatEngineOperationException reported => reported.Failure,
+			CheatEngineOperationException { Failure.IsDefault: false } reported => reported.Failure,
+			CheatEngineOperationException undescribed => new CheatEngineFailure(CheatEngineFailureKind.Unknown,
+				RegisterOperation, "The Lua module refused its registration without an associated Cheat Engine failure.",
+				undescribed),
 			null => new CheatEngineFailure(CheatEngineFailureKind.Unknown, RegisterOperation,
 				"The Lua module registration ended without completing or reporting a failure."),
 			_ => SdkBoundary.Classify(RegisterOperation, fault, CheatEngineHostEffect.Unknown)

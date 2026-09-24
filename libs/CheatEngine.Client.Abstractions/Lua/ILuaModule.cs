@@ -38,8 +38,10 @@ public interface ILuaModule
 	/// <remarks>
 	///     <para>
 	///         Throw to refuse the registration; <see cref="ILuaClient.TryRegisterModule" /> returns the failure. A
-	///         <see cref="Results.CheatEngineOperationException" /> is reported with the failure it carries; any other
-	///         exception is classified by the Client like a CheatEngine.SDK fault.
+	///         <see cref="Results.CheatEngineOperationException" /> is reported with the failure it carries (one that
+	///         carries the <see langword="default" /> failure is reported as <c>Unknown</c>); any other exception is
+	///         classified by the Client like a CheatEngine.SDK fault, because a generated module surfaces the SDK faults
+	///         of its registration from this method.
 	///     </para>
 	///     <para>
 	///         A generated module throws a <see cref="Results.CheatEngineOperationException" /> when CheatEngine.SDK
