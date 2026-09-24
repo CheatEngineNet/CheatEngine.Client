@@ -57,6 +57,20 @@ internal static class SdkBoundary
 		return Classify(operation, exception, hostEffect, LuaRuntime.ExternalStateResetDetected);
 	}
 
+	/// <summary>Classifies an SDK fault with the SDK's current external Lua state reset fact.</summary>
+	/// <param name="operation">The public Client operation name.</param>
+	/// <param name="exception">The SDK fault.</param>
+	/// <param name="hostEffect">What is known about the Cheat Engine side effect when the fault was observed.</param>
+	/// <returns>The classified failure; see <see cref="Classify(string, Exception, CheatEngineHostEffect, bool)" />.</returns>
+	/// <remarks>
+	///     For callers that already handled the activation lifetime themselves, such as the dispatcher, so every SDK
+	///     fault observed after an external reset is reported the same way.
+	/// </remarks>
+	internal static CheatEngineFailure Classify(string operation, Exception exception, CheatEngineHostEffect hostEffect)
+	{
+		return Classify(operation, exception, hostEffect, LuaRuntime.ExternalStateResetDetected);
+	}
+
 	/// <summary>Classifies an SDK fault given the SDK's external Lua state reset fact.</summary>
 	/// <param name="operation">The public Client operation name.</param>
 	/// <param name="exception">The SDK fault.</param>

@@ -60,7 +60,7 @@ internal sealed class SdkMainThreadDispatcher : ICheatEngineDispatcher, IStatefu
 		}
 		catch (Exception exception)
 		{
-			failure = CoreFailureFactory.FromException(InvokeOperation, exception);
+			failure = SdkBoundary.Classify(InvokeOperation, exception, CheatEngineHostEffect.Unknown);
 			return false;
 		}
 
@@ -103,7 +103,7 @@ internal sealed class SdkMainThreadDispatcher : ICheatEngineDispatcher, IStatefu
 		catch (Exception exception)
 		{
 			result = default;
-			failure = CoreFailureFactory.FromException(InvokeOperation, exception);
+			failure = SdkBoundary.Classify(InvokeOperation, exception, CheatEngineHostEffect.Unknown);
 			return false;
 		}
 
@@ -167,7 +167,7 @@ internal sealed class SdkMainThreadDispatcher : ICheatEngineDispatcher, IStatefu
 		catch (Exception exception)
 		{
 			result = default;
-			failure = CoreFailureFactory.FromException(InvokeOperation, exception);
+			failure = SdkBoundary.Classify(InvokeOperation, exception, CheatEngineHostEffect.Unknown);
 			return false;
 		}
 
@@ -209,7 +209,7 @@ internal sealed class SdkMainThreadDispatcher : ICheatEngineDispatcher, IStatefu
 		}
 		catch (Exception exception)
 		{
-			failure = CoreFailureFactory.FromException(InvokeOperation, exception);
+			failure = SdkBoundary.Classify(InvokeOperation, exception, CheatEngineHostEffect.Unknown);
 			return false;
 		}
 
