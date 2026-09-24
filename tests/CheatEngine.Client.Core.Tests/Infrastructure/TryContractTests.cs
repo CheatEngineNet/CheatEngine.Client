@@ -110,6 +110,7 @@ public sealed class TryContractTests
 		"Patterns.InModule",
 		"Inspection.GetSymbol",
 		"Inspection.RegisterSymbol",
+		"Inspection.ResolveName",
 		"Tables.GetRecord",
 		"Tables.Delete",
 		"Memory.ReadPrimitive",
@@ -200,6 +201,9 @@ public sealed class TryContractTests
 				static (client, registration, t) =>
 					(client.TryRegisterSymbol(registration, out _, out CheatEngineFailure f, t), f),
 				static (client, registration, t) => client.RegisterSymbol(registration, t), token),
+			"Inspection.ResolveName" => Run(new InspectionClient(dispatcher, lifetime, ports), Target,
+				static (client, address, t) => (client.TryResolveName(address, out _, out CheatEngineFailure f, t), f),
+				static (client, address, t) => client.ResolveName(address, t), token),
 			"Tables.GetRecord" => Run(new TableClient(dispatcher, policy, ports, lifetime, ports),
 				new MemoryRecordId(7),
 				static (client, id, t) => (client.TryGetRecord(id, out _, out CheatEngineFailure f, t), f),
@@ -331,6 +335,8 @@ public sealed class TryContractTests
 				out CheatEngineFailure loadFailure, token));
 			Assert.False(inspection.TryRegisterSymbol(new SymbolRegistration("contractSymbol", Target),
 				out ISymbolRegistrationLease? lease, out CheatEngineFailure registerFailure, token));
+			// SymbolRegistry.TryGetName behind the symbol-name lookup.
+			Assert.False(inspection.TryResolveName(Target, out string? name, out CheatEngineFailure nameFailure, token));
 			Assert.False(memory.TryReadBytes(new MemoryBytesReadRequest(Target, 8), out ImmutableArray<byte> bytes,
 				out CheatEngineFailure readFailure, token));
 			// The counted TargetMemory.TryReadBytes overload behind the prefix-reporting read.
@@ -340,10 +346,11 @@ public sealed class TryContractTests
 			Assert.False(unsafeLua.TryExecute(new LuaScript("return 1"), out CheatEngineFailure luaFailure, token));
 
 			Assert.Null(lease);
+			Assert.Null(name);
 			Assert.True(bytes.IsEmpty);
 			Assert.Equal(0, detailed.ConfirmedLength);
 			CheatEngineFailure[] failures =
-				[loadFailure, registerFailure, readFailure, detailed.Failure!.Value, scanFailure];
+				[loadFailure, registerFailure, nameFailure, readFailure, detailed.Failure!.Value, scanFailure];
 			Assert.All(
 				failures,
 				static failure =>
@@ -538,6 +545,7 @@ public sealed class TryContractTests
 	[Theory]
 	[InlineData("Patterns")]
 	[InlineData("Memory")]
+	[InlineData("Inspection")]
 	[InlineData("Tables")]
 	[InlineData("Lua")]
 	[InlineData("Dispatcher")]
@@ -550,6 +558,8 @@ public sealed class TryContractTests
 		ThrowingPorts ports = new(new InvalidOperationException("must not be reached"));
 		PatternScanner patterns = new(dispatcher, ports);
 		MemoryClient memory = new(dispatcher, lifetime, ports);
+		InspectionClient inspection = new(dispatcher, lifetime, ports);
+		SymbolRegistration registration = new("contractSymbol", Target);
 		TableClient tables = new(dispatcher, CoreClientPolicy.SafeDefaults, ports, lifetime, ports);
 		LuaClient lua = new(dispatcher, lifetime);
 		ProcessClient processes = new(dispatcher, ports, ports, ports, lifetime);
@@ -562,6 +572,8 @@ public sealed class TryContractTests
 				() => _ = patterns.Scan(Request(), cancelled)),
 			"Memory" => (TryFailure(() => (memory.TryReadPrimitive(Target, out int _, out CheatEngineFailure f,
 				cancelled), f)), () => _ = memory.ReadPrimitive<int>(Target, cancelled)),
+			"Inspection" => (TryFailure(() => (inspection.TryRegisterSymbol(registration, out _,
+				out CheatEngineFailure f, cancelled), f)), () => _ = inspection.RegisterSymbol(registration, cancelled)),
 			"Tables" => (TryFailure(() => (tables.TryGetCurrent(out _, out CheatEngineFailure f, cancelled), f)),
 				() => _ = tables.GetCurrent(cancelled)),
 			"Lua" => (TryFailure(() => (lua.TryExecute(new ConstantOperation(), out _, out CheatEngineFailure f,
@@ -816,23 +828,24 @@ public sealed class TryContractTests
 			throw Fault();
 		}
 
+		/// <summary>
+		///     The collision pre-check of a symbol registration finds nothing, so the registration fault is raised by
+		///     <see cref="TryRegisterOwned" />, the CheatEngine.SDK ownership coordinator.
+		/// </summary>
 		public InspectionStatus ResolveAddress(SymbolExpression expression, AddressResolutionOptions options,
 			out Address address)
 		{
-			throw Fault();
+			address = default;
+			return InspectionStatus.NotFound;
 		}
 
-		public bool TryResolveName(nuint address, out string? name)
+		public LuaOperationStatus TryGetName(Address address, out string? name)
 		{
 			throw Fault();
 		}
 
-		public void RegisterSymbol(string name, nuint address, bool doNotSave)
-		{
-			throw Fault();
-		}
-
-		public void UnregisterSymbol(string name)
+		public SymbolRegistrationAttempt TryRegisterOwned(SymbolName name, Address address,
+			SymbolRegistrationOptions options)
 		{
 			throw Fault();
 		}

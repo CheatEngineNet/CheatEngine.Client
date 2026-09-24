@@ -1,5 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
-
 using CheatEngine.SDK.Annotations.Lua;
 
 namespace CheatEngine.Client.Core.Infrastructure;
@@ -17,13 +15,4 @@ internal static partial class ClientLuaGlobals
 
 	[LuaGlobal("saveTable")]
 	internal static partial void SaveTable(string path);
-
-	[LuaGlobal("getNameFromAddress")]
-	internal static partial bool TryGetNameFromAddress(nuint address, [MaybeNullWhen(false)] out string? name);
-
-	[LuaGlobal("registerSymbol")]
-	internal static partial void RegisterSymbol(string name, nuint address, bool doNotSave);
-
-	[LuaGlobal("unregisterSymbol")]
-	internal static partial void UnregisterSymbol(string name);
 }

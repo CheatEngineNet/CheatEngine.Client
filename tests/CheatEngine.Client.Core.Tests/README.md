@@ -36,12 +36,14 @@ the supported major at or above the pin, by SemVer precedence, is `Satisfied`, e
 version is `Missing`; a missing or malformed version is `Unknown`. `Domains/TableClientGenerationTests` and
 `Domains/TableClientMutationTests` refuse record identifiers captured before a trusted table load and report factual
 activation outcomes (Q34, Q35);
-`Domains/InspectionClientBehaviorTests` and `Domains/SymbolRegistrationLeaseTests` check the symbol collision preflight
-and the ownership-checked release. `Infrastructure/CoreDiagnosticsTests` runs one operation of every emitting domain and
+`Domains/InspectionClientBehaviorTests` and `Domains/SymbolRegistrationLeaseTests` check the symbol collision preflight,
+the registration through a fake CheatEngine.SDK ownership coordinator (handoff, supersession, activation reservation)
+and the mapping of every SDK release kind onto a lease whose `Dispose` never throws (Q16.b, Q43);
+`Domains/InspectionMappingTests` proves the symbol registry status mappings total. `Infrastructure/CoreDiagnosticsTests` runs one operation of every emitting domain and
 proves that diagnostic events are never emitted inside a dispatched callback, carry only closed names, counts and
 epochs (Q46), and that a throwing sink changes no result.
 
-Tests that serve as qualification evidence carry a `Qualification` trait (Q16, Q21, Q27, Q28, Q29, Q31, Q32, Q33, Q34,
+Tests that serve as qualification evidence carry a `Qualification` trait (Q16, Q16.b, Q21, Q27, Q28, Q29, Q31, Q32, Q33, Q34,
 Q35, Q43, Q44, Q45, Q46, Q48), so a Q filter selects them. They are C1 evidence (managed tests with doubles), never a
 Cheat Engine host result.
 

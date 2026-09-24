@@ -1,5 +1,6 @@
 using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Engine.Values;
+using CheatEngine.SDK.Lua.Calls;
 
 namespace CheatEngine.Client.Core.Domains;
 
@@ -21,9 +22,15 @@ internal interface IInspectionPort
 	public InspectionStatus ResolveAddress(SymbolExpression expression, AddressResolutionOptions options,
 		out Address address);
 
-	public bool TryResolveName(nuint address, out string? name);
+	/// <summary>Gets Cheat Engine's formatted name for a target address (<c>SymbolRegistry.TryGetName</c>).</summary>
+	public LuaOperationStatus TryGetName(Address address, out string? name);
 
-	public void RegisterSymbol(string name, nuint address, bool doNotSave);
-
-	public void UnregisterSymbol(string name);
+	/// <summary>
+	///     Registers a name through CheatEngine.SDK's symbol ownership coordinator (<c>SymbolRegistry.TryRegisterOwned</c>).
+	/// </summary>
+	/// <exception cref="SymbolRegistrationHandoffException">
+	///     Cheat Engine registered the name but the SDK could not publish its lease; the SDK compensated once.
+	/// </exception>
+	public SymbolRegistrationAttempt TryRegisterOwned(SymbolName name, Address address,
+		SymbolRegistrationOptions options);
 }

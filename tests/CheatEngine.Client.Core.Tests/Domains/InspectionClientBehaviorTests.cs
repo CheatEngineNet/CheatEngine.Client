@@ -8,6 +8,7 @@ using CheatEngine.Client.Inspection;
 using CheatEngine.Client.Results;
 using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Engine.Values;
+using CheatEngine.SDK.Lua.Calls;
 
 namespace CheatEngine.Client.Core.Tests.Domains;
 
@@ -110,17 +111,20 @@ public sealed class InspectionClientBehaviorTests
 	}
 
 	[Theory]
-	[InlineData(true, "playerHealth", true, CheatEngineFailureKind.Unknown)]
-	[InlineData(false, null, false, CheatEngineFailureKind.NotFound)]
-	[InlineData(true, null, false, CheatEngineFailureKind.InvalidHostResult)]
-	public void ResolveNameDistinguishesANameFromNotFoundAndInvalidHostResults(bool resolveName, string? name,
+	[InlineData(LuaOperationStatusKind.Success, "playerHealth", true, CheatEngineFailureKind.Unknown)]
+	[InlineData(LuaOperationStatusKind.NilResult, null, false, CheatEngineFailureKind.NotFound)]
+	[InlineData(LuaOperationStatusKind.Success, null, false, CheatEngineFailureKind.InvalidHostResult)]
+	[InlineData(LuaOperationStatusKind.GlobalUnavailable, null, false, CheatEngineFailureKind.CapabilityUnavailable)]
+	[InlineData(LuaOperationStatusKind.LuaFailure, null, false, CheatEngineFailureKind.LuaError)]
+	[InlineData(LuaOperationStatusKind.Unknown, null, false, CheatEngineFailureKind.IndeterminateHostResult)]
+	public void ResolveNameMapsEverySdkLookupStatus(LuaOperationStatusKind status, string? name,
 		bool expectedSuccess, CheatEngineFailureKind expectedKind)
 	{
 		using ControlledCoreLifetimeContext context = new();
 		using CoreLifetime lifetime = new(context);
 		FakeInspectionPort port = new()
 		{
-			ResolveNameResult = resolveName,
+			NameStatus = StatusOf(status),
 			ResolvedName = name
 		};
 		InspectionClient client = CreateClient(lifetime, port);
@@ -129,8 +133,8 @@ public sealed class InspectionClientBehaviorTests
 			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
 
 		Assert.Equal(expectedSuccess, succeeded);
-		Assert.Equal(name, result);
-		Assert.Equal(new nuint(0x1234), port.LastNameAddress);
+		Assert.Equal(expectedSuccess ? name : null, result);
+		Assert.Equal(new Address(0x1234), port.LastNameAddress);
 		if (expectedSuccess)
 		{
 			Assert.Equal(default, failure);
@@ -143,6 +147,7 @@ public sealed class InspectionClientBehaviorTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q16.b")]
 	public void RegisterSymbolReservesOneNameAndReleasesItWithTheLease()
 	{
 		using ControlledCoreLifetimeContext context = new();
@@ -159,14 +164,20 @@ public sealed class InspectionClientBehaviorTests
 		Assert.Null(duplicate);
 		Assert.Equal(default, firstFailure);
 		Assert.Equal(CheatEngineFailureKind.OperationRejected, duplicateFailure.Kind);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, duplicateFailure.HostEffect);
+		Assert.Contains("already owns", duplicateFailure.Message, StringComparison.Ordinal);
 		Assert.Equal(1, port.RegisterCalls);
 		Assert.Equal("fixture-symbol", port.LastRegisteredName);
-		Assert.Equal(new nuint(0x401000), port.LastRegisteredAddress);
+		Assert.Equal(new Address(0x401000), port.LastRegisteredAddress);
 		Assert.True(port.LastRegisteredDoNotSave);
+		Assert.Equal("fixture-symbol", lease.Name);
+		Assert.Equal(new Address(0x401000), lease.Address);
 
 		lease.Dispose();
 
 		Assert.True(lease.IsReleased);
+		Assert.Equal(new LeaseReleaseOutcome(LeaseReleaseKind.Released, CheatEngineHostEffect.Completed),
+			lease.LastReleaseOutcome);
 		Assert.Equal(["fixture-symbol"], port.UnregisteredNames);
 		Assert.True(client.TryRegisterSymbol(registration, out ISymbolRegistrationLease? retry,
 			out CheatEngineFailure retryFailure, TestContext.Current.CancellationToken));
@@ -180,7 +191,7 @@ public sealed class InspectionClientBehaviorTests
 	public void RegisterSymbolRejectsANameThatAlreadyResolvesBeforeAnyRegistration()
 	{
 		// A14-39: registerSymbol would shadow or replace a definition that already resolves (a third-party symbol, a
-		// module, or an expression that parses as an address).
+		// module, or an expression that parses as an address); CheatEngine.SDK keeps that behavior, so the Client checks.
 		using ControlledCoreLifetimeContext context = new();
 		using CoreLifetime lifetime = new(context);
 		FakeInspectionPort port = new();
@@ -255,8 +266,91 @@ public sealed class InspectionClientBehaviorTests
 		lease!.Dispose();
 	}
 
+	[Theory]
+	[Trait("Qualification", "Q16.b")]
+	[InlineData(LuaOperationStatusKind.GlobalUnavailable, CheatEngineFailureKind.CapabilityUnavailable,
+		CheatEngineHostEffect.Unknown)]
+	[InlineData(LuaOperationStatusKind.LuaFailure, CheatEngineFailureKind.LuaError, CheatEngineHostEffect.Started)]
+	[InlineData(LuaOperationStatusKind.StackUnavailable, CheatEngineFailureKind.LuaError,
+		CheatEngineHostEffect.NotStarted)]
+	[InlineData(LuaOperationStatusKind.InvalidResult, CheatEngineFailureKind.InvalidHostResult,
+		CheatEngineHostEffect.Started)]
+	[InlineData(LuaOperationStatusKind.Unknown, CheatEngineFailureKind.IndeterminateHostResult,
+		CheatEngineHostEffect.Unknown)]
+	[InlineData(LuaOperationStatusKind.Success, CheatEngineFailureKind.IndeterminateHostResult,
+		CheatEngineHostEffect.CleanupUnconfirmed)]
+	public void ARegistrationWithoutAnSdkLeaseOwnsNothingAndFreesTheReservation(LuaOperationStatusKind status,
+		CheatEngineFailureKind expectedKind, CheatEngineHostEffect expectedEffect)
+	{
+		// Success without a lease breaks the SDK acquisition contract: Cheat Engine accepted a registration that nothing
+		// owns.
+		using ControlledCoreLifetimeContext context = new();
+		using CoreLifetime lifetime = new(context);
+		FakeInspectionPort port = new()
+		{
+			RegistrationStatus = StatusOf(status),
+			OmitHandle = true
+		};
+		InspectionClient client = CreateClient(lifetime, port);
+		SymbolRegistration registration = new("fixture-symbol", new Address(0x401000));
+
+		bool succeeded = client.TryRegisterSymbol(registration, out ISymbolRegistrationLease? lease,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Null(lease);
+		Assert.Equal(expectedKind, failure.Kind);
+		Assert.Equal(expectedEffect, failure.HostEffect);
+		Assert.Equal("Inspection.RegisterSymbol", failure.Operation);
+		Assert.DoesNotContain("fixture-symbol", failure.Message, StringComparison.Ordinal);
+		Assert.Equal(1, port.RegisterCalls);
+
+		port.RegistrationStatus = LuaOperationStatus.Success;
+		port.OmitHandle = false;
+		port.Symbols.Remove("fixture-symbol");
+		Assert.True(client.TryRegisterSymbol(registration, out ISymbolRegistrationLease? retry, out _,
+			TestContext.Current.CancellationToken), "A registration without a lease releases the reservation.");
+		retry!.Dispose();
+	}
+
 	[Fact]
-	[Trait("Qualification", "Q16")]
+	[Trait("Qualification", "Q16.b")]
+	public void AHandoffFailureIsReportedAsAnUnconfirmedCleanupAndOwnsNothing()
+	{
+		// CheatEngine.SDK registered the name, could not publish its lease and compensated once: the Client never claims
+		// the registration and never retries an unregistration by name.
+		using ControlledCoreLifetimeContext context = new();
+		using CoreLifetime lifetime = new(context);
+		SymbolRegistrationHandoffException handoff = new(default, new InvalidOperationException("publication failed"));
+		FakeInspectionPort port = new()
+		{
+			RegistrationFault = handoff
+		};
+		InspectionClient client = CreateClient(lifetime, port);
+		SymbolRegistration registration = new("fixture-symbol", new Address(0x401000));
+
+		bool succeeded = client.TryRegisterSymbol(registration, out ISymbolRegistrationLease? lease,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Null(lease);
+		Assert.Equal(CheatEngineFailureKind.BindingError, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.CleanupUnconfirmed, failure.HostEffect);
+		Assert.Equal("Inspection.RegisterSymbol", failure.Operation);
+		Assert.Same(handoff, failure.Exception);
+		Assert.Empty(port.UnregisteredNames);
+		CheatEngineOperationException thrown = Assert.Throws<CheatEngineOperationException>(() =>
+			client.RegisterSymbol(registration, TestContext.Current.CancellationToken));
+		Assert.Same(handoff, thrown.Failure.Exception);
+
+		port.RegistrationFault = null;
+		Assert.True(client.TryRegisterSymbol(registration, out ISymbolRegistrationLease? retry, out _,
+			TestContext.Current.CancellationToken), "A handoff failure releases the activation-local reservation.");
+		retry!.Dispose();
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q16.b")]
 	public void LeaseUnregistersWhenTheNameStillMapsToTheLeasedAddress()
 	{
 		using ControlledCoreLifetimeContext context = new();
@@ -266,16 +360,18 @@ public sealed class InspectionClientBehaviorTests
 		Assert.True(client.TryRegisterSymbol(new SymbolRegistration("fixture-symbol", new Address(0x401000)),
 			out ISymbolRegistrationLease? lease, out _, TestContext.Current.CancellationToken));
 
-		SymbolLeaseReleaseKind outcome = Assert.IsAssignableFrom<IDetailedSymbolRegistrationLease>(lease)
-			.ReleaseDetailed();
+		LeaseReleaseOutcome outcome = lease.Release();
+		LeaseReleaseOutcome repeated = lease.Release();
 
-		Assert.Equal(SymbolLeaseReleaseKind.Released, outcome);
+		Assert.Equal(new LeaseReleaseOutcome(LeaseReleaseKind.Released, CheatEngineHostEffect.Completed), outcome);
+		Assert.Equal(LeaseReleaseKind.AlreadyReleased, repeated.Kind);
 		Assert.Equal(["fixture-symbol"], port.UnregisteredNames);
+		Assert.Equal(1, port.ReleaseCalls);
 		Assert.True(lease.IsReleased);
 	}
 
 	[Fact]
-	[Trait("Qualification", "Q16")]
+	[Trait("Qualification", "Q16.b")]
 	public void LeaseSkipsUnregisterWhenTheNameWasReplacedByAThirdParty()
 	{
 		// A14-25: a name that a third party re-registered at another address is never removed by the Client.
@@ -287,11 +383,10 @@ public sealed class InspectionClientBehaviorTests
 			out ISymbolRegistrationLease? lease, out _, TestContext.Current.CancellationToken));
 		port.Symbols["fixture-symbol"] = new Address(0x777000);
 
-		SymbolLeaseReleaseKind outcome = Assert.IsAssignableFrom<IDetailedSymbolRegistrationLease>(lease)
-			.ReleaseDetailed();
+		LeaseReleaseOutcome outcome = lease.Release();
 		lease.Dispose();
 
-		Assert.Equal(SymbolLeaseReleaseKind.Replaced, outcome);
+		Assert.Equal(new LeaseReleaseOutcome(LeaseReleaseKind.Replaced, CheatEngineHostEffect.NotStarted), outcome);
 		Assert.Empty(port.UnregisteredNames);
 		Assert.Equal(new Address(0x777000), port.Symbols["fixture-symbol"]);
 		Assert.True(lease.IsReleased);
@@ -308,15 +403,51 @@ public sealed class InspectionClientBehaviorTests
 			out ISymbolRegistrationLease? lease, out _, TestContext.Current.CancellationToken));
 		port.Symbols.Remove("fixture-symbol");
 
-		SymbolLeaseReleaseKind outcome = Assert.IsAssignableFrom<IDetailedSymbolRegistrationLease>(lease)
-			.ReleaseDetailed();
+		LeaseReleaseOutcome outcome = lease.Release();
 
-		Assert.Equal(SymbolLeaseReleaseKind.ExternallyRemoved, outcome);
+		Assert.Equal(new LeaseReleaseOutcome(LeaseReleaseKind.ExternallyRemoved, CheatEngineHostEffect.NotStarted),
+			outcome);
 		Assert.Empty(port.UnregisteredNames);
 		Assert.True(lease.IsReleased);
 		Assert.True(client.TryRegisterSymbol(new SymbolRegistration("fixture-symbol", new Address(0x401000)),
 			out ISymbolRegistrationLease? again, out _, TestContext.Current.CancellationToken));
 		again!.Dispose();
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q16.b")]
+	public void ACoordinatorSupersededLeaseLeavesTheNewerRegistrationAndFreesTheActivationReservation()
+	{
+		// The activation-local reservation refuses a second registration of the name before CheatEngine.SDK is reached,
+		// so only another owner that registers the name through the same SDK coordinator can supersede the lease. The
+		// superseded lease sends no unregistration, and once it ended the collision pre-check, not the reservation,
+		// protects the newer registration.
+		using ControlledCoreLifetimeContext context = new();
+		using CoreLifetime lifetime = new(context);
+		FakeInspectionPort port = new();
+		InspectionClient client = CreateClient(lifetime, port);
+		SymbolRegistration registration = new("fixture-symbol", new Address(0x401000));
+		Assert.True(client.TryRegisterSymbol(registration, out ISymbolRegistrationLease? lease, out _,
+			TestContext.Current.CancellationToken));
+		Assert.False(client.TryRegisterSymbol(registration, out _, out CheatEngineFailure reserved,
+			TestContext.Current.CancellationToken));
+		port.RegisterThroughCoordinator("fixture-symbol", new Address(0x777000));
+
+		LeaseReleaseOutcome outcome = lease.Release();
+		bool registeredAgain = client.TryRegisterSymbol(registration, out ISymbolRegistrationLease? again,
+			out CheatEngineFailure collision, TestContext.Current.CancellationToken);
+
+		Assert.Contains("already owns", reserved.Message, StringComparison.Ordinal);
+		Assert.Equal(new LeaseReleaseOutcome(LeaseReleaseKind.Superseded, CheatEngineHostEffect.NotStarted), outcome);
+		Assert.True(outcome.IsComplete);
+		Assert.True(lease.IsReleased);
+		Assert.Empty(port.UnregisteredNames);
+		Assert.Equal(new Address(0x777000), port.Symbols["fixture-symbol"]);
+		Assert.False(registeredAgain);
+		Assert.Null(again);
+		Assert.Equal(CheatEngineFailureKind.OperationRejected, collision.Kind);
+		Assert.Contains("already resolves", collision.Message, StringComparison.Ordinal);
+		Assert.Equal(1, port.RegisterCalls);
 	}
 
 	[Fact]
@@ -331,13 +462,69 @@ public sealed class InspectionClientBehaviorTests
 			out ISymbolRegistrationLease? lease, out _, TestContext.Current.CancellationToken));
 		port.ResolveStatusOverride = InspectionStatus.LuaFailure;
 
-		CheatEngineOperationException exception = Assert.Throws<CheatEngineOperationException>(lease!.Dispose);
-		port.ResolveStatusOverride = null;
 		lease.Dispose();
+		LeaseReleaseOutcome? unavailable = lease.LastReleaseOutcome;
+		bool releasedWhileUnavailable = lease.IsReleased;
+		port.ResolveStatusOverride = null;
+		LeaseReleaseOutcome retried = lease.Release();
 
-		Assert.Equal(CheatEngineHostEffect.CleanupUnconfirmed, exception.Failure.HostEffect);
+		Assert.Equal(new LeaseReleaseOutcome(LeaseReleaseKind.CleanupUnavailable, CheatEngineHostEffect.NotStarted),
+			unavailable);
+		Assert.False(releasedWhileUnavailable);
+		Assert.Equal(LeaseReleaseKind.Released, retried.Kind);
 		Assert.True(lease.IsReleased);
 		Assert.Equal(["fixture-symbol"], port.UnregisteredNames);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q43")]
+	public void TheDeactivationCleanupReleasesALeaseTheApplicationKept()
+	{
+		using ControlledCoreLifetimeContext context = new();
+		using CoreLifetime lifetime = new(context);
+		FakeInspectionPort port = new();
+		InspectionClient client = CreateClient(lifetime, port);
+		Assert.True(client.TryRegisterSymbol(new SymbolRegistration("fixture-symbol", new Address(0x401000)),
+			out ISymbolRegistrationLease? lease, out _, TestContext.Current.CancellationToken));
+
+		context.Stop();
+		using (lifetime.EnterCleanupScope())
+		{
+			lifetime.DrainOwnedResourcesForDisable();
+		}
+
+		Assert.True(lease.IsReleased);
+		Assert.Equal(new LeaseReleaseOutcome(LeaseReleaseKind.Released, CheatEngineHostEffect.Completed),
+			lease.LastReleaseOutcome);
+		Assert.Equal(["fixture-symbol"], port.UnregisteredNames);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q43")]
+	public void ARegistrationWhoseActivationStopsBeforeItIsOwnedIsReleasedOnceOnTheMainThread()
+	{
+		// The lease joins the activation inside the dispatched registration; when the activation began stopping in
+		// between, nothing would own the registration, so it is released once in the same main-thread call.
+		using ControlledCoreLifetimeContext context = new();
+		using CoreLifetime lifetime = new(context);
+		FakeInspectionPort port = new()
+		{
+			OnRegister = context.Stop
+		};
+		InspectionClient client = CreateClient(lifetime, port);
+
+		bool succeeded = client.TryRegisterSymbol(new SymbolRegistration("fixture-symbol", new Address(0x401000)),
+			out ISymbolRegistrationLease? lease, out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Null(lease);
+		Assert.Equal(CheatEngineFailureKind.InvalidState, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.Completed, failure.HostEffect);
+		Assert.Equal("Inspection.RegisterSymbol", failure.Operation);
+		Assert.IsType<CheatEngineClientLifecycleException>(failure.Exception);
+		Assert.Equal(["fixture-symbol"], port.UnregisteredNames);
+		Assert.Equal(1, port.ReleaseCalls);
+		Assert.False(port.Symbols.ContainsKey("fixture-symbol"));
 	}
 
 	[Fact]
@@ -367,8 +554,26 @@ public sealed class InspectionClientBehaviorTests
 			port);
 	}
 
+	private static LuaOperationStatus StatusOf(LuaOperationStatusKind kind)
+	{
+		return kind switch
+		{
+			LuaOperationStatusKind.Success => LuaOperationStatus.Success,
+			LuaOperationStatusKind.GlobalUnavailable => LuaOperationStatus.GlobalUnavailable,
+			LuaOperationStatusKind.LuaFailure => LuaOperationStatus.LuaFailure(LuaStatus.RuntimeError),
+			LuaOperationStatusKind.NilResult => LuaOperationStatus.NilResult,
+			LuaOperationStatusKind.InvalidResult => LuaOperationStatus.InvalidResult,
+			LuaOperationStatusKind.StackUnavailable => LuaOperationStatus.StackUnavailable,
+			LuaOperationStatusKind.MissingResult => LuaOperationStatus.MissingResult,
+			LuaOperationStatusKind.ResultCapacityExceeded => LuaOperationStatus.ResultCapacityExceeded,
+			_ => default
+		};
+	}
+
 	private sealed class FakeInspectionPort : IInspectionPort
 	{
+		private readonly Dictionary<string, Registration> _current = new(StringComparer.Ordinal);
+
 		internal int CurrentProcessModuleCalls
 		{
 			get;
@@ -458,7 +663,7 @@ public sealed class InspectionClientBehaviorTests
 			init;
 		}
 
-		internal bool ResolveNameResult
+		internal LuaOperationStatus NameStatus
 		{
 			get;
 			init;
@@ -470,7 +675,7 @@ public sealed class InspectionClientBehaviorTests
 			init;
 		}
 
-		internal nuint LastNameAddress
+		internal Address LastNameAddress
 		{
 			get;
 			private set;
@@ -488,7 +693,7 @@ public sealed class InspectionClientBehaviorTests
 			private set;
 		}
 
-		internal nuint LastRegisteredAddress
+		internal Address LastRegisteredAddress
 		{
 			get;
 			private set;
@@ -504,6 +709,41 @@ public sealed class InspectionClientBehaviorTests
 		{
 			get;
 		} = [];
+
+		/// <summary>Gets the number of SDK lease releases the Client requested.</summary>
+		internal int ReleaseCalls
+		{
+			get;
+			private set;
+		}
+
+		/// <summary>Gets or sets the registration status the fake SDK coordinator reports.</summary>
+		internal LuaOperationStatus RegistrationStatus
+		{
+			get;
+			set;
+		} = LuaOperationStatus.Success;
+
+		/// <summary>Gets or sets whether a registration returns no lease, whatever its status.</summary>
+		internal bool OmitHandle
+		{
+			get;
+			set;
+		}
+
+		/// <summary>Gets or sets the exception the fake SDK coordinator raises from the registration.</summary>
+		internal Exception? RegistrationFault
+		{
+			get;
+			set;
+		}
+
+		/// <summary>Gets the callback that runs inside the registration, on the main thread.</summary>
+		internal Action? OnRegister
+		{
+			get;
+			init;
+		}
 
 		public int ModulesWritten
 		{
@@ -591,26 +831,96 @@ public sealed class InspectionClientBehaviorTests
 			return ResolvedAddress == Address.Zero ? InspectionStatus.NotFound : InspectionStatus.Success;
 		}
 
-		public bool TryResolveName(nuint address, out string? name)
+		public LuaOperationStatus TryGetName(Address address, out string? name)
 		{
 			LastNameAddress = address;
 			name = ResolvedName;
-			return ResolveNameResult;
+			return NameStatus;
 		}
 
-		public void RegisterSymbol(string name, nuint address, bool doNotSave)
+		public SymbolRegistrationAttempt TryRegisterOwned(SymbolName name, Address address,
+			SymbolRegistrationOptions options)
 		{
 			RegisterCalls++;
-			LastRegisteredName = name;
+			LastRegisteredName = name.Value;
 			LastRegisteredAddress = address;
-			LastRegisteredDoNotSave = doNotSave;
-			Symbols[name] = Address.FromUInt64(address);
+			LastRegisteredDoNotSave = options.DoNotSave;
+			OnRegister?.Invoke();
+			if (RegistrationFault is { } fault)
+			{
+				throw fault;
+			}
+
+			if (!RegistrationStatus.IsSuccess || OmitHandle)
+			{
+				return new SymbolRegistrationAttempt(RegistrationStatus, null);
+			}
+
+			return new SymbolRegistrationAttempt(LuaOperationStatus.Success, Register(name.Value, address));
 		}
 
-		public void UnregisterSymbol(string name)
+		/// <summary>Registers a name through the same coordinator as another owner would, superseding the current lease.</summary>
+		internal void RegisterThroughCoordinator(string name, Address address)
 		{
-			UnregisteredNames.Add(name);
-			Symbols.Remove(name);
+			_ = Register(name, address);
+		}
+
+		private Registration Register(string name, Address address)
+		{
+			Symbols[name] = address;
+			if (_current.Remove(name, out Registration? existing))
+			{
+				existing.Supersede();
+			}
+
+			Registration registration = new(this, name, address);
+			_current[name] = registration;
+			return registration;
+		}
+
+		/// <summary>Models CheatEngine.SDK's <c>SymbolRegistrationLease.Release</c> over the fake symbol table.</summary>
+		private sealed class Registration(FakeInspectionPort owner, string name, Address address)
+			: ISymbolRegistrationHandle
+		{
+			private SymbolRegistrationReleaseKind? _terminal;
+
+			internal void Supersede()
+			{
+				_terminal = SymbolRegistrationReleaseKind.Superseded;
+			}
+
+			public SymbolRegistrationReleaseKind Release()
+			{
+				owner.ReleaseCalls++;
+				if (_terminal is { } terminal)
+				{
+					_terminal = SymbolRegistrationReleaseKind.AlreadyReleased;
+					return terminal;
+				}
+
+				InspectionStatus lookup = owner.ResolveAddress(new SymbolExpression(name), default, out Address current);
+				SymbolRegistrationReleaseKind kind = lookup switch
+				{
+					InspectionStatus.Success when current == address => SymbolRegistrationReleaseKind.Released,
+					InspectionStatus.Success => SymbolRegistrationReleaseKind.Replaced,
+					InspectionStatus.NotFound => SymbolRegistrationReleaseKind.ExternallyRemoved,
+					_ => SymbolRegistrationReleaseKind.CleanupUnavailable
+				};
+				if (kind == SymbolRegistrationReleaseKind.CleanupUnavailable)
+				{
+					return kind;
+				}
+
+				if (kind == SymbolRegistrationReleaseKind.Released)
+				{
+					owner.UnregisteredNames.Add(name);
+					owner.Symbols.Remove(name);
+				}
+
+				owner._current.Remove(name);
+				_terminal = SymbolRegistrationReleaseKind.AlreadyReleased;
+				return kind;
+			}
 		}
 	}
 }

@@ -52,10 +52,6 @@ public sealed partial class ArchitectureRatchetTests
 
 	private const string CheatTableFiles = "CheatEngine.SDK.Engine.Tables.CheatTableFiles";
 
-	private const string SymbolRegistrationLease = "CheatEngine.SDK.Engine.Inspection.SymbolRegistrationLease";
-
-	private const string SymbolRegistry = "CheatEngine.SDK.Engine.Inspection.SymbolRegistry";
-
 	private const string UnsafeLuaReason =
 		"CheatEngine.SDK 2.0.0 exposes no protected chunk-execution service; caller-supplied Lua runs only behind " +
 		"EnableUnsafeLuaExecution";
@@ -73,13 +69,7 @@ public sealed partial class ArchitectureRatchetTests
 		new("loadTable", "Trusted table import behind the Client path policy.",
 			new SdkReplacement(CheatTableFiles, "L13", ["TryLoad"])),
 		new("saveTable", "Trusted table export behind the Client path policy.",
-			new SdkReplacement(CheatTableFiles, "L13", ["TrySave"])),
-		new("getNameFromAddress", "Symbol name lookup of the inspection client and of the registration collision check.",
-			new SdkReplacement(SymbolRegistry, "L12", ["TryGetName"])),
-		new("registerSymbol", "Activation-owned symbol registration lease.",
-			new SdkReplacement(SymbolRegistry, "L12", ["TryRegisterOwned"])),
-		new("unregisterSymbol", "Release of an activation-owned symbol registration.",
-			new SdkReplacement(SymbolRegistrationLease, "L12", ["Release"]))
+			new SdkReplacement(CheatTableFiles, "L13", ["TrySave"]))
 	];
 
 	/// <summary>
@@ -131,14 +121,11 @@ public sealed partial class ArchitectureRatchetTests
 			"CheatEngine.SDK.Lua.State.LuaState::TryExecute(System.ReadOnlySpan`1<byte>,int32,System.ReadOnlySpan`1<byte>)->CheatEngine.SDK.Lua.Calls.LuaStatus",
 			UnsafeLuaReason, new LuaDebtKind.Permanent()),
 		.. ClientLuaGlobalsDebt(
-			"CheatEngine.SDK.Lua.CompilerServices.LuaCallSupport::Fail``1(CheatEngine.SDK.Lua.State.LuaState,int32,!!0&)->boolean",
 			"CheatEngine.SDK.Lua.CompilerServices.LuaCallSupport::Throw(CheatEngine.SDK.Lua.State.LuaState,int32,CheatEngine.SDK.Lua.Calls.LuaStatus)->void",
 			"CheatEngine.SDK.Lua.CompilerServices.LuaCallSupport::ThrowUnresolvedGlobal(CheatEngine.SDK.Lua.State.LuaState,int32,string)->void",
 			"CheatEngine.SDK.Lua.CompilerServices.LuaGlobalFunctions::TryPush(CheatEngine.SDK.Lua.State.LuaState,CheatEngine.SDK.Lua.References.LuaRef,System.ReadOnlySpan`1<byte>)->boolean",
-			"CheatEngine.SDK.Lua.Marshalling.AddressMarshaller::Push(CheatEngine.SDK.Lua.State.LuaState,uintptr)->void",
 			"CheatEngine.SDK.Lua.Marshalling.BooleanMarshaller::Push(CheatEngine.SDK.Lua.State.LuaState,boolean)->void",
 			"CheatEngine.SDK.Lua.Marshalling.StringMarshaller::Push(CheatEngine.SDK.Lua.State.LuaState,string)->void",
-			"CheatEngine.SDK.Lua.Marshalling.StringMarshaller::TryRead(CheatEngine.SDK.Lua.State.LuaState,int32,string&)->boolean",
 			"CheatEngine.SDK.Lua.References.LuaRef::.ctor()->void",
 			"CheatEngine.SDK.Lua.Runtime.LuaRuntime::AcquireOperation()->CheatEngine.SDK.Lua.Runtime.LuaRuntimeOperation",
 			"CheatEngine.SDK.Lua.State.LuaState::SetTop(int32)->void",

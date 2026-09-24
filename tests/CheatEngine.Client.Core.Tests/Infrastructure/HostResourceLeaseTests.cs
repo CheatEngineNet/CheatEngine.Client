@@ -2,7 +2,6 @@ using CheatEngine.Client.Core.Dispatching;
 using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Core.Tests.TestSupport;
 using CheatEngine.Client.Dispatching;
-using CheatEngine.Client.Inspection;
 using CheatEngine.Client.Results;
 using CheatEngine.Client.Runtime;
 using CheatEngine.Client.Scanning;
@@ -436,10 +435,6 @@ public sealed class HostResourceLeaseTests : IDisposable
 		}
 
 		public void SymbolRegistrationRejected(string operation, string reason)
-		{
-		}
-
-		public void SymbolLeaseReleased(SymbolLeaseReleaseKind kind)
 		{
 		}
 

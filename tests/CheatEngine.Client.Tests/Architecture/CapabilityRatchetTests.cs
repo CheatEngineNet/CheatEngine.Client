@@ -59,8 +59,15 @@ public sealed class CapabilityRatchetTests
 		"TargetSelection::ValidateCurrent"
 	];
 
-	/// <summary>Bindings with a host effect: table import/export and symbol registration.</summary>
-	private static readonly string[] MutatingGlobals = ["LoadTable", "RegisterSymbol", "SaveTable", "UnregisterSymbol"];
+	/// <summary>Bindings with a host effect: table import and export.</summary>
+	private static readonly string[] MutatingGlobals = ["LoadTable", "SaveTable"];
+
+	/// <summary>The CheatEngine.SDK types that register and unregister symbols, a host effect.</summary>
+	private static readonly string[] SymbolRegistrationTypes =
+	[
+		"CheatEngine.SDK.Engine.Inspection.SymbolRegistrationLease",
+		"CheatEngine.SDK.Engine.Inspection.SymbolRegistry"
+	];
 
 	/// <summary>Types that observe the runtime and must never reach a binding or an SDK operation with a host effect.</summary>
 	private static readonly string[] ObservationOnlyTypes =
@@ -110,6 +117,12 @@ public sealed class CapabilityRatchetTests
 											 call.DeclaringType == CheatTableFilesType)
 				.Select(static call => call.ToString())
 		];
+		string[] symbolCalls =
+		[
+			.. sdkCalls.Where(static call => ObservationOnlyTypes.Contains(call.OuterType, StringComparer.Ordinal) &&
+											 SymbolRegistrationTypes.Contains(call.DeclaringType, StringComparer.Ordinal))
+				.Select(static call => call.ToString())
+		];
 		List<(string Type, string Method, string Global)> bindingCalls = ReadClientLuaGlobalsCalls();
 		string[] effectsFromObservers =
 		[
@@ -132,6 +145,9 @@ public sealed class CapabilityRatchetTests
 		Assert.True(tableCalls.Length == 0,
 			"An observation-only type references CheatTableFiles (Q45):" + Environment.NewLine +
 			string.Join(Environment.NewLine, tableCalls));
+		Assert.True(symbolCalls.Length == 0,
+			"An observation-only type references the CheatEngine.SDK symbol registry (Q45):" + Environment.NewLine +
+			string.Join(Environment.NewLine, symbolCalls));
 		Assert.True(effectsFromObservers.Length == 0,
 			"An observation-only type references a binding with a host effect (Q45):" + Environment.NewLine +
 			string.Join(Environment.NewLine, effectsFromObservers));

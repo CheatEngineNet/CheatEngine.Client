@@ -1,7 +1,6 @@
 using System.Reflection;
 using System.Text.RegularExpressions;
 
-using CheatEngine.Client.Inspection;
 using CheatEngine.Client.Results;
 using CheatEngine.Client.Runtime;
 using CheatEngine.Client.Scanning;
@@ -58,7 +57,6 @@ public sealed partial class LoggerCoreDiagnosticsTests
 				new EventShape(1301, "StaleRecordIdentifierRefused", "CheatEngine.Client.Tables", LogLevel.Debug),
 				new EventShape(1302, "RecordActivationNotApplied", "CheatEngine.Client.Tables", LogLevel.Debug),
 				new EventShape(1400, "SymbolRegistrationRejected", "CheatEngine.Client.Inspection", LogLevel.Debug),
-				new EventShape(1401, "SymbolLeaseReleased", "CheatEngine.Client.Inspection", LogLevel.Debug),
 				new EventShape(1500, "PatternScanCompleted", "CheatEngine.Client.Scanning", LogLevel.Debug),
 				new EventShape(1600, "LuaOperationCompleted", "CheatEngine.Client.Lua", LogLevel.Debug),
 				new EventShape(1700, "CoreResourceCleanupFailed", "CheatEngine.Client.Lifetime", LogLevel.Warning),
@@ -175,7 +173,7 @@ public sealed partial class LoggerCoreDiagnosticsTests
 		}
 	}
 
-	private const int ScriptedEventCount = 14;
+	private const int ScriptedEventCount = 13;
 
 	/// <summary>
 	///     Emits one event of each kind with the closed values Core passes (see Core's CoreDiagnosticsTests scripted run).
@@ -192,7 +190,6 @@ public sealed partial class LoggerCoreDiagnosticsTests
 		diagnostics.StaleRecordIdentifierRefused("Tables.SetActive", 1);
 		diagnostics.RecordActivationNotApplied("Tables.SetActive", true, "RefusedByHost");
 		diagnostics.SymbolRegistrationRejected("Inspection.RegisterSymbol", "AlreadyResolves");
-		diagnostics.SymbolLeaseReleased(SymbolLeaseReleaseKind.Replaced);
 		diagnostics.PatternScanCompleted(PatternScanScope.GlobalHostScanWithManagedFilter, 40L, 10, true, 250, 3);
 		diagnostics.LuaOperationCompleted("Lua.ExecuteUnsafe", "LuaError", 4, 36);
 		diagnostics.CoreResourceCleanupFailed("SymbolRegistrationLease",

@@ -7,6 +7,7 @@ using CheatEngine.Client.Inspection;
 using CheatEngine.Client.Results;
 using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Engine.Values;
+using CheatEngine.SDK.Lua.Calls;
 
 namespace CheatEngine.Client.Core.Domains;
 
@@ -15,6 +16,10 @@ internal sealed class InspectionClient(
 	CoreLifetime lifetime,
 	IInspectionPort? inspection = null) : IInspectionClient
 {
+	private const string RegisterOperation = "Inspection.RegisterSymbol";
+
+	private const string ResolveNameOperation = "Inspection.ResolveName";
+
 	private readonly SdkMainThreadDispatcher _dispatcher =
 		dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
 
@@ -200,27 +205,23 @@ internal sealed class InspectionClient(
 		CancellationToken cancellationToken = default)
 	{
 		string? captured = null;
-		bool succeeded = false;
-		if (!SdkBoundary.TryInvoke(_dispatcher, "Inspection.ResolveName",
-				() => succeeded = _inspection.TryResolveName(ToNativeAddress(address), out captured),
+		LuaOperationStatus status = default;
+		if (!SdkBoundary.TryInvoke(_dispatcher, ResolveNameOperation,
+				() => status = _inspection.TryGetName(address, out captured),
 				CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
 		{
 			name = null;
 			return false;
 		}
 
-		if (succeeded && captured is not null)
+		if (status.IsSuccess && captured is not null)
 		{
 			name = captured;
 			return true;
 		}
 
 		name = null;
-		failure = succeeded
-			? new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult, "Inspection.ResolveName",
-				"Cheat Engine returned an invalid symbol-name result.")
-			: new CheatEngineFailure(CheatEngineFailureKind.NotFound, "Inspection.ResolveName",
-				"Cheat Engine did not return a symbol name for the requested address.");
+		failure = InspectionMapping.NameLookupFailure(ResolveNameOperation, status.Kind);
 		return false;
 	}
 
@@ -240,78 +241,36 @@ internal sealed class InspectionClient(
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
 		lease = null;
-		_lifetime.ThrowIfInactive("Inspection.RegisterSymbol");
+		_lifetime.ThrowIfInactive(RegisterOperation);
 		if (!TryReserveSymbolName(registration.Name, out failure))
 		{
 			return false;
 		}
 
-		// Collision preflight inside the same dispatched callback (audit A14-25, A14-39): registerSymbol would shadow or
-		// replace a definition that already resolves, so only a name that resolves to nothing is registered. A fault
-		// inside registerSymbol leaves the registration unknown: the Client neither claims it nor retries an
-		// unregistration that could remove a symbol it does not own.
-		InspectionStatus preflight = InspectionStatus.InvalidResult;
-		bool registered = false;
-		if (!SdkBoundary.TryInvoke(_dispatcher, "Inspection.RegisterSymbol", () =>
-				{
-					preflight = _inspection.ResolveAddress(new SymbolExpression(registration.Name), default, out _);
-					if (preflight != InspectionStatus.NotFound)
-					{
-						return;
-					}
-
-					_inspection.RegisterSymbol(registration.Name, ToNativeAddress(registration.Address),
-						registration.DoNotSave);
-					registered = true;
-				}, CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
+		// The collision pre-check, the registration and the activation ownership run in one dispatched callback (audit
+		// A14-25, A14-39): CheatEngine.SDK keeps Cheat Engine's behavior for an existing name, so registerSymbol would
+		// shadow or replace a definition that already resolves, and only a name that resolves to nothing is registered.
+		// An SDK fault inside the registration leaves it unknown: the Client neither claims it nor retries an
+		// unregistration by name. A registration CheatEngine.SDK could not hand over (SymbolRegistrationHandoffException)
+		// was compensated once by the SDK, and SdkBoundary reports it CleanupUnconfirmed.
+		RegistrationStep step = default;
+		if (!SdkBoundary.TryInvoke(_dispatcher, RegisterOperation, () => step = RegisterOnMainThread(registration),
+				CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
 		{
 			ReleaseSymbolName(registration.Name);
 			return false;
 		}
 
-		if (!registered)
+		if (step.Lease is { } created)
 		{
-			ReleaseSymbolName(registration.Name);
-			// The reason only: the symbol name is never logged (A24-13).
-			_lifetime.Diagnostics.SymbolRegistrationRejected("Inspection.RegisterSymbol",
-				preflight == InspectionStatus.Success ? "AlreadyResolves" : "LookupFailed");
-			failure = CreateCollisionFailure(preflight);
-			return false;
-		}
-
-		SymbolRegistrationLease created = new(
-			registration,
-			_dispatcher,
-			lease => _lifetime.Untrack(lease),
-			ReleaseOwnedSymbol,
-			ReleaseSymbolName,
-			_lifetime.Diagnostics);
-		try
-		{
-			_lifetime.Track(created);
 			lease = created;
 			failure = default;
 			return true;
 		}
-		catch (Exception exception)
-		{
-			try
-			{
-				created.Dispose();
-			}
-			catch
-			{
-				// The original lifecycle failure is the meaningful result. Release the name below only if disposal did not.
-			}
 
-			if (!created.IsReleased)
-			{
-				ReleaseSymbolName(registration.Name);
-			}
-
-			failure = CoreFailureFactory.FromException("Inspection.RegisterSymbol", exception);
-			return false;
-		}
+		ReleaseSymbolName(registration.Name);
+		failure = CreateRegistrationFailure(step);
+		return false;
 	}
 
 	public ISymbolRegistrationLease RegisterSymbol(SymbolRegistration registration,
@@ -384,49 +343,78 @@ internal sealed class InspectionClient(
 	{
 		if (preflight == InspectionStatus.Success)
 		{
-			return new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, "Inspection.RegisterSymbol",
+			return new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, RegisterOperation,
 				"The symbol name already resolves in Cheat Engine (a registered symbol, a module or an expression that " +
 				"parses as an address); registering it would shadow or replace that definition.", null,
 				CheatEngineHostEffect.NotStarted);
 		}
 
-		TryMap(preflight, "Inspection.RegisterSymbol", out CheatEngineFailure mapped);
+		TryMap(preflight, RegisterOperation, out CheatEngineFailure mapped);
 		return new CheatEngineFailure(mapped.Kind, mapped.Operation,
 			$"The symbol collision check returned '{preflight}', so the ownership of the name cannot be established; " +
 			"nothing was registered.", null, CheatEngineHostEffect.NotStarted);
 	}
 
 	/// <summary>
-	///     Runs on Cheat Engine's main thread for a lease: unregisters the name only when it still resolves to the leased
-	///     address (audit A14-25; the CheatEngine.SDK 2.0.0 symbol registration leases apply the same rule).
+	///     Runs on Cheat Engine's main thread: the collision pre-check, the registration through the CheatEngine.SDK
+	///     ownership coordinator, and the registration of the lease with the activation.
 	/// </summary>
 	/// <remarks>
-	///     Best effort, not atomic: a third party can replace the name between the lookup and the unregistration, and a
-	///     re-registration by a third party at the same address is indistinguishable from the lease's own registration.
+	///     The lease joins the activation before the callback returns, so a registration never outlives an activation
+	///     that starts stopping afterwards. When the activation stopped between the dispatch admission and that step, the
+	///     registration has no owner: it is released once, here, and the failure reports what the release established.
 	/// </remarks>
-	private SymbolLeaseRelease ReleaseOwnedSymbol(string name, Address leasedAddress)
+	private RegistrationStep RegisterOnMainThread(SymbolRegistration registration)
 	{
+		InspectionStatus preflight = _inspection.ResolveAddress(new SymbolExpression(registration.Name), default,
+			out _);
+		if (preflight != InspectionStatus.NotFound)
+		{
+			return new RegistrationStep(preflight, default, null, null, default);
+		}
+
+		SymbolRegistrationAttempt attempt = _inspection.TryRegisterOwned(new SymbolName(registration.Name),
+			registration.Address, new SymbolRegistrationOptions(registration.DoNotSave));
+		if (attempt.Handle is not { } handle)
+		{
+			return new RegistrationStep(preflight, attempt.Status, null, null, default);
+		}
+
+		SymbolRegistrationLease lease = new(registration, handle, _dispatcher, ReleaseSymbolName,
+			_lifetime.Diagnostics);
 		try
 		{
-			InspectionStatus status = _inspection.ResolveAddress(new SymbolExpression(name), default,
-				out Address current);
-			switch (status)
-			{
-				case InspectionStatus.Success when current.Value == leasedAddress.Value:
-					_inspection.UnregisterSymbol(name);
-					return new SymbolLeaseRelease(SymbolLeaseReleaseKind.Released, null);
-				case InspectionStatus.Success:
-					return new SymbolLeaseRelease(SymbolLeaseReleaseKind.Replaced, null);
-				case InspectionStatus.NotFound:
-					return new SymbolLeaseRelease(SymbolLeaseReleaseKind.ExternallyRemoved, null);
-				default:
-					return new SymbolLeaseRelease(SymbolLeaseReleaseKind.CleanupUnavailable, null);
-			}
+			lease.Register(_lifetime);
+			return new RegistrationStep(preflight, attempt.Status, lease, null, default);
 		}
-		catch (Exception exception) when (SdkBoundary.IsSdkFault(exception))
+		catch (CheatEngineClientException exception)
 		{
-			return new SymbolLeaseRelease(SymbolLeaseReleaseKind.CleanupUnavailable, exception);
+			return new RegistrationStep(preflight, attempt.Status, null, exception,
+				SdkReleaseOutcomes.FromSymbolRegistration(handle.Release()));
 		}
+	}
+
+	/// <summary>Creates the failure of a registration that produced no lease; emitted after the dispatched work.</summary>
+	private CheatEngineFailure CreateRegistrationFailure(RegistrationStep step)
+	{
+		if (step.TrackingFault is { } fault)
+		{
+			// The one release made on the main thread removed the registration, or could not confirm it.
+			CheatEngineHostEffect effect = step.Compensation.IsComplete
+				? CheatEngineHostEffect.Completed
+				: CheatEngineHostEffect.CleanupUnconfirmed;
+			return SdkBoundary.Translate(RegisterOperation, fault, effect, _lifetime);
+		}
+
+		if (step.Preflight != InspectionStatus.NotFound)
+		{
+			// The reason only: the symbol name is never logged (A24-13).
+			_lifetime.Diagnostics.SymbolRegistrationRejected(RegisterOperation,
+				step.Preflight == InspectionStatus.Success ? "AlreadyResolves" : "LookupFailed");
+			return CreateCollisionFailure(step.Preflight);
+		}
+
+		return InspectionMapping.RegistrationFailure(RegisterOperation, step.Status.Kind);
 	}
 
 	private bool TryReserveSymbolName(string name, out CheatEngineFailure failure)
@@ -440,7 +428,7 @@ internal sealed class InspectionClient(
 			}
 		}
 
-		failure = new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, "Inspection.RegisterSymbol",
+		failure = new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, RegisterOperation,
 			"This client activation already owns a symbol registration with the requested name.", null,
 			CheatEngineHostEffect.NotStarted);
 		return false;
@@ -454,8 +442,16 @@ internal sealed class InspectionClient(
 		}
 	}
 
-	private static nuint ToNativeAddress(Address address)
-	{
-		return checked((nuint) address.Value);
-	}
+	/// <summary>What the dispatched registration established.</summary>
+	/// <param name="Preflight">The collision pre-check status; only <see cref="InspectionStatus.NotFound" /> registers.</param>
+	/// <param name="Status">The registration status CheatEngine.SDK reported, when the registration was attempted.</param>
+	/// <param name="Lease">The lease, registered with the activation, when the registration succeeded.</param>
+	/// <param name="TrackingFault">The lifecycle fault that prevented the activation from owning the lease.</param>
+	/// <param name="Compensation">The outcome of the one release made after <paramref name="TrackingFault" />.</param>
+	private readonly record struct RegistrationStep(
+		InspectionStatus Preflight,
+		LuaOperationStatus Status,
+		SymbolRegistrationLease? Lease,
+		CheatEngineClientException? TrackingFault,
+		LeaseReleaseOutcome Compensation);
 }

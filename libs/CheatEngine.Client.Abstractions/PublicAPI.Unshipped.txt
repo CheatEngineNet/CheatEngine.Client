@@ -79,8 +79,6 @@ CheatEngine.Client.ICheatEngineLease
 CheatEngine.Client.ICheatEngineLease.IsReleased.get -> bool
 CheatEngine.Client.ICheatEngineLease.LastReleaseOutcome.get -> CheatEngine.Client.Results.LeaseReleaseOutcome?
 CheatEngine.Client.ICheatEngineLease.Release() -> CheatEngine.Client.Results.LeaseReleaseOutcome
-CheatEngine.Client.Inspection.IDetailedSymbolRegistrationLease
-CheatEngine.Client.Inspection.IDetailedSymbolRegistrationLease.ReleaseDetailed() -> CheatEngine.Client.Inspection.SymbolLeaseReleaseKind
 CheatEngine.Client.Inspection.IInspectionClient
 CheatEngine.Client.Inspection.IInspectionClient.GetMemoryRegion(CheatEngine.SDK.Engine.Values.Address address, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.SDK.Engine.Inspection.MemoryRegionInfo
 CheatEngine.Client.Inspection.IInspectionClient.GetMemoryRegions(CheatEngine.Client.Inspection.InspectionCollectionRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Immutable.ImmutableArray<CheatEngine.SDK.Engine.Inspection.MemoryRegionInfo>
@@ -100,20 +98,12 @@ CheatEngine.Client.Inspection.IInspectionClient.TryResolveAddress(CheatEngine.SD
 CheatEngine.Client.Inspection.IInspectionClient.TryResolveName(CheatEngine.SDK.Engine.Values.Address address, out string? name, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
 CheatEngine.Client.Inspection.ISymbolRegistrationLease
 CheatEngine.Client.Inspection.ISymbolRegistrationLease.Address.get -> CheatEngine.SDK.Engine.Values.Address
-CheatEngine.Client.Inspection.ISymbolRegistrationLease.IsReleased.get -> bool
 CheatEngine.Client.Inspection.ISymbolRegistrationLease.Name.get -> string!
 CheatEngine.Client.Inspection.InspectionCollectionRequest
 CheatEngine.Client.Inspection.InspectionCollectionRequest.Equals(CheatEngine.Client.Inspection.InspectionCollectionRequest other) -> bool
 CheatEngine.Client.Inspection.InspectionCollectionRequest.InspectionCollectionRequest() -> void
 CheatEngine.Client.Inspection.InspectionCollectionRequest.InspectionCollectionRequest(int maximumItems) -> void
 CheatEngine.Client.Inspection.InspectionCollectionRequest.MaximumItems.get -> int
-CheatEngine.Client.Inspection.SymbolLeaseReleaseKind
-CheatEngine.Client.Inspection.SymbolLeaseReleaseKind.AlreadyReleased = 2 -> CheatEngine.Client.Inspection.SymbolLeaseReleaseKind
-CheatEngine.Client.Inspection.SymbolLeaseReleaseKind.CleanupUnavailable = 5 -> CheatEngine.Client.Inspection.SymbolLeaseReleaseKind
-CheatEngine.Client.Inspection.SymbolLeaseReleaseKind.ExternallyRemoved = 4 -> CheatEngine.Client.Inspection.SymbolLeaseReleaseKind
-CheatEngine.Client.Inspection.SymbolLeaseReleaseKind.Released = 1 -> CheatEngine.Client.Inspection.SymbolLeaseReleaseKind
-CheatEngine.Client.Inspection.SymbolLeaseReleaseKind.Replaced = 3 -> CheatEngine.Client.Inspection.SymbolLeaseReleaseKind
-CheatEngine.Client.Inspection.SymbolLeaseReleaseKind.Unknown = 0 -> CheatEngine.Client.Inspection.SymbolLeaseReleaseKind
 CheatEngine.Client.Inspection.SymbolRegistration
 CheatEngine.Client.Inspection.SymbolRegistration.Address.get -> CheatEngine.SDK.Engine.Values.Address
 CheatEngine.Client.Inspection.SymbolRegistration.DoNotSave.get -> bool

@@ -23,6 +23,9 @@ using CheatEngine.SDK.Engine.Runtime;
 using CheatEngine.SDK.Engine.Scanning.Aob;
 using CheatEngine.SDK.Engine.Targets;
 using CheatEngine.SDK.Engine.Values;
+using CheatEngine.SDK.Lua.Calls;
+
+using SymbolRegistrationLease = CheatEngine.Client.Core.Domains.SymbolRegistrationLease;
 
 namespace CheatEngine.Client.Core.Tests.Infrastructure;
 
@@ -62,7 +65,7 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 				nameof(ICoreDiagnostics.MemoryBatchCompleted), nameof(ICoreDiagnostics.TableGenerationAdvanced),
 				nameof(ICoreDiagnostics.StaleRecordIdentifierRefused),
 				nameof(ICoreDiagnostics.RecordActivationNotApplied),
-				nameof(ICoreDiagnostics.SymbolRegistrationRejected), nameof(ICoreDiagnostics.SymbolLeaseReleased),
+				nameof(ICoreDiagnostics.SymbolRegistrationRejected), nameof(ICoreDiagnostics.LeaseReleased),
 				nameof(ICoreDiagnostics.PatternScanCompleted), nameof(ICoreDiagnostics.LuaOperationCompleted),
 				nameof(ICoreDiagnostics.CapabilityRefused), nameof(ICoreDiagnostics.CapabilityRefused),
 				nameof(ICoreDiagnostics.CapabilityRefused),
@@ -100,8 +103,9 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 			diagnostics.Single(nameof(ICoreDiagnostics.RecordActivationNotApplied)));
 		Assert.Equal(Fields("Inspection.RegisterSymbol", "AlreadyResolves"),
 			diagnostics.Single(nameof(ICoreDiagnostics.SymbolRegistrationRejected)));
-		Assert.Equal(Fields(SymbolLeaseReleaseKind.Released),
-			diagnostics.Single(nameof(ICoreDiagnostics.SymbolLeaseReleased)));
+		Assert.Equal(Fields(SymbolRegistrationLease.ReleaseOperation, LeaseReleaseKind.Released,
+				CheatEngineHostEffect.Completed),
+			diagnostics.Single(nameof(ICoreDiagnostics.LeaseReleased)));
 		object?[] scan = diagnostics.Single(nameof(ICoreDiagnostics.PatternScanCompleted));
 		Assert.Equal(Fields(PatternScanScope.GlobalHostScan, 1L, 1, false), scan[..4]);
 		object?[] lua = diagnostics.Single(nameof(ICoreDiagnostics.LuaOperationCompleted));
@@ -183,7 +187,8 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 		Assert.Same(NullCoreDiagnostics.Instance, GuardedCoreDiagnostics.Wrap(null));
 		Assert.IsType<GuardedCoreDiagnostics>(guarded);
 		Assert.Same(guarded, GuardedCoreDiagnostics.Wrap(guarded));
-		guarded.SymbolLeaseReleased(SymbolLeaseReleaseKind.Replaced);
+		guarded.LeaseReleased(SymbolRegistrationLease.ReleaseOperation, LeaseReleaseKind.Replaced,
+			CheatEngineHostEffect.NotStarted);
 		Assert.Single(inner.Emissions);
 	}
 
@@ -455,11 +460,6 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 			Record(nameof(SymbolRegistrationRejected), operation, reason);
 		}
 
-		public void SymbolLeaseReleased(SymbolLeaseReleaseKind kind)
-		{
-			Record(nameof(SymbolLeaseReleased), kind);
-		}
-
 		public void PatternScanCompleted(PatternScanScope scope, long hostResultCount, int materializedCount,
 			bool truncated, long hostScanMilliseconds, long copyMilliseconds)
 		{
@@ -723,20 +723,28 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 				: InspectionStatus.NotFound;
 		}
 
-		public bool TryResolveName(nuint address, out string? name)
+		public LuaOperationStatus TryGetName(Address address, out string? name)
 		{
 			name = null;
-			return false;
+			return LuaOperationStatus.NilResult;
 		}
 
-		public void RegisterSymbol(string name, nuint address, bool doNotSave)
+		public SymbolRegistrationAttempt TryRegisterOwned(SymbolName name, Address address,
+			SymbolRegistrationOptions options)
 		{
-			_symbols[name] = new Address(address);
+			_symbols[name.Value] = address;
+			return new SymbolRegistrationAttempt(LuaOperationStatus.Success, new Registration(_symbols, name.Value));
 		}
 
-		public void UnregisterSymbol(string name)
+		/// <summary>Unregisters the name once, as the SDK lease does when the name still maps to the address.</summary>
+		private sealed class Registration(Dictionary<string, Address> symbols, string name) : ISymbolRegistrationHandle
 		{
-			_symbols.Remove(name);
+			public SymbolRegistrationReleaseKind Release()
+			{
+				return symbols.Remove(name)
+					? SymbolRegistrationReleaseKind.Released
+					: SymbolRegistrationReleaseKind.AlreadyReleased;
+			}
 		}
 	}
 

@@ -107,6 +107,16 @@ internal static class SdkApiUsage
 		_ = processId != otherProcessId;
 	}
 
+	internal static void SymbolRegistrySurface(Address address, SymbolRegistrationLease lease)
+	{
+		SymbolRegistrationAcquireOutcome outcome = SymbolRegistry.TryRegisterOwned(new SymbolName("symbol"), address,
+			new SymbolRegistrationOptions(true));
+		_ = outcome.Lease;
+		_ = outcome.Status;
+		_ = lease.Release().Kind;
+		_ = SymbolRegistry.TryGetName(address, out _);
+	}
+
 	internal static void MemorySurface(Address address)
 	{
 		Span<byte> bytes = stackalloc byte[1];

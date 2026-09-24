@@ -1,4 +1,3 @@
-using CheatEngine.Client.Inspection;
 using CheatEngine.Client.Results;
 using CheatEngine.Client.Runtime;
 using CheatEngine.Client.Scanning;
@@ -70,9 +69,6 @@ internal static partial class ClientCoreDiagnosticsLog
 
 	[LoggerMessage(1400, LogLevel.Debug, "{Operation} rejected the symbol registration: {Reason}.")]
 	internal static partial void SymbolRegistrationRejected(ILogger logger, string operation, string reason);
-
-	[LoggerMessage(1401, LogLevel.Debug, "A symbol lease release attempt ended with {ReleaseKind}.")]
-	internal static partial void SymbolLeaseReleased(ILogger logger, SymbolLeaseReleaseKind releaseKind);
 
 	[LoggerMessage(1500, LogLevel.Debug,
 		"Pattern scan ({Scope}): {HostResultCount} host result(s), {MaterializedCount} materialized, truncated " +

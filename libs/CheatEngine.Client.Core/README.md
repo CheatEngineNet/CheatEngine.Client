@@ -189,9 +189,13 @@ is refused with `InvalidState` (checked before dispatch and again inside the dis
 a new snapshot observes it. Each snapshot is judged by the generation read when it was copied, so a
 snapshot copied before a concurrent load never hands out current identifiers. `TrySetActive` reads the record's state before and after one setter call and
 reports applied, unchanged, refused by the host, pending or indeterminate; it never retries.
-Symbol registration refuses a name that already resolves, and a lease unregisters its name only
-when the name still resolves to the leased address (a replaced name is left in place). Both checks
-use the same `EngineInspection.ResolveAddress` call and are best effort, not atomic.
+Symbol registration refuses a name that already resolves (`EngineInspection.ResolveAddress`), then
+registers through CheatEngine.SDK's ownership coordinator (`SymbolRegistry.TryRegisterOwned`) and
+registers the lease with the activation in the same main-thread callback. The lease release
+delegates to the SDK lease, which unregisters the name only when it still resolves to the leased
+address and no newer coordinator registration superseded it (a replaced name is left in place);
+both checks are best effort, not atomic. Each release attempt is event 1701 with the operation
+`Inspection.ReleaseSymbol`.
 
 ## Diagnostics events
 
@@ -211,7 +215,6 @@ standard `Logging:LogLevel` filters select them:
 | 1301 | Debug | `StaleRecordIdentifierRefused`: operation, table generation | `CheatEngine.Client.Tables` |
 | 1302 | Debug | `RecordActivationNotApplied`: operation, requested state, status (`RefusedByHost`, `Pending`, `Indeterminate`) | `CheatEngine.Client.Tables` |
 | 1400 | Debug | `SymbolRegistrationRejected`: operation, reason (`AlreadyResolves`, `LookupFailed`) | `CheatEngine.Client.Inspection` |
-| 1401 | Debug | `SymbolLeaseReleased`: release kind | `CheatEngine.Client.Inspection` |
 | 1500 | Debug | `PatternScanCompleted`: scope, host result and materialized counts, truncation, scan and copy milliseconds | `CheatEngine.Client.Scanning` |
 | 1600 | Debug | `LuaOperationCompleted`: operation, failure kind or `None`, milliseconds, script length (unsafe Lua only) | `CheatEngine.Client.Lua` |
 | 1700 | Warning | `CoreResourceCleanupFailed`: resource and exception type names | `CheatEngine.Client.Lifetime` |

@@ -1,4 +1,3 @@
-using CheatEngine.Client.Inspection;
 using CheatEngine.Client.Results;
 using CheatEngine.Client.Runtime;
 using CheatEngine.Client.Scanning;
@@ -51,9 +50,6 @@ internal interface ICoreDiagnostics
 
 	/// <summary>A symbol registration was rejected by the collision preflight (EventId 1400).</summary>
 	public void SymbolRegistrationRejected(string operation, string reason);
-
-	/// <summary>A symbol lease release attempt ended (EventId 1401).</summary>
-	public void SymbolLeaseReleased(SymbolLeaseReleaseKind kind);
 
 	/// <summary>A pattern scan ended with metrics (EventId 1500).</summary>
 	public void PatternScanCompleted(PatternScanScope scope, long hostResultCount, int materializedCount, bool truncated,
@@ -116,10 +112,6 @@ internal sealed class NullCoreDiagnostics : ICoreDiagnostics
 	}
 
 	public void SymbolRegistrationRejected(string operation, string reason)
-	{
-	}
-
-	public void SymbolLeaseReleased(SymbolLeaseReleaseKind kind)
 	{
 	}
 
@@ -261,18 +253,6 @@ internal sealed class GuardedCoreDiagnostics(ICoreDiagnostics inner) : ICoreDiag
 		try
 		{
 			_inner.SymbolRegistrationRejected(operation, reason);
-		}
-		catch (Exception)
-		{
-			// Deliberately ignored: diagnostics must never change the operation result.
-		}
-	}
-
-	public void SymbolLeaseReleased(SymbolLeaseReleaseKind kind)
-	{
-		try
-		{
-			_inner.SymbolLeaseReleased(kind);
 		}
 		catch (Exception)
 		{

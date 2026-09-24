@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 
 using CheatEngine.Client.Core.Infrastructure;
-using CheatEngine.Client.Inspection;
 using CheatEngine.Client.Results;
 using CheatEngine.Client.Runtime;
 using CheatEngine.Client.Scanning;
@@ -191,18 +190,6 @@ internal sealed class LoggerCoreDiagnostics : ICoreDiagnostics
 		try
 		{
 			ClientCoreDiagnosticsLog.SymbolRegistrationRejected(_inspection, operation, reason);
-		}
-		catch (Exception)
-		{
-			// Deliberately ignored: a logging provider fault never changes a Client result (A24-22).
-		}
-	}
-
-	public void SymbolLeaseReleased(SymbolLeaseReleaseKind kind)
-	{
-		try
-		{
-			ClientCoreDiagnosticsLog.SymbolLeaseReleased(_inspection, kind);
 		}
 		catch (Exception)
 		{
