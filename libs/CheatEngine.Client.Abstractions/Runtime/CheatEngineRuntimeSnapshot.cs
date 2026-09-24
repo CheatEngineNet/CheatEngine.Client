@@ -4,10 +4,9 @@ namespace CheatEngine.Client.Runtime;
 
 /// <summary>Immutable runtime observations captured during one active Cheat Engine activation.</summary>
 /// <remarks>
-///     <see cref="ObservedCheatEngineVersion" /> is the coarse number returned by Cheat Engine's
-///     <c>getCEVersion</c> global. It is deliberately separate from
-///     <see cref="QualifiedCheatEngineBaseline" />, because that global cannot establish a complete four-part file
-///     version.
+///     <see cref="CheatEngineVersion" /> is the complete four-part file version CheatEngine.SDK read through
+///     <c>getCheatEngineFileVersion</c>; <see cref="QualifiedCheatEngineBaseline" /> is the build this Client release is
+///     qualified on. Both are compared component by component as integers.
 /// </remarks>
 public readonly record struct CheatEngineRuntimeSnapshot
 {
@@ -52,8 +51,8 @@ public readonly record struct CheatEngineRuntimeSnapshot
 		get;
 	}
 
-	/// <summary>Gets the coarse number returned by CE's <c>getCEVersion</c> global, when it was callable.</summary>
-	public double? ObservedCheatEngineVersion => Version.ObservedCheatEngineVersion;
+	/// <summary>Gets the complete Cheat Engine file version, or <see langword="null" /> when it was not observed.</summary>
+	public CheatEngineVersion? CheatEngineVersion => Version.CheatEngineVersion;
 
 	/// <summary>Gets the complete CE build against which this Client release was qualified.</summary>
 	public CheatEngineVersion QualifiedCheatEngineBaseline => Version.QualifiedCheatEngineBaseline;
@@ -99,10 +98,9 @@ public readonly record struct CheatEngineRuntimeSnapshot
 		get;
 	}
 
-	/// <summary>Gets whether the observed coarse CE version belongs to the qualified major/minor line.</summary>
-	public bool IsOnQualifiedCheatEngineLine => ObservedCheatEngineVersion is { } observed &&
-												observed >= QualifiedCheatEngineBaseline.Major +
-												(QualifiedCheatEngineBaseline.Minor / 10d) &&
-												observed < QualifiedCheatEngineBaseline.Major +
-												((QualifiedCheatEngineBaseline.Minor + 1) / 10d);
+	/// <summary>
+	///     Gets whether the observed Cheat Engine version has the major and minor components of the qualified baseline,
+	///     compared as integers.
+	/// </summary>
+	public bool IsOnQualifiedCheatEngineLine => Version.IsOnQualifiedCheatEngineLine;
 }

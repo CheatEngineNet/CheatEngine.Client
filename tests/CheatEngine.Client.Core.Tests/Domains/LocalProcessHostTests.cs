@@ -31,28 +31,6 @@ public sealed class LocalProcessHostTests
 	}
 
 	[Fact]
-	[Trait("Qualification", "Q45")]
-	public void LocalProcessHostArchitectureProbesRequireAnEnabledPluginContext()
-	{
-		// The fact members are read-only generated bindings: without an enabled plugin the SDK refuses them before
-		// reaching Cheat Engine.
-		LocalProcessHost host = new();
-
-		Assert.Contains("plugin is not enabled",
-			Assert.Throws<InvalidOperationException>(() => host.TargetIs64Bit()).Message,
-			StringComparison.OrdinalIgnoreCase);
-		Assert.Contains("plugin is not enabled",
-			Assert.Throws<InvalidOperationException>(() => host.TargetIsX86()).Message,
-			StringComparison.OrdinalIgnoreCase);
-		Assert.Contains("plugin is not enabled",
-			Assert.Throws<InvalidOperationException>(() => host.TargetIsArm()).Message,
-			StringComparison.OrdinalIgnoreCase);
-		Assert.Contains("plugin is not enabled",
-			Assert.Throws<InvalidOperationException>(() => host.GetConfiguredPointerSize()).Message,
-			StringComparison.OrdinalIgnoreCase);
-	}
-
-	[Fact]
 	public void GetLocalProcessesContainsCopiedMetadataForTheCurrentManagedProcess()
 	{
 		using Process current = Process.GetCurrentProcess();

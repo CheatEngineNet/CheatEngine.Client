@@ -6,8 +6,8 @@ using CheatEngine.Client.Core.Infrastructure;
 namespace CheatEngine.Client.Core.Domains;
 
 /// <summary>
-///     Production process host: Cheat Engine target facts through read-only generated bindings, and local metadata
-///     through the base class library.
+///     Production process host: Cheat Engine's attach call through a generated binding, and local metadata through the
+///     base class library.
 /// </summary>
 /// <remarks>
 ///     Name and executable path come from <see cref="Process" /> and describe a local process only: they are not evidence
@@ -15,11 +15,6 @@ namespace CheatEngine.Client.Core.Domains;
 /// </remarks>
 internal sealed class LocalProcessHost : IProcessHost
 {
-	public long GetOpenedProcessId()
-	{
-		return ClientLuaGlobals.GetOpenedProcessId();
-	}
-
 	public void OpenProcess(long processId)
 	{
 		ClientLuaGlobals.OpenProcess(processId);
@@ -69,26 +64,6 @@ internal sealed class LocalProcessHost : IProcessHost
 		}
 
 		return matches;
-	}
-
-	public bool TargetIs64Bit()
-	{
-		return ClientLuaGlobals.TargetIs64Bit();
-	}
-
-	public bool TargetIsX86()
-	{
-		return ClientLuaGlobals.TargetIsX86();
-	}
-
-	public bool TargetIsArm()
-	{
-		return ClientLuaGlobals.TargetIsArm();
-	}
-
-	public int GetConfiguredPointerSize()
-	{
-		return ClientLuaGlobals.GetConfiguredPointerSize();
 	}
 
 	private static bool TryCapture(Process process, out LocalProcessInfo captured)

@@ -17,6 +17,7 @@ using CheatEngine.Client.Tables;
 using CheatEngine.SDK.Engine.AddressList;
 using CheatEngine.SDK.Engine.Enums;
 using CheatEngine.SDK.Engine.Inspection;
+using CheatEngine.SDK.Engine.Processes;
 using CheatEngine.SDK.Engine.Runtime;
 using CheatEngine.SDK.Engine.Scanning.Aob;
 using CheatEngine.SDK.Engine.Values;
@@ -204,7 +205,7 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 		outcomes.Add(Describe("Runtime.GetSnapshot",
 			runtime.TryGetSnapshot(out _, out CheatEngineFailure failure, cancellationToken), failure));
 
-		ProcessClient processes = new(dispatcher, target, lifetime);
+		ProcessClient processes = new(dispatcher, target, target, lifetime);
 		outcomes.Add(Describe("Processes.First", processes.TryGetCurrent(out _, out failure, cancellationToken),
 			failure));
 		target.ProcessId = 200;
@@ -500,59 +501,32 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 		}
 	}
 
-	/// <summary>One selected 64-bit x86 target: the process host, the memory port and the runtime probe at once.</summary>
-	private sealed class FakeTarget : IProcessHost, IMemoryCodecContextPort, IRuntimeProbe
+	/// <summary>
+	///     One selected 64-bit x86 target: the process host, the memory port and the runtime observation port at once.
+	/// </summary>
+	private sealed class FakeTarget : FakeRuntimeObservationPort, IProcessHost, IMemoryCodecContextPort
 	{
+		private int _configuredPointerSize = sizeof(ulong);
+		private long _processId;
+
 		internal long ProcessId
 		{
-			get;
-			set;
+			get => _processId;
+			set
+			{
+				_processId = value;
+				Synchronize();
+			}
 		}
 
 		internal int ConfiguredPointerSize
 		{
-			get;
-			set;
-		} = sizeof(ulong);
-
-		public long GetOpenedProcessId()
-		{
-			return ProcessId;
-		}
-
-		public bool TargetIs64Bit()
-		{
-			return true;
-		}
-
-		public bool TargetIsX86()
-		{
-			return true;
-		}
-
-		public bool TargetIsArm()
-		{
-			return false;
-		}
-
-		public int GetConfiguredPointerSize()
-		{
-			return ConfiguredPointerSize;
-		}
-
-		public double GetCheatEngineVersion()
-		{
-			return 7.7d;
-		}
-
-		public int GetSystemArchitecture()
-		{
-			return 1;
-		}
-
-		public int GetTargetAbi()
-		{
-			return 0;
+			get => _configuredPointerSize;
+			set
+			{
+				_configuredPointerSize = value;
+				Synchronize();
+			}
 		}
 
 		public void OpenProcess(long processId)
@@ -600,6 +574,13 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 		{
 			failure = null;
 			return true;
+		}
+
+		private void Synchronize()
+		{
+			TargetStatus = _processId == 0 ? ProcessOperationStatus.TargetNotAttached : ProcessOperationStatus.Success;
+			Target = TargetObservations.Create((int) Math.Max(_processId, 1),
+				configuredPointerSizeBytes: _configuredPointerSize);
 		}
 	}
 

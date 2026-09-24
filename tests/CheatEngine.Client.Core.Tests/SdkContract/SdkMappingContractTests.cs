@@ -187,32 +187,8 @@ public sealed class SdkMappingContractTests
 	}
 
 	/// <summary>Reports every access as refused with the SDK's own failure name, as <c>SdkMemoryCodecContextPort</c> does.</summary>
-	private sealed class RefusingPort(string failure) : IMemoryCodecContextPort
+	private sealed class RefusingPort(string failure) : TargetObservationDouble, IMemoryCodecContextPort
 	{
-		public long GetOpenedProcessId()
-		{
-			return 42;
-		}
-
-		public bool TargetIs64Bit()
-		{
-			return true;
-		}
-
-		public bool TargetIsX86()
-		{
-			return true;
-		}
-
-		public bool TargetIsArm()
-		{
-			return false;
-		}
-
-		public int GetConfiguredPointerSize()
-		{
-			return sizeof(ulong);
-		}
 
 		public bool TryReadBytes(Address address, Span<byte> destination, out string? hostFailure)
 		{

@@ -52,8 +52,6 @@ public sealed partial class ArchitectureRatchetTests
 
 	private const string CheatTableFiles = "CheatEngine.SDK.Engine.Tables.CheatTableFiles";
 
-	private const string RuntimeHostOperations = "CheatEngine.SDK.Engine.Processes.RuntimeHostOperations";
-
 	private const string RuntimeProcessOperations = "CheatEngine.SDK.Engine.Processes.RuntimeProcessOperations";
 
 	private const string SymbolRegistrationLease = "CheatEngine.SDK.Engine.Inspection.SymbolRegistrationLease";
@@ -74,18 +72,8 @@ public sealed partial class ArchitectureRatchetTests
 	/// <summary>The only Lua globals the Client may bind itself, each a registered ADR-01 exception.</summary>
 	private static readonly FrozenLuaGlobal[] FrozenLuaGlobals =
 	[
-		new("getOpenedProcessID", "Reads the opened process identifier for process selection and the snapshot.",
-			new SdkReplacement(RuntimeProcessOperations, "L9", ["ObserveCurrent"])),
 		new("openProcess", "Selects the target process for Attach.",
 			new SdkReplacement(RuntimeProcessOperations, "L9", ["SelectAndObserve"])),
-		new("getCEVersion", "Runtime version fact for the capability snapshot.",
-			new SdkReplacement(RuntimeHostOperations, "L9", ["TryGetCheatEngineFileVersion"])),
-		new("getSystemArchitecture", "Host architecture fact for the capability snapshot.",
-			new SdkReplacement(RuntimeHostOperations, "L9", ["ObserveHost"])),
-		new("getABI", "Target ABI fact for the capability snapshot.",
-			new SdkReplacement(RuntimeProcessOperations, "L9", ["ObserveTargetArchitecture"])),
-		new("targetIs64Bit", "Target bitness for codec pointer width and the runtime snapshot.",
-			new SdkReplacement(RuntimeProcessOperations, "L9", ["ObserveTargetArchitecture"])),
 		new("loadTable", "Trusted table import behind the Client path policy.",
 			new SdkReplacement(CheatTableFiles, "L13", ["TryLoad"])),
 		new("saveTable", "Trusted table export behind the Client path policy.",
@@ -95,13 +83,7 @@ public sealed partial class ArchitectureRatchetTests
 		new("registerSymbol", "Activation-owned symbol registration lease.",
 			new SdkReplacement(SymbolRegistry, "L12", ["TryRegisterOwned"])),
 		new("unregisterSymbol", "Release of an activation-owned symbol registration.",
-			new SdkReplacement(SymbolRegistrationLease, "L12", ["Release"])),
-		new("getPointerSize", "Configured pointer size of the F08 pointer-width observation.",
-			new SdkReplacement(RuntimeProcessOperations, "L9", ["TryGetConfiguredPointerSize"])),
-		new("targetIsX86", "ISA family of the F08 pointer-width observation.",
-			new SdkReplacement(RuntimeProcessOperations, "L9", ["ObserveTargetArchitecture"])),
-		new("targetIsArm", "ISA family of the F08 pointer-width observation.",
-			new SdkReplacement(RuntimeProcessOperations, "L9", ["ObserveTargetArchitecture"]))
+			new SdkReplacement(SymbolRegistrationLease, "L12", ["Release"]))
 	];
 
 	/// <summary>
@@ -155,16 +137,11 @@ public sealed partial class ArchitectureRatchetTests
 		.. ClientLuaGlobalsDebt(
 			"CheatEngine.SDK.Lua.CompilerServices.LuaCallSupport::Fail``1(CheatEngine.SDK.Lua.State.LuaState,int32,!!0&)->boolean",
 			"CheatEngine.SDK.Lua.CompilerServices.LuaCallSupport::Throw(CheatEngine.SDK.Lua.State.LuaState,int32,CheatEngine.SDK.Lua.Calls.LuaStatus)->void",
-			"CheatEngine.SDK.Lua.CompilerServices.LuaCallSupport::ThrowUnexpectedResult(CheatEngine.SDK.Lua.State.LuaState,int32,int32,string,string)->void",
 			"CheatEngine.SDK.Lua.CompilerServices.LuaCallSupport::ThrowUnresolvedGlobal(CheatEngine.SDK.Lua.State.LuaState,int32,string)->void",
 			"CheatEngine.SDK.Lua.CompilerServices.LuaGlobalFunctions::TryPush(CheatEngine.SDK.Lua.State.LuaState,CheatEngine.SDK.Lua.References.LuaRef,System.ReadOnlySpan`1<byte>)->boolean",
 			"CheatEngine.SDK.Lua.Marshalling.AddressMarshaller::Push(CheatEngine.SDK.Lua.State.LuaState,uintptr)->void",
 			"CheatEngine.SDK.Lua.Marshalling.BooleanMarshaller::Push(CheatEngine.SDK.Lua.State.LuaState,boolean)->void",
-			"CheatEngine.SDK.Lua.Marshalling.BooleanMarshaller::TryRead(CheatEngine.SDK.Lua.State.LuaState,int32,boolean&)->boolean",
-			"CheatEngine.SDK.Lua.Marshalling.DoubleMarshaller::TryRead(CheatEngine.SDK.Lua.State.LuaState,int32,double&)->boolean",
-			"CheatEngine.SDK.Lua.Marshalling.Int32Marshaller::TryRead(CheatEngine.SDK.Lua.State.LuaState,int32,int32&)->boolean",
 			"CheatEngine.SDK.Lua.Marshalling.Int64Marshaller::Push(CheatEngine.SDK.Lua.State.LuaState,int64)->void",
-			"CheatEngine.SDK.Lua.Marshalling.Int64Marshaller::TryRead(CheatEngine.SDK.Lua.State.LuaState,int32,int64&)->boolean",
 			"CheatEngine.SDK.Lua.Marshalling.StringMarshaller::Push(CheatEngine.SDK.Lua.State.LuaState,string)->void",
 			"CheatEngine.SDK.Lua.Marshalling.StringMarshaller::TryRead(CheatEngine.SDK.Lua.State.LuaState,int32,string&)->boolean",
 			"CheatEngine.SDK.Lua.References.LuaRef::.ctor()->void",
@@ -375,8 +352,8 @@ public sealed partial class ArchitectureRatchetTests
 		}
 
 		Assert.True(violations.Count == 0, string.Join(Environment.NewLine, violations));
-		Assert.Equal("RuntimeProcessOperations.ObserveCurrent (L9)",
-			FrozenLuaGlobals.Single(static entry => entry.Name == "getOpenedProcessID").Replacement.ToString());
+		Assert.Equal("CheatTableFiles.TryLoad (L13)",
+			FrozenLuaGlobals.Single(static entry => entry.Name == "loadTable").Replacement.ToString());
 	}
 
 	[Fact]
@@ -745,7 +722,7 @@ public sealed partial class ArchitectureRatchetTests
 	private sealed record SdkReplacement(string Type, string Lot, string[] Members)
 	{
 		/// <summary>Formats the replacement as <c>Type.Member (Lot)</c>, for example
-		///     <c>RuntimeProcessOperations.ObserveCurrent (L9)</c>.</summary>
+		///     <c>CheatTableFiles.TryLoad (L13)</c>.</summary>
 		public override string ToString()
 		{
 			return $"{Type[(Type.LastIndexOf('.') + 1)..]}.{string.Join(" and ", Members)} ({Lot})";

@@ -118,11 +118,6 @@ public sealed class LocalProcessDiagnosticsTests
 			init;
 		}
 
-		public long GetOpenedProcessId()
-		{
-			return 0;
-		}
-
 		public void OpenProcess(long processId)
 		{
 			throw new NotSupportedException();
@@ -148,26 +143,6 @@ public sealed class LocalProcessDiagnosticsTests
 		public IReadOnlyList<LocalProcessInfo> FindProcessesByExactName(string processName)
 		{
 			return [];
-		}
-
-		public bool TargetIs64Bit()
-		{
-			throw new NotSupportedException();
-		}
-
-		public bool TargetIsX86()
-		{
-			throw new NotSupportedException();
-		}
-
-		public bool TargetIsArm()
-		{
-			throw new NotSupportedException();
-		}
-
-		public int GetConfiguredPointerSize()
-		{
-			throw new NotSupportedException();
 		}
 	}
 }

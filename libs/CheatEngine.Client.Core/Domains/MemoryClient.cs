@@ -9,6 +9,7 @@ using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Memory;
 using CheatEngine.Client.Results;
+using CheatEngine.SDK.Engine.Processes;
 using CheatEngine.SDK.Engine.Runtime;
 using CheatEngine.SDK.Engine.Values;
 
@@ -524,7 +525,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		}
 
 		Address captured = request.BaseAddress;
-		ObservedTargetArchitecture? widthRefusal = null;
+		ObservedTarget? widthRefusal = null;
 		CheatEngineFailure? chainRefusal = null;
 		HostCall call = default;
 		if (!_dispatcher.TryInvoke(() => call = HostCall.Run(_codecContextPort, request, request.BaseAddress,
@@ -532,15 +533,15 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 				{
 					hostFailure = null;
 					// Observe once, before the first hop: a configured/process width mismatch refuses the whole chain.
-					ObservedTargetArchitecture facts =
-						TargetArchitectureObserver.Observe(port, readConfiguredPointerSize: true);
-					if (facts.ConfiguredPointerSizeDiffersFromProcessWidth)
+					ObservedTarget facts =
+						TargetArchitectureObserver.Observe(port);
+					if (facts.ConfiguredPointerSizeDiffersFromBitness)
 					{
 						widthRefusal = facts;
 						return false;
 					}
 
-					bool isThirtyTwoBit = facts.ProcessPointerSize.Bytes == sizeof(uint);
+					bool isThirtyTwoBit = facts.Bitness.Bytes == sizeof(uint);
 					Address resolved = baseAddress;
 					if (isThirtyTwoBit && resolved.Value > uint.MaxValue)
 					{
@@ -700,15 +701,15 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 	/// <summary>
 	///     Creates the width-mismatch refusal of an operation and reports it with the two widths only (EventId 1200).
 	/// </summary>
-	private CheatEngineFailure RefuseWidth(string operation, ObservedTargetArchitecture facts)
+	private CheatEngineFailure RefuseWidth(string operation, ObservedTarget facts)
 	{
 		ReportWidthRefusal(operation, facts);
 		return PointerWidthPolicy.CreateMismatchFailure(operation, facts);
 	}
 
-	private void ReportWidthRefusal(string operation, ObservedTargetArchitecture facts)
+	private void ReportWidthRefusal(string operation, ObservedTarget facts)
 	{
-		_lifetime.Diagnostics.PointerWidthMismatchRefused(operation, facts.ProcessPointerSize.Bytes,
+		_lifetime.Diagnostics.PointerWidthMismatchRefused(operation, facts.Bitness.Bytes,
 			facts.ConfiguredPointerSizeBytes ?? 0);
 	}
 
@@ -858,17 +859,17 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		T Value,
 		string? Failure,
 		Exception? Fault = null,
-		ObservedTargetArchitecture? WidthRefusal = null);
+		ObservedTarget? WidthRefusal = null);
 
 	private readonly record struct PrimitiveWriteOutcome(
 		bool Handled,
 		bool Succeeded,
 		string? Failure,
 		Exception? Fault = null,
-		ObservedTargetArchitecture? WidthRefusal = null);
+		ObservedTarget? WidthRefusal = null);
 
 	/// <summary>The pointer-width admission of an Address primitive path, observed once before any memory access.</summary>
-	private readonly record struct PointerWidthAdmission(ObservedTargetArchitecture? Refusal, Exception? Fault)
+	private readonly record struct PointerWidthAdmission(ObservedTarget? Refusal, Exception? Fault)
 	{
 		internal bool IsAdmitted => Refusal is null && Fault is null;
 
@@ -876,9 +877,9 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		{
 			try
 			{
-				ObservedTargetArchitecture facts =
-					TargetArchitectureObserver.Observe(port, readConfiguredPointerSize: true);
-				return new PointerWidthAdmission(facts.ConfiguredPointerSizeDiffersFromProcessWidth ? facts : null,
+				ObservedTarget facts =
+					TargetArchitectureObserver.Observe(port);
+				return new PointerWidthAdmission(facts.ConfiguredPointerSizeDiffersFromBitness ? facts : null,
 					null);
 			}
 			catch (Exception exception) when (SdkBoundary.IsSdkFault(exception))
@@ -919,7 +920,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		string? Message,
 		Exception? Fault,
 		CheatEngineFailureKind? Kind = null,
-		ObservedTargetArchitecture? WidthRefusal = null)
+		ObservedTarget? WidthRefusal = null)
 	{
 		internal static CodecOutcome Success => new(true, null, null);
 	}
@@ -939,7 +940,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		int FailedIndex,
 		string? Failure,
 		Exception? Fault = null,
-		ObservedTargetArchitecture? WidthRefusal = null);
+		ObservedTarget? WidthRefusal = null);
 
 	private readonly record struct PrimitiveBatchWriteOutcome(
 		bool Handled,
@@ -947,7 +948,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		int FailedIndex,
 		string? Failure,
 		Exception? Fault = null,
-		ObservedTargetArchitecture? WidthRefusal = null);
+		ObservedTarget? WidthRefusal = null);
 
 	private static class PrimitiveMemoryCodec<T>
 	{
@@ -1122,7 +1123,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		private readonly int _threadId;
 		private CheatEngineOperationException? _contextFault;
 		private int _expired;
-		private ObservedTargetArchitecture? _facts;
+		private ObservedTarget? _facts;
 		private int _readBytesAdmitted;
 		private int _writeBytesAdmitted;
 
@@ -1161,7 +1162,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		}
 
 		/// <summary>Gets the facts of a pointer-width mismatch refusal recorded by this context, if any.</summary>
-		internal ObservedTargetArchitecture? WidthRefusal
+		internal ObservedTarget? WidthRefusal
 		{
 			get;
 			private set;
@@ -1176,9 +1177,9 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 			get
 			{
 				ThrowIfUnusable();
-				ObservedTargetArchitecture facts = ObserveFacts();
-				return facts.ProcessPointerSize.IsKnown
-					? facts.ProcessPointerSize.Bytes
+				ObservedTarget facts = ObserveFacts();
+				return facts.Bitness.IsKnown
+					? facts.Bitness.Bytes
 					: ThrowProcessWidthUnavailable(facts);
 			}
 		}
@@ -1188,7 +1189,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 			get
 			{
 				ThrowIfUnusable();
-				return ObserveFacts().ProcessPointerSize;
+				return ObserveFacts().Bitness;
 			}
 		}
 
@@ -1206,7 +1207,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 			get
 			{
 				ThrowIfUnusable();
-				return ObserveFacts().ConfiguredPointerSizeKnown;
+				return ObserveFacts().ConfiguredPointerSize;
 			}
 		}
 
@@ -1215,7 +1216,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 			get
 			{
 				ThrowIfUnusable();
-				return ObserveFacts().ConfiguredPointerSizeDiffersFromProcessWidth;
+				return ObserveFacts().ConfiguredPointerSizeDiffersFromBitness;
 			}
 		}
 
@@ -1223,14 +1224,14 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		public bool TryAdmitPointerCodec()
 		{
 			ThrowIfUnusable();
-			ObservedTargetArchitecture facts = ObserveFacts();
-			if (!facts.ProcessPointerSize.IsKnown)
+			ObservedTarget facts = ObserveFacts();
+			if (!facts.Bitness.IsKnown)
 			{
 				RecordRefusal(GetUnavailableWidthKind(facts), GetUnavailableWidthMessage(facts));
 				return false;
 			}
 
-			if (facts.ConfiguredPointerSizeDiffersFromProcessWidth)
+			if (facts.ConfiguredPointerSizeDiffersFromBitness)
 			{
 				RecordRefusal(CheatEngineFailureKind.OperationRejected, PointerWidthPolicy.CreateMismatchMessage(facts));
 				WidthRefusal = facts;
@@ -1304,44 +1305,37 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 			return new CodecOutcome(false, Failure ?? defaultMessage, Fault, FailureKind, WidthRefusal);
 		}
 
-		private static CheatEngineFailureKind GetUnavailableWidthKind(ObservedTargetArchitecture facts)
+		private static CheatEngineFailureKind GetUnavailableWidthKind(ObservedTarget facts)
 		{
-			// ADR-08: only an observed "no process opened" (PID 0) is TargetNotAttached. A faulted, missing or malformed
-			// PID read, a changed or unconfirmed target, and an unreported width leave the width unobservable.
-			return facts.NoTargetSelected
-				? CheatEngineFailureKind.TargetNotAttached
-				: CheatEngineFailureKind.IndeterminateHostResult;
+			// ADR-08: only an observed "no process selected" is TargetNotAttached. Every other status the SDK reports
+			// (a target change, a file opened as a process, an absent, raising or malformed global) keeps its own kind.
+			return facts.HasTarget
+				? CheatEngineFailureKind.IndeterminateHostResult
+				: RuntimeObservationMapping.ToFailureKind(facts.Status.Kind);
 		}
 
-		private static string GetUnavailableWidthMessage(ObservedTargetArchitecture facts)
+		private static string GetUnavailableWidthMessage(ObservedTarget facts)
 		{
-			if (facts.TargetChangedDuringObservation)
+			return facts.Status.Kind switch
 			{
-				return "The selected target changed while the codec context observed its process width.";
-			}
-
-			if (facts.HasTarget)
-			{
-				return "Cheat Engine did not report the process width of the selected target.";
-			}
-
-			if (facts.NoTargetSelected)
-			{
-				return "No target process is selected, so the codec context has no process width.";
-			}
-
-			return facts.TargetUnconfirmed
-				? "Cheat Engine's opened process identifier could not be read again to confirm the selected target, so " +
-				  "the process width is unobservable."
-				: "Cheat Engine's opened process identifier could not be observed as a local target, so the process " +
-				  "width is unobservable.";
+				ProcessOperationStatusKind.Success =>
+					"Cheat Engine did not report the process width of the selected target.",
+				ProcessOperationStatusKind.TargetNotAttached =>
+					"No target process is selected, so the codec context has no process width.",
+				ProcessOperationStatusKind.TargetChanged =>
+					"The selected target changed while the codec context observed its process width.",
+				ProcessOperationStatusKind.FileAsProcessTarget =>
+					"The selected target is a file opened as a process, so the process width is unobservable.",
+				_ => $"Cheat Engine reported {facts.Status.Kind} for the selected target, so the process width is " +
+					 "unobservable."
+			};
 		}
 
 		/// <summary>
 		///     Observes the target facts once per codec invocation, PID first. The observer classifies SDK Engine and Lua
 		///     exceptions itself; any other SDK fault becomes a context fault that Core reports after the codec returns.
 		/// </summary>
-		private ObservedTargetArchitecture ObserveFacts()
+		private ObservedTarget ObserveFacts()
 		{
 			if (_facts is { } facts)
 			{
@@ -1350,7 +1344,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 
 			try
 			{
-				facts = TargetArchitectureObserver.Observe(_port, readConfiguredPointerSize: true);
+				facts = TargetArchitectureObserver.Observe(_port);
 			}
 			catch (Exception exception) when (SdkBoundary.IsSdkFault(exception))
 			{
@@ -1367,7 +1361,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		///     A property cannot return a failure: throw a Client exception that Core recognizes by identity and converts
 		///     back into a classified failure after the consumer codec returns or rethrows it.
 		/// </summary>
-		private int ThrowProcessWidthUnavailable(ObservedTargetArchitecture facts)
+		private int ThrowProcessWidthUnavailable(ObservedTarget facts)
 		{
 			CheatEngineFailureKind kind = GetUnavailableWidthKind(facts);
 			string message = GetUnavailableWidthMessage(facts);

@@ -5,6 +5,7 @@ using CheatEngine.SDK.Engine.Errors;
 using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Engine.Memory;
 using CheatEngine.SDK.Engine.Objects;
+using CheatEngine.SDK.Engine.Processes;
 using CheatEngine.SDK.Engine.Runtime;
 using CheatEngine.SDK.Engine.Scanning.Aob;
 using CheatEngine.SDK.Engine.Scanning.Values;
@@ -136,7 +137,8 @@ internal static class SdkApiUsage
 	}
 
 	internal static void RuntimeSurface(CheatEngineVersion version, PointerSize pointerSize, RuntimeCapabilityId id,
-		RuntimeCapabilities capabilities)
+		RuntimeCapabilities capabilities, RuntimeInfo info, CheatEngineHostObservation host,
+		TargetArchitectureObservation target)
 	{
 		_ = version.Major;
 		_ = version.Minor;
@@ -146,18 +148,57 @@ internal static class SdkApiUsage
 		_ = PointerSize.Unknown;
 		_ = pointerSize.Bytes;
 		_ = pointerSize.IsKnown;
-		_ = new RuntimeCapabilityId("Runtime.ConfiguredPointerSize");
 		RuntimeCapabilityAvailability availability = new(id, RuntimeCapabilityAvailabilityState.Unknown,
 			RuntimeCapabilityContract.Unknown);
-		_ = RuntimeCapabilities.Create([availability]);
+		_ = availability.State;
+		_ = RuntimeCapabilities.Empty;
 		_ = capabilities.TryGet(id, out _);
-		_ = RuntimeCapabilityId.CheatEngineVersion;
+		_ = capabilities.GetState(id);
 		_ = id.IsEmpty;
-		_ = RuntimeCapabilityId.SystemArchitecture;
-		_ = RuntimeCapabilityId.TargetAbi;
+		_ = RuntimeCapabilityId.CurrentProcess;
 		_ = RuntimeCapabilityId.TargetArchitecture;
-		_ = RuntimeInfo.TryDecodeSystemArchitecture(1, out _);
-		_ = RuntimeInfo.TryDecodeTargetAbi(0, out _);
+		_ = info.Capabilities;
+		_ = info.Host;
+		_ = info.Target;
+		_ = new CheatEngineHostObservation(version, CheatEngineArchitecture.X64, true,
+			CheatEngineOperatingSystem.Windows);
+		_ = host.FileVersion;
+		_ = host.SystemArchitecture;
+		_ = new TargetArchitectureObservation(new TargetProcessId(1), TargetBackend.LocalProcess, pointerSize, true,
+			false, false, 0, 8);
+		_ = target.Abi;
+		_ = target.Architecture;
+		_ = target.Backend;
+		_ = target.Bitness;
+		_ = target.ConfiguredPointerSize;
+		_ = target.ConfiguredPointerSizeBytes;
+		_ = target.ConfiguredPointerSizeDiffersFromBitness;
+		_ = target.ProcessId;
+	}
+
+	internal static void RuntimeObservationSurface(ProcessOperationStatus status, LuaOperationStatus luaStatus,
+		CurrentProcessObservation current, TargetProcessId processId, TargetProcessId otherProcessId)
+	{
+		_ = RuntimeObservations.TryObserveRuntimeInfo(out _);
+		_ = RuntimeHostOperations.ObserveHost(out _);
+		_ = RuntimeHostOperations.TryGetCheatEngineFileVersion(out _);
+		_ = RuntimeHostOperations.TryGetOperatingSystem(out _);
+		_ = RuntimeHostOperations.TryGetSystemArchitecture(out _);
+		_ = RuntimeHostOperations.TryIsCheatEngine64Bit(out _);
+		_ = RuntimeProcessOperations.ObserveCurrent(out _);
+		_ = RuntimeProcessOperations.ObserveTargetArchitecture(out _);
+		_ = RuntimeProcessOperations.TryGetConfiguredPointerSize(out _, out _);
+		_ = ProcessOperationStatus.GlobalUnavailable;
+		_ = ProcessOperationStatus.Success;
+		_ = ProcessOperationStatus.TargetChanged;
+		_ = ProcessOperationStatus.TargetNotAttached;
+		_ = status.IsSuccess;
+		_ = status.Kind;
+		_ = luaStatus.IsSuccess;
+		_ = luaStatus.Kind;
+		_ = current.Id;
+		_ = current.PointerSize;
+		_ = processId == otherProcessId;
 	}
 
 	internal static void ScanningAndValueSurface(AobScanOptions options, Address address, Address other)
@@ -197,11 +238,7 @@ internal static class SdkApiUsage
 		_ = status.IsOk;
 		AddressMarshaller.Push(state, 0);
 		BooleanMarshaller.Push(state, true);
-		_ = BooleanMarshaller.TryRead(state, -1, out _);
-		_ = DoubleMarshaller.TryRead(state, -1, out _);
-		_ = Int32Marshaller.TryRead(state, -1, out _);
 		Int64Marshaller.Push(state, 0L);
-		_ = Int64Marshaller.TryRead(state, -1, out _);
 		StringMarshaller.Push(state, "value");
 		_ = StringMarshaller.TryRead(state, -1, out _);
 		using LuaRef reference = new();

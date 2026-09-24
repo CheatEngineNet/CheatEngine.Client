@@ -6,7 +6,12 @@ using CheatEngine.Client.Core.Tests.TestSupport;
 using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Memory;
 using CheatEngine.Client.Results;
+using CheatEngine.SDK.Engine.Inspection;
+using CheatEngine.SDK.Engine.Processes;
+using CheatEngine.SDK.Engine.Runtime;
 using CheatEngine.SDK.Engine.Values;
+
+using SdkPointerSize = CheatEngine.SDK.Engine.Runtime.PointerSize;
 
 namespace CheatEngine.Client.Core.Tests.Domains;
 
@@ -387,6 +392,8 @@ public sealed class MemoryCodecContextLifetimeTests
 			init;
 		} = sizeof(ulong);
 
+		private SdkPointerSize Bitness => PointerSize == sizeof(ulong) ? SdkPointerSize.Bit64 : SdkPointerSize.Bit32;
+
 		internal int PointerSizeReadCount
 		{
 			get;
@@ -399,7 +406,7 @@ public sealed class MemoryCodecContextLifetimeTests
 			private set;
 		}
 
-		/// <summary>Gets the number of target-fact reads (PID, width, families, configured pointer size).</summary>
+		/// <summary>Gets the number of target observations (each one reads every target fact).</summary>
 		internal int FactCallCount
 		{
 			get;
@@ -408,41 +415,33 @@ public sealed class MemoryCodecContextLifetimeTests
 
 		internal int TotalCallCount => FactCallCount + ReadBytesCallCount + WriteBytesCallCount;
 
+		public ProcessOperationStatus ObserveCurrent(out CurrentProcessObservation observation)
+		{
+			FactCallCount++;
+			observation = new CurrentProcessObservation(new TargetProcessId(42), Bitness);
+			return ProcessOperationStatus.Success;
+		}
+
+		public ProcessOperationStatus ObserveTargetArchitecture(out TargetArchitectureObservation observation)
+		{
+			FactCallCount++;
+			PointerSizeReadCount++;
+			observation = TargetObservations.Create(42, PointerSize == sizeof(ulong), configuredPointerSizeBytes: PointerSize);
+			return ProcessOperationStatus.Success;
+		}
+
+		public ProcessOperationStatus TryGetConfiguredPointerSize(out int rawBytes, out SdkPointerSize pointerSize)
+		{
+			FactCallCount++;
+			rawBytes = PointerSize;
+			pointerSize = Bitness;
+			return ProcessOperationStatus.Success;
+		}
+
 		internal int WriteBytesCallCount
 		{
 			get;
 			private set;
-		}
-
-		public long GetOpenedProcessId()
-		{
-			FactCallCount++;
-			return 42;
-		}
-
-		public bool TargetIs64Bit()
-		{
-			FactCallCount++;
-			PointerSizeReadCount++;
-			return PointerSize == sizeof(ulong);
-		}
-
-		public bool TargetIsX86()
-		{
-			FactCallCount++;
-			return true;
-		}
-
-		public bool TargetIsArm()
-		{
-			FactCallCount++;
-			return false;
-		}
-
-		public int GetConfiguredPointerSize()
-		{
-			FactCallCount++;
-			return PointerSize;
 		}
 
 		public bool TryReadBytes(Address address, Span<byte> destination, out string? failure)

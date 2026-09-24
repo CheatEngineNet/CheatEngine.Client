@@ -103,7 +103,7 @@ memory. Each capability's qualification gate requires receipts for the live scen
 <!-- capability-table:start -->
 | Capability id | Implementation | Package | Host | Qualification | Status reported at runtime |
 |---|---|---|---|---|---|
-| `Client.ProcessSelection` | Operational adapter | Loaded CheatEngine.SDK 2.x at or above the consumed 2.0.0 | Read-only opened-process probe | Unknown until Client receipts for Q30.a, Q31 and Q32 exist | `Unknown`; `Unavailable` when the package or host gate is `Missing` |
+| `Client.ProcessSelection` | Operational adapter | Loaded CheatEngine.SDK 2.x at or above the consumed 2.0.0 | CheatEngine.SDK's read-only `Process.Current` observation | Unknown until Client receipts for Q30.a, Q31 and Q32 exist | `Unknown`; `Unavailable` when the package or host gate is `Missing` |
 | `Client.TypedMemory` | Operational adapter | Loaded CheatEngine.SDK 2.x at or above the consumed 2.0.0 | Not probed by the snapshot (`Unknown`) | Unknown until Client receipts for Q20, Q21 and Q33 exist | `Unknown`; `Unavailable` when the package gate is `Missing` |
 | `Client.PatternScanning` | Operational adapter | Loaded CheatEngine.SDK 2.x at or above the consumed 2.0.0 | Not probed by the snapshot (`Unknown`) | Unknown until Client receipts for Q27, Q28 and Q29 exist | `Unknown`; `Unavailable` when the package gate is `Missing` |
 | `Client.ValueScanning` | Contract-only (Unavailable) | Loaded CheatEngine.SDK 2.x at or above the consumed 2.0.0 | Not probed by the snapshot (`Unknown`) | Unknown until Client receipts for Q25 and Q26 exist | `Unavailable` |
@@ -176,19 +176,24 @@ successful no-match. On this route the indeterminate category is the accurate on
 
 Cheat Engine's selected target is ambient: `IProcessClient.Attach` changes Cheat Engine's global selection, and a
 snapshot or a session that holds a process identifier does not stop the user, another plugin or a script from selecting
-another process. `ProcessSnapshot.SelectionEpoch` and the PID-bracketed observation reduce that risk for Client-owned
-leases; they are not transactions. `ProcessSnapshot.Name` and `ExecutablePath` are optional local metadata from the
+another process. `ProcessSnapshot.SelectionEpoch` and CheatEngine.SDK's PID-bracketed observation reduce that risk for
+Client-owned leases; they are not transactions. `ProcessSnapshot.Name` and `ExecutablePath` are optional local metadata from the
 operating system: they describe a local process only, never a CEServer target or a file opened as a process, and they do
 not prove liveness.
 
-Every observation reads the opened process identifier first, because Cheat Engine reports the same family, width and
-pointer size as an x64 target when no target is opened. The runtime snapshot keeps separate facts:
+Every fact is a read-only CheatEngine.SDK 2.0.0 observation that reads the selected process identifier before and after
+the target facts, because Cheat Engine reports the same family, width and pointer size as an x64 target when no target
+is opened. A fact the SDK could not establish stays unknown; none is inferred from another. The runtime snapshot keeps
+separate facts:
 
-- **Target architecture (ISA)**: derived from Cheat Engine's x86 and ARM family facts together with its 64-bit fact,
-  never from the 64-bit fact alone; contradictory or missing facts give `CheatEngineArchitecture.Unknown`.
-- **Process width** (`TargetPointerSize`, `ProcessSnapshot.TargetPointerSize`): the width of the target process as
-  observed; it can be known while the ISA is unknown.
-- **Configured pointer size** (`CheatEngineRuntimePlatformInfo.ConfiguredPointerSize`, runtime capability
+- **Cheat Engine version** (`CheatEngineRuntimeVersionInfo.CheatEngineVersion`): the complete four-part file version
+  (`getCheatEngineFileVersion`), compared with the qualified baseline component by component as integers.
+- **Target architecture (ISA)**: CheatEngine.SDK's derivation from Cheat Engine's x86 and ARM family facts together with
+  its 64-bit fact, never from the 64-bit fact alone; contradictory or missing facts give
+  `CheatEngineArchitecture.Unknown`.
+- **Process width** (`TargetPointerSize`, `ProcessSnapshot.TargetPointerSize`): the target bitness (`targetIs64Bit`)
+  as observed; it can be known while the ISA is unknown.
+- **Configured pointer size** (`CheatEngineRuntimePlatformInfo.ConfiguredPointerSize`, SDK runtime capability
   `Runtime.ConfiguredPointerSize`): the value Cheat Engine reports through `getPointerSize()`. It is per-attachment state,
   independent of the process width, reset when a process is opened, and can hold any integer.
   `ConfiguredPointerSizeDiffersFromTargetPointerSize` reports a mismatch as a fact.
@@ -278,7 +283,7 @@ dispatch and between Client-managed steps.
 | Tables (`ITableClient`) | Dispatch admission; `Find` filters a copied snapshot | `NotStarted` (policy, invalid relationship, stale record identifier, activation of a record that was not found), `Started` (activation refused by the host or pending), `Completed` (`Find` cancelled after the snapshot, failed `Create` whose rollback was confirmed), `CleanupUnconfirmed` (record rollback not confirmed), `Unknown` (SDK fault, `loadTable` fault, indeterminate activation) | A failed `Create` destroys the partial record once and never retries; a refused activation can leave partial script effects; `loadTable` can execute table Lua |
 | Lua typed operations and modules (`ILuaClient`) | Dispatch admission | `NotStarted` (cancellation), otherwise the operation's own failure | Owned by the operation; operation exceptions are rethrown unchanged |
 | Unsafe Lua (`IUnsafeLuaClient`) | Dispatch admission | `NotStarted` (policy, or a Lua admission refused by CheatEngine.SDK), `Unknown` (SDK fault; the script may have run partially) | The script may have run partially before a Lua error |
-| Runtime and Processes (`ICheatEngineRuntime`, `IProcessClient`) | Dispatch admission | `Completed` (the selected target changed during the observation: `IndeterminateHostResult`), `Unknown` (SDK fault, no selected target) | A fact probe that fails leaves that fact `Unknown` in the snapshot or capability evidence instead of failing the call; `Attach` changes Cheat Engine's global selection |
+| Runtime and Processes (`ICheatEngineRuntime`, `IProcessClient`) | Dispatch admission; `AttachExactName` also observes it before the local process catalog (`NotStarted`) | `Completed` (CheatEngine.SDK reported a status that establishes no target: `TargetChanged`, `TargetIdentityUnavailable` for a file opened as a process, `CapabilityUnavailable`, `LuaError`, `InvalidHostResult`), `Unknown` (SDK fault, no selected target, a fault of the attach call) | A fact CheatEngine.SDK could not read stays `Unknown` in the snapshot instead of failing the call; `Attach` changes Cheat Engine's global selection |
 | Capability-gated domains (allocations, assembly) | Not applicable: no Cheat Engine work is dispatched | `NotStarted` (`CapabilityUnavailable` or `Cancelled`) | None |
 | Value scans (`IValueScanner`) | Not applicable: no Cheat Engine work is dispatched | Not yet reported (`Unknown`) | None; the refusal is the same `CapabilityUnavailable` or `Cancelled`, and reporting `NotStarted` here is scheduled with the other value-scan changes |
 

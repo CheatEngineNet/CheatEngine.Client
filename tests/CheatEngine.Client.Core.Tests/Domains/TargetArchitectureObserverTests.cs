@@ -1,223 +1,199 @@
 using CheatEngine.Client.Core.Domains;
-using CheatEngine.Client.Runtime;
+using CheatEngine.Client.Core.Tests.TestSupport;
+using CheatEngine.SDK.Engine.Processes;
 using CheatEngine.SDK.Engine.Runtime;
-using CheatEngine.SDK.Lua.Calls;
 
 namespace CheatEngine.Client.Core.Tests.Domains;
 
+/// <summary>
+///     The one target observation policy: the SDK's bracketed observation answers, and a broken fact narrows the
+///     observation to the PID, the bitness and the configured size instead of discarding them (audit F08, Q31, Q32).
+/// </summary>
 public sealed class TargetArchitectureObserverTests
 {
 	[Fact]
 	[Trait("Qualification", "Q32")]
-	public void ObserverReadsFactsInPidFirstBracketedOrder()
+	public void ObserverReturnsTheSdkObservationWithItsOwnIsaDerivation()
 	{
-		RecordingProbe probe = new(42);
+		TargetObservationDouble port = new()
+		{
+			Target = TargetObservations.Create(processId: 77, is64Bit: false, backend: TargetBackend.CEServer)
+		};
 
-		ObservedTargetArchitecture observed = TargetArchitectureObserver.Observe(probe, readConfiguredPointerSize: true);
+		ObservedTarget observed = TargetArchitectureObserver.Observe(port);
 
+		Assert.True(observed.HasTarget);
+		Assert.Null(observed.NarrowedFrom);
+		Assert.Equal(77, observed.ProcessId!.Value.Value);
+		Assert.Equal(TargetBackend.CEServer, observed.Backend);
+		Assert.Equal(CheatEngineArchitecture.X86, observed.Architecture);
+		Assert.Equal(PointerSize.Bit32, observed.Bitness);
+		Assert.Equal(TargetAbi.Windows, observed.Abi);
+		Assert.Equal([nameof(ITargetObservationPort.ObserveTargetArchitecture)], port.TargetCalls);
+	}
+
+	[Theory]
+	[Trait("Qualification", "Q32")]
+	[InlineData(ProcessOperationStatusKind.TargetNotAttached, TargetBackend.Unknown)]
+	[InlineData(ProcessOperationStatusKind.FileAsProcessTarget, TargetBackend.FileAsProcess)]
+	[InlineData(ProcessOperationStatusKind.TargetChanged, TargetBackend.Unknown)]
+	[InlineData(ProcessOperationStatusKind.GlobalUnavailable, TargetBackend.Unknown)]
+	public void ObserverAttributesNoFactWithoutASelectedProcessOrAfterATargetChange(ProcessOperationStatusKind kind,
+		TargetBackend expectedBackend)
+	{
+		// Spike C3 D2: with no target Cheat Engine reports x64-like facts, so the SDK reads none; nothing is re-read.
+		TargetObservationDouble port = new()
+		{
+			TargetStatus = TargetObservations.Status(kind)
+		};
+
+		ObservedTarget observed = TargetArchitectureObserver.Observe(port);
+
+		Assert.False(observed.HasTarget);
+		Assert.Equal(kind == ProcessOperationStatusKind.TargetNotAttached, observed.NoTargetSelected);
+		Assert.Equal(expectedBackend, observed.Backend);
+		Assert.Null(observed.ProcessId);
+		Assert.Equal(PointerSize.Unknown, observed.Bitness);
+		Assert.Equal(CheatEngineArchitecture.Unknown, observed.Architecture);
+		Assert.Null(observed.ConfiguredPointerSizeBytes);
+		Assert.False(observed.ConfiguredPointerSizeDiffersFromBitness);
+		Assert.Equal([nameof(ITargetObservationPort.ObserveTargetArchitecture)], port.TargetCalls);
+	}
+
+	[Theory]
+	[Trait("Qualification", "Q32")]
+	[InlineData(ProcessOperationStatusKind.ProtectedLuaFailure)]
+	[InlineData(ProcessOperationStatusKind.InvalidResult)]
+	public void ObserverNarrowsABrokenFactToThePidTheBitnessAndTheConfiguredSize(ProcessOperationStatusKind kind)
+	{
+		TargetObservationDouble port = new()
+		{
+			TargetStatus = TargetObservations.Status(kind),
+			Target = TargetObservations.Create(processId: 42, configuredPointerSizeBytes: 4)
+		};
+
+		ObservedTarget observed = TargetArchitectureObserver.Observe(port);
+
+		Assert.True(observed.HasTarget);
+		Assert.Equal(kind, observed.NarrowedFrom!.Value.Kind);
+		Assert.Equal(42, observed.ProcessId!.Value.Value);
+		Assert.Equal(PointerSize.Bit64, observed.Bitness);
+		Assert.Equal(4, observed.ConfiguredPointerSizeBytes);
+		Assert.True(observed.ConfiguredPointerSizeDiffersFromBitness);
+		// The narrowed reads establish neither the backend nor the ISA: nothing is inferred from the bitness.
+		Assert.Equal(TargetBackend.Unknown, observed.Backend);
+		Assert.Equal(CheatEngineArchitecture.Unknown, observed.Architecture);
+		Assert.Equal(TargetAbi.Unknown, observed.Abi);
 		Assert.Equal(
 		[
-			nameof(ITargetArchitectureProbe.GetOpenedProcessId),
-			nameof(ITargetArchitectureProbe.TargetIs64Bit),
-			nameof(ITargetArchitectureProbe.TargetIsX86),
-			nameof(ITargetArchitectureProbe.TargetIsArm),
-			nameof(ITargetArchitectureProbe.GetConfiguredPointerSize),
-			nameof(ITargetArchitectureProbe.GetOpenedProcessId)
-		], probe.Calls);
-		Assert.True(observed.HasTarget);
-		Assert.False(observed.TargetChangedDuringObservation);
-		Assert.Equal(CheatEngineArchitecture.X64, observed.Architecture);
-		Assert.Equal(PointerSize.Bit64, observed.ProcessPointerSize);
-		Assert.Equal(8, observed.ConfiguredPointerSizeBytes);
-		Assert.Equal(PointerSize.Bit64, observed.ConfiguredPointerSizeKnown);
-		Assert.False(observed.ConfiguredPointerSizeDiffersFromProcessWidth);
+			nameof(ITargetObservationPort.ObserveTargetArchitecture), nameof(ITargetObservationPort.ObserveCurrent),
+			nameof(ITargetObservationPort.TryGetConfiguredPointerSize), nameof(ITargetObservationPort.ObserveCurrent)
+		], port.TargetCalls);
 	}
 
-	[Fact]
-	public void ObserverNeverReadsTheConfiguredPointerSizeWhenNotRequested()
-	{
-		RecordingProbe probe = new(42);
-
-		ObservedTargetArchitecture observed = TargetArchitectureObserver.Observe(probe, readConfiguredPointerSize: false);
-
-		Assert.DoesNotContain(nameof(ITargetArchitectureProbe.GetConfiguredPointerSize), probe.Calls);
-		Assert.Null(observed.ConfiguredPointerSizeBytes);
-		Assert.Equal(PointerSize.Unknown, observed.ConfiguredPointerSizeKnown);
-		Assert.Equal(ClientCapabilityEvidenceState.Unknown, observed.ConfiguredPointerSize.Evidence.State);
-		Assert.Equal(CheatEngineArchitecture.X64, observed.Architecture);
-		Assert.False(observed.ConfiguredPointerSizeDiffersFromProcessWidth);
-	}
-
-	[Fact]
-	[Trait("Qualification", "Q32")]
-	public void ObserverTreatsTheFileAsProcessSentinelAsNoTarget()
-	{
-		RecordingProbe probe = new(4294967295L);
-
-		ObservedTargetArchitecture observed = TargetArchitectureObserver.Observe(probe, readConfiguredPointerSize: true);
-
-		Assert.Equal([nameof(ITargetArchitectureProbe.GetOpenedProcessId)], probe.Calls);
-		Assert.False(observed.HasTarget);
-		Assert.Equal(ClientCapabilityEvidenceState.Malformed, observed.ProcessId.Evidence.State);
-		Assert.Equal(CheatEngineArchitecture.Unknown, observed.Architecture);
-		Assert.Equal(PointerSize.Unknown, observed.ProcessPointerSize);
-		Assert.Null(observed.ConfiguredPointerSizeBytes);
-	}
-
-	[Fact]
-	[Trait("Qualification", "Q32")]
-	public void ObserverKeepsTheProcessWidthWhenTheIsaIsUnknown()
-	{
-		RecordingProbe probe = new(42)
-		{
-			IsX86 = false,
-			IsArm = false,
-			Is64Bit = false,
-			ConfiguredPointerSize = 4
-		};
-
-		ObservedTargetArchitecture observed = TargetArchitectureObserver.Observe(probe, readConfiguredPointerSize: true);
-
-		Assert.Equal(CheatEngineArchitecture.Unknown, observed.Architecture);
-		Assert.Equal(ClientCapabilityEvidenceState.Unknown, observed.ArchitectureEvidence.Evidence.State);
-		Assert.Equal(PointerSize.Bit32, observed.ProcessPointerSize);
-	}
-
-	[Fact]
+	[Theory]
 	[Trait("Qualification", "Q31")]
-	public void ObserverReportsAConfiguredPointerSizeThatDiffersFromTheProcessWidth()
+	[InlineData(2, ProcessOperationStatusKind.InvalidResult, 2)]
+	[InlineData(0, ProcessOperationStatusKind.InvalidResult, null)]
+	[InlineData(null, ProcessOperationStatusKind.GlobalUnavailable, null)]
+	[InlineData(8, ProcessOperationStatusKind.TargetChanged, null)]
+	public void NarrowingKeepsARawConfiguredSizeOnlyWhenAnIntegerWasRead(int? raw, ProcessOperationStatusKind status,
+		int? expected)
 	{
-		RecordingProbe probe = new(42)
+		// Cheat Engine accepts any configured size (spike C3 D3(b)); the SDK keeps the raw integer of an invalid width.
+		TargetObservationDouble port = new()
 		{
-			ConfiguredPointerSize = 4
+			TargetStatus = TargetObservations.LuaFailure,
+			Target = TargetObservations.Create(configuredPointerSizeBytes: raw),
+			ConfiguredStatus = TargetObservations.Status(status)
 		};
 
-		ObservedTargetArchitecture observed = TargetArchitectureObserver.Observe(probe, readConfiguredPointerSize: true);
+		ObservedTarget observed = TargetArchitectureObserver.Observe(port);
 
-		Assert.Equal(PointerSize.Bit64, observed.ProcessPointerSize);
-		Assert.Equal(4, observed.ConfiguredPointerSizeBytes);
-		Assert.Equal(PointerSize.Bit32, observed.ConfiguredPointerSizeKnown);
-		Assert.True(observed.ConfiguredPointerSizeDiffersFromProcessWidth);
+		Assert.True(observed.HasTarget);
+		Assert.Equal(expected, observed.ConfiguredPointerSizeBytes);
+		Assert.Equal(PointerSize.Bit64, observed.Bitness);
+	}
+
+	[Theory]
+	[Trait("Qualification", "Q32")]
+	[InlineData(ProcessOperationStatusKind.Success, 43)]
+	[InlineData(ProcessOperationStatusKind.TargetNotAttached, 0)]
+	[InlineData(ProcessOperationStatusKind.FileAsProcessTarget, 0)]
+	public void ANarrowedObservationWhoseClosingSelectionDiffersIsATargetChange(ProcessOperationStatusKind closing,
+		int closingProcessId)
+	{
+		TargetObservationDouble port = new()
+		{
+			TargetStatus = TargetObservations.LuaFailure,
+			CurrentReads =
+			[
+				(ProcessOperationStatus.Success, 42), (TargetObservations.Status(closing), closingProcessId)
+			]
+		};
+
+		ObservedTarget observed = TargetArchitectureObserver.Observe(port);
+
+		Assert.False(observed.HasTarget);
+		Assert.Equal(ProcessOperationStatusKind.TargetChanged, observed.Status.Kind);
+		Assert.Equal(ProcessOperationStatusKind.ProtectedLuaFailure, observed.NarrowedFrom!.Value.Kind);
+		Assert.Equal(PointerSize.Unknown, observed.Bitness);
 	}
 
 	[Fact]
 	[Trait("Qualification", "Q32")]
-	public void ObserverReportsAFaultedClosingPidReadAsUnconfirmedRatherThanAsATargetChange()
+	public void ANarrowedObservationKeepsTheFailureOfItsSelectionReads()
 	{
-		RecordingProbe probe = new(42)
+		// A failed read is a failed read, not evidence of a different target.
+		TargetObservationDouble opening = new()
 		{
-			ClosingProcessIdException = new LuaException("getOpenedProcessID failed")
+			TargetStatus = TargetObservations.LuaFailure,
+			CurrentReads = [(ProcessOperationStatus.TargetNotAttached, 0)]
+		};
+		TargetObservationDouble closing = new()
+		{
+			TargetStatus = ProcessOperationStatus.InvalidResult,
+			CurrentReads = [(ProcessOperationStatus.Success, 42), (TargetObservations.LuaFailure, 0)]
 		};
 
-		ObservedTargetArchitecture observed = TargetArchitectureObserver.Observe(probe, readConfiguredPointerSize: true);
+		ObservedTarget openingObserved = TargetArchitectureObserver.Observe(opening);
+		ObservedTarget closingObserved = TargetArchitectureObserver.Observe(closing);
 
-		Assert.False(observed.HasTarget);
-		Assert.False(observed.TargetChangedDuringObservation);
-		Assert.True(observed.TargetUnconfirmed);
-		Assert.False(observed.NoTargetSelected);
-		Assert.Equal(CheatEngineArchitecture.Unknown, observed.Architecture);
-		Assert.Equal(PointerSize.Unknown, observed.ProcessPointerSize);
-		Assert.Equal(ClientCapabilityEvidenceState.Faulted, observed.Is64Bit.Evidence.State);
-		Assert.Equal(TargetArchitectureObserver.TargetUnconfirmedReason, observed.Is64Bit.Evidence.Reason);
+		Assert.True(openingObserved.NoTargetSelected);
+		Assert.Equal(2, opening.TargetCalls.Count);
+		Assert.Equal(ProcessOperationStatusKind.ProtectedLuaFailure, closingObserved.Status.Kind);
+		Assert.Equal(ProcessOperationStatusKind.InvalidResult, closingObserved.NarrowedFrom!.Value.Kind);
+		Assert.False(closingObserved.HasTarget);
+	}
+
+	[Theory]
+	[Trait("Qualification", "Q31")]
+	[InlineData(true, 4, true)]
+	[InlineData(true, 8, false)]
+	[InlineData(false, 8, true)]
+	[InlineData(true, null, false)]
+	public void TheMismatchIsReportedOnlyBetweenKnownFacts(bool is64Bit, int? configured, bool differs)
+	{
+		TargetObservationDouble port = new()
+		{
+			Target = TargetObservations.Create(is64Bit: is64Bit, configuredPointerSizeBytes: configured)
+		};
+
+		ObservedTarget observed = TargetArchitectureObserver.Observe(port);
+
+		Assert.Equal(differs, observed.ConfiguredPointerSizeDiffersFromBitness);
+		Assert.Equal(configured, observed.ConfiguredPointerSizeBytes);
+		Assert.Equal(configured switch
+		{
+			4 => PointerSize.Bit32,
+			8 => PointerSize.Bit64,
+			_ => PointerSize.Unknown
+		}, observed.ConfiguredPointerSize);
 	}
 
 	[Fact]
-	[Trait("Qualification", "Q32")]
-	public void ObserverReportsADifferentClosingPidAsATargetChange()
+	public void ObserverRejectsANullPort()
 	{
-		RecordingProbe probe = new(42)
-		{
-			ClosingProcessId = 43
-		};
-
-		ObservedTargetArchitecture observed = TargetArchitectureObserver.Observe(probe, readConfiguredPointerSize: true);
-
-		Assert.False(observed.HasTarget);
-		Assert.True(observed.TargetChangedDuringObservation);
-		Assert.False(observed.TargetUnconfirmed);
-		Assert.Equal(ClientCapabilityEvidenceState.Faulted, observed.Is64Bit.Evidence.State);
-		Assert.Equal(TargetArchitectureObserver.TargetChangedReason, observed.Is64Bit.Evidence.Reason);
-	}
-
-	private sealed class RecordingProbe(long processId) : ITargetArchitectureProbe
-	{
-		internal List<string> Calls
-		{
-			get;
-		} = [];
-
-		/// <summary>The PID returned by the reads after the first one; <see langword="null" /> repeats the first.</summary>
-		internal long? ClosingProcessId
-		{
-			get;
-			init;
-		}
-
-		/// <summary>Thrown by the reads of the opened PID after the first one.</summary>
-		internal Exception? ClosingProcessIdException
-		{
-			get;
-			init;
-		}
-
-		internal bool Is64Bit
-		{
-			get;
-			init;
-		} = true;
-
-		internal bool IsX86
-		{
-			get;
-			init;
-		} = true;
-
-		internal bool IsArm
-		{
-			get;
-			init;
-		}
-
-		internal int ConfiguredPointerSize
-		{
-			get;
-			init;
-		} = 8;
-
-		public long GetOpenedProcessId()
-		{
-			bool closing = Calls.Contains(nameof(GetOpenedProcessId));
-			Calls.Add(nameof(GetOpenedProcessId));
-			if (closing && ClosingProcessIdException is { } exception)
-			{
-				throw exception;
-			}
-
-			return closing ? ClosingProcessId ?? processId : processId;
-		}
-
-		public bool TargetIs64Bit()
-		{
-			Calls.Add(nameof(TargetIs64Bit));
-			return Is64Bit;
-		}
-
-		public bool TargetIsX86()
-		{
-			Calls.Add(nameof(TargetIsX86));
-			return IsX86;
-		}
-
-		public bool TargetIsArm()
-		{
-			Calls.Add(nameof(TargetIsArm));
-			return IsArm;
-		}
-
-		public int GetConfiguredPointerSize()
-		{
-			Calls.Add(nameof(GetConfiguredPointerSize));
-			return ConfiguredPointerSize;
-		}
+		Assert.Throws<ArgumentNullException>(() => TargetArchitectureObserver.Observe(null!));
 	}
 }

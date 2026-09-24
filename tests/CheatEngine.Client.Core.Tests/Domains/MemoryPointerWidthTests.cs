@@ -5,9 +5,9 @@ using CheatEngine.Client.Core.Tests.TestSupport;
 using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Memory;
 using CheatEngine.Client.Results;
+using CheatEngine.SDK.Engine.Processes;
 using CheatEngine.SDK.Engine.Runtime;
 using CheatEngine.SDK.Engine.Values;
-using CheatEngine.SDK.Lua.Calls;
 
 namespace CheatEngine.Client.Core.Tests.Domains;
 
@@ -78,23 +78,24 @@ public sealed class MemoryPointerWidthTests
 		Assert.Equal(CheatEngineFailureKind.TargetNotAttached, failure.Kind);
 		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
 		Assert.Equal("Memory.Read", failure.Operation);
-		Assert.Equal([nameof(PointerWidthPort.GetOpenedProcessId)], port.FactCalls);
+		Assert.Equal([nameof(ITargetObservationPort.ObserveTargetArchitecture)], port.TargetCalls);
 		Assert.Equal(0, port.ByteReads);
 	}
 
 	[Theory]
-	[InlineData("FaultedOpenedProcessRead")]
-	[InlineData("FileAsProcessSentinel")]
-	[InlineData("FaultedClosingProcessRead")]
-	public void CodecContextReportsAnUnobservableWidthAsIndeterminateInsteadOfNoTarget(string scenario)
+	[InlineData("FaultedOpenedProcessRead", CheatEngineFailureKind.LuaError)]
+	[InlineData("FileAsProcessSentinel", CheatEngineFailureKind.TargetIdentityUnavailable)]
+	[InlineData("FaultedClosingProcessRead", CheatEngineFailureKind.LuaError)]
+	public void CodecContextReportsAnUnobservableWidthWithItsOwnKindInsteadOfNoTarget(string scenario,
+		CheatEngineFailureKind expected)
 	{
-		// ADR-08: only an observed PID of zero means that no target is selected. A faulted opened-process read, a PID
-		// that is not a local target, or an unconfirmed observation leaves the width unobservable.
+		// ADR-08: only an observed "no process selected" means that no target is selected. A raising selection read or
+		// a file opened as a process leaves the width unobservable, with the kind of what CheatEngine.SDK reported.
 		PointerWidthPort port = scenario switch
 		{
 			"FaultedOpenedProcessRead" => new PointerWidthPort
 			{
-				ProcessIdException = new LuaException("getOpenedProcessID failed")
+				ProcessIdFails = true
 			},
 			"FileAsProcessSentinel" => new PointerWidthPort
 			{
@@ -102,7 +103,7 @@ public sealed class MemoryPointerWidthTests
 			},
 			_ => new PointerWidthPort
 			{
-				ClosingProcessIdException = new LuaException("getOpenedProcessID failed")
+				ClosingProcessIdFails = true
 			}
 		};
 
@@ -110,7 +111,7 @@ public sealed class MemoryPointerWidthTests
 			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
 
 		Assert.False(succeeded);
-		Assert.Equal(CheatEngineFailureKind.IndeterminateHostResult, failure.Kind);
+		Assert.Equal(expected, failure.Kind);
 		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
 		Assert.Contains("process width is unobservable", failure.Message, StringComparison.Ordinal);
 		Assert.DoesNotContain("No target process is selected", failure.Message, StringComparison.Ordinal);
@@ -287,7 +288,7 @@ public sealed class MemoryPointerWidthTests
 		// No evidence of a mismatch: the Client keeps the process width and proceeds.
 		PointerWidthPort port = new()
 		{
-			ConfiguredPointerSizeException = new LuaException("getPointerSize failed"),
+			ConfiguredPointerSizeFails = true,
 			Pointers = { [TestAddress] = new Address(0x500000) }
 		};
 		MemoryClient client = CreateClient(port);
@@ -424,30 +425,73 @@ public sealed class MemoryPointerWidthTests
 	}
 
 	/// <summary>An x64 target (PID 42) whose facts, pointers and failures are configurable.</summary>
-	private sealed class PointerWidthPort : IMemoryCodecContextPort
+	private sealed class PointerWidthPort : TargetObservationDouble, IMemoryCodecContextPort
 	{
+		/// <summary>Sets Cheat Engine's selected PID: zero is no target, 4294967295 the file-as-process sentinel.</summary>
 		internal long ProcessId
 		{
-			get;
-			init;
-		} = 42;
+			init
+			{
+				TargetStatus = value switch
+				{
+					0 => ProcessOperationStatus.TargetNotAttached,
+					4294967295L => ProcessOperationStatus.FileAsProcessTarget,
+					_ => ProcessOperationStatus.Success
+				};
+				Target = TargetObservations.Create((int) Math.Clamp(value, 1, int.MaxValue),
+					Target.Bitness == PointerSize.Bit64, configuredPointerSizeBytes: Target.ConfiguredPointerSizeBytes);
+			}
+		}
 
 		internal bool Is64Bit
 		{
-			get;
-			init;
-		} = true;
+			init => Target = TargetObservations.Create(Target.ProcessId.Value, value,
+				configuredPointerSizeBytes: Target.ConfiguredPointerSizeBytes);
+		}
 
 		internal int ConfiguredPointerSize
 		{
-			get;
-			init;
-		} = sizeof(ulong);
+			init => Target = TargetObservations.Create(Target.ProcessId.Value, Target.Bitness == PointerSize.Bit64,
+				configuredPointerSizeBytes: value);
+		}
 
-		internal Exception? ConfiguredPointerSizeException
+		/// <summary>Makes getPointerSize raise: the full observation narrows and the configured size stays unknown.</summary>
+		internal bool ConfiguredPointerSizeFails
 		{
-			get;
-			init;
+			init
+			{
+				if (value)
+				{
+					TargetStatus = TargetObservations.LuaFailure;
+					ConfiguredStatus = TargetObservations.LuaFailure;
+				}
+			}
+		}
+
+		/// <summary>Makes every selected-PID read raise.</summary>
+		internal bool ProcessIdFails
+		{
+			init
+			{
+				if (value)
+				{
+					TargetStatus = TargetObservations.LuaFailure;
+					CurrentReads = [(TargetObservations.LuaFailure, 0)];
+				}
+			}
+		}
+
+		/// <summary>Makes the closing selected-PID read of the narrowed observation raise.</summary>
+		internal bool ClosingProcessIdFails
+		{
+			init
+			{
+				if (value)
+				{
+					TargetStatus = TargetObservations.LuaFailure;
+					CurrentReads = [(ProcessOperationStatus.Success, 42), (TargetObservations.LuaFailure, 0)];
+				}
+			}
 		}
 
 		internal byte[] Bytes
@@ -457,11 +501,6 @@ public sealed class MemoryPointerWidthTests
 		} = new byte[8];
 
 		internal Dictionary<Address, Address> Pointers
-		{
-			get;
-		} = [];
-
-		internal List<string> FactCalls
 		{
 			get;
 		} = [];
@@ -488,58 +527,6 @@ public sealed class MemoryPointerWidthTests
 		{
 			get;
 			private set;
-		}
-
-		/// <summary>Thrown by every opened-process read (the opening read of the bracket faults).</summary>
-		internal Exception? ProcessIdException
-		{
-			get;
-			init;
-		}
-
-		/// <summary>Thrown by the opened-process reads after the first one (the closing read of the bracket faults).</summary>
-		internal Exception? ClosingProcessIdException
-		{
-			get;
-			init;
-		}
-
-		public long GetOpenedProcessId()
-		{
-			FactCalls.Add(nameof(GetOpenedProcessId));
-			if (ProcessIdException is { } exception)
-			{
-				throw exception;
-			}
-
-			return ClosingProcessIdException is { } closing &&
-				   FactCalls.Count(static call => call == nameof(GetOpenedProcessId)) > 1
-				? throw closing
-				: ProcessId;
-		}
-
-		public bool TargetIs64Bit()
-		{
-			FactCalls.Add(nameof(TargetIs64Bit));
-			return Is64Bit;
-		}
-
-		public bool TargetIsX86()
-		{
-			FactCalls.Add(nameof(TargetIsX86));
-			return true;
-		}
-
-		public bool TargetIsArm()
-		{
-			FactCalls.Add(nameof(TargetIsArm));
-			return false;
-		}
-
-		public int GetConfiguredPointerSize()
-		{
-			FactCalls.Add(nameof(GetConfiguredPointerSize));
-			return ConfiguredPointerSizeException is { } exception ? throw exception : ConfiguredPointerSize;
 		}
 
 		public bool TryReadBytes(Address address, Span<byte> destination, out string? failure)

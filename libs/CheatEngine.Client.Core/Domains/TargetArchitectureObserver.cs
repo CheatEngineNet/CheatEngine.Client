@@ -1,238 +1,139 @@
-using CheatEngine.Client.Runtime;
+using CheatEngine.SDK.Engine.Inspection;
+using CheatEngine.SDK.Engine.Processes;
 using CheatEngine.SDK.Engine.Runtime;
 
 namespace CheatEngine.Client.Core.Domains;
 
 /// <summary>
-///     Observes the facts of the selected target in one PID-bracketed sequence and derives its ISA without inference
-///     from the 64-bit fact alone (audit F08, A10-17, Q31, Q32; spike C3 D2 and D3).
+///     The one target observation policy of the Runtime, Processes and Memory domains, over the read-only
+///     CheatEngine.SDK 2.0.0 process operations (audit F08, A10-17, Q31, Q32).
 /// </summary>
 /// <remarks>
 ///     <para>
-///         Order: opened PID, then <c>targetIs64Bit</c>, <c>targetIsX86</c>, <c>targetIsArm</c>, optionally
-///         <c>getPointerSize</c>, then the opened PID again. A PID outside [1, <see cref="int.MaxValue" />] (no target,
-///         a negative or malformed value, or the file-as-process sentinel 4294967295) stops the sequence before any
-///         target fact is read, because Cheat Engine reports x86 family, 64-bit and pointer size 8 when no target is
-///         opened. A second PID that differs from the first (a target change) or that cannot be read (a probe fault, the
-///         target is unconfirmed) discards every target fact.
+///         The observation is <c>RuntimeProcessOperations.ObserveTargetArchitecture</c>: the SDK reads the selected PID,
+///         the backend, the bitness, the ISA families, the Android and ABI facts and the configured pointer size, then the
+///         selected PID again, in one Lua admission. It reads no fact when no target or the file-as-process sentinel is
+///         selected, and it reports a different closing PID as a target change. The ISA is the SDK's own derivation
+///         (<see cref="TargetArchitectureObservation.Architecture" />), never a Client inference from the 64-bit fact.
 ///     </para>
 ///     <para>
-///         The ISA is derived from the observed families: x86 family and 64-bit is X64, x86 family and 32-bit is X86,
-///         ARM family and 64-bit is Arm64, ARM family and 32-bit is Arm32. Contradictory families, no known family, or a
-///         missing fact leave the ISA unknown. The process width comes from <c>targetIs64Bit</c> independently of the ISA
-///         result; the configured pointer size is kept raw and never replaces the process width.
+///         When that observation raises a protected Lua error or returns a malformed value, one of its facts is broken
+///         but the others may not be. The observer then narrows: <c>ObserveCurrent</c> (PID and bitness),
+///         <c>TryGetConfiguredPointerSize</c>, and <c>ObserveCurrent</c> again. The narrowed facts are kept only when
+///         both PID reads succeed and agree; a different, absent or file-as-process closing selection is a target change.
+///         The narrowed observation leaves the backend, the ISA, the Android and ABI facts unknown. Like the SDK's own
+///         bracket, the two reads do not detect a selection that changed and changed back between them.
+///     </para>
+///     <para>
+///         Every call is an observation: nothing selects, opens, pauses or configures a target (Q45).
 ///     </para>
 /// </remarks>
 internal static class TargetArchitectureObserver
 {
-	internal const string NoTargetReason = "No target process is selected, so target facts were not probed.";
-
-	internal const string UnestablishedTargetReason =
-		"The opened process identifier was not established as a local target, so target facts were not probed.";
-
-	internal const string TargetChangedReason =
-		"The selected target changed during observation, so its facts were discarded.";
-
-	internal const string TargetUnconfirmedReason =
-		"The closing read of the opened process identifier failed, so the target facts could not be attributed to the " +
-		"selected target and were discarded.";
-
-	internal const string ConfiguredPointerSizeNotRequestedReason =
-		"The configured pointer size was not requested by this observation.";
-
-	/// <summary>Reads the opened PID, then observes the facts of the selected target.</summary>
-	internal static ObservedTargetArchitecture Observe(ITargetArchitectureProbe probe, bool readConfiguredPointerSize)
+	/// <summary>Observes the selected target, narrowing to the facts that can still be read when one fact is broken.</summary>
+	/// <param name="port">The read-only target observation port.</param>
+	/// <returns>The copied observation and its status.</returns>
+	internal static ObservedTarget Observe(ITargetObservationPort port)
 	{
-		ArgumentNullException.ThrowIfNull(probe);
-		ProbeResult<long> processId = ValidateProcessId(ProbeClassifier.Probe(probe.GetOpenedProcessId));
-		return ObserveFrom(probe, processId, readConfiguredPointerSize);
-	}
-
-	/// <summary>Observes the facts of a target whose PID the caller has just read as the opening of the bracket.</summary>
-	internal static ObservedTargetArchitecture ObserveSelected(ITargetArchitectureProbe probe, long processId,
-		bool readConfiguredPointerSize)
-	{
-		ArgumentNullException.ThrowIfNull(probe);
-		return ObserveFrom(probe, ValidateProcessId(ProbeResult<long>.Available(processId)), readConfiguredPointerSize);
-	}
-
-	/// <summary>Returns the established selected-target PID, or <see langword="null" /> when no local target is selected.</summary>
-	internal static int? GetSelectedTarget(ProbeResult<long> processId)
-	{
-		return processId.HasValue && processId.Value is > 0 and <= int.MaxValue ? (int) processId.Value : null;
-	}
-
-	/// <summary>Classifies an opened PID outside the supported range as malformed; zero stays a valid "no target".</summary>
-	internal static ProbeResult<long> ValidateProcessId(ProbeResult<long> processId)
-	{
-		return processId.HasValue && processId.Value is < 0 or > int.MaxValue
-			? ProbeResult<long>.Malformed(
-				"Cheat Engine returned an opened process identifier outside the supported PID range.")
-			: processId;
-	}
-
-	/// <summary>Maps a raw configured pointer size to a known width; any other value stays unknown.</summary>
-	internal static PointerSize ToKnownPointerSize(int? bytes)
-	{
-		return bytes switch
+		ArgumentNullException.ThrowIfNull(port);
+		ProcessOperationStatus status = port.ObserveTargetArchitecture(out TargetArchitectureObservation facts);
+		if (status.IsSuccess)
 		{
-			sizeof(uint) => PointerSize.Bit32,
-			sizeof(ulong) => PointerSize.Bit64,
-			_ => PointerSize.Unknown
+			return new ObservedTarget(status, facts, null);
+		}
+
+		return status.Kind is ProcessOperationStatusKind.ProtectedLuaFailure or ProcessOperationStatusKind.InvalidResult
+			? ObserveNarrowly(port, status)
+			: new ObservedTarget(status, default, null);
+	}
+
+	private static ObservedTarget ObserveNarrowly(ITargetObservationPort port, ProcessOperationStatus fullStatus)
+	{
+		ProcessOperationStatus opening = port.ObserveCurrent(out CurrentProcessObservation selected);
+		if (!opening.IsSuccess)
+		{
+			return new ObservedTarget(opening, default, fullStatus);
+		}
+
+		ProcessOperationStatus configured = port.TryGetConfiguredPointerSize(out int rawBytes, out _);
+		ProcessOperationStatus closing = port.ObserveCurrent(out CurrentProcessObservation confirmed);
+		ProcessOperationStatus confirmation = closing.Kind switch
+		{
+			ProcessOperationStatusKind.Success when confirmed.Id == selected.Id => ProcessOperationStatus.Success,
+			ProcessOperationStatusKind.Success or ProcessOperationStatusKind.TargetNotAttached
+				or ProcessOperationStatusKind.FileAsProcessTarget => ProcessOperationStatus.TargetChanged,
+			_ => closing
 		};
-	}
-
-	private static ObservedTargetArchitecture ObserveFrom(ITargetArchitectureProbe probe, ProbeResult<long> processId,
-		bool readConfiguredPointerSize)
-	{
-		if (GetSelectedTarget(processId) is not { } selectedTarget)
+		if (!confirmation.IsSuccess)
 		{
-			return Unobserved(processId, false, ProbeResult<bool>.Unknown(
-				processId.HasValue && processId.Value == 0 ? NoTargetReason : UnestablishedTargetReason));
+			return new ObservedTarget(confirmation, default, fullStatus);
 		}
 
-		ProbeResult<bool> is64Bit = ProbeClassifier.Probe(probe.TargetIs64Bit);
-		ProbeResult<bool> isX86Family = ProbeClassifier.Probe(probe.TargetIsX86);
-		ProbeResult<bool> isArmFamily = ProbeClassifier.Probe(probe.TargetIsArm);
-		ProbeResult<int> configuredPointerSize = readConfiguredPointerSize
-			? ProbeClassifier.Probe(probe.GetConfiguredPointerSize)
-			: ProbeResult<int>.Unknown(ConfiguredPointerSizeNotRequestedReason);
-		ProbeResult<long> confirmation = ProbeClassifier.Probe(probe.GetOpenedProcessId);
-		if (!confirmation.HasValue)
-		{
-			// A failed closing read is a probe fault, not evidence of a different target.
-			return Unobserved(processId, false, ProbeResult<bool>.Faulted(TargetUnconfirmedReason));
-		}
-
-		if (confirmation.Value != selectedTarget)
-		{
-			return Unobserved(processId, true, ProbeResult<bool>.Faulted(TargetChangedReason));
-		}
-
-		PointerSize processPointerSize = !is64Bit.HasValue
-			? PointerSize.Unknown
-			: is64Bit.Value
-				? PointerSize.Bit64
-				: PointerSize.Bit32;
-		ProbeResult<CheatEngineArchitecture> architecture = DeriveArchitecture(is64Bit, isX86Family, isArmFamily);
-		int? configuredBytes = configuredPointerSize.HasValue ? configuredPointerSize.Value : null;
-		PointerSize configuredKnown = ToKnownPointerSize(configuredBytes);
-		if (configuredBytes is { } raw && !configuredKnown.IsKnown)
-		{
-			// Cheat Engine accepts any configured size (spike C3 D3(b)): keep the raw value, never map it to a width.
-			configuredPointerSize = ProbeResult<int>.Malformed($"Configured pointer size {raw} is outside 4 and 8.");
-		}
-
-		return new ObservedTargetArchitecture(
-			processId,
-			true,
-			false,
-			is64Bit,
-			isX86Family,
-			isArmFamily,
-			configuredPointerSize,
-			architecture,
-			architecture.HasValue ? architecture.Value : CheatEngineArchitecture.Unknown,
-			processPointerSize,
-			configuredBytes,
-			configuredKnown);
-	}
-
-	private static ProbeResult<CheatEngineArchitecture> DeriveArchitecture(ProbeResult<bool> is64Bit,
-		ProbeResult<bool> isX86Family, ProbeResult<bool> isArmFamily)
-	{
-		// An unavailable fact wins: its evidence explains why the ISA stays unknown.
-		foreach (ProbeResult<bool> fact in (ReadOnlySpan<ProbeResult<bool>>) [is64Bit, isX86Family, isArmFamily])
-		{
-			if (fact.Evidence.State == ClientCapabilityEvidenceState.Missing)
-			{
-				return new ProbeResult<CheatEngineArchitecture>(fact.Evidence, CheatEngineArchitecture.Unknown);
-			}
-		}
-
-		foreach (ProbeResult<bool> fact in (ReadOnlySpan<ProbeResult<bool>>) [is64Bit, isX86Family, isArmFamily])
-		{
-			if (!fact.HasValue)
-			{
-				return new ProbeResult<CheatEngineArchitecture>(fact.Evidence, CheatEngineArchitecture.Unknown);
-			}
-		}
-
-		return (isX86Family.Value, isArmFamily.Value) switch
-		{
-			(true, false) => ProbeResult<CheatEngineArchitecture>.Available(
-				is64Bit.Value ? CheatEngineArchitecture.X64 : CheatEngineArchitecture.X86),
-			(false, true) => ProbeResult<CheatEngineArchitecture>.Available(
-				is64Bit.Value ? CheatEngineArchitecture.Arm64 : CheatEngineArchitecture.Arm32),
-			(true, true) => ProbeResult<CheatEngineArchitecture>.Malformed(
-				"Cheat Engine reported contradictory ISA families (both x86 and ARM)."),
-			_ => ProbeResult<CheatEngineArchitecture>.Unknown(
-				"Cheat Engine reported a target ISA family outside x86 and ARM.")
-		};
-	}
-
-	private static ObservedTargetArchitecture Unobserved(ProbeResult<long> processId, bool targetChanged,
-		ProbeResult<bool> reason)
-	{
-		ProbeResult<int> configured = new(reason.Evidence, default);
-		return new ObservedTargetArchitecture(
-			processId,
-			false,
-			targetChanged,
-			reason,
-			reason,
-			reason,
-			configured,
-			new ProbeResult<CheatEngineArchitecture>(reason.Evidence, CheatEngineArchitecture.Unknown),
-			CheatEngineArchitecture.Unknown,
-			PointerSize.Unknown,
-			null,
-			PointerSize.Unknown);
+		// TryGetConfiguredPointerSize keeps the raw integer of an InvalidResult width (any value other than 4 and 8);
+		// zero there means that no integer was read, so it stays unknown.
+		int? configuredBytes = configured.IsSuccess ||
+							   (configured.Kind == ProcessOperationStatusKind.InvalidResult && rawBytes != 0)
+			? rawBytes
+			: null;
+		TargetArchitectureObservation narrowed = new(selected.Id, TargetBackend.Unknown, selected.PointerSize, null,
+			null, null, null, configuredBytes);
+		return new ObservedTarget(ProcessOperationStatus.Success, narrowed, fullStatus);
 	}
 }
 
-/// <summary>The copied facts of one PID-bracketed target observation, with the evidence of each fact.</summary>
-/// <param name="ProcessId">The opening PID read and its evidence.</param>
-/// <param name="HasTarget">Whether a local target was selected and confirmed by the closing PID read.</param>
-/// <param name="TargetChangedDuringObservation">Whether the closing PID read returned a different PID.</param>
-/// <param name="Is64Bit">The <c>targetIs64Bit</c> fact.</param>
-/// <param name="IsX86Family">The <c>targetIsX86</c> fact.</param>
-/// <param name="IsArmFamily">The <c>targetIsArm</c> fact.</param>
-/// <param name="ConfiguredPointerSize">The <c>getPointerSize</c> fact; malformed when outside 4 and 8.</param>
-/// <param name="ArchitectureEvidence">The evidence of the ISA derivation.</param>
-/// <param name="Architecture">The derived ISA, or unknown.</param>
-/// <param name="ProcessPointerSize">The process width from <c>targetIs64Bit</c>, or unknown.</param>
-/// <param name="ConfiguredPointerSizeBytes">The raw configured pointer size, or <see langword="null" /> when unobserved.</param>
-/// <param name="ConfiguredPointerSizeKnown">The configured size as a width when it is 4 or 8, otherwise unknown.</param>
-internal readonly record struct ObservedTargetArchitecture(
-	ProbeResult<long> ProcessId,
-	bool HasTarget,
-	bool TargetChangedDuringObservation,
-	ProbeResult<bool> Is64Bit,
-	ProbeResult<bool> IsX86Family,
-	ProbeResult<bool> IsArmFamily,
-	ProbeResult<int> ConfiguredPointerSize,
-	ProbeResult<CheatEngineArchitecture> ArchitectureEvidence,
-	CheatEngineArchitecture Architecture,
-	PointerSize ProcessPointerSize,
-	int? ConfiguredPointerSizeBytes,
-	PointerSize ConfiguredPointerSizeKnown)
+/// <summary>The copied result of one target observation.</summary>
+/// <param name="Status">
+///     Successful when target facts were established (fully or narrowed); otherwise the SDK status that explains why no
+///     fact is attributed to a target.
+/// </param>
+/// <param name="Facts">The copied facts; meaningful only when <see cref="HasTarget" /> is <see langword="true" />.</param>
+/// <param name="NarrowedFrom">
+///     The status of the full observation when the observer had to narrow, or <see langword="null" /> when the full
+///     observation answered.
+/// </param>
+internal readonly record struct ObservedTarget(
+	ProcessOperationStatus Status,
+	TargetArchitectureObservation Facts,
+	ProcessOperationStatus? NarrowedFrom)
 {
-	/// <summary>
-	///     Gets whether an observed configured pointer size differs from a known process width; <see langword="false" />
-	///     when either side is unknown (no evidence of a mismatch).
-	/// </summary>
-	internal bool ConfiguredPointerSizeDiffersFromProcessWidth =>
-		ConfiguredPointerSizeBytes is { } configured && ProcessPointerSize.IsKnown &&
-		configured != ProcessPointerSize.Bytes;
+	/// <summary>Gets whether target facts were established for one selected process.</summary>
+	internal bool HasTarget => Status.IsSuccess;
+
+	/// <summary>Gets whether Cheat Engine reported that no target is selected.</summary>
+	internal bool NoTargetSelected => Status.Kind == ProcessOperationStatusKind.TargetNotAttached;
+
+	/// <summary>Gets the selected process identifier, or <see langword="null" /> without a target.</summary>
+	internal TargetProcessId? ProcessId => HasTarget ? Facts.ProcessId : null;
 
 	/// <summary>
-	///     Gets whether the opening read selected a local target but the closing PID read faulted, so the observed facts
-	///     could not be attributed to that target (a probe fault, not a target change).
+	///     Gets how Cheat Engine reaches the target: the SDK's backend fact, <see cref="TargetBackend.FileAsProcess" />
+	///     for the file-as-process sentinel, otherwise unknown.
 	/// </summary>
-	internal bool TargetUnconfirmed =>
-		!HasTarget && !TargetChangedDuringObservation && TargetArchitectureObserver.GetSelectedTarget(ProcessId) is not null;
+	internal TargetBackend Backend => HasTarget
+		? Facts.Backend
+		: Status.Kind == ProcessOperationStatusKind.FileAsProcessTarget
+			? TargetBackend.FileAsProcess
+			: TargetBackend.Unknown;
 
-	/// <summary>Gets whether Cheat Engine reported that no process is opened (an observed PID of zero).</summary>
-	internal bool NoTargetSelected => ProcessId.HasValue && ProcessId.Value == 0;
+	/// <summary>Gets the target bitness (<c>targetIs64Bit</c>, what <c>readPointer</c> follows), or unknown.</summary>
+	internal PointerSize Bitness => HasTarget ? Facts.Bitness : PointerSize.Unknown;
+
+	/// <summary>Gets the ISA the SDK derived from the family and bitness facts, or unknown.</summary>
+	internal CheatEngineArchitecture Architecture => HasTarget ? Facts.Architecture : CheatEngineArchitecture.Unknown;
+
+	/// <summary>Gets the decoded target ABI, or unknown.</summary>
+	internal TargetAbi Abi => HasTarget ? Facts.Abi : TargetAbi.Unknown;
+
+	/// <summary>Gets the raw configured pointer size, or <see langword="null" /> when it was not observed.</summary>
+	internal int? ConfiguredPointerSizeBytes => HasTarget ? Facts.ConfiguredPointerSizeBytes : null;
+
+	/// <summary>Gets the configured pointer size as a width when it is 4 or 8 bytes, otherwise unknown.</summary>
+	internal PointerSize ConfiguredPointerSize => HasTarget ? Facts.ConfiguredPointerSize : PointerSize.Unknown;
+
+	/// <summary>
+	///     Gets whether an observed configured pointer size differs from the known bitness (audit Q31.a);
+	///     <see langword="false" /> when either fact is unknown, which is no evidence of a mismatch.
+	/// </summary>
+	internal bool ConfiguredPointerSizeDiffersFromBitness =>
+		HasTarget && Facts.ConfiguredPointerSizeDiffersFromBitness == true;
 }

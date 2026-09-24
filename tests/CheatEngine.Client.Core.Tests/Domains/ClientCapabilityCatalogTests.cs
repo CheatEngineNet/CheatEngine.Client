@@ -77,10 +77,10 @@ public sealed partial class ClientCapabilityCatalogTests
 	}
 
 	[Fact]
-	public void OnlyProcessSelectionTakesItsHostGateFromTheOpenedProcessProbe()
+	public void OnlyProcessSelectionTakesItsHostGateFromTheSdkSelectedProcessObservation()
 	{
 		ClientCapabilityDescriptor probed = Assert.Single(ClientCapabilityCatalog.Entries,
-			static entry => entry.Host == CapabilityHostSource.OpenedProcess);
+			static entry => entry.Host == CapabilityHostSource.SdkSelectedProcess);
 
 		Assert.Equal(ClientCapabilityId.ProcessSelection, probed.Id);
 	}

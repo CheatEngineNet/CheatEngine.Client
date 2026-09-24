@@ -115,6 +115,7 @@ public static class CheatEngineClientServiceCollectionExtensions
 			new ProcessClient(
 				serviceProvider.GetRequiredService<SdkMainThreadDispatcher>(),
 				serviceProvider.GetRequiredService<LocalProcessHost>(),
+				SdkRuntimeObservationPort.Instance,
 				serviceProvider.GetRequiredService<CoreLifetime>()));
 		services.TryAddSingleton<IProcessClient>(static serviceProvider =>
 			serviceProvider.GetRequiredService<ProcessClient>());

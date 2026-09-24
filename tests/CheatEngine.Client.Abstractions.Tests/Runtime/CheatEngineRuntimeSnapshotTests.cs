@@ -1,5 +1,3 @@
-using System.Globalization;
-
 using CheatEngine.Client.Runtime;
 using CheatEngine.SDK.Engine.Runtime;
 
@@ -7,18 +5,36 @@ namespace CheatEngine.Client.Abstractions.Tests.Runtime;
 
 public sealed class CheatEngineRuntimeSnapshotTests
 {
-	/// <summary>Keeps an observed coarse CE version distinct from its qualified four-part release baseline.</summary>
+	/// <summary>Keeps the observed four-part CE file version distinct from the qualified release baseline.</summary>
 	[Fact]
-	public void SnapshotKeepsObservedCeVersionSeparateFromTheQualifiedFourPartBaseline()
+	public void SnapshotKeepsTheObservedFileVersionSeparateFromTheQualifiedBaseline()
 	{
-		CheatEngineRuntimeSnapshot snapshot = Create();
+		CheatEngineRuntimeSnapshot snapshot = Create(new CheatEngineVersion(7, 7, 0, 9999));
 
-		Assert.Equal(7.7d, snapshot.ObservedCheatEngineVersion);
+		Assert.Equal(new CheatEngineVersion(7, 7, 0, 9999), snapshot.CheatEngineVersion);
 		Assert.Equal(new CheatEngineVersion(7, 7, 0, 10621), snapshot.QualifiedCheatEngineBaseline);
-		Assert.NotEqual(
-			snapshot.ObservedCheatEngineVersion!.Value.ToString(CultureInfo.InvariantCulture),
-			snapshot.QualifiedCheatEngineBaseline.ToString());
 		Assert.True(snapshot.IsOnQualifiedCheatEngineLine);
+	}
+
+	/// <summary>
+	///     Compares the major and minor components as integers: 7.10 is its own line, never 7.1 as a coarse decimal
+	///     number would read it.
+	/// </summary>
+	[Theory]
+	[InlineData(7, 7, 7, 7, true)]
+	[InlineData(7, 7, 7, 10, false)]
+	[InlineData(7, 7, 7, 1, false)]
+	[InlineData(7, 7, 8, 7, false)]
+	[InlineData(7, 10, 7, 10, true)]
+	[InlineData(7, 10, 7, 1, false)]
+	[InlineData(7, 10, 7, 11, false)]
+	public void IsOnQualifiedCheatEngineLineComparesMajorAndMinorAsIntegers(int baselineMajor, int baselineMinor,
+		int major, int minor, bool expected)
+	{
+		CheatEngineRuntimeVersionInfo version = new(new CheatEngineVersion(major, minor, 0, 1),
+			new CheatEngineVersion(baselineMajor, baselineMinor, 0, 10621), new Version(1, 0, 0), new Version(2, 0, 0));
+
+		Assert.Equal(expected, version.IsOnQualifiedCheatEngineLine);
 	}
 
 	/// <summary>Forwards grouped runtime observations through the established leaf-property compatibility surface.</summary>
@@ -27,8 +43,8 @@ public sealed class CheatEngineRuntimeSnapshotTests
 	{
 		Version clientAssemblyVersion = new(0, 1, 2, 3);
 		Version sdkAssemblyVersion = new(1, 2, 3, 4);
-		CheatEngineRuntimeVersionInfo version = new(7.7d, CheatEngineVersion.Ce77010621, clientAssemblyVersion,
-			sdkAssemblyVersion);
+		CheatEngineRuntimeVersionInfo version = new(CheatEngineVersion.Ce77010621, CheatEngineVersion.Ce77010621,
+			clientAssemblyVersion, sdkAssemblyVersion);
 		CheatEngineRuntimePlatformInfo platform = new(
 			CheatEngineArchitecture.X64,
 			CheatEngineArchitecture.X86,
@@ -43,7 +59,7 @@ public sealed class CheatEngineRuntimeSnapshotTests
 
 		Assert.Equal(version, snapshot.Version);
 		Assert.Equal(platform, snapshot.Platform);
-		Assert.Equal(version.ObservedCheatEngineVersion, snapshot.ObservedCheatEngineVersion);
+		Assert.Equal(version.CheatEngineVersion, snapshot.CheatEngineVersion);
 		Assert.Equal(version.QualifiedCheatEngineBaseline, snapshot.QualifiedCheatEngineBaseline);
 		Assert.Same(clientAssemblyVersion, snapshot.ClientAssemblyVersion);
 		Assert.Same(sdkAssemblyVersion, snapshot.SdkAssemblyVersion);
@@ -53,28 +69,18 @@ public sealed class CheatEngineRuntimeSnapshotTests
 		Assert.Equal(platform.TargetAbi, snapshot.TargetAbi);
 	}
 
-	/// <summary>Rejects non-finite or negative observed CE version values.</summary>
-	[Theory]
-	[InlineData(double.NaN)]
-	[InlineData(double.PositiveInfinity)]
-	[InlineData(-0.1d)]
-	public void VersionInfoRejectsInvalidObservedCeVersion(double observedVersion)
-	{
-		Assert.Throws<ArgumentOutOfRangeException>(() => CreateVersionInfo(observedVersion));
-	}
-
 	/// <summary>Rejects absent assembly versions that would leave a version observation uninitialized.</summary>
 	[Fact]
 	public void VersionInfoRejectsNullAssemblyVersions()
 	{
 		ArgumentNullException clientVersion = Assert.Throws<ArgumentNullException>(() =>
 			new CheatEngineRuntimeVersionInfo(
-				7.7d,
+				CheatEngineVersion.Ce77010621,
 				CheatEngineVersion.Ce77010621,
 				Null<Version>(),
 				new Version(1, 0, 0)));
 		ArgumentNullException sdkVersion = Assert.Throws<ArgumentNullException>(() => new CheatEngineRuntimeVersionInfo(
-			7.7d,
+			CheatEngineVersion.Ce77010621,
 			CheatEngineVersion.Ce77010621,
 			new Version(0, 1, 0),
 			Null<Version>()));
@@ -89,7 +95,8 @@ public sealed class CheatEngineRuntimeSnapshotTests
 	{
 		CheatEngineRuntimeSnapshot snapshot = Create(null);
 
-		Assert.Null(snapshot.ObservedCheatEngineVersion);
+		Assert.Null(snapshot.CheatEngineVersion);
+		Assert.False(snapshot.IsOnQualifiedCheatEngineLine);
 		Assert.Equal(CheatEngineArchitecture.Unknown, snapshot.TargetArchitecture);
 		Assert.Equal(PointerSize.Unknown, snapshot.TargetPointerSize);
 	}
@@ -284,7 +291,12 @@ public sealed class CheatEngineRuntimeSnapshotTests
 		Assert.Equal("versionInfo.ClientAssemblyVersion", exception.ParamName);
 	}
 
-	private static CheatEngineRuntimeSnapshot Create(double? observedVersion = 7.7d, long epoch = 42)
+	private static CheatEngineRuntimeSnapshot Create(long epoch = 42)
+	{
+		return Create(CheatEngineVersion.Ce77010621, epoch);
+	}
+
+	private static CheatEngineRuntimeSnapshot Create(CheatEngineVersion? observedVersion, long epoch = 42)
 	{
 		return new CheatEngineRuntimeSnapshot(
 			epoch,
@@ -294,7 +306,12 @@ public sealed class CheatEngineRuntimeSnapshotTests
 			ClientCapabilities.Empty);
 	}
 
-	private static CheatEngineRuntimeVersionInfo CreateVersionInfo(double? observedVersion = 7.7d)
+	private static CheatEngineRuntimeVersionInfo CreateVersionInfo()
+	{
+		return CreateVersionInfo(CheatEngineVersion.Ce77010621);
+	}
+
+	private static CheatEngineRuntimeVersionInfo CreateVersionInfo(CheatEngineVersion? observedVersion)
 	{
 		return new CheatEngineRuntimeVersionInfo(
 			observedVersion,

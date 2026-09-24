@@ -11,12 +11,16 @@ using CheatEngine.Client.Core.Tests.TestSupport;
 using CheatEngine.Client.Inspection;
 using CheatEngine.Client.Lua;
 using CheatEngine.Client.Memory;
+using CheatEngine.Client.Processes;
 using CheatEngine.Client.Results;
+using CheatEngine.Client.Runtime;
 using CheatEngine.Client.Scanning;
 using CheatEngine.Client.Tables;
 using CheatEngine.SDK.Engine.AddressList;
 using CheatEngine.SDK.Engine.Errors;
 using CheatEngine.SDK.Engine.Inspection;
+using CheatEngine.SDK.Engine.Processes;
+using CheatEngine.SDK.Engine.Runtime;
 using CheatEngine.SDK.Engine.Scanning.Aob;
 using CheatEngine.SDK.Engine.Scanning.Values;
 using CheatEngine.SDK.Engine.Values;
@@ -47,7 +51,9 @@ public sealed class TryContractTests
 		"Tables",
 		"LuaTypedOperation",
 		"UnsafeLua",
-		"UnavailableCapability"
+		"UnavailableCapability",
+		"Processes",
+		"Runtime"
 	};
 
 	public static TheoryData<string, string> SdkFaultCases
@@ -89,7 +95,10 @@ public sealed class TryContractTests
 		"Tables.Delete",
 		"Memory.ReadPrimitive",
 		"Memory.ReadBytes",
-		"Memory.WritePrimitiveBatch"
+		"Memory.WritePrimitiveBatch",
+		"Processes.GetCurrent",
+		"Processes.Attach",
+		"Runtime.GetSnapshot"
 	];
 
 	[Theory]
@@ -123,6 +132,9 @@ public sealed class TryContractTests
 				.TryExecute(new LuaScript("return 1"), out _, cancelled),
 			"UnavailableCapability" => () => new UnavailableAllocationClient(lifetime)
 				.TryAllocate(new TargetAllocationRequest(4096), out _, out _, cancelled),
+			"Processes" => () => new ProcessClient(dispatcher, ports, ports, lifetime)
+				.TryGetCurrent(out _, out _, cancelled),
+			"Runtime" => () => new RuntimeClient(dispatcher, ports, static () => 1).TryGetSnapshot(out _, out _, cancelled),
 			_ => throw new ArgumentOutOfRangeException(nameof(family), family, null)
 		};
 
@@ -186,6 +198,15 @@ public sealed class TryContractTests
 				]),
 				static (client, request, t) => (client.TryWritePrimitiveBatch(request, out CheatEngineFailure f, t), f),
 				static (client, request, t) => client.WritePrimitiveBatch(request, t), token),
+			"Processes.GetCurrent" => Run(new ProcessClient(dispatcher, ports, ports, lifetime), 0,
+				static (client, _, t) => (client.TryGetCurrent(out ProcessSnapshot _, out CheatEngineFailure f, t), f),
+				static (client, _, t) => client.GetCurrent(t), token),
+			"Processes.Attach" => Run(new ProcessClient(dispatcher, ports, ports, lifetime), new TargetProcessId(43),
+				static (client, processId, t) => (client.TryAttach(processId, out _, out CheatEngineFailure f, t), f),
+				static (client, processId, t) => client.Attach(processId, t), token),
+			"Runtime.GetSnapshot" => Run(new RuntimeClient(dispatcher, ports, static () => 1), 0,
+				static (client, _, t) => (client.TryGetSnapshot(out CheatEngineRuntimeSnapshot _, out CheatEngineFailure f, t), f),
+				static (client, _, t) => client.GetSnapshot(t), token),
 			_ => throw new ArgumentOutOfRangeException(nameof(entryPoint), entryPoint, null)
 		};
 
@@ -395,6 +416,7 @@ public sealed class TryContractTests
 	[InlineData("UnsafeLuaPolicy")]
 	[InlineData("UnavailableCapability")]
 	[InlineData("LuaPreDispatchCancellation")]
+	[InlineData("ProcessesAttachExactNameCancellation")]
 	public void RefusalBeforeStartReportsNotStarted(string refusal)
 	{
 		CoreLifetime lifetime = InertCoreLifetime.Create();
@@ -428,6 +450,9 @@ public sealed class TryContractTests
 			"LuaPreDispatchCancellation" => TryFailure(() =>
 				(new LuaClient(dispatcher, lifetime).TryExecute(new ConstantOperation(), out _,
 					out CheatEngineFailure f, cancelled), f)),
+			"ProcessesAttachExactNameCancellation" => TryFailure(() =>
+				(new ProcessClient(dispatcher, ports, ports, lifetime).TryAttachExactName("fixture.exe", out _,
+					out CheatEngineFailure f, cancelled), f)),
 			_ => throw new ArgumentOutOfRangeException(nameof(refusal), refusal, null)
 		};
 
@@ -445,6 +470,8 @@ public sealed class TryContractTests
 	[InlineData("Tables")]
 	[InlineData("Lua")]
 	[InlineData("Dispatcher")]
+	[InlineData("Processes")]
+	[InlineData("Runtime")]
 	public void ThrowingFormsRaiseTheCancellationExceptionOfTheirTryForm(string family)
 	{
 		CoreLifetime lifetime = InertCoreLifetime.Create();
@@ -454,6 +481,8 @@ public sealed class TryContractTests
 		MemoryClient memory = new(dispatcher, lifetime, ports);
 		TableClient tables = new(dispatcher, CoreClientPolicy.SafeDefaults, ports, lifetime, ports);
 		LuaClient lua = new(dispatcher, lifetime);
+		ProcessClient processes = new(dispatcher, ports, ports, lifetime);
+		RuntimeClient runtime = new(dispatcher, ports, static () => 1);
 		CancellationToken cancelled = new(true);
 
 		(CheatEngineFailure Expected, Action ThrowingForm) scenario = family switch
@@ -471,6 +500,10 @@ public sealed class TryContractTests
 				}, out CheatEngineFailure f, cancelled), f)), () => dispatcher.Invoke(static () =>
 				{
 				}, cancelled)),
+			"Processes" => (TryFailure(() => (processes.TryRefresh(out _, out CheatEngineFailure f, cancelled), f)),
+				() => _ = processes.Refresh(cancelled)),
+			"Runtime" => (TryFailure(() => (runtime.TryGetSnapshot(out _, out CheatEngineFailure f, cancelled), f)),
+				() => _ = runtime.GetSnapshot(cancelled)),
 			_ => throw new ArgumentOutOfRangeException(nameof(family), family, null)
 		};
 
@@ -592,7 +625,8 @@ public sealed class TryContractTests
 
 	/// <summary>One fake for every Core port; each call throws the configured SDK fault unless configured otherwise.</summary>
 	private sealed class ThrowingPorts(Exception fault)
-		: IAobScanPort, IInspectionPort, ITableRecordLookupPort, ITableRecordMutationPort, IMemoryCodecContextPort
+		: IAobScanPort, IInspectionPort, ITableRecordLookupPort, ITableRecordMutationPort, IMemoryCodecContextPort,
+			IRuntimeObservationPort, IProcessHost
 	{
 		private int _writes;
 
@@ -751,27 +785,67 @@ public sealed class TryContractTests
 			throw Fault();
 		}
 
-		public long GetOpenedProcessId()
+		public ProcessOperationStatus ObserveCurrent(out CurrentProcessObservation observation)
 		{
 			throw Fault();
 		}
 
-		public bool TargetIs64Bit()
+		public ProcessOperationStatus ObserveTargetArchitecture(out TargetArchitectureObservation observation)
 		{
 			throw Fault();
 		}
 
-		public bool TargetIsX86()
+		public ProcessOperationStatus TryGetConfiguredPointerSize(out int rawBytes, out PointerSize pointerSize)
 		{
 			throw Fault();
 		}
 
-		public bool TargetIsArm()
+		public ProcessOperationStatus TryObserveRuntimeInfo(out RuntimeInfo? info)
 		{
 			throw Fault();
 		}
 
-		public int GetConfiguredPointerSize()
+		public LuaOperationStatus ObserveHost(out CheatEngineHostObservation host)
+		{
+			throw Fault();
+		}
+
+		public LuaOperationStatus TryGetCheatEngineFileVersion(out CheatEngineVersion version)
+		{
+			throw Fault();
+		}
+
+		public LuaOperationStatus TryGetSystemArchitecture(out CheatEngineArchitecture architecture)
+		{
+			throw Fault();
+		}
+
+		public LuaOperationStatus TryIsCheatEngine64Bit(out bool is64Bit)
+		{
+			throw Fault();
+		}
+
+		public LuaOperationStatus TryGetOperatingSystem(out CheatEngineOperatingSystem operatingSystem)
+		{
+			throw Fault();
+		}
+
+		public void OpenProcess(long processId)
+		{
+			throw Fault();
+		}
+
+		public bool TryGetLocalProcess(int processId, out LocalProcessInfo process)
+		{
+			throw Fault();
+		}
+
+		public IReadOnlyList<LocalProcessInfo> GetLocalProcesses()
+		{
+			throw Fault();
+		}
+
+		public IReadOnlyList<LocalProcessInfo> FindProcessesByExactName(string processName)
 		{
 			throw Fault();
 		}

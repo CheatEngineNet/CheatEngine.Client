@@ -11,29 +11,33 @@ namespace CheatEngine.Client.Processes;
 ///     </para>
 ///     <para>
 ///         Cheat Engine's selected target is ambient: a session that holds a process identifier does not stop the user,
-///         another plugin or a script from selecting another process. The checks of this client (PID-bracketed
-///         observation, selection epoch) reduce that risk; they are not transactions.
+///         another plugin or a script from selecting another process. The checks of this client (CheatEngine.SDK's
+///         PID-bracketed observation, selection epoch) reduce that risk; they are not transactions.
 ///     </para>
 ///     <para>
-///         Every observation reads the opened process identifier first: with no target opened, Cheat Engine reports the
-///         same ISA family, width and pointer size as an x64 target. The ISA is derived from Cheat Engine's x86 and ARM
-///         family facts together with its 64-bit fact, never from the 64-bit fact alone; the process width is stored as
-///         observed. This client reads no target-identity evidence, so it detects neither identifier reuse by another
-///         process nor a CEServer or file-as-process backend.
+///         Every observation is a read-only CheatEngine.SDK 2.0.0 operation that reads the selected process identifier
+///         before and after the target facts, and reads none of them when no target is selected: with no target opened,
+///         Cheat Engine reports the same ISA family, width and pointer size as an x64 target. The ISA is the SDK's
+///         derivation from Cheat Engine's x86 and ARM family facts together with its 64-bit fact, never from the 64-bit
+///         fact alone; the process width is the observed bitness. A file opened as a process has no process identity.
+///         This client reads no target-identity evidence, so it does not detect identifier reuse by another process.
 ///     </para>
 /// </remarks>
 public interface IProcessClient
 {
 	/// <summary>Tries to get a copied snapshot of the currently selected target process.</summary>
 	/// <remarks>
-	///     Returns <see cref="CheatEngineFailureKind.TargetNotAttached" /> only when Cheat Engine has no selected target,
-	///     and <see cref="CheatEngineFailureKind.IndeterminateHostResult" /> when the selected target changed while it was
-	///     observed or the closing read of the opened process identifier failed (the facts cannot be attributed to one
-	///     target). Local operating-system metadata is optional enrichment; its absence leaves the Cheat Engine target
-	///     snapshot valid with null name and executable path. An SDK exception raised by a target-fact probe leaves that
-	///     fact unknown; any other fault of a Cheat Engine or local-catalog call is returned as a classified failure and
-	///     never crosses this method. Invalid arguments and Client lifecycle exceptions
-	///     (<see cref="CheatEngineClientException" />) are thrown.
+	///     Returns <see cref="CheatEngineFailureKind.TargetNotAttached" /> only when Cheat Engine has no selected target.
+	///     Every other status that establishes no target keeps its own kind, with
+	///     <see cref="CheatEngineHostEffect.Completed" />: <see cref="CheatEngineFailureKind.TargetChanged" /> when the
+	///     selected target changed while it was observed, <see cref="CheatEngineFailureKind.TargetIdentityUnavailable" />
+	///     for a file opened as a process, and <see cref="CheatEngineFailureKind.CapabilityUnavailable" />,
+	///     <see cref="CheatEngineFailureKind.LuaError" /> or <see cref="CheatEngineFailureKind.InvalidHostResult" /> for
+	///     an absent, raising or malformed selection read. Another target fact that raises or is malformed leaves that
+	///     fact unknown. Local operating-system metadata is optional enrichment; its absence leaves the Cheat Engine
+	///     target snapshot valid with null name and executable path. An SDK fault of a Cheat Engine or local-catalog
+	///     call is returned as a classified failure and never crosses this method. Invalid arguments and Client
+	///     lifecycle exceptions (<see cref="CheatEngineClientException" />) are thrown.
 	/// </remarks>
 	public bool TryGetCurrent(out ProcessSnapshot snapshot, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
@@ -46,12 +50,13 @@ public interface IProcessClient
 	///     observed ISA or process width changed from one known value to another.
 	/// </summary>
 	/// <remarks>
-	///     Returns <see cref="CheatEngineFailureKind.TargetNotAttached" /> and invalidates an observed selection only
-	///     when Cheat Engine reports no selected target. A fact that is transiently unknown for the same PID neither
-	///     advances the selection epoch nor replaces the last value known for that selection, so a probe failure does not
-	///     invalidate target-bound leases and does not weaken the selection identity to the PID alone. Local metadata is
-	///     optional enrichment and does not establish liveness or target identity. This is an observation, not an atomic
-	///     process-lifetime guarantee; exceptions follow <see cref="TryGetCurrent" />.
+	///     Returns <see cref="CheatEngineFailureKind.TargetNotAttached" /> and invalidates an observed selection when
+	///     Cheat Engine reports no selected target; a file opened as a process also invalidates it and returns
+	///     <see cref="CheatEngineFailureKind.TargetIdentityUnavailable" />. A fact that is transiently unknown for the same
+	///     PID neither advances the selection epoch nor replaces the last value known for that selection, so a probe
+	///     failure does not invalidate target-bound leases and does not weaken the selection identity to the PID alone.
+	///     Local metadata is optional enrichment and does not establish liveness or target identity. This is an
+	///     observation, not an atomic process-lifetime guarantee; exceptions follow <see cref="TryGetCurrent" />.
 	/// </remarks>
 	public bool TryRefresh(out ProcessSnapshot snapshot, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);

@@ -1,7 +1,8 @@
 using System.Runtime.CompilerServices;
 
-using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.SDK.Engine.Memory;
+using CheatEngine.SDK.Engine.Processes;
+using CheatEngine.SDK.Engine.Runtime;
 using CheatEngine.SDK.Engine.Values;
 
 namespace CheatEngine.Client.Core.Domains;
@@ -9,11 +10,11 @@ namespace CheatEngine.Client.Core.Domains;
 /// <summary>Provides the SDK-backed operations available to a scoped application memory codec.</summary>
 /// <remarks>
 ///     The port is internal so Core tests can prove that an expired context never reaches SDK statics. It is not a
-///     replacement public memory abstraction. Its target facts are the read-only observations of
-///     <see cref="ITargetArchitectureProbe" />: the process width of every pointer-typed path comes from them, never from
-///     the plugin's own process width.
+///     replacement public memory abstraction. Its target facts are the read-only CheatEngine.SDK observations of
+///     <see cref="ITargetObservationPort" />: the width of every pointer-typed path is the target bitness they report,
+///     never the plugin's own process width.
 /// </remarks>
-internal interface IMemoryCodecContextPort : ITargetArchitectureProbe
+internal interface IMemoryCodecContextPort : ITargetObservationPort
 {
 	public bool TryReadBytes(Address address, Span<byte> destination, out string? failure);
 
@@ -219,7 +220,10 @@ internal static class SdkMemoryPrimitivePort
 	private delegate bool Writer<in T>(Address address, T value, out MemoryAccessFailure failure);
 }
 
-/// <summary>Calls the SDK memory primitives after the owning context has admitted the operation.</summary>
+/// <summary>
+///     Calls the SDK memory primitives after the owning context has admitted the operation; its target facts are the
+///     read-only observations of <see cref="SdkRuntimeObservationPort" />.
+/// </summary>
 internal sealed class SdkMemoryCodecContextPort : IMemoryCodecContextPort
 {
 	private SdkMemoryCodecContextPort()
@@ -231,29 +235,19 @@ internal sealed class SdkMemoryCodecContextPort : IMemoryCodecContextPort
 		get;
 	} = new();
 
-	public long GetOpenedProcessId()
+	public ProcessOperationStatus ObserveCurrent(out CurrentProcessObservation observation)
 	{
-		return ClientLuaGlobals.GetOpenedProcessId();
+		return SdkRuntimeObservationPort.Instance.ObserveCurrent(out observation);
 	}
 
-	public bool TargetIs64Bit()
+	public ProcessOperationStatus ObserveTargetArchitecture(out TargetArchitectureObservation observation)
 	{
-		return ClientLuaGlobals.TargetIs64Bit();
+		return SdkRuntimeObservationPort.Instance.ObserveTargetArchitecture(out observation);
 	}
 
-	public bool TargetIsX86()
+	public ProcessOperationStatus TryGetConfiguredPointerSize(out int rawBytes, out PointerSize pointerSize)
 	{
-		return ClientLuaGlobals.TargetIsX86();
-	}
-
-	public bool TargetIsArm()
-	{
-		return ClientLuaGlobals.TargetIsArm();
-	}
-
-	public int GetConfiguredPointerSize()
-	{
-		return ClientLuaGlobals.GetConfiguredPointerSize();
+		return SdkRuntimeObservationPort.Instance.TryGetConfiguredPointerSize(out rawBytes, out pointerSize);
 	}
 
 	public bool TryReadBytes(Address address, Span<byte> destination, out string? failure)

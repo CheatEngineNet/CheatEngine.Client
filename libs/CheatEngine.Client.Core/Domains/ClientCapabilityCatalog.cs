@@ -34,8 +34,11 @@ internal enum CapabilityHostSource
 	/// </summary>
 	NotProbed,
 
-	/// <summary>The host gate is the evidence of the opened-process probe of the snapshot.</summary>
-	OpenedProcess
+	/// <summary>
+	///     The host gate is CheatEngine.SDK's observation of the selected-process primitive (<c>Process.Current</c>):
+	///     its entry in the SDK runtime snapshot, or the status of the target observation when the SDK produced none.
+	/// </summary>
+	SdkSelectedProcess
 }
 
 /// <summary>One row of <see cref="ClientCapabilityCatalog" />.</summary>
@@ -77,7 +80,7 @@ internal static class ClientCapabilityCatalog
 	} =
 	[
 		Entry(ClientCapabilityId.ProcessSelection, CapabilityImplementation.Operational,
-			CapabilityPolicySource.NotRequired, CapabilityHostSource.OpenedProcess, "Q30.a", "Q31", "Q32"),
+			CapabilityPolicySource.NotRequired, CapabilityHostSource.SdkSelectedProcess, "Q30.a", "Q31", "Q32"),
 		Entry(ClientCapabilityId.TypedMemory, CapabilityImplementation.Operational,
 			CapabilityPolicySource.NotRequired, CapabilityHostSource.NotProbed, "Q20", "Q21", "Q33"),
 		Entry(ClientCapabilityId.PatternScanning, CapabilityImplementation.Operational,

@@ -127,7 +127,7 @@ public sealed class MemoryClientTests
 		}
 	}
 
-	private sealed class RecordingStringPort : IMemoryCodecContextPort
+	private sealed class RecordingStringPort : TargetObservationDouble, IMemoryCodecContextPort
 	{
 		internal const string Text = "copied";
 
@@ -135,31 +135,6 @@ public sealed class MemoryClientTests
 		{
 			get;
 		} = [];
-
-		public long GetOpenedProcessId()
-		{
-			return 42;
-		}
-
-		public bool TargetIs64Bit()
-		{
-			return true;
-		}
-
-		public bool TargetIsX86()
-		{
-			return true;
-		}
-
-		public bool TargetIsArm()
-		{
-			return false;
-		}
-
-		public int GetConfiguredPointerSize()
-		{
-			return sizeof(ulong);
-		}
 
 		public bool TryReadBytes(Address address, Span<byte> destination, out string? failure)
 		{

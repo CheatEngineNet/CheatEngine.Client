@@ -481,13 +481,13 @@ CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.TargetPointerSize.get 
 CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot
 CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.CheatEngineRuntimeSnapshot() -> void
 CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.CheatEngineRuntimeSnapshot(long epoch, CheatEngine.Client.Runtime.CheatEngineRuntimeVersionInfo versionInfo, CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo platformInfo, CheatEngine.SDK.Engine.Runtime.RuntimeCapabilities! sdkCapabilities, CheatEngine.Client.Runtime.ClientCapabilities! clientCapabilities) -> void
+CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.CheatEngineVersion.get -> CheatEngine.SDK.Engine.Runtime.CheatEngineVersion?
 CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.ClientAssemblyVersion.get -> System.Version!
 CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.ClientCapabilities.get -> CheatEngine.Client.Runtime.ClientCapabilities!
 CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.ConfiguredPointerSize.get -> CheatEngine.SDK.Engine.Runtime.PointerSize
 CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.Epoch.get -> long
 CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.Equals(CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot other) -> bool
 CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.IsOnQualifiedCheatEngineLine.get -> bool
-CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.ObservedCheatEngineVersion.get -> double?
 CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.Platform.get -> CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo
 CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.QualifiedCheatEngineBaseline.get -> CheatEngine.SDK.Engine.Runtime.CheatEngineVersion
 CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.SdkAssemblyVersion.get -> System.Version!
@@ -499,10 +499,11 @@ CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.TargetPointerSize.get -> C
 CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.Version.get -> CheatEngine.Client.Runtime.CheatEngineRuntimeVersionInfo
 CheatEngine.Client.Runtime.CheatEngineRuntimeVersionInfo
 CheatEngine.Client.Runtime.CheatEngineRuntimeVersionInfo.CheatEngineRuntimeVersionInfo() -> void
-CheatEngine.Client.Runtime.CheatEngineRuntimeVersionInfo.CheatEngineRuntimeVersionInfo(double? observedCheatEngineVersion, CheatEngine.SDK.Engine.Runtime.CheatEngineVersion qualifiedCheatEngineBaseline, System.Version! clientAssemblyVersion, System.Version! sdkAssemblyVersion) -> void
+CheatEngine.Client.Runtime.CheatEngineRuntimeVersionInfo.CheatEngineRuntimeVersionInfo(CheatEngine.SDK.Engine.Runtime.CheatEngineVersion? cheatEngineVersion, CheatEngine.SDK.Engine.Runtime.CheatEngineVersion qualifiedCheatEngineBaseline, System.Version! clientAssemblyVersion, System.Version! sdkAssemblyVersion) -> void
+CheatEngine.Client.Runtime.CheatEngineRuntimeVersionInfo.CheatEngineVersion.get -> CheatEngine.SDK.Engine.Runtime.CheatEngineVersion?
 CheatEngine.Client.Runtime.CheatEngineRuntimeVersionInfo.ClientAssemblyVersion.get -> System.Version!
 CheatEngine.Client.Runtime.CheatEngineRuntimeVersionInfo.Equals(CheatEngine.Client.Runtime.CheatEngineRuntimeVersionInfo other) -> bool
-CheatEngine.Client.Runtime.CheatEngineRuntimeVersionInfo.ObservedCheatEngineVersion.get -> double?
+CheatEngine.Client.Runtime.CheatEngineRuntimeVersionInfo.IsOnQualifiedCheatEngineLine.get -> bool
 CheatEngine.Client.Runtime.CheatEngineRuntimeVersionInfo.QualifiedCheatEngineBaseline.get -> CheatEngine.SDK.Engine.Runtime.CheatEngineVersion
 CheatEngine.Client.Runtime.CheatEngineRuntimeVersionInfo.SdkAssemblyVersion.get -> System.Version!
 CheatEngine.Client.Runtime.ClientCapabilities
