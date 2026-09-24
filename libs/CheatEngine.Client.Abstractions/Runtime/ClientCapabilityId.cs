@@ -45,7 +45,7 @@ public readonly struct ClientCapabilityId : IEquatable<ClientCapabilityId>
 	/// <summary>Gets the Client capability for owned target-memory allocations.</summary>
 	public static ClientCapabilityId Allocations => new("Client.Allocations");
 
-	/// <summary>Gets the Client capability for assembly, disassembly, comments, and Auto Assembler patches.</summary>
+	/// <summary>Gets the Client capability for assembly, disassembly, and Auto Assembler patches.</summary>
 	public static ClientCapabilityId Assembly => new("Client.Assembly");
 
 	/// <inheritdoc />

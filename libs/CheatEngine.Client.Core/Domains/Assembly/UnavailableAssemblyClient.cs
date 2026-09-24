@@ -63,20 +63,6 @@ internal sealed class UnavailableAssemblyClient : IAssemblyClient
 		return UnavailableCapabilityFailure.Throw<Address>(failure);
 	}
 
-	public bool TryGetComment(Address address, [NotNullWhen(true)] out string? comment, out CheatEngineFailure failure,
-		CancellationToken cancellationToken = default)
-	{
-		comment = null;
-		failure = CreateFailure("Assembly.GetComment", cancellationToken);
-		return false;
-	}
-
-	public string GetComment(Address address, CancellationToken cancellationToken = default)
-	{
-		_ = TryGetComment(address, out _, out CheatEngineFailure failure, cancellationToken);
-		return UnavailableCapabilityFailure.Throw<string>(failure);
-	}
-
 	public bool TryAssemble(AssemblyInstructionRequest request, out ImmutableArray<byte> bytes,
 		out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)

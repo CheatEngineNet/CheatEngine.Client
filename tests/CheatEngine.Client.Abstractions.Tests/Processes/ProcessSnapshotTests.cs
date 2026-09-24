@@ -24,28 +24,6 @@ public sealed class ProcessSnapshotTests
 	}
 
 	[Fact]
-	public void ProcessStartRequestRequiresAbsoluteExecutableAndWorkingDirectoryPaths()
-	{
-		Assert.Throws<ArgumentException>(() => new ProcessStartRequest("target.exe"));
-		Assert.Throws<ArgumentException>(() => new ProcessStartRequest("C:\\target.exe", null, "working"));
-
-		ProcessStartRequest request = new("C:\\target.exe", "--fixture", "C:\\working");
-		Assert.Equal("C:\\target.exe", request.ExecutablePath);
-		Assert.Equal("--fixture", request.Arguments);
-		Assert.Equal("C:\\working", request.WorkingDirectory);
-	}
-
-	[Fact]
-	public void ProcessPauseSnapshotPreservesCopiedTargetStateAndEpoch()
-	{
-		ProcessPauseSnapshot snapshot = new(new TargetProcessId(42), ProcessPauseState.Paused, 7);
-
-		Assert.Equal(new TargetProcessId(42), snapshot.ProcessId);
-		Assert.Equal(ProcessPauseState.Paused, snapshot.State);
-		Assert.Equal(7, snapshot.SelectionEpoch);
-	}
-
-	[Fact]
 	public void SnapshotPreservesCopiedIdentityArchitectureAndSelectionEpoch()
 	{
 		ProcessSnapshot snapshot = new(

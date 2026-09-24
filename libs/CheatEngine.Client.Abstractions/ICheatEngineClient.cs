@@ -91,7 +91,7 @@ public interface ICheatEngineClient
 		get;
 	}
 
-	/// <summary>Gets copied assembly, disassembly, comment, and Auto Assembler patch operations.</summary>
+	/// <summary>Gets copied assembly, disassembly, and Auto Assembler patch operations.</summary>
 	public IAssemblyClient Assembly
 	{
 		get;

@@ -64,11 +64,6 @@ public sealed class UnavailableAdvancedClientsTests
 		Assert.Equal(default, previous);
 		Assert.Equal("Assembly.GetPreviousInstruction", previousFailure.Operation);
 
-		Assert.False(client.TryGetComment(TestAddress, out string? comment, out CheatEngineFailure commentFailure,
-			TestContext.Current.CancellationToken));
-		Assert.Null(comment);
-		Assert.Equal("Assembly.GetComment", commentFailure.Operation);
-
 		Assert.False(client.TryAssemble(new AssemblyInstructionRequest(TestAddress, "nop"), out _,
 			out CheatEngineFailure assemble,
 			TestContext.Current.CancellationToken));

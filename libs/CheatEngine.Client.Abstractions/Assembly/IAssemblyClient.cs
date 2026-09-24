@@ -6,7 +6,7 @@ using CheatEngine.SDK.Engine.Values;
 
 namespace CheatEngine.Client.Assembly;
 
-/// <summary>Disassembles, assembles, comments, and applies Client-owned Auto Assembler patches.</summary>
+/// <summary>Disassembles, assembles, and applies Client-owned Auto Assembler patches.</summary>
 public interface IAssemblyClient
 {
 	/// <summary>Tries to copy one instruction from the target.</summary>
@@ -29,13 +29,6 @@ public interface IAssemblyClient
 
 	/// <summary>Gets the preceding instruction address or throws when it cannot be resolved.</summary>
 	public Address GetPreviousInstruction(Address address, CancellationToken cancellationToken = default);
-
-	/// <summary>Tries to copy the optional comment associated with one target address.</summary>
-	public bool TryGetComment(Address address, [NotNullWhen(true)] out string? comment,
-		out CheatEngineFailure failure, CancellationToken cancellationToken = default);
-
-	/// <summary>Gets an address comment or throws when no comment is available.</summary>
-	public string GetComment(Address address, CancellationToken cancellationToken = default);
 
 	/// <summary>Tries to assemble exactly one instruction into copied bytes.</summary>
 	public bool TryAssemble(AssemblyInstructionRequest request, out ImmutableArray<byte> bytes,
