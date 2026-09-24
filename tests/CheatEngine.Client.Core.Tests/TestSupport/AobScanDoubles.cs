@@ -31,14 +31,18 @@ internal static class AobHosts
 
 	/// <summary>
 	///     Returns a bounded result as the SDK reports it after a session was created and released: both owners
-	///     <c>Released</c>, no stop required, and a host scan time when the scan completed.
+	///     <c>Released</c>, no stop required, and a host scan time when the scan completed. A
+	///     <see cref="AobBoundedScanOutcomeKind.SessionCreationFailed" /> result carries the factory's
+	///     <see cref="MemoryScanCreationStatus.NoScannerResult" /> instead of a successful creation.
 	/// </summary>
 	internal static AobBoundedHostResult Bounded(AobBoundedScanOutcomeKind kind, bool scanCompleted = true)
 	{
 		return new AobBoundedHostResult
 		{
 			Kind = kind,
-			CreationStatus = MemoryScanCreationStatus.Success,
+			CreationStatus = kind == AobBoundedScanOutcomeKind.SessionCreationFailed
+				? MemoryScanCreationStatus.NoScannerResult
+				: MemoryScanCreationStatus.Success,
 			LuaStatus = kind == AobBoundedScanOutcomeKind.ScanFailed ? LuaStatus.RuntimeError : LuaStatus.Ok,
 			HostScanElapsed = scanCompleted ? TimeSpan.FromMilliseconds(5) : TimeSpan.Zero,
 			FoundListRelease = TargetReleaseStatus.Released,

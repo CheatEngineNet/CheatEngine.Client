@@ -15,6 +15,9 @@ internal interface IAobScanPort
 	///     The caller releases a returned list exactly once.
 	/// </param>
 	/// <returns>The copied SDK outcome and target observations.</returns>
+	/// <exception cref="Infrastructure.OwnershipHandoffException">
+	///     The SDK handed out a list that could not be published, and its release was not confirmed.
+	/// </exception>
 	public AobHostOutcome TryScan(string pattern, AobScanOptions options, out IAobMatchList? matches);
 
 	/// <summary>

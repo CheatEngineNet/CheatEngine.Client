@@ -76,6 +76,22 @@ public sealed class TryContractTests
 		}
 	}
 
+	/// <summary>Gets each SDK fault type at each scoped-route SDK call that follows module resolution.</summary>
+	public static TheoryData<string, string> ScopedAobFaultCases
+	{
+		get
+		{
+			TheoryData<string, string> data = [];
+			foreach (string fault in SdkFaultKinds.Keys)
+			{
+				data.Add(fault, "ObserveSelection");
+				data.Add(fault, "TryScanWithinBounds");
+			}
+
+			return data;
+		}
+	}
+
 	private static Dictionary<string, CheatEngineFailureKind> SdkFaultKinds => new(StringComparer.Ordinal)
 	{
 		[nameof(EngineBindingException)] = CheatEngineFailureKind.BindingError,
@@ -227,6 +243,41 @@ public sealed class TryContractTests
 		Assert.Same(fault, failure.Exception);
 		Assert.NotEqual(CheatEngineFailureKind.ActivationExpired, failure.Kind);
 		CheatEngineClientException thrown = Assert.ThrowsAny<CheatEngineClientException>(throwingForm);
+		Assert.Same(fault, thrown.Failure.Exception);
+		Assert.Equal(expectedKind, thrown.Failure.Kind);
+	}
+
+	/// <summary>
+	///     The scoped AOB route reaches two more SDK calls after module resolution: the target observation that selects the
+	///     route, and the bounded scan itself. Neither lets an SDK fault cross a Try method, and each keeps the classified
+	///     kind, the scan operation and its own host effect.
+	/// </summary>
+	[Theory]
+	[MemberData(nameof(ScopedAobFaultCases))]
+	public void SdkExceptionsFromTheScopedAobRouteNeverCrossATryMethod(string faultType, string stage)
+	{
+		Exception fault = CreateSdkFault(faultType);
+		CheatEngineFailureKind expectedKind = SdkFaultKinds[faultType];
+		ThrowingPorts ports = new(fault)
+		{
+			ModuleSnapshot = [new ModuleInfo("game.exe", new Address(0x4000), new MemorySize(0x100), true, "game.exe")],
+			Selection = stage == "TryScanWithinBounds" ? AobHosts.Local() : null
+		};
+		PatternScanner scanner = new(
+			new SdkMainThreadDispatcher(InertCoreLifetime.Create(), new InlineMainThreadInvoker()), ports);
+		AobScanRequest request = Request(new ModuleName("game.exe"));
+		CancellationToken token = TestContext.Current.CancellationToken;
+
+		bool succeeded = scanner.TryScan(request, out _, out CheatEngineFailure failure, token);
+
+		Assert.False(succeeded);
+		Assert.Equal(expectedKind, failure.Kind);
+		Assert.Equal("Patterns.Scan", failure.Operation);
+		Assert.Same(fault, failure.Exception);
+		Assert.Equal(stage == "TryScanWithinBounds" ? CheatEngineHostEffect.Unknown : CheatEngineHostEffect.NotStarted,
+			failure.HostEffect);
+		CheatEngineClientException thrown = Assert.ThrowsAny<CheatEngineClientException>(() =>
+			scanner.Scan(request, token));
 		Assert.Same(fault, thrown.Failure.Exception);
 		Assert.Equal(expectedKind, thrown.Failure.Kind);
 	}
@@ -692,6 +743,20 @@ public sealed class TryContractTests
 			init;
 		}
 
+		/// <summary>Gets the modules the AOB module enumeration returns instead of faulting.</summary>
+		internal ModuleInfo[]? ModuleSnapshot
+		{
+			get;
+			init;
+		}
+
+		/// <summary>Gets the selection the target observation returns instead of faulting.</summary>
+		internal TargetSelectionFacts? Selection
+		{
+			get;
+			init;
+		}
+
 		public AobHostOutcome TryScan(string pattern, AobScanOptions options, out IAobMatchList? matches)
 		{
 			Calls++;
@@ -713,6 +778,14 @@ public sealed class TryContractTests
 
 		public InspectionStatus EnumerateModules(ModuleInfo[] destination, out int written)
 		{
+			if (ModuleSnapshot is { } modules)
+			{
+				Calls++;
+				modules.CopyTo(destination, 0);
+				written = modules.Length;
+				return InspectionStatus.Success;
+			}
+
 			throw Fault();
 		}
 
@@ -859,6 +932,12 @@ public sealed class TryContractTests
 
 		public TargetSelectionFacts ObserveSelection()
 		{
+			if (Selection is { } selection)
+			{
+				Calls++;
+				return selection;
+			}
+
 			throw Fault();
 		}
 

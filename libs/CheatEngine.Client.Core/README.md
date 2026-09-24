@@ -264,7 +264,8 @@ compares the Client cost of the two routes over a fake port, and
 port; the Cheat Engine scan cost is a live-host measurement.
 
 The SDK owner of the result list is handed to the Client wrapper through `OwnershipHandoff`, so a failure between
-acquisition and publication releases the Cheat Engine list exactly once. The scanner then releases the list exactly once
+acquisition and publication releases the Cheat Engine list exactly once; when that release is not confirmed, the typed
+`OwnershipHandoffException` carries its kind and the scan fails with `CleanupUnconfirmed`. The scanner then releases the list exactly once
 on every path, inside the dispatched callback, through the SDK owner's never-throwing `ReleaseWithOutcome`, mapped with
 `SdkReleaseOutcomes`. Any status other than `Released` is an unconfirmed release: a scan that had succeeded fails with
 `InvalidState` and `CheatEngineHostEffect.CleanupUnconfirmed`, and copied addresses are discarded rather than reported as

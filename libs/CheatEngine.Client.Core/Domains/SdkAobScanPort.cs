@@ -24,7 +24,9 @@ namespace CheatEngine.Client.Core.Domains;
 ///     </para>
 ///     <para>
 ///         The SDK owner is handed to <see cref="SdkAobMatchList" /> through <see cref="OwnershipHandoff" />, so a failure
-///         between acquisition and publication releases the Cheat Engine list exactly once (audit F13). After publication
+///         between acquisition and publication releases the Cheat Engine list exactly once (audit F13); a release that is
+///         not confirmed then surfaces as an <see cref="OwnershipHandoffException" /> carrying its kind, which
+///         <see cref="PatternScanner" /> reports as <c>CleanupUnconfirmed</c>. After publication
 ///         the match list is the single release authority, and it releases through the never-throwing
 ///         <c>Owned&lt;StringList&gt;.ReleaseWithOutcome</c>.
 ///     </para>

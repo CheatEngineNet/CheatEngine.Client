@@ -29,10 +29,10 @@ internal static class OwnershipHandoff
 	/// <exception cref="ArgumentNullException">
 	///     <paramref name="owner" /> or <paramref name="release" /> is <see langword="null" />.
 	/// </exception>
-	/// <exception cref="AggregateException">
-	///     Publication failed and the release of <paramref name="owner" /> was not confirmed. The first inner exception is
-	///     the publication failure; a second inner exception is the release failure when the release threw, and the
-	///     message names the release kind when it returned an incomplete outcome.
+	/// <exception cref="OwnershipHandoffException">
+	///     Publication failed and the release of <paramref name="owner" /> was not confirmed. The exception carries the
+	///     release kind (<see cref="LeaseReleaseKind.Unknown" /> when the release threw); its first inner exception is the
+	///     publication failure and a second inner exception is the release failure when the release threw.
 	/// </exception>
 	/// <remarks>
 	///     When publication fails and the release is confirmed (<see cref="LeaseReleaseKind.Released" />), the original
@@ -59,17 +59,12 @@ internal static class OwnershipHandoff
 			}
 			catch (Exception releaseFailure)
 			{
-				throw new AggregateException(
-					"The acquired resource could not be published, and its release was not confirmed.",
-					publishFailure,
-					releaseFailure);
+				throw new OwnershipHandoffException(LeaseReleaseKind.Unknown, publishFailure, releaseFailure);
 			}
 
 			if (outcome.Kind != LeaseReleaseKind.Released)
 			{
-				throw new AggregateException(
-					$"The acquired resource could not be published, and its release was not confirmed ({outcome.Kind}).",
-					publishFailure);
+				throw new OwnershipHandoffException(outcome.Kind, publishFailure, null);
 			}
 
 			throw;

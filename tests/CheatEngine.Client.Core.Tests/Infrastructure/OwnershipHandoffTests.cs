@@ -35,14 +35,16 @@ public sealed class OwnershipHandoffTests
 		InvalidOperationException releaseFailure = new("release failed");
 		CountingOwner owner = new(releaseFailure: releaseFailure);
 
-		AggregateException exception = Assert.Throws<AggregateException>(() =>
+		OwnershipHandoffException exception = Assert.Throws<OwnershipHandoffException>(() =>
 			OwnershipHandoff.Adopt<CountingOwner, object>(owner, _ => throw publicationFailure, CountingOwner.Release));
 
 		Assert.Collection(
 			exception.InnerExceptions,
 			first => Assert.Same(publicationFailure, first),
 			second => Assert.Same(releaseFailure, second));
-		Assert.Contains("release was not confirmed", exception.Message, StringComparison.Ordinal);
+		Assert.Equal(LeaseReleaseKind.Unknown, exception.ReleaseKind);
+		Assert.Same(publicationFailure, exception.PublishFailure);
+		Assert.Same(releaseFailure, exception.ReleaseFailure);
 		Assert.Equal(1, owner.ReleaseCount);
 	}
 
@@ -51,20 +53,21 @@ public sealed class OwnershipHandoffTests
 	///     reports with the publication failure instead of hiding it.
 	/// </summary>
 	[Theory]
-	[InlineData(TargetReleaseStatus.UnconfirmedAfterInvocation, "CleanupUnconfirmed")]
-	[InlineData(TargetReleaseStatus.NotInvoked, "CleanupUnavailable")]
-	[InlineData(TargetReleaseStatus.RefusedRuntimeChanged, "RefusedRuntimeChanged")]
+	[InlineData(TargetReleaseStatus.UnconfirmedAfterInvocation, LeaseReleaseKind.CleanupUnconfirmed)]
+	[InlineData(TargetReleaseStatus.NotInvoked, LeaseReleaseKind.CleanupUnavailable)]
+	[InlineData(TargetReleaseStatus.RefusedRuntimeChanged, LeaseReleaseKind.RefusedRuntimeChanged)]
 	public void AuthorityTransferWithInjectedFailureAndUnconfirmedReleaseReportsTheReleaseKind(
-		TargetReleaseStatus status, string expectedKind)
+		TargetReleaseStatus status, LeaseReleaseKind expectedKind)
 	{
 		InvalidOperationException publicationFailure = new("publication failed");
 		CountingOwner owner = new(status);
 
-		AggregateException exception = Assert.Throws<AggregateException>(() =>
+		OwnershipHandoffException exception = Assert.Throws<OwnershipHandoffException>(() =>
 			OwnershipHandoff.Adopt<CountingOwner, object>(owner, _ => throw publicationFailure, CountingOwner.Release));
 
 		Assert.Same(publicationFailure, Assert.Single(exception.InnerExceptions));
-		Assert.Contains($"release was not confirmed ({expectedKind})", exception.Message, StringComparison.Ordinal);
+		Assert.Equal(expectedKind, exception.ReleaseKind);
+		Assert.Null(exception.ReleaseFailure);
 		Assert.Equal(1, owner.ReleaseCount);
 	}
 

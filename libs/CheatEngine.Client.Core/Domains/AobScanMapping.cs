@@ -79,7 +79,8 @@ namespace CheatEngine.Client.Core.Domains;
 ///             <term><c>SessionCreationFailed</c>, <c>TargetIdentityUnavailable</c></term>
 ///             <description>
 ///                 Fall back to the global route with managed post-filters; a creation whose rollback Cheat Engine did not
-///                 confirm is <c>InvalidState</c>, <c>CleanupUnconfirmed</c> instead.
+///                 confirm, or whose creation status this Client does not recognize, is <c>InvalidState</c>,
+///                 <c>CleanupUnconfirmed</c> instead (<see cref="ClassifyCreationFailure" />).
 ///             </description>
 ///         </item>
 ///         <item><term><c>TargetChanged</c></term><description><c>TargetChanged</c></description></item>
@@ -232,17 +233,8 @@ internal static class AobScanMapping
 					"CheatEngine.SDK refused the bounded AOB scan before any Cheat Engine call: its bounds are empty.",
 					null, CheatEngineHostEffect.NotStarted);
 				return AobBoundedDisposition.Fail;
-			case AobBoundedScanOutcomeKind.SessionCreationFailed
-				when result.CreationStatus == MemoryScanCreationStatus.RollbackUnconfirmed:
-				failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidState, operation,
-					"The bounded AOB scan session could not be created, and Cheat Engine did not confirm its rollback.",
-					null, CheatEngineHostEffect.CleanupUnconfirmed);
-				return AobBoundedDisposition.Fail;
 			case AobBoundedScanOutcomeKind.SessionCreationFailed:
-				failure = new CheatEngineFailure(CheatEngineFailureKind.CapabilityUnavailable, operation,
-					$"The bounded AOB scan session could not be created ({result.CreationStatus}).", null,
-					CheatEngineHostEffect.NotStarted);
-				return AobBoundedDisposition.FallBack;
+				return ClassifyCreationFailure(operation, result.CreationStatus, out failure);
 			case AobBoundedScanOutcomeKind.TargetIdentityUnavailable:
 				failure = new CheatEngineFailure(CheatEngineFailureKind.TargetIdentityUnavailable, operation,
 					"The selected target could not be qualified during the bounded AOB scan; nothing was published.",
@@ -284,6 +276,52 @@ internal static class AobScanMapping
 				failure = new CheatEngineFailure(CheatEngineFailureKind.IndeterminateHostResult, operation,
 					"CheatEngine.SDK reported a bounded AOB outcome this Client version does not recognize.", null,
 					CheatEngineHostEffect.Unknown);
+				return AobBoundedDisposition.Fail;
+		}
+	}
+
+	/// <summary>Decides what a bounded scan whose session could not be created means, by creation status.</summary>
+	/// <param name="operation">The public Client operation name.</param>
+	/// <param name="status">The SDK's session creation status.</param>
+	/// <param name="failure">The failure, or the reason of the fallback (reported only when it cannot run).</param>
+	/// <returns>
+	///     <see cref="AobBoundedDisposition.FallBack" /> for every status after which CheatEngine.SDK holds no MemScan
+	///     object (an absent or failing factory, an absent, invalid or aliased result, an unqualified target);
+	///     <see cref="AobBoundedDisposition.Fail" /> otherwise.
+	/// </returns>
+	/// <remarks>
+	///     <c>RollbackUnconfirmed</c> is <see cref="CheatEngineFailureKind.InvalidState" /> with
+	///     <see cref="CheatEngineHostEffect.CleanupUnconfirmed" />: a MemScan object Cheat Engine did not destroy is never
+	///     hidden behind a second scan. <c>Unknown</c>, <c>Success</c> (a contradiction with a failed creation) and a value
+	///     this Client version does not recognize fail closed the same way, because nothing proves that no object remains.
+	/// </remarks>
+	internal static AobBoundedDisposition ClassifyCreationFailure(string operation, MemoryScanCreationStatus status,
+		out CheatEngineFailure failure)
+	{
+		switch (status)
+		{
+			case MemoryScanCreationStatus.GlobalUnavailable:
+			case MemoryScanCreationStatus.LuaFailure:
+			case MemoryScanCreationStatus.NoScannerResult:
+			case MemoryScanCreationStatus.InvalidScannerResult:
+			case MemoryScanCreationStatus.NoFoundListResult:
+			case MemoryScanCreationStatus.InvalidFoundListResult:
+			case MemoryScanCreationStatus.AliasedFoundList:
+			case MemoryScanCreationStatus.TargetIdentityUnavailable:
+				failure = new CheatEngineFailure(CheatEngineFailureKind.CapabilityUnavailable, operation,
+					$"The bounded AOB scan session could not be created ({status}).", null,
+					CheatEngineHostEffect.NotStarted);
+				return AobBoundedDisposition.FallBack;
+			case MemoryScanCreationStatus.RollbackUnconfirmed:
+				failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidState, operation,
+					"The bounded AOB scan session could not be created, and Cheat Engine did not confirm its rollback.",
+					null, CheatEngineHostEffect.CleanupUnconfirmed);
+				return AobBoundedDisposition.Fail;
+			default:
+				failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidState, operation,
+					"The bounded AOB scan session could not be created, and CheatEngine.SDK reported a creation status " +
+					"this Client version does not recognize, so no MemScan object is known to have been removed.", null,
+					CheatEngineHostEffect.CleanupUnconfirmed);
 				return AobBoundedDisposition.Fail;
 		}
 	}
@@ -375,10 +413,15 @@ internal static class AobScanMapping
 	}
 
 	/// <summary>Gets whether the SDK read the host result count of a bounded scan, so its metrics are meaningful.</summary>
+	/// <remarks>
+	///     A completed copy always read the count. CheatEngine.SDK also reads it before any row, and keeps its accounting
+	///     on a failure, so a row that could not be read or a cancellation observed between rows still carries it: a
+	///     non-zero count or a read row proves that the count was read.
+	/// </remarks>
 	internal static bool HasReadCount(in AobBoundedHostResult result)
 	{
 		return result.Kind is AobBoundedScanOutcomeKind.Matches or AobBoundedScanOutcomeKind.NoMatches
-			or AobBoundedScanOutcomeKind.HostReportedError;
+				   or AobBoundedScanOutcomeKind.HostReportedError || result.RowsRead > 0 || result.HostResultCount > 0;
 	}
 
 	/// <summary>Checks the one child-before-parent release of a bounded scan's MemScan session.</summary>

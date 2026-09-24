@@ -657,6 +657,139 @@ public sealed class PatternScannerBoundedRouteTests
 		}
 	}
 
+	/// <summary>
+	///     Only the creation statuses after which CheatEngine.SDK holds no MemScan object fall back; an unconfirmed
+	///     rollback, <c>Unknown</c>, a contradictory <c>Success</c> and a status a later SDK adds fail closed as
+	///     <see cref="CheatEngineHostEffect.CleanupUnconfirmed" /> instead of starting a second, global scan.
+	/// </summary>
+	[Fact]
+	[Trait("Qualification", "Q48")]
+	public void EveryMemoryScanCreationStatusIsClassifiedAndAnUnknownStatusFailsClosed()
+	{
+		MemoryScanCreationStatus[] failClosed =
+		[
+			MemoryScanCreationStatus.Unknown, MemoryScanCreationStatus.Success,
+			MemoryScanCreationStatus.RollbackUnconfirmed
+		];
+
+		MappingTotality.AssertTotal<MemoryScanCreationStatus>(
+			status => failClosed.Contains(status)
+				? FailsClosed(status)
+				: Classify(status) is (AobBoundedDisposition.FallBack, CheatEngineFailureKind.CapabilityUnavailable,
+					CheatEngineHostEffect.NotStarted),
+			static status => FailsClosed(status));
+
+		static bool FailsClosed(MemoryScanCreationStatus status)
+		{
+			return Classify(status) is (AobBoundedDisposition.Fail, CheatEngineFailureKind.InvalidState,
+				CheatEngineHostEffect.CleanupUnconfirmed);
+		}
+
+		static (AobBoundedDisposition, CheatEngineFailureKind, CheatEngineHostEffect) Classify(
+			MemoryScanCreationStatus status)
+		{
+			AobBoundedHostResult bounded = AobHosts.Bounded(AobBoundedScanOutcomeKind.SessionCreationFailed, false) with
+			{
+				CreationStatus = status
+			};
+			AobBoundedDisposition disposition =
+				AobScanMapping.ClassifyBounded("Patterns.Scan", bounded, out CheatEngineFailure failure);
+			return (disposition, failure.Kind, failure.HostEffect);
+		}
+	}
+
+	/// <summary>
+	///     A cancellation observed between a fallback disposition and the global scan starts no global scan and reports the
+	///     bounded attempt, the only route that ran, with its own milestone.
+	/// </summary>
+	[Theory]
+	[Trait("Qualification", "Q29")]
+	[InlineData(AobBoundedScanOutcomeKind.SessionCreationFailed, false, CheatEngineHostEffect.NotStarted,
+		PatternScanHostOutcome.Unknown)]
+	[InlineData(AobBoundedScanOutcomeKind.TargetIdentityUnavailable, true, CheatEngineHostEffect.Completed,
+		PatternScanHostOutcome.TargetIdentityUnavailable)]
+	public void ACancellationBeforeTheFallbackStartsNoGlobalScanAndReportsTheBoundedAttempt(
+		AobBoundedScanOutcomeKind kind, bool scanCompleted, CheatEngineHostEffect expectedEffect,
+		PatternScanHostOutcome expectedHostOutcome)
+	{
+		using CancellationTokenSource cancellation = new();
+		AobBoundedHostResult bounded = AobHosts.Bounded(kind, scanCompleted) with
+		{
+			CreationStatus = kind == AobBoundedScanOutcomeKind.SessionCreationFailed
+				? MemoryScanCreationStatus.NoScannerResult
+				: MemoryScanCreationStatus.Success
+		};
+		FakeAobScanPort port = QualifiedPort([], bounded, onScanWithinBounds: cancellation.Cancel);
+		PatternScanner scanner = CreateScanner(port);
+
+		PatternScanOutcome outcome = scanner.ScanDetailed(Request(new ModuleName("game.exe"), null, 1),
+			cancellation.Token);
+
+		Assert.False(outcome.IsSuccess);
+		Assert.Equal(CheatEngineFailureKind.Cancelled, outcome.Failure!.Value.Kind);
+		Assert.Equal(expectedEffect, outcome.Failure.Value.HostEffect);
+		Assert.Equal(PatternScanRouteReason.ScopedRequestOnQualifiedTarget, outcome.RouteReason);
+		Assert.Equal(expectedHostOutcome, outcome.HostOutcome);
+		Assert.Equal(0, port.ScanCalls);
+	}
+
+	/// <summary>A fallback after a bounded scan that had run reports the Cheat Engine time of both scans.</summary>
+	[Fact]
+	public void AFallbackAfterACompletedBoundedScanReportsTheTimeOfBothScans()
+	{
+		AobBoundedHostResult bounded = AobHosts.Bounded(AobBoundedScanOutcomeKind.TargetIdentityUnavailable) with
+		{
+			HostScanElapsed = TimeSpan.FromHours(1)
+		};
+		PatternScanner scanner = CreateScanner(QualifiedPort([], bounded));
+
+		PatternScanOutcome outcome = scanner.ScanDetailed(Request(new ModuleName("game.exe"), null, 1),
+			TestContext.Current.CancellationToken);
+
+		Assert.True(outcome.IsSuccess, outcome.Failure?.Message);
+		PatternScanMetrics metrics = Assert.NotNull(outcome.Metrics);
+		Assert.Equal(PatternScanScope.GlobalHostScanWithManagedFilter, metrics.Scope);
+		Assert.True(metrics.HostScanElapsed >= TimeSpan.FromHours(1));
+	}
+
+	/// <summary>
+	///     A cancellation observed after CheatEngine.SDK read the host count keeps the metrics of that work, whether the
+	///     SDK observed it between rows or the Client observed it before publishing.
+	/// </summary>
+	[Theory]
+	[Trait("Qualification", "Q29")]
+	[InlineData(true)]
+	[InlineData(false)]
+	public void ABoundedCancellationAfterTheCountWasReadKeepsItsMetrics(bool observedBySdk)
+	{
+		using CancellationTokenSource cancellation = new();
+		AobBoundedHostResult? sdkCancelled = observedBySdk
+			? AobHosts.Bounded(AobBoundedScanOutcomeKind.Cancelled) with
+			{
+				HostResultCount = 3,
+				RowsRead = 1,
+				UnreadHostRows = 2,
+				CopyElapsed = TimeSpan.FromMilliseconds(1)
+			}
+			: null;
+		FakeAobScanPort port = QualifiedPort([0x4010, 0x4020, 0x4030], sdkCancelled,
+			onScanWithinBounds: observedBySdk ? null : cancellation.Cancel);
+		PatternScanner scanner = CreateScanner(port);
+
+		PatternScanOutcome outcome = scanner.ScanDetailed(Request(new ModuleName("game.exe"), null, 5),
+			observedBySdk ? TestContext.Current.CancellationToken : cancellation.Token);
+
+		Assert.False(outcome.IsSuccess);
+		Assert.Equal(CheatEngineFailureKind.Cancelled, outcome.Failure!.Value.Kind);
+		Assert.Equal(CheatEngineHostEffect.Completed, outcome.Failure.Value.HostEffect);
+		PatternScanMetrics metrics = Assert.NotNull(outcome.Metrics);
+		Assert.Equal(PatternScanScope.HostBoundedRange, metrics.Scope);
+		Assert.Equal(3UL, metrics.HostResultCount);
+		Assert.Equal(observedBySdk ? 1UL : 3UL, metrics.ExaminedCount);
+		Assert.Equal(0, metrics.MaterializedCount);
+		Assert.False(metrics.InBoundsCountIsExact);
+	}
+
 	[Fact]
 	public void TheSessionReleaseIsConfirmedOnlyWhenBothOwnersAreReleasedAndNoStopIsPending()
 	{

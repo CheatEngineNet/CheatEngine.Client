@@ -1,5 +1,6 @@
 using CheatEngine.Client.Core.Dispatching;
 using CheatEngine.Client.Core.Domains;
+using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Core.Tests.TestSupport;
 using CheatEngine.Client.Results;
 using CheatEngine.Client.Scanning;
@@ -228,6 +229,64 @@ public sealed class PatternScannerHostOutcomeTests
 		Assert.Equal(CheatEngineHostEffect.Completed, failure.HostEffect);
 		Assert.Same(fault, failure.Exception);
 		Assert.Equal(1, matches.ReleaseCount);
+	}
+
+	/// <summary>
+	///     The copy-fault path goes through <c>SdkBoundary</c>, including its activation check: a fault observed after the
+	///     activation ended is an expired activation, never an ordinary failure, and the list is still released once.
+	/// </summary>
+	[Fact]
+	public void ACopyFaultAfterTheActivationEndedIsAnExpiredActivationAndStillReleasesTheList()
+	{
+		using ControlledCoreLifetimeContext context = new();
+		using CoreLifetime lifetime = new(context);
+		LuaException fault = new("the list could not be read");
+		RecordingAobMatchList matches = new(["400000"])
+		{
+			OnTryGetItem = _ =>
+			{
+				context.IsCurrent = false;
+				throw fault;
+			}
+		};
+		PatternScanner scanner = new(new SdkMainThreadDispatcher(lifetime, new InlineMainThreadInvoker()),
+			new FakeAobScanPort(matches));
+
+		CheatEngineActivationExpiredException exception = Assert.Throws<CheatEngineActivationExpiredException>(() =>
+			scanner.TryScan(Request(), out _, out _, TestContext.Current.CancellationToken));
+
+		Assert.Equal(ScanOperation, exception.Failure.Operation);
+		Assert.Same(fault, exception.Failure.Exception);
+		Assert.Equal(1, matches.ReleaseCount);
+	}
+
+	/// <summary>
+	///     A list the port could not publish, whose release was not confirmed, is reported by its typed release kind as
+	///     <see cref="CheatEngineHostEffect.CleanupUnconfirmed" />, keeping the publication fault's classification.
+	/// </summary>
+	[Theory]
+	[InlineData(TargetReleaseStatus.UnconfirmedAfterInvocation, "CleanupUnconfirmed")]
+	[InlineData(TargetReleaseStatus.NotInvoked, "CleanupUnavailable")]
+	public void AListWhosePublicationFailedAndWhoseReleaseWasNotConfirmedIsCleanupUnconfirmed(
+		TargetReleaseStatus releaseStatus, string expectedKind)
+	{
+		InvalidOperationException publishFailure = new("the result list wrapper could not be published");
+		PatternScanner scanner = CreateScanner(new FakeAobScanPort
+		{
+			OnScan = () => _ = OwnershipHandoff.Adopt<object, object>(new object(), _ => throw publishFailure,
+				_ => SdkReleaseOutcomes.FromTarget(releaseStatus))
+		});
+
+		Assert.False(scanner.TryScan(Request(), out AobScanResult result, out CheatEngineFailure failure,
+			TestContext.Current.CancellationToken));
+
+		Assert.Equal(default, result);
+		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.CleanupUnconfirmed, failure.HostEffect);
+		Assert.Equal(ScanOperation, failure.Operation);
+		Assert.Same(publishFailure, failure.Exception);
+		Assert.EndsWith($"The AOB result list release was not confirmed ({expectedKind}).", failure.Message,
+			StringComparison.Ordinal);
 	}
 
 	[Fact]

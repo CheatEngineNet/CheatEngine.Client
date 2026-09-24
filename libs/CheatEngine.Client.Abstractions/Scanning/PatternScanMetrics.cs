@@ -161,6 +161,10 @@ public readonly record struct PatternScanMetrics
 	}
 
 	/// <summary>Gets the elapsed time of the Cheat Engine scan call only (host scan time).</summary>
+	/// <remarks>
+	///     On <see cref="PatternScanScope.GlobalHostScanWithManagedFilter" />, when a bounded scan had run before
+	///     CheatEngine.SDK lost the target's identity, it also includes that scan's time: the request cost both scans.
+	/// </remarks>
 	public TimeSpan HostScanElapsed
 	{
 		get;

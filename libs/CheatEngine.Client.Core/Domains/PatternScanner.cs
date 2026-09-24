@@ -415,21 +415,21 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		{
 			if (cancellationToken.IsCancellationRequested)
 			{
+				// No global scan ran: the outcome reports the bounded attempt, the only route that did.
 				CheatEngineFailure cancelled =
 					bounded.HostScanElapsed > TimeSpan.Zero ? CancelledAfterScan() : CancelledBeforeScan();
 				return ScanOutcome.Failed(cancelled, null) with
 				{
-					RouteReason = PatternScanRouteReason.TargetIdentityNotQualified
+					HostOutcome = AobScanMapping.ToHostOutcome(bounded.Kind),
+					RouteReason = PatternScanRouteReason.ScopedRequestOnQualifiedTarget
 				};
 			}
 
-			return FallBack(request, moduleRange, cancellationToken);
+			return WithPriorHostScan(FallBack(request, moduleRange, cancellationToken), bounded.HostScanElapsed);
 		}
 
 		// A failure after the SDK read the host count keeps the metrics of the work that happened.
-		PatternScanMetrics? failureMetrics = AobScanMapping.HasReadCount(bounded)
-			? BoundedMetrics(bounded, 0, 0, bounded.CopyElapsed, false)
-			: null;
+		PatternScanMetrics? failureMetrics = BoundedFailureMetrics(bounded);
 		ScanOutcome outcome = disposition == AobBoundedDisposition.Publish
 			? Publish(bounded, destination, request, moduleRange, cancellationToken)
 			: ScanOutcome.Failed(failure, failureMetrics);
@@ -460,7 +460,8 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 	{
 		if (cancellationToken.IsCancellationRequested)
 		{
-			return ScanOutcome.Failed(CancelledAfterScan(), null);
+			// The SDK had read the count and copied the rows: the metrics describe that work, nothing is published.
+			return ScanOutcome.Failed(CancelledAfterScan(), BoundedFailureMetrics(bounded));
 		}
 
 		if ((uint) bounded.Written > (uint) destination.Length)
@@ -519,6 +520,35 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		};
 	}
 
+	/// <summary>
+	///     Returns the metrics of a bounded scan that published nothing, when the SDK read its host count; otherwise, or
+	///     when its counts contradict each other, <see langword="null" />.
+	/// </summary>
+	private static PatternScanMetrics? BoundedFailureMetrics(AobBoundedHostResult bounded)
+	{
+		return AobScanMapping.HasReadCount(bounded) ? BoundedMetrics(bounded, 0, 0, bounded.CopyElapsed, false) : null;
+	}
+
+	/// <summary>
+	///     Adds the Cheat Engine time of a bounded scan that ran before its fallback to the fallback's metrics: the
+	///     request cost both scans.
+	/// </summary>
+	private static ScanOutcome WithPriorHostScan(ScanOutcome fallback, TimeSpan priorHostScan)
+	{
+		if (priorHostScan <= TimeSpan.Zero || fallback.Metrics is not { } metrics)
+		{
+			return fallback;
+		}
+
+		return fallback with
+		{
+			Metrics = new PatternScanMetrics(metrics.Scope, metrics.HostResultCount, metrics.ExaminedCount,
+				metrics.FilteredOutCount, metrics.MaterializedCount, metrics.BelowStartSkipped,
+				metrics.AtOrAfterStopSkipped, metrics.UnreadHostRows, metrics.InBoundsCountIsExact,
+				metrics.HostScanElapsed + priorHostScan, metrics.MaterializationElapsed)
+		};
+	}
+
 	/// <summary>Builds the metrics of a bounded scan, or <see langword="null" /> when its counts contradict each other.</summary>
 	/// <remarks>
 	///     The SDK's skipped rows and the rows the Client's own checks dropped are the filtered-out rows. The in-request
@@ -553,6 +583,15 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		{
 			host = _scanPort.TryScan(request.Pattern.Value,
 				AobScanMapping.ToSdkOptions(request.Protection, request.Alignment), out matchList);
+		}
+		catch (OwnershipHandoffException handoff)
+		{
+			// CE's scan returned a list that the port could not publish, and the list's release was not confirmed: the
+			// publication fault keeps its classification, and the unconfirmed release makes it CleanupUnconfirmed.
+			CheatEngineFailure publishFailure = SdkBoundary.Translate(ScanOperation, handoff.PublishFailure,
+				CheatEngineHostEffect.Completed, _dispatcher.Lifetime);
+			return ScanOutcome.Failed(CreateReleaseFailure(publishFailure, ListSubject, handoff.ReleaseKind,
+				handoff.ReleaseFailure), null);
 		}
 		catch (Exception scanFault) when (SdkBoundary.IsSdkFault(scanFault))
 		{
