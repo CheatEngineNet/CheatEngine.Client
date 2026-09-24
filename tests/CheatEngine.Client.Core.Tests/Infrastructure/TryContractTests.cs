@@ -170,8 +170,9 @@ public sealed class TryContractTests
 			"Processes" => () => new ProcessClient(dispatcher, ports, ports, ports, lifetime)
 				.TryGetCurrent(out _, out _, cancelled),
 			"Runtime" => () => new RuntimeClient(dispatcher, ports, static () => 1).TryGetSnapshot(out _, out _, cancelled),
-			"ValueScans" => () => new ValueScanner(dispatcher, scans).TryCreateSession(out _, out _, cancelled),
-			"Allocations" => () => new AllocationClient(dispatcher, allocations)
+			"ValueScans" => () => new ValueScanner(dispatcher, Binder(dispatcher), scans)
+				.TryCreateSession(out _, out _, cancelled),
+			"Allocations" => () => new AllocationClient(dispatcher, Binder(dispatcher), allocations)
 				.TryAllocate(new AllocationRequest(4096), out _, out _, cancelled),
 			_ => throw new ArgumentOutOfRangeException(nameof(family), family, null)
 		};
@@ -259,13 +260,15 @@ public sealed class TryContractTests
 			"Lua.RegisterModule" => Run(new LuaClient(dispatcher, lifetime), new PortBackedModule(ports),
 				static (client, module, t) => (client.TryRegisterModule(module, out _, out CheatEngineFailure f, t), f),
 				static (client, module, t) => client.RegisterModule(module, t), token),
-			"Scans.CreateSession" => Run(new ValueScanner(dispatcher, new FakeValueScanPort { Fault = fault }), 0,
+			"Scans.CreateSession" => Run(
+				new ValueScanner(dispatcher, Binder(dispatcher), new FakeValueScanPort { Fault = fault }), 0,
 				static (scanner, _, t) => (scanner.TryCreateSession(out IValueScanSession? _, out CheatEngineFailure f, t), f),
 				static (scanner, _, t) => scanner.CreateSession(t), token),
 			"Scans.GetResultCount" => Run(CreateScanSession(dispatcher, fault, token), 0,
 				static (session, _, t) => (session.TryGetResultCount(out ulong _, out CheatEngineFailure f, t), f),
 				static (session, _, t) => session.GetResultCount(t), token),
-			"Allocations.Allocate" => Run(new AllocationClient(dispatcher, new FakeAllocationPort { Fault = fault }),
+			"Allocations.Allocate" => Run(
+				new AllocationClient(dispatcher, Binder(dispatcher), new FakeAllocationPort { Fault = fault }),
 				new AllocationRequest(4096),
 				static (client, request, t) => (client.TryAllocate(request, out ITargetMemoryLease? _,
 					out CheatEngineFailure f, t), f),
@@ -359,8 +362,8 @@ public sealed class TryContractTests
 			MemoryClient memory = new(dispatcher, lifetime);
 			PatternScanner patterns = new(dispatcher);
 			UnsafeLuaClient unsafeLua = new(dispatcher, new CoreClientPolicy([], true), lifetime);
-			ValueScanner scans = new(dispatcher);
-			AllocationClient allocations = new(dispatcher);
+			ValueScanner scans = new(dispatcher, Binder(dispatcher));
+			AllocationClient allocations = new(dispatcher, Binder(dispatcher));
 			CancellationToken token = TestContext.Current.CancellationToken;
 
 			// No Lua runtime is attached in unit tests: every SDK static below throws InvalidOperationException, and the
@@ -578,16 +581,16 @@ public sealed class TryContractTests
 				(new LuaClient(dispatcher, lifetime).TryRegisterModule(new PortBackedModule(ports), out _,
 					out CheatEngineFailure f, cancelled), f)),
 			"ValueScansPreDispatchCancellation" => TryFailure(() =>
-				(new ValueScanner(dispatcher, new FakeValueScanPort()).TryCreateSession(out _,
+				(new ValueScanner(dispatcher, Binder(dispatcher), new FakeValueScanPort()).TryCreateSession(out _,
 					out CheatEngineFailure f, cancelled), f)),
 			"ValueScansInvalidRequest" => TryFailure(() =>
-				(new ValueScanner(dispatcher, new FakeValueScanPort()).CreateSession(token).TryFirstScan(default,
-					out CheatEngineFailure f, token), f)),
+				(new ValueScanner(dispatcher, Binder(dispatcher), new FakeValueScanPort()).CreateSession(token)
+					.TryFirstScan(default, out CheatEngineFailure f, token), f)),
 			"AllocationsPreDispatchCancellation" => TryFailure(() =>
-				(new AllocationClient(dispatcher, new FakeAllocationPort()).TryAllocate(new AllocationRequest(4096),
-					out _, out CheatEngineFailure f, cancelled), f)),
+				(new AllocationClient(dispatcher, Binder(dispatcher), new FakeAllocationPort())
+					.TryAllocate(new AllocationRequest(4096), out _, out CheatEngineFailure f, cancelled), f)),
 			"AllocationsInvalidRequest" => TryFailure(() =>
-				(new AllocationClient(dispatcher, new FakeAllocationPort()).TryAllocate(default, out _,
+				(new AllocationClient(dispatcher, Binder(dispatcher), new FakeAllocationPort()).TryAllocate(default, out _,
 					out CheatEngineFailure f, token), f)),
 			_ => throw new ArgumentOutOfRangeException(nameof(refusal), refusal, null)
 		};
@@ -626,8 +629,8 @@ public sealed class TryContractTests
 		ProcessClient processes = new(dispatcher, ports, ports, ports, lifetime);
 		RuntimeClient runtime = new(dispatcher, ports, static () => 1);
 		PortBackedModule module = new(ports);
-		ValueScanner scans = new(dispatcher, new FakeValueScanPort());
-		AllocationClient allocations = new(dispatcher, new FakeAllocationPort());
+		ValueScanner scans = new(dispatcher, processes, new FakeValueScanPort());
+		AllocationClient allocations = new(dispatcher, processes, new FakeAllocationPort());
 		CancellationToken cancelled = new(true);
 
 		(CheatEngineFailure Expected, Action ThrowingForm) scenario = family switch
@@ -754,12 +757,19 @@ public sealed class TryContractTests
 		return failure;
 	}
 
+	/// <summary>Creates the selection binder of target-bound leases: a process client over the default selected target.</summary>
+	private static ProcessClient Binder(SdkMainThreadDispatcher dispatcher)
+	{
+		return FakeSelectedTarget.CreateProcessClient(dispatcher);
+	}
+
 	/// <summary>Creates a value-scan session whose results are ready and whose result count throws <paramref name="fault" />.</summary>
 	private static IValueScanSession CreateScanSession(SdkMainThreadDispatcher dispatcher, Exception fault,
 		CancellationToken cancellationToken)
 	{
 		FakeValueScanPort port = new();
-		IValueScanSession session = new ValueScanner(dispatcher, port).CreateSession(cancellationToken);
+		IValueScanSession session =
+			new ValueScanner(dispatcher, Binder(dispatcher), port).CreateSession(cancellationToken);
 		session.FirstScan(ValueScanFirstRequest.Exact(ValueScanValue.FromInt32(1)), cancellationToken);
 		port.Session.CountFault = fault;
 		return session;

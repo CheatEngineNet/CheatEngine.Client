@@ -22,6 +22,15 @@ internal interface IValueScanPort
 /// <remarks>Every member runs on Cheat Engine's main thread, inside a dispatched callback.</remarks>
 internal interface IValueScanSessionHandle
 {
+	/// <summary>
+	///     Gets the qualified process incarnation that CheatEngine.SDK observed before it created the session
+	///     (<c>TargetObservation.Incarnation</c>), which every later session operation and the release check.
+	/// </summary>
+	public TargetProcessIncarnation TargetIncarnation
+	{
+		get;
+	}
+
 	/// <summary>Gets the SDK session state.</summary>
 	public MemoryScanState State
 	{

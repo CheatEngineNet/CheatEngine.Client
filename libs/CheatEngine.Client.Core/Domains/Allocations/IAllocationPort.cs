@@ -16,10 +16,16 @@ internal interface IAllocationPort
 	public AllocationAttempt TryAllocate(in TargetAllocationRequest request, out IAllocatedRegionHandle? region);
 }
 
-/// <summary>Internal view of one CheatEngine.SDK <c>AllocatedRegion</c>: its target-bound release only.</summary>
+/// <summary>Internal view of one CheatEngine.SDK <c>AllocatedRegion</c>: its target binding and its release only.</summary>
 /// <remarks>Every member runs on Cheat Engine's main thread, inside a dispatched callback.</remarks>
 internal interface IAllocatedRegionHandle
 {
+	/// <summary>Gets the process incarnation that CheatEngine.SDK bound the allocation to (<c>TargetIncarnation</c>).</summary>
+	public TargetProcessIncarnation TargetIncarnation
+	{
+		get;
+	}
+
 	/// <summary>
 	///     Frees the allocation in the process incarnation it was made in (<c>ReleaseWithTargetOutcome</c>); never throws.
 	///     CheatEngine.SDK refuses, without any Cheat Engine call, when another target or another Lua runtime is current.

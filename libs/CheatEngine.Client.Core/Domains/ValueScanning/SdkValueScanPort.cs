@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 
 using CheatEngine.SDK.Engine.Scanning.Values;
+using CheatEngine.SDK.Engine.Targets;
 
 namespace CheatEngine.Client.Core.Domains.ValueScanning;
 
@@ -33,22 +34,36 @@ internal sealed class SdkValueScanPort : IValueScanPort
 	public MemoryScanCreationStatus TryCreate(out IValueScanSessionHandle? session)
 	{
 		MemoryScanCreationOutcome outcome = MemoryScanSessions.TryCreateWithOutcome(out MemoryScanSession? created);
-		if (outcome.Status == MemoryScanCreationStatus.Success && created is not null)
+		if (outcome.Status == MemoryScanCreationStatus.Success && created is not null &&
+			outcome.TargetObservation.Incarnation is { } incarnation)
 		{
-			session = new SdkValueScanSessionHandle(created);
+			session = new SdkValueScanSessionHandle(created, incarnation);
 			return outcome.Status;
 		}
 
-		// The SDK publishes a session only with Success; release one that a contract break would publish anyway rather
-		// than leak its Cheat Engine objects.
-		_ = created?.ReleaseWithOutcome();
+		// The SDK publishes a session only with Success, and only for a qualified target; release one that a contract
+		// break would publish anyway rather than leak its Cheat Engine objects, and never report that nothing remains.
 		session = null;
-		return outcome.Status;
+		if (created is null)
+		{
+			return outcome.Status;
+		}
+
+		_ = created.ReleaseWithOutcome();
+		return outcome.Status == MemoryScanCreationStatus.Success
+			? MemoryScanCreationStatus.RollbackUnconfirmed
+			: outcome.Status;
 	}
 
-	private sealed class SdkValueScanSessionHandle(MemoryScanSession session) : IValueScanSessionHandle
+	private sealed class SdkValueScanSessionHandle(MemoryScanSession session, TargetProcessIncarnation incarnation)
+		: IValueScanSessionHandle
 	{
 		private readonly MemoryScanSession _session = session ?? throw new ArgumentNullException(nameof(session));
+
+		public TargetProcessIncarnation TargetIncarnation
+		{
+			get;
+		} = incarnation;
 
 		public MemoryScanState State => _session.State;
 

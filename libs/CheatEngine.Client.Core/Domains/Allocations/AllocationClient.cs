@@ -11,9 +11,17 @@ namespace CheatEngine.Client.Core.Domains.Allocations;
 
 /// <summary>Allocates target memory through CheatEngine.SDK's allocator, on Cheat Engine's main thread.</summary>
 /// <remarks>
-///     A published allocation is registered with the activation and with the target selection it was made in, in the
-///     same main-thread callback that made it, so no path leaves it without an owner: a registration that fails, and a
-///     cancellation observed after the allocation, release it at once.
+///     <para>
+///         A published allocation is registered with the activation and with the target selection it was made in, in the
+///         same main-thread callback that made it, so no path leaves it without an owner: a registration that fails, and
+///         a cancellation observed after the allocation, release it at once.
+///     </para>
+///     <para>
+///         The target selection is the one of the process incarnation that CheatEngine.SDK bound the allocation to
+///         (<see cref="ITargetSelectionBinder" />), not the last selection the Client observed: a process selected in Cheat
+///         Engine's own window since then advances the epoch before the lease is registered, so the next observation never
+///         releases an allocation whose own process is still selected.
+///     </para>
 /// </remarks>
 internal sealed class AllocationClient : IAllocationClient
 {
@@ -22,13 +30,17 @@ internal sealed class AllocationClient : IAllocationClient
 
 	private readonly SdkMainThreadDispatcher _dispatcher;
 	private readonly IAllocationPort _port;
+	private readonly ITargetSelectionBinder _selection;
 
 	/// <summary>Creates the allocation client of an activation.</summary>
 	/// <param name="dispatcher">The activation dispatcher.</param>
+	/// <param name="selection">The owner of the observed target selection, the activation's process client.</param>
 	/// <param name="port">The allocator; CheatEngine.SDK's when omitted.</param>
-	internal AllocationClient(SdkMainThreadDispatcher dispatcher, IAllocationPort? port = null)
+	internal AllocationClient(SdkMainThreadDispatcher dispatcher, ITargetSelectionBinder selection,
+		IAllocationPort? port = null)
 	{
 		_dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
+		_selection = selection ?? throw new ArgumentNullException(nameof(selection));
 		_port = port ?? SdkAllocationPort.Instance;
 	}
 
@@ -56,6 +68,7 @@ internal sealed class AllocationClient : IAllocationClient
 			return false;
 		}
 
+		_selection.ReportBinding(outcome.Binding, AllocateOperation);
 		lease = outcome.Lease;
 		failure = outcome.Failure;
 		return lease is not null;
@@ -81,7 +94,6 @@ internal sealed class AllocationClient : IAllocationClient
 		}
 
 		CoreLifetime lifetime = _dispatcher.Lifetime;
-		long selectionEpoch = lifetime.TargetSelection.Epoch;
 		AllocationAttempt attempt;
 		IAllocatedRegionHandle? region;
 		try
@@ -109,10 +121,13 @@ internal sealed class AllocationClient : IAllocationClient
 				AllocationMapping.CancelledAfterAllocation(released, attempt.Address, request.Size, AllocateOperation));
 		}
 
-		TargetMemoryLease lease = new(_dispatcher, region, attempt.Address, request, selectionEpoch);
+		TargetSelectionBinding binding;
+		TargetMemoryLease lease;
 		try
 		{
-			lease.Register(lifetime, selectionEpoch);
+			binding = _selection.BindOwner(region.TargetIncarnation, AllocateOperation);
+			lease = new TargetMemoryLease(_dispatcher, region, attempt.Address, request, binding.SelectionEpoch);
+			lease.Register(lifetime, binding.SelectionEpoch);
 		}
 		catch (Exception)
 		{
@@ -122,8 +137,19 @@ internal sealed class AllocationClient : IAllocationClient
 			throw;
 		}
 
-		return new AllocateOutcome(lease, default);
+		return new AllocateOutcome(lease, default)
+		{
+			Binding = binding
+		};
 	}
 
-	private readonly record struct AllocateOutcome(TargetMemoryLease? Lease, CheatEngineFailure Failure);
+	private readonly record struct AllocateOutcome(TargetMemoryLease? Lease, CheatEngineFailure Failure)
+	{
+		/// <summary>Gets the selection binding of a published lease, reported after the callback returned.</summary>
+		internal TargetSelectionBinding Binding
+		{
+			get;
+			init;
+		}
+	}
 }

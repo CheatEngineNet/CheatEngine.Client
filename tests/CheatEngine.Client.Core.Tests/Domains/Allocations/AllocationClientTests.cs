@@ -1,12 +1,15 @@
 using CheatEngine.Client.Allocations;
 using CheatEngine.Client.Core.Dispatching;
+using CheatEngine.Client.Core.Domains;
 using CheatEngine.Client.Core.Domains.Allocations;
 using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Core.Tests.TestSupport;
+using CheatEngine.Client.Processes;
 using CheatEngine.Client.Results;
 using CheatEngine.SDK.Engine.Allocation;
 using CheatEngine.SDK.Engine.Enums;
 using CheatEngine.SDK.Engine.Errors;
+using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Engine.Objects;
 using CheatEngine.SDK.Engine.Targets;
 using CheatEngine.SDK.Engine.Values;
@@ -18,7 +21,8 @@ namespace CheatEngine.Client.Core.Tests.Domains.Allocations;
 ///     The allocation lifecycle against a scripted CheatEngine.SDK allocator (plan L16): a published lease and its one
 ///     release, a target change or a reused PID that the SDK refuses without freeing anything in the new target (Q30), a
 ///     runtime change, an unconfirmed or unavailable release, the compensation of an allocation that got no owner,
-///     cancellation before and after Cheat Engine allocated, and a Dispose that never throws.
+///     cancellation before and after Cheat Engine allocated, a process selected in Cheat Engine's own window that keeps the
+///     allocations made in it, and a Dispose that never throws.
 /// </summary>
 public sealed class AllocationClientTests : IDisposable
 {
@@ -26,11 +30,15 @@ public sealed class AllocationClientTests : IDisposable
 	private readonly ControlledCoreLifetimeContext _context = new();
 	private readonly CoreLifetime _lifetime;
 	private readonly FakeAllocationPort _port = new();
+	private readonly ProcessClient _processes;
+	private readonly FakeSelectedTarget _target = new();
 
 	public AllocationClientTests()
 	{
 		_lifetime = new CoreLifetime(_context);
-		_client = new AllocationClient(new SdkMainThreadDispatcher(_lifetime, new InlineMainThreadInvoker()), _port);
+		SdkMainThreadDispatcher dispatcher = new(_lifetime, new InlineMainThreadInvoker());
+		_processes = FakeSelectedTarget.CreateProcessClient(dispatcher, _target);
+		_client = new AllocationClient(dispatcher, _processes, _port);
 	}
 
 	private FakeAllocatedRegion Region => _port.Region;
@@ -384,16 +392,78 @@ public sealed class AllocationClientTests : IDisposable
 
 	[Fact]
 	[Trait("Qualification", "Q30.a")]
-	public void ATargetChangeDuringTheAllocationReleasesItAndPublishesNoLease()
+	public void ATargetChangeObservedDuringTheAllocationKeysTheLeaseToTheProcessItWasMadeIn()
 	{
-		_port.DuringAllocate = () => _ = _lifetime.TargetSelection.Advance("Processes.Attach");
+		_ = _processes.GetCurrent(Token);
 		Region.ReleaseStatus = TargetReleaseStatus.RefusedTargetChanged;
+		// The SDK bound the allocation to process 42; Cheat Engine then selects process 43, which the Client observes
+		// before the lease is registered.
+		_port.DuringAllocate = () =>
+		{
+			_target.Select(FakeSelectedTarget.OtherProcessIncarnation);
+			_ = _processes.GetCurrent(Token);
+		};
 
-		Assert.Throws<CheatEngineClientLifecycleException>(() =>
-			_client.TryAllocate(new AllocationRequest(64), out _, out _, Token));
+		ITargetMemoryLease lease = _client.Allocate(new AllocationRequest(64), Token);
+		bool releasedWhenPublished = lease.IsReleased;
+		ProcessSnapshot observed = _processes.GetCurrent(Token);
 
+		Assert.False(releasedWhenPublished);
+		// The next observation of process 43 releases the lease of process 42, and the SDK frees nothing in 43.
+		Assert.True(observed.SelectionEpoch > lease.SelectionEpoch);
+		Assert.True(lease.IsReleased);
+		Assert.Equal(LeaseReleaseKind.RefusedTargetChanged, lease.LastReleaseOutcome?.Kind);
 		Assert.Equal(1, Region.ReleaseCalls);
 		Assert.Equal(0, Region.Deallocations);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q30.a")]
+	public void AnAllocationInAProcessSelectedInCheatEngineStaysWithThatProcess()
+	{
+		long observedEpoch = _processes.GetCurrent(Token).SelectionEpoch;
+		FakeAllocatedRegion first = Region;
+		first.ReleaseStatus = TargetReleaseStatus.RefusedTargetChanged;
+		ITargetMemoryLease inFirst = _client.Allocate(new AllocationRequest(64), Token);
+		// Cheat Engine's own window selects another process: no Client call observes it.
+		_target.Select(FakeSelectedTarget.OtherProcessIncarnation);
+		FakeAllocatedRegion second = new()
+		{
+			TargetIncarnation = FakeSelectedTarget.OtherProcessIncarnation
+		};
+		_port.Region = second;
+
+		ITargetMemoryLease inSecond = _client.Allocate(new AllocationRequest(64), Token);
+		long secondEpoch = inSecond.SelectionEpoch;
+		ProcessSnapshot observed = _processes.GetCurrent(Token);
+
+		// The first allocation's process is no longer selected: its lease was released when the second allocation was
+		// bound, and the SDK refused to free it in the new target.
+		Assert.Equal(observedEpoch, inFirst.SelectionEpoch);
+		Assert.True(inFirst.IsReleased);
+		Assert.Equal(LeaseReleaseKind.RefusedTargetChanged, inFirst.LastReleaseOutcome?.Kind);
+		Assert.Equal(0, first.Deallocations);
+		// The second allocation belongs to the selection the next observation finds, which releases nothing.
+		Assert.True(secondEpoch > observedEpoch);
+		Assert.Equal(secondEpoch, observed.SelectionEpoch);
+		Assert.Equal(new TargetProcessId(43), observed.Id);
+		Assert.False(inSecond.IsReleased);
+		Assert.Equal(0, second.ReleaseCalls);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q30.a")]
+	public void AnAllocationInTheObservedProcessKeepsTheObservedSelection()
+	{
+		long observedEpoch = _processes.GetCurrent(Token).SelectionEpoch;
+
+		ITargetMemoryLease lease = _client.Allocate(new AllocationRequest(64), Token);
+		ProcessSnapshot observed = _processes.GetCurrent(Token);
+
+		Assert.Equal(observedEpoch, lease.SelectionEpoch);
+		Assert.Equal(observedEpoch, observed.SelectionEpoch);
+		Assert.False(lease.IsReleased);
+		Assert.Equal(0, Region.ReleaseCalls);
 	}
 
 	private CheatEngineOperationException DrainExpectingOneReport()

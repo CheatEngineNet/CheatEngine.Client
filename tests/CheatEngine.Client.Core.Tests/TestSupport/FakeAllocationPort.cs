@@ -37,9 +37,11 @@ internal sealed class FakeAllocationPort : IAllocationPort
 		set;
 	}
 
+	/// <summary>The owner the next allocation publishes; replace it to publish another allocation.</summary>
 	internal FakeAllocatedRegion Region
 	{
 		get;
+		set;
 	} = new();
 
 	internal int Allocations
@@ -84,6 +86,13 @@ internal sealed class FakeAllocationPort : IAllocationPort
 internal sealed class FakeAllocatedRegion : IAllocatedRegionHandle
 {
 	private TargetReleaseStatus? _consumed;
+
+	/// <summary>The incarnation the SDK bound the allocation to, the default selected target's unless replaced.</summary>
+	public TargetProcessIncarnation TargetIncarnation
+	{
+		get;
+		set;
+	} = FakeSelectedTarget.FirstIncarnation;
 
 	/// <summary>The status of the one release attempt.</summary>
 	internal TargetReleaseStatus ReleaseStatus

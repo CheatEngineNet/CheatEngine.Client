@@ -29,9 +29,11 @@ internal sealed class FakeValueScanPort : IValueScanPort
 		set;
 	}
 
+	/// <summary>The session the next creation publishes; replace it to publish another session.</summary>
 	internal FakeValueScanSessionHandle Session
 	{
 		get;
+		set;
 	} = new();
 
 	internal int Creations
@@ -69,6 +71,13 @@ internal sealed class FakeValueScanSessionHandle : IValueScanSessionHandle
 	{
 		get;
 	} = [];
+
+	/// <summary>The incarnation the SDK bound the session to, the default selected target's unless replaced.</summary>
+	public TargetProcessIncarnation TargetIncarnation
+	{
+		get;
+		set;
+	} = FakeSelectedTarget.FirstIncarnation;
 
 	internal List<MemoryScanResult> Results
 	{

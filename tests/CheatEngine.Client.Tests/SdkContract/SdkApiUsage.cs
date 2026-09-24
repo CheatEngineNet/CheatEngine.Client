@@ -246,6 +246,7 @@ internal static class SdkApiUsage
 		_ = observation.Incarnation;
 		_ = observation.SelectedProcessId;
 		_ = observation.Status;
+		_ = incarnation.ProcessId;
 		_ = incarnation.StartedAtUtcTicks;
 		_ = incarnation != other;
 		_ = incarnation == other;
@@ -343,6 +344,7 @@ internal static class SdkApiUsage
 		Span<MemoryScanResult> page = new MemoryScanResult[1];
 		_ = MemoryScanSessions.TryCreateWithOutcome(out _);
 		_ = creation.Status;
+		_ = creation.TargetObservation;
 		session.StartFirstScanCancellable(in first, CancellationToken.None);
 		session.StartNextScanCancellable(in next, CancellationToken.None);
 		session.WaitForCompletionCancellable(CancellationToken.None);
@@ -376,6 +378,7 @@ internal static class SdkApiUsage
 		_ = region.ReleaseWithTargetOutcome();
 		_ = region.IsDisposed;
 		_ = region.LastReleaseOutcome;
+		_ = region.TargetIncarnation;
 		_ = address.IsZero;
 	}
 

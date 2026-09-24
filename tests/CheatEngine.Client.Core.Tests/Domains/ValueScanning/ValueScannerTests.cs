@@ -16,7 +16,8 @@ namespace CheatEngine.Client.Core.Tests.Domains.ValueScanning;
 ///     The value-scan battery of the audit (chapter 13) against a scripted SDK session: zero and many results, invalid
 ///     results, a malformed count, a creation failure after the first object, Cheat Engine closing during the wait,
 ///     cancellation before and after the start, a changed target, an error completion, next scans, a stale owner after
-///     an external reset, a release while busy and a release that cannot reach Cheat Engine.
+///     an external reset, a release while busy, a release that cannot reach Cheat Engine, and a process selected in Cheat
+///     Engine's own window that keeps the sessions created for it.
 /// </summary>
 public sealed class ValueScannerTests : IDisposable
 {
@@ -24,13 +25,16 @@ public sealed class ValueScannerTests : IDisposable
 	private readonly SdkMainThreadDispatcher _dispatcher;
 	private readonly CoreLifetime _lifetime;
 	private readonly FakeValueScanPort _port = new();
+	private readonly ProcessClient _processes;
 	private readonly ValueScanner _scanner;
+	private readonly FakeSelectedTarget _target = new();
 
 	public ValueScannerTests()
 	{
 		_lifetime = new CoreLifetime(_context);
 		_dispatcher = new SdkMainThreadDispatcher(_lifetime, new InlineMainThreadInvoker());
-		_scanner = new ValueScanner(_dispatcher, _port);
+		_processes = FakeSelectedTarget.CreateProcessClient(_dispatcher, _target);
+		_scanner = new ValueScanner(_dispatcher, _processes, _port);
 	}
 
 	private FakeValueScanSessionHandle Handle => _port.Session;
@@ -593,6 +597,38 @@ public sealed class ValueScannerTests : IDisposable
 		Assert.Equal(CheatEngineFailureKind.InvalidState, failure.Kind);
 		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
 		Assert.DoesNotContain("stale text", failure.Message, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q26")]
+	public void ASessionForAProcessSelectedInCheatEngineStaysWithThatProcess()
+	{
+		_ = _processes.GetCurrent(Token);
+		FakeValueScanSessionHandle first = Handle;
+		first.ReleaseStatuses = new ValueScanReleaseStatuses(TargetReleaseStatus.RefusedTargetChanged,
+			TargetReleaseStatus.RefusedTargetChanged, MemoryScanTerminationStatus.NotRequired);
+		IValueScanSession forFirst = CreateSession();
+		// Cheat Engine's own window selects another process: no Client call observes it.
+		_target.Select(FakeSelectedTarget.OtherProcessIncarnation);
+		FakeValueScanSessionHandle second = new()
+		{
+			TargetIncarnation = FakeSelectedTarget.OtherProcessIncarnation
+		};
+		_port.Session = second;
+
+		IValueScanSession forSecond = CreateSession();
+		int secondDestroysAfterCreation = second.Destroys;
+		_ = _processes.GetCurrent(Token);
+		forSecond.FirstScan(ValueScanFirstRequest.Exact(ValueScanValue.FromInt32(1)), Token);
+
+		// The first session's process is no longer selected: it was released when the second session was bound.
+		Assert.True(forFirst.IsReleased);
+		Assert.Equal(LeaseReleaseKind.RefusedTargetChanged, forFirst.LastReleaseOutcome?.Kind);
+		// The second session belongs to the selection the next observation finds, which releases nothing.
+		Assert.Equal(0, secondDestroysAfterCreation);
+		Assert.Equal(0, second.Destroys);
+		Assert.False(forSecond.IsReleased);
+		Assert.Equal(ValueScanSessionState.ResultsReady, forSecond.State);
 	}
 
 	private IValueScanSession CreateSession()

@@ -27,7 +27,7 @@ namespace CheatEngine.Client.Core.Domains;
 ///         unknown backend has no local incarnation and no local metadata.
 ///     </para>
 /// </remarks>
-internal sealed class ProcessClient : IProcessClient
+internal sealed class ProcessClient : IProcessClient, ITargetSelectionBinder
 {
 	private readonly Action<string>? _admitStatefulOperation;
 	private readonly ICheatEngineDispatcher _dispatcher;
@@ -276,6 +276,32 @@ internal sealed class ProcessClient : IProcessClient
 		return default;
 	}
 
+	/// <inheritdoc />
+	/// <remarks>
+	///     An incarnation describes a local process. The ISA and width of the owner's target are not observed here, so the
+	///     last values known for the same selection are kept, as for any observation that leaves a fact unknown.
+	/// </remarks>
+	public TargetSelectionBinding BindOwner(TargetProcessIncarnation incarnation, string operation)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(operation);
+		ProcessSelection bound = new(new TargetProcessId(incarnation.ProcessId), TargetBackend.LocalProcess,
+			CheatEngineArchitecture.Unknown, PointerSize.Unknown, incarnation);
+		lock (_selectionGate)
+		{
+			_ = RecordSelection(bound, operation, out SelectionAdvance? advance);
+			return new TargetSelectionBinding(_selectionLifetime.Epoch, advance?.Reason);
+		}
+	}
+
+	/// <inheritdoc />
+	public void ReportBinding(TargetSelectionBinding binding, string operation)
+	{
+		if (binding.AdvanceReason is { } reason)
+		{
+			ReportSelectionAdvance(new SelectionAdvance(binding.SelectionEpoch, reason), operation);
+		}
+	}
+
 	private bool TryReadCurrent(
 		string operation,
 		out ProcessSnapshot snapshot,
@@ -479,23 +505,9 @@ internal sealed class ProcessClient : IProcessClient
 	private ProcessSnapshot ObserveSelection(ProcessSelection observed, LocalProcessInfo process,
 		int? configuredPointerSizeBytes, string operation, out SelectionAdvance? advance)
 	{
-		advance = null;
 		lock (_selectionGate)
 		{
-			ProcessSelection selection = observed;
-			if (_lastSelection is { } previous)
-			{
-				if (GetChangeReason(previous, observed) is { } reason)
-				{
-					advance = new SelectionAdvance(_selectionLifetime.Advance(operation), reason);
-				}
-				else
-				{
-					selection = previous.Merge(observed);
-				}
-			}
-
-			_lastSelection = selection;
+			ProcessSelection selection = RecordSelection(observed, operation, out advance);
 			// The configured pointer size is a fact of this observation, not of the selection identity, so it is never
 			// merged with an earlier value. Local metadata and the start time describe a local process only.
 			bool isLocal = selection.Backend == TargetBackend.LocalProcess;
@@ -512,6 +524,31 @@ internal sealed class ProcessClient : IProcessClient
 					: null,
 				_selectionLifetime.Epoch);
 		}
+	}
+
+	/// <summary>
+	///     Records an observed selection under <see cref="_selectionGate" />, which the caller holds: the epoch advances when
+	///     <see cref="GetChangeReason" /> finds a change, otherwise the observation is merged into the last one.
+	/// </summary>
+	private ProcessSelection RecordSelection(ProcessSelection observed, string operation,
+		out SelectionAdvance? advance)
+	{
+		advance = null;
+		ProcessSelection selection = observed;
+		if (_lastSelection is { } previous)
+		{
+			if (GetChangeReason(previous, observed) is { } reason)
+			{
+				advance = new SelectionAdvance(_selectionLifetime.Advance(operation), reason);
+			}
+			else
+			{
+				selection = previous.Merge(observed);
+			}
+		}
+
+		_lastSelection = selection;
+		return selection;
 	}
 
 	private static string? GetChangeReason(ProcessSelection previous, ProcessSelection current)

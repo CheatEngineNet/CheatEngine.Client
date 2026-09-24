@@ -59,6 +59,8 @@ internal sealed class SdkAllocationPort : IAllocationPort
 	{
 		private readonly AllocatedRegion _region = region ?? throw new ArgumentNullException(nameof(region));
 
+		public TargetProcessIncarnation TargetIncarnation => _region.TargetIncarnation;
+
 		public TargetReleaseStatus Release()
 		{
 			// The SDK consumes the owner on its one attempt: a later call reports that attempt again, without any call.

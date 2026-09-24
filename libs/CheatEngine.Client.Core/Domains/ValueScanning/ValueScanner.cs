@@ -11,9 +11,17 @@ namespace CheatEngine.Client.Core.Domains.ValueScanning;
 
 /// <summary>Creates value-scan sessions through CheatEngine.SDK's scan-session factory, on Cheat Engine's main thread.</summary>
 /// <remarks>
-///     A created session is registered with the activation and with the target selection it was created for, in the same
-///     main-thread callback that created it, so no path leaves its Cheat Engine objects without an owner: a registration
-///     that fails, and a cancellation observed after the creation, release them at once.
+///     <para>
+///         A created session is registered with the activation and with the target selection it was created for, in the
+///         same main-thread callback that created it, so no path leaves its Cheat Engine objects without an owner: a
+///         registration that fails, and a cancellation observed after the creation, release them at once.
+///     </para>
+///     <para>
+///         The target selection is the one of the process incarnation that CheatEngine.SDK bound the session to
+///         (<see cref="ITargetSelectionBinder" />), not the last selection the Client observed: a process selected in Cheat
+///         Engine's own window since then advances the epoch before the session is registered, so the next observation
+///         never releases a session whose own process is still selected.
+///     </para>
 /// </remarks>
 internal sealed class ValueScanner : IValueScanner
 {
@@ -22,13 +30,17 @@ internal sealed class ValueScanner : IValueScanner
 
 	private readonly SdkMainThreadDispatcher _dispatcher;
 	private readonly IValueScanPort _port;
+	private readonly ITargetSelectionBinder _selection;
 
 	/// <summary>Creates the value scanner of an activation.</summary>
 	/// <param name="dispatcher">The activation dispatcher.</param>
+	/// <param name="selection">The owner of the observed target selection, the activation's process client.</param>
 	/// <param name="port">The session factory; CheatEngine.SDK's when omitted.</param>
-	internal ValueScanner(SdkMainThreadDispatcher dispatcher, IValueScanPort? port = null)
+	internal ValueScanner(SdkMainThreadDispatcher dispatcher, ITargetSelectionBinder selection,
+		IValueScanPort? port = null)
 	{
 		_dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
+		_selection = selection ?? throw new ArgumentNullException(nameof(selection));
 		_port = port ?? SdkValueScanPort.Instance;
 	}
 
@@ -50,6 +62,7 @@ internal sealed class ValueScanner : IValueScanner
 			return false;
 		}
 
+		_selection.ReportBinding(outcome.Binding, CreateOperation);
 		session = outcome.Session;
 		failure = outcome.Failure;
 		return session is not null;
@@ -74,7 +87,6 @@ internal sealed class ValueScanner : IValueScanner
 		}
 
 		CoreLifetime lifetime = _dispatcher.Lifetime;
-		long selectionEpoch = lifetime.TargetSelection.Epoch;
 		MemoryScanCreationStatus status;
 		IValueScanSessionHandle? handle;
 		try
@@ -106,10 +118,12 @@ internal sealed class ValueScanner : IValueScanner
 					CheatEngineHostEffect.CleanupUnconfirmed));
 		}
 
+		TargetSelectionBinding binding;
 		ValueScanSession session = new(_dispatcher, handle);
 		try
 		{
-			session.Register(lifetime, selectionEpoch);
+			binding = _selection.BindOwner(handle.TargetIncarnation, CreateOperation);
+			session.Register(lifetime, binding.SelectionEpoch);
 		}
 		catch (Exception)
 		{
@@ -119,8 +133,19 @@ internal sealed class ValueScanner : IValueScanner
 			throw;
 		}
 
-		return new CreateOutcome(session, default);
+		return new CreateOutcome(session, default)
+		{
+			Binding = binding
+		};
 	}
 
-	private readonly record struct CreateOutcome(ValueScanSession? Session, CheatEngineFailure Failure);
+	private readonly record struct CreateOutcome(ValueScanSession? Session, CheatEngineFailure Failure)
+	{
+		/// <summary>Gets the selection binding of a published session, reported after the callback returned.</summary>
+		internal TargetSelectionBinding Binding
+		{
+			get;
+			init;
+		}
+	}
 }

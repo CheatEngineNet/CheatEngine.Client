@@ -141,12 +141,14 @@ public static class CheatEngineClientServiceCollectionExtensions
 			serviceProvider.GetRequiredService<PatternScanner>());
 
 		services.TryAddSingleton<ValueScanner>(static serviceProvider =>
-			new ValueScanner(serviceProvider.GetRequiredService<SdkMainThreadDispatcher>()));
+			new ValueScanner(serviceProvider.GetRequiredService<SdkMainThreadDispatcher>(),
+				serviceProvider.GetRequiredService<ProcessClient>()));
 		services.TryAddSingleton<IValueScanner>(static serviceProvider =>
 			serviceProvider.GetRequiredService<ValueScanner>());
 
 		services.TryAddSingleton<AllocationClient>(static serviceProvider =>
-			new AllocationClient(serviceProvider.GetRequiredService<SdkMainThreadDispatcher>()));
+			new AllocationClient(serviceProvider.GetRequiredService<SdkMainThreadDispatcher>(),
+				serviceProvider.GetRequiredService<ProcessClient>()));
 		services.TryAddSingleton<IAllocationClient>(static serviceProvider =>
 			serviceProvider.GetRequiredService<AllocationClient>());
 		services.TryAddSingleton<IAssemblyClient>(static serviceProvider =>
