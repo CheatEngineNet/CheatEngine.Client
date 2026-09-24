@@ -187,6 +187,43 @@ public sealed class TryContractTests
 	}
 
 	[Theory]
+	[InlineData("Scans.FirstScan", false)]
+	[InlineData("Scans.FirstScan", true)]
+	[InlineData("Scans.Read", false)]
+	[InlineData("Scans.Read", true)]
+	public void AnEndedOrStoppingActivationThrowsBeforeAnInvalidValueScanRequestIsRefused(string entryPoint,
+		bool stopping)
+	{
+		using ControlledCoreLifetimeContext context = new();
+		CoreLifetime lifetime = new(context);
+		SdkMainThreadDispatcher dispatcher = new(lifetime, new InlineMainThreadInvoker());
+		FakeValueScanPort port = new();
+		IValueScanSession session = new ValueScanner(dispatcher, Binder(dispatcher), port)
+			.CreateSession(TestContext.Current.CancellationToken);
+		if (stopping)
+		{
+			context.Stop();
+		}
+		else
+		{
+			context.IsCurrent = false;
+		}
+
+		Action invalid = entryPoint switch
+		{
+			"Scans.FirstScan" => () => _ = session.TryFirstScan(default, out _),
+			"Scans.Read" => () => _ = session.TryRead(default, out _, out _),
+			_ => throw new ArgumentOutOfRangeException(nameof(entryPoint), entryPoint, null)
+		};
+
+		CheatEngineClientException thrown = stopping
+			? Assert.Throws<CheatEngineClientLifecycleException>(invalid)
+			: Assert.Throws<CheatEngineActivationExpiredException>(invalid);
+		Assert.Equal(entryPoint, thrown.Failure.Operation);
+		Assert.Empty(port.Session.Calls);
+	}
+
+	[Theory]
 	[MemberData(nameof(SdkFaultCases))]
 	public void SdkExceptionsNeverCrossATryMethod(string faultType, string entryPoint)
 	{

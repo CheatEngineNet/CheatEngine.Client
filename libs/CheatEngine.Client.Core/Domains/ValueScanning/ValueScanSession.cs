@@ -71,6 +71,8 @@ internal sealed class ValueScanSession : HostResourceLease, IValueScanSession
 	public bool TryFirstScan(ValueScanFirstRequest request, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
+		// An ended or stopping activation throws before a refusal is reported, never the reverse.
+		_dispatcher.Lifetime.ThrowIfDispatchAllowed(FirstScanOperation);
 		if (!ValueScanRequests.TryCreateFirst(request, FirstScanOperation, out FirstScanRequest sdkRequest, out failure))
 		{
 			return false;
@@ -141,6 +143,8 @@ internal sealed class ValueScanSession : HostResourceLease, IValueScanSession
 		CancellationToken cancellationToken = default)
 	{
 		page = default;
+		// An ended or stopping activation throws before a refusal is reported, never the reverse.
+		_dispatcher.Lifetime.ThrowIfDispatchAllowed(ReadOperation);
 		if (request.MaximumCount <= 0)
 		{
 			failure = new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, ReadOperation,
