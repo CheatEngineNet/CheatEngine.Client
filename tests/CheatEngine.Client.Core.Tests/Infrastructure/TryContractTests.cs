@@ -620,7 +620,7 @@ public sealed class TryContractTests
 
 	private static AobScanRequest Request(ModuleName? module = null)
 	{
-		return new AobScanRequest(new AobPattern("90"), AobScanOptions.Default, 2, module);
+		return new AobScanRequest(new AobPattern("90"), 2, module);
 	}
 
 	private static Exception CreateSdkFault(string faultType)

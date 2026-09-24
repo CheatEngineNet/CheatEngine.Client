@@ -695,7 +695,7 @@ public sealed class PatternScannerBehaviorTests
 
 	private static AobScanRequest CreateRequest(ModuleName? module, AobScanRange? range, int maximumResults)
 	{
-		return new AobScanRequest(new AobPattern("90"), AobScanOptions.Default, maximumResults, module, range);
+		return new AobScanRequest(new AobPattern("90"), maximumResults, module, range);
 	}
 
 	private static ModuleInfo Module(string name, ulong baseAddress, ulong? imageSize)

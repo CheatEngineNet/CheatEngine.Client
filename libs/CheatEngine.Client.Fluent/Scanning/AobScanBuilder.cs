@@ -1,6 +1,4 @@
-using CheatEngine.SDK.Engine.Enums;
 using CheatEngine.SDK.Engine.Inspection;
-using CheatEngine.SDK.Engine.Scanning.Aob;
 using CheatEngine.SDK.Engine.Values;
 
 namespace CheatEngine.Client.Scanning;
@@ -33,12 +31,13 @@ public readonly record struct AobScanBuilder
 {
 	private readonly IPatternScanner? _scanner;
 
-	internal AobScanBuilder(IPatternScanner? scanner, AobPattern pattern, AobScanOptions options, ModuleName? module,
-		AobScanRange? range)
+	internal AobScanBuilder(IPatternScanner? scanner, AobPattern pattern, ScanProtectionFilter protection,
+		ScanAlignment alignment, ModuleName? module, AobScanRange? range)
 	{
 		_scanner = scanner;
 		Pattern = pattern;
-		Options = options;
+		Protection = protection;
+		Alignment = alignment;
 		Module = module;
 		Range = range;
 	}
@@ -49,8 +48,14 @@ public readonly record struct AobScanBuilder
 		get;
 	}
 
-	/// <summary>Gets the current evidence-backed Cheat Engine scan options.</summary>
-	public AobScanOptions Options
+	/// <summary>Gets the memory protection the matches must have; unspecified by default.</summary>
+	public ScanProtectionFilter Protection
+	{
+		get;
+	}
+
+	/// <summary>Gets the alignment rule of candidate addresses; <see cref="ScanAlignment.None" /> by default.</summary>
+	public ScanAlignment Alignment
 	{
 		get;
 	}
@@ -95,7 +100,7 @@ public readonly record struct AobScanBuilder
 			throw new ArgumentException("An AOB module filter must be non-empty.", nameof(module));
 		}
 
-		return new AobScanBuilder(_scanner, Pattern, Options, module, Range);
+		return new AobScanBuilder(_scanner, Pattern, Protection, Alignment, module, Range);
 	}
 
 	/// <summary>Returns an equivalent builder scoped to an inclusive range of match start addresses.</summary>
@@ -109,7 +114,7 @@ public readonly record struct AobScanBuilder
 	/// </remarks>
 	public AobScanBuilder InRange(Address start, Address end)
 	{
-		return new AobScanBuilder(_scanner, Pattern, Options, Module, new AobScanRange(start, end));
+		return new AobScanBuilder(_scanner, Pattern, Protection, Alignment, Module, new AobScanRange(start, end));
 	}
 
 	/// <summary>Returns an equivalent builder that searches executable, non-copy-on-write, non-writable memory.</summary>
@@ -117,41 +122,53 @@ public readonly record struct AobScanBuilder
 	///     Cheat Engine's documented protection grammar does not expose a readable bit. <c>+X-C-W</c> therefore means
 	///     executable, not copy-on-write, and not writable memory.
 	/// </remarks>
-	/// <returns>A new immutable builder.</returns>
+	/// <returns>A new immutable builder whose protection filter replaces the current one.</returns>
 	public AobScanBuilder Executable()
 	{
-		return WithOptions(new AobScanOptions("+X-C-W", Options.AlignmentMethod, Options.AlignmentParameter));
+		return WithProtection(new ScanProtectionFilter(ScanProtectionRequirement.Required,
+			ScanProtectionRequirement.Excluded, ScanProtectionRequirement.Excluded));
 	}
 
-	/// <summary>Returns an equivalent executable-memory builder through the historical compatibility name.</summary>
+	/// <summary>Returns an equivalent builder that searches writable memory that is not copy-on-write.</summary>
 	/// <remarks>
-	///     This is an alias for <see cref="Executable" />. Cheat Engine's documented protection grammar has no readable
-	///     bit, so the name does not promise a readable-memory constraint.
+	///     This is Cheat Engine's <c>-C+W</c>: writable data, executable or not. Cheat Engine's protection grammar has no
+	///     readable bit.
 	/// </remarks>
-	/// <returns>A new immutable builder.</returns>
-	public AobScanBuilder ReadableExecutable()
+	/// <returns>A new immutable builder whose protection filter replaces the current one.</returns>
+	public AobScanBuilder Writable()
 	{
-		return Executable();
+		return WithProtection(new ScanProtectionFilter(ScanProtectionRequirement.Unspecified,
+			ScanProtectionRequirement.Excluded, ScanProtectionRequirement.Required));
 	}
 
-	/// <summary>Returns an equivalent builder with the exact Cheat Engine protection expression.</summary>
-	/// <param name="protectionFlags">
-	///     The protection expression accepted by Cheat Engine, or <see langword="null" /> to omit
-	///     it.
-	/// </param>
-	/// <returns>A new immutable builder.</returns>
-	public AobScanBuilder WithProtectionFlags(string? protectionFlags)
+	/// <summary>Returns an equivalent builder with an explicit protection filter.</summary>
+	/// <param name="protection">The protection filter, one requirement per flag.</param>
+	/// <returns>A new immutable builder whose protection filter replaces the current one.</returns>
+	public AobScanBuilder WithProtection(ScanProtectionFilter protection)
 	{
-		return WithOptions(new AobScanOptions(protectionFlags, Options.AlignmentMethod, Options.AlignmentParameter));
+		return new AobScanBuilder(_scanner, Pattern, protection, Alignment, Module, Range);
 	}
 
-	/// <summary>Returns an equivalent builder with an explicit Cheat Engine alignment rule.</summary>
-	/// <param name="method">The documented Cheat Engine alignment method.</param>
-	/// <param name="parameter">The divisor or hexadecimal trailing-digit expression required by <paramref name="method" />.</param>
-	/// <returns>A new immutable builder.</returns>
-	public AobScanBuilder WithAlignment(FastScanMethod method, string? parameter)
+	/// <summary>Returns an equivalent builder that checks only addresses divisible by <paramref name="divisor" />.</summary>
+	/// <param name="divisor">The positive divisor, for example 4 for 4-byte aligned matches.</param>
+	/// <returns>A new immutable builder whose alignment rule replaces the current one.</returns>
+	/// <exception cref="ArgumentOutOfRangeException"><paramref name="divisor" /> is zero or negative.</exception>
+	public AobScanBuilder AlignedTo(int divisor)
 	{
-		return WithOptions(new AobScanOptions(Options.ProtectionFlags, method, parameter));
+		return new AobScanBuilder(_scanner, Pattern, Protection, ScanAlignment.AlignedTo(divisor), Module, Range);
+	}
+
+	/// <summary>
+	///     Returns an equivalent builder that checks only addresses whose hexadecimal text ends with
+	///     <paramref name="digits" />.
+	/// </summary>
+	/// <param name="digits">One to sixteen hexadecimal digits, in either case.</param>
+	/// <returns>A new immutable builder whose alignment rule replaces the current one.</returns>
+	/// <exception cref="ArgumentNullException"><paramref name="digits" /> is <see langword="null" />.</exception>
+	/// <exception cref="ArgumentException"><paramref name="digits" /> is empty, too long or not hexadecimal.</exception>
+	public AobScanBuilder WithLastDigits(string digits)
+	{
+		return new AobScanBuilder(_scanner, Pattern, Protection, ScanAlignment.LastDigits(digits), Module, Range);
 	}
 
 	/// <summary>Selects an operation that succeeds only when exactly one AOB match exists.</summary>
@@ -200,13 +217,6 @@ public readonly record struct AobScanBuilder
 
 	private AobScanRequest BuildRequest(int maximumResults)
 	{
-		return new AobScanRequest(Pattern, Options, maximumResults, Module, Range);
-	}
-
-	private AobScanBuilder WithOptions(AobScanOptions options)
-	{
-		// Validate and normalize at configuration time, not after the caller selected a terminal operation.
-		AobScanRequest request = new(Pattern, options, 1, Module, Range);
-		return new AobScanBuilder(_scanner, Pattern, request.Options, Module, Range);
+		return new AobScanRequest(Pattern, maximumResults, Module, Range, Protection, Alignment);
 	}
 }

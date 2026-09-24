@@ -118,7 +118,7 @@ public sealed class PatternScannerBoundedRouteTests
 	{
 		FakeAobScanPort port = QualifiedPort([]);
 		PatternScanner scanner = CreateScanner(port);
-		AobScanRequest request = new(new AobPattern(pattern), AobScanOptions.Default, 1, null,
+		AobScanRequest request = new(new AobPattern(pattern), 1, null,
 			new AobScanRange(start, end));
 
 		Assert.True(scanner.TryScan(request, out _, out CheatEngineFailure failure,
@@ -600,6 +600,6 @@ public sealed class PatternScannerBoundedRouteTests
 
 	private static AobScanRequest Request(ModuleName? module, AobScanRange? range, int maximumResults)
 	{
-		return new AobScanRequest(new AobPattern("90 90"), AobScanOptions.Default, maximumResults, module, range);
+		return new AobScanRequest(new AobPattern("90 90"), maximumResults, module, range);
 	}
 }

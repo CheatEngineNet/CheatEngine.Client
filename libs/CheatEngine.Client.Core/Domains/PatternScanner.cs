@@ -109,8 +109,33 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 			return false;
 		}
 
+		if (!IsDefined(request.Protection) || !IsDefined(request.Alignment))
+		{
+			failure = Rejected("An AOB protection filter or alignment rule is not a defined value.");
+			return false;
+		}
+
 		failure = default;
 		return true;
+	}
+
+	/// <summary>Whether every requirement of a filter is defined; only memory tampering can make one undefined.</summary>
+	private static bool IsDefined(ScanProtectionFilter protection)
+	{
+		return Enum.IsDefined(protection.Executable) && Enum.IsDefined(protection.CopyOnWrite) &&
+			   Enum.IsDefined(protection.Writable);
+	}
+
+	/// <summary>Whether an alignment rule is one its factories can produce.</summary>
+	private static bool IsDefined(ScanAlignment alignment)
+	{
+		return alignment.Kind switch
+		{
+			ScanAlignmentKind.None => alignment is { Divisor: 0, Digits: null },
+			ScanAlignmentKind.AlignedTo => alignment is { Divisor: > 0, Digits: null },
+			ScanAlignmentKind.LastDigits => alignment is { Divisor: 0, Digits.Length: > 0 },
+			_ => false
+		};
 	}
 
 	/// <summary>
@@ -291,8 +316,8 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		AobBoundedHostResult bounded;
 		try
 		{
-			bounded = _scanPort.TryScanWithinBounds(request.Pattern.Value, bounds, request.Options, destination,
-				cancellationToken);
+			bounded = _scanPort.TryScanWithinBounds(request.Pattern.Value, bounds,
+				AobScanMapping.ToSdkOptions(request.Protection, request.Alignment), destination, cancellationToken);
 		}
 		catch (Exception scanFault) when (SdkBoundary.IsSdkFault(scanFault))
 		{
@@ -427,7 +452,8 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		IAobMatchList? matchList;
 		try
 		{
-			host = _scanPort.TryScan(request.Pattern.Value, request.Options, out matchList);
+			host = _scanPort.TryScan(request.Pattern.Value,
+				AobScanMapping.ToSdkOptions(request.Protection, request.Alignment), out matchList);
 		}
 		catch (Exception scanFault) when (SdkBoundary.IsSdkFault(scanFault))
 		{

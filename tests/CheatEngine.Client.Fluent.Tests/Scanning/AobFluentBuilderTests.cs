@@ -11,7 +11,6 @@ using CheatEngine.Client.Results;
 using CheatEngine.Client.Runtime;
 using CheatEngine.Client.Scanning;
 using CheatEngine.Client.Tables;
-using CheatEngine.SDK.Engine.Enums;
 using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Engine.Values;
 
@@ -19,33 +18,40 @@ namespace CheatEngine.Client.Fluent.Tests.Scanning;
 
 public sealed class AobFluentBuilderTests
 {
+	private static readonly ScanProtectionFilter ExecutableCode = new(ScanProtectionRequirement.Required,
+		ScanProtectionRequirement.Excluded, ScanProtectionRequirement.Excluded);
+
 	[Fact]
 	public void ConfigurationMethodsReturnNewBuilderWithoutChangingTheOriginal()
 	{
 		FakePatternScanner scanner = new();
 		AobScanBuilder original = scanner.Aob("48 8B ?? 89");
 
-		AobScanBuilder configured = original.InModule("game.exe").InRange(0x400000, 0x4FFFFF).Executable();
+		AobScanBuilder configured = original.InModule("game.exe").InRange(0x400000, 0x4FFFFF).Executable()
+			.AlignedTo(4);
 
 		Assert.Null(original.Module);
 		Assert.Null(original.Range);
-		Assert.Null(original.Options.ProtectionFlags);
+		Assert.True(original.Protection.IsUnspecified);
+		Assert.Equal(ScanAlignment.None, original.Alignment);
 		Assert.Equal("game.exe", configured.Module!.Value.Value);
 		Assert.Equal(new AobScanRange(0x400000, 0x4FFFFF), configured.Range);
-		Assert.Equal("+X-C-W", configured.Options.ProtectionFlags);
+		Assert.Equal(ExecutableCode, configured.Protection);
+		Assert.Equal(ScanAlignment.AlignedTo(4), configured.Alignment);
 		Assert.Equal("48 8B ?? 89", configured.Pattern.Value);
 	}
 
 	[Fact]
-	public void ReadableExecutableRemainsACompatibleAliasForExecutable()
+	public void TheProtectionPresetsNameExecutableCodeAndWritableData()
 	{
 		FakePatternScanner scanner = new();
 
 		AobScanBuilder executable = scanner.Aob("90").Executable();
-		AobScanBuilder readableExecutable = scanner.Aob("90").ReadableExecutable();
+		AobScanBuilder writable = scanner.Aob("90").Executable().Writable();
 
-		Assert.Equal("+X-C-W", executable.Options.ProtectionFlags);
-		Assert.Equal(executable.Options, readableExecutable.Options);
+		Assert.Equal(ExecutableCode, executable.Protection);
+		Assert.Equal(new ScanProtectionFilter(ScanProtectionRequirement.Unspecified, ScanProtectionRequirement.Excluded,
+			ScanProtectionRequirement.Required), writable.Protection);
 	}
 
 	[Fact]
@@ -69,39 +75,41 @@ public sealed class AobFluentBuilderTests
 	{
 		Address expected = 0x401000;
 		FakePatternScanner scanner = new(new AobScanResult([expected], false));
+		ScanProtectionFilter protection = new(ScanProtectionRequirement.Any, ScanProtectionRequirement.Excluded,
+			ScanProtectionRequirement.Required);
 
 		Address actual = scanner.Aob("90")
-			.WithProtectionFlags("-w+x-c")
-			.WithAlignment(FastScanMethod.LastDigits, "f0")
+			.WithProtection(protection)
+			.WithLastDigits("f0")
 			.InRange(0x400000, 0x4FFFFF)
 			.RequireSingle()
 			.Execute(TestContext.Current.CancellationToken);
 
 		Assert.Equal(expected, actual);
 		AobScanRequest request = Assert.IsType<AobScanRequest>(scanner.LastRequest);
-		Assert.Equal("+X-C-W", request.Options.ProtectionFlags);
-		Assert.Equal(FastScanMethod.LastDigits, request.Options.AlignmentMethod);
-		Assert.Equal("F0", request.Options.AlignmentParameter);
+		Assert.Equal(protection, request.Protection);
+		Assert.Equal(ScanAlignmentKind.LastDigits, request.Alignment.Kind);
+		Assert.Equal("F0", request.Alignment.Digits);
 		Assert.Equal(new AobScanRange(0x400000, 0x4FFFFF), request.Range);
 	}
 
 	[Theory]
-	[InlineData("+X+X")]
-	[InlineData("X")]
-	public void WithProtectionFlagsRejectsMalformedExpressionsBeforeTerminalSelection(string protection)
+	[InlineData("")]
+	[InlineData("0xF0")]
+	public void WithLastDigitsRejectsMalformedDigitsBeforeTerminalSelection(string digits)
 	{
 		FakePatternScanner scanner = new();
 
-		Assert.Throws<ArgumentException>(() => scanner.Aob("90").WithProtectionFlags(protection));
+		Assert.Throws<ArgumentException>(() => scanner.Aob("90").WithLastDigits(digits));
 		Assert.Null(scanner.LastRequest);
 	}
 
 	[Fact]
-	public void WithAlignmentRejectsAnInvalidDivisorBeforeTerminalSelection()
+	public void AlignedToRejectsAnInvalidDivisorBeforeTerminalSelection()
 	{
 		FakePatternScanner scanner = new();
 
-		Assert.Throws<ArgumentException>(() => scanner.Aob("90").WithAlignment(FastScanMethod.Aligned, "0"));
+		Assert.Throws<ArgumentOutOfRangeException>(() => scanner.Aob("90").AlignedTo(0));
 		Assert.Null(scanner.LastRequest);
 	}
 

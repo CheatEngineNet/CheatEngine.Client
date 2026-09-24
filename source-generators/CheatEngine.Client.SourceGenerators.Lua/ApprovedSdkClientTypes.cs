@@ -23,7 +23,6 @@ internal static class ApprovedSdkClientTypes
 	internal static readonly string[] Names =
 	[
 		"CheatEngine.SDK.Engine.AddressList.MemoryRecordId",
-		"CheatEngine.SDK.Engine.Enums.FastScanMethod",
 		"CheatEngine.SDK.Engine.Enums.VariableType",
 		"CheatEngine.SDK.Engine.Inspection.AddressResolutionOptions",
 		"CheatEngine.SDK.Engine.Inspection.MemoryRegionInfo",
@@ -39,7 +38,6 @@ internal static class ApprovedSdkClientTypes
 		"CheatEngine.SDK.Engine.Runtime.PointerSize",
 		"CheatEngine.SDK.Engine.Runtime.TargetAbi",
 		"CheatEngine.SDK.Engine.Runtime.TargetBackend",
-		"CheatEngine.SDK.Engine.Scanning.Aob.AobScanOptions",
 		"CheatEngine.SDK.Engine.Scanning.Values.FirstScanRequest",
 		"CheatEngine.SDK.Engine.Scanning.Values.NextScanRequest",
 		"CheatEngine.SDK.Engine.Values.Address"

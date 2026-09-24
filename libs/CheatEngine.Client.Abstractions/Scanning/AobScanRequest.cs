@@ -1,5 +1,4 @@
 using CheatEngine.SDK.Engine.Inspection;
-using CheatEngine.SDK.Engine.Scanning.Aob;
 
 namespace CheatEngine.Client.Scanning;
 
@@ -7,8 +6,18 @@ namespace CheatEngine.Client.Scanning;
 public readonly record struct AobScanRequest
 {
 	/// <summary>Creates an AOB scan request.</summary>
-	public AobScanRequest(AobPattern pattern, AobScanOptions options, int maximumResults, ModuleName? module = null,
-		AobScanRange? range = null)
+	/// <param name="pattern">The normalized pattern.</param>
+	/// <param name="maximumResults">The positive materialization limit.</param>
+	/// <param name="module">The optional module that scopes the scan.</param>
+	/// <param name="range">The optional inclusive range of match start addresses that scopes the scan.</param>
+	/// <param name="protection">The memory protection the matches must have; unspecified by default.</param>
+	/// <param name="alignment">The alignment rule of candidate addresses; <see cref="ScanAlignment.None" /> by default.</param>
+	/// <exception cref="ArgumentException">
+	///     <paramref name="pattern" /> is empty, or <paramref name="module" /> is an empty module name.
+	/// </exception>
+	/// <exception cref="ArgumentOutOfRangeException"><paramref name="maximumResults" /> is zero or negative.</exception>
+	public AobScanRequest(AobPattern pattern, int maximumResults, ModuleName? module = null, AobScanRange? range = null,
+		ScanProtectionFilter protection = default, ScanAlignment alignment = default)
 	{
 		if (string.IsNullOrWhiteSpace(pattern.Value))
 		{
@@ -22,20 +31,15 @@ public readonly record struct AobScanRequest
 		}
 
 		Pattern = pattern;
-		Options = AobScanOptionsNormalizer.Normalize(options);
 		MaximumResults = maximumResults;
 		Module = module;
 		Range = range;
+		Protection = protection;
+		Alignment = alignment;
 	}
 
 	/// <summary>Gets the scan pattern.</summary>
 	public AobPattern Pattern
-	{
-		get;
-	}
-
-	/// <summary>Gets the SDK's evidence-backed optional scan arguments.</summary>
-	public AobScanOptions Options
 	{
 		get;
 	}
@@ -72,6 +76,20 @@ public readonly record struct AobScanRequest
 	///     (<see cref="PatternScanScope.GlobalHostScanWithManagedFilter" />).
 	/// </remarks>
 	public AobScanRange? Range
+	{
+		get;
+	}
+
+	/// <summary>Gets the memory protection the matches must have.</summary>
+	/// <remarks>Cheat Engine applies it on every route: it reduces the memory Cheat Engine scans.</remarks>
+	public ScanProtectionFilter Protection
+	{
+		get;
+	}
+
+	/// <summary>Gets the alignment rule of candidate addresses.</summary>
+	/// <remarks>Cheat Engine applies it on every route.</remarks>
+	public ScanAlignment Alignment
 	{
 		get;
 	}

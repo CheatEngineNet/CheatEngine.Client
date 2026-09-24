@@ -17,7 +17,7 @@ using CheatEngine.SDK.Engine.Values;
 
 Address address = client.Aob("48 8B ?? ?? ?? 89")
     .InModule("game.exe")
-    .ReadableExecutable()
+    .Executable()
     .RequireSingle()
     .Execute();
 
@@ -58,7 +58,9 @@ Abstractions  ←  Fluent
 
 - Represents operation configuration as immutable `readonly record struct` values rather than CE
   handles or mutable builders.
-- Validates and normalizes an AOB pattern and its options before a terminal operation is selected.
+- Validates and normalizes an AOB pattern and its options before a terminal operation is selected:
+  `Executable()`, `Writable()` and `WithProtection(...)` set the protection filter, `AlignedTo(...)` and
+  `WithLastDigits(...)` the alignment rule.
 - Forces explicit result cardinality: `RequireSingle()`, `FirstOrNone()`, or `Take(maximumResults)`.
 - Preserves materialization-bounded copies: the limit bounds only the number of copied addresses, never Cheat
   Engine's scan. Callers inspect `AobScanResult.IsTruncated` when a copy is intentionally incomplete.
@@ -81,8 +83,8 @@ The package publishes functional namespaces only:
 
 `CheatEngine.Client.Fluent` is a package/assembly name, never a consumer namespace. The builders
 may expose stable SDK value types already present in the Abstractions vocabulary, notably `Address`
-and documented scan/inspection option types; they never expose Lua states, CE objects, or SDK
-ownership wrappers.
+and `ModuleName`; AOB options are the Client-owned `ScanProtectionFilter` and `ScanAlignment`. They
+never expose Lua states, CE objects, SDK option types, or SDK ownership wrappers.
 
 Fluent does not make a capability available. For example, it has no value-scan builder and cannot
 turn the currently gated `IValueScanner` contract into a live scan. A builder remains valid as a

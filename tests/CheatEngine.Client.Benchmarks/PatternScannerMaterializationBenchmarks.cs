@@ -69,7 +69,7 @@ public class PatternScannerMaterializationBenchmarks
 		ModuleInfo module = new("game.exe", new Address(ModuleBase), new MemorySize(ModuleSize), true, "game.exe");
 		_scanner = new PatternScanner(InlineCoreHost.CreateDispatcher(InlineCoreHost.CreateLifetime()),
 			new InMemoryAobScanPort(entries, module));
-		_request = new AobScanRequest(new AobPattern("48 8B ?? ?? ?? 89"), AobScanOptions.Default, HostMatchCount,
+		_request = new AobScanRequest(new AobPattern("48 8B ?? ?? ?? 89"), HostMatchCount,
 			ModuleFilter ? new ModuleName("game.exe") : null);
 	}
 

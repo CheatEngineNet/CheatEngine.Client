@@ -224,10 +224,6 @@ internal static class SdkApiUsage
 		ModuleInfo module)
 	{
 		_ = new AobScanOptions("+X-C-W", FastScanMethod.Aligned, "4");
-		_ = options.AlignmentMethod;
-		_ = options.AlignmentParameter;
-		_ = AobScanOptions.Default;
-		_ = options.ProtectionFlags;
 		AobScanOutcome outcome = AobScanner.TryScanOutcome("90", options, out _, out AobScanTargetContext context);
 		_ = outcome.Kind;
 		_ = outcome.LuaStatus;

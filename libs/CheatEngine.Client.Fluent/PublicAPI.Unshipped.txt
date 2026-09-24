@@ -50,6 +50,8 @@ CheatEngine.Client.Scanning.AobManyMatchBuilder.Equals(CheatEngine.Client.Scanni
 CheatEngine.Client.Scanning.AobManyMatchBuilder.Execute(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Scanning.AobScanResult
 CheatEngine.Client.Scanning.AobManyMatchBuilder.TryExecute(out CheatEngine.Client.Scanning.AobScanResult result, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
 CheatEngine.Client.Scanning.AobScanBuilder
+CheatEngine.Client.Scanning.AobScanBuilder.AlignedTo(int divisor) -> CheatEngine.Client.Scanning.AobScanBuilder
+CheatEngine.Client.Scanning.AobScanBuilder.Alignment.get -> CheatEngine.Client.Scanning.ScanAlignment
 CheatEngine.Client.Scanning.AobScanBuilder.AobScanBuilder() -> void
 CheatEngine.Client.Scanning.AobScanBuilder.Equals(CheatEngine.Client.Scanning.AobScanBuilder other) -> bool
 CheatEngine.Client.Scanning.AobScanBuilder.Executable() -> CheatEngine.Client.Scanning.AobScanBuilder
@@ -58,14 +60,14 @@ CheatEngine.Client.Scanning.AobScanBuilder.InModule(CheatEngine.SDK.Engine.Inspe
 CheatEngine.Client.Scanning.AobScanBuilder.InModule(string! moduleName) -> CheatEngine.Client.Scanning.AobScanBuilder
 CheatEngine.Client.Scanning.AobScanBuilder.InRange(CheatEngine.SDK.Engine.Values.Address start, CheatEngine.SDK.Engine.Values.Address end) -> CheatEngine.Client.Scanning.AobScanBuilder
 CheatEngine.Client.Scanning.AobScanBuilder.Module.get -> CheatEngine.SDK.Engine.Inspection.ModuleName?
-CheatEngine.Client.Scanning.AobScanBuilder.Options.get -> CheatEngine.SDK.Engine.Scanning.Aob.AobScanOptions
 CheatEngine.Client.Scanning.AobScanBuilder.Pattern.get -> CheatEngine.Client.Scanning.AobPattern
+CheatEngine.Client.Scanning.AobScanBuilder.Protection.get -> CheatEngine.Client.Scanning.ScanProtectionFilter
 CheatEngine.Client.Scanning.AobScanBuilder.Range.get -> CheatEngine.Client.Scanning.AobScanRange?
-CheatEngine.Client.Scanning.AobScanBuilder.ReadableExecutable() -> CheatEngine.Client.Scanning.AobScanBuilder
 CheatEngine.Client.Scanning.AobScanBuilder.RequireSingle() -> CheatEngine.Client.Scanning.AobSingleMatchBuilder
 CheatEngine.Client.Scanning.AobScanBuilder.Take(int maximumResults) -> CheatEngine.Client.Scanning.AobManyMatchBuilder
-CheatEngine.Client.Scanning.AobScanBuilder.WithAlignment(CheatEngine.SDK.Engine.Enums.FastScanMethod method, string? parameter) -> CheatEngine.Client.Scanning.AobScanBuilder
-CheatEngine.Client.Scanning.AobScanBuilder.WithProtectionFlags(string? protectionFlags) -> CheatEngine.Client.Scanning.AobScanBuilder
+CheatEngine.Client.Scanning.AobScanBuilder.WithLastDigits(string! digits) -> CheatEngine.Client.Scanning.AobScanBuilder
+CheatEngine.Client.Scanning.AobScanBuilder.WithProtection(CheatEngine.Client.Scanning.ScanProtectionFilter protection) -> CheatEngine.Client.Scanning.AobScanBuilder
+CheatEngine.Client.Scanning.AobScanBuilder.Writable() -> CheatEngine.Client.Scanning.AobScanBuilder
 CheatEngine.Client.Scanning.AobSingleMatchBuilder
 CheatEngine.Client.Scanning.AobSingleMatchBuilder.AobSingleMatchBuilder() -> void
 CheatEngine.Client.Scanning.AobSingleMatchBuilder.Equals(CheatEngine.Client.Scanning.AobSingleMatchBuilder other) -> bool

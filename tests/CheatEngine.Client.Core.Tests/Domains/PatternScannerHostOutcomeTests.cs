@@ -320,6 +320,6 @@ public sealed class PatternScannerHostOutcomeTests
 
 	private static AobScanRequest Request()
 	{
-		return new AobScanRequest(new AobPattern("90"), AobScanOptions.Default, 2);
+		return new AobScanRequest(new AobPattern("90"), 2);
 	}
 }

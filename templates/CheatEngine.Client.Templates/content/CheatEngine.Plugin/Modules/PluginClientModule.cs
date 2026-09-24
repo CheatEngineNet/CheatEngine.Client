@@ -61,7 +61,7 @@ internal sealed partial class PluginClientModule(
 		// On the bounded route a scan that finds nothing returns null. On a global route it fails with
 		// IndeterminateHostResult, because that route cannot tell zero matches from a host failure, so it is logged as a
 		// skipped probe, never treated as "not found".
-		if (!scan.ReadableExecutable()
+		if (!scan.Executable()
 				.FirstOrNone()
 				.TryExecute(out Address? address, out CheatEngineFailure scanFailure))
 		{

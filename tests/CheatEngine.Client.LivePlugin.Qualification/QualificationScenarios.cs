@@ -19,7 +19,6 @@ using CheatEngine.Client.Tables;
 using CheatEngine.SDK.Engine.AddressList;
 using CheatEngine.SDK.Engine.Enums;
 using CheatEngine.SDK.Engine.Inspection;
-using CheatEngine.SDK.Engine.Scanning.Aob;
 using CheatEngine.SDK.Engine.Values;
 
 using LivePlugin.Qualification.Harness;
@@ -231,7 +230,7 @@ internal static class QualificationScenarios
 			QualificationSession.Logs.DeclareSensitive(pattern);
 			int limit = maxResults > 0 ? (int) Math.Min(maxResults, MaximumResultLimit) : DefaultResultLimit;
 			ModuleName? module = string.IsNullOrWhiteSpace(moduleName) ? null : new ModuleName(moduleName);
-			AobScanRequest request = new(aobPattern, AobScanOptions.Default, limit, module);
+			AobScanRequest request = new(aobPattern, limit, module);
 			using CancellationTokenSource? cancellation = cancelAfterMs > 0
 				? new CancellationTokenSource(TimeSpan.FromMilliseconds(cancelAfterMs))
 				: null;
@@ -1003,7 +1002,7 @@ internal static class QualificationScenarios
 		ulong start = found.BaseAddress.Value;
 		ulong end = start + size.Value;
 		bool allInside = filtered.TrueForAll(address => address >= start && address < end);
-		PatternScanOutcome global = active.Scans.ScanDetailed(new AobScanRequest(pattern, AobScanOptions.Default, limit));
+		PatternScanOutcome global = active.Scans.ScanDetailed(new AobScanRequest(pattern, limit));
 		List<ulong> globalMatches = global.Result is { } result
 			? [.. result.Matches.Select(static address => address.Value)]
 			: [];

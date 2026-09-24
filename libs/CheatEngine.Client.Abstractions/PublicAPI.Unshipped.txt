@@ -594,13 +594,14 @@ CheatEngine.Client.Scanning.AobScanRange.End.get -> CheatEngine.SDK.Engine.Value
 CheatEngine.Client.Scanning.AobScanRange.Equals(CheatEngine.Client.Scanning.AobScanRange other) -> bool
 CheatEngine.Client.Scanning.AobScanRange.Start.get -> CheatEngine.SDK.Engine.Values.Address
 CheatEngine.Client.Scanning.AobScanRequest
+CheatEngine.Client.Scanning.AobScanRequest.Alignment.get -> CheatEngine.Client.Scanning.ScanAlignment
 CheatEngine.Client.Scanning.AobScanRequest.AobScanRequest() -> void
-CheatEngine.Client.Scanning.AobScanRequest.AobScanRequest(CheatEngine.Client.Scanning.AobPattern pattern, CheatEngine.SDK.Engine.Scanning.Aob.AobScanOptions options, int maximumResults, CheatEngine.SDK.Engine.Inspection.ModuleName? module = null, CheatEngine.Client.Scanning.AobScanRange? range = null) -> void
+CheatEngine.Client.Scanning.AobScanRequest.AobScanRequest(CheatEngine.Client.Scanning.AobPattern pattern, int maximumResults, CheatEngine.SDK.Engine.Inspection.ModuleName? module = null, CheatEngine.Client.Scanning.AobScanRange? range = null, CheatEngine.Client.Scanning.ScanProtectionFilter protection = default(CheatEngine.Client.Scanning.ScanProtectionFilter), CheatEngine.Client.Scanning.ScanAlignment alignment = default(CheatEngine.Client.Scanning.ScanAlignment)) -> void
 CheatEngine.Client.Scanning.AobScanRequest.Equals(CheatEngine.Client.Scanning.AobScanRequest other) -> bool
 CheatEngine.Client.Scanning.AobScanRequest.MaximumResults.get -> int
 CheatEngine.Client.Scanning.AobScanRequest.Module.get -> CheatEngine.SDK.Engine.Inspection.ModuleName?
-CheatEngine.Client.Scanning.AobScanRequest.Options.get -> CheatEngine.SDK.Engine.Scanning.Aob.AobScanOptions
 CheatEngine.Client.Scanning.AobScanRequest.Pattern.get -> CheatEngine.Client.Scanning.AobPattern
+CheatEngine.Client.Scanning.AobScanRequest.Protection.get -> CheatEngine.Client.Scanning.ScanProtectionFilter
 CheatEngine.Client.Scanning.AobScanRequest.Range.get -> CheatEngine.Client.Scanning.AobScanRange?
 CheatEngine.Client.Scanning.AobScanResult
 CheatEngine.Client.Scanning.AobScanResult.AobScanResult() -> void
@@ -650,6 +651,29 @@ CheatEngine.Client.Scanning.PatternScanScope.GlobalHostScan = 1 -> CheatEngine.C
 CheatEngine.Client.Scanning.PatternScanScope.GlobalHostScanWithManagedFilter = 3 -> CheatEngine.Client.Scanning.PatternScanScope
 CheatEngine.Client.Scanning.PatternScanScope.HostBoundedRange = 2 -> CheatEngine.Client.Scanning.PatternScanScope
 CheatEngine.Client.Scanning.PatternScanScope.Unknown = 0 -> CheatEngine.Client.Scanning.PatternScanScope
+CheatEngine.Client.Scanning.ScanAlignment
+CheatEngine.Client.Scanning.ScanAlignment.Digits.get -> string?
+CheatEngine.Client.Scanning.ScanAlignment.Divisor.get -> int
+CheatEngine.Client.Scanning.ScanAlignment.Equals(CheatEngine.Client.Scanning.ScanAlignment other) -> bool
+CheatEngine.Client.Scanning.ScanAlignment.Kind.get -> CheatEngine.Client.Scanning.ScanAlignmentKind
+CheatEngine.Client.Scanning.ScanAlignment.ScanAlignment() -> void
+CheatEngine.Client.Scanning.ScanAlignmentKind
+CheatEngine.Client.Scanning.ScanAlignmentKind.AlignedTo = 1 -> CheatEngine.Client.Scanning.ScanAlignmentKind
+CheatEngine.Client.Scanning.ScanAlignmentKind.LastDigits = 2 -> CheatEngine.Client.Scanning.ScanAlignmentKind
+CheatEngine.Client.Scanning.ScanAlignmentKind.None = 0 -> CheatEngine.Client.Scanning.ScanAlignmentKind
+CheatEngine.Client.Scanning.ScanProtectionFilter
+CheatEngine.Client.Scanning.ScanProtectionFilter.CopyOnWrite.get -> CheatEngine.Client.Scanning.ScanProtectionRequirement
+CheatEngine.Client.Scanning.ScanProtectionFilter.Equals(CheatEngine.Client.Scanning.ScanProtectionFilter other) -> bool
+CheatEngine.Client.Scanning.ScanProtectionFilter.Executable.get -> CheatEngine.Client.Scanning.ScanProtectionRequirement
+CheatEngine.Client.Scanning.ScanProtectionFilter.IsUnspecified.get -> bool
+CheatEngine.Client.Scanning.ScanProtectionFilter.ScanProtectionFilter() -> void
+CheatEngine.Client.Scanning.ScanProtectionFilter.ScanProtectionFilter(CheatEngine.Client.Scanning.ScanProtectionRequirement executable, CheatEngine.Client.Scanning.ScanProtectionRequirement copyOnWrite, CheatEngine.Client.Scanning.ScanProtectionRequirement writable) -> void
+CheatEngine.Client.Scanning.ScanProtectionFilter.Writable.get -> CheatEngine.Client.Scanning.ScanProtectionRequirement
+CheatEngine.Client.Scanning.ScanProtectionRequirement
+CheatEngine.Client.Scanning.ScanProtectionRequirement.Any = 3 -> CheatEngine.Client.Scanning.ScanProtectionRequirement
+CheatEngine.Client.Scanning.ScanProtectionRequirement.Excluded = 2 -> CheatEngine.Client.Scanning.ScanProtectionRequirement
+CheatEngine.Client.Scanning.ScanProtectionRequirement.Required = 1 -> CheatEngine.Client.Scanning.ScanProtectionRequirement
+CheatEngine.Client.Scanning.ScanProtectionRequirement.Unspecified = 0 -> CheatEngine.Client.Scanning.ScanProtectionRequirement
 CheatEngine.Client.Scanning.ValueScanMatch
 CheatEngine.Client.Scanning.ValueScanMatch.Address.get -> CheatEngine.SDK.Engine.Values.Address
 CheatEngine.Client.Scanning.ValueScanMatch.Equals(CheatEngine.Client.Scanning.ValueScanMatch other) -> bool
@@ -861,6 +885,8 @@ override CheatEngine.Client.Scanning.AobScanRange.GetHashCode() -> int
 override CheatEngine.Client.Scanning.AobScanRequest.GetHashCode() -> int
 override CheatEngine.Client.Scanning.AobScanResult.GetHashCode() -> int
 override CheatEngine.Client.Scanning.PatternScanMetrics.GetHashCode() -> int
+override CheatEngine.Client.Scanning.ScanAlignment.GetHashCode() -> int
+override CheatEngine.Client.Scanning.ScanProtectionFilter.GetHashCode() -> int
 override CheatEngine.Client.Scanning.ValueScanMatch.GetHashCode() -> int
 override CheatEngine.Client.Scanning.ValueScanPage.GetHashCode() -> int
 override CheatEngine.Client.Scanning.ValueScanReadRequest.GetHashCode() -> int
@@ -966,6 +992,13 @@ static CheatEngine.Client.Scanning.AobScanResult.operator !=(CheatEngine.Client.
 static CheatEngine.Client.Scanning.AobScanResult.operator ==(CheatEngine.Client.Scanning.AobScanResult left, CheatEngine.Client.Scanning.AobScanResult right) -> bool
 static CheatEngine.Client.Scanning.PatternScanMetrics.operator !=(CheatEngine.Client.Scanning.PatternScanMetrics left, CheatEngine.Client.Scanning.PatternScanMetrics right) -> bool
 static CheatEngine.Client.Scanning.PatternScanMetrics.operator ==(CheatEngine.Client.Scanning.PatternScanMetrics left, CheatEngine.Client.Scanning.PatternScanMetrics right) -> bool
+static CheatEngine.Client.Scanning.ScanAlignment.AlignedTo(int divisor) -> CheatEngine.Client.Scanning.ScanAlignment
+static CheatEngine.Client.Scanning.ScanAlignment.LastDigits(string! digits) -> CheatEngine.Client.Scanning.ScanAlignment
+static CheatEngine.Client.Scanning.ScanAlignment.None.get -> CheatEngine.Client.Scanning.ScanAlignment
+static CheatEngine.Client.Scanning.ScanAlignment.operator !=(CheatEngine.Client.Scanning.ScanAlignment left, CheatEngine.Client.Scanning.ScanAlignment right) -> bool
+static CheatEngine.Client.Scanning.ScanAlignment.operator ==(CheatEngine.Client.Scanning.ScanAlignment left, CheatEngine.Client.Scanning.ScanAlignment right) -> bool
+static CheatEngine.Client.Scanning.ScanProtectionFilter.operator !=(CheatEngine.Client.Scanning.ScanProtectionFilter left, CheatEngine.Client.Scanning.ScanProtectionFilter right) -> bool
+static CheatEngine.Client.Scanning.ScanProtectionFilter.operator ==(CheatEngine.Client.Scanning.ScanProtectionFilter left, CheatEngine.Client.Scanning.ScanProtectionFilter right) -> bool
 static CheatEngine.Client.Scanning.ValueScanMatch.operator !=(CheatEngine.Client.Scanning.ValueScanMatch left, CheatEngine.Client.Scanning.ValueScanMatch right) -> bool
 static CheatEngine.Client.Scanning.ValueScanMatch.operator ==(CheatEngine.Client.Scanning.ValueScanMatch left, CheatEngine.Client.Scanning.ValueScanMatch right) -> bool
 static CheatEngine.Client.Scanning.ValueScanPage.operator !=(CheatEngine.Client.Scanning.ValueScanPage left, CheatEngine.Client.Scanning.ValueScanPage right) -> bool
@@ -1068,6 +1101,10 @@ static CheatEngine.Client.Tables.TrustedTableFile.operator ==(CheatEngine.Client
 ~override CheatEngine.Client.Scanning.AobScanResult.ToString() -> string
 ~override CheatEngine.Client.Scanning.PatternScanMetrics.Equals(object obj) -> bool
 ~override CheatEngine.Client.Scanning.PatternScanMetrics.ToString() -> string
+~override CheatEngine.Client.Scanning.ScanAlignment.Equals(object obj) -> bool
+~override CheatEngine.Client.Scanning.ScanAlignment.ToString() -> string
+~override CheatEngine.Client.Scanning.ScanProtectionFilter.Equals(object obj) -> bool
+~override CheatEngine.Client.Scanning.ScanProtectionFilter.ToString() -> string
 ~override CheatEngine.Client.Scanning.ValueScanMatch.Equals(object obj) -> bool
 ~override CheatEngine.Client.Scanning.ValueScanMatch.ToString() -> string
 ~override CheatEngine.Client.Scanning.ValueScanPage.Equals(object obj) -> bool

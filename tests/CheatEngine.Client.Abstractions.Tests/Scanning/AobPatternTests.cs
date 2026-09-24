@@ -1,7 +1,5 @@
 using CheatEngine.Client.Scanning;
-using CheatEngine.SDK.Engine.Enums;
 using CheatEngine.SDK.Engine.Inspection;
-using CheatEngine.SDK.Engine.Scanning.Aob;
 
 namespace CheatEngine.Client.Abstractions.Tests.Scanning;
 
@@ -52,53 +50,92 @@ public sealed class AobPatternTests
 	}
 
 	[Fact]
-	public void RequestPreservesPatternOptionsLimitAndModule()
+	public void RequestPreservesPatternLimitModuleRangeProtectionAndAlignment()
 	{
 		AobPattern pattern = new("90 90");
-		AobScanOptions options = new("-w+x-c", default, null);
 		ModuleName module = new("game.exe");
 		AobScanRange range = new(0x400000, 0x4FFFFF);
+		ScanProtectionFilter protection = new(ScanProtectionRequirement.Required, ScanProtectionRequirement.Excluded,
+			ScanProtectionRequirement.Any);
 
-		AobScanRequest request = new(pattern, options, 2, module, range);
+		AobScanRequest request = new(pattern, 2, module, range, protection, ScanAlignment.AlignedTo(4));
 
 		Assert.Equal(pattern, request.Pattern);
-		Assert.Equal("+X-C-W", request.Options.ProtectionFlags);
 		Assert.Equal(2, request.MaximumResults);
 		Assert.Equal(module, request.Module);
 		Assert.Equal(range, request.Range);
+		Assert.Equal(protection, request.Protection);
+		Assert.Equal(ScanAlignment.AlignedTo(4), request.Alignment);
 	}
 
 	[Fact]
-	public void RequestNormalizesAlignmentParametersBeforeTheyReachTheScanner()
+	public void RequestDefaultsToAnUnspecifiedFilterAndNoAlignment()
 	{
-		AobScanRequest aligned = new(
-			new AobPattern("90"), new AobScanOptions(null, FastScanMethod.Aligned, "00016"), 1);
-		AobScanRequest lastDigits = new(
-			new AobPattern("90"), new AobScanOptions(null, FastScanMethod.LastDigits, "f0"), 1);
+		AobScanRequest request = new(new AobPattern("90"), 1);
 
-		Assert.Equal("16", aligned.Options.AlignmentParameter);
-		Assert.Equal("F0", lastDigits.Options.AlignmentParameter);
+		Assert.True(request.Protection.IsUnspecified);
+		Assert.Equal(ScanAlignment.None, request.Alignment);
+		Assert.Equal(ScanAlignmentKind.None, request.Alignment.Kind);
+		Assert.Null(request.Module);
+		Assert.Null(request.Range);
+	}
+
+	[Fact]
+	public void AlignmentFactoriesNormalizeTheirArgument()
+	{
+		ScanAlignment aligned = ScanAlignment.AlignedTo(16);
+		ScanAlignment lastDigits = ScanAlignment.LastDigits("f0");
+
+		Assert.Equal(ScanAlignmentKind.AlignedTo, aligned.Kind);
+		Assert.Equal(16, aligned.Divisor);
+		Assert.Null(aligned.Digits);
+		Assert.Equal(ScanAlignmentKind.LastDigits, lastDigits.Kind);
+		Assert.Equal("F0", lastDigits.Digits);
+		Assert.Equal(0, lastDigits.Divisor);
+		Assert.Equal(ScanAlignment.LastDigits("F0"), lastDigits);
 	}
 
 	[Theory]
-	[InlineData("X")]
-	[InlineData("+X+X")]
-	[InlineData("+Q")]
-	[InlineData("+X ")]
-	public void RequestRejectsMalformedProtectionExpressions(string protection)
+	[InlineData(0)]
+	[InlineData(-4)]
+	public void AlignedToRejectsANonPositiveDivisor(int divisor)
 	{
-		Assert.Throws<ArgumentException>(() => new AobScanRequest(
-			new AobPattern("90"), new AobScanOptions(protection, FastScanMethod.NotAligned, null), 1));
+		Assert.Throws<ArgumentOutOfRangeException>(() => ScanAlignment.AlignedTo(divisor));
 	}
 
 	[Theory]
-	[InlineData("0")]
-	[InlineData("-4")]
+	[InlineData("")]
 	[InlineData("FFGG")]
-	public void RequestRejectsMalformedAlignmentParameters(string parameter)
+	[InlineData("0x10")]
+	[InlineData("12345678901234567")]
+	public void LastDigitsRejectsMalformedDigits(string digits)
 	{
-		Assert.Throws<ArgumentException>(() => new AobScanRequest(
-			new AobPattern("90"), new AobScanOptions(null, FastScanMethod.Aligned, parameter), 1));
+		Assert.Throws<ArgumentException>(() => ScanAlignment.LastDigits(digits));
+	}
+
+	[Fact]
+	public void LastDigitsRejectsNull()
+	{
+		Assert.Throws<ArgumentNullException>(() => ScanAlignment.LastDigits(null!));
+	}
+
+	[Theory]
+	[InlineData(4, 0, 0)]
+	[InlineData(0, 4, 0)]
+	[InlineData(0, 0, -1)]
+	public void ProtectionFilterRejectsAnUndefinedRequirement(int executable, int copyOnWrite, int writable)
+	{
+		Assert.Throws<ArgumentOutOfRangeException>(() => new ScanProtectionFilter(
+			(ScanProtectionRequirement) executable, (ScanProtectionRequirement) copyOnWrite,
+			(ScanProtectionRequirement) writable));
+	}
+
+	[Fact]
+	public void ProtectionFilterIsUnspecifiedOnlyWhenEveryFlagIs()
+	{
+		Assert.True(default(ScanProtectionFilter).IsUnspecified);
+		Assert.False(new ScanProtectionFilter(ScanProtectionRequirement.Unspecified,
+			ScanProtectionRequirement.Unspecified, ScanProtectionRequirement.Any).IsUnspecified);
 	}
 
 	[Fact]
@@ -118,15 +155,13 @@ public sealed class AobPatternTests
 	[InlineData(-1)]
 	public void RequestRejectsNonPositiveMaterializationLimit(int maximumResults)
 	{
-		Assert.Throws<ArgumentOutOfRangeException>(() => new AobScanRequest(
-			new AobPattern("90"), AobScanOptions.Default, maximumResults));
+		Assert.Throws<ArgumentOutOfRangeException>(() => new AobScanRequest(new AobPattern("90"), maximumResults));
 	}
 
 	[Fact]
 	public void RequestRejectsDefaultPatternBeforeReachingTheScanner()
 	{
-		Assert.Throws<ArgumentException>(() => new AobScanRequest(
-			default, AobScanOptions.Default, 1));
+		Assert.Throws<ArgumentException>(() => new AobScanRequest(default, 1));
 	}
 
 	[Fact]

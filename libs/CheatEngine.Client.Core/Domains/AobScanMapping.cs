@@ -1,5 +1,9 @@
+using System.Globalization;
+
 using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Results;
+using CheatEngine.Client.Scanning;
+using CheatEngine.SDK.Engine.Enums;
 using CheatEngine.SDK.Engine.Scanning.Aob;
 using CheatEngine.SDK.Engine.Scanning.Values;
 
@@ -284,6 +288,39 @@ internal static class AobScanMapping
 		}
 	}
 
+	/// <summary>Translates the Client-owned protection filter and alignment rule into CheatEngine.SDK's scan options.</summary>
+	/// <param name="protection">The protection filter; an all-unspecified filter omits Cheat Engine's argument.</param>
+	/// <param name="alignment">The alignment rule.</param>
+	/// <returns>
+	///     The SDK options: the protection text in Cheat Engine's order (<c>X</c>, <c>C</c>, <c>W</c>; <c>+</c> required,
+	///     <c>-</c> excluded, <c>*</c> either), and the fast-scan method with its decimal divisor or upper-case digits.
+	/// </returns>
+	/// <remarks>
+	///     The public values validate themselves when they are created; <see cref="PatternScanner.TryValidateRequest" />
+	///     refuses an undefined value before dispatch, so this translation never sees one.
+	/// </remarks>
+	internal static AobScanOptions ToSdkOptions(ScanProtectionFilter protection, ScanAlignment alignment)
+	{
+		string? flags = null;
+		if (!protection.IsUnspecified)
+		{
+			Span<char> text = stackalloc char[6];
+			int written = 0;
+			AppendProtection(text, ref written, protection.Executable, 'X');
+			AppendProtection(text, ref written, protection.CopyOnWrite, 'C');
+			AppendProtection(text, ref written, protection.Writable, 'W');
+			flags = new string(text[..written]);
+		}
+
+		return alignment.Kind switch
+		{
+			ScanAlignmentKind.AlignedTo => new AobScanOptions(flags, FastScanMethod.Aligned,
+				alignment.Divisor.ToString(CultureInfo.InvariantCulture)),
+			ScanAlignmentKind.LastDigits => new AobScanOptions(flags, FastScanMethod.LastDigits, alignment.Digits),
+			_ => new AobScanOptions(flags, FastScanMethod.NotAligned, null)
+		};
+	}
+
 	/// <summary>Gets whether the SDK read the host result count of a bounded scan, so its metrics are meaningful.</summary>
 	internal static bool HasReadCount(in AobBoundedHostResult result)
 	{
@@ -318,6 +355,25 @@ internal static class AobScanMapping
 		}
 
 		return released == LeaseReleaseKind.Released;
+	}
+
+	private static void AppendProtection(Span<char> text, ref int written, ScanProtectionRequirement requirement,
+		char flag)
+	{
+		char mode = requirement switch
+		{
+			ScanProtectionRequirement.Required => '+',
+			ScanProtectionRequirement.Excluded => '-',
+			ScanProtectionRequirement.Any => '*',
+			_ => '\0'
+		};
+		if (mode == '\0')
+		{
+			return;
+		}
+
+		text[written++] = mode;
+		text[written++] = flag;
 	}
 
 	/// <summary>The effect of a failure the SDK observed during a bounded scan: completed only after the scan completed.</summary>

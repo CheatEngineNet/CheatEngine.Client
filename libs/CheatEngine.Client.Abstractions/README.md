@@ -164,6 +164,12 @@ Engine early, and the bounded route copies at most 65,535 addresses. The copied 
 order, which Cheat Engine does not specify: the first copied address is not guaranteed to be the lowest address or the
 first logical region.
 
+The memory protection and alignment of a scan are Client values: `ScanProtectionFilter` holds one
+`ScanProtectionRequirement` (`Unspecified`, `Required`, `Excluded`, `Any`) per Cheat Engine flag (executable,
+copy-on-write, writable), and `ScanAlignment` is `None`, `AlignedTo(divisor)` or `LastDigits(digits)`. Both validate
+when they are created, and Core translates them into Cheat Engine's protection text (for example `+X-C-W`) and
+fast-scan method on every route; no CheatEngine.SDK option type appears in the public surface.
+
 Four scan limits are distinct and must not be confused:
 
 | Limit                   | Meaning                                                                                                           |

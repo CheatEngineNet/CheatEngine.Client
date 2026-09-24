@@ -256,7 +256,7 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 
 		PatternScanner patterns = new(mainThreadDispatcher, new SingleMatchScanPort());
 		outcomes.Add(Describe("Patterns.Scan",
-			patterns.TryScan(new AobScanRequest(new AobPattern("90"), AobScanOptions.Default, 10, null, null), out _,
+			patterns.TryScan(new AobScanRequest(new AobPattern("90"), 10, null, null), out _,
 				out failure, cancellationToken), failure));
 
 		LuaClient lua = new(dispatcher, () => lifetime.Epoch, () => true, diagnostics: diagnostics);

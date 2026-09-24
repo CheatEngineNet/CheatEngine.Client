@@ -1,5 +1,3 @@
-using CheatEngine.SDK.Engine.Scanning.Aob;
-
 namespace CheatEngine.Client.Scanning;
 
 /// <summary>Starts immutable, handle-free AOB scans from a scoped pattern-scanner contract.</summary>
@@ -12,7 +10,7 @@ public static class CheatEngineAobFluentExtensions
 	public static AobScanBuilder Aob(this IPatternScanner scanner, string pattern)
 	{
 		ArgumentNullException.ThrowIfNull(scanner);
-		return new AobScanBuilder(scanner, new AobPattern(pattern), AobScanOptions.Default, null, null);
+		return new AobScanBuilder(scanner, new AobPattern(pattern), default, ScanAlignment.None, null, null);
 	}
 
 	/// <summary>Starts an AOB scan using the pattern scanner of a scoped Cheat Engine client.</summary>

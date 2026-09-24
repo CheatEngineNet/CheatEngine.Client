@@ -143,7 +143,7 @@ handle-free:
 Address address = client.Patterns
     .Aob("48 8B ?? ?? ?? 89")
     .InModule("game.exe")
-    .ReadableExecutable()
+    .Executable()
     .RequireSingle()
     .Execute();
 

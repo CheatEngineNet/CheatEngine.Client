@@ -36,7 +36,10 @@ public sealed partial class OutcomeEnumConventionTests
 	{
 		["CheatEngine.Client.Allocations.TargetAllocationAccess"] =
 			"ReadWrite (0) is the default protection of an allocation request.",
-		["CheatEngine.Client.Memory.MemoryStringEncoding"] = "Utf8 (0) is the default encoding of a string request."
+		["CheatEngine.Client.Memory.MemoryStringEncoding"] = "Utf8 (0) is the default encoding of a string request.",
+		["CheatEngine.Client.Scanning.ScanAlignmentKind"] = "None (0) is the default alignment rule: every address is checked.",
+		["CheatEngine.Client.Scanning.ScanProtectionRequirement"] =
+			"Unspecified (0) leaves the flag out of the protection filter, the default of every flag."
 	};
 
 	/// <summary>Enums that break the charter today, with the rule they break and the lot that fixes them.</summary>
