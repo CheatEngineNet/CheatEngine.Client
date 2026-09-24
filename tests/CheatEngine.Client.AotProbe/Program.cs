@@ -12,9 +12,12 @@ using CheatEngine.Client.Scanning;
 using Microsoft.Extensions.DependencyInjection;
 
 ServiceCollection services = new();
+#pragma warning disable CECLIENT5004 // The probe composes the experimental Auto Assembler opt-in under NativeAOT.
 services.AddCheatEngineClient()
 	.AddLuaModule<AotProbeLuaModule>()
-	.EnableUnsafeLuaExecution();
+	.EnableUnsafeLuaExecution()
+	.EnableAutoAssemblerPatches();
+#pragma warning restore CECLIENT5004
 
 using ServiceProvider provider = services.BuildServiceProvider(new ServiceProviderOptions
 {
@@ -37,7 +40,11 @@ _ = typeof(LuaModuleDescriptor);
 _ = typeof(AotProbeLuaModule);
 _ = AotProbeMapperInvocation.Map<AotProbeScalarMapper>(42);
 _ = typeof(IAssemblyClient);
+#pragma warning disable CECLIENT5004 // The experimental Auto Assembler surface stays reachable under NativeAOT.
+_ = typeof(IAutoAssemblerClient);
 _ = typeof(IAutoAssemblerPatchLease);
+_ = typeof(AutoAssemblerCheckResult);
+#pragma warning restore CECLIENT5004
 _ = typeof(AssemblyInstructionRequest);
 _ = new AobPattern("90");
 

@@ -508,6 +508,38 @@ public sealed class RuntimeClientTests
 		Assert.False(availability.IsAvailable);
 	}
 
+	[Theory]
+	[InlineData(false, ClientCapabilityEvidenceState.Missing, ClientCapabilityAvailabilityState.Unavailable)]
+	[InlineData(true, ClientCapabilityEvidenceState.Satisfied, ClientCapabilityAvailabilityState.Unknown)]
+	[Trait("Qualification", "Q44")]
+	public void SnapshotReportsTheAutoAssemblerPatchesPolicyGateFromTheActivationOptIn(bool enabled,
+		ClientCapabilityEvidenceState policy, ClientCapabilityAvailabilityState state)
+	{
+		RuntimeClient runtime = new(
+			new InlineDispatcher(),
+			new FakeRuntimeObservationPort(),
+			static () => 1,
+			policy: new CoreClientPolicy([], false, enableAutoAssemblerPatches: enabled));
+
+		CheatEngineRuntimeSnapshot snapshot = runtime.GetSnapshot(TestContext.Current.CancellationToken);
+
+		Assert.True(snapshot.Capabilities.TryGet(ClientCapabilityId.AutoAssemblerPatches,
+			out ClientCapabilityAvailability patches));
+		Assert.Equal(policy, patches.Evidence.Policy.State);
+		Assert.Equal(ClientCapabilityEvidenceState.Satisfied, patches.Evidence.Implementation.State);
+		Assert.Equal(ClientCapabilityEvidenceState.Unknown, patches.Evidence.Host.State);
+		Assert.Equal(ClientCapabilityEvidenceState.Unknown, patches.Evidence.LiveQualification.State);
+		Assert.Equal(state, patches.State);
+		Assert.False(patches.IsAvailable);
+		Assert.True(snapshot.Capabilities.TryGet(ClientCapabilityId.UnsafeLuaExecution,
+			out ClientCapabilityAvailability unsafeLua));
+		Assert.Equal(ClientCapabilityEvidenceState.Missing, unsafeLua.Evidence.Policy.State);
+		if (!enabled)
+		{
+			Assert.Contains("EnableAutoAssemblerPatches", patches.Evidence.Policy.Reason, StringComparison.Ordinal);
+		}
+	}
+
 	[Fact]
 	public void SnapshotReportsAnInactiveActivationAsALifetimeGate()
 	{
@@ -785,7 +817,8 @@ public sealed class RuntimeClientTests
 	[
 		ClientCapabilityId.ProcessSelection, ClientCapabilityId.TypedMemory, ClientCapabilityId.PatternScanning,
 		ClientCapabilityId.ValueScanning, ClientCapabilityId.Inspection, ClientCapabilityId.Tables,
-		ClientCapabilityId.ProtectedLua, ClientCapabilityId.UnsafeLuaExecution, ClientCapabilityId.Allocations
+		ClientCapabilityId.ProtectedLua, ClientCapabilityId.UnsafeLuaExecution, ClientCapabilityId.Allocations,
+		ClientCapabilityId.AutoAssemblerPatches
 	];
 
 	private static ClientCapabilityId ContractOnlyCapability(string name)

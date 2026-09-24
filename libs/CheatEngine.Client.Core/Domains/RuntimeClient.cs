@@ -227,6 +227,9 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 		ClientCapabilityEvidenceGate unsafeLuaPolicy = _policy.EnableUnsafeLuaExecution
 			? Satisfied("Unsafe Lua execution was explicitly enabled for this activation.")
 			: Missing("Unsafe Lua execution requires explicit EnableUnsafeLuaExecution opt-in for this activation.");
+		ClientCapabilityEvidenceGate autoAssemblerPolicy = _policy.EnableAutoAssemblerPatches
+			? Satisfied("Auto Assembler patches were explicitly enabled for this activation.")
+			: Missing("Auto Assembler patches require explicit EnableAutoAssemblerPatches opt-in for this activation.");
 
 		// Every capability is composed from its one catalog row; only the implementation, policy and host gates vary.
 		ImmutableArray<ClientCapabilityDescriptor> catalog = ClientCapabilityCatalog.Entries;
@@ -244,7 +247,12 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 				package,
 				entry.Host == CapabilityHostSource.SdkSelectedProcess ? selectedProcess : unprobedHost,
 				qualificationUnknown,
-				entry.Policy == CapabilityPolicySource.UnsafeLuaExecutionOptIn ? unsafeLuaPolicy : policyNotRequired,
+				entry.Policy switch
+				{
+					CapabilityPolicySource.UnsafeLuaExecutionOptIn => unsafeLuaPolicy,
+					CapabilityPolicySource.AutoAssemblerPatchesOptIn => autoAssemblerPolicy,
+					_ => policyNotRequired
+				},
 				lifetime);
 		}
 

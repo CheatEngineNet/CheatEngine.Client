@@ -256,8 +256,9 @@ following table is a delivery statement, not a substitute for a live host check.
 | Value scanning                                      | Experimental (`CECLIENT5001`)   | Sessions over CheatEngine.SDK's owned `MemScan`/`FoundList`: first and next scans, bounded pages of copied results; the API can change until Q25 and Q26 have receipts           |
 | Target allocations                                  | Experimental (`CECLIENT5002`)   | Leases over CheatEngine.SDK's `AllocatedRegion`, freed only in the process that made them; executable memory needs no opt-in; the API can change until Q30.a has receipts        |
 | Arbitrary Lua source                                | Policy-gated and off by default | Requires explicit unsafe opt-in; raw Lua state remains hidden                                                                                                                    |
+| Auto Assembler patches                              | Experimental, policy-gated      | Requires `EnableAutoAssemblerPatches()` (`CECLIENT5004`); a lease owns the disable information Cheat Engine returned                                                             |
 
-Assembly with Auto Assembler patches now has a public Client API contract. It remains `Unavailable` until its
+Instruction assembly now has a public Client API contract. It remains `Unavailable` until its
 primitive, ownership, and lifecycle behavior passes the corresponding Cheat Engine 7.7 x64 live gate. IPC, remote
 clients, UI/forms, structures, Mono/IL2CPP, and advanced ABI hooks remain outside 1.0 and have no placeholder public
 API. The capability table above is the current public-surface contract.
@@ -367,8 +368,9 @@ transport, or a mechanism to bypass Cheat Engine or host protections.
 
 Table loading can execute Lua in the host. Keep `AllowedTableRoots` empty unless the plugin has an explicit,
 trusted import/export location; an empty set disables table file access. Arbitrary Lua source is separately opt-in and
-should remain disabled unless the plugin has a deliberate trust boundary. Avoid logging target-memory contents or Lua
-source by default.
+should remain disabled unless the plugin has a deliberate trust boundary. Auto Assembler patches are another explicit,
+experimental opt-in (`EnableAutoAssemblerPatches()`): a script can allocate memory, inject code and run Lua, so apply
+only scripts the plugin owns. Avoid logging target-memory contents or Lua source by default.
 
 Report vulnerabilities privately: see [SECURITY.md](SECURITY.md).
 

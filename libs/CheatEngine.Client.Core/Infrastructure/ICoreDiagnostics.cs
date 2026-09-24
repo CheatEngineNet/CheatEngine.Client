@@ -63,6 +63,12 @@ internal interface ICoreDiagnostics
 
 	/// <summary>A Client lease release attempt ended (EventId 1701); only the kind, operation and effect are logged.</summary>
 	public void LeaseReleased(string operation, LeaseReleaseKind kind, CheatEngineHostEffect hostEffect);
+
+	/// <summary>
+	///     Cheat Engine applied an Auto Assembler patch while the selected target changed (EventId 1800, a warning); only
+	///     the operation and the selection epoch the patch is bound to are logged.
+	/// </summary>
+	public void AutoAssemblerPatchAppliedAfterTargetChange(string operation, long selectionEpoch);
 }
 
 /// <summary>The sink used when no diagnostics are configured.</summary>
@@ -129,6 +135,10 @@ internal sealed class NullCoreDiagnostics : ICoreDiagnostics
 	}
 
 	public void LeaseReleased(string operation, LeaseReleaseKind kind, CheatEngineHostEffect hostEffect)
+	{
+	}
+
+	public void AutoAssemblerPatchAppliedAfterTargetChange(string operation, long selectionEpoch)
 	{
 	}
 }
@@ -307,6 +317,18 @@ internal sealed class GuardedCoreDiagnostics(ICoreDiagnostics inner) : ICoreDiag
 		catch (Exception)
 		{
 			// Deliberately ignored: diagnostics must never change the release outcome.
+		}
+	}
+
+	public void AutoAssemblerPatchAppliedAfterTargetChange(string operation, long selectionEpoch)
+	{
+		try
+		{
+			_inner.AutoAssemblerPatchAppliedAfterTargetChange(operation, selectionEpoch);
+		}
+		catch (Exception)
+		{
+			// Deliberately ignored: diagnostics must never change the operation result.
 		}
 	}
 }

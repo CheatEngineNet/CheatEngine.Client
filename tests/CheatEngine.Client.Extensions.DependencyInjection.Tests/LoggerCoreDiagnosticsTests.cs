@@ -34,7 +34,7 @@ public sealed partial class LoggerCoreDiagnosticsTests
 		Assert.Equal(ScriptedEventCount, fromIsEnabled.IsEnabledCalls);
 		Assert.Equal(0, fromIsEnabled.LogCalls);
 		Assert.Equal(ScriptedEventCount, fromLog.LogCalls);
-		Assert.Equal(8, fromCreateLogger.CreateLoggerCalls);
+		Assert.Equal(9, fromCreateLogger.CreateLoggerCalls);
 		Assert.Equal(0, fromCreateLogger.LogCalls);
 	}
 
@@ -60,7 +60,9 @@ public sealed partial class LoggerCoreDiagnosticsTests
 				new EventShape(1500, "PatternScanCompleted", "CheatEngine.Client.Scanning", LogLevel.Debug),
 				new EventShape(1600, "LuaOperationCompleted", "CheatEngine.Client.Lua", LogLevel.Debug),
 				new EventShape(1700, "CoreResourceCleanupFailed", "CheatEngine.Client.Lifetime", LogLevel.Warning),
-				new EventShape(1701, "LeaseReleased", "CheatEngine.Client.Lifetime", LogLevel.Debug)
+				new EventShape(1701, "LeaseReleased", "CheatEngine.Client.Lifetime", LogLevel.Debug),
+				new EventShape(1800, "AutoAssemblerPatchAppliedAfterTargetChange", "CheatEngine.Client.Assembly",
+					LogLevel.Warning)
 			],
 			logs.Entries.Select(static entry => new EventShape(entry.EventId.Id, entry.EventId.Name, entry.Category,
 				entry.Level)));
@@ -83,7 +85,7 @@ public sealed partial class LoggerCoreDiagnosticsTests
 		EmitScriptedRun(new LoggerCoreDiagnostics(factory));
 
 		Assert.Equal(
-			[1300, 1301, 1302, 1700],
+			[1300, 1301, 1302, 1700, 1800],
 			logs.Entries.Select(static entry => entry.EventId.Id));
 	}
 
@@ -173,7 +175,7 @@ public sealed partial class LoggerCoreDiagnosticsTests
 		}
 	}
 
-	private const int ScriptedEventCount = 13;
+	private const int ScriptedEventCount = 14;
 
 	/// <summary>
 	///     Emits one event of each kind with the closed values Core passes (see Core's CoreDiagnosticsTests scripted run).
@@ -196,6 +198,7 @@ public sealed partial class LoggerCoreDiagnosticsTests
 			"CheatEngine.Client.Results.CheatEngineOperationException");
 		diagnostics.LeaseReleased("Allocations.Release", LeaseReleaseKind.RefusedTargetChanged,
 			CheatEngineHostEffect.NotStarted);
+		diagnostics.AutoAssemblerPatchAppliedAfterTargetChange("AutoAssembler.ApplyPatch", 2);
 	}
 
 	private static ILoggerFactory CreateFactory(ILoggerProvider provider)

@@ -93,7 +93,10 @@ public static class CheatEngineClientServiceCollectionExtensions
 			bool enableUnsafeLuaExecution = serviceProvider
 				.GetService<UnsafeLuaExecutionRegistration>()?
 				.IsEnabled == true;
-			return new CoreClientPolicy(allowedTableRoots, enableUnsafeLuaExecution);
+			bool enableAutoAssemblerPatches = serviceProvider
+				.GetService<AutoAssemblerPatchesRegistration>()?
+				.IsEnabled == true;
+			return new CoreClientPolicy(allowedTableRoots, enableUnsafeLuaExecution, enableAutoAssemblerPatches);
 		});
 
 		services.TryAddSingleton<SdkMainThreadDispatcher>(static serviceProvider =>

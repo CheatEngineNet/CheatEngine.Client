@@ -17,8 +17,8 @@ namespace CheatEngine.Client.Extensions.DependencyInjection;
 ///     </para>
 ///     <para>
 ///         Blocks: 1000–1099 runtime and capability gates, 1100–1199 target selection, 1200–1299 memory, 1300–1399
-///         tables, 1400–1499 inspection, 1500–1599 pattern scans, 1600–1699 Lua, 1700–1799 Client-owned resource cleanup.
-///         The ids are stable: an id is never reused for another event.
+///         tables, 1400–1499 inspection, 1500–1599 pattern scans, 1600–1699 Lua, 1700–1799 Client-owned resource cleanup,
+///         1800–1899 Auto Assembler patches. The ids are stable: an id is never reused for another event.
 ///     </para>
 /// </remarks>
 internal static partial class ClientCoreDiagnosticsLog
@@ -87,4 +87,10 @@ internal static partial class ClientCoreDiagnosticsLog
 	[LoggerMessage(1701, LogLevel.Debug, "{Operation} ended with {ReleaseKind} (host effect {HostEffect}).")]
 	internal static partial void LeaseReleased(ILogger logger, string operation, LeaseReleaseKind releaseKind,
 		CheatEngineHostEffect hostEffect);
+
+	[LoggerMessage(1800, LogLevel.Warning,
+		"{Operation} applied an Auto Assembler patch while the selected target changed; the patch stays bound to the " +
+		"target of selection epoch {SelectionEpoch}, and its effect on either process is uncertain.")]
+	internal static partial void AutoAssemblerPatchAppliedAfterTargetChange(ILogger logger, string operation,
+		long selectionEpoch);
 }

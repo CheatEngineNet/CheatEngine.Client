@@ -23,7 +23,10 @@ internal enum CapabilityPolicySource
 	NotRequired,
 
 	/// <summary>The policy gate follows the activation's <c>EnableUnsafeLuaExecution</c> opt-in.</summary>
-	UnsafeLuaExecutionOptIn
+	UnsafeLuaExecutionOptIn,
+
+	/// <summary>The policy gate follows the activation's <c>EnableAutoAssemblerPatches</c> opt-in.</summary>
+	AutoAssemblerPatchesOptIn
 }
 
 /// <summary>Where the host gate of a capability comes from.</summary>
@@ -117,7 +120,14 @@ internal static class ClientCapabilityCatalog
 			ExperimentalDiagnosticId = "CECLIENT5002"
 		},
 		Entry(ClientCapabilityId.Assembly, CapabilityImplementation.ContractOnly,
-			CapabilityPolicySource.NotRequired, CapabilityHostSource.NotProbed, "Q32")
+			CapabilityPolicySource.NotRequired, CapabilityHostSource.NotProbed, "Q32"),
+		// Experimental (CECLIENT5004) and registered only by the EnableAutoAssemblerPatches opt-in; Q44 is the policy
+		// refusal without it.
+		Entry(ClientCapabilityId.AutoAssemblerPatches, CapabilityImplementation.Operational,
+			CapabilityPolicySource.AutoAssemblerPatchesOptIn, CapabilityHostSource.NotProbed, "Q35", "Q44") with
+		{
+			ExperimentalDiagnosticId = "CECLIENT5004"
+		}
 	];
 
 	private static ClientCapabilityDescriptor Entry(ClientCapabilityId id, CapabilityImplementation implementation,

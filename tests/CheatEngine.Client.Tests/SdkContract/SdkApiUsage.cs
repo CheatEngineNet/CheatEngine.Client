@@ -1,5 +1,6 @@
 using CheatEngine.SDK.Engine.AddressList;
 using CheatEngine.SDK.Engine.Allocation;
+using CheatEngine.SDK.Engine.Assembly;
 using CheatEngine.SDK.Engine.Enums;
 using CheatEngine.SDK.Engine.Errors;
 using CheatEngine.SDK.Engine.Inspection;
@@ -308,6 +309,38 @@ internal static class SdkApiUsage
 		_ = MainThread.Invoke(static (int state) => state, 1);
 		_ = MainThread.IsMainThread;
 		_ = new CompileOnlyPlugin();
+	}
+
+	internal static void AutoAssemblerSurface(AutoAssemblerApplyOutcome applied, AutoAssemblerCheckOutcome checkedScript,
+		AutoAssemblerPatch patch, TargetReleaseOutcome release)
+	{
+		AutoAssemblerOptions options = new()
+		{
+			CaptureHostText = true,
+			MaxHostTextBytes = 1,
+			MaxDisableInfoEntries = 1,
+			MaxDisableInfoNameBytes = 1
+		};
+		_ = AutoAssemblerPatcher.TryApplyWithOutcome("[ENABLE]", options, out _);
+		_ = AutoAssemblerPatcher.TryCheck("[ENABLE]", true, options);
+		_ = applied.Compensation;
+		_ = applied.Effect;
+		_ = applied.HostText;
+		_ = applied.HostTextTruncated;
+		_ = applied.HostWarnings;
+		_ = applied.HostWarningsTruncated;
+		_ = applied.Kind;
+		_ = applied.LuaStatus;
+		_ = checkedScript.HostText;
+		_ = checkedScript.HostTextTruncated;
+		_ = checkedScript.Kind;
+		_ = checkedScript.LuaStatus;
+		_ = patch.IsDisposed;
+		_ = patch.IsEnabled;
+		_ = patch.LastReleaseOutcome;
+		_ = patch.RequiresManualRecovery;
+		_ = patch.ReleaseWithTargetOutcome();
+		_ = release.Status;
 	}
 
 	internal static void LuaSurface(LuaState state, LuaStatus status)

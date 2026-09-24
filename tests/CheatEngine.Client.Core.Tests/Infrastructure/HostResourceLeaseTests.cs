@@ -450,5 +450,9 @@ public sealed class HostResourceLeaseTests : IDisposable
 		public void CoreResourceCleanupFailed(string componentType, string exceptionType)
 		{
 		}
+
+		public void AutoAssemblerPatchAppliedAfterTargetChange(string operation, long selectionEpoch)
+		{
+		}
 	}
 }

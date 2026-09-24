@@ -13,27 +13,15 @@ CheatEngine.Client.Assembly.AssemblyInstructionSnapshot.Bytes.get -> System.Coll
 CheatEngine.Client.Assembly.AssemblyInstructionSnapshot.Equals(CheatEngine.Client.Assembly.AssemblyInstructionSnapshot other) -> bool
 CheatEngine.Client.Assembly.AssemblyInstructionSnapshot.Length.get -> int
 CheatEngine.Client.Assembly.AssemblyInstructionSnapshot.Text.get -> string!
-CheatEngine.Client.Assembly.AutoAssemblerScript
-CheatEngine.Client.Assembly.AutoAssemblerScript.AutoAssemblerScript() -> void
-CheatEngine.Client.Assembly.AutoAssemblerScript.AutoAssemblerScript(string! source, string? name = null) -> void
-CheatEngine.Client.Assembly.AutoAssemblerScript.Equals(CheatEngine.Client.Assembly.AutoAssemblerScript other) -> bool
-CheatEngine.Client.Assembly.AutoAssemblerScript.Name.get -> string?
-CheatEngine.Client.Assembly.AutoAssemblerScript.Source.get -> string!
 CheatEngine.Client.Assembly.IAssemblyClient
-CheatEngine.Client.Assembly.IAssemblyClient.ApplyPatch(CheatEngine.Client.Assembly.AutoAssemblerScript script, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Assembly.IAutoAssemblerPatchLease!
 CheatEngine.Client.Assembly.IAssemblyClient.Assemble(CheatEngine.Client.Assembly.AssemblyInstructionRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Immutable.ImmutableArray<byte>
 CheatEngine.Client.Assembly.IAssemblyClient.Disassemble(CheatEngine.SDK.Engine.Values.Address address, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Assembly.AssemblyInstructionSnapshot
 CheatEngine.Client.Assembly.IAssemblyClient.GetInstructionSize(CheatEngine.SDK.Engine.Values.Address address, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> int
 CheatEngine.Client.Assembly.IAssemblyClient.GetPreviousInstruction(CheatEngine.SDK.Engine.Values.Address address, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.SDK.Engine.Values.Address
-CheatEngine.Client.Assembly.IAssemblyClient.TryApplyPatch(CheatEngine.Client.Assembly.AutoAssemblerScript script, out CheatEngine.Client.Assembly.IAutoAssemblerPatchLease? lease, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
 CheatEngine.Client.Assembly.IAssemblyClient.TryAssemble(CheatEngine.Client.Assembly.AssemblyInstructionRequest request, out System.Collections.Immutable.ImmutableArray<byte> bytes, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
 CheatEngine.Client.Assembly.IAssemblyClient.TryDisassemble(CheatEngine.SDK.Engine.Values.Address address, out CheatEngine.Client.Assembly.AssemblyInstructionSnapshot instruction, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
 CheatEngine.Client.Assembly.IAssemblyClient.TryGetInstructionSize(CheatEngine.SDK.Engine.Values.Address address, out int size, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
 CheatEngine.Client.Assembly.IAssemblyClient.TryGetPreviousInstruction(CheatEngine.SDK.Engine.Values.Address address, out CheatEngine.SDK.Engine.Values.Address previousAddress, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
-CheatEngine.Client.Assembly.IAutoAssemblerPatchLease
-CheatEngine.Client.Assembly.IAutoAssemblerPatchLease.IsReleased.get -> bool
-CheatEngine.Client.Assembly.IAutoAssemblerPatchLease.Name.get -> string?
-CheatEngine.Client.Assembly.IAutoAssemblerPatchLease.SelectionEpoch.get -> long
 CheatEngine.Client.Dispatching.ICheatEngineDispatcher
 CheatEngine.Client.Dispatching.ICheatEngineDispatcher.Invoke(System.Action! callback) -> void
 CheatEngine.Client.Dispatching.ICheatEngineDispatcher.Invoke(System.Action! callback, System.Threading.CancellationToken cancellationToken) -> void
@@ -930,6 +918,39 @@ CheatEngine.Client.Tables.TrustedTableFile.TrustedTableFile(string! path) -> voi
 [CECLIENT5002]override CheatEngine.Client.Allocations.AllocationRequest.GetHashCode() -> int
 [CECLIENT5002]static CheatEngine.Client.Allocations.AllocationRequest.operator !=(CheatEngine.Client.Allocations.AllocationRequest left, CheatEngine.Client.Allocations.AllocationRequest right) -> bool
 [CECLIENT5002]static CheatEngine.Client.Allocations.AllocationRequest.operator ==(CheatEngine.Client.Allocations.AllocationRequest left, CheatEngine.Client.Allocations.AllocationRequest right) -> bool
+[CECLIENT5004]CheatEngine.Client.Assembly.AutoAssemblerCheckResult
+[CECLIENT5004]CheatEngine.Client.Assembly.AutoAssemblerCheckResult.AutoAssemblerCheckResult() -> void
+[CECLIENT5004]CheatEngine.Client.Assembly.AutoAssemblerCheckResult.AutoAssemblerCheckResult(bool isAccepted, string? hostMessages, bool hostMessagesTruncated) -> void
+[CECLIENT5004]CheatEngine.Client.Assembly.AutoAssemblerCheckResult.Equals(CheatEngine.Client.Assembly.AutoAssemblerCheckResult other) -> bool
+[CECLIENT5004]CheatEngine.Client.Assembly.AutoAssemblerCheckResult.HostMessages.get -> string?
+[CECLIENT5004]CheatEngine.Client.Assembly.AutoAssemblerCheckResult.HostMessagesTruncated.get -> bool
+[CECLIENT5004]CheatEngine.Client.Assembly.AutoAssemblerCheckResult.IsAccepted.get -> bool
+[CECLIENT5004]CheatEngine.Client.Assembly.AutoAssemblerScript
+[CECLIENT5004]CheatEngine.Client.Assembly.AutoAssemblerScript.AutoAssemblerScript() -> void
+[CECLIENT5004]CheatEngine.Client.Assembly.AutoAssemblerScript.AutoAssemblerScript(string! source, string? name = null) -> void
+[CECLIENT5004]CheatEngine.Client.Assembly.AutoAssemblerScript.Equals(CheatEngine.Client.Assembly.AutoAssemblerScript other) -> bool
+[CECLIENT5004]CheatEngine.Client.Assembly.AutoAssemblerScript.Name.get -> string?
+[CECLIENT5004]CheatEngine.Client.Assembly.AutoAssemblerScript.Source.get -> string!
+[CECLIENT5004]CheatEngine.Client.Assembly.IAutoAssemblerClient
+[CECLIENT5004]CheatEngine.Client.Assembly.IAutoAssemblerClient.ApplyPatch(CheatEngine.Client.Assembly.AutoAssemblerScript script, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Assembly.IAutoAssemblerPatchLease!
+[CECLIENT5004]CheatEngine.Client.Assembly.IAutoAssemblerClient.Check(CheatEngine.Client.Assembly.AutoAssemblerScript script, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Assembly.AutoAssemblerCheckResult
+[CECLIENT5004]CheatEngine.Client.Assembly.IAutoAssemblerClient.TryApplyPatch(CheatEngine.Client.Assembly.AutoAssemblerScript script, out CheatEngine.Client.Assembly.IAutoAssemblerPatchLease? lease, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
+[CECLIENT5004]CheatEngine.Client.Assembly.IAutoAssemblerClient.TryCheck(CheatEngine.Client.Assembly.AutoAssemblerScript script, out CheatEngine.Client.Assembly.AutoAssemblerCheckResult result, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
+[CECLIENT5004]CheatEngine.Client.Assembly.IAutoAssemblerPatchLease
+[CECLIENT5004]CheatEngine.Client.Assembly.IAutoAssemblerPatchLease.AppliedAfterTargetChange.get -> bool
+[CECLIENT5004]CheatEngine.Client.Assembly.IAutoAssemblerPatchLease.HostWarnings.get -> string?
+[CECLIENT5004]CheatEngine.Client.Assembly.IAutoAssemblerPatchLease.HostWarningsTruncated.get -> bool
+[CECLIENT5004]CheatEngine.Client.Assembly.IAutoAssemblerPatchLease.IsEnabled.get -> bool
+[CECLIENT5004]CheatEngine.Client.Assembly.IAutoAssemblerPatchLease.Name.get -> string?
+[CECLIENT5004]CheatEngine.Client.Assembly.IAutoAssemblerPatchLease.RequiresManualRecovery.get -> bool
+[CECLIENT5004]CheatEngine.Client.Assembly.IAutoAssemblerPatchLease.SelectionEpoch.get -> long
+[CECLIENT5004]override CheatEngine.Client.Assembly.AutoAssemblerCheckResult.GetHashCode() -> int
+[CECLIENT5004]override CheatEngine.Client.Assembly.AutoAssemblerCheckResult.ToString() -> string!
+[CECLIENT5004]override CheatEngine.Client.Assembly.AutoAssemblerScript.GetHashCode() -> int
+[CECLIENT5004]static CheatEngine.Client.Assembly.AutoAssemblerCheckResult.operator !=(CheatEngine.Client.Assembly.AutoAssemblerCheckResult left, CheatEngine.Client.Assembly.AutoAssemblerCheckResult right) -> bool
+[CECLIENT5004]static CheatEngine.Client.Assembly.AutoAssemblerCheckResult.operator ==(CheatEngine.Client.Assembly.AutoAssemblerCheckResult left, CheatEngine.Client.Assembly.AutoAssemblerCheckResult right) -> bool
+[CECLIENT5004]static CheatEngine.Client.Assembly.AutoAssemblerScript.operator !=(CheatEngine.Client.Assembly.AutoAssemblerScript left, CheatEngine.Client.Assembly.AutoAssemblerScript right) -> bool
+[CECLIENT5004]static CheatEngine.Client.Assembly.AutoAssemblerScript.operator ==(CheatEngine.Client.Assembly.AutoAssemblerScript left, CheatEngine.Client.Assembly.AutoAssemblerScript right) -> bool
 const CheatEngine.Client.Memory.MemoryBatchLimits.MaximumOperations = 1024 -> int
 const CheatEngine.Client.Memory.MemoryResourceLimits.DefaultMaximumBatchOperationCount = 1024 -> int
 const CheatEngine.Client.Memory.MemoryResourceLimits.DefaultMaximumBatchPayloadBytes = 65536 -> int
@@ -938,7 +959,6 @@ const CheatEngine.Client.Memory.MemoryResourceLimits.DefaultMaximumStringBytes =
 const CheatEngine.Client.Memory.MemoryResourceLimits.DefaultMaximumWriteBytes = 1048576 -> int
 override CheatEngine.Client.Assembly.AssemblyInstructionRequest.GetHashCode() -> int
 override CheatEngine.Client.Assembly.AssemblyInstructionSnapshot.GetHashCode() -> int
-override CheatEngine.Client.Assembly.AutoAssemblerScript.GetHashCode() -> int
 override CheatEngine.Client.Inspection.InspectionCollectionRequest.GetHashCode() -> int
 override CheatEngine.Client.Inspection.SymbolRegistration.GetHashCode() -> int
 override CheatEngine.Client.Lua.LuaExportDescriptor.GetHashCode() -> int
@@ -998,8 +1018,6 @@ static CheatEngine.Client.Assembly.AssemblyInstructionRequest.operator !=(CheatE
 static CheatEngine.Client.Assembly.AssemblyInstructionRequest.operator ==(CheatEngine.Client.Assembly.AssemblyInstructionRequest left, CheatEngine.Client.Assembly.AssemblyInstructionRequest right) -> bool
 static CheatEngine.Client.Assembly.AssemblyInstructionSnapshot.operator !=(CheatEngine.Client.Assembly.AssemblyInstructionSnapshot left, CheatEngine.Client.Assembly.AssemblyInstructionSnapshot right) -> bool
 static CheatEngine.Client.Assembly.AssemblyInstructionSnapshot.operator ==(CheatEngine.Client.Assembly.AssemblyInstructionSnapshot left, CheatEngine.Client.Assembly.AssemblyInstructionSnapshot right) -> bool
-static CheatEngine.Client.Assembly.AutoAssemblerScript.operator !=(CheatEngine.Client.Assembly.AutoAssemblerScript left, CheatEngine.Client.Assembly.AutoAssemblerScript right) -> bool
-static CheatEngine.Client.Assembly.AutoAssemblerScript.operator ==(CheatEngine.Client.Assembly.AutoAssemblerScript left, CheatEngine.Client.Assembly.AutoAssemblerScript right) -> bool
 static CheatEngine.Client.Inspection.InspectionCollectionRequest.operator !=(CheatEngine.Client.Inspection.InspectionCollectionRequest left, CheatEngine.Client.Inspection.InspectionCollectionRequest right) -> bool
 static CheatEngine.Client.Inspection.InspectionCollectionRequest.operator ==(CheatEngine.Client.Inspection.InspectionCollectionRequest left, CheatEngine.Client.Inspection.InspectionCollectionRequest right) -> bool
 static CheatEngine.Client.Inspection.SymbolRegistration.operator !=(CheatEngine.Client.Inspection.SymbolRegistration left, CheatEngine.Client.Inspection.SymbolRegistration right) -> bool
@@ -1064,6 +1082,7 @@ static CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate.operator !=(Cheat
 static CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate.operator ==(CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate left, CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate right) -> bool
 static CheatEngine.Client.Runtime.ClientCapabilityId.Allocations.get -> CheatEngine.Client.Runtime.ClientCapabilityId
 static CheatEngine.Client.Runtime.ClientCapabilityId.Assembly.get -> CheatEngine.Client.Runtime.ClientCapabilityId
+static CheatEngine.Client.Runtime.ClientCapabilityId.AutoAssemblerPatches.get -> CheatEngine.Client.Runtime.ClientCapabilityId
 static CheatEngine.Client.Runtime.ClientCapabilityId.Inspection.get -> CheatEngine.Client.Runtime.ClientCapabilityId
 static CheatEngine.Client.Runtime.ClientCapabilityId.PatternScanning.get -> CheatEngine.Client.Runtime.ClientCapabilityId
 static CheatEngine.Client.Runtime.ClientCapabilityId.ProcessSelection.get -> CheatEngine.Client.Runtime.ClientCapabilityId
@@ -1132,12 +1151,13 @@ static CheatEngine.Client.Tables.TrustedTableFile.operator ==(CheatEngine.Client
 ~[CECLIENT5001]override CheatEngine.Client.Scanning.ValueScanValue.ToString() -> string
 ~[CECLIENT5002]override CheatEngine.Client.Allocations.AllocationRequest.Equals(object obj) -> bool
 ~[CECLIENT5002]override CheatEngine.Client.Allocations.AllocationRequest.ToString() -> string
+~[CECLIENT5004]override CheatEngine.Client.Assembly.AutoAssemblerCheckResult.Equals(object obj) -> bool
+~[CECLIENT5004]override CheatEngine.Client.Assembly.AutoAssemblerScript.Equals(object obj) -> bool
+~[CECLIENT5004]override CheatEngine.Client.Assembly.AutoAssemblerScript.ToString() -> string
 ~override CheatEngine.Client.Assembly.AssemblyInstructionRequest.Equals(object obj) -> bool
 ~override CheatEngine.Client.Assembly.AssemblyInstructionRequest.ToString() -> string
 ~override CheatEngine.Client.Assembly.AssemblyInstructionSnapshot.Equals(object obj) -> bool
 ~override CheatEngine.Client.Assembly.AssemblyInstructionSnapshot.ToString() -> string
-~override CheatEngine.Client.Assembly.AutoAssemblerScript.Equals(object obj) -> bool
-~override CheatEngine.Client.Assembly.AutoAssemblerScript.ToString() -> string
 ~override CheatEngine.Client.Inspection.InspectionCollectionRequest.Equals(object obj) -> bool
 ~override CheatEngine.Client.Inspection.InspectionCollectionRequest.ToString() -> string
 ~override CheatEngine.Client.Inspection.SymbolRegistration.Equals(object obj) -> bool

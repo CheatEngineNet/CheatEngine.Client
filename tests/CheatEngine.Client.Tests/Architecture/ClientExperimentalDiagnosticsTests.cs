@@ -33,7 +33,10 @@ public sealed partial class ClientExperimentalDiagnosticsTests
 	private static readonly ExperimentalDiagnostic[] Catalog =
 	[
 		new("CECLIENT5001", "Value scans: IValueScanner, IValueScanSession and their request and result types"),
-		new("CECLIENT5002", "Target allocations: IAllocationClient, ITargetMemoryLease, AllocationRequest and AllocationProtection")
+		new("CECLIENT5002", "Target allocations: IAllocationClient, ITargetMemoryLease, AllocationRequest and AllocationProtection"),
+		new("CECLIENT5004",
+			"Auto Assembler patches: IAutoAssemblerClient, IAutoAssemblerPatchLease, AutoAssemblerCheckResult, " +
+			"AutoAssemblerScript and CheatEngineClientBuilder.EnableAutoAssemblerPatches")
 	];
 
 	/// <summary>The only places that may suppress an experimental Client diagnostic.</summary>

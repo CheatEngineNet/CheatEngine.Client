@@ -632,7 +632,7 @@ internal static class QualificationScenarios
 					 ClientCapabilityId.ProcessSelection, ClientCapabilityId.TypedMemory, ClientCapabilityId.PatternScanning,
 					 ClientCapabilityId.ValueScanning, ClientCapabilityId.Inspection, ClientCapabilityId.Tables,
 					 ClientCapabilityId.ProtectedLua, ClientCapabilityId.UnsafeLuaExecution, ClientCapabilityId.Allocations,
-					 ClientCapabilityId.Assembly
+					 ClientCapabilityId.Assembly, ClientCapabilityId.AutoAssemblerPatches
 				 ])
 		{
 			observation.BeginItem().String("capability", capability.Value);

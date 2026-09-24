@@ -3,7 +3,8 @@ namespace CheatEngine.Client.Core.Infrastructure;
 /// <summary>Immutable activation policy supplied by the DI integration.</summary>
 internal sealed class CoreClientPolicy
 {
-	internal CoreClientPolicy(IEnumerable<string> allowedTableRoots, bool enableUnsafeLuaExecution)
+	internal CoreClientPolicy(IEnumerable<string> allowedTableRoots, bool enableUnsafeLuaExecution,
+		bool enableAutoAssemblerPatches = false)
 	{
 		ArgumentNullException.ThrowIfNull(allowedTableRoots);
 		List<string> roots = [];
@@ -15,6 +16,7 @@ internal sealed class CoreClientPolicy
 
 		AllowedTableRoots = roots.ToArray();
 		EnableUnsafeLuaExecution = enableUnsafeLuaExecution;
+		EnableAutoAssemblerPatches = enableAutoAssemblerPatches;
 	}
 
 	internal static CoreClientPolicy SafeDefaults
@@ -28,6 +30,15 @@ internal sealed class CoreClientPolicy
 	}
 
 	internal bool EnableUnsafeLuaExecution
+	{
+		get;
+	}
+
+	/// <summary>
+	///     Gets whether the activation opted into Auto Assembler patches through the builder-only
+	///     <c>EnableAutoAssemblerPatches()</c>; configuration binding cannot set it.
+	/// </summary>
+	internal bool EnableAutoAssemblerPatches
 	{
 		get;
 	}

@@ -1,0 +1,91 @@
+#pragma warning disable CECLIENT5004 // Core implements the experimental Auto Assembler surface it serves.
+
+using CheatEngine.Client.Assembly;
+using CheatEngine.Client.Core.Infrastructure;
+using CheatEngine.Client.Dispatching;
+using CheatEngine.Client.Results;
+using CheatEngine.SDK.Engine.Targets;
+
+namespace CheatEngine.Client.Core.Domains.Assembly;
+
+/// <summary>The Client lease of one applied Auto Assembler patch, bound to the target selection it was applied in.</summary>
+/// <remarks>
+///     <para>
+///         The release runs on Cheat Engine's main thread through <see cref="HostResourceLease" /> and calls the SDK
+///         owner's <c>ReleaseWithTargetOutcome</c> once: the SDK validates the captured target, then runs
+///         <c>[DISABLE]</c> with the disable information Cheat Engine returned. The Client never rebuilds a
+///         <c>[DISABLE]</c> section. The status is mapped with <see cref="SdkReleaseOutcomes.FromTarget" />.
+///     </para>
+///     <para>
+///         The SDK consumes the disable information on the first attempt that reaches it, whatever the result. When that
+///         attempt could not begin the disable (<c>NotInvoked</c>, the retryable
+///         <see cref="LeaseReleaseKind.CleanupUnavailable" />), a later attempt makes no Cheat Engine call and reports
+///         the recorded status again, and <see cref="RequiresManualRecovery" /> is <see langword="true" />.
+///     </para>
+/// </remarks>
+internal sealed class AutoAssemblerPatchLease : HostResourceLease, IAutoAssemblerPatchLease
+{
+	/// <summary>The stable operation name of the release.</summary>
+	internal const string ReleaseOperation = "AutoAssembler.ReleasePatch";
+
+	private readonly IAutoAssemblerPatchOwner _patch;
+
+	/// <summary>Creates the lease that owns an applied patch; register it with <see cref="HostResourceLease.Register" />.</summary>
+	/// <param name="patch">The sole owner of the patch's disable information.</param>
+	/// <param name="name">The Client diagnostic name of the script.</param>
+	/// <param name="selectionEpoch">The target-selection epoch captured before the activation.</param>
+	/// <param name="appliedAfterTargetChange">Whether the SDK observed a target change right after the activation.</param>
+	/// <param name="hostWarnings">Cheat Engine's bounded compilation warnings.</param>
+	/// <param name="hostWarningsTruncated">Whether <paramref name="hostWarnings" /> was cut at the bound.</param>
+	/// <param name="dispatcher">The activation dispatcher that runs the release on Cheat Engine's main thread.</param>
+	/// <param name="diagnostics">The activation diagnostics.</param>
+	internal AutoAssemblerPatchLease(IAutoAssemblerPatchOwner patch, string? name, long selectionEpoch,
+		bool appliedAfterTargetChange, string? hostWarnings, bool hostWarningsTruncated,
+		ICheatEngineDispatcher dispatcher, ICoreDiagnostics? diagnostics)
+		: base(ReleaseOperation, dispatcher, diagnostics)
+	{
+		_patch = patch ?? throw new ArgumentNullException(nameof(patch));
+		Name = name;
+		SelectionEpoch = selectionEpoch;
+		AppliedAfterTargetChange = appliedAfterTargetChange;
+		HostWarnings = hostWarnings;
+		HostWarningsTruncated = hostWarnings is not null && hostWarningsTruncated;
+	}
+
+	public string? Name
+	{
+		get;
+	}
+
+	public long SelectionEpoch
+	{
+		get;
+	}
+
+	public bool IsEnabled => !IsReleased && _patch.IsEnabled;
+
+	public bool AppliedAfterTargetChange
+	{
+		get;
+	}
+
+	public string? HostWarnings
+	{
+		get;
+	}
+
+	public bool HostWarningsTruncated
+	{
+		get;
+	}
+
+	public bool RequiresManualRecovery =>
+		LastReleaseOutcome is { RequiresManualRecovery: true } || _patch.RequiresManualRecovery;
+
+	protected override LeaseReleaseOutcome ReleaseOnMainThread()
+	{
+		// One disable attempt per patch: a consumed owner reports the status of the attempt that consumed it.
+		TargetReleaseStatus status = _patch.IsConsumed ? _patch.LastReleaseStatus : _patch.Release();
+		return SdkReleaseOutcomes.FromTarget(status);
+	}
+}

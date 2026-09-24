@@ -1,7 +1,9 @@
 using System.Diagnostics.CodeAnalysis;
 
+using CheatEngine.Client.Assembly;
 using CheatEngine.Client.Core.Dispatching;
 using CheatEngine.Client.Core.Domains;
+using CheatEngine.Client.Core.Domains.Assembly;
 using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Lua;
 using CheatEngine.Client.Memory;
@@ -126,6 +128,45 @@ public sealed class CheatEngineClientBuilder
 
 		Services.AddSingleton<UnsafeLuaExecutionRegistration>();
 		Services.AddSingleton<IUnsafeLuaClient>(static serviceProvider => new UnsafeLuaClient(
+			serviceProvider.GetRequiredService<SdkMainThreadDispatcher>(),
+			serviceProvider.GetRequiredService<CoreClientPolicy>(),
+			serviceProvider.GetRequiredService<CoreLifetime>()));
+		return this;
+	}
+
+	/// <summary>Opts this activation into experimental Auto Assembler patches.</summary>
+	/// <returns>This builder.</returns>
+	/// <exception cref="InvalidOperationException">
+	///     <see cref="IAutoAssemblerClient" /> was registered by another path than this method.
+	/// </exception>
+	/// <remarks>
+	///     <para>
+	///         This is the only supported opt-in path: configuration binding cannot enable the capability or register the
+	///         client, so the activation policy and the registration of <see cref="IAutoAssemblerClient" /> are established
+	///         together. Calling it again keeps the single registration. Without it, nothing is registered and the
+	///         <c>Client.AutoAssemblerPatches</c> capability reports a <c>Missing</c> policy gate.
+	///     </para>
+	///     <para>
+	///         An Auto Assembler script can allocate target memory, inject code and run Lua in Cheat Engine. Resolve
+	///         <see cref="IAutoAssemblerClient" /> from the activation provider and apply only scripts your plugin owns.
+	///     </para>
+	/// </remarks>
+	[Experimental("CECLIENT5004", UrlFormat = "https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/libs/CheatEngine.Client.Abstractions/README.md#{0}")]
+	public CheatEngineClientBuilder EnableAutoAssemblerPatches()
+	{
+		if (Services.Any(static descriptor => descriptor.ServiceType == typeof(IAutoAssemblerClient)))
+		{
+			if (Services.Any(static descriptor => descriptor.ServiceType == typeof(AutoAssemblerPatchesRegistration)))
+			{
+				return this;
+			}
+
+			throw new InvalidOperationException(
+				"IAutoAssemblerClient can only be registered through EnableAutoAssemblerPatches().");
+		}
+
+		Services.AddSingleton<AutoAssemblerPatchesRegistration>();
+		Services.AddSingleton<IAutoAssemblerClient>(static serviceProvider => new AutoAssemblerClient(
 			serviceProvider.GetRequiredService<SdkMainThreadDispatcher>(),
 			serviceProvider.GetRequiredService<CoreClientPolicy>(),
 			serviceProvider.GetRequiredService<CoreLifetime>()));

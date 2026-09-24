@@ -1,3 +1,5 @@
+#pragma warning disable CECLIENT5004 // The contract tests exercise the experimental Auto Assembler script type.
+
 using CheatEngine.Client.Assembly;
 using CheatEngine.SDK.Engine.Values;
 

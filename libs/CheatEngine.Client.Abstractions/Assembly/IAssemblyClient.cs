@@ -1,15 +1,20 @@
 using System.Collections.Immutable;
-using System.Diagnostics.CodeAnalysis;
 
 using CheatEngine.Client.Results;
 using CheatEngine.SDK.Engine.Values;
 
 namespace CheatEngine.Client.Assembly;
 
-/// <summary>Disassembles, assembles, and applies Client-owned Auto Assembler patches.</summary>
+/// <summary>Disassembles and assembles target instructions.</summary>
 /// <remarks>
-///     <b>Call-only.</b> The Client implements this interface and applications call it. A minor release can add members
-///     to it, so implement it only in a test double.
+///     <para>
+///         <b>Call-only.</b> The Client implements this interface and applications call it. A minor release can add
+///         members to it, so implement it only in a test double.
+///     </para>
+///     <para>
+///         Auto Assembler patches are not part of this client: they are applied through
+///         <see cref="IAutoAssemblerClient" />, which the activation registers only when it opts in.
+///     </para>
 /// </remarks>
 public interface IAssemblyClient
 {
@@ -40,13 +45,5 @@ public interface IAssemblyClient
 
 	/// <summary>Assembles exactly one instruction into copied bytes or throws when assembly fails.</summary>
 	public ImmutableArray<byte> Assemble(AssemblyInstructionRequest request,
-		CancellationToken cancellationToken = default);
-
-	/// <summary>Tries to apply a Client-owned Auto Assembler script.</summary>
-	public bool TryApplyPatch(AutoAssemblerScript script, [NotNullWhen(true)] out IAutoAssemblerPatchLease? lease,
-		out CheatEngineFailure failure, CancellationToken cancellationToken = default);
-
-	/// <summary>Applies a Client-owned Auto Assembler script or throws when the host rejects it.</summary>
-	public IAutoAssemblerPatchLease ApplyPatch(AutoAssemblerScript script,
 		CancellationToken cancellationToken = default);
 }

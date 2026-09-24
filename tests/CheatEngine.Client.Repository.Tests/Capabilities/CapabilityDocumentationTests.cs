@@ -89,7 +89,8 @@ public sealed partial class CapabilityDocumentationTests
 							   (!isImplemented
 								   ? row.Implementation == ContractOnly
 								   : experimental.TryGetValue(row.Id, out string? diagnosticId)
-									   ? row.Implementation == ExperimentalImplementation(diagnosticId)
+									   ? OperationalImplementations.Any(operational =>
+										   row.Implementation == ExperimentalImplementation(operational, diagnosticId))
 									   : OperationalImplementations.Contains(row.Implementation, StringComparer.Ordinal));
 				if (!matches)
 				{
@@ -100,8 +101,8 @@ public sealed partial class CapabilityDocumentationTests
 
 		Assert.True(offenders.Count == 0,
 			"The Implementation column must follow the catalog's implementation gate ('Operational' → " +
-			$"{string.Join(" or ", OperationalImplementations)}, or '{ExperimentalImplementation("id")}' for an " +
-			$"experimental API; 'ContractOnly' → {ContractOnly}):" +
+			$"{string.Join(" or ", OperationalImplementations)}, or that label followed by " +
+			$"'{ExperimentalImplementation(string.Empty, "id")}' for an experimental API; 'ContractOnly' → {ContractOnly}):" +
 			Environment.NewLine + string.Join(Environment.NewLine, offenders));
 	}
 
@@ -160,10 +161,13 @@ public sealed partial class CapabilityDocumentationTests
 		}
 	}
 
-	/// <summary>The Implementation label of an operational capability whose public API is experimental.</summary>
-	private static string ExperimentalImplementation(string diagnosticId)
+	/// <summary>
+	///     The Implementation label of an operational capability whose public API is experimental: its operational label
+	///     (for example "Operational adapter", or "Operational, policy opt-in" for an opt-in) followed by the diagnostic id.
+	/// </summary>
+	private static string ExperimentalImplementation(string operational, string diagnosticId)
 	{
-		return $"Operational adapter, experimental ({diagnosticId})";
+		return $"{operational}, experimental ({diagnosticId})";
 	}
 
 	/// <summary>Reads <c>ClientCapabilityId</c> property names and their stable id strings.</summary>

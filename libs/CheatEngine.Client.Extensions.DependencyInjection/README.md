@@ -47,6 +47,10 @@ The builder also provides explicit extension points:
 - `EnableUnsafeLuaExecution()` registers the unsafe Lua facade only for the current activation policy. It never exposes
   an SDK `LuaState`. The opt-in satisfies only the policy evidence gate; it does not prove package support, host
   globals, or live qualification.
+- `EnableAutoAssemblerPatches()` (experimental, `CECLIENT5004`) registers `IAutoAssemblerClient` the same way and
+  satisfies the policy gate of `Client.AutoAssemblerPatches`. Configuration cannot enable it, calling it twice keeps one
+  registration, and an `IAutoAssemblerClient` registered by another path makes it throw. Resolve the client from the
+  activation provider, for example in a module constructor.
 
 ```csharp
 using CheatEngine.Client.Extensions.DependencyInjection;
@@ -91,9 +95,9 @@ host itself owns only its `ConfigurationManager`, which it releases after the sc
 ## Diagnostics
 
 `AddCheatEngineClient` calls `AddLogging()` and gives the activation's Core lifetime a diagnostics sink over the
-provider's `ILoggerFactory`. Core emits bounded events (event ids 1000–1701; the `CheatEngine.Client.Core` README lists
+provider's `ILoggerFactory`. Core emits bounded events (event ids 1000–1800; the `CheatEngine.Client.Core` README lists
 them) under one category per domain: `CheatEngine.Client.Runtime`, `.Processes`, `.Memory`, `.Tables`, `.Inspection`,
-`.Scanning`, `.Lua`, and `.Lifetime`. Select them with the standard `Logging:LogLevel` filters, for example
+`.Scanning`, `.Lua`, `.Lifetime`, and `.Assembly`. Select them with the standard `Logging:LogLevel` filters, for example
 `"CheatEngine.Client.Memory": "Debug"`; no Client option controls collection. A capability refusal is logged once per
 capability and operation per activation. The events carry epochs, counts, widths, durations, and closed names only,
 never addresses, values, symbol names, paths, or Lua text, and a logging provider that throws is contained: it cannot

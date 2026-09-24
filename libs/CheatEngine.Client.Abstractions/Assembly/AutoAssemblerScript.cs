@@ -1,6 +1,9 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace CheatEngine.Client.Assembly;
 
-/// <summary>Describes an Auto Assembler script supplied to the capability-gated high-level API.</summary>
+/// <summary>Describes an Auto Assembler script supplied to <see cref="IAutoAssemblerClient" />.</summary>
+[Experimental("CECLIENT5004", UrlFormat = "https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/libs/CheatEngine.Client.Abstractions/README.md#{0}")]
 public readonly record struct AutoAssemblerScript
 {
 	/// <summary>Creates an Auto Assembler script request.</summary>

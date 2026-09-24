@@ -20,7 +20,8 @@ public sealed partial class ClientCapabilityCatalogTests
 		[ClientCapabilityId.ProtectedLua.Value] = ["Q05", "Q16", "Q19"],
 		[ClientCapabilityId.UnsafeLuaExecution.Value] = [],
 		[ClientCapabilityId.Allocations.Value] = ["Q30.a"],
-		[ClientCapabilityId.Assembly.Value] = ["Q32"]
+		[ClientCapabilityId.Assembly.Value] = ["Q32"],
+		[ClientCapabilityId.AutoAssemblerPatches.Value] = ["Q35", "Q44"]
 	};
 
 	[Fact]
@@ -64,7 +65,7 @@ public sealed partial class ClientCapabilityCatalogTests
 	}
 
 	[Fact]
-	public void UnsafeLuaExecutionIsNeverQualifiedAndIsTheOnlyPolicyOptIn()
+	public void UnsafeLuaExecutionIsNeverQualifiedAndFollowsItsOwnOptIn()
 	{
 		ClientCapabilityDescriptor unsafeLua = Assert.Single(ClientCapabilityCatalog.Entries,
 			static entry => entry.Policy == CapabilityPolicySource.UnsafeLuaExecutionOptIn);
@@ -74,6 +75,23 @@ public sealed partial class ClientCapabilityCatalogTests
 		Assert.All(
 			ClientCapabilityCatalog.Entries.Where(static entry => entry.Id != ClientCapabilityId.UnsafeLuaExecution),
 			static entry => Assert.NotEmpty(entry.RequiredScenarios));
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q44")]
+	public void AutoAssemblerPatchesAreOperationalBehindTheirOwnOptInAndTheOnlyOtherPolicyGate()
+	{
+		ClientCapabilityDescriptor patches = Assert.Single(ClientCapabilityCatalog.Entries,
+			static entry => entry.Policy == CapabilityPolicySource.AutoAssemblerPatchesOptIn);
+
+		Assert.Equal(ClientCapabilityId.AutoAssemblerPatches, patches.Id);
+		Assert.Equal(CapabilityImplementation.Operational, patches.Implementation);
+		Assert.Equal(CapabilityHostSource.NotProbed, patches.Host);
+		Assert.Equal(["Q35", "Q44"], patches.RequiredScenarios);
+		Assert.Equal(
+			[ClientCapabilityId.UnsafeLuaExecution, ClientCapabilityId.AutoAssemblerPatches],
+			ClientCapabilityCatalog.Entries.Where(static entry => entry.Policy != CapabilityPolicySource.NotRequired)
+				.Select(static entry => entry.Id));
 	}
 
 	[Fact]
@@ -99,7 +117,10 @@ public sealed partial class ClientCapabilityCatalogTests
 	public void OnlyOperationalCapabilitiesCanBeExperimentalAndValueScanningIsCeclient5001()
 	{
 		Assert.Equal(
-			[(ClientCapabilityId.ValueScanning, "CECLIENT5001"), (ClientCapabilityId.Allocations, "CECLIENT5002")],
+			[
+				(ClientCapabilityId.ValueScanning, "CECLIENT5001"), (ClientCapabilityId.Allocations, "CECLIENT5002"),
+				(ClientCapabilityId.AutoAssemblerPatches, "CECLIENT5004")
+			],
 			ClientCapabilityCatalog.Entries
 				.Where(static entry => entry.ExperimentalDiagnosticId is not null)
 				.Select(static entry => (entry.Id, entry.ExperimentalDiagnosticId!)));

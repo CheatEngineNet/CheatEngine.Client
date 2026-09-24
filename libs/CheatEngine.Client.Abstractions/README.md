@@ -112,6 +112,7 @@ memory. Each capability's qualification gate requires receipts for the live scen
 | `Client.UnsafeLuaExecution` | Operational, policy opt-in | Loaded CheatEngine.SDK 2.x at or above the consumed 2.0.0 | Not probed by the snapshot (`Unknown`) | Stays `Unknown`: no scenario covers arbitrary Lua | `Unavailable` without `EnableUnsafeLuaExecution()`; otherwise `Unknown` |
 | `Client.Allocations` | Operational adapter, experimental (CECLIENT5002) | Loaded CheatEngine.SDK 2.x at or above the consumed 2.0.0 | Not probed by the snapshot (`Unknown`) | Unknown until Client receipts for Q30.a exist | `Unknown`; `Unavailable` when the package gate is `Missing` |
 | `Client.Assembly` | Contract-only (Unavailable) | Loaded CheatEngine.SDK 2.x at or above the consumed 2.0.0 | Not probed by the snapshot (`Unknown`) | Unknown until Client receipts for Q32 exist | `Unavailable` |
+| `Client.AutoAssemblerPatches` | Operational, policy opt-in, experimental (CECLIENT5004) | Loaded CheatEngine.SDK 2.x at or above the consumed 2.0.0 | Not probed by the snapshot (`Unknown`) | Unknown until Client receipts for Q35 and Q44 exist | `Unavailable` without `EnableAutoAssemblerPatches()`; otherwise `Unknown` |
 <!-- capability-table:end -->
 
 Every row also carries the lifetime gate (`Missing` once the activation has ended). A contract-only capability refuses
@@ -127,6 +128,10 @@ receipts for Q30.a exist.
 
 `IUnsafeLuaClient` is intentionally separate from `ILuaClient` and is not registered by default.
 It is for explicitly trusted source only and still never exposes a raw Lua state.
+
+`IAutoAssemblerClient` follows the same rule: it is not a property of `ICheatEngineClient`, and only
+`CheatEngineClientBuilder.EnableAutoAssemblerPatches()` registers it and satisfies the policy gate of
+`Client.AutoAssemblerPatches`. It is experimental (`CECLIENT5004`, see "Experimental APIs" below).
 
 ### Experimental APIs
 
@@ -187,6 +192,40 @@ exact host profile of the release; the documentation link of each diagnostic poi
   this has a Client receipt yet.
 - **Exit criteria:** the Client receipt of Q30.a (allocation, release, and the refusal after a target change) on the
   exact host profile; the capability's qualification gate stays `Unknown` until then.
+
+<a id="CECLIENT5004"></a>
+
+#### CECLIENT5004: Auto Assembler patches
+
+- **Scope:** `IAutoAssemblerClient` (`TryCheck`/`Check`, `TryApplyPatch`/`ApplyPatch`), `AutoAssemblerScript`,
+  `AutoAssemblerCheckResult`, `IAutoAssemblerPatchLease` and `CheatEngineClientBuilder.EnableAutoAssemblerPatches()`.
+  The capability id `Client.AutoAssemblerPatches` is stable.
+- **Opt-in:** nothing is registered without `EnableAutoAssemblerPatches()`; the capability's policy gate is then
+  `Missing`, and a client constructed without the opt-in refuses every call with `CapabilityUnavailable` and
+  `NotStarted`, before any Cheat Engine call. An Auto Assembler script can allocate target memory, inject code and run
+  Lua: apply only scripts your plugin owns.
+- **Check:** `TryCheck` runs Cheat Engine's `autoAssembleCheck` on the `[ENABLE]` section. A rejection is a verdict
+  (`IsAccepted` is `false`, with Cheat Engine's bounded `HostMessages`), not a failure; an accepted section does not
+  prove that the activation will succeed.
+- **Apply:** `TryApplyPatch` runs `autoAssemble` once through CheatEngine.SDK's `AutoAssemblerPatcher` (never with
+  `targetself`) and returns the lease that owns the disable information Cheat Engine returned. Releasing the lease
+  validates that the patch's target is still selected, then runs `[DISABLE]` once with that information. The Client
+  never rebuilds a `[DISABLE]` section, and it does not expose the disable information (allocations, registered
+  symbols) itself. A release refused on another target or after a Lua state reset, or a disable Cheat Engine did not
+  confirm, leaves `RequiresManualRecovery` set. The lease is bound to the target selection: selecting another process
+  releases it.
+- **Outcomes:** `Applied` returns the lease; `AppliedTargetChanged` returns it with `AppliedAfterTargetChange` set and
+  logs warning event 1800 (the patch stays bound to the target observed before the activation); `Rejected` is
+  `OperationRejected` with an `Unknown` host effect (a rejected script can have applied part of its effects) and Cheat
+  Engine's bounded error text in `Message`; an unavailable `autoAssemble` is `CapabilityUnavailable` with
+  `NotStarted`; a protected Lua failure is `LuaError`; a malformed result is `InvalidHostResult`; an unqualified target
+  is `TargetIdentityUnavailable` with `NotStarted`; a failed ownership handoff is `BindingError` with
+  `CleanupUnconfirmed`.
+- **Bounds:** Cheat Engine's host text (check messages, rejection detail, compilation warnings) is copied up to 4096
+  UTF-8 bytes, never parsed, and is user data like `CheatEngineFailure.Message`. A cancellation token is observed only
+  before dispatch.
+- **Exit:** the attribute is removed once the live scenarios Q35 (a benign patch applied then disabled, and a failing
+  variant) and Q44 (the policy refusal without the opt-in) succeed on the exact host tuple the Client supports.
 
 ### Not offered in 1.0
 
@@ -457,6 +496,7 @@ dispatch and between Client-managed steps.
 | Lua typed operations and modules (`ILuaClient`) | Dispatch admission | `NotStarted` (cancellation, name already reserved by this activation, a Lua admission refused by CheatEngine.SDK), `NotApplied` (a global already defined, or a failed lookup or publication that the SDK rolled back completely), `CleanupUnconfirmed` (a publication whose rollback left a global), `Unknown` (SDK fault); otherwise the operation's own failure | A module release that fails is reported as `PartiallyReleased` with its failed globals and never retried; operation exceptions are rethrown unchanged |
 | Unsafe Lua (`IUnsafeLuaClient`) | Dispatch admission | `NotStarted` (policy, or a Lua admission refused by CheatEngine.SDK), `Unknown` (SDK fault; the script may have run partially) | The script may have run partially before a Lua error |
 | Runtime and Processes (`ICheatEngineRuntime`, `IProcessClient`) | Dispatch admission; `AttachExactName` also observes it before the local process catalog, and `GetLocalProcesses`, which never dispatches, between catalog steps (`NotStarted`) | `Completed` (CheatEngine.SDK reported a status that establishes no target: `TargetChanged`, `TargetIdentityUnavailable` for a file opened as a process, `CapabilityUnavailable`, `LuaError`, `InvalidHostResult`), `Unknown` (SDK fault, no selected target, an attach that CheatEngine.SDK refused or could not confirm) | A fact CheatEngine.SDK could not read stays `Unknown` in the snapshot instead of failing the call; `Attach` changes Cheat Engine's global selection |
+| Auto Assembler patches (`IAutoAssemblerClient`, experimental `CECLIENT5004`) | Dispatch admission: a check or an activation that began is never interrupted, and an applied patch is always returned as a lease | `NotStarted` (policy without `EnableAutoAssemblerPatches()`, cancellation, Lua admission, unavailable global, unqualified target), `Unknown` (rejection, Lua error, malformed result, SDK fault), `CleanupUnconfirmed` (failed ownership handoff, or a lease that could not be registered and whose release was not confirmed), `Completed` (a lease that could not be registered and was released) | A rejected script can have applied part of its effects; a release refused on another target leaves the patch in place (`RequiresManualRecovery`) |
 | Capability-gated domains (assembly) | Not applicable: no Cheat Engine work is dispatched | `NotStarted` (`CapabilityUnavailable` or `Cancelled`) | None |
 | Value scans (`IValueScanner`, `IValueScanSession`) | The start of Cheat Engine's first or next scan; a cancellation between the start and the wait leaves the session `Scanning`, and a later one discards the result | `NotStarted` (validation, session state, re-entrant call, changed target or runtime, cancellation before the start), `Started` (a scan, wait or reset call that failed or was cancelled before the wait), `Completed` (cancellation after the wait or the copy, a malformed count or page), `NotApplied` (a refused creation that CheatEngine.SDK rolled back), `CleanupUnconfirmed` (creation rollback not confirmed, or a creation status the Client does not recognize), `Unknown` (SDK fault) | A read publishes a whole page or nothing; a failed scan leaves the session `Invalidated` until a reset |
 | Allocations (`IAllocationClient`, `ITargetMemoryLease`) | The `allocateMemory` call; a later cancellation frees the new allocation and publishes no lease | `NotStarted` (validation, cancellation before the call, target identity unavailable or changed, unavailable global), `NotApplied` (`allocateMemory` returned nil), `Completed` (cancellation after the call, or an allocation without owner whose compensating release was confirmed), `CleanupUnconfirmed` (that release was refused or not confirmed; the message carries the address), `Unknown` (SDK fault, Lua error, malformed result) | An allocation is published as a lease or released at once; a refused or unconfirmed release is never retried and requires manual recovery |

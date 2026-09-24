@@ -45,8 +45,15 @@ public readonly struct ClientCapabilityId : IEquatable<ClientCapabilityId>
 	/// <summary>Gets the Client capability for owned target-memory allocations.</summary>
 	public static ClientCapabilityId Allocations => new("Client.Allocations");
 
-	/// <summary>Gets the Client capability for assembly, disassembly, and Auto Assembler patches.</summary>
+	/// <summary>Gets the Client capability for instruction assembly and disassembly.</summary>
 	public static ClientCapabilityId Assembly => new("Client.Assembly");
+
+	/// <summary>Gets the Client capability for explicitly opted-in Auto Assembler patches.</summary>
+	/// <remarks>
+	///     The identifier is stable, but the Auto Assembler client it describes is experimental (<c>CECLIENT5004</c>) and
+	///     is registered only when the activation calls <c>EnableAutoAssemblerPatches()</c>.
+	/// </remarks>
+	public static ClientCapabilityId AutoAssemblerPatches => new("Client.AutoAssemblerPatches");
 
 	/// <inheritdoc />
 	public bool Equals(ClientCapabilityId other)

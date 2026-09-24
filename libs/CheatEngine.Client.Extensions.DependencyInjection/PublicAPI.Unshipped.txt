@@ -21,6 +21,7 @@ CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientServiceCollec
 CheatEngine.Client.Extensions.DependencyInjection.ValidateCheatEngineClientOptions
 CheatEngine.Client.Extensions.DependencyInjection.ValidateCheatEngineClientOptions.Validate(string? name, CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientOptions! options) -> Microsoft.Extensions.Options.ValidateOptionsResult!
 CheatEngine.Client.Extensions.DependencyInjection.ValidateCheatEngineClientOptions.ValidateCheatEngineClientOptions() -> void
+[CECLIENT5004]CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientBuilder.EnableAutoAssemblerPatches() -> CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientBuilder!
 const CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientOptions.ConfigurationSectionName = "CheatEngineClient" -> string!
 static CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientServiceCollectionExtensions.AddCheatEngineClient(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientBuilder!
 static CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientServiceCollectionExtensions.AddCheatEngineClient(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientBuilder!

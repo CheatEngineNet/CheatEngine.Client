@@ -91,7 +91,17 @@ Cheat Engine work, and a capability test keeps them that way on the supported SD
 (`_CheatEngineClientSupportedSdkMajor` in `eng/CheatEngineSdk.props`). Their implementation gate
 is `Missing`; their package gate is the same consumed-SDK evidence as every other capability.
 
-- **Assembly**: Core composes no operational assembly or Auto Assembler adapter.
+- **Assembly**: Core composes no operational instruction adapter.
+
+**Auto Assembler patches** (experimental, `CECLIENT5004`) are operational but opt-in: the internal
+`AutoAssemblerClient` is registered only by `EnableAutoAssemblerPatches()`, which also sets
+`CoreClientPolicy.EnableAutoAssemblerPatches`, and it refuses every call without that policy
+(`CapabilityUnavailable`, `NotStarted`, no dispatch). Its only Cheat Engine calls go through
+`SdkAutoAssemblerPort` (`AutoAssemblerPatcher.TryApplyWithOutcome` and `TryCheck` with bounded
+options, behind `LuaAdmission`); `AutoAssemblerMapping` maps every SDK outcome category totally.
+The applied patch is handed to `AutoAssemblerPatchLease`, a target-bound `HostResourceLease`
+registered inside the same dispatched callback, which releases through the SDK owner's
+`ReleaseWithTargetOutcome` and never rebuilds a `[DISABLE]` section.
 
 Core composes nothing for the domains that no CheatEngine.SDK primitive backs (timers, hotkeys, the debugger,
 the speed hack, hashing, DBVM and remote execution): the Client has no contract for them, as the
@@ -233,6 +243,7 @@ standard `Logging:LogLevel` filters select them:
 | 1600 | Debug | `LuaOperationCompleted`: operation, failure kind or `None`, milliseconds, script length (unsafe Lua only) | `CheatEngine.Client.Lua` |
 | 1700 | Warning | `CoreResourceCleanupFailed`: resource and exception type names | `CheatEngine.Client.Lifetime` |
 | 1701 | Debug | `LeaseReleased`: release operation, `LeaseReleaseKind`, host effect | `CheatEngine.Client.Lifetime` |
+| 1800 | Warning | `AutoAssemblerPatchAppliedAfterTargetChange`: operation, selection epoch the patch stays bound to | `CheatEngine.Client.Assembly` |
 
 Events are emitted after the dispatched Cheat Engine work returned, never inside a dispatched
 callback. They never carry an address, a value, a symbol or module name, a path, a process

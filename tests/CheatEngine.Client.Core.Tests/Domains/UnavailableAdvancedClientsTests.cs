@@ -36,12 +36,6 @@ public sealed class UnavailableAdvancedClientsTests
 			out CheatEngineFailure assemble,
 			TestContext.Current.CancellationToken));
 		Assert.Equal("Assembly.Assemble", assemble.Operation);
-
-		Assert.False(client.TryApplyPatch(new AutoAssemblerScript("[ENABLE]\n[DISABLE]"),
-			out IAutoAssemblerPatchLease? patch, out CheatEngineFailure patchFailure,
-			TestContext.Current.CancellationToken));
-		Assert.Null(patch);
-		Assert.Equal("Assembly.ApplyPatch", patchFailure.Operation);
 	}
 
 	[Fact]

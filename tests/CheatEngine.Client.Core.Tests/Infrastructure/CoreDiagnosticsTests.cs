@@ -482,6 +482,11 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 			Record(nameof(LeaseReleased), operation, kind, hostEffect);
 		}
 
+		public void AutoAssemblerPatchAppliedAfterTargetChange(string operation, long selectionEpoch)
+		{
+			Record(nameof(AutoAssemblerPatchAppliedAfterTargetChange), operation, selectionEpoch);
+		}
+
 		internal object?[] Single(string eventName)
 		{
 			return Assert.Single(All(eventName));

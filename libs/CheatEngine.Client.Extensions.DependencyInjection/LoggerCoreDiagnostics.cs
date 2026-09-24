@@ -15,8 +15,8 @@ namespace CheatEngine.Client.Extensions.DependencyInjection;
 /// <remarks>
 ///     <para>
 ///         Each domain logs under its own category (<c>CheatEngine.Client.Runtime</c>, <c>.Processes</c>, <c>.Memory</c>,
-///         <c>.Tables</c>, <c>.Inspection</c>, <c>.Scanning</c>, <c>.Lua</c>, <c>.Lifetime</c>), so collection is chosen
-///         with the standard <c>Logging:LogLevel</c> filters; no Client option controls it.
+///         <c>.Tables</c>, <c>.Inspection</c>, <c>.Scanning</c>, <c>.Lua</c>, <c>.Lifetime</c>, <c>.Assembly</c>), so
+///         collection is chosen with the standard <c>Logging:LogLevel</c> filters; no Client option controls it.
 ///     </para>
 ///     <para>
 ///         A logger or provider that throws, from <see cref="ILogger.IsEnabled" />, from <see cref="ILogger.Log{TState}" />
@@ -51,7 +51,11 @@ internal sealed class LoggerCoreDiagnostics : ICoreDiagnostics
 	/// <summary>The category of Client-owned resource cleanup events.</summary>
 	internal const string LifetimeCategory = "CheatEngine.Client.Lifetime";
 
+	/// <summary>The category of Auto Assembler patch events.</summary>
+	internal const string AssemblyCategory = "CheatEngine.Client.Assembly";
+
 	private readonly ConcurrentDictionary<(string Capability, string Operation), byte> _refusalsLogged = new();
+	private readonly ILogger _assembly;
 	private readonly ILogger _inspection;
 	private readonly ILogger _lifetime;
 	private readonly ILogger _lua;
@@ -74,6 +78,7 @@ internal sealed class LoggerCoreDiagnostics : ICoreDiagnostics
 		_scanning = CreateLogger(loggerFactory, ScanningCategory);
 		_lua = CreateLogger(loggerFactory, LuaCategory);
 		_lifetime = CreateLogger(loggerFactory, LifetimeCategory);
+		_assembly = CreateLogger(loggerFactory, AssemblyCategory);
 	}
 
 	public void RuntimeSnapshotCaptured(long activationEpoch, CheatEngineArchitecture targetArchitecture,
@@ -244,6 +249,18 @@ internal sealed class LoggerCoreDiagnostics : ICoreDiagnostics
 		catch (Exception)
 		{
 			// Deliberately ignored: a logging provider fault never changes the release outcome (A24-22).
+		}
+	}
+
+	public void AutoAssemblerPatchAppliedAfterTargetChange(string operation, long selectionEpoch)
+	{
+		try
+		{
+			ClientCoreDiagnosticsLog.AutoAssemblerPatchAppliedAfterTargetChange(_assembly, operation, selectionEpoch);
+		}
+		catch (Exception)
+		{
+			// Deliberately ignored: a logging provider fault never changes a Client result (A24-22).
 		}
 	}
 

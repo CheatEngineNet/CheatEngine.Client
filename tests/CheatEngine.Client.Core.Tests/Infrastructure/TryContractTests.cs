@@ -1,8 +1,11 @@
+#pragma warning disable CECLIENT5004 // The Try contract covers the experimental Auto Assembler family.
+
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
 using CheatEngine.Client.Allocations;
+using CheatEngine.Client.Assembly;
 using CheatEngine.Client.Core.Dispatching;
 using CheatEngine.Client.Core.Domains;
 using CheatEngine.Client.Core.Domains.Allocations;
@@ -19,6 +22,7 @@ using CheatEngine.Client.Runtime;
 using CheatEngine.Client.Scanning;
 using CheatEngine.Client.Tables;
 using CheatEngine.SDK.Engine.AddressList;
+using CheatEngine.SDK.Engine.Assembly;
 using CheatEngine.SDK.Engine.Errors;
 using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Engine.Memory;
@@ -60,7 +64,8 @@ public sealed class TryContractTests
 		"Processes",
 		"Runtime",
 		"ValueScans",
-		"Allocations"
+		"Allocations",
+		"AutoAssembler"
 	};
 
 	public static TheoryData<string, string> SdkFaultCases
@@ -127,7 +132,9 @@ public sealed class TryContractTests
 		"Lua.RegisterModule",
 		"Scans.CreateSession",
 		"Scans.GetResultCount",
-		"Allocations.Allocate"
+		"Allocations.Allocate",
+		"AutoAssembler.ApplyPatch",
+		"AutoAssembler.Check"
 	];
 
 	[Theory]
@@ -174,6 +181,8 @@ public sealed class TryContractTests
 				.TryCreateSession(out _, out _, cancelled),
 			"Allocations" => () => new AllocationClient(dispatcher, Binder(dispatcher), allocations)
 				.TryAllocate(new AllocationRequest(4096), out _, out _, cancelled),
+			"AutoAssembler" => () => new AutoAssemblerClient(dispatcher, AutoAssemblerPolicy(), lifetime, ports)
+				.TryApplyPatch(new AutoAssemblerScript("[ENABLE]"), out _, out _, cancelled),
 			_ => throw new ArgumentOutOfRangeException(nameof(family), family, null)
 		};
 
@@ -310,6 +319,14 @@ public sealed class TryContractTests
 				static (client, request, t) => (client.TryAllocate(request, out ITargetMemoryLease? _,
 					out CheatEngineFailure f, t), f),
 				static (client, request, t) => client.Allocate(request, t), token),
+			"AutoAssembler.ApplyPatch" => Run(new AutoAssemblerClient(dispatcher, AutoAssemblerPolicy(), lifetime, ports),
+				new AutoAssemblerScript("[ENABLE]"),
+				static (client, script, t) => (client.TryApplyPatch(script, out _, out CheatEngineFailure f, t), f),
+				static (client, script, t) => client.ApplyPatch(script, t), token),
+			"AutoAssembler.Check" => Run(new AutoAssemblerClient(dispatcher, AutoAssemblerPolicy(), lifetime, ports),
+				new AutoAssemblerScript("[ENABLE]"),
+				static (client, script, t) => (client.TryCheck(script, out _, out CheatEngineFailure f, t), f),
+				static (client, script, t) => client.Check(script, t), token),
 			_ => throw new ArgumentOutOfRangeException(nameof(entryPoint), entryPoint, null)
 		};
 
@@ -401,6 +418,7 @@ public sealed class TryContractTests
 			UnsafeLuaClient unsafeLua = new(dispatcher, new CoreClientPolicy([], true), lifetime);
 			ValueScanner scans = new(dispatcher, Binder(dispatcher));
 			AllocationClient allocations = new(dispatcher, Binder(dispatcher));
+			AutoAssemblerClient autoAssembler = new(dispatcher, AutoAssemblerPolicy(), lifetime);
 			CancellationToken token = TestContext.Current.CancellationToken;
 
 			// No Lua runtime is attached in unit tests: every SDK static below throws InvalidOperationException, and the
@@ -426,6 +444,10 @@ public sealed class TryContractTests
 			// TargetMemoryAllocator.TryAllocate, behind the allocation client.
 			Assert.False(allocations.TryAllocate(new AllocationRequest(4096), out ITargetMemoryLease? allocation,
 				out CheatEngineFailure allocateFailure, token));
+			Assert.False(autoAssembler.TryApplyPatch(new AutoAssemblerScript("[ENABLE]"), out IAutoAssemblerPatchLease? patch,
+				out CheatEngineFailure applyFailure, token));
+			Assert.False(autoAssembler.TryCheck(new AutoAssemblerScript("[ENABLE]"), out _,
+				out CheatEngineFailure checkFailure, token));
 
 			Assert.Null(lease);
 			Assert.Null(name);
@@ -452,6 +474,19 @@ public sealed class TryContractTests
 			Assert.Equal(CheatEngineFailureKind.ActivationExpired, luaFailure.Kind);
 			Assert.Equal(CheatEngineHostEffect.NotStarted, luaFailure.HostEffect);
 			Assert.Equal("Lua.ExecuteUnsafe", luaFailure.Operation);
+			// The Auto Assembler port asks for the same admission before AutoAssemblerPatcher runs.
+			Assert.Null(patch);
+			CheatEngineFailure[] autoAssemblerFailures = [applyFailure, checkFailure];
+			Assert.All(
+				autoAssemblerFailures,
+				static failure =>
+				{
+					Assert.Null(failure.Exception);
+					Assert.Equal(CheatEngineFailureKind.ActivationExpired, failure.Kind);
+					Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
+				});
+			Assert.Equal(["AutoAssembler.ApplyPatch", "AutoAssembler.Check"],
+				autoAssemblerFailures.Select(static failure => failure.Operation));
 		}
 		finally
 		{
@@ -575,6 +610,8 @@ public sealed class TryContractTests
 	[InlineData("ValueScansInvalidRequest")]
 	[InlineData("AllocationsPreDispatchCancellation")]
 	[InlineData("AllocationsInvalidRequest")]
+	[InlineData("AutoAssemblerPolicy")]
+	[InlineData("AutoAssemblerPreDispatchCancellation")]
 	public void RefusalBeforeStartReportsNotStarted(string refusal)
 	{
 		CoreLifetime lifetime = InertCoreLifetime.Create();
@@ -629,6 +666,12 @@ public sealed class TryContractTests
 			"AllocationsInvalidRequest" => TryFailure(() =>
 				(new AllocationClient(dispatcher, Binder(dispatcher), new FakeAllocationPort()).TryAllocate(default, out _,
 					out CheatEngineFailure f, token), f)),
+			"AutoAssemblerPolicy" => TryFailure(() =>
+				(new AutoAssemblerClient(dispatcher, new CoreClientPolicy([], false), lifetime, ports)
+					.TryApplyPatch(new AutoAssemblerScript("[ENABLE]"), out _, out CheatEngineFailure f, token), f)),
+			"AutoAssemblerPreDispatchCancellation" => TryFailure(() =>
+				(new AutoAssemblerClient(dispatcher, AutoAssemblerPolicy(), lifetime, ports)
+					.TryCheck(new AutoAssemblerScript("[ENABLE]"), out _, out CheatEngineFailure f, cancelled), f)),
 			_ => throw new ArgumentOutOfRangeException(nameof(refusal), refusal, null)
 		};
 
@@ -787,6 +830,11 @@ public sealed class TryContractTests
 		return (succeeded, failure, () => throwingForm(client, input, cancellationToken));
 	}
 
+	private static CoreClientPolicy AutoAssemblerPolicy()
+	{
+		return new CoreClientPolicy([], false, enableAutoAssemblerPatches: true);
+	}
+
 	private static CheatEngineFailure TryFailure(Func<(bool Succeeded, CheatEngineFailure Failure)> attempt)
 	{
 		(bool succeeded, CheatEngineFailure failure) = attempt();
@@ -840,7 +888,7 @@ public sealed class TryContractTests
 	/// <summary>One fake for every Core port; each call throws the configured SDK fault unless configured otherwise.</summary>
 	private sealed class ThrowingPorts(Exception fault)
 		: IAobScanPort, IInspectionPort, ITableRecordLookupPort, ITableRecordMutationPort, IMemoryCodecContextPort,
-			IRuntimeObservationPort, IProcessSelectionPort, IProcessHost
+			IRuntimeObservationPort, IProcessSelectionPort, IProcessHost, IAutoAssemblerPort
 	{
 		private int _writes;
 
@@ -1155,6 +1203,19 @@ public sealed class TryContractTests
 				return false;
 			}
 
+			throw Fault();
+		}
+
+		public bool TryApply(string operation, string script, AutoAssemblerOptions options,
+			out AutoAssemblerApplyFacts facts, out IAutoAssemblerPatchOwner? patch,
+			out CheatEngineFailure admissionFailure)
+		{
+			throw Fault();
+		}
+
+		public bool TryCheck(string operation, string script, AutoAssemblerOptions options,
+			out AutoAssemblerCheckFacts facts, out CheatEngineFailure admissionFailure)
+		{
 			throw Fault();
 		}
 

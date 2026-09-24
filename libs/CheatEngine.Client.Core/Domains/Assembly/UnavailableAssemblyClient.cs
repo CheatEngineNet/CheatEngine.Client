@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.Diagnostics.CodeAnalysis;
 
 using CheatEngine.Client.Assembly;
 using CheatEngine.Client.Core.Domains.Events;
@@ -10,7 +9,7 @@ using CheatEngine.SDK.Engine.Values;
 
 namespace CheatEngine.Client.Core.Domains.Assembly;
 
-/// <summary>Preserves the assembly and patch surface until Auto Assembler ownership passes its live-host gate.</summary>
+/// <summary>Preserves the instruction assembly surface until its adapter passes its live-host gate.</summary>
 internal sealed class UnavailableAssemblyClient : IAssemblyClient
 {
 	private readonly CoreLifetime? _lifetime;
@@ -79,25 +78,10 @@ internal sealed class UnavailableAssemblyClient : IAssemblyClient
 		return UnavailableCapabilityFailure.Throw<ImmutableArray<byte>>(failure, cancellationToken);
 	}
 
-	public bool TryApplyPatch(AutoAssemblerScript script, [NotNullWhen(true)] out IAutoAssemblerPatchLease? lease,
-		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
-	{
-		lease = null;
-		failure = CreateFailure("Assembly.ApplyPatch", cancellationToken);
-		return false;
-	}
-
-	public IAutoAssemblerPatchLease ApplyPatch(AutoAssemblerScript script,
-		CancellationToken cancellationToken = default)
-	{
-		_ = TryApplyPatch(script, out _, out CheatEngineFailure failure, cancellationToken);
-		return UnavailableCapabilityFailure.Throw<IAutoAssemblerPatchLease>(failure, cancellationToken);
-	}
-
 	private CheatEngineFailure CreateFailure(string operation, CancellationToken cancellationToken)
 	{
 		return UnavailableCapabilityFailure.Create(_lifetime, ClientCapabilityId.Assembly,
-			"Assembly, disassembly, and Auto Assembler patches",
+			"Assembly and disassembly",
 			operation,
 			cancellationToken);
 	}
