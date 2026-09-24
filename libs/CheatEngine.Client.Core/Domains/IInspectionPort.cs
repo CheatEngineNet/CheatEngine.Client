@@ -1,3 +1,4 @@
+using CheatEngine.Client.Inspection;
 using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Engine.Values;
 using CheatEngine.SDK.Lua.Calls;
@@ -19,7 +20,7 @@ internal interface IInspectionPort
 
 	public InspectionStatus GetSymbol(SymbolExpression expression, out SymbolInfo symbol);
 
-	public InspectionStatus ResolveAddress(SymbolExpression expression, AddressResolutionOptions options,
+	public InspectionStatus ResolveAddress(SymbolExpression expression, AddressResolutionMode mode,
 		out Address address);
 
 	/// <summary>Gets Cheat Engine's formatted name for a target address (<c>SymbolRegistry.TryGetName</c>).</summary>

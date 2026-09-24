@@ -1,3 +1,4 @@
+using CheatEngine.Client.Inspection;
 using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Engine.Values;
 using CheatEngine.SDK.Lua.Calls;
@@ -39,10 +40,11 @@ internal sealed class SdkInspectionPort : IInspectionPort
 		return EngineInspection.GetSymbolInfo(expression, out symbol);
 	}
 
-	public InspectionStatus ResolveAddress(SymbolExpression expression, AddressResolutionOptions options,
+	public InspectionStatus ResolveAddress(SymbolExpression expression, AddressResolutionMode mode,
 		out Address address)
 	{
-		return EngineInspection.ResolveAddress(expression, options, out address);
+		return EngineInspection.ResolveAddress(expression, InspectionMapping.ToSdkResolutionOptions(mode),
+			out address);
 	}
 
 	public LuaOperationStatus TryGetName(Address address, out string? name)

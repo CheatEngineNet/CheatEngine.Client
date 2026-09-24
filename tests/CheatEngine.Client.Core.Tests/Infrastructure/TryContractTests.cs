@@ -832,7 +832,7 @@ public sealed class TryContractTests
 		///     The collision pre-check of a symbol registration finds nothing, so the registration fault is raised by
 		///     <see cref="TryRegisterOwned" />, the CheatEngine.SDK ownership coordinator.
 		/// </summary>
-		public InspectionStatus ResolveAddress(SymbolExpression expression, AddressResolutionOptions options,
+		public InspectionStatus ResolveAddress(SymbolExpression expression, AddressResolutionMode mode,
 			out Address address)
 		{
 			address = default;

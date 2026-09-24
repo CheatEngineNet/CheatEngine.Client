@@ -14,12 +14,20 @@ namespace CheatEngine.Client.Inspection;
 /// </remarks>
 public interface IInspectionClient
 {
-	/// <summary>Tries to copy the target modules, optionally for an explicit process identifier.</summary>
+	/// <summary>Tries to copy the target modules, for the selected target or an explicit process identifier.</summary>
+	/// <param name="request">The bound on the number of copied modules.</param>
+	/// <param name="processId">
+	///     The process whose modules are copied, or <see langword="null" /> for Cheat Engine's selected target.
+	/// </param>
+	/// <param name="modules">The copied modules when the method returns <see langword="true" />.</param>
+	/// <param name="failure">The failure when the method returns <see langword="false" />.</param>
+	/// <param name="cancellationToken">Observed before the work is dispatched.</param>
+	/// <returns><see langword="true" /> when the modules were copied.</returns>
 	public bool TryGetModules(
 		InspectionCollectionRequest request,
+		TargetProcessId? processId,
 		out ImmutableArray<ModuleInfo> modules,
 		out CheatEngineFailure failure,
-		TargetProcessId? processId = null,
 		CancellationToken cancellationToken = default);
 
 	/// <summary>Copies the target modules or throws when inspection fails.</summary>
@@ -90,15 +98,26 @@ public interface IInspectionClient
 	public ISymbolRegistrationLease RegisterSymbol(SymbolRegistration registration,
 		CancellationToken cancellationToken = default);
 
-	/// <summary>Resolves one Cheat Engine address expression with the documented SDK options.</summary>
+	/// <summary>Resolves one Cheat Engine address expression in the target process's symbol table.</summary>
+	/// <param name="expression">The address expression, for example <c>game.exe+10</c> or a registered symbol name.</param>
+	/// <param name="mode">How Cheat Engine resolves the expression.</param>
+	/// <param name="address">The resolved address when the method returns <see langword="true" />.</param>
+	/// <param name="failure">
+	///     The failure when the method returns <see langword="false" />; <see cref="CheatEngineFailureKind.NotFound" />
+	///     when the expression does not resolve.
+	/// </param>
+	/// <param name="cancellationToken">Observed before the work is dispatched.</param>
+	/// <returns><see langword="true" /> when the expression resolved.</returns>
+	/// <exception cref="ArgumentOutOfRangeException"><paramref name="mode" /> is not a defined value.</exception>
 	public bool TryResolveAddress(
 		SymbolExpression expression,
-		AddressResolutionOptions options,
+		AddressResolutionMode mode,
 		out Address address,
 		out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
 	/// <summary>Resolves one address or throws when resolution fails.</summary>
-	public Address ResolveAddress(SymbolExpression expression, AddressResolutionOptions options,
+	/// <exception cref="ArgumentOutOfRangeException"><paramref name="mode" /> is not a defined value.</exception>
+	public Address ResolveAddress(SymbolExpression expression, AddressResolutionMode mode,
 		CancellationToken cancellationToken = default);
 }

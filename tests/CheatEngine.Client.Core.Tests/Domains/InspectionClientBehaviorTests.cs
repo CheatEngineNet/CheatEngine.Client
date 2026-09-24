@@ -25,9 +25,9 @@ public sealed class InspectionClientBehaviorTests
 		};
 		InspectionClient client = CreateClient(lifetime, port);
 
-		bool succeeded = client.TryGetModules(new InspectionCollectionRequest(2),
-			out ImmutableArray<ModuleInfo> modules,
-			out CheatEngineFailure failure, new TargetProcessId(42), TestContext.Current.CancellationToken);
+		bool succeeded = client.TryGetModules(new InspectionCollectionRequest(2), new TargetProcessId(42),
+			out ImmutableArray<ModuleInfo> modules, out CheatEngineFailure failure,
+			TestContext.Current.CancellationToken);
 
 		Assert.True(succeeded);
 		Assert.Equal(default, failure);
@@ -79,7 +79,6 @@ public sealed class InspectionClientBehaviorTests
 		InspectionClient client = CreateClient(lifetime, port);
 		ModuleName module = new("fixture.exe");
 		SymbolExpression symbol = new("fixture+10");
-		AddressResolutionOptions options = new(Shallow: true);
 
 		Assert.True(client.TryGetModuleSections(module, new InspectionCollectionRequest(2),
 			out ImmutableArray<ModuleSectionInfo> sections, out CheatEngineFailure sectionsFailure,
@@ -89,7 +88,7 @@ public sealed class InspectionClientBehaviorTests
 			TestContext.Current.CancellationToken));
 		Assert.True(client.TryGetSymbol(symbol, out SymbolInfo returnedSymbol, out CheatEngineFailure symbolFailure,
 			TestContext.Current.CancellationToken));
-		Assert.True(client.TryResolveAddress(symbol, options, out Address resolved,
+		Assert.True(client.TryResolveAddress(symbol, AddressResolutionMode.Shallow, out Address resolved,
 			out CheatEngineFailure addressFailure,
 			TestContext.Current.CancellationToken));
 
@@ -106,8 +105,30 @@ public sealed class InspectionClientBehaviorTests
 		Assert.Equal(2, port.LastRegionBufferLength);
 		Assert.Equal(symbol, port.LastSymbolExpression);
 		Assert.Equal(symbol, port.LastAddressExpression);
-		Assert.Equal(options, port.LastAddressOptions);
-		Assert.True(port.LastAddressOptions.Shallow);
+		Assert.Equal(AddressResolutionMode.Shallow, port.LastAddressMode);
+	}
+
+	[Fact]
+	public void AnUndefinedResolutionModeIsAProgrammingErrorThatNeverReachesCheatEngine()
+	{
+		using ControlledCoreLifetimeContext context = new();
+		using CoreLifetime lifetime = new(context);
+		FakeInspectionPort port = new()
+		{
+			ResolvedAddress = new Address(0xC0FFEE)
+		};
+		InspectionClient client = CreateClient(lifetime, port);
+		SymbolExpression symbol = new("fixture+10");
+
+		ArgumentOutOfRangeException tryForm = Assert.Throws<ArgumentOutOfRangeException>(() =>
+			client.TryResolveAddress(symbol, (AddressResolutionMode) 2, out _, out _,
+				TestContext.Current.CancellationToken));
+		ArgumentOutOfRangeException throwingForm = Assert.Throws<ArgumentOutOfRangeException>(() =>
+			client.ResolveAddress(symbol, (AddressResolutionMode) (-1), TestContext.Current.CancellationToken));
+
+		Assert.Equal("mode", tryForm.ParamName);
+		Assert.Equal("mode", throwingForm.ParamName);
+		Assert.Equal(default, port.LastAddressExpression);
 	}
 
 	[Theory]
@@ -208,7 +229,7 @@ public sealed class InspectionClientBehaviorTests
 		Assert.Contains("already resolves", failure.Message, StringComparison.Ordinal);
 		Assert.Equal(0, port.RegisterCalls);
 		Assert.Equal(new SymbolExpression("thirdPartySymbol"), port.LastAddressExpression);
-		Assert.Equal(default, port.LastAddressOptions);
+		Assert.Equal(AddressResolutionMode.Default, port.LastAddressMode);
 		Assert.Equal(new Address(0x500000), port.Symbols["thirdPartySymbol"]);
 	}
 
@@ -537,9 +558,8 @@ public sealed class InspectionClientBehaviorTests
 		using CancellationTokenSource cancellation = new();
 		cancellation.Cancel();
 
-		bool succeeded = client.TryGetModules(new InspectionCollectionRequest(1),
-			out ImmutableArray<ModuleInfo> modules,
-			out CheatEngineFailure failure, cancellationToken: cancellation.Token);
+		bool succeeded = client.TryGetModules(new InspectionCollectionRequest(1), null,
+			out ImmutableArray<ModuleInfo> modules, out CheatEngineFailure failure, cancellation.Token);
 
 		Assert.False(succeeded);
 		Assert.Empty(modules);
@@ -640,7 +660,7 @@ public sealed class InspectionClientBehaviorTests
 			private set;
 		}
 
-		internal AddressResolutionOptions LastAddressOptions
+		internal AddressResolutionMode LastAddressMode
 		{
 			get;
 			private set;
@@ -810,11 +830,11 @@ public sealed class InspectionClientBehaviorTests
 			set;
 		}
 
-		public InspectionStatus ResolveAddress(SymbolExpression expression, AddressResolutionOptions options,
+		public InspectionStatus ResolveAddress(SymbolExpression expression, AddressResolutionMode mode,
 			out Address address)
 		{
 			LastAddressExpression = expression;
-			LastAddressOptions = options;
+			LastAddressMode = mode;
 			if (ResolveStatusOverride is { } forced)
 			{
 				address = default;

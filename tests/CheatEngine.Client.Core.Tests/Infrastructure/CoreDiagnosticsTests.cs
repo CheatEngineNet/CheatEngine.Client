@@ -715,7 +715,7 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 			return InspectionStatus.NotFound;
 		}
 
-		public InspectionStatus ResolveAddress(SymbolExpression expression, AddressResolutionOptions options,
+		public InspectionStatus ResolveAddress(SymbolExpression expression, AddressResolutionMode mode,
 			out Address address)
 		{
 			return _symbols.TryGetValue(expression.Value, out address)

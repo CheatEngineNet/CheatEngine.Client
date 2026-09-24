@@ -32,8 +32,8 @@ internal sealed class InspectionClient(
 	private readonly HashSet<string> _registeredSymbolNames = new(StringComparer.OrdinalIgnoreCase);
 	private readonly Lock _registeredSymbolNamesLock = new();
 
-	public bool TryGetModules(InspectionCollectionRequest request, out ImmutableArray<ModuleInfo> modules,
-		out CheatEngineFailure failure, TargetProcessId? processId = null,
+	public bool TryGetModules(InspectionCollectionRequest request, TargetProcessId? processId,
+		out ImmutableArray<ModuleInfo> modules, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
 		ImmutableArray<ModuleInfo> result = ImmutableArray<ModuleInfo>.Empty;
@@ -61,7 +61,7 @@ internal sealed class InspectionClient(
 	public ImmutableArray<ModuleInfo> GetModules(InspectionCollectionRequest request,
 		TargetProcessId? processId = null, CancellationToken cancellationToken = default)
 	{
-		if (TryGetModules(request, out ImmutableArray<ModuleInfo> result, out CheatEngineFailure failure, processId,
+		if (TryGetModules(request, processId, out ImmutableArray<ModuleInfo> result, out CheatEngineFailure failure,
 				cancellationToken))
 		{
 			return result;
@@ -286,13 +286,19 @@ internal sealed class InspectionClient(
 		throw new InvalidOperationException("Unreachable failure flow.");
 	}
 
-	public bool TryResolveAddress(SymbolExpression expression, AddressResolutionOptions options,
+	public bool TryResolveAddress(SymbolExpression expression, AddressResolutionMode mode,
 		out Address address, out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
+		if (!Enum.IsDefined(mode))
+		{
+			throw new ArgumentOutOfRangeException(nameof(mode), mode,
+				"The address resolution mode must be a defined value.");
+		}
+
 		Address captured = Address.Zero;
 		InspectionStatus status = InspectionStatus.InvalidResult;
 		if (!SdkBoundary.TryInvoke(_dispatcher, "Inspection.ResolveAddress",
-				() => status = _inspection.ResolveAddress(expression, options, out captured),
+				() => status = _inspection.ResolveAddress(expression, mode, out captured),
 				CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
 		{
 			address = default;
@@ -303,10 +309,10 @@ internal sealed class InspectionClient(
 		return TryMap(status, "Inspection.ResolveAddress", out failure);
 	}
 
-	public Address ResolveAddress(SymbolExpression expression, AddressResolutionOptions options,
+	public Address ResolveAddress(SymbolExpression expression, AddressResolutionMode mode,
 		CancellationToken cancellationToken = default)
 	{
-		if (TryResolveAddress(expression, options, out Address result, out CheatEngineFailure failure,
+		if (TryResolveAddress(expression, mode, out Address result, out CheatEngineFailure failure,
 				cancellationToken))
 		{
 			return result;
@@ -366,8 +372,8 @@ internal sealed class InspectionClient(
 	/// </remarks>
 	private RegistrationStep RegisterOnMainThread(SymbolRegistration registration)
 	{
-		InspectionStatus preflight = _inspection.ResolveAddress(new SymbolExpression(registration.Name), default,
-			out _);
+		InspectionStatus preflight = _inspection.ResolveAddress(new SymbolExpression(registration.Name),
+			AddressResolutionMode.Default, out _);
 		if (preflight != InspectionStatus.NotFound)
 		{
 			return new RegistrationStep(preflight, default, null, null, default);

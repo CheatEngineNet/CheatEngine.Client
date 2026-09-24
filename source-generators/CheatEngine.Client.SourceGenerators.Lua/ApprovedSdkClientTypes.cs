@@ -24,7 +24,6 @@ internal static class ApprovedSdkClientTypes
 	[
 		"CheatEngine.SDK.Engine.AddressList.MemoryRecordId",
 		"CheatEngine.SDK.Engine.Enums.VariableType",
-		"CheatEngine.SDK.Engine.Inspection.AddressResolutionOptions",
 		"CheatEngine.SDK.Engine.Inspection.MemoryRegionInfo",
 		"CheatEngine.SDK.Engine.Inspection.ModuleInfo",
 		"CheatEngine.SDK.Engine.Inspection.ModuleName",

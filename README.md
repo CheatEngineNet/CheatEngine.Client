@@ -269,6 +269,10 @@ pausing, resuming or creating a process, and attaching to the foreground process
 a process. No CheatEngine.SDK primitive backs these yet; they may arrive in a 1.x minor release once the SDK provides
 an owner.
 
+CheatEngine.SDK 2.0.0 also resolves addresses in Cheat Engine's own process (`EngineInspection.ResolveHostAddress`)
+and registers symbol lists (`SymbolLists`). Neither is a 1.0 goal of the Client: `IInspectionClient` resolves in the
+target process only and registers one symbol per lease.
+
 ## Versioning and compatibility
 
 CheatEngine.Client follows [Semantic Versioning 2.0.0](https://semver.org/) from 1.0.0. Every Client package is

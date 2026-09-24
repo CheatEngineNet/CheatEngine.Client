@@ -1,6 +1,8 @@
 using CheatEngine.Client.Core.Domains;
 using CheatEngine.Client.Core.Tests.TestSupport;
+using CheatEngine.Client.Inspection;
 using CheatEngine.Client.Results;
+using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Lua.Calls;
 
 namespace CheatEngine.Client.Core.Tests.Domains;
@@ -85,6 +87,21 @@ public sealed class InspectionMappingTests
 		Assert.Equal("Inspection.ResolveName", failure.Operation);
 		Assert.Equal(message, failure.Message);
 		Assert.Equal(CheatEngineHostEffect.Unknown, failure.HostEffect);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q48")]
+	public void TheResolutionModeReachesTheSdkAsItsShallowArgument()
+	{
+		// CheatEngine.SDK 2.0 binds the single positional argument of AddressResolutionOptions to Shallow (1.x had two):
+		// a change of that constructor fails here rather than silently dropping the Shallow mode.
+		Assert.True(new AddressResolutionOptions(true).Shallow);
+		Assert.False(new AddressResolutionOptions(false).Shallow);
+		Assert.Equal(new AddressResolutionOptions(true),
+			InspectionMapping.ToSdkResolutionOptions(AddressResolutionMode.Shallow));
+		Assert.Equal(default, InspectionMapping.ToSdkResolutionOptions(AddressResolutionMode.Default));
+		Assert.All(Enum.GetValues<AddressResolutionMode>(), static mode => Assert.Equal(
+			mode == AddressResolutionMode.Shallow, InspectionMapping.ToSdkResolutionOptions(mode).Shallow));
 	}
 
 	[Fact]

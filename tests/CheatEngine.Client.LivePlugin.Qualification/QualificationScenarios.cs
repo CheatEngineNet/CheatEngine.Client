@@ -522,7 +522,7 @@ internal static class QualificationScenarios
 			}
 
 			bool resolves = active.Client.Inspection.TryResolveAddress(new SymbolExpression(name),
-				new AddressResolutionOptions(), out Address current, out CheatEngineFailure failure);
+				AddressResolutionMode.Default, out Address current, out CheatEngineFailure failure);
 			observation.Boolean("resolves", resolves);
 			if (resolves)
 			{
@@ -707,7 +707,7 @@ internal static class QualificationScenarios
 			return false;
 		}
 
-		if (!active.Client.Inspection.TryResolveAddress(new SymbolExpression(symbolName), new AddressResolutionOptions(),
+		if (!active.Client.Inspection.TryResolveAddress(new SymbolExpression(symbolName), AddressResolutionMode.Default,
 				out scratch, out CheatEngineFailure failure))
 		{
 			observation.Boolean("ok", false).Failure("resolveFailure", failure);
@@ -905,7 +905,7 @@ internal static class QualificationScenarios
 		WriteFailures(observation, written ? null : failure, null);
 
 		// The target's own image base (above 4 GiB for the x64 qualification target) is read, never written.
-		if (active.Client.Inspection.TryGetModules(new InspectionCollectionRequest(ModuleLimit),
+		if (active.Client.Inspection.TryGetModules(new InspectionCollectionRequest(ModuleLimit), null,
 				out ImmutableArray<ModuleInfo> modules, out _) &&
 			modules.FirstOrDefault(static module => module.Name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) is
 			{ Name.Length: > 0 } image)
@@ -985,7 +985,7 @@ internal static class QualificationScenarios
 		QualificationSession.ActiveClient active, AobPattern pattern, ModuleName module, int limit,
 		List<ulong> filtered)
 	{
-		if (!active.Client.Inspection.TryGetModules(new InspectionCollectionRequest(ModuleLimit),
+		if (!active.Client.Inspection.TryGetModules(new InspectionCollectionRequest(ModuleLimit), null,
 				out ImmutableArray<ModuleInfo> modules, out CheatEngineFailure failure))
 		{
 			observation.Failure("moduleFailure", failure);

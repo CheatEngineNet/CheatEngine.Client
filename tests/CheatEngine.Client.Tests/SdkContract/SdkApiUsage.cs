@@ -95,6 +95,7 @@ internal static class SdkApiUsage
 		_ = EngineInspection.GetMemoryRegionInfo(address, out _);
 		_ = EngineInspection.GetSymbolInfo(expression, out _);
 		_ = EngineInspection.ResolveAddress(expression, options, out _);
+		_ = new AddressResolutionOptions(true);
 		_ = size.Value;
 		_ = module.BaseAddress;
 		_ = module.ImageSize;

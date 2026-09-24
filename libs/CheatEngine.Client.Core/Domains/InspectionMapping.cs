@@ -1,4 +1,6 @@
+using CheatEngine.Client.Inspection;
 using CheatEngine.Client.Results;
+using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Lua.Calls;
 
 namespace CheatEngine.Client.Core.Domains;
@@ -6,7 +8,7 @@ namespace CheatEngine.Client.Core.Domains;
 /// <summary>
 ///     Maps every <see cref="LuaOperationStatusKind" /> that the CheatEngine.SDK 2.0.0 symbol registry reports
 ///     (<c>SymbolRegistry.TryGetName</c> and <c>SymbolRegistry.TryRegisterOwned</c>) to the Client vocabulary, value by
-///     value.
+///     value, and the Client address resolution mode to the SDK options.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -76,6 +78,17 @@ namespace CheatEngine.Client.Core.Domains;
 /// </remarks>
 internal static class InspectionMapping
 {
+	/// <summary>Returns the CheatEngine.SDK options of an address resolution mode.</summary>
+	/// <param name="mode">A defined resolution mode; <see cref="InspectionClient" /> refuses any other value.</param>
+	/// <returns>
+	///     The options whose <see cref="AddressResolutionOptions.Shallow" /> is <see langword="true" /> only for
+	///     <see cref="AddressResolutionMode.Shallow" />.
+	/// </returns>
+	internal static AddressResolutionOptions ToSdkResolutionOptions(AddressResolutionMode mode)
+	{
+		return new AddressResolutionOptions(mode == AddressResolutionMode.Shallow);
+	}
+
 	/// <summary>Returns the failure kind of a name lookup that returned no name.</summary>
 	/// <param name="status">The status CheatEngine.SDK reported.</param>
 	/// <returns>The failure kind; <see cref="CheatEngineFailureKind.IndeterminateHostResult" /> for an unrecognized value.</returns>

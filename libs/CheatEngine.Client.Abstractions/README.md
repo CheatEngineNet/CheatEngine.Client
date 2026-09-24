@@ -143,6 +143,10 @@ These Cheat Engine features have no public Client contract, not even a gated pla
 
 No CheatEngine.SDK primitive backs these yet; they may arrive in a 1.x minor release once the SDK provides an owner.
 
+CheatEngine.SDK 2.0.0 also resolves addresses in Cheat Engine's own process (`EngineInspection.ResolveHostAddress`)
+and registers symbol lists (`SymbolLists`). Neither is a 1.0 goal of the Client: `IInspectionClient` resolves in the
+target process only (`TryResolveAddress` with an `AddressResolutionMode`) and registers one symbol per lease.
+
 ### AOB scan semantics and limits
 
 `IPatternScanner` picks one of three routes for each request. `PatternScanMetrics.Scope` names the one that ran and
