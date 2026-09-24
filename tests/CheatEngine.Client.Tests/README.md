@@ -103,8 +103,22 @@ One session runs in this order:
    `cheatengine-x86_64.exe` (`9727076D…`, the hash the harness gate pins), its file version 7.7.0.10621, its AMD64
    machine (read with `PEReader`) and the hashes of `gtutorial-x86_64.exe` (`2DABEFFD…`) and `gtutorial-i386.exe`
    (`9131B1CA…`). It fingerprints the host executable and the `autorun` folder before the run and again after it.
-3. `SandboxLayout` creates `<run root>/<yyyyMMddTHHmmssZ>-<4 hex>/`. The Cheat Engine user state guard backs up the user
-   state, then the installation is copied to `<run>/ce` and verified again.
+3. `SandboxLayout` creates `<run root>/<yyyyMMddTHHmmssZ>-<4 hex>/`. `CheatEngineRegistryGuard` then protects the user
+   state before anything can change it:
+   - it takes a recursive snapshot of `HKCU\Software\Cheat Engine` (every value name, type and raw data, every subkey)
+     into `<run>/hkcu-backup.json`, reads it back, and copies `%APPDATA%\Cheat Engine` to `<run>/appdata-backup/` with
+     its listing in `<run>/appdata-backup.json`; a value type it cannot restore exactly stops the session;
+   - it writes the crash marker `<run root>/registry-restore-pending.json`, naming those backups, and only then
+     neutralizes the operator's plugin list for the session;
+   - after the session it deletes the key tree, recreates it from the snapshot and proves it equal, does the same for
+     the folder, and removes the marker only after both are verified;
+   - a marker found when a session begins means a previous run crashed: the guard restores and verifies that run's
+     backup first, then fails the new run with an explanation. If that restore fails, the marker stays and the message
+     names the backups to restore by hand.
+
+   The guard only accepts `HKCU\Software\Cheat Engine` with `%APPDATA%\Cheat Engine`, or a test scratch key
+   `HKCU\Software\CheatEngine.Client.Tests\<guid>` with a temporary folder. The installation is then copied to
+   `<run>/ce` and verified again.
 4. `PluginBundleBuilder` compiles the harness sources in an isolated consumer outside any repository, against the
    packed `CheatEngine.Client` of `CHEATENGINE_CLIENT_PACKAGE_SOURCE` and `CheatEngine.SDK` from nuget.org
    (`PackagedClientFeedFixture`), and deploys the complete closure to `<run>/plugins/<name>`.
@@ -136,11 +150,12 @@ One session runs in this order:
 
 The only live fact so far is `LiveSandboxSpikeTests` (`Session=S0`), the spike: it loads the harness on
 gtutorial-x86_64, calls `status`, `runtime` and `capabilities(1)`, inspects the settings form and closes Cheat Engine,
-then requires the user state restored, the source installation unchanged and no process left. Until the user state
-guard exists, the session stops before Cheat Engine starts. The facts the spike establishes are still pending and will
-be recorded here: the registry values of the plugin list, whether the settings toggle is feasible, the dialogs Cheat
-Engine shows, what disable does at `closeCE`, what `loadPlugin` enables, whether elevation is needed, and whether
-hostfxr needs `DOTNET_ROOT` once `DOTNET_*` is removed. Spike receipts are never committed.
+then requires the user state restored, the source installation unchanged and no process left. The facts the spike
+establishes are still pending and will be recorded here: the registry values of the plugin list, whether the settings
+toggle is feasible, the dialogs Cheat Engine shows, what disable does at `closeCE`, what `loadPlugin` enables, whether
+elevation is needed, and whether hostfxr needs `DOTNET_ROOT` once `DOTNET_*` is removed. Until the plugin-list values
+are known, the guard neutralizes none of them, so the operator's own Cheat Engine plugins would load in the sandbox too;
+the guard still restores whatever the session changes. Spike receipts are never committed.
 
 Run it from the repository root, in PowerShell, with Cheat Engine, every gtutorial and DebugView closed:
 
@@ -164,8 +179,15 @@ traited and never skipped), `CheatEngineInstallationTests` (fake files: hashes, 
 fingerprint, run directories), `AuthorizationManifestTests` (the harness gate and fault switch accept what the runner
 writes), `LuaDriverScriptTests` (the reviewed driver text), `TranscriptParserTests`, `ReceiptLedgerTests`,
 `QualificationSummaryWriterTests`, `DebugOutputBufferTests` (process id filter and ANSI decoding),
-`HostProcessGuardTests` (blocking process names, the sandbox environment, injected modules) and
-`LiveSandboxSessionTests` (the S0 receipts derived from a transcript and the workstation checks).
+`HostProcessGuardTests` (blocking process names, the sandbox environment, injected modules),
+`LiveSandboxSessionTests` (the S0 receipts derived from a transcript and the workstation checks), and the serial
+`RegistrySnapshotTests` and `RegistryRecoveryTests`. The last two write the registry, but only a test-owned scratch key
+`HKCU\Software\CheatEngine.Client.Tests\<guid>` and a temporary folder standing for `%APPDATA%\Cheat Engine`; they delete
+the scratch key afterwards, and its parent `HKCU\Software\CheatEngine.Client.Tests` once it is empty. They never open
+`HKCU\Software\Cheat Engine`. `RegistrySnapshotTests` round-trips every value type through the backup and restore and
+proves which keys the guard accepts; `RegistryRecoveryTests` proves the neutralized session state, the verified restore,
+the restore on dispose, the crash marker recovery that fails the next run, the marker kept while a restore does not
+verify, and the removal of a `%APPDATA%` folder the session created.
 
 ## Run
 

@@ -8,14 +8,19 @@ namespace CheatEngine.Client.Tests.LiveQualification;
 ///     The directory of one live run, below the run root and outside the repository:
 ///     <c>&lt;runRoot&gt;/&lt;yyyyMMddTHHmmssZ&gt;-&lt;4 hex&gt;/</c> holds <c>ce/</c> (the sandboxed Cheat Engine copy, with
 ///     the generated autorun driver), <c>plugins/&lt;bundle&gt;/</c>, <c>sessions/&lt;id&gt;/</c> (transcript, debug output,
-///     authorization manifest), <c>receipts.jsonl</c> and <c>summary.json</c>. Nothing in it is ever committed as is:
-///     evidence is redacted first (the run path becomes <c>&lt;run&gt;</c>).
+///     authorization manifest), <c>receipts.jsonl</c>, <c>summary.json</c> and the user state backups
+///     (<c>hkcu-backup.json</c>, <c>appdata-backup.json</c> and <c>appdata-backup/</c>). The crash marker
+///     <c>registry-restore-pending.json</c> sits in the run root, where the next run finds it. Nothing in a run directory is
+///     ever committed as is: evidence is redacted first (the run path becomes <c>&lt;run&gt;</c>).
 /// </summary>
 [SupportedOSPlatform("windows")]
 internal sealed class SandboxLayout
 {
 	/// <summary>The generated driver, loaded by the sandbox's autorun folder; the <c>zz_</c> prefix makes it run last.</summary>
 	internal const string DriverScriptName = "zz_cheatengine_client_qualification.lua";
+
+	/// <summary>The crash marker, in the run root, that names the backups of a run whose user state is not yet restored.</summary>
+	internal const string RestoreMarkerName = "registry-restore-pending.json";
 
 	private SandboxLayout(string runRoot, string runId)
 	{
@@ -56,6 +61,18 @@ internal sealed class SandboxLayout
 
 	/// <summary>The run summary.</summary>
 	internal string SummaryPath => Path.Combine(RunDirectory, "summary.json");
+
+	/// <summary>The recursive snapshot of the Cheat Engine user registry key.</summary>
+	internal string RegistryBackupPath => Path.Combine(RunDirectory, "hkcu-backup.json");
+
+	/// <summary>The listing (path, length, SHA-256) of the Cheat Engine <c>%APPDATA%</c> folder.</summary>
+	internal string AppDataManifestPath => Path.Combine(RunDirectory, "appdata-backup.json");
+
+	/// <summary>The copy of the Cheat Engine <c>%APPDATA%</c> folder.</summary>
+	internal string AppDataBackupDirectory => Path.Combine(RunDirectory, "appdata-backup");
+
+	/// <summary>The crash marker of the run root.</summary>
+	internal string RestoreMarkerPath => Path.Combine(RunRoot, RestoreMarkerName);
 
 	/// <summary>Creates a new, empty run directory below <paramref name="runRoot" />.</summary>
 	internal static SandboxLayout Create(string runRoot, DateTimeOffset now)

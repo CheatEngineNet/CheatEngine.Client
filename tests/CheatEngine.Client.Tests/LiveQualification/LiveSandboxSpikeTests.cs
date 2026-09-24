@@ -23,7 +23,7 @@ public sealed class LiveSandboxSpikeTests(LiveQualificationFixture fixture)
 	{
 		LiveQualificationInputs inputs = fixture.RequireAuthorization();
 
-		LiveSessionResult result = await LiveSandboxSession.RunSpikeAsync(inputs, fixture.Feed, UnavailableUserStateGuard.Instance,
+		LiveSessionResult result = await LiveSandboxSession.RunSpikeAsync(inputs, fixture.Feed, CheatEngineRegistryGuard.ForWorkstation(),
 			TestContext.Current.CancellationToken);
 
 		foreach (QualificationReceipt receipt in result.Receipts)

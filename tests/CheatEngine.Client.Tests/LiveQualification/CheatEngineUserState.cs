@@ -1,5 +1,3 @@
-using System.Runtime.Versioning;
-
 namespace CheatEngine.Client.Tests.LiveQualification;
 
 /// <summary>
@@ -24,26 +22,4 @@ internal interface ICheatEngineUserStateScope : IDisposable
 
 	/// <summary>Restores the backup and verifies it; throws when the restored state differs.</summary>
 	public void Restore();
-}
-
-/// <summary>
-///     The guard of a runner that cannot protect the user state yet: it refuses every session before Cheat Engine starts,
-///     so no live run can change <c>HKCU\Software\Cheat Engine</c> without a verified backup.
-/// </summary>
-[SupportedOSPlatform("windows")]
-internal sealed class UnavailableUserStateGuard : ICheatEngineUserStateGuard
-{
-	/// <summary>The shared instance.</summary>
-	internal static UnavailableUserStateGuard Instance
-	{
-		get;
-	} = new();
-
-	/// <inheritdoc />
-	public ICheatEngineUserStateScope Begin(SandboxLayout layout)
-	{
-		throw new NotSupportedException(
-			"The Cheat Engine user state guard (HKCU\\Software\\Cheat Engine and %APPDATA%\\Cheat Engine) is not " +
-			"implemented yet: no live session may start Cheat Engine without a verified backup and restore.");
-	}
 }
