@@ -154,9 +154,10 @@ pull request that finds it; there is no scheduled job that re-runs threading-sen
 
 - Follow [`.editorconfig`](.editorconfig): tab-indented C#, two-space project and configuration files. Builds treat
   formatting, compiler and analyzer diagnostics as errors; run `dotnet format` on the projects you touch. A commit that
-  only reformats code is listed in [`.git-blame-ignore-revs`](.git-blame-ignore-revs).
+  only reformats or mechanically renames code is listed in [`.git-blame-ignore-revs`](.git-blame-ignore-revs).
 - Use file-scoped namespaces, explicit types instead of `var`, braces, explicit accessibility and `_camelCase` private
-  fields. Test names are PascalCase sentences.
+  fields. Constants and `static readonly` fields are PascalCase at every accessibility, and async methods end with
+  `Async`. Test names are PascalCase sentences; async tests keep the `Async` suffix.
 - Public APIs require XML documentation. A public API change in Abstractions, Fluent, Hosting, the DI extensions or the
   facade is declared in that project's `PublicAPI.Unshipped.txt` (RS0016/RS0017 are errors); `PublicAPI.Shipped.txt`
   changes only in a release pull request.

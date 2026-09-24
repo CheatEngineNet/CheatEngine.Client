@@ -1,5 +1,9 @@
-# Commits that only reformat code. Enable locally with: git config blame.ignoreRevsFile .git-blame-ignore-revs
+# Commits that only reformat or mechanically rename code. Enable locally with: git config blame.ignoreRevsFile .git-blame-ignore-revs
 # Apply repository formatting
 e5b1e0dde918a54c0dd628737bb7ad86d36c1c7f
 # Reformat the plugin template sources with tabs
 d3d261e15bc520dd5cb24a2237bdefd417887532
+# Apply the hardened code style to every source file
+c9080ea19c5db2d4f9aa6ff3025923aed3dde5d7
+# Rename private constants, static fields and async methods
+cf07fdc6e39fce692679cb4074ba8bf36ff523a7
