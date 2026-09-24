@@ -22,11 +22,12 @@ namespace CheatEngine.Client.Tests.Architecture;
 ///     </para>
 ///     <para>
 ///         <see cref="FrozenLuaGlobals" /> and <see cref="FrozenLuaUsage" /> are the registered ADR-01 debt of the Client.
-///         Each entry states why it exists and how it ends: the CheatEngine.SDK primitive that replaces it and the plan
-///         lot that removes it, the SDK primitive that is still missing, or a permanent reason. The replacing members
-///         are resolved in the consumed SDK, so a stale name fails here. Shrinking a list is always allowed; growing it
-///         requires a registered exception with its own reason and its replacing or missing SDK primitive, here, not in
-///         an external document.
+///         <see cref="FrozenLuaGlobals" /> is empty and stays empty: the Client binds no Cheat Engine global itself. Each
+///         <see cref="FrozenLuaUsage" /> entry states why it exists and how it ends: the CheatEngine.SDK primitive that
+///         replaces it and the plan lot that removes it, the SDK primitive that is still missing, or a permanent reason.
+///         The replacing members are resolved in the consumed SDK, so a stale name fails here. Shrinking a list is always
+///         allowed; growing it requires a registered exception with its own reason and its replacing or missing SDK
+///         primitive, here, not in an external document.
 ///     </para>
 ///     <para>
 ///         <see cref="SanctionedSdkLuaSurface" /> is the exact inventory of the typed SDK Lua API the Client is expected to
@@ -40,30 +41,20 @@ public sealed partial class ArchitectureRatchetTests
 		"ADR-01 exception: register it in the ratchet (tests/CheatEngine.Client.Tests/Architecture) with its reason and " +
 		"the CheatEngine.SDK primitive that replaces it or is missing, or route the work through the SDK.";
 
-	private const string ClientLuaGlobalsType = "CheatEngine.Client.Core.Infrastructure.ClientLuaGlobals";
-
 	private const string TableClientType = "CheatEngine.Client.Core.Domains.TableClient";
 
 	private const string UnsafeLuaClientType = "CheatEngine.Client.Core.Domains.UnsafeLuaClient";
-
-	private const string CheatTableFiles = "CheatEngine.SDK.Engine.Tables.CheatTableFiles";
 
 	private const string UnsafeLuaReason =
 		"CheatEngine.SDK 2.0.0 exposes no protected chunk-execution service; caller-supplied Lua runs only behind " +
 		"EnableUnsafeLuaExecution";
 
-	private const string ClientLuaGlobalsReason =
-		"Code the SDK LuaBindings generator emits for the FrozenLuaGlobals bindings; ClientLuaGlobals.cs is deleted " +
-		"with the last of them";
-
-	/// <summary>The only Lua globals the Client may bind itself, each a registered ADR-01 exception.</summary>
-	private static readonly FrozenLuaGlobal[] FrozenLuaGlobals =
-	[
-		new("loadTable", "Trusted table import behind the Client path policy.",
-			new SdkReplacement(CheatTableFiles, "L13", ["TryLoad"])),
-		new("saveTable", "Trusted table export behind the Client path policy.",
-			new SdkReplacement(CheatTableFiles, "L13", ["TrySave"]))
-	];
+	/// <summary>
+	///     The Lua globals the Client may bind itself with <c>[LuaGlobal]</c>. Empty since the table files moved to
+	///     CheatEngine.SDK's <c>CheatTableFiles</c>: every Cheat Engine global the Client calls goes through a typed SDK
+	///     service. <see cref="FrozenLuaGlobalsStaysEmpty" /> keeps it empty; a new binding is not a registrable exception.
+	/// </summary>
+	private static readonly string[] FrozenLuaGlobals = [];
 
 	/// <summary>
 	///     Every direct use of the SDK Lua stack or of SDK ownership in Client code that is not sanctioned typed SDK API, by
@@ -76,7 +67,7 @@ public sealed partial class ArchitectureRatchetTests
 			"Record snapshots read Count, which ChildCount keeps for ADR-08 precision (A3): CheatEngine.SDK 2.0.0 only " +
 			"offers MemoryRecord.TryGetChild(int), which conflates out-of-range with failure; the Active read of the " +
 			"same member moves to MemoryRecord.TryGetActive in L13",
-			new LuaDebtKind.AwaitingSdkPrimitive("a MemoryRecord child-count getter")),
+			new LuaDebtKind.AwaitingSdkPrimitive("no MemoryRecord child-count getter in CheatEngine.SDK 2.0.0")),
 		new(UnsafeLuaClientType,
 			"CheatEngine.SDK.Lua.Calls.LuaError::FromStack(CheatEngine.SDK.Lua.State.LuaState,CheatEngine.SDK.Lua.Calls.LuaStatus)->CheatEngine.SDK.Lua.Calls.LuaError",
 			UnsafeLuaReason, new LuaDebtKind.Permanent()),
@@ -88,18 +79,7 @@ public sealed partial class ArchitectureRatchetTests
 			new LuaDebtKind.Permanent()),
 		new(UnsafeLuaClientType,
 			"CheatEngine.SDK.Lua.State.LuaState::TryExecute(System.ReadOnlySpan`1<byte>,int32,System.ReadOnlySpan`1<byte>)->CheatEngine.SDK.Lua.Calls.LuaStatus",
-			UnsafeLuaReason, new LuaDebtKind.Permanent()),
-		.. ClientLuaGlobalsDebt(
-			"CheatEngine.SDK.Lua.CompilerServices.LuaCallSupport::Throw(CheatEngine.SDK.Lua.State.LuaState,int32,CheatEngine.SDK.Lua.Calls.LuaStatus)->void",
-			"CheatEngine.SDK.Lua.CompilerServices.LuaCallSupport::ThrowUnresolvedGlobal(CheatEngine.SDK.Lua.State.LuaState,int32,string)->void",
-			"CheatEngine.SDK.Lua.CompilerServices.LuaGlobalFunctions::TryPush(CheatEngine.SDK.Lua.State.LuaState,CheatEngine.SDK.Lua.References.LuaRef,System.ReadOnlySpan`1<byte>)->boolean",
-			"CheatEngine.SDK.Lua.Marshalling.BooleanMarshaller::Push(CheatEngine.SDK.Lua.State.LuaState,boolean)->void",
-			"CheatEngine.SDK.Lua.Marshalling.StringMarshaller::Push(CheatEngine.SDK.Lua.State.LuaState,string)->void",
-			"CheatEngine.SDK.Lua.References.LuaRef::.ctor()->void",
-			"CheatEngine.SDK.Lua.Runtime.LuaRuntime::AcquireOperation()->CheatEngine.SDK.Lua.Runtime.LuaRuntimeOperation",
-			"CheatEngine.SDK.Lua.State.LuaState::SetTop(int32)->void",
-			"CheatEngine.SDK.Lua.State.LuaState::TryCall(int32,int32)->CheatEngine.SDK.Lua.Calls.LuaStatus",
-			"CheatEngine.SDK.Lua.State.LuaState::get_Top()->int32")
+			UnsafeLuaReason, new LuaDebtKind.Permanent())
 	];
 
 	/// <summary>
@@ -237,9 +217,7 @@ public sealed partial class ArchitectureRatchetTests
 	[Fact]
 	public void LuaGlobalBindingsAreFrozenToTheRegisteredAdr01Exceptions()
 	{
-		Dictionary<string, FrozenLuaGlobal> frozen = FrozenLuaGlobals.ToDictionary(static entry => entry.Name,
-			StringComparer.Ordinal);
-		List<(string Name, string DeclaringType)> actual = [];
+		List<string> violations = [];
 		foreach (ReflectionAssembly assembly in ClientAssemblyCatalog.LoadAll())
 		{
 			foreach (Type type in assembly.GetTypes())
@@ -250,62 +228,27 @@ public sealed partial class ArchitectureRatchetTests
 				{
 					foreach (CustomAttributeData attribute in method.GetCustomAttributesData())
 					{
-						if (attribute.AttributeType.FullName == "CheatEngine.SDK.Annotations.Lua.LuaGlobalAttribute")
+						if (attribute.AttributeType.FullName == "CheatEngine.SDK.Annotations.Lua.LuaGlobalAttribute" &&
+							attribute.ConstructorArguments[0].Value is string name &&
+							!FrozenLuaGlobals.Contains(name, StringComparer.Ordinal))
 						{
-							actual.Add(((string) attribute.ConstructorArguments[0].Value!, type.FullName!));
+							violations.Add($"{type.FullName}.{method.Name} declares [LuaGlobal(\"{name}\")]; the Client " +
+										   "binds no Cheat Engine global itself. Call the typed CheatEngine.SDK service.");
 						}
 					}
 				}
 			}
 		}
 
-		List<string> violations = [];
-		foreach ((string name, string declaringType) in actual)
-		{
-			if (!frozen.ContainsKey(name))
-			{
-				violations.Add($"{declaringType} declares [LuaGlobal(\"{name}\")], which is not a registered exception. " +
-							   Adr01Guidance);
-			}
-
-			if (declaringType != ClientLuaGlobalsType)
-			{
-				violations.Add($"{declaringType} declares [LuaGlobal(\"{name}\")]; only {ClientLuaGlobalsType} may. " +
-							   Adr01Guidance);
-			}
-		}
-
-		HashSet<string> actualNames = new(actual.Select(static binding => binding.Name), StringComparer.Ordinal);
-		foreach (FrozenLuaGlobal entry in FrozenLuaGlobals)
-		{
-			if (!actualNames.Contains(entry.Name))
-			{
-				violations.Add($"[LuaGlobal(\"{entry.Name}\")] was removed: shrink the frozen list (ratchet).");
-			}
-		}
-
-		Assert.Equal(actual.Count, actualNames.Count);
-		Assert.Equal(FrozenLuaGlobals.Length, FrozenLuaGlobals.DistinctBy(static entry => entry.Name).Count());
 		Assert.True(violations.Count == 0, string.Join(Environment.NewLine, violations));
 	}
 
 	[Fact]
-	public void EveryFrozenLuaGlobalNamesItsReplacingSdkMemberAndLot()
+	public void FrozenLuaGlobalsStaysEmpty()
 	{
-		List<string> violations = [];
-		foreach (FrozenLuaGlobal entry in FrozenLuaGlobals)
-		{
-			if (string.IsNullOrWhiteSpace(entry.Reason))
-			{
-				violations.Add($"{entry.Name} has no reason.");
-			}
-
-			violations.AddRange(FindUnresolvedReplacement(entry.Name, entry.Replacement));
-		}
-
-		Assert.True(violations.Count == 0, string.Join(Environment.NewLine, violations));
-		Assert.Equal("CheatTableFiles.TryLoad (L13)",
-			FrozenLuaGlobals.Single(static entry => entry.Name == "loadTable").Replacement.ToString());
+		// The ratchet only shrinks, and it reached zero: a Cheat Engine global that CheatEngine.SDK does not wrap is an
+		// SDK issue, never a Client binding.
+		Assert.Empty(FrozenLuaGlobals);
 	}
 
 	[Fact]
@@ -586,13 +529,6 @@ public sealed partial class ArchitectureRatchetTests
 		}
 	}
 
-	private static IEnumerable<FrozenLuaUse> ClientLuaGlobalsDebt(params string[] symbols)
-	{
-		SdkReplacement lastBindings = new(CheatTableFiles, "L13", ["TryLoad", "TrySave"]);
-		return symbols.Select(symbol => new FrozenLuaUse(ClientLuaGlobalsType, symbol, ClientLuaGlobalsReason,
-			new LuaDebtKind.Transitional(lastBindings)));
-	}
-
 	private static List<string> FindNativeImports(string assemblyPath)
 	{
 		List<string> violations = [];
@@ -654,9 +590,6 @@ public sealed partial class ArchitectureRatchetTests
 
 	[GeneratedRegex("^L[1-9][0-9]*$", RegexOptions.CultureInvariant, 1000)]
 	private static partial Regex LotPattern();
-
-	/// <summary>A Lua global the Client binds itself, why, and the SDK member that replaces the binding.</summary>
-	private sealed record FrozenLuaGlobal(string Name, string Reason, SdkReplacement Replacement);
 
 	/// <summary>One registered ADR-01 debt entry: a direct SDK Lua-stack or ownership use, why, and how it ends.</summary>
 	private sealed record FrozenLuaUse(string Usage, string Reason, LuaDebtKind Kind)

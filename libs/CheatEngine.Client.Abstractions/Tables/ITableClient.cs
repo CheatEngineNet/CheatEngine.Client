@@ -182,8 +182,18 @@ public interface ITableClient
 
 	/// <summary>Tries to load a trusted table through Cheat Engine's native table loader.</summary>
 	/// <remarks>
-	///     A load that reached Cheat Engine, successful or not, ends the validity of every record identifier handed out
-	///     earlier by this client (see the interface remarks). A table with scripts may prompt or execute Lua.
+	///     <para>
+	///         A load that reached Cheat Engine, successful or not, ends the validity of every record identifier handed
+	///         out earlier by this client (see the interface remarks). A table with scripts may prompt or execute Lua.
+	///     </para>
+	///     <para>
+	///         A path outside the allowed roots is refused before any Cheat Engine call
+	///         (<see cref="CheatEngineHostEffect.NotStarted" />). CheatEngine.SDK then calls <c>loadTable</c> once with the
+	///         path unchanged: a load that raised is <see cref="CheatEngineFailureKind.LuaError" /> with
+	///         <see cref="CheatEngineHostEffect.Started" />, since part of the table and of its scripts may have been
+	///         applied, and an unavailable loader is <see cref="CheatEngineFailureKind.CapabilityUnavailable" /> with
+	///         <see cref="CheatEngineHostEffect.NotStarted" />. Failure messages never contain the path.
+	///     </para>
 	/// </remarks>
 	public bool TryLoadTrustedTable(TableLoadRequest request, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
@@ -192,6 +202,11 @@ public interface ITableClient
 	public void LoadTrustedTable(TableLoadRequest request, CancellationToken cancellationToken = default);
 
 	/// <summary>Tries to save the current table to an explicitly allowed path.</summary>
+	/// <remarks>
+	///     A path outside the allowed roots is refused before any Cheat Engine call. A save that raised is
+	///     <see cref="CheatEngineFailureKind.LuaError" /> with <see cref="CheatEngineHostEffect.Started" />: the file may be
+	///     partially written. Failure messages never contain the path.
+	/// </remarks>
 	public bool TrySaveTable(TableSaveRequest request, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 

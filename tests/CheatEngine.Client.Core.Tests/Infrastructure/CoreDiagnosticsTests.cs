@@ -661,12 +661,14 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 
 	private sealed class AcceptingFilePort : ITableFilePort
 	{
-		public void LoadTable(string path, bool merge)
+		public LuaOperationStatus TryLoad(string path, bool merge)
 		{
+			return LuaOperationStatus.Success;
 		}
 
-		public void SaveTable(string path)
+		public LuaOperationStatus TrySave(string path)
 		{
+			return LuaOperationStatus.Success;
 		}
 	}
 

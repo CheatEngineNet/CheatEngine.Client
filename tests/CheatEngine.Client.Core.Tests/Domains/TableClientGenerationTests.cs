@@ -183,8 +183,7 @@ public sealed class TableClientGenerationTests : IDisposable
 	public void TrustedTableLoadThatReachedCheatEngineAdvancesTheGenerationEvenWhenItFails()
 	{
 		// The load may have cleared or replaced the table before it failed, so earlier identifiers are not trusted.
-		LuaException fault = new("the table script failed");
-		Fixture fixture = CreateFixture(fileFault: fault);
+		Fixture fixture = CreateFixture(fileStatus: LuaOperationStatus.LuaFailure(LuaStatus.RuntimeError));
 		Assert.True(fixture.Client.TryGetRecordAt(0, out _, out _, TestContext.Current.CancellationToken));
 
 		bool loaded = fixture.Client.TryLoadTrustedTable(new TableLoadRequest(fixture.TableFile, Merge: true),
@@ -192,12 +191,70 @@ public sealed class TableClientGenerationTests : IDisposable
 
 		Assert.False(loaded);
 		Assert.Equal(CheatEngineFailureKind.LuaError, failure.Kind);
-		Assert.Same(fault, failure.Exception);
+		Assert.Equal(CheatEngineHostEffect.Started, failure.HostEffect);
+		Assert.DoesNotContain(fixture.TableFile.FullPath, failure.Message, StringComparison.OrdinalIgnoreCase);
 		Assert.Equal(1, fixture.Client.TableGeneration);
 		Assert.Equal([(fixture.TableFile.FullPath, true)], fixture.Files.Loads);
 		Assert.False(fixture.Client.TryDelete(HandedOut, out CheatEngineFailure staleFailure,
 			TestContext.Current.CancellationToken));
 		Assert.Equal(CheatEngineFailureKind.InvalidState, staleFailure.Kind);
+	}
+
+	[Fact]
+	public void AFaultedTrustedTableLoadIsTranslatedAndStillAdvancesTheGeneration()
+	{
+		// No SDK exception crosses TryLoadTrustedTable; the load may have run before CheatEngine.SDK raised.
+		InvalidOperationException fault = new("detached runtime");
+		Fixture fixture = CreateFixture(fileFault: fault);
+
+		bool loaded = fixture.Client.TryLoadTrustedTable(new TableLoadRequest(fixture.TableFile),
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.False(loaded);
+		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.Unknown, failure.HostEffect);
+		Assert.Same(fault, failure.Exception);
+		Assert.Equal(1, fixture.Client.TableGeneration);
+	}
+
+	[Fact]
+	public void RefusedTableSavePathNeverReachesCheatEngine()
+	{
+		// The trust policy refuses the path before dispatch: CheatTableFiles.TrySave is never called.
+		Fixture fixture = CreateFixture();
+		int dispatchedBefore = fixture.Dispatcher.InvocationCount;
+		string outside = Path.Combine(Path.GetTempPath(), "outside-" + Guid.NewGuid().ToString("N"), "table.ct");
+
+		bool saved = fixture.Client.TrySaveTable(new TableSaveRequest(new TrustedTableFile(outside)),
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.False(saved);
+		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
+		Assert.Equal(0, fixture.Files.Saves);
+		Assert.Equal(dispatchedBefore, fixture.Dispatcher.InvocationCount);
+	}
+
+	[Theory]
+	[InlineData(LuaOperationStatusKind.GlobalUnavailable, CheatEngineFailureKind.CapabilityUnavailable,
+		CheatEngineHostEffect.NotStarted)]
+	[InlineData(LuaOperationStatusKind.LuaFailure, CheatEngineFailureKind.LuaError, CheatEngineHostEffect.Started)]
+	public void TrustedTableSaveReportsTheStatusOfCheatTableFiles(LuaOperationStatusKind kind,
+		CheatEngineFailureKind expectedKind, CheatEngineHostEffect expectedEffect)
+	{
+		LuaOperationStatus status = kind == LuaOperationStatusKind.GlobalUnavailable
+			? LuaOperationStatus.GlobalUnavailable
+			: LuaOperationStatus.LuaFailure(LuaStatus.FileError);
+		Fixture fixture = CreateFixture(fileStatus: status);
+
+		bool saved = fixture.Client.TrySaveTable(new TableSaveRequest(fixture.TableFile),
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.False(saved);
+		Assert.Equal(expectedKind, failure.Kind);
+		Assert.Equal(expectedEffect, failure.HostEffect);
+		Assert.Equal("Tables.SaveTable", failure.Operation);
+		Assert.Equal(1, fixture.Files.Saves);
 	}
 
 	[Fact]
@@ -237,13 +294,13 @@ public sealed class TableClientGenerationTests : IDisposable
 		Assert.Equal(default, failure);
 	}
 
-	private Fixture CreateFixture(Exception? fileFault = null)
+	private Fixture CreateFixture(Exception? fileFault = null, LuaOperationStatus? fileStatus = null)
 	{
 		string tablePath = Path.Combine(_root, "trusted.ct");
 		File.WriteAllText(tablePath, "<CheatTable/>");
 		CountingDispatcher dispatcher = new();
 		CountingMutationPort mutations = new();
-		RecordingFilePort files = new(fileFault);
+		RecordingFilePort files = new(fileFault, fileStatus);
 		SingleRecordLookupPort lookups = new();
 		TableClient client = new(dispatcher, new CoreClientPolicy([_root], false), mutations, null, lookups, files);
 		return new Fixture(client, dispatcher, mutations, lookups, files, new TrustedTableFile(tablePath));
@@ -381,7 +438,7 @@ public sealed class TableClientGenerationTests : IDisposable
 		}
 	}
 
-	private sealed class RecordingFilePort(Exception? fault) : ITableFilePort
+	private sealed class RecordingFilePort(Exception? fault, LuaOperationStatus? status) : ITableFilePort
 	{
 		internal List<(string Path, bool Merge)> Loads
 		{
@@ -394,18 +451,21 @@ public sealed class TableClientGenerationTests : IDisposable
 			private set;
 		}
 
-		public void LoadTable(string path, bool merge)
+		public LuaOperationStatus TryLoad(string path, bool merge)
 		{
 			Loads.Add((path, merge));
 			if (fault is not null)
 			{
 				throw fault;
 			}
+
+			return status ?? LuaOperationStatus.Success;
 		}
 
-		public void SaveTable(string path)
+		public LuaOperationStatus TrySave(string path)
 		{
 			Saves++;
+			return status ?? LuaOperationStatus.Success;
 		}
 	}
 

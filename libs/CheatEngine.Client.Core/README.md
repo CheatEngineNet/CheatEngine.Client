@@ -187,7 +187,10 @@ Every trusted table load that reaches Cheat Engine advances the table generation
 inside the dispatched load, on Cheat Engine's main thread; a record identifier handed out before it
 is refused with `InvalidState` (checked before dispatch and again inside the dispatched call) until
 a new snapshot observes it. Each snapshot is judged by the generation read when it was copied, so a
-snapshot copied before a concurrent load never hands out current identifiers. Delete, parent assignment and
+snapshot copied before a concurrent load never hands out current identifiers. Table files load and save through
+CheatEngine.SDK's `CheatTableFiles`, only after the `AllowedTableRoots` policy admitted the path; its
+`LuaOperationStatus` is classified value by value by `TableMapping`, and the Client binds no Cheat Engine global
+itself. Delete, parent assignment and
 activation are CheatEngine.SDK `AddressListMutations` commands (`Delete`, `SetParent` with the Client's explicit
 traversal limit of 4096 records, `SetActive`), classified value by value by `TableMapping`; the record is copied again
 after a completed command and a failed copy is never merged with the command's result. `SetActive` reads the record's
@@ -307,8 +310,8 @@ onto this base with their domains.
 
 ## SDK boundary and the Try contract
 
-Every Client-internal CheatEngine.SDK call (ports, generated `ClientLuaGlobals` bindings, `TargetMemory`,
-`EngineInspection`, `AobScanner`, Address List access, protected Lua execution) runs behind `SdkBoundary`: an SDK
+Every Client-internal CheatEngine.SDK call (ports, `TargetMemory`, `EngineInspection`, `AobScanner`, Address List
+access and mutations, `CheatTableFiles`, protected Lua execution) runs behind `SdkBoundary`: an SDK
 exception becomes a classified `CheatEngineFailure` (by exception type and the SDK's own failure category, never by
 message text, with the known `CheatEngineHostEffect`), so no SDK exception type crosses a `Try*` method of the
 Patterns, Memory, Inspection, Tables, or Unsafe Lua domains. Client lifecycle exceptions are never translated, and an SDK

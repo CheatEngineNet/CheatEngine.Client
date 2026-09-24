@@ -7,6 +7,7 @@ using CheatEngine.Client.Tables;
 using CheatEngine.SDK.Engine.AddressList;
 using CheatEngine.SDK.Engine.Enums;
 using CheatEngine.SDK.Engine.Values;
+using CheatEngine.SDK.Lua.Calls;
 using CheatEngine.SDK.Lua.Marshalling;
 
 namespace CheatEngine.Client.Core.Domains;
@@ -554,30 +555,34 @@ internal sealed class TableClient(
 			return false;
 		}
 
-		// loadTable can execute table Lua: a fault leaves the Address List state unknown. A load that reached Cheat
-		// Engine advances the table generation whatever its result, merge or replace: Cheat Engine does not promise that
-		// an earlier record identifier survives it (A14-05, open issue O4). The generation advances inside the dispatched
-		// callback, on Cheat Engine's main thread, so it is ordered with every dispatched snapshot copy and identifier
-		// check. The diagnostics event is emitted after dispatch, never inside the callback. The refused path above never
-		// reaches here and is never retried through another overload or a stream.
+		// CheatTableFiles.TryLoad calls loadTable, which can execute table Lua: a failure or a fault leaves the Address
+		// List state unknown. A dispatched load advances the table generation whatever its result, merge or replace:
+		// Cheat Engine does not promise that an earlier record identifier survives it (A14-05, open issue O4). The
+		// generation advances inside the dispatched callback, on Cheat Engine's main thread, so it is ordered with every
+		// dispatched snapshot copy and identifier check. The diagnostics event is emitted after dispatch, never inside the
+		// callback. The refused path above never reaches here and is never retried through another overload or a stream.
 		bool reachedCheatEngine = false;
 		long advancedGeneration = 0;
+		LuaOperationStatus status = default;
 		try
 		{
-			return SdkBoundary.TryInvoke(_dispatcher, "Tables.LoadTrustedTable",
-				() =>
-				{
-					reachedCheatEngine = true;
-					try
+			if (!SdkBoundary.TryInvoke(_dispatcher, "Tables.LoadTrustedTable",
+					() =>
 					{
-						_tableFiles.LoadTable(request.File.FullPath, request.Merge);
-					}
-					finally
-					{
-						advancedGeneration = _generation.Advance();
-					}
-				},
-				CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken);
+						reachedCheatEngine = true;
+						try
+						{
+							status = _tableFiles.TryLoad(request.File.FullPath, request.Merge);
+						}
+						finally
+						{
+							advancedGeneration = _generation.Advance();
+						}
+					},
+					CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
+			{
+				return false;
+			}
 		}
 		finally
 		{
@@ -586,6 +591,8 @@ internal sealed class TableClient(
 				_lifetime?.Diagnostics.TableGenerationAdvanced(_lifetime.Epoch, advancedGeneration);
 			}
 		}
+
+		return TableMapping.TryClassifyTableFile("Tables.LoadTrustedTable", true, status.Kind, out failure);
 	}
 
 	public void LoadTrustedTable(TableLoadRequest request, CancellationToken cancellationToken = default)
@@ -605,9 +612,11 @@ internal sealed class TableClient(
 			return false;
 		}
 
+		LuaOperationStatus status = default;
 		return SdkBoundary.TryInvoke(_dispatcher, "Tables.SaveTable",
-			() => _tableFiles.SaveTable(request.File.FullPath), CheatEngineHostEffect.Unknown, _lifetime,
-			out failure, cancellationToken);
+				   () => status = _tableFiles.TrySave(request.File.FullPath), CheatEngineHostEffect.Unknown, _lifetime,
+				   out failure, cancellationToken) &&
+			   TableMapping.TryClassifyTableFile("Tables.SaveTable", false, status.Kind, out failure);
 	}
 
 	public void SaveTable(TableSaveRequest request, CancellationToken cancellationToken = default)

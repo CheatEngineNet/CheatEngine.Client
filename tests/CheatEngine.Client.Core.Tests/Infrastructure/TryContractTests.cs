@@ -330,7 +330,7 @@ public sealed class TryContractTests
 			CancellationToken token = TestContext.Current.CancellationToken;
 
 			// No Lua runtime is attached in unit tests: every SDK static below throws InvalidOperationException, and the
-			// SDK's own admission reports Detached.
+			// SDK's own admission reports Detached. CheatTableFiles.TryLoad behind the trusted table load.
 			Assert.False(tables.TryLoadTrustedTable(new TableLoadRequest(new TrustedTableFile(tablePath)),
 				out CheatEngineFailure loadFailure, token));
 			// AddressListMutations.Delete, which acquires its Lua operation itself, behind the record delete.

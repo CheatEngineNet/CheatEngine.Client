@@ -1,12 +1,13 @@
 using CheatEngine.Client.Results;
 using CheatEngine.SDK.Engine.AddressList;
+using CheatEngine.SDK.Lua.Calls;
 
 namespace CheatEngine.Client.Core.Domains;
 
 /// <summary>
 ///     Maps every outcome that CheatEngine.SDK 2.0.0 reports for Address List record mutations
-///     (<c>AddressListMutations.Delete</c>, <c>SetParent</c> and <c>SetActive</c>) to the Client vocabulary, value by
-///     value.
+///     (<c>AddressListMutations.Delete</c>, <c>SetParent</c> and <c>SetActive</c>) and for table files
+///     (<c>CheatTableFiles.TryLoad</c> and <c>TrySave</c>) to the Client vocabulary, value by value.
 /// </summary>
 /// <remarks>
 ///     <para>A record mutation maps its <see cref="MemoryRecordMutationProblem" /> to a failure kind:</para>
@@ -81,6 +82,41 @@ namespace CheatEngine.Client.Core.Domains;
 ///         </item>
 ///         <item>
 ///             <term><c>Unknown</c> or an undefined kind</term>
+///             <description><c>IndeterminateHostResult</c>, <c>Unknown</c></description>
+///         </item>
+///     </list>
+///     <para>A table file load or save maps its <see cref="LuaOperationStatusKind" />:</para>
+///     <list type="table">
+///         <listheader>
+///             <term>SDK status</term>
+///             <description>Result</description>
+///         </listheader>
+///         <item><term><c>Success</c></term><description>Success</description></item>
+///         <item>
+///             <term><c>GlobalUnavailable</c></term>
+///             <description><c>CapabilityUnavailable</c>, <c>NotStarted</c>: the global was not called</description>
+///         </item>
+///         <item>
+///             <term><c>StackUnavailable</c></term>
+///             <description><c>LuaError</c>, <c>NotStarted</c>: the call could not begin</description>
+///         </item>
+///         <item>
+///             <term><c>LuaFailure</c></term>
+///             <description>
+///                 <c>LuaError</c>, <c>Started</c>: a load may have applied part of the table and of its scripts, a save
+///                 may have written part of the file
+///             </description>
+///         </item>
+///         <item>
+///             <term>
+///                 <c>NilResult</c>, <c>InvalidResult</c>, <c>MissingResult</c>, <c>ResultCapacityExceeded</c>
+///             </term>
+///             <description>
+///                 <c>InvalidHostResult</c>, <c>Started</c>: <c>loadTable</c> and <c>saveTable</c> declare no result
+///             </description>
+///         </item>
+///         <item>
+///             <term><c>Unknown</c> or an undefined status</term>
 ///             <description><c>IndeterminateHostResult</c>, <c>Unknown</c></description>
 ///         </item>
 ///     </list>
@@ -240,6 +276,74 @@ internal static class TableMapping
 			MemoryRecordActivationOutcomeKind.NotAttempted =>
 				Describe(TableRecordMutationOutcome.NotAttempted(observation.Problem)),
 			_ => "CheatEngine.SDK reported no recognized activation outcome."
+		};
+		failure = new CheatEngineFailure(classified.Kind, operation, message, null, classified.HostEffect);
+		return false;
+	}
+
+	/// <summary>
+	///     Returns the failure kind and host effect of a table file load or save, or <see langword="null" /> for a success.
+	/// </summary>
+	/// <param name="status">The binding outcome that <c>CheatTableFiles.TryLoad</c> or <c>TrySave</c> reported.</param>
+	/// <returns>
+	///     <see langword="null" /> for <see cref="LuaOperationStatusKind.Success" />; otherwise the failure kind and host
+	///     effect, and <see cref="CheatEngineFailureKind.IndeterminateHostResult" /> with
+	///     <see cref="CheatEngineHostEffect.Unknown" /> for an unrecognized status.
+	/// </returns>
+	internal static (CheatEngineFailureKind Kind, CheatEngineHostEffect HostEffect)? ToTableFileFailure(
+		LuaOperationStatusKind status)
+	{
+		return status switch
+		{
+			LuaOperationStatusKind.Success => null,
+			LuaOperationStatusKind.GlobalUnavailable =>
+				(CheatEngineFailureKind.CapabilityUnavailable, CheatEngineHostEffect.NotStarted),
+			LuaOperationStatusKind.StackUnavailable => (CheatEngineFailureKind.LuaError, CheatEngineHostEffect.NotStarted),
+			LuaOperationStatusKind.LuaFailure => (CheatEngineFailureKind.LuaError, CheatEngineHostEffect.Started),
+			LuaOperationStatusKind.NilResult =>
+				(CheatEngineFailureKind.InvalidHostResult, CheatEngineHostEffect.Started),
+			LuaOperationStatusKind.InvalidResult =>
+				(CheatEngineFailureKind.InvalidHostResult, CheatEngineHostEffect.Started),
+			LuaOperationStatusKind.MissingResult =>
+				(CheatEngineFailureKind.InvalidHostResult, CheatEngineHostEffect.Started),
+			LuaOperationStatusKind.ResultCapacityExceeded =>
+				(CheatEngineFailureKind.InvalidHostResult, CheatEngineHostEffect.Started),
+			LuaOperationStatusKind.Unknown =>
+				(CheatEngineFailureKind.IndeterminateHostResult, CheatEngineHostEffect.Unknown),
+			_ => (CheatEngineFailureKind.IndeterminateHostResult, CheatEngineHostEffect.Unknown)
+		};
+	}
+
+	/// <summary>Classifies the outcome of one table file load or save.</summary>
+	/// <param name="operation">The public operation name.</param>
+	/// <param name="load"><see langword="true" /> for a load, <see langword="false" /> for a save.</param>
+	/// <param name="status">The binding outcome CheatEngine.SDK reported.</param>
+	/// <param name="failure">The failure when the outcome is not a success; its message never names the path.</param>
+	/// <returns><see langword="true" /> only for <see cref="LuaOperationStatusKind.Success" />.</returns>
+	internal static bool TryClassifyTableFile(string operation, bool load, LuaOperationStatusKind status,
+		out CheatEngineFailure failure)
+	{
+		if (ToTableFileFailure(status) is not { } classified)
+		{
+			failure = default;
+			return true;
+		}
+
+		string action = load ? "load" : "save";
+		string message = status switch
+		{
+			LuaOperationStatusKind.GlobalUnavailable =>
+				$"Cheat Engine's table {action} function is unavailable; it was not called.",
+			LuaOperationStatusKind.StackUnavailable =>
+				$"The Lua stack could not grow enough to call Cheat Engine's table {action} function; it was not called.",
+			LuaOperationStatusKind.LuaFailure when load =>
+				"Cheat Engine's table load raised an error; part of the table and of its scripts may have been applied.",
+			LuaOperationStatusKind.LuaFailure =>
+				"Cheat Engine's table save raised an error; the file may be partially written.",
+			LuaOperationStatusKind.NilResult or LuaOperationStatusKind.InvalidResult
+				or LuaOperationStatusKind.MissingResult or LuaOperationStatusKind.ResultCapacityExceeded =>
+				$"Cheat Engine's table {action} returned a result outside its contract; its effect is unknown.",
+			_ => "CheatEngine.SDK reported no recognized table file outcome."
 		};
 		failure = new CheatEngineFailure(classified.Kind, operation, message, null, classified.HostEffect);
 		return false;

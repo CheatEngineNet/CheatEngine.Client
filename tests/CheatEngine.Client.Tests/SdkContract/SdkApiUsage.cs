@@ -1,4 +1,3 @@
-using CheatEngine.SDK.Annotations.Lua;
 using CheatEngine.SDK.Engine.AddressList;
 using CheatEngine.SDK.Engine.Enums;
 using CheatEngine.SDK.Engine.Errors;
@@ -9,6 +8,7 @@ using CheatEngine.SDK.Engine.Processes;
 using CheatEngine.SDK.Engine.Runtime;
 using CheatEngine.SDK.Engine.Scanning.Aob;
 using CheatEngine.SDK.Engine.Scanning.Values;
+using CheatEngine.SDK.Engine.Tables;
 using CheatEngine.SDK.Engine.Targets;
 using CheatEngine.SDK.Engine.Values;
 using CheatEngine.SDK.Hosting.Bootstrap;
@@ -17,7 +17,6 @@ using CheatEngine.SDK.Hosting.Plugin;
 using CheatEngine.SDK.Hosting.Threading;
 using CheatEngine.SDK.Lua.Calls;
 using CheatEngine.SDK.Lua.Marshalling;
-using CheatEngine.SDK.Lua.References;
 using CheatEngine.SDK.Lua.Runtime;
 using CheatEngine.SDK.Lua.State;
 
@@ -35,9 +34,10 @@ namespace CheatEngine.Client.Tests.SdkContract;
 ///         the committed inventory in <see cref="ConsumedSdkSurface" />.
 ///     </para>
 ///     <para>
-///         Excluded: <c>CheatEngine.SDK.Lua.CompilerServices.*</c> helpers. They are called only by code that the SDK
-///         LuaBindings generator emits into Client.Core (<c>ClientLuaGlobals</c>), so a change to them is caught by
-///         compiling Client.Core against the candidate package; they remain in the inventory.
+///         Excluded: <c>CheatEngine.SDK.Lua.CompilerServices.*</c> helpers. Only code that the SDK LuaBindings generator
+///         emits calls them, so a change to them is caught by compiling that code against the candidate package; they
+///         would remain in the inventory. The Client declares no <c>[LuaGlobal]</c> binding any more, so none is consumed
+///         today.
 ///     </para>
 /// </remarks>
 internal static class SdkApiUsage
@@ -78,6 +78,12 @@ internal static class SdkApiUsage
 		MemoryRecordActivationOutcome activation = AddressListMutations.SetActive(id, true);
 		_ = activation.Kind;
 		_ = activation.Problem;
+	}
+
+	internal static void TableFileSurface()
+	{
+		_ = CheatTableFiles.TryLoad("table.ct", false);
+		_ = CheatTableFiles.TrySave("table.ct");
 	}
 
 	internal static void ObjectSurface(CEObject handle, Owned<StringList> owner, StringList list)
@@ -302,20 +308,14 @@ internal static class SdkApiUsage
 		_ = error.Message;
 		_ = status.IsOk;
 		AddressMarshaller.Push(state, 0);
-		BooleanMarshaller.Push(state, true);
-		StringMarshaller.Push(state, "value");
 		_ = StringMarshaller.TryRead(state, -1, out _);
-		using LuaRef reference = new();
-		using LuaRuntimeOperation operation = LuaRuntime.AcquireOperation();
-		_ = LuaRuntime.TryAcquireOperationWithOutcome(out _);
+		_ = LuaRuntime.TryAcquireOperationWithOutcome(out LuaRuntimeOperation operation);
 		_ = LuaRuntime.ExternalStateResetDetected;
 		_ = operation.State;
+		operation.Dispose();
 		using LuaFrame frame = new(state);
-		state.SetTop(state.Top);
-		_ = state.TryCall(0, 0);
 		_ = state.TryExecute(ReadOnlySpan<byte>.Empty, 0, ReadOnlySpan<byte>.Empty);
 		_ = new EngineMarshallingException("operation", EngineMarshallingDirection.Result, "expected", "actual");
-		_ = new LuaGlobalAttribute("global");
 	}
 
 	internal static void FailureSurface(EngineException engineFailure, MemoryScanException scanFailure)

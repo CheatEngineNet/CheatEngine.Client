@@ -17,8 +17,6 @@ public sealed class CapabilityRatchetTests
 {
 	private const string CoreAssembly = "CheatEngine.Client.Core";
 
-	private const string ClientLuaGlobalsType = "CheatEngine.Client.Core.Infrastructure.ClientLuaGlobals";
-
 	private const string ObservationPortType = "CheatEngine.Client.Core.Domains.SdkRuntimeObservationPort";
 
 	private const string SelectionPortType = "CheatEngine.Client.Core.Domains.SdkProcessSelectionPort";
@@ -29,7 +27,12 @@ public sealed class CapabilityRatchetTests
 
 	private const string SelectAndObserve = "RuntimeProcessOperations::SelectAndObserve";
 
-	private const string CheatTableFilesType = "CheatEngine.SDK.Engine.Tables.CheatTableFiles";
+	/// <summary>The CheatEngine.SDK types whose operations load or save a table or mutate its records, a host effect.</summary>
+	private static readonly string[] TableEffectTypes =
+	[
+		"CheatEngine.SDK.Engine.AddressList.AddressListMutations",
+		"CheatEngine.SDK.Engine.Tables.CheatTableFiles"
+	];
 
 	/// <summary>The CheatEngine.SDK types whose operations observe or select Cheat Engine's host and target.</summary>
 	private static readonly string[] RuntimeOperationTypes =
@@ -58,9 +61,6 @@ public sealed class CapabilityRatchetTests
 		"TargetSelection::ObserveCurrent",
 		"TargetSelection::ValidateCurrent"
 	];
-
-	/// <summary>Bindings with a host effect: table import and export.</summary>
-	private static readonly string[] MutatingGlobals = ["LoadTable", "SaveTable"];
 
 	/// <summary>The CheatEngine.SDK types that register and unregister symbols, a host effect.</summary>
 	private static readonly string[] SymbolRegistrationTypes =
@@ -114,7 +114,7 @@ public sealed class CapabilityRatchetTests
 		string[] tableCalls =
 		[
 			.. sdkCalls.Where(static call => ObservationOnlyTypes.Contains(call.OuterType, StringComparer.Ordinal) &&
-											 call.DeclaringType == CheatTableFilesType)
+											 TableEffectTypes.Contains(call.DeclaringType, StringComparer.Ordinal))
 				.Select(static call => call.ToString())
 		];
 		string[] symbolCalls =
@@ -122,13 +122,6 @@ public sealed class CapabilityRatchetTests
 			.. sdkCalls.Where(static call => ObservationOnlyTypes.Contains(call.OuterType, StringComparer.Ordinal) &&
 											 SymbolRegistrationTypes.Contains(call.DeclaringType, StringComparer.Ordinal))
 				.Select(static call => call.ToString())
-		];
-		List<(string Type, string Method, string Global)> bindingCalls = ReadClientLuaGlobalsCalls();
-		string[] effectsFromObservers =
-		[
-			.. bindingCalls.Where(static call => ObservationOnlyTypes.Contains(call.Type, StringComparer.Ordinal) &&
-												 MutatingGlobals.Contains(call.Global, StringComparer.Ordinal))
-				.Select(static call => $"{call.Type}.{call.Method} -> {call.Global}")
 		];
 
 		// The allowlist is exact and non-empty: every read-only operation is used, and nothing else is.
@@ -143,14 +136,11 @@ public sealed class CapabilityRatchetTests
 		Assert.DoesNotContain(runtimeCalls, static call => call.Contains("::SelectAndObserve(", StringComparison.Ordinal) &&
 														   !call.StartsWith(SelectionPortType + ".", StringComparison.Ordinal));
 		Assert.True(tableCalls.Length == 0,
-			"An observation-only type references CheatTableFiles (Q45):" + Environment.NewLine +
+			"An observation-only type references CheatTableFiles or AddressListMutations (Q45):" + Environment.NewLine +
 			string.Join(Environment.NewLine, tableCalls));
 		Assert.True(symbolCalls.Length == 0,
 			"An observation-only type references the CheatEngine.SDK symbol registry (Q45):" + Environment.NewLine +
 			string.Join(Environment.NewLine, symbolCalls));
-		Assert.True(effectsFromObservers.Length == 0,
-			"An observation-only type references a binding with a host effect (Q45):" + Environment.NewLine +
-			string.Join(Environment.NewLine, effectsFromObservers));
 	}
 
 	[Fact]
@@ -232,31 +222,6 @@ public sealed class CapabilityRatchetTests
 				{
 					string name = reader.GetString(reader.GetMemberReference(handle).Name);
 					calls.Add(new SdkCall(reference.OuterType, reference.Method, declaringType.FullName, name, member));
-				}
-			}
-		});
-
-		return calls;
-	}
-
-	/// <summary>Returns every call from a Core method body to a generated <c>ClientLuaGlobals</c> binding.</summary>
-	private static List<(string Type, string Method, string Global)> ReadClientLuaGlobalsCalls()
-	{
-		List<(string Type, string Method, string Global)> calls = [];
-		ClientAssemblyCatalog.ReadMetadata(CoreAssembly, (reader, peReader) =>
-		{
-			foreach (MetadataSurface.IlReference reference in MetadataSurface.ReadIlReferences(reader, peReader))
-			{
-				if (reference.Token.Kind != HandleKind.MethodDefinition)
-				{
-					continue;
-				}
-
-				MethodDefinition target = reader.GetMethodDefinition((MethodDefinitionHandle) reference.Token);
-				string declaringType = MetadataSurface.ResolveTypeDefinition(reader, target.GetDeclaringType()).FullName;
-				if (declaringType == ClientLuaGlobalsType && reference.OuterType != ClientLuaGlobalsType)
-				{
-					calls.Add((reference.OuterType, reference.Method, reader.GetString(target.Name)));
 				}
 			}
 		});

@@ -2,12 +2,13 @@ using CheatEngine.Client.Core.Domains;
 using CheatEngine.Client.Core.Tests.TestSupport;
 using CheatEngine.Client.Results;
 using CheatEngine.SDK.Engine.AddressList;
+using CheatEngine.SDK.Lua.Calls;
 
 namespace CheatEngine.Client.Core.Tests.Domains;
 
 /// <summary>
-///     Every outcome of CheatEngine.SDK 2.0.0's Address List mutations has a deliberate Client counterpart, and a value
-///     the SDK could add later fails closed (Q48).
+///     Every outcome of CheatEngine.SDK 2.0.0's Address List mutations and table files has a deliberate Client
+///     counterpart, and a value the SDK could add later fails closed (Q48).
 /// </summary>
 public sealed class TableMappingTests
 {
@@ -54,6 +55,26 @@ public sealed class TableMappingTests
 				(CheatEngineFailureKind.NotFound, CheatEngineHostEffect.NotStarted)
 		};
 
+	private static readonly
+		Dictionary<LuaOperationStatusKind, (CheatEngineFailureKind Kind, CheatEngineHostEffect Effect)?>
+		TableFileResults = new()
+		{
+			[LuaOperationStatusKind.Unknown] =
+				(CheatEngineFailureKind.IndeterminateHostResult, CheatEngineHostEffect.Unknown),
+			[LuaOperationStatusKind.Success] = null,
+			[LuaOperationStatusKind.GlobalUnavailable] =
+				(CheatEngineFailureKind.CapabilityUnavailable, CheatEngineHostEffect.NotStarted),
+			[LuaOperationStatusKind.LuaFailure] = (CheatEngineFailureKind.LuaError, CheatEngineHostEffect.Started),
+			[LuaOperationStatusKind.NilResult] = (CheatEngineFailureKind.InvalidHostResult, CheatEngineHostEffect.Started),
+			[LuaOperationStatusKind.InvalidResult] =
+				(CheatEngineFailureKind.InvalidHostResult, CheatEngineHostEffect.Started),
+			[LuaOperationStatusKind.StackUnavailable] = (CheatEngineFailureKind.LuaError, CheatEngineHostEffect.NotStarted),
+			[LuaOperationStatusKind.MissingResult] =
+				(CheatEngineFailureKind.InvalidHostResult, CheatEngineHostEffect.Started),
+			[LuaOperationStatusKind.ResultCapacityExceeded] =
+				(CheatEngineFailureKind.InvalidHostResult, CheatEngineHostEffect.Started)
+		};
+
 	[Fact]
 	[Trait("Qualification", "Q48")]
 	public void EveryMutationProblemIsMappedAndAnUnknownProblemFailsClosed()
@@ -85,6 +106,39 @@ public sealed class TableMappingTests
 							expected,
 			static kind => TableMapping.ToActivationFailure(kind, MemoryRecordMutationProblem.None) ==
 						   (CheatEngineFailureKind.IndeterminateHostResult, CheatEngineHostEffect.Unknown));
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q48")]
+	public void EveryTableFileStatusIsMappedAndAnUnknownStatusFailsClosed()
+	{
+		MappingTotality.AssertTotal<LuaOperationStatusKind>(
+			static status => TableFileResults.TryGetValue(status,
+								  out (CheatEngineFailureKind Kind, CheatEngineHostEffect Effect)? expected) &&
+							  TableMapping.ToTableFileFailure(status) == expected,
+			static status => TableMapping.ToTableFileFailure(status) ==
+							  (CheatEngineFailureKind.IndeterminateHostResult, CheatEngineHostEffect.Unknown));
+	}
+
+	[Theory]
+	[Trait("Qualification", "Q34")]
+	[InlineData(true)]
+	[InlineData(false)]
+	public void TableFileFailuresNameTheActionAndNeverThePath(bool load)
+	{
+		foreach (LuaOperationStatusKind status in Enum.GetValues<LuaOperationStatusKind>())
+		{
+			bool succeeded = TableMapping.TryClassifyTableFile("Tables.LoadTrustedTable", load, status,
+				out CheatEngineFailure failure);
+
+			Assert.Equal(status == LuaOperationStatusKind.Success, succeeded);
+			if (!succeeded)
+			{
+				Assert.Equal("Tables.LoadTrustedTable", failure.Operation);
+				Assert.DoesNotContain(".ct", failure.Message, StringComparison.OrdinalIgnoreCase);
+				Assert.DoesNotContain(load ? "save" : "load", failure.Message, StringComparison.Ordinal);
+			}
+		}
 	}
 
 	[Fact]
