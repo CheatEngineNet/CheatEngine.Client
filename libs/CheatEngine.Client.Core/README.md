@@ -310,11 +310,13 @@ failure (Q43), with the host effect `CleanupUnconfirmed`. A target change dispos
 target-bound lease without throwing to the code that selected the new target.
 
 `SdkReleaseOutcomes` maps the CheatEngine.SDK 2.0.0 release statuses totally
-(`TargetReleaseStatus`, `SymbolRegistrationReleaseKind`, `LuaRegistrationReleaseKind`; an
+(`TargetReleaseStatus`, `SymbolRegistrationReleaseKind`; an
 unknown value is `Unknown` with an unknown effect) and combines the parts of one lease by
 keeping the outcome that leaves the most to do. The Lua module lease (`Lua.UnregisterModule`)
 is built on this base and maps the kind its module reports with `LuaModuleReleaseMapping`; the
-symbol lease (`Inspection.ReleaseSymbol`) is built on it too.
+symbol lease (`Inspection.ReleaseSymbol`) is built on it too. `LuaRegistrationReleaseKind` is
+mapped by the generated Lua registrar, which owns the SDK registration lease (see the generator
+README).
 
 ## SDK boundary and the Try contract
 

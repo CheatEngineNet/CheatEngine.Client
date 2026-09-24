@@ -359,7 +359,6 @@ internal static class ConsumedSdkSurface
 		"CheatEngine.Client.Core T CheatEngine.SDK.Lua.Calls.LuaOperationStatusKind",
 		"CheatEngine.Client.Core T CheatEngine.SDK.Lua.Calls.LuaStatus",
 		"CheatEngine.Client.Core T CheatEngine.SDK.Lua.Marshalling.Int32Marshaller",
-		"CheatEngine.Client.Core T CheatEngine.SDK.Lua.Registration.LuaRegistrationReleaseKind",
 		"CheatEngine.Client.Core T CheatEngine.SDK.Lua.Runtime.LuaAdmissionStatus",
 		"CheatEngine.Client.Core T CheatEngine.SDK.Lua.Runtime.LuaRuntime",
 		"CheatEngine.Client.Core T CheatEngine.SDK.Lua.Runtime.LuaRuntimeOperation",

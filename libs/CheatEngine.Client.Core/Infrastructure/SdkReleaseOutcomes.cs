@@ -1,7 +1,6 @@
 using CheatEngine.Client.Results;
 using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Engine.Targets;
-using CheatEngine.SDK.Lua.Registration;
 
 namespace CheatEngine.Client.Core.Infrastructure;
 
@@ -26,6 +25,10 @@ namespace CheatEngine.Client.Core.Infrastructure;
 ///         <see cref="LeaseReleaseKind.CleanupUnavailable" /> (the same rule as the SDK's symbol leases): a later attempt
 ///         through a consumed owner returns the same status without any Cheat Engine call, and the activation cleanup
 ///         reports it if it is still unavailable at deactivation.
+///     </para>
+///     <para>
+///         The SDK Lua registration lease is not mapped here: the generated Lua registrar owns it and maps its
+///         <c>LuaRegistrationReleaseKind</c> in the consumer's assembly.
 ///     </para>
 /// </remarks>
 internal static class SdkReleaseOutcomes
@@ -82,32 +85,6 @@ internal static class SdkReleaseOutcomes
 			SymbolRegistrationReleaseKind.Replaced => Outcome(LeaseReleaseKind.Replaced,
 				CheatEngineHostEffect.NotStarted),
 			SymbolRegistrationReleaseKind.ExternallyRemoved => Outcome(LeaseReleaseKind.ExternallyRemoved,
-				CheatEngineHostEffect.NotStarted),
-			_ => Unrecognized()
-		};
-	}
-
-	/// <summary>Maps the release kind of an SDK Lua registration lease.</summary>
-	/// <param name="kind">The kind reported by CheatEngine.SDK.</param>
-	/// <returns>The Client outcome; <see cref="LeaseReleaseKind.Unknown" /> for an unrecognized value.</returns>
-	/// <remarks>
-	///     The SDK counts a <c>Stale</c> release as complete because no cleanup call failed. For the Client it is
-	///     <see cref="LeaseReleaseKind.RefusedRuntimeChanged" />: no call was made, so the globals registered in the
-	///     earlier Lua attachment may remain. <c>NotAttempted</c> is the SDK's value before any release: nothing happened
-	///     and the lease stays retryable.
-	/// </remarks>
-	internal static LeaseReleaseOutcome FromLuaRegistration(LuaRegistrationReleaseKind kind)
-	{
-		return kind switch
-		{
-			LuaRegistrationReleaseKind.NotAttempted => Outcome(LeaseReleaseKind.Unknown,
-				CheatEngineHostEffect.NotStarted),
-			LuaRegistrationReleaseKind.Released => Outcome(LeaseReleaseKind.Released, CheatEngineHostEffect.Completed),
-			LuaRegistrationReleaseKind.PartiallyReleased => Outcome(LeaseReleaseKind.PartiallyReleased,
-				CheatEngineHostEffect.Started),
-			LuaRegistrationReleaseKind.Stale => Outcome(LeaseReleaseKind.RefusedRuntimeChanged,
-				CheatEngineHostEffect.NotStarted),
-			LuaRegistrationReleaseKind.AlreadyReleased => Outcome(LeaseReleaseKind.AlreadyReleased,
 				CheatEngineHostEffect.NotStarted),
 			_ => Unrecognized()
 		};

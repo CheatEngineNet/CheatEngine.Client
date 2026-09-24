@@ -3,7 +3,6 @@ using CheatEngine.Client.Core.Tests.TestSupport;
 using CheatEngine.Client.Results;
 using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Engine.Targets;
-using CheatEngine.SDK.Lua.Registration;
 
 namespace CheatEngine.Client.Core.Tests.Infrastructure;
 
@@ -51,18 +50,6 @@ public sealed class SdkReleaseOutcomesTests
 			Outcome(LeaseReleaseKind.ExternallyRemoved, CheatEngineHostEffect.NotStarted)
 	};
 
-	private static readonly Dictionary<LuaRegistrationReleaseKind, LeaseReleaseOutcome> LuaTable = new()
-	{
-		[LuaRegistrationReleaseKind.NotAttempted] = Outcome(LeaseReleaseKind.Unknown, CheatEngineHostEffect.NotStarted),
-		[LuaRegistrationReleaseKind.Released] = Outcome(LeaseReleaseKind.Released, CheatEngineHostEffect.Completed),
-		[LuaRegistrationReleaseKind.PartiallyReleased] =
-			Outcome(LeaseReleaseKind.PartiallyReleased, CheatEngineHostEffect.Started),
-		[LuaRegistrationReleaseKind.Stale] =
-			Outcome(LeaseReleaseKind.RefusedRuntimeChanged, CheatEngineHostEffect.NotStarted),
-		[LuaRegistrationReleaseKind.AlreadyReleased] =
-			Outcome(LeaseReleaseKind.AlreadyReleased, CheatEngineHostEffect.NotStarted)
-	};
-
 	[Fact]
 	[Trait("Qualification", "Q48")]
 	public void EveryTargetReleaseStatusIsMappedAndAnUnknownStatusFailsClosed()
@@ -81,16 +68,6 @@ public sealed class SdkReleaseOutcomesTests
 			static kind => SymbolTable.TryGetValue(kind, out LeaseReleaseOutcome expected) &&
 						   SdkReleaseOutcomes.FromSymbolRegistration(kind) == expected,
 			static kind => SdkReleaseOutcomes.FromSymbolRegistration(kind) == UnrecognizedOutcome);
-	}
-
-	[Fact]
-	[Trait("Qualification", "Q48")]
-	public void EveryLuaRegistrationReleaseKindIsMappedAndAnUnknownKindFailsClosed()
-	{
-		MappingTotality.AssertTotal<LuaRegistrationReleaseKind>(
-			static kind => LuaTable.TryGetValue(kind, out LeaseReleaseOutcome expected) &&
-						   SdkReleaseOutcomes.FromLuaRegistration(kind) == expected,
-			static kind => SdkReleaseOutcomes.FromLuaRegistration(kind) == UnrecognizedOutcome);
 	}
 
 	/// <summary>The three SDK statuses the plan names keep their documented Client counterparts.</summary>
@@ -116,8 +93,6 @@ public sealed class SdkReleaseOutcomesTests
 		Assert.Equal([TargetReleaseStatus.Released], TargetTable
 			.Where(static pair => pair.Value.Kind == LeaseReleaseKind.Released).Select(static pair => pair.Key));
 		Assert.Equal([SymbolRegistrationReleaseKind.Released], SymbolTable
-			.Where(static pair => pair.Value.Kind == LeaseReleaseKind.Released).Select(static pair => pair.Key));
-		Assert.Equal([LuaRegistrationReleaseKind.Released], LuaTable
 			.Where(static pair => pair.Value.Kind == LeaseReleaseKind.Released).Select(static pair => pair.Key));
 	}
 
