@@ -12,6 +12,12 @@
     <!-- The single SDK-type allowlist, shared with the Lua generator (Q48): never copy it. -->
     <Compile Include="../../source-generators/CheatEngine.Client.SourceGenerators.Lua/ApprovedSdkClientTypes.cs"
              Link="SdkContract/ApprovedSdkClientTypes.cs"/>
+    <!-- The live qualification runner writes what the harness gate and fault switch read: their own parsers are compiled
+         in (Lua-free harness files), so the runner's files are proven against the code that evaluates them. -->
+    <Compile Include="../CheatEngine.Client.LivePlugin.Qualification/Harness/QualificationAuthorization.cs"
+             Link="LiveQualification/Harness/QualificationAuthorization.cs"/>
+    <Compile Include="../CheatEngine.Client.LivePlugin.Qualification/Harness/QualificationFaultSwitch.cs"
+             Link="LiveQualification/Harness/QualificationFaultSwitch.cs"/>
   </ItemGroup>
 
 </Project>

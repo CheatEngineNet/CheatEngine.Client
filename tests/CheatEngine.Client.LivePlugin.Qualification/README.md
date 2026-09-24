@@ -100,7 +100,9 @@ produce from this source graph:
 dotnet build .\tests\CheatEngine.Client.LivePlugin.Qualification\CheatEngine.Client.LivePlugin.Qualification.csproj -c Release -p:CheatEnginePluginOutputPath=<folder>
 ```
 
-A host run never uses that build: a future qualification procedure would compile the same sources again outside the
-repository against the exact CI Client packages and the pinned CheatEngine.SDK 2.0.0 from nuget.org, then invoke a
-CheatEngine.SDK runner. That procedure and its evidence rules are not part of this repository (see the note above);
-nothing here starts Cheat Engine or the SDK runner.
+A host run never uses that build. The sandboxed runner of `CheatEngine.Client.Tests` (section
+[Live qualification](../CheatEngine.Client.Tests/README.md#live-qualification)) compiles the same sources again outside
+the repository against the exact packed Client packages and the pinned CheatEngine.SDK 2.0.0 from nuget.org, and loads
+them into a private copy of Cheat Engine, only on an explicit opt-in and never in CI. It compiles `QualificationAuthorization`
+and `QualificationFaultSwitch` in, so the manifest and fault switch it writes are proven against this harness's own
+parsers. The scenario plan and evidence rules the harness serves are still to be re-scoped (see the note above).

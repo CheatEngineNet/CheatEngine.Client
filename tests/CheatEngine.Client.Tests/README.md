@@ -87,6 +87,86 @@ debt entry disappears, it must be deleted from its frozen list in the same chang
 SDK type allowlist, the committed consumed-surface inventory, and the compile-only `SdkApiUsage` map. Both suites are
 activation-independent and run in the Debug and Release test legs.
 
+## Live qualification
+
+`LiveQualification/` is the sandboxed Cheat Engine runner: C# test code, no script and no extra package. A live fact
+builds plugins from the packed Client packages, loads them into a private copy of Cheat Engine 7.7.0.10621 x64 and
+drives them against a disposable gtutorial target. Live facts carry `Category=LiveQualification` and a `Session=S0`..`S6`
+trait and share the serial collection `Live qualification`. Both CI legs and every local gate exclude them by trait. They
+are never skipped: without the opt-in they fail at once with the instructions below, and they also fail when `CI=true`.
+
+One session runs in this order:
+
+1. `HostProcessGuard` refuses to start while a `cheatengine-*`, `Cheat Engine` or `gtutorial*` process runs, or while
+   another debug output listener (DebugView) owns `DBWIN_BUFFER`.
+2. `CheatEngineInstallation` verifies the source installation without writing to it: the SHA-256 of
+   `cheatengine-x86_64.exe` (`9727076D…`, the hash the harness gate pins), its file version 7.7.0.10621, its AMD64
+   machine (read with `PEReader`) and the hashes of `gtutorial-x86_64.exe` (`2DABEFFD…`) and `gtutorial-i386.exe`
+   (`9131B1CA…`). It fingerprints the host executable and the `autorun` folder before the run and again after it.
+3. `SandboxLayout` creates `<run root>/<yyyyMMddTHHmmssZ>-<4 hex>/`. The Cheat Engine user state guard backs up the user
+   state, then the installation is copied to `<run>/ce` and verified again.
+4. `PluginBundleBuilder` compiles the harness sources in an isolated consumer outside any repository, against the
+   packed `CheatEngine.Client` of `CHEATENGINE_CLIENT_PACKAGE_SOURCE` and `CheatEngine.SDK` from nuget.org
+   (`PackagedClientFeedFixture`), and deploys the complete closure to `<run>/plugins/<name>`.
+5. `TargetLauncher` starts the sandbox's gtutorial after checking its hash, and records its process id, start time and
+   modules; no `speedhack`, `allochook`, `luaclient`, `vehdebug` or `dbk` module may appear in it (Q45).
+6. `AuthorizationManifestWriter` writes the `ce77-live-probe-v1` manifest: the pinned host, the target's process id and
+   hash, `disposable`, and an expiry at most 25 minutes ahead. The harness gate (`QualificationAuthorization`, compiled
+   into this project) accepts it, and it accepts nothing longer than 30 minutes. For fault scenarios the writer also
+   writes `liveprobe.fault.json` next to the plugin.
+7. `LuaDriverScript` generates `<run>/ce/autorun/zz_cheatengine_client_qualification.lua`: a `createTimer` state machine
+   on the main thread, one step per tick, each under `pcall`. It waits for the main form, opens the target, loads the
+   plugin, waits for the harness functions, calls them, inspects the settings form read-only, clears the address list,
+   writes `DONE` and calls `closeCE()`. Each step appends `R<TAB>step<TAB>ok|error|notexecuted<TAB>%q` to the transcript.
+   The plugin toggles through Settings > Plugins are recorded as `notexecuted` with an operator prompt until the spike
+   proves that `getSettingsForm()` can perform them.
+8. `DebugOutputCapture` owns the DBWIN objects (4096-byte section, `DBWIN_BUFFER_READY` and `DBWIN_DATA_READY`) and keeps
+   only the Cheat Engine process's messages (`DebugOutputBuffer`).
+9. `HostProcessGuard` starts `<run>/ce/cheatengine-x86_64.exe` directly, never the launcher, with an environment
+   stripped of `DOTNET_*`, `MSBUILD*`, `TESTINGPLATFORM*`, `VSTEST*` and every inherited `CHEATENGINE_*`,
+   `CE_SDK_LIVE_PROBE_*` and `CECLIENT_QUALIFICATION_*` value. It adds only the session's `CE_SDK_LIVE_PROBE_*` and
+   `CECLIENT_QUALIFICATION_*` inputs and `CHEATENGINE_SDK_IDENTIFY_ON_ENABLE=1`. A session that exceeds 10 minutes is
+   closed, then killed, and marked `TimedOut`. A `finally` always stops Cheat Engine and the target and restores the user
+   state.
+10. `TranscriptParser` decodes the transcript (Lua `%q` escapes). `ReceiptLedger` writes `receipts.jsonl`
+    (`cheatengine-client-qualification-receipt/v1`): the run directory becomes `<run>`, and a receipt that still holds
+    a local path, the user name or the machine name is refused. `QualificationSummaryWriter` writes `summary.json`
+    (`cheatengine-client-qualification-summary/v1`): the package, SDK, host and target tuple, one verdict per scenario and
+    capability derived from the receipts (NotExecuted unless every check passed or one failed), and `registryRestored`.
+
+The only live fact so far is `LiveSandboxSpikeTests` (`Session=S0`), the spike: it loads the harness on
+gtutorial-x86_64, calls `status`, `runtime` and `capabilities(1)`, inspects the settings form and closes Cheat Engine,
+then requires the user state restored, the source installation unchanged and no process left. Until the user state
+guard exists, the session stops before Cheat Engine starts. The facts the spike establishes are still pending and will
+be recorded here: the registry values of the plugin list, whether the settings toggle is feasible, the dialogs Cheat
+Engine shows, what disable does at `closeCE`, what `loadPlugin` enables, whether elevation is needed, and whether
+hostfxr needs `DOTNET_ROOT` once `DOTNET_*` is removed. Spike receipts are never committed.
+
+Run it from the repository root, in PowerShell, with Cheat Engine, every gtutorial and DebugView closed:
+
+```powershell
+dotnet build CheatEngine.Client.slnx -c Release --no-restore
+dotnet pack CheatEngine.Client.slnx -c Release --no-build -o artifacts/nuget
+$env:CHEATENGINE_CLIENT_PACKAGE_SOURCE = (Resolve-Path artifacts/nuget).Path
+$env:CHEATENGINE_CLIENT_LIVE_QUALIFICATION = 'I_AUTHORIZE_CE77_LIVE_PROBES_ON_A_DISPOSABLE_TARGET'
+dotnet test --project tests/CheatEngine.Client.Tests/CheatEngine.Client.Tests.csproj -c Release --no-build --filter-trait Session=S0
+Remove-Item Env:CHEATENGINE_CLIENT_LIVE_QUALIFICATION
+```
+
+Optional inputs: `CHEATENGINE_CLIENT_LIVE_QUALIFICATION_CE_DIRECTORY` (default `C:/Program Files/Cheat Engine`, only
+ever read) and `CHEATENGINE_CLIENT_LIVE_QUALIFICATION_RUN_ROOT` (default
+`%LOCALAPPDATA%/CheatEngine.Client.LiveQualification/runs`, refused inside the repository or the installation). Each
+run keeps its directory, sandbox included, for inspection; delete old runs by hand.
+
+The runner's decisions are unit-tested in both CI legs, without starting anything: `LiveQualificationOptInTests` (the
+opt-in, CI refusal, required packages, run root placement, the command above, and that every live fact is serial,
+traited and never skipped), `CheatEngineInstallationTests` (fake files: hashes, machine, version, sandbox copy,
+fingerprint, run directories), `AuthorizationManifestTests` (the harness gate and fault switch accept what the runner
+writes), `LuaDriverScriptTests` (the reviewed driver text), `TranscriptParserTests`, `ReceiptLedgerTests`,
+`QualificationSummaryWriterTests`, `DebugOutputBufferTests` (process id filter and ANSI decoding),
+`HostProcessGuardTests` (blocking process names, the sandbox environment, injected modules) and
+`LiveSandboxSessionTests` (the S0 receipts derived from a transcript and the workstation checks).
+
 ## Run
 
 From the repository root:
