@@ -91,7 +91,8 @@ internal sealed class SdkRuntimeObservationPort : IRuntimeObservationPort
 		return new TargetIdentityFacts(check.Kind, Copy(check.Observed));
 	}
 
-	private static TargetSelectionFacts Copy(TargetSelectionObservation observation)
+	/// <summary>Copies an SDK target observation, for this port and for the AOB target context.</summary>
+	internal static TargetSelectionFacts Copy(TargetSelectionObservation observation)
 	{
 		return new TargetSelectionFacts(observation.Status, observation.Backend, observation.SelectedProcessId,
 			observation.Incarnation);

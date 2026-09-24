@@ -4,30 +4,45 @@ using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Engine.Objects;
 using CheatEngine.SDK.Engine.Scanning.Aob;
+using CheatEngine.SDK.Engine.Targets;
 
 namespace CheatEngine.Client.Core.Domains;
 
 /// <summary>Production adapter that copies and releases the SDK-owned AOB list on the CE dispatch thread.</summary>
 /// <remarks>
-///     The SDK owner is handed to <see cref="SdkAobMatchList" /> through <see cref="OwnershipHandoff" />, so a failure
-///     between acquisition and publication releases the Cheat Engine list exactly once (audit F13). After publication
-///     the match list is the single release authority.
+///     <para>
+///         The global route calls <c>AobScanner.TryScanOutcome</c> with its target context and copies both into an
+///         <see cref="AobHostOutcome" />; classification happens in <see cref="PatternScanner" />, never here.
+///     </para>
+///     <para>
+///         The SDK owner is handed to <see cref="SdkAobMatchList" /> through <see cref="OwnershipHandoff" />, so a failure
+///         between acquisition and publication releases the Cheat Engine list exactly once (audit F13). After publication
+///         the match list is the single release authority, and it releases through the never-throwing
+///         <c>Owned&lt;StringList&gt;.ReleaseWithOutcome</c>.
+///     </para>
 /// </remarks>
 internal sealed class SdkAobScanPort : IAobScanPort
 {
-	public AobScanHostStatus TryScan(string pattern, AobScanOptions options,
-		[NotNullWhen(true)] out IAobMatchList? matches)
+	public AobHostOutcome TryScan(string pattern, AobScanOptions options, out IAobMatchList? matches)
 	{
 		matches = null;
-		// The SDK annotates the owner NotNullWhen(true); the guard keeps a contract break from reaching
-		// OwnershipHandoff.Adopt, whose ArgumentNullException would otherwise escape a Try method.
-		if (!AobScanner.TryScan(pattern, options, out Owned<StringList>? owner) || owner is null)
+		AobScanOutcome outcome = AobScanner.TryScanOutcome(pattern, options, out Owned<StringList>? owner,
+			out AobScanTargetContext context);
+		AobHostOutcome host = new(outcome.Kind, outcome.LuaStatus, outcome.ResultCount,
+			SdkRuntimeObservationPort.Copy(context.Before), SdkRuntimeObservationPort.Copy(context.After));
+
+		// The SDK hands out an owner only with a successful outcome. The guard keeps a contract break (a success
+		// without an owner) from reaching OwnershipHandoff.Adopt, whose ArgumentNullException would otherwise escape a
+		// Try method; PatternScanner classifies that outcome as an invalid host result. An owner handed out with any
+		// other outcome is still adopted, so PatternScanner releases it once.
+		if (owner is null)
 		{
-			return AobScanHostStatus.NoResultList;
+			return host;
 		}
 
-		matches = OwnershipHandoff.Adopt(owner, static acquired => new SdkAobMatchList(acquired));
-		return AobScanHostStatus.Success;
+		matches = OwnershipHandoff.Adopt(owner, static acquired => new SdkAobMatchList(acquired),
+			static acquired => SdkReleaseOutcomes.FromTarget(acquired.ReleaseWithOutcome().Status));
+		return host;
 	}
 
 	public InspectionStatus EnumerateModules(ModuleInfo[] destination, out int written)
@@ -49,17 +64,17 @@ internal sealed class SdkAobScanPort : IAobScanPort
 			return _owner.Value.TryGetItem(index, out value);
 		}
 
-		/// <summary>Releases the Cheat Engine list through the SDK owner.</summary>
+		/// <summary>Releases the Cheat Engine list through the SDK owner, once, without throwing.</summary>
 		/// <remarks>
-		///     CheatEngine.SDK 2.0.0 <c>Owned&lt;T&gt;.Dispose</c> throws <see cref="InvalidOperationException" /> and
-		///     retains ownership when no Lua operation can be admitted (for example a detached runtime); it does not throw
-		///     when <c>destroy()</c> raises or when the owner belongs to a previous runtime. That exception is the only
-		///     "release not confirmed" signal this port observes, so it is propagated to <see cref="PatternScanner" />
-		///     unchanged.
+		///     CheatEngine.SDK 2.0.0 <c>Owned&lt;T&gt;.ReleaseWithOutcome</c> always consumes the owner and never retries
+		///     <c>destroy()</c>: <c>Released</c> after a confirmed destroy, <c>UnconfirmedAfterInvocation</c> when it
+		///     raised, <c>RefusedRuntimeChanged</c> when the owner belongs to a previous Lua runtime, and <c>NotInvoked</c>
+		///     when no Lua operation could be admitted. <see cref="PatternScanner" /> treats every status but
+		///     <c>Released</c> as an unconfirmed release.
 		/// </remarks>
-		public void Dispose()
+		public TargetReleaseStatus Release()
 		{
-			_owner.Dispose();
+			return _owner.ReleaseWithOutcome().Status;
 		}
 	}
 }

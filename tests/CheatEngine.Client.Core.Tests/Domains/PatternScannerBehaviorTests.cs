@@ -1,5 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
-
 using CheatEngine.Client.Core.Dispatching;
 using CheatEngine.Client.Core.Domains;
 using CheatEngine.Client.Core.Tests.TestSupport;
@@ -7,6 +5,7 @@ using CheatEngine.Client.Results;
 using CheatEngine.Client.Scanning;
 using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Engine.Scanning.Aob;
+using CheatEngine.SDK.Engine.Targets;
 using CheatEngine.SDK.Engine.Values;
 
 namespace CheatEngine.Client.Core.Tests.Domains;
@@ -37,7 +36,7 @@ public sealed class PatternScannerBehaviorTests
 		Assert.Equal(1, port.ScanCalls);
 		Assert.Equal(1, port.EnumerationCallsWhenScanStarted);
 		Assert.Equal(5, matches.ItemCalls);
-		Assert.True(matches.IsDisposed);
+		Assert.True(matches.IsReleased);
 	}
 
 	[Fact]
@@ -61,7 +60,7 @@ public sealed class PatternScannerBehaviorTests
 		Assert.Equal([0x4000, 0x4001], result.Matches);
 		Assert.True(result.IsTruncated);
 		Assert.Equal(4, matches.ItemCalls);
-		Assert.True(matches.IsDisposed);
+		Assert.True(matches.IsReleased);
 	}
 
 	[Fact]
@@ -203,7 +202,7 @@ public sealed class PatternScannerBehaviorTests
 
 	[Fact]
 	[Trait("Qualification", "Q29")]
-	public void TryScanObservesCancellationAfterTheGlobalScanAndDisposesTheOwnedList()
+	public void TryScanObservesCancellationAfterTheGlobalScanAndReleasesTheOwnedList()
 	{
 		using CancellationTokenSource cancellation = new();
 		RecordingAobMatchList matches = new(["400000"]);
@@ -223,12 +222,12 @@ public sealed class PatternScannerBehaviorTests
 		Assert.Equal(1, port.ScanCalls);
 		Assert.Equal(0, matches.CountCalls);
 		Assert.Equal(0, matches.ItemCalls);
-		Assert.True(matches.IsDisposed);
+		Assert.True(matches.IsReleased);
 	}
 
 	[Fact]
 	[Trait("Qualification", "Q29")]
-	public void TryScanObservesCancellationDuringCopyDisposesTheOwnedListAndDoesNotPublishAPrefix()
+	public void TryScanObservesCancellationDuringCopyReleasesTheOwnedListAndDoesNotPublishAPrefix()
 	{
 		using CancellationTokenSource cancellation = new();
 		RecordingAobMatchList matches = new(["400000", "400001", "400002"])
@@ -253,7 +252,7 @@ public sealed class PatternScannerBehaviorTests
 		Assert.Equal("Patterns.Scan", failure.Operation);
 		Assert.Equal(1, port.ScanCalls);
 		Assert.Equal(2, matches.ItemCalls);
-		Assert.True(matches.IsDisposed);
+		Assert.True(matches.IsReleased);
 	}
 
 	/// <summary>
@@ -284,7 +283,7 @@ public sealed class PatternScannerBehaviorTests
 		Assert.Equal(CheatEngineFailureKind.Cancelled, exception.Failure.Kind);
 		Assert.Equal(CheatEngineHostEffect.Completed, exception.Failure.HostEffect);
 		Assert.Equal("Patterns.Scan", exception.Failure.Operation);
-		Assert.True(matches.IsDisposed);
+		Assert.True(matches.IsReleased);
 	}
 
 	[Fact]
@@ -312,7 +311,7 @@ public sealed class PatternScannerBehaviorTests
 		Assert.Equal(PatternScanScope.GlobalHostScanWithManagedFilter, metrics.Scope);
 		Assert.True(metrics.HostScanElapsed >= TimeSpan.Zero);
 		Assert.True(metrics.MaterializationElapsed >= TimeSpan.Zero);
-		Assert.Equal(1, matches.DisposeCount);
+		Assert.Equal(1, matches.ReleaseCount);
 	}
 
 	[Fact]
@@ -335,7 +334,7 @@ public sealed class PatternScannerBehaviorTests
 		Assert.Equal(0, metrics.FilteredOutCount);
 		Assert.Equal(1, metrics.MaterializedCount);
 		Assert.Equal(2, matches.ItemCalls);
-		Assert.Equal(1, matches.DisposeCount);
+		Assert.Equal(1, matches.ReleaseCount);
 	}
 
 	[Fact]
@@ -364,7 +363,7 @@ public sealed class PatternScannerBehaviorTests
 		PatternScanMetrics metrics = Assert.NotNull(outcome.Metrics);
 		Assert.Equal(3, metrics.HostMatchCount);
 		Assert.Equal(2, metrics.ExaminedCount);
-		Assert.Equal(1, matches.DisposeCount);
+		Assert.Equal(1, matches.ReleaseCount);
 	}
 
 	[Theory]
@@ -413,7 +412,7 @@ public sealed class PatternScannerBehaviorTests
 		{
 			return path switch
 			{
-				ClassificationPath.NoList => new FakeAobScanPort { Status = AobScanHostStatus.NoResultList },
+				ClassificationPath.NoList => new FakeAobScanPort { Outcome = AobHosts.Outcome(AobScanOutcomeKind.NoResult) },
 				ClassificationPath.InvalidList => new FakeAobScanPort(),
 				ClassificationPath.InvalidCount => new FakeAobScanPort(
 					new RecordingAobMatchList(["400000"]) { CountAvailable = false }),
@@ -473,7 +472,7 @@ public sealed class PatternScannerBehaviorTests
 	{
 		FakeAobScanPort port = new()
 		{
-			Status = AobScanHostStatus.NoResultList
+			Outcome = AobHosts.Outcome(AobScanOutcomeKind.NoResult)
 		};
 		PatternScanner scanner = CreateScanner(port);
 
@@ -486,9 +485,7 @@ public sealed class PatternScannerBehaviorTests
 		Assert.NotEqual(CheatEngineFailureKind.NotFound, failure.Kind);
 		Assert.NotEqual(CheatEngineFailureKind.OperationRejected, failure.Kind);
 		Assert.Equal("Patterns.Scan", failure.Operation);
-		Assert.Equal(
-			"Cheat Engine returned no AOB result list: zero matches or a host failure " +
-			"(indistinguishable on this scan route).",
+		Assert.Equal("CE AOBScan returned nil: on CE 7.7 zero matches and host failures share this shape",
 			failure.Message);
 		Assert.Equal(CheatEngineHostEffect.Completed, failure.HostEffect);
 		Assert.Null(failure.Exception);
@@ -501,7 +498,7 @@ public sealed class PatternScannerBehaviorTests
 	{
 		PatternScanner scanner = CreateScanner(new FakeAobScanPort
 		{
-			Status = AobScanHostStatus.NoResultList
+			Outcome = AobHosts.Outcome(AobScanOutcomeKind.NoResult)
 		});
 
 		CheatEngineOperationException exception = Assert.Throws<CheatEngineOperationException>(() =>
@@ -543,16 +540,15 @@ public sealed class PatternScannerBehaviorTests
 		Assert.Equal(default, failure);
 		Assert.Empty(result.Matches);
 		Assert.False(result.IsTruncated);
-		Assert.Equal(1, matches.DisposeCount);
+		Assert.Equal(1, matches.ReleaseCount);
 	}
 
 	[Fact]
-	public void TryScanReportsCleanupUnconfirmedWhenTheResultListReleaseThrows()
+	public void TryScanReportsCleanupUnconfirmedWhenTheResultListReleaseIsNotConfirmed()
 	{
-		InvalidOperationException releaseFailure = new("The SDK runtime detached before the list was destroyed.");
 		RecordingAobMatchList matches = new(["400000", "400010"])
 		{
-			DisposeFailure = releaseFailure
+			ReleaseStatus = TargetReleaseStatus.UnconfirmedAfterInvocation
 		};
 		PatternScanner scanner = CreateScanner(new FakeAobScanPort(matches));
 
@@ -564,19 +560,19 @@ public sealed class PatternScannerBehaviorTests
 		Assert.Equal(CheatEngineFailureKind.InvalidState, failure.Kind);
 		Assert.Equal("Patterns.Scan", failure.Operation);
 		Assert.Equal(CheatEngineHostEffect.CleanupUnconfirmed, failure.HostEffect);
-		Assert.Equal("The AOB result list release was not confirmed; copied results were discarded.",
+		Assert.Equal(
+			"The AOB result list release was not confirmed (CleanupUnconfirmed); copied results were discarded.",
 			failure.Message);
-		Assert.Same(releaseFailure, failure.Exception);
-		Assert.Equal(1, matches.DisposeCount);
+		Assert.Null(failure.Exception);
+		Assert.Equal(1, matches.ReleaseCount);
 	}
 
 	[Fact]
-	public void TryScanKeepsThePrimaryFailureWhenTheReleaseAlsoThrows()
+	public void TryScanKeepsThePrimaryFailureWhenTheReleaseIsAlsoNotConfirmed()
 	{
-		InvalidOperationException releaseFailure = new("release failed");
 		RecordingAobMatchList matches = new(["not-an-address"])
 		{
-			DisposeFailure = releaseFailure
+			ReleaseStatus = TargetReleaseStatus.RefusedRuntimeChanged
 		};
 		PatternScanner scanner = CreateScanner(new FakeAobScanPort(matches));
 
@@ -584,23 +580,41 @@ public sealed class PatternScannerBehaviorTests
 			TestContext.Current.CancellationToken);
 
 		Assert.False(succeeded);
-		Assert.Equal(CheatEngineFailureKind.InvalidState, failure.Kind);
+		Assert.Equal(CheatEngineFailureKind.InvalidHostResult, failure.Kind);
 		Assert.Equal(CheatEngineHostEffect.CleanupUnconfirmed, failure.HostEffect);
-		AggregateException aggregate = Assert.IsType<AggregateException>(failure.Exception);
-		Assert.Collection(
-			aggregate.InnerExceptions,
-			primary => Assert.Equal(CheatEngineFailureKind.InvalidHostResult,
-				Assert.IsType<CheatEngineOperationException>(primary).Failure.Kind),
-			release => Assert.Same(releaseFailure, release));
-		Assert.Equal(1, matches.DisposeCount);
+		Assert.Equal(
+			"AOB result 0 was not a hexadecimal address. The AOB result list release was not confirmed " +
+			"(RefusedRuntimeChanged).", failure.Message);
+		Assert.Equal(1, matches.ReleaseCount);
 	}
 
 	[Fact]
-	public void ScanNeverLetsAReleaseExceptionEscapeAsAnUnclassifiedException()
+	public void AReleaseThatBreaksTheNoThrowContractIsAnUnconfirmedReleaseAndNeverCrossesTryScan()
+	{
+		InvalidOperationException releaseFault = new("a port that breaks the ReleaseWithOutcome contract");
+		RecordingAobMatchList matches = new(["400000"])
+		{
+			ReleaseFailure = releaseFault
+		};
+		PatternScanner scanner = CreateScanner(new FakeAobScanPort(matches));
+
+		bool succeeded = scanner.TryScan(CreateRequest(null, null, 1), out _, out CheatEngineFailure failure,
+			TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(CheatEngineFailureKind.InvalidState, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.CleanupUnconfirmed, failure.HostEffect);
+		Assert.Same(releaseFault, failure.Exception);
+		Assert.Contains("(Unknown)", failure.Message, StringComparison.Ordinal);
+		Assert.Equal(1, matches.ReleaseCount);
+	}
+
+	[Fact]
+	public void ScanNeverLetsAnUnconfirmedReleaseReadAsASuccess()
 	{
 		RecordingAobMatchList matches = new(["400000"])
 		{
-			DisposeFailure = new InvalidOperationException("release failed")
+			ReleaseStatus = TargetReleaseStatus.NotInvoked
 		};
 		PatternScanner scanner = CreateScanner(new FakeAobScanPort(matches));
 
@@ -608,7 +622,7 @@ public sealed class PatternScannerBehaviorTests
 			scanner.Scan(CreateRequest(null, null, 1), TestContext.Current.CancellationToken));
 
 		Assert.Equal(CheatEngineHostEffect.CleanupUnconfirmed, exception.Failure.HostEffect);
-		Assert.Equal(1, matches.DisposeCount);
+		Assert.Equal(1, matches.ReleaseCount);
 	}
 
 	[Theory]
@@ -644,7 +658,7 @@ public sealed class PatternScannerBehaviorTests
 		FakeAobScanPort port = new(matches)
 		{
 			OnScan = path == ReleasePath.CancellationAfterScan ? cancellation.Cancel : null,
-			Status = path == ReleasePath.InvalidListStatus ? AobScanHostStatus.InvalidResult : null
+			Outcome = path == ReleasePath.InvalidListStatus ? AobHosts.Outcome(AobScanOutcomeKind.InvalidResult) : null
 		};
 		PatternScanner scanner = CreateScanner(port);
 		int invokingThread = Environment.CurrentManagedThreadId;
@@ -657,8 +671,8 @@ public sealed class PatternScannerBehaviorTests
 		Assert.Equal(expectedKind, failure.Kind);
 		Assert.Equal(path == ReleasePath.Truncation, result.IsTruncated);
 		Assert.Equal(expectedSuccess ? 0 : 1, string.IsNullOrEmpty(failure.Operation) ? 0 : 1);
-		Assert.Equal(1, matches.DisposeCount);
-		Assert.Equal(invokingThread, matches.DisposeThreadId);
+		Assert.Equal(1, matches.ReleaseCount);
+		Assert.Equal(invokingThread, matches.ReleaseThreadId);
 	}
 
 	public enum ReleasePath
@@ -688,160 +702,6 @@ public sealed class PatternScannerBehaviorTests
 	{
 		MemorySize? size = imageSize.HasValue ? new MemorySize(imageSize.Value) : null;
 		return new ModuleInfo(name, new Address(baseAddress), size, true, name);
-	}
-
-	private sealed class FakeAobScanPort(RecordingAobMatchList? matchList = null) : IAobScanPort
-	{
-		internal ModuleInfo[] Modules
-		{
-			get;
-			init;
-		} = [];
-
-		internal int? ReportedModuleCount
-		{
-			get;
-			init;
-		}
-
-		internal AobScanHostStatus? Status
-		{
-			get;
-			init;
-		}
-
-		internal Action? OnScan
-		{
-			get;
-			init;
-		}
-
-		internal Action? OnEnumerateModules
-		{
-			get;
-			init;
-		}
-
-		internal int EnumerationCalls
-		{
-			get;
-			private set;
-		}
-
-		internal int ScanCalls
-		{
-			get;
-			private set;
-		}
-
-		internal int? EnumerationCallsWhenScanStarted
-		{
-			get;
-			private set;
-		}
-
-		public AobScanHostStatus TryScan(string pattern, AobScanOptions options,
-			[NotNullWhen(true)] out IAobMatchList? matches)
-		{
-			ScanCalls++;
-			EnumerationCallsWhenScanStarted ??= EnumerationCalls;
-			OnScan?.Invoke();
-			matches = matchList;
-			return Status ?? (matchList is null ? AobScanHostStatus.InvalidResult : AobScanHostStatus.Success);
-		}
-
-		public InspectionStatus EnumerateModules(ModuleInfo[] destination, out int written)
-		{
-			EnumerationCalls++;
-			OnEnumerateModules?.Invoke();
-			Array.Copy(Modules, destination, Math.Min(Modules.Length, destination.Length));
-			written = ReportedModuleCount ?? Modules.Length;
-			return InspectionStatus.Success;
-		}
-	}
-
-	private sealed class RecordingAobMatchList(IReadOnlyList<string> items) : IAobMatchList
-	{
-		internal Action<int>? OnTryGetItem
-		{
-			get;
-			init;
-		}
-
-		internal Exception? DisposeFailure
-		{
-			get;
-			init;
-		}
-
-		internal int? ReportedCount
-		{
-			get;
-			init;
-		}
-
-		internal bool CountAvailable
-		{
-			get;
-			init;
-		} = true;
-
-		internal int CountCalls
-		{
-			get;
-			private set;
-		}
-
-		internal int ItemCalls
-		{
-			get;
-			private set;
-		}
-
-		internal int DisposeCount
-		{
-			get;
-			private set;
-		}
-
-		internal int? DisposeThreadId
-		{
-			get;
-			private set;
-		}
-
-		internal bool IsDisposed => DisposeCount > 0;
-
-		public bool TryGetCount(out int count)
-		{
-			CountCalls++;
-			count = ReportedCount ?? items.Count;
-			return CountAvailable;
-		}
-
-		public bool TryGetItem(int index, [NotNullWhen(true)] out string? value)
-		{
-			ItemCalls++;
-			OnTryGetItem?.Invoke(index);
-			if ((uint) index >= items.Count)
-			{
-				value = null;
-				return false;
-			}
-
-			value = items[index];
-			return true;
-		}
-
-		public void Dispose()
-		{
-			DisposeCount++;
-			DisposeThreadId = Environment.CurrentManagedThreadId;
-			if (DisposeFailure is not null)
-			{
-				throw DisposeFailure;
-			}
-		}
 	}
 
 	private sealed class CancellingMainThreadInvoker(CancellationTokenSource cancellation) : IMainThreadInvoker

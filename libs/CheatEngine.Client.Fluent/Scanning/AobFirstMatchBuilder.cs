@@ -16,9 +16,9 @@ namespace CheatEngine.Client.Scanning;
 ///     </para>
 ///     <para>
 ///         <see langword="null" /> means Cheat Engine returned a result list without any post-filtered match. A scan
-///         that finds nothing is usually reported as <see cref="CheatEngineFailureKind.IndeterminateHostResult" /> (no
-///         result list: zero matches or a host failure, indistinguishable on this scan route), never converted to
-///         <see langword="null" />.
+///         that finds nothing is usually reported as <see cref="CheatEngineFailureKind.IndeterminateHostResult" /> (on
+///         Cheat Engine 7.7 <c>AOBScan</c> returns <c>nil</c> for zero matches and for some host failures alike), never
+///         converted to <see langword="null" />.
 ///     </para>
 /// </remarks>
 public readonly record struct AobFirstMatchBuilder
@@ -42,7 +42,7 @@ public readonly record struct AobFirstMatchBuilder
 	/// </param>
 	/// <returns>The first copied target address, or <see langword="null" />.</returns>
 	/// <exception cref="CheatEngineOperationException">
-	///     The scan operation failed, including the indeterminate "no result list" outcome.
+	///     The scan operation failed, including the indeterminate <c>nil</c> outcome.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     <paramref name="cancellationToken" /> was observed before the scan started or while Core copied its result.

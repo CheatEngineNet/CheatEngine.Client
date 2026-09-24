@@ -284,6 +284,7 @@ public sealed class TryContractTests
 				out CheatEngineFailure readFailure, token));
 			// The counted TargetMemory.TryReadBytes overload behind the prefix-reporting read.
 			MemoryBytesReadOutcome detailed = memory.ReadBytesDetailed(new MemoryBytesReadRequest(Target, 8), token);
+			// The global route: AobScanner.TryScanOutcome with its target context.
 			Assert.False(patterns.TryScan(Request(), out _, out CheatEngineFailure scanFailure, token));
 			Assert.False(unsafeLua.TryExecute(new LuaScript("return 1"), out CheatEngineFailure luaFailure, token));
 
@@ -691,15 +692,14 @@ public sealed class TryContractTests
 			init;
 		}
 
-		public AobScanHostStatus TryScan(string pattern, AobScanOptions options,
-			[NotNullWhen(true)] out IAobMatchList? matches)
+		public AobHostOutcome TryScan(string pattern, AobScanOptions options, out IAobMatchList? matches)
 		{
 			Calls++;
 			OnScan?.Invoke();
 			if (ScanResult is { } entries)
 			{
 				matches = new ListDouble(entries, () => ReleasedLists++);
-				return AobScanHostStatus.Success;
+				return AobHosts.Outcome(AobScanOutcomeKind.Matches, entries.Length);
 			}
 
 			throw Fault();
@@ -951,9 +951,10 @@ public sealed class TryContractTests
 			return true;
 		}
 
-		public void Dispose()
+		public TargetReleaseStatus Release()
 		{
 			onRelease();
+			return TargetReleaseStatus.Released;
 		}
 	}
 

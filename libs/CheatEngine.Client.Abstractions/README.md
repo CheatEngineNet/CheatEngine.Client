@@ -165,11 +165,27 @@ Four scan limits are distinct and must not be confused:
 scope, and the Cheat Engine scan time (`HostScanElapsed`) separately from the Client copy time
 (`MaterializationElapsed`). Counts and durations never contain addresses and are safe to log.
 
-A scan that finds nothing returns `CheatEngineFailureKind.IndeterminateHostResult`: Cheat Engine 7.7 returns no result
-list for zero matches, and Core's AOB route calls the boolean `AobScanner.TryScan` of CheatEngine.SDK 2.0.0, which
-reports that exactly as it reports an unresolved global, a protected Lua failure, or a non-object result. It is never
-reported as `NotFound` or as a host rejection; an empty result list that Cheat Engine does return remains a normal,
-successful no-match. On this route the indeterminate category is the accurate one.
+Core's AOB route calls `AobScanner.TryScanOutcome` of CheatEngine.SDK 2.0.0, which reports each host outcome
+separately:
+
+| Host outcome                        | Client result                                                        |
+|-------------------------------------|----------------------------------------------------------------------|
+| A result list with matches          | Success with the copied addresses                                    |
+| An empty result list                | Success without addresses (a factual no-match)                       |
+| `nil` (no result list)              | `IndeterminateHostResult`, `Completed`                               |
+| `AOBScan` absent or not callable    | `CapabilityUnavailable`, `NotStarted`                                |
+| A protected Lua error               | `LuaError`, `Unknown`; the message names the Lua status              |
+| A value that is not a result list   | `InvalidHostResult`, `Completed`                                     |
+| A list whose count cannot be read   | `InvalidHostResult`, `Completed`                                     |
+| An outcome the Client does not know | `IndeterminateHostResult`, `Unknown`                                 |
+
+A scan that finds nothing returns `IndeterminateHostResult` with the message "CE AOBScan returned nil: on CE 7.7 zero
+matches and host failures share this shape": Cheat Engine 7.7 returns `nil` for zero matches, and a host failure can
+return the same shape. It is never reported as `NotFound` or as a host rejection. The SDK also observes Cheat Engine's
+selected target just before and just after the call: when the target changed in between, or its identity was lost or
+gained, the addresses may belong to another process, so they are discarded and the scan fails with `TargetChanged` or
+`TargetIdentityUnavailable` (`Completed`). The result list is released once through the SDK's `ReleaseWithOutcome`; any
+outcome other than a confirmed release is `CleanupUnconfirmed`, and copied addresses are then discarded.
 
 ### Target selection, runtime facts and pointer width
 
@@ -293,7 +309,7 @@ dispatch and between Client-managed steps.
 | Family | Cancellation stops preventing the host effect at | `HostEffect` values produced | Partial effects |
 |---|---|---|---|
 | Dispatcher (`ICheatEngineDispatcher`) | Dispatch admission: a `Cancelled` result proves the callback did not run | `NotStarted` (cancelled), `Unknown` (infrastructure failure) | Whatever the callback did; callback exceptions are rethrown unchanged |
-| Patterns / AOB (`IPatternScanner`, `IPatternScanOutcomeClient`, Fluent `Aob`) | The start of the global `AOBScan`; later cancellation discards the copy | `NotStarted` (validation, module lookup, cancellation before the scan), `Completed` (cancellation or invalid data after the scan, `IndeterminateHostResult` when no result list is returned), `CleanupUnconfirmed` (result-list release not confirmed), `Unknown` (SDK fault during the scan call) | None published: a failed scan never returns a prefix |
+| Patterns / AOB (`IPatternScanner`, `IPatternScanOutcomeClient`, Fluent `Aob`) | The start of the global `AOBScan`; later cancellation discards the copy | `NotStarted` (validation, module lookup, cancellation before the scan, `AOBScan` unavailable), `Completed` (cancellation or invalid data after the scan, `IndeterminateHostResult` for a `nil` result, a target changed during the scan), `CleanupUnconfirmed` (result-list release not confirmed), `Unknown` (SDK fault during the scan call, protected Lua error, unrecognized outcome) | None published: a failed scan never returns a prefix |
 | Memory primitives, codecs, bytes, strings, pointer chains (`IMemoryClient`) | Dispatch admission; one call is one Cheat Engine operation | `NotStarted` (budget, unsupported type, unknown or mismatched pointer width, unavailable memory global, a pointer value above a 32-bit target on a write, a pointer chain base address above it), `Completed` (a pointer value or computed chain address above a 32-bit target after the reads returned), `Unknown` (SDK fault, host refusal, a failed codec) | `ReadBytesDetailed` reports the confirmed prefix of a partial byte read; a codec may perform several reads or writes, and a failed write codec can leave earlier writes in place |
 | Memory batches (`IMemoryClient.ReadPrimitiveBatchDetailed`, `WritePrimitiveBatchDetailed`) | Dispatch admission: a `Cancelled` dispatch reports `MemoryBatchWriteEffectState.NotStarted` | `NotStarted` (admission, pre-dispatch cancellation, unsupported type), `Started` (a completed prefix persists), `Unknown` (SDK fault or other dispatch failure) | `EffectState` is authoritative: `Partial` with `CompletedCount`/`FailedIndex`, never rolled back; `IsSuccess` is `true` only when every operation completed |
 | Inspection and symbol leases (`IInspectionClient`) | Dispatch admission | `NotStarted` (name already reserved by this activation, name already resolves, failed collision check), `CleanupUnconfirmed` (lease release not confirmed), `Unknown` (SDK fault) | A faulted `registerSymbol` is not claimed and not retried; a replaced name is left in place |

@@ -14,8 +14,9 @@ namespace CheatEngine.Client.Scanning;
 ///     <para>
 ///         <see cref="CheatEngineFailureKind.NotFound" /> is reported only when Cheat Engine returned a result list without
 ///         any post-filtered match. A scan that finds nothing is usually reported as
-///         <see cref="CheatEngineFailureKind.IndeterminateHostResult" /> (zero matches and a host failure are
-///         indistinguishable on this scan route), never as <see cref="CheatEngineFailureKind.NotFound" />.
+///         <see cref="CheatEngineFailureKind.IndeterminateHostResult" /> (on Cheat Engine 7.7 <c>AOBScan</c> returns
+///         <c>nil</c> for zero matches and for some host failures alike), never as
+///         <see cref="CheatEngineFailureKind.NotFound" />.
 ///     </para>
 /// </remarks>
 public readonly record struct AobSingleMatchBuilder
@@ -36,7 +37,7 @@ public readonly record struct AobSingleMatchBuilder
 	/// </param>
 	/// <returns>The sole target address.</returns>
 	/// <exception cref="CheatEngineOperationException">
-	///     The scan failed (including the indeterminate "no result list" outcome), its returned list had no
+	///     The scan failed (including the indeterminate <c>nil</c> outcome), its returned list had no
 	///     post-filtered match, or several post-filtered matches exist.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">

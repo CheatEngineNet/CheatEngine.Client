@@ -254,13 +254,16 @@ port; the Cheat Engine scan cost is a live-host measurement.
 
 The SDK owner of the result list is handed to the Client wrapper through `OwnershipHandoff`, so a failure between
 acquisition and publication releases the Cheat Engine list exactly once. The scanner then releases the list exactly once
-on every path, inside the dispatched callback. It releases through the SDK owner's `Dispose`, and the only "release not
-confirmed" signal it observes is an exception from that call; the scan then fails with `InvalidState` and
-`CheatEngineHostEffect.CleanupUnconfirmed`, and copied addresses are discarded rather than reported as a success.
+on every path, inside the dispatched callback, through the SDK owner's never-throwing `ReleaseWithOutcome`, mapped with
+`SdkReleaseOutcomes`. Any status other than `Released` is an unconfirmed release: a scan that had succeeded fails with
+`InvalidState` and `CheatEngineHostEffect.CleanupUnconfirmed`, and copied addresses are discarded rather than reported as
+a success; a scan that had already failed keeps its kind and gains the `CleanupUnconfirmed` effect.
 
-The AOB port calls the boolean `AobScanner.TryScan`, so a missing result list is `IndeterminateHostResult` ("zero
-matches or a host failure"), never `NotFound` or `OperationRejected`; classification uses SDK return values only, never
-Cheat Engine or Lua error text.
+The AOB port calls `AobScanner.TryScanOutcome` with its target context, and `AobScanMapping` classifies every outcome:
+`NoResult` is `IndeterminateHostResult` ("CE AOBScan returned nil: on CE 7.7 zero matches and host failures share this
+shape"), never `NotFound` or `OperationRejected`; a target that changed during the call discards the addresses
+(`TargetChanged` or `TargetIdentityUnavailable`). Classification uses SDK outcome values only, never Cheat Engine or Lua
+error text.
 
 ## Leases and release outcomes
 

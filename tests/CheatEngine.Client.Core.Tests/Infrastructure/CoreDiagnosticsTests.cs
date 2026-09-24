@@ -21,6 +21,7 @@ using CheatEngine.SDK.Engine.Memory;
 using CheatEngine.SDK.Engine.Processes;
 using CheatEngine.SDK.Engine.Runtime;
 using CheatEngine.SDK.Engine.Scanning.Aob;
+using CheatEngine.SDK.Engine.Targets;
 using CheatEngine.SDK.Engine.Values;
 
 namespace CheatEngine.Client.Core.Tests.Infrastructure;
@@ -741,11 +742,10 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 
 	private sealed class SingleMatchScanPort : IAobScanPort
 	{
-		public AobScanHostStatus TryScan(string pattern, AobScanOptions options,
-			[NotNullWhen(true)] out IAobMatchList? matches)
+		public AobHostOutcome TryScan(string pattern, AobScanOptions options, out IAobMatchList? matches)
 		{
 			matches = new SingleMatchList();
-			return AobScanHostStatus.Success;
+			return AobHosts.Outcome(AobScanOutcomeKind.Matches, 1);
 		}
 
 		public InspectionStatus EnumerateModules(ModuleInfo[] destination, out int written)
@@ -769,8 +769,9 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 			return value is not null;
 		}
 
-		public void Dispose()
+		public TargetReleaseStatus Release()
 		{
+			return TargetReleaseStatus.Released;
 		}
 	}
 

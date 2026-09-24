@@ -6,6 +6,8 @@ using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Results;
 using CheatEngine.Client.Scanning;
 using CheatEngine.SDK.Engine.Inspection;
+using CheatEngine.SDK.Engine.Scanning.Aob;
+using CheatEngine.SDK.Engine.Targets;
 using CheatEngine.SDK.Engine.Values;
 
 namespace CheatEngine.Client.Core.Domains;
@@ -20,17 +22,21 @@ namespace CheatEngine.Client.Core.Domains;
 ///         <see cref="ScanDetailed" /> reports the Cheat Engine scan time separately from the copy time.
 ///     </para>
 ///     <para>
+///         <b>Host outcomes (audit F06).</b> The port calls <c>AobScanner.TryScanOutcome</c> with its target context, and
+///         <see cref="AobScanMapping" /> classifies each outcome: <c>NoResult</c> stays
+///         <see cref="CheatEngineFailureKind.IndeterminateHostResult" />, because on Cheat Engine 7.7 zero matches and
+///         host failures share that shape. A target that changed during the scan discards its addresses.
+///     </para>
+///     <para>
 ///         <b>Single release authority (audit F13).</b> The owned result list is released exactly once on every path,
-///         inside the dispatched callback. A release failure is never hidden behind a success.
+///         inside the dispatched callback, through the SDK's never-throwing <c>ReleaseWithOutcome</c>. Any release
+///         status but <c>Released</c> is <see cref="CheatEngineHostEffect.CleanupUnconfirmed" />: a release that was not
+///         confirmed is never hidden behind a success.
 ///     </para>
 /// </remarks>
 internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobScanPort? scanPort = null)
 	: IPatternScanner, IPatternScanOutcomeClient
 {
-	/// <summary>The exact, documented message for a scan that returned no result list.</summary>
-	internal const string NoResultListMessage =
-		"Cheat Engine returned no AOB result list: zero matches or a host failure (indistinguishable on this scan route).";
-
 	private const int MaximumModuleSnapshot = 4096;
 	private const string InModuleOperation = "Patterns.InModule";
 	private const string ScanOperation = "Patterns.Scan";
@@ -148,11 +154,11 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		}
 
 		long hostScanStarted = Stopwatch.GetTimestamp();
-		AobScanHostStatus status;
+		AobHostOutcome host;
 		IAobMatchList? matchList;
 		try
 		{
-			status = _scanPort.TryScan(request.Pattern.Value, request.Options, out matchList);
+			host = _scanPort.TryScan(request.Pattern.Value, request.Options, out matchList);
 		}
 		catch (Exception scanFault) when (SdkBoundary.IsSdkFault(scanFault))
 		{
@@ -166,50 +172,56 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		TimeSpan hostScanElapsed = Stopwatch.GetElapsedTime(hostScanStarted);
 		if (matchList is null)
 		{
-			return ScanOutcome.Failed(CreateMissingListFailure(status), null);
+			return ScanOutcome.Failed(ClassifyWithoutList(host), null);
 		}
 
 		// From here on this method is the single release authority for the owned list: every path below releases it
-		// exactly once, on this dispatched callback, and a release failure is never hidden behind a success.
+		// exactly once, on this dispatched callback, and a release that is not confirmed is never hidden behind a success.
 		ScanOutcome outcome;
 		try
 		{
-			outcome = Consume(matchList, status, request, moduleRange, hostScanElapsed, cancellationToken);
+			outcome = Consume(matchList, host, request, moduleRange, hostScanElapsed, cancellationToken);
 		}
 		catch (Exception copyFault) when (SdkBoundary.IsSdkFault(copyFault))
 		{
-			// A fault while reading the SDK-owned list: CE's scan had returned, so no scan work is outstanding.
+			// A fault while reading the SDK-owned list: CE's scan had returned, so no scan work is outstanding. The fault
+			// is classified like every other SDK fault, including the external-reset rule.
 			outcome = ScanOutcome.Failed(
-				CoreFailureFactory.FromException(ScanOperation, copyFault, CheatEngineHostEffect.Completed), null);
+				SdkBoundary.Classify(ScanOperation, copyFault, CheatEngineHostEffect.Completed), null);
 			ScanOutcome released = Release(matchList, outcome);
 			SdkBoundary.ThrowIfActivationEnded(ScanOperation, copyFault, _dispatcher.Lifetime);
 			return released;
 		}
-		catch (Exception lifecycleFault)
+		catch (Exception)
 		{
-			ReleaseAfterUnexpectedFailure(matchList, lifecycleFault);
+			// A lifecycle fault propagates unchanged; the list is still released once, on this callback.
+			_ = ReleaseList(matchList, out _);
 			throw;
 		}
 
 		return Release(matchList, outcome);
 	}
 
-	/// <summary>Classifies a scan that returned no usable list, by SDK status only (never by error text).</summary>
+	/// <summary>Classifies an outcome that handed out no result list, by SDK outcome only (never by error text).</summary>
 	/// <remarks>
-	///     A missing list is explicitly indeterminate: the boolean <c>AobScanner.TryScan</c> that the port calls does not
-	///     tell zero matches from several host failures (spike C3 D1: <c>AOBScan</c> returns no value for zero matches on
-	///     the pinned profile). It is never reported as <see cref="CheatEngineFailureKind.NotFound" /> or as a host
-	///     rejection.
+	///     <c>NoResult</c> is explicitly indeterminate (<see cref="AobScanMapping.NoResultMessage" />): on the pinned
+	///     profile Cheat Engine returns <c>nil</c> for zero matches, and a host failure can produce the same shape. It is
+	///     never reported as <see cref="CheatEngineFailureKind.NotFound" />, and it is attributed to the target only when
+	///     the selection did not change during the call.
 	/// </remarks>
-	private static CheatEngineFailure CreateMissingListFailure(AobScanHostStatus status)
+	private static CheatEngineFailure ClassifyWithoutList(AobHostOutcome host)
 	{
-		return status == AobScanHostStatus.NoResultList
-			? new CheatEngineFailure(CheatEngineFailureKind.IndeterminateHostResult, ScanOperation,
-				NoResultListMessage, null, CheatEngineHostEffect.Completed)
-			: InvalidList();
+		if (host.Kind == AobScanOutcomeKind.NoResult &&
+			AobScanMapping.TryGetTargetFailure(ScanOperation,
+				AobScanMapping.JudgeTarget(host.TargetBefore, host.TargetAfter), out CheatEngineFailure targetFailure))
+		{
+			return targetFailure;
+		}
+
+		return AobScanMapping.ToFailure(ScanOperation, host);
 	}
 
-	private static ScanOutcome Consume(IAobMatchList matchList, AobScanHostStatus status, AobScanRequest request,
+	private static ScanOutcome Consume(IAobMatchList matchList, AobHostOutcome host, AobScanRequest request,
 		ModuleRange moduleRange, TimeSpan hostScanElapsed, CancellationToken cancellationToken)
 	{
 		if (cancellationToken.IsCancellationRequested)
@@ -217,9 +229,16 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 			return ScanOutcome.Failed(CancelledAfterScan(), null);
 		}
 
-		if (status != AobScanHostStatus.Success)
+		if (host.Kind is not (AobScanOutcomeKind.Matches or AobScanOutcomeKind.NoMatches))
 		{
+			// The SDK hands out a list only with a verified count; any other outcome with a list is a broken contract.
 			return ScanOutcome.Failed(InvalidList(), null);
+		}
+
+		if (AobScanMapping.TryGetTargetFailure(ScanOperation,
+				AobScanMapping.JudgeTarget(host.TargetBefore, host.TargetAfter), out CheatEngineFailure targetFailure))
+		{
+			return ScanOutcome.Failed(targetFailure, null);
 		}
 
 		long materializationStarted = Stopwatch.GetTimestamp();
@@ -287,56 +306,60 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 
 	/// <summary>Releases the owned list once and turns an unconfirmed release into the operation's failure.</summary>
 	/// <remarks>
-	///     A release failure is never reported as success, even when every address was copied: the copied result is
-	///     discarded (audit ch.24 cleanup row, ADR-08). When the operation had already failed, the release failure is
-	///     added to the original failure instead of replacing its cause. The metrics are kept: they describe the work
-	///     that happened.
+	///     Only <see cref="TargetReleaseStatus.Released" /> confirms the release (<see cref="SdkReleaseOutcomes" />). Any
+	///     other status is never reported as success, even when every address was copied: the copied result is discarded
+	///     (audit ch.24 cleanup row, ADR-08). When the operation had already failed, the unconfirmed release is added to
+	///     the original failure instead of replacing its cause. The metrics are kept: they describe the work that
+	///     happened.
 	/// </remarks>
 	private static ScanOutcome Release(IAobMatchList matchList, ScanOutcome outcome)
 	{
+		LeaseReleaseKind released = ReleaseList(matchList, out Exception? releaseFault);
+		return released == LeaseReleaseKind.Released
+			? outcome
+			: ScanOutcome.Failed(
+				CreateReleaseFailure(outcome.Succeeded ? null : outcome.Failure, released, releaseFault),
+				outcome.Metrics);
+	}
+
+	/// <summary>Releases the list once and maps the SDK status to the Client lease vocabulary.</summary>
+	/// <remarks>
+	///     The SDK release never throws. An SDK fault from a port that breaks that contract is kept as an unconfirmed
+	///     release, so it never crosses a Try method.
+	/// </remarks>
+	private static LeaseReleaseKind ReleaseList(IAobMatchList matchList, out Exception? releaseFault)
+	{
 		try
 		{
-			matchList.Dispose();
-			return outcome;
+			releaseFault = null;
+			return SdkReleaseOutcomes.FromTarget(matchList.Release()).Kind;
 		}
-		catch (Exception releaseFailure)
+		catch (Exception fault) when (SdkBoundary.IsSdkFault(fault))
 		{
-			return ScanOutcome.Failed(
-				CreateReleaseFailure(outcome.Succeeded ? null : outcome.Failure, releaseFailure),
-				outcome.Metrics);
+			releaseFault = fault;
+			return LeaseReleaseKind.Unknown;
 		}
 	}
 
-	private static CheatEngineFailure CreateReleaseFailure(CheatEngineFailure? primaryFailure, Exception releaseFailure)
+	private static CheatEngineFailure CreateReleaseFailure(CheatEngineFailure? primaryFailure,
+		LeaseReleaseKind released, Exception? releaseFault)
 	{
 		if (primaryFailure is not { } primary)
 		{
 			return new CheatEngineFailure(CheatEngineFailureKind.InvalidState, ScanOperation,
-				"The AOB result list release was not confirmed; copied results were discarded.", releaseFailure,
-				CheatEngineHostEffect.CleanupUnconfirmed);
+				$"The AOB result list release was not confirmed ({released}); copied results were discarded.",
+				releaseFault, CheatEngineHostEffect.CleanupUnconfirmed);
 		}
 
-		Exception primaryException = primary.Exception ?? new CheatEngineOperationException(primary);
-		return new CheatEngineFailure(CheatEngineFailureKind.InvalidState, ScanOperation,
-			$"The AOB result list release was not confirmed after the scan had already failed ({primary.Kind}).",
-			new AggregateException(primaryException, releaseFailure),
+		Exception? exception = (primary.Exception, releaseFault) switch
+		{
+			({ } cause, { } fault) => new AggregateException(cause, fault),
+			({ } cause, null) => cause,
+			_ => releaseFault
+		};
+		return new CheatEngineFailure(primary.Kind, primary.Operation,
+			$"{primary.Message} The AOB result list release was not confirmed ({released}).", exception,
 			CheatEngineHostEffect.CleanupUnconfirmed);
-	}
-
-	/// <summary>Keeps the single-release guarantee when copying throws instead of returning a failure.</summary>
-	private static void ReleaseAfterUnexpectedFailure(IAobMatchList matchList, Exception consumeFailure)
-	{
-		try
-		{
-			matchList.Dispose();
-		}
-		catch (Exception releaseFailure)
-		{
-			throw new AggregateException(
-				"Copying the AOB result list failed, and its release was not confirmed.",
-				consumeFailure,
-				releaseFailure);
-		}
 	}
 
 	private static CheatEngineFailure Rejected(string message)
@@ -348,7 +371,7 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 	private static CheatEngineFailure InvalidList()
 	{
 		return new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult, ScanOperation,
-			"Cheat Engine returned an invalid AOB result list.", null, CheatEngineHostEffect.Completed);
+			AobScanMapping.InvalidListMessage, null, CheatEngineHostEffect.Completed);
 	}
 
 	private static CheatEngineFailure CancelledBeforeScan()

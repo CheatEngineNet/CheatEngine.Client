@@ -23,9 +23,16 @@ namespace CheatEngine.Client.Scanning;
 ///         counts and the Cheat Engine scan time separately from the Client copy time.
 ///     </para>
 ///     <para>
-///         A scan that finds nothing is reported as <see cref="CheatEngineFailureKind.IndeterminateHostResult" />: this
-///         scan route observes only whether Cheat Engine returned a result list, so zero matches and a host failure are
-///         indistinguishable. It is never reported as <see cref="CheatEngineFailureKind.NotFound" />.
+///         A scan that finds nothing is reported as <see cref="CheatEngineFailureKind.IndeterminateHostResult" />: on
+///         Cheat Engine 7.7 <c>AOBScan</c> returns <c>nil</c> for zero matches, and a host failure can return the same
+///         shape, so this route cannot tell them apart. It is never reported as
+///         <see cref="CheatEngineFailureKind.NotFound" />. The other host outcomes keep their own kinds: an absent
+///         <c>AOBScan</c> is <see cref="CheatEngineFailureKind.CapabilityUnavailable" />, a raising call is
+///         <see cref="CheatEngineFailureKind.LuaError" />, a malformed result is
+///         <see cref="CheatEngineFailureKind.InvalidHostResult" />, and an empty list that Cheat Engine does return is a
+///         successful no-match. When Cheat Engine's selected target changes during the scan, its addresses are discarded
+///         and the scan fails with <see cref="CheatEngineFailureKind.TargetChanged" /> or
+///         <see cref="CheatEngineFailureKind.TargetIdentityUnavailable" />.
 ///     </para>
 /// </remarks>
 public interface IPatternScanner

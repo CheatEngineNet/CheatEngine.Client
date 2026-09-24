@@ -7,7 +7,9 @@ using CheatEngine.Client.Core.Domains;
 using CheatEngine.Client.Scanning;
 using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Engine.Scanning.Aob;
+using CheatEngine.SDK.Engine.Targets;
 using CheatEngine.SDK.Engine.Values;
+using CheatEngine.SDK.Lua.Calls;
 
 namespace CheatEngine.Client.Benchmarks;
 
@@ -86,11 +88,10 @@ public class PatternScannerMaterializationBenchmarks
 
 	private sealed class InMemoryAobScanPort(string[] entries, ModuleInfo module) : IAobScanPort
 	{
-		public AobScanHostStatus TryScan(string pattern, AobScanOptions options,
-			[NotNullWhen(true)] out IAobMatchList? matches)
+		public AobHostOutcome TryScan(string pattern, AobScanOptions options, out IAobMatchList? matches)
 		{
 			matches = new InMemoryAobMatchList(entries);
-			return AobScanHostStatus.Success;
+			return new AobHostOutcome(AobScanOutcomeKind.Matches, LuaStatus.Ok, entries.Length, default, default);
 		}
 
 		public InspectionStatus EnumerateModules(ModuleInfo[] destination, out int written)
@@ -115,8 +116,9 @@ public class PatternScannerMaterializationBenchmarks
 			return value is not null;
 		}
 
-		public void Dispose()
+		public TargetReleaseStatus Release()
 		{
+			return TargetReleaseStatus.Released;
 		}
 	}
 }

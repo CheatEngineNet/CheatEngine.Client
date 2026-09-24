@@ -17,7 +17,15 @@ internal readonly record struct TargetSelectionFacts(
 	TargetSelectionObservationStatus Status,
 	TargetBackend Backend,
 	int? SelectedProcessId,
-	TargetProcessIncarnation? Incarnation);
+	TargetProcessIncarnation? Incarnation)
+{
+	/// <summary>
+	///     Gets whether the observation identifies a local process incarnation, the SDK's
+	///     <c>TargetSelectionObservation.IsQualified</c>.
+	/// </summary>
+	internal bool IsQualified =>
+		Status == TargetSelectionObservationStatus.CurrentTargetQualified && Incarnation.HasValue;
+}
 
 /// <summary>A copied CheatEngine.SDK <c>TargetIdentityCheck</c>: a known incarnation compared with the selection.</summary>
 /// <param name="Kind">The factual validation category.</param>

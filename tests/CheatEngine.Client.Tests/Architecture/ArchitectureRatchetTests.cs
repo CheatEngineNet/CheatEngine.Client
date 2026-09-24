@@ -153,11 +153,12 @@ public sealed partial class ArchitectureRatchetTests
 	/// </summary>
 	private static readonly SanctionedSdkLuaMember[] SanctionedSdkLuaSurface =
 	[
-		new("CheatEngine.SDK.Engine.Objects.Owned`1::Dispose()->void",
-			"Releases the AOB result-list owner that AobScanner.TryScan hands out, through OwnershipHandoff, the only " +
-			"release authority (F13); swapped 1:1 for Owned<StringList>.ReleaseWithOutcome in L11"),
+		new("CheatEngine.SDK.Engine.Objects.Owned`1::ReleaseWithOutcome()->CheatEngine.SDK.Engine.Targets.TargetReleaseOutcome",
+			"Releases the AOB result-list owner that AobScanner.TryScanOutcome hands out, once and without throwing, " +
+			"and reports the outcome; OwnershipHandoff and then the match list are the only release authority (F13). " +
+			"The 1:1 replacement of Owned`1::Dispose (L11)"),
 		new("CheatEngine.SDK.Engine.Objects.Owned`1::get_Value()->!0",
-			"Reads the StringList of the AOB result-list owner, the only result shape AobScanner.TryScan returns"),
+			"Reads the StringList of the AOB result-list owner, the only result shape AobScanner.TryScanOutcome returns"),
 		new("CheatEngine.SDK.Engine.Objects.StringList::TryGetCount(int32&)->boolean",
 			"Counts the AOB result rows through the SDK's typed StringList"),
 		new("CheatEngine.SDK.Engine.Objects.StringList::TryGetItem(int32,string&)->boolean",

@@ -77,7 +77,8 @@ internal static class SdkApiUsage
 		_ = handle.TryGetProperty<BooleanMarshaller, bool>("Active"u8, out _);
 		_ = handle.TrySetProperty<BooleanMarshaller, bool>("Active"u8, true);
 		_ = owner.Value;
-		owner.Dispose();
+		TargetReleaseOutcome released = owner.ReleaseWithOutcome();
+		_ = released.Status;
 		_ = list.TryGetCount(out _);
 		_ = list.TryGetItem(0, out _);
 	}
@@ -216,6 +217,7 @@ internal static class SdkApiUsage
 		_ = observation.Status;
 		_ = incarnation.StartedAtUtcTicks;
 		_ = incarnation != other;
+		_ = incarnation == other;
 	}
 
 	internal static void ScanningAndValueSurface(AobScanOptions options, Address address, Address other)
@@ -225,7 +227,12 @@ internal static class SdkApiUsage
 		_ = options.AlignmentParameter;
 		_ = AobScanOptions.Default;
 		_ = options.ProtectionFlags;
-		_ = AobScanner.TryScan("90", options, out _);
+		AobScanOutcome outcome = AobScanner.TryScanOutcome("90", options, out _, out AobScanTargetContext context);
+		_ = outcome.Kind;
+		_ = outcome.LuaStatus;
+		_ = outcome.ResultCount;
+		_ = context.Before;
+		_ = context.After;
 		_ = Address.FromUInt64(0);
 		_ = Address.TryParse("400000", out _);
 		_ = address.Value;
