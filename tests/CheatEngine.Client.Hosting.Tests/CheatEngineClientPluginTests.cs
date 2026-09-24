@@ -2,24 +2,17 @@ using System.Reflection;
 
 using CheatEngine.Client.Allocations;
 using CheatEngine.Client.Assembly;
-using CheatEngine.Client.Dbvm;
-using CheatEngine.Client.Debugger;
 using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Extensions.DependencyInjection;
-using CheatEngine.Client.Hashing;
-using CheatEngine.Client.Hotkeys;
 using CheatEngine.Client.Inspection;
 using CheatEngine.Client.Lua;
 using CheatEngine.Client.Memory;
 using CheatEngine.Client.Modules;
 using CheatEngine.Client.Processes;
-using CheatEngine.Client.RemoteExecution;
 using CheatEngine.Client.Results;
 using CheatEngine.Client.Runtime;
 using CheatEngine.Client.Scanning;
-using CheatEngine.Client.Speed;
 using CheatEngine.Client.Tables;
-using CheatEngine.Client.Timers;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -1023,12 +1016,5 @@ public sealed class CheatEngineClientPluginTests
 		public ILuaClient Lua => null!;
 		public IAllocationClient Allocations => null!;
 		public IAssemblyClient Assembly => null!;
-		public IRemoteExecutionClient RemoteExecution => null!;
-		public IDebuggerClient Debugger => null!;
-		public IHotkeyClient Hotkeys => null!;
-		public ITimerClient Timers => null!;
-		public ISpeedClient Speed => null!;
-		public IHashingClient Hashing => null!;
-		public IDbvmClient Dbvm => null!;
 	}
 }

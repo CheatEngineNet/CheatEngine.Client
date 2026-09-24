@@ -121,18 +121,11 @@ public sealed class ClientCapabilitiesTests
 		ClientCapabilityId[] capabilities =
 		[
 			ClientCapabilityId.Allocations,
-			ClientCapabilityId.Assembly,
-			ClientCapabilityId.RemoteExecution,
-			ClientCapabilityId.Debugger,
-			ClientCapabilityId.Hotkeys,
-			ClientCapabilityId.Timers,
-			ClientCapabilityId.Speed,
-			ClientCapabilityId.Hashing,
-			ClientCapabilityId.Dbvm
+			ClientCapabilityId.Assembly
 		];
 
-		Assert.Equal(9, capabilities.Length);
-		Assert.Equal(9, capabilities.Select(static capability => capability.Value).Distinct().Count());
+		Assert.Equal(2, capabilities.Length);
+		Assert.Equal(2, capabilities.Select(static capability => capability.Value).Distinct().Count());
 		Assert.All(capabilities, static capability => Assert.StartsWith("Client.", capability.Value));
 	}
 }

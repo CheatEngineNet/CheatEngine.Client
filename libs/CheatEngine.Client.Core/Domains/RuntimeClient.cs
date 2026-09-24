@@ -262,11 +262,6 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 		// compared with the loaded CheatEngine.SDK.Engine), never from the presence of an interface or a version name.
 		ClientCapabilityEvidenceGate package = _sdkIdentity.PackageGate;
 		ClientCapabilityEvidenceGate qualificationUnknown = UnknownEvidence(QualificationUnknownReason);
-		ClientCapabilityEvidenceGate noQualifiedPrimitive = Missing(
-			"No CheatEngine.SDK release provides a qualified primitive for this capability.");
-		ClientCapabilityEvidenceGate noQualifiedEventOwner = Missing(
-			"No CheatEngine.SDK release provides a qualified primitive for this capability until the SDK 2.0 timer and " +
-			"hotkey owners are adopted.");
 		ClientCapabilityEvidenceGate policyNotRequired = Satisfied(
 			"This capability has no additional activation policy opt-in.");
 		ClientCapabilityEvidenceGate unprobedHost = UnknownEvidence(
@@ -306,21 +301,7 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 			Describe(ClientCapabilityId.Assembly, contractOnly,
 				Missing("CheatEngine.SDK 1.0.0 provides no target-bound owned Auto Assembler primitive; see the SDK 2.0 " +
 						"migration guide."),
-				unprobedHost, qualificationUnknown, policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.RemoteExecution, contractOnly, noQualifiedPrimitive, unprobedHost,
-				qualificationUnknown, policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.Debugger, contractOnly, noQualifiedPrimitive, unprobedHost,
-				qualificationUnknown, policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.Hotkeys, contractOnly, noQualifiedEventOwner, unprobedHost,
-				qualificationUnknown, policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.Timers, contractOnly, noQualifiedEventOwner, unprobedHost,
-				qualificationUnknown, policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.Speed, contractOnly, noQualifiedPrimitive, unprobedHost, qualificationUnknown,
-				policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.Hashing, contractOnly, noQualifiedPrimitive, unprobedHost,
-				qualificationUnknown, policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.Dbvm, contractOnly, noQualifiedPrimitive, unprobedHost, qualificationUnknown,
-				policyNotRequired, lifetime)
+				unprobedHost, qualificationUnknown, policyNotRequired, lifetime)
 		];
 
 		return ClientCapabilities.Create(capabilities);

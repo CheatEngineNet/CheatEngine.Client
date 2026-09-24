@@ -80,10 +80,10 @@ Cheat Engine work, and a capability test keeps them that way while the consumed 
   present, Core reports a capability failure rather than making an unverified ownership assumption.
 - **Allocations and assembly**: CheatEngine.SDK 1.0.0 provides no target-bound owned allocation or
   Auto Assembler primitive, and allocation owners must not be wired before the package migration.
-- **Remote execution, debugger, speed, hashing and DBVM**: no CheatEngine.SDK release provides a
-  qualified primitive.
-- **Hotkeys and timers**: no qualified primitive until the SDK 2.0 hotkey and timer owners are
-  adopted.
+
+Core composes nothing for the domains that no CheatEngine.SDK primitive backs (timers, hotkeys, the debugger,
+the speed hack, hashing, DBVM and remote execution): the Client has no contract for them, as the
+`CheatEngine.Client.Abstractions` README states under "Not offered in 1.0".
 
 The per-capability evidence (implementation, package, host, qualification, policy and lifetime
 gates) is in the capability table of the `CheatEngine.Client.Abstractions` README. The package gate

@@ -4,23 +4,16 @@ using System.Runtime.CompilerServices;
 
 using CheatEngine.Client.Allocations;
 using CheatEngine.Client.Assembly;
-using CheatEngine.Client.Dbvm;
-using CheatEngine.Client.Debugger;
 using CheatEngine.Client.Dispatching;
-using CheatEngine.Client.Hashing;
-using CheatEngine.Client.Hotkeys;
 using CheatEngine.Client.Inspection;
 using CheatEngine.Client.Lua;
 using CheatEngine.Client.Memory;
 using CheatEngine.Client.Modules;
 using CheatEngine.Client.Processes;
-using CheatEngine.Client.RemoteExecution;
 using CheatEngine.Client.Results;
 using CheatEngine.Client.Runtime;
 using CheatEngine.Client.Scanning;
-using CheatEngine.Client.Speed;
 using CheatEngine.Client.Tables;
-using CheatEngine.Client.Timers;
 using CheatEngine.SDK.Engine.Values;
 
 using Microsoft.Extensions.Configuration;
@@ -46,13 +39,6 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IPatternScanOutcomeClient));
 		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IAllocationClient));
 		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IAssemblyClient));
-		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IRemoteExecutionClient));
-		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IDebuggerClient));
-		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IHotkeyClient));
-		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(ITimerClient));
-		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(ISpeedClient));
-		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IHashingClient));
-		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IDbvmClient));
 		Assert.Contains(services,
 			static descriptor => descriptor.ServiceType == typeof(IValidateOptions<CheatEngineClientOptions>));
 		Assert.DoesNotContain(services, static descriptor => descriptor.ServiceType == typeof(IUnsafeLuaClient));
@@ -96,12 +82,7 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		ServiceCollection services = new();
 		services.AddCheatEngineClient();
 		AliasRecordingServiceProvider provider = new();
-		Type[] contractOnly =
-		[
-			typeof(IValueScanner), typeof(IAllocationClient), typeof(IAssemblyClient), typeof(IRemoteExecutionClient),
-			typeof(IDebuggerClient), typeof(IHotkeyClient), typeof(ITimerClient), typeof(ISpeedClient),
-			typeof(IHashingClient), typeof(IDbvmClient)
-		];
+		Type[] contractOnly = [typeof(IValueScanner), typeof(IAllocationClient), typeof(IAssemblyClient)];
 
 		foreach (Type serviceType in contractOnly)
 		{
@@ -537,20 +518,6 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		public IAllocationClient Allocations => null!;
 
 		public IAssemblyClient Assembly => null!;
-
-		public IRemoteExecutionClient RemoteExecution => null!;
-
-		public IDebuggerClient Debugger => null!;
-
-		public IHotkeyClient Hotkeys => null!;
-
-		public ITimerClient Timers => null!;
-
-		public ISpeedClient Speed => null!;
-
-		public IHashingClient Hashing => null!;
-
-		public IDbvmClient Dbvm => null!;
 	}
 
 	/// <summary>

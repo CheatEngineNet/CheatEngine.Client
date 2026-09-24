@@ -5,29 +5,15 @@ using CheatEngine.Client.Core.Dispatching;
 using CheatEngine.Client.Core.Domains;
 using CheatEngine.Client.Core.Domains.Allocations;
 using CheatEngine.Client.Core.Domains.Assembly;
-using CheatEngine.Client.Core.Domains.Dbvm;
-using CheatEngine.Client.Core.Domains.Debugger;
-using CheatEngine.Client.Core.Domains.Hashing;
-using CheatEngine.Client.Core.Domains.Hotkeys;
-using CheatEngine.Client.Core.Domains.RemoteExecution;
-using CheatEngine.Client.Core.Domains.Speed;
-using CheatEngine.Client.Core.Domains.Timers;
 using CheatEngine.Client.Core.Infrastructure;
-using CheatEngine.Client.Dbvm;
-using CheatEngine.Client.Debugger;
 using CheatEngine.Client.Dispatching;
-using CheatEngine.Client.Hashing;
-using CheatEngine.Client.Hotkeys;
 using CheatEngine.Client.Inspection;
 using CheatEngine.Client.Lua;
 using CheatEngine.Client.Memory;
 using CheatEngine.Client.Processes;
-using CheatEngine.Client.RemoteExecution;
 using CheatEngine.Client.Runtime;
 using CheatEngine.Client.Scanning;
-using CheatEngine.Client.Speed;
 using CheatEngine.Client.Tables;
-using CheatEngine.Client.Timers;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -163,20 +149,6 @@ public static class CheatEngineClientServiceCollectionExtensions
 			new UnavailableAllocationClient(serviceProvider.GetRequiredService<CoreLifetime>()));
 		services.TryAddSingleton<IAssemblyClient>(static serviceProvider =>
 			new UnavailableAssemblyClient(serviceProvider.GetRequiredService<CoreLifetime>()));
-		services.TryAddSingleton<IRemoteExecutionClient>(static serviceProvider =>
-			new UnavailableRemoteExecutionClient(serviceProvider.GetRequiredService<CoreLifetime>()));
-		services.TryAddSingleton<IDebuggerClient>(static serviceProvider =>
-			new UnavailableDebuggerClient(serviceProvider.GetRequiredService<CoreLifetime>()));
-		services.TryAddSingleton<IHotkeyClient>(static serviceProvider =>
-			new UnavailableHotkeyClient(serviceProvider.GetRequiredService<CoreLifetime>()));
-		services.TryAddSingleton<ITimerClient>(static serviceProvider =>
-			new UnavailableTimerClient(serviceProvider.GetRequiredService<CoreLifetime>()));
-		services.TryAddSingleton<ISpeedClient>(static serviceProvider =>
-			new UnavailableSpeedClient(serviceProvider.GetRequiredService<CoreLifetime>()));
-		services.TryAddSingleton<IHashingClient>(static serviceProvider =>
-			new UnavailableHashingClient(serviceProvider.GetRequiredService<CoreLifetime>()));
-		services.TryAddSingleton<IDbvmClient>(static serviceProvider =>
-			new UnavailableDbvmClient(serviceProvider.GetRequiredService<CoreLifetime>()));
 
 		services.TryAddSingleton<InspectionClient>(static serviceProvider =>
 			new InspectionClient(
@@ -214,13 +186,6 @@ public static class CheatEngineClientServiceCollectionExtensions
 			ILuaClient lua = serviceProvider.GetRequiredService<ILuaClient>();
 			IAllocationClient allocations = serviceProvider.GetRequiredService<IAllocationClient>();
 			IAssemblyClient assembly = serviceProvider.GetRequiredService<IAssemblyClient>();
-			IRemoteExecutionClient remoteExecution = serviceProvider.GetRequiredService<IRemoteExecutionClient>();
-			IDebuggerClient debugger = serviceProvider.GetRequiredService<IDebuggerClient>();
-			IHotkeyClient hotkeys = serviceProvider.GetRequiredService<IHotkeyClient>();
-			ITimerClient timers = serviceProvider.GetRequiredService<ITimerClient>();
-			ISpeedClient speed = serviceProvider.GetRequiredService<ISpeedClient>();
-			IHashingClient hashing = serviceProvider.GetRequiredService<IHashingClient>();
-			IDbvmClient dbvm = serviceProvider.GetRequiredService<IDbvmClient>();
 
 			return new CheatEngineClient(
 				lifetime,
@@ -234,14 +199,7 @@ public static class CheatEngineClientServiceCollectionExtensions
 					tables,
 					lua,
 					allocations,
-					assembly,
-					remoteExecution,
-					debugger,
-					hotkeys,
-					timers,
-					speed,
-					hashing,
-					dbvm));
+					assembly));
 		});
 		services.TryAddSingleton<ICheatEngineClient>(static serviceProvider =>
 			serviceProvider.GetRequiredService<CheatEngineClient>());

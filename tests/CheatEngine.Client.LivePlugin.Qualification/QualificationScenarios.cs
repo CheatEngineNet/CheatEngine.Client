@@ -8,20 +8,14 @@ using System.Text;
 using CheatEngine.Client;
 using CheatEngine.Client.Allocations;
 using CheatEngine.Client.Assembly;
-using CheatEngine.Client.Debugger;
-using CheatEngine.Client.Events;
-using CheatEngine.Client.Hashing;
 using CheatEngine.Client.Hosting;
-using CheatEngine.Client.Hotkeys;
 using CheatEngine.Client.Inspection;
 using CheatEngine.Client.Memory;
 using CheatEngine.Client.Processes;
-using CheatEngine.Client.RemoteExecution;
 using CheatEngine.Client.Results;
 using CheatEngine.Client.Runtime;
 using CheatEngine.Client.Scanning;
 using CheatEngine.Client.Tables;
-using CheatEngine.Client.Timers;
 using CheatEngine.SDK.Engine.AddressList;
 using CheatEngine.SDK.Engine.Enums;
 using CheatEngine.SDK.Engine.Inspection;
@@ -634,9 +628,7 @@ internal static class QualificationScenarios
 					 ClientCapabilityId.ProcessSelection, ClientCapabilityId.TypedMemory, ClientCapabilityId.PatternScanning,
 					 ClientCapabilityId.ValueScanning, ClientCapabilityId.Inspection, ClientCapabilityId.Tables,
 					 ClientCapabilityId.ProtectedLua, ClientCapabilityId.UnsafeLuaExecution, ClientCapabilityId.Allocations,
-					 ClientCapabilityId.Assembly, ClientCapabilityId.RemoteExecution, ClientCapabilityId.Debugger,
-					 ClientCapabilityId.Hotkeys, ClientCapabilityId.Timers, ClientCapabilityId.Speed,
-					 ClientCapabilityId.Hashing, ClientCapabilityId.Dbvm
+					 ClientCapabilityId.Assembly
 				 ])
 		{
 			observation.BeginItem().String("capability", capability.Value);
@@ -691,40 +683,6 @@ internal static class QualificationScenarios
 				return true;
 			case "Client.Assembly":
 				succeeded = client.Assembly.TryDisassemble(nullRegion, out _, out failure, client.Stopping);
-				return true;
-			case "Client.RemoteExecution":
-				succeeded = client.RemoteExecution.TryInjectLibrary(
-					new RemoteDllInjectionRequest(Path.Combine(Path.GetTempPath(), NamePrefix + "absent.dll")), out failure,
-					client.Stopping);
-				return true;
-			case "Client.Debugger":
-				succeeded = client.Debugger.TryRegisterBreakpoint(new BreakpointRequest(nullRegion),
-					static _ => BreakpointDisposition.Continue, new EventStreamOptions(1), out IBreakpointLease? breakpoint,
-					out failure, client.Stopping);
-				breakpoint?.Dispose();
-				return true;
-			case "Client.Hotkeys":
-				succeeded = client.Hotkeys.TryRegister(new HotkeyRegistration(NamePrefix + "hotkey", new HotkeyGesture(0x87)),
-					static _ =>
-					{
-					}, new EventStreamOptions(1), out IHotkeyLease? hotkey, out failure, client.Stopping);
-				hotkey?.Dispose();
-				return true;
-			case "Client.Timers":
-				succeeded = client.Timers.TryRegister(new TimerRequest(TimeSpan.FromHours(1)), static _ =>
-				{
-				}, new EventStreamOptions(1), out ITimerLease? timer, out failure, client.Stopping);
-				timer?.Dispose();
-				return true;
-			case "Client.Speed":
-				succeeded = client.Speed.TryGetMultiplier(out _, out failure, client.Stopping);
-				return true;
-			case "Client.Hashing":
-				succeeded = client.Hashing.TryHashMemory(new MemoryHashRequest(nullRegion, 1), out _, out failure,
-					client.Stopping);
-				return true;
-			case "Client.Dbvm":
-				succeeded = client.Dbvm.TryGetStatus(out _, out failure, client.Stopping);
 				return true;
 			case "Client.ValueScanning":
 				succeeded = client.Scans.TryCreateSession(out IValueScanSession? session, out failure, client.Stopping);

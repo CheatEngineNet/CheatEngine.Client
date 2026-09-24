@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 
 using CheatEngine.Client.Core.Dispatching;
 using CheatEngine.Client.Core.Domains;
-using CheatEngine.Client.Core.Domains.Speed;
+using CheatEngine.Client.Core.Domains.Assembly;
 using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Core.Tests.TestSupport;
 using CheatEngine.Client.Dispatching;
@@ -107,9 +107,9 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 			[
 				Fields(ClientCapabilityId.UnsafeLuaExecution.Value, "Lua.ExecuteUnsafe",
 					ClientCapabilityEvidenceReasonCode.Policy, ClientCapabilityEvidenceState.Missing),
-				Fields(ClientCapabilityId.Speed.Value, "Speed.GetMultiplier",
+				Fields(ClientCapabilityId.Assembly.Value, "Assembly.GetInstructionSize",
 					ClientCapabilityEvidenceReasonCode.Implementation, ClientCapabilityEvidenceState.Missing),
-				Fields(ClientCapabilityId.Speed.Value, "Speed.GetMultiplier",
+				Fields(ClientCapabilityId.Assembly.Value, "Assembly.GetInstructionSize",
 					ClientCapabilityEvidenceReasonCode.Implementation, ClientCapabilityEvidenceState.Missing)
 			],
 			diagnostics.All(nameof(ICoreDiagnostics.CapabilityRefused)));
@@ -166,7 +166,7 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 
 		Assert.Equal(withoutDiagnostics, withThrowingDiagnostics);
 		Assert.Equal(16, throwing.Emissions.Count);
-		Assert.Contains("Speed.GetMultiplier:False:CapabilityUnavailable", withThrowingDiagnostics);
+		Assert.Contains("Assembly.GetInstructionSize:False:CapabilityUnavailable", withThrowingDiagnostics);
 		Assert.Contains("Cleanup:InvalidOperationException", withThrowingDiagnostics);
 	}
 
@@ -265,11 +265,11 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 		outcomes.Add(Describe("Lua.ExecuteUnsafe",
 			unsafeLua.TryExecute(new LuaScript(SensitiveScript), out failure, cancellationToken), failure));
 
-		UnavailableSpeedClient speed = new(lifetime);
-		outcomes.Add(Describe("Speed.GetMultiplier", speed.TryGetMultiplier(out _, out failure, cancellationToken),
-			failure));
-		outcomes.Add(Describe("Speed.GetMultiplier", speed.TryGetMultiplier(out _, out failure, cancellationToken),
-			failure));
+		UnavailableAssemblyClient assembly = new(lifetime);
+		outcomes.Add(Describe("Assembly.GetInstructionSize",
+			assembly.TryGetInstructionSize(new Address(0x1000), out _, out failure, cancellationToken), failure));
+		outcomes.Add(Describe("Assembly.GetInstructionSize",
+			assembly.TryGetInstructionSize(new Address(0x1000), out _, out failure, cancellationToken), failure));
 
 		lifetime.Track(new ThrowingDisposable());
 		Exception cleanup = Assert.ThrowsAny<Exception>(lifetime.Dispose);

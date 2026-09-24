@@ -42,9 +42,4 @@ internal static class UnavailableCapabilityFailure
 		failure.Throw();
 		throw new UnreachableException();
 	}
-
-	internal static void Throw(CheatEngineFailure failure)
-	{
-		failure.Throw();
-	}
 }

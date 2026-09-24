@@ -154,32 +154,16 @@ public sealed class RuntimeClientTests
 			out ClientCapabilityAvailability unsafeLua));
 		Assert.Equal(ClientCapabilityAvailabilityState.Unavailable, unsafeLua.State);
 
-		ClientCapabilityId[] unavailableCapabilities =
+		ClientCapabilityId[] contractOnlyCapabilities =
 		[
 			ClientCapabilityId.Allocations,
-			ClientCapabilityId.RemoteExecution,
-			ClientCapabilityId.Debugger,
-			ClientCapabilityId.Hotkeys,
-			ClientCapabilityId.Timers,
-			ClientCapabilityId.Dbvm
+			ClientCapabilityId.Assembly
 		];
-		foreach (ClientCapabilityId capability in unavailableCapabilities)
+		foreach (ClientCapabilityId capability in contractOnlyCapabilities)
 		{
 			Assert.True(snapshot.ClientCapabilities.TryGet(capability, out ClientCapabilityAvailability availability));
 			Assert.Equal(ClientCapabilityAvailabilityState.Unavailable, availability.State);
 			Assert.False(availability.IsAvailable);
-		}
-
-		ClientCapabilityId[] additionallyUnavailableCapabilities =
-		[
-			ClientCapabilityId.Assembly,
-			ClientCapabilityId.Speed,
-			ClientCapabilityId.Hashing
-		];
-		foreach (ClientCapabilityId capability in additionallyUnavailableCapabilities)
-		{
-			Assert.True(snapshot.ClientCapabilities.TryGet(capability, out ClientCapabilityAvailability availability));
-			Assert.Equal(ClientCapabilityAvailabilityState.Unavailable, availability.State);
 			Assert.Equal(ClientCapabilityEvidenceState.Missing, availability.Evidence.Implementation.State);
 		}
 	}
@@ -797,7 +781,10 @@ public sealed class RuntimeClientTests
 
 		CheatEngineRuntimeSnapshot snapshot = runtime.GetSnapshot(TestContext.Current.CancellationToken);
 
-		Assert.Equal(17, snapshot.ClientCapabilities.Count);
+		int declaredCapabilities = typeof(ClientCapabilityId)
+			.GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+			.Count(static property => property.PropertyType == typeof(ClientCapabilityId));
+		Assert.Equal(declaredCapabilities, snapshot.ClientCapabilities.Count);
 		foreach (ClientCapabilityAvailability capability in snapshot.ClientCapabilities.Entries)
 		{
 			Assert.False(capability.IsAvailable, capability.Capability.Value);
@@ -823,27 +810,6 @@ public sealed class RuntimeClientTests
 
 		Assert.Contains("SDK-branch receipts never qualify the Client tuple", RuntimeClient.QualificationUnknownReason,
 			StringComparison.Ordinal);
-	}
-
-	[Fact]
-	[Trait("Qualification", "Q44")]
-	public void ContractOnlyCapabilitiesWithoutAnSdkWaveNameTheMissingQualifiedPrimitive()
-	{
-		ConsumedSdkIdentity identity = MatchingIdentity();
-
-		foreach (ClientCapabilityId capability in (ClientCapabilityId[])
-				 [
-					 ClientCapabilityId.RemoteExecution, ClientCapabilityId.Debugger, ClientCapabilityId.Speed,
-					 ClientCapabilityId.Hashing, ClientCapabilityId.Dbvm, ClientCapabilityId.Hotkeys,
-					 ClientCapabilityId.Timers
-				 ])
-		{
-			ClientCapabilityAvailability availability = GetClientCapability(identity, capability);
-			Assert.Equal(ClientCapabilityAvailabilityState.Unavailable, availability.State);
-			Assert.Equal(ClientCapabilityEvidenceState.Missing, availability.Evidence.Package.State);
-			Assert.StartsWith("No CheatEngine.SDK release provides a qualified primitive for this capability",
-				availability.Evidence.Package.Reason, StringComparison.Ordinal);
-		}
 	}
 
 	[Fact]

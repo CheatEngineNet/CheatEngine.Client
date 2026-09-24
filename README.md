@@ -246,11 +246,18 @@ following table is a delivery statement, not a substitute for a live host check.
 | Value scanning                                      | **Capability-gated**            | The public state machine exists, but Client session creation stays unavailable until the internal `MemScan`/`FoundList` ownership path passes its Cheat Engine 7.7 x64 live gate |
 | Arbitrary Lua source                                | Policy-gated and off by default | Requires explicit unsafe opt-in; raw Lua state remains hidden                                                                                                                    |
 
-Target allocations; assembly and Auto Assembler; remote execution and DLL injection; debugger and breakpoints;
-hotkeys and timers; speed; hashing; and DBVM now have public Client API contracts. Each remains
+Target allocations and assembly with Auto Assembler patches now have public Client API contracts. Each remains
 `Unknown` or `Unavailable` until its primitive, ownership, and lifecycle behavior passes the corresponding Cheat
 Engine 7.7 x64 live gate. IPC, remote clients, UI/forms, structures, Mono/IL2CPP, and advanced ABI hooks remain
 outside v0.1 and have no placeholder public API. The capability table above is the current public-surface contract.
+
+### Not offered in 1.0
+
+These Cheat Engine features have no public Client contract, not even a gated placeholder: timers and hotkeys; the
+debugger and breakpoints; the speed hack; target-memory and file hashing; DBVM; remote execution and DLL injection;
+pausing, resuming or creating a process, and attaching to the foreground process; assembly comments; and detaching from
+a process. No CheatEngine.SDK primitive backs these yet; they may arrive in a 1.x minor release once the SDK provides
+an owner.
 
 ## AOT, trimming, and deployment
 

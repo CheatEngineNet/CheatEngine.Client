@@ -2,22 +2,15 @@ using System.Collections.Immutable;
 
 using CheatEngine.Client.Allocations;
 using CheatEngine.Client.Assembly;
-using CheatEngine.Client.Dbvm;
-using CheatEngine.Client.Debugger;
 using CheatEngine.Client.Dispatching;
-using CheatEngine.Client.Hashing;
-using CheatEngine.Client.Hotkeys;
 using CheatEngine.Client.Inspection;
 using CheatEngine.Client.Lua;
 using CheatEngine.Client.Memory;
 using CheatEngine.Client.Processes;
-using CheatEngine.Client.RemoteExecution;
 using CheatEngine.Client.Results;
 using CheatEngine.Client.Runtime;
 using CheatEngine.Client.Scanning;
-using CheatEngine.Client.Speed;
 using CheatEngine.Client.Tables;
-using CheatEngine.Client.Timers;
 using CheatEngine.SDK.Engine.Enums;
 using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Engine.Values;
@@ -492,13 +485,6 @@ public sealed class AobFluentBuilderTests
 		public ILuaClient Lua => NotUsed<ILuaClient>();
 		public IAllocationClient Allocations => NotUsed<IAllocationClient>();
 		public IAssemblyClient Assembly => NotUsed<IAssemblyClient>();
-		public IRemoteExecutionClient RemoteExecution => NotUsed<IRemoteExecutionClient>();
-		public IDebuggerClient Debugger => NotUsed<IDebuggerClient>();
-		public IHotkeyClient Hotkeys => NotUsed<IHotkeyClient>();
-		public ITimerClient Timers => NotUsed<ITimerClient>();
-		public ISpeedClient Speed => NotUsed<ISpeedClient>();
-		public IHashingClient Hashing => NotUsed<IHashingClient>();
-		public IDbvmClient Dbvm => NotUsed<IDbvmClient>();
 
 		private static T NotUsed<T>()
 			where T : class

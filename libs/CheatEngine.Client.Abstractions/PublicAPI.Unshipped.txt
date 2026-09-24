@@ -53,79 +53,6 @@ CheatEngine.Client.Assembly.IAutoAssemblerPatchLease
 CheatEngine.Client.Assembly.IAutoAssemblerPatchLease.IsReleased.get -> bool
 CheatEngine.Client.Assembly.IAutoAssemblerPatchLease.Name.get -> string?
 CheatEngine.Client.Assembly.IAutoAssemblerPatchLease.SelectionEpoch.get -> long
-CheatEngine.Client.Dbvm.DbvmInitializationRequest
-CheatEngine.Client.Dbvm.DbvmInitializationRequest.DbvmInitializationRequest() -> void
-CheatEngine.Client.Dbvm.DbvmInitializationRequest.DbvmInitializationRequest(bool useStealthMode = false) -> void
-CheatEngine.Client.Dbvm.DbvmInitializationRequest.Equals(CheatEngine.Client.Dbvm.DbvmInitializationRequest other) -> bool
-CheatEngine.Client.Dbvm.DbvmInitializationRequest.UseStealthMode.get -> bool
-CheatEngine.Client.Dbvm.DbvmState
-CheatEngine.Client.Dbvm.DbvmState.Initialized = 3 -> CheatEngine.Client.Dbvm.DbvmState
-CheatEngine.Client.Dbvm.DbvmState.NotInitialized = 2 -> CheatEngine.Client.Dbvm.DbvmState
-CheatEngine.Client.Dbvm.DbvmState.Unavailable = 1 -> CheatEngine.Client.Dbvm.DbvmState
-CheatEngine.Client.Dbvm.DbvmState.Unknown = 0 -> CheatEngine.Client.Dbvm.DbvmState
-CheatEngine.Client.Dbvm.DbvmStatusSnapshot
-CheatEngine.Client.Dbvm.DbvmStatusSnapshot.DbvmStatusSnapshot() -> void
-CheatEngine.Client.Dbvm.DbvmStatusSnapshot.DbvmStatusSnapshot(CheatEngine.Client.Dbvm.DbvmState state, string? version = null) -> void
-CheatEngine.Client.Dbvm.DbvmStatusSnapshot.Equals(CheatEngine.Client.Dbvm.DbvmStatusSnapshot other) -> bool
-CheatEngine.Client.Dbvm.DbvmStatusSnapshot.State.get -> CheatEngine.Client.Dbvm.DbvmState
-CheatEngine.Client.Dbvm.DbvmStatusSnapshot.Version.get -> string?
-CheatEngine.Client.Dbvm.DbvmWatchEvent
-CheatEngine.Client.Dbvm.DbvmWatchEvent.Address.get -> CheatEngine.SDK.Engine.Values.Address
-CheatEngine.Client.Dbvm.DbvmWatchEvent.DbvmWatchEvent() -> void
-CheatEngine.Client.Dbvm.DbvmWatchEvent.DbvmWatchEvent(CheatEngine.SDK.Engine.Values.Address address, int length, System.DateTimeOffset occurredAt) -> void
-CheatEngine.Client.Dbvm.DbvmWatchEvent.Equals(CheatEngine.Client.Dbvm.DbvmWatchEvent other) -> bool
-CheatEngine.Client.Dbvm.DbvmWatchEvent.Length.get -> int
-CheatEngine.Client.Dbvm.DbvmWatchEvent.OccurredAt.get -> System.DateTimeOffset
-CheatEngine.Client.Dbvm.DbvmWatchHandler
-CheatEngine.Client.Dbvm.DbvmWatchRequest
-CheatEngine.Client.Dbvm.DbvmWatchRequest.Address.get -> CheatEngine.SDK.Engine.Values.Address
-CheatEngine.Client.Dbvm.DbvmWatchRequest.DbvmWatchRequest() -> void
-CheatEngine.Client.Dbvm.DbvmWatchRequest.DbvmWatchRequest(CheatEngine.SDK.Engine.Values.Address address, int length) -> void
-CheatEngine.Client.Dbvm.DbvmWatchRequest.Equals(CheatEngine.Client.Dbvm.DbvmWatchRequest other) -> bool
-CheatEngine.Client.Dbvm.DbvmWatchRequest.Length.get -> int
-CheatEngine.Client.Dbvm.IDbvmClient
-CheatEngine.Client.Dbvm.IDbvmClient.GetStatus(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Dbvm.DbvmStatusSnapshot
-CheatEngine.Client.Dbvm.IDbvmClient.Initialize(CheatEngine.Client.Dbvm.DbvmInitializationRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Dbvm.DbvmStatusSnapshot
-CheatEngine.Client.Dbvm.IDbvmClient.RegisterWatch(CheatEngine.Client.Dbvm.DbvmWatchRequest request, CheatEngine.Client.Dbvm.DbvmWatchHandler! handler, CheatEngine.Client.Events.EventStreamOptions streamOptions, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Dbvm.IDbvmWatchLease!
-CheatEngine.Client.Dbvm.IDbvmClient.TryGetStatus(out CheatEngine.Client.Dbvm.DbvmStatusSnapshot status, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
-CheatEngine.Client.Dbvm.IDbvmClient.TryInitialize(CheatEngine.Client.Dbvm.DbvmInitializationRequest request, out CheatEngine.Client.Dbvm.DbvmStatusSnapshot status, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
-CheatEngine.Client.Dbvm.IDbvmClient.TryRegisterWatch(CheatEngine.Client.Dbvm.DbvmWatchRequest request, CheatEngine.Client.Dbvm.DbvmWatchHandler! handler, CheatEngine.Client.Events.EventStreamOptions streamOptions, out CheatEngine.Client.Dbvm.IDbvmWatchLease? lease, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
-CheatEngine.Client.Dbvm.IDbvmWatchLease
-CheatEngine.Client.Dbvm.IDbvmWatchLease.Request.get -> CheatEngine.Client.Dbvm.DbvmWatchRequest
-CheatEngine.Client.Dbvm.IDbvmWatchLease.SelectionEpoch.get -> long
-CheatEngine.Client.Debugger.BreakpointDisposition
-CheatEngine.Client.Debugger.BreakpointDisposition.Break = 1 -> CheatEngine.Client.Debugger.BreakpointDisposition
-CheatEngine.Client.Debugger.BreakpointDisposition.Continue = 0 -> CheatEngine.Client.Debugger.BreakpointDisposition
-CheatEngine.Client.Debugger.BreakpointEvent
-CheatEngine.Client.Debugger.BreakpointEvent.Address.get -> CheatEngine.SDK.Engine.Values.Address
-CheatEngine.Client.Debugger.BreakpointEvent.BreakpointEvent() -> void
-CheatEngine.Client.Debugger.BreakpointEvent.BreakpointEvent(CheatEngine.SDK.Engine.Values.Address address, int threadId, System.Collections.Immutable.ImmutableArray<CheatEngine.Client.Debugger.BreakpointRegisterSnapshot> registers) -> void
-CheatEngine.Client.Debugger.BreakpointEvent.Equals(CheatEngine.Client.Debugger.BreakpointEvent other) -> bool
-CheatEngine.Client.Debugger.BreakpointEvent.Registers.get -> System.Collections.Immutable.ImmutableArray<CheatEngine.Client.Debugger.BreakpointRegisterSnapshot>
-CheatEngine.Client.Debugger.BreakpointEvent.ThreadId.get -> int
-CheatEngine.Client.Debugger.BreakpointHandler
-CheatEngine.Client.Debugger.BreakpointKind
-CheatEngine.Client.Debugger.BreakpointKind.Access = 2 -> CheatEngine.Client.Debugger.BreakpointKind
-CheatEngine.Client.Debugger.BreakpointKind.Execute = 0 -> CheatEngine.Client.Debugger.BreakpointKind
-CheatEngine.Client.Debugger.BreakpointKind.Write = 1 -> CheatEngine.Client.Debugger.BreakpointKind
-CheatEngine.Client.Debugger.BreakpointRegisterSnapshot
-CheatEngine.Client.Debugger.BreakpointRegisterSnapshot.BreakpointRegisterSnapshot() -> void
-CheatEngine.Client.Debugger.BreakpointRegisterSnapshot.BreakpointRegisterSnapshot(string! name, ulong value) -> void
-CheatEngine.Client.Debugger.BreakpointRegisterSnapshot.Equals(CheatEngine.Client.Debugger.BreakpointRegisterSnapshot other) -> bool
-CheatEngine.Client.Debugger.BreakpointRegisterSnapshot.Name.get -> string!
-CheatEngine.Client.Debugger.BreakpointRegisterSnapshot.Value.get -> ulong
-CheatEngine.Client.Debugger.BreakpointRequest
-CheatEngine.Client.Debugger.BreakpointRequest.Address.get -> CheatEngine.SDK.Engine.Values.Address
-CheatEngine.Client.Debugger.BreakpointRequest.BreakpointRequest() -> void
-CheatEngine.Client.Debugger.BreakpointRequest.BreakpointRequest(CheatEngine.SDK.Engine.Values.Address address, CheatEngine.Client.Debugger.BreakpointKind kind = CheatEngine.Client.Debugger.BreakpointKind.Execute) -> void
-CheatEngine.Client.Debugger.BreakpointRequest.Equals(CheatEngine.Client.Debugger.BreakpointRequest other) -> bool
-CheatEngine.Client.Debugger.BreakpointRequest.Kind.get -> CheatEngine.Client.Debugger.BreakpointKind
-CheatEngine.Client.Debugger.IBreakpointLease
-CheatEngine.Client.Debugger.IBreakpointLease.Request.get -> CheatEngine.Client.Debugger.BreakpointRequest
-CheatEngine.Client.Debugger.IBreakpointLease.SelectionEpoch.get -> long
-CheatEngine.Client.Debugger.IDebuggerClient
-CheatEngine.Client.Debugger.IDebuggerClient.RegisterBreakpoint(CheatEngine.Client.Debugger.BreakpointRequest request, CheatEngine.Client.Debugger.BreakpointHandler! handler, CheatEngine.Client.Events.EventStreamOptions streamOptions, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Debugger.IBreakpointLease!
-CheatEngine.Client.Debugger.IDebuggerClient.TryRegisterBreakpoint(CheatEngine.Client.Debugger.BreakpointRequest request, CheatEngine.Client.Debugger.BreakpointHandler! handler, CheatEngine.Client.Events.EventStreamOptions streamOptions, out CheatEngine.Client.Debugger.IBreakpointLease? lease, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
 CheatEngine.Client.Dispatching.ICheatEngineDispatcher
 CheatEngine.Client.Dispatching.ICheatEngineDispatcher.Invoke(System.Action! callback) -> void
 CheatEngine.Client.Dispatching.ICheatEngineDispatcher.Invoke(System.Action! callback, System.Threading.CancellationToken cancellationToken) -> void
@@ -136,100 +63,20 @@ CheatEngine.Client.Dispatching.ICheatEngineDispatcher.TryInvoke(System.Action! c
 CheatEngine.Client.Dispatching.ICheatEngineDispatcher.TryInvoke(System.Action! callback, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken) -> bool
 CheatEngine.Client.Dispatching.ICheatEngineDispatcher.TryInvoke<T>(System.Func<T>! callback, out T result, out CheatEngine.Client.Results.CheatEngineFailure failure) -> bool
 CheatEngine.Client.Dispatching.ICheatEngineDispatcher.TryInvoke<T>(System.Func<T>! callback, out T result, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken) -> bool
-CheatEngine.Client.Events.EventStreamOptions
-CheatEngine.Client.Events.EventStreamOptions.Capacity.get -> int
-CheatEngine.Client.Events.EventStreamOptions.Equals(CheatEngine.Client.Events.EventStreamOptions other) -> bool
-CheatEngine.Client.Events.EventStreamOptions.EventStreamOptions() -> void
-CheatEngine.Client.Events.EventStreamOptions.EventStreamOptions(int capacity, CheatEngine.Client.Events.EventStreamOverflowPolicy overflowPolicy = CheatEngine.Client.Events.EventStreamOverflowPolicy.DropOldest) -> void
-CheatEngine.Client.Events.EventStreamOptions.OverflowPolicy.get -> CheatEngine.Client.Events.EventStreamOverflowPolicy
-CheatEngine.Client.Events.EventStreamOverflowPolicy
-CheatEngine.Client.Events.EventStreamOverflowPolicy.DropNewest = 1 -> CheatEngine.Client.Events.EventStreamOverflowPolicy
-CheatEngine.Client.Events.EventStreamOverflowPolicy.DropOldest = 0 -> CheatEngine.Client.Events.EventStreamOverflowPolicy
-CheatEngine.Client.Events.EventStreamOverflowPolicy.FailSubscription = 2 -> CheatEngine.Client.Events.EventStreamOverflowPolicy
-CheatEngine.Client.Events.IEventStreamLease<TEvent>
-CheatEngine.Client.Events.IEventStreamLease<TEvent>.DroppedEventCount.get -> long
-CheatEngine.Client.Events.IEventStreamLease<TEvent>.Events.get -> System.Collections.Generic.IAsyncEnumerable<TEvent>!
-CheatEngine.Client.Events.IEventStreamLease<TEvent>.IsReleased.get -> bool
-CheatEngine.Client.Hashing.FileHashRequest
-CheatEngine.Client.Hashing.FileHashRequest.Algorithm.get -> CheatEngine.Client.Hashing.TargetHashAlgorithm
-CheatEngine.Client.Hashing.FileHashRequest.Equals(CheatEngine.Client.Hashing.FileHashRequest other) -> bool
-CheatEngine.Client.Hashing.FileHashRequest.FileHashRequest() -> void
-CheatEngine.Client.Hashing.FileHashRequest.FileHashRequest(string! filePath, CheatEngine.Client.Hashing.TargetHashAlgorithm algorithm = CheatEngine.Client.Hashing.TargetHashAlgorithm.Sha256) -> void
-CheatEngine.Client.Hashing.FileHashRequest.FilePath.get -> string!
-CheatEngine.Client.Hashing.HashDigest
-CheatEngine.Client.Hashing.HashDigest.Algorithm.get -> CheatEngine.Client.Hashing.TargetHashAlgorithm
-CheatEngine.Client.Hashing.HashDigest.Equals(CheatEngine.Client.Hashing.HashDigest other) -> bool
-CheatEngine.Client.Hashing.HashDigest.HashDigest() -> void
-CheatEngine.Client.Hashing.HashDigest.HashDigest(CheatEngine.Client.Hashing.TargetHashAlgorithm algorithm, string! value) -> void
-CheatEngine.Client.Hashing.HashDigest.Value.get -> string!
-CheatEngine.Client.Hashing.IHashingClient
-CheatEngine.Client.Hashing.IHashingClient.HashFile(CheatEngine.Client.Hashing.FileHashRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Hashing.HashDigest
-CheatEngine.Client.Hashing.IHashingClient.HashMemory(CheatEngine.Client.Hashing.MemoryHashRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Hashing.HashDigest
-CheatEngine.Client.Hashing.IHashingClient.TryHashFile(CheatEngine.Client.Hashing.FileHashRequest request, out CheatEngine.Client.Hashing.HashDigest digest, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
-CheatEngine.Client.Hashing.IHashingClient.TryHashMemory(CheatEngine.Client.Hashing.MemoryHashRequest request, out CheatEngine.Client.Hashing.HashDigest digest, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
-CheatEngine.Client.Hashing.MemoryHashRequest
-CheatEngine.Client.Hashing.MemoryHashRequest.Address.get -> CheatEngine.SDK.Engine.Values.Address
-CheatEngine.Client.Hashing.MemoryHashRequest.Algorithm.get -> CheatEngine.Client.Hashing.TargetHashAlgorithm
-CheatEngine.Client.Hashing.MemoryHashRequest.Equals(CheatEngine.Client.Hashing.MemoryHashRequest other) -> bool
-CheatEngine.Client.Hashing.MemoryHashRequest.Length.get -> int
-CheatEngine.Client.Hashing.MemoryHashRequest.MemoryHashRequest() -> void
-CheatEngine.Client.Hashing.MemoryHashRequest.MemoryHashRequest(CheatEngine.SDK.Engine.Values.Address address, int length, CheatEngine.Client.Hashing.TargetHashAlgorithm algorithm = CheatEngine.Client.Hashing.TargetHashAlgorithm.Sha256) -> void
-CheatEngine.Client.Hashing.TargetHashAlgorithm
-CheatEngine.Client.Hashing.TargetHashAlgorithm.Md5 = 0 -> CheatEngine.Client.Hashing.TargetHashAlgorithm
-CheatEngine.Client.Hashing.TargetHashAlgorithm.Sha1 = 1 -> CheatEngine.Client.Hashing.TargetHashAlgorithm
-CheatEngine.Client.Hashing.TargetHashAlgorithm.Sha256 = 2 -> CheatEngine.Client.Hashing.TargetHashAlgorithm
-CheatEngine.Client.Hotkeys.HotkeyEvent
-CheatEngine.Client.Hotkeys.HotkeyEvent.Equals(CheatEngine.Client.Hotkeys.HotkeyEvent other) -> bool
-CheatEngine.Client.Hotkeys.HotkeyEvent.Gesture.get -> CheatEngine.Client.Hotkeys.HotkeyGesture
-CheatEngine.Client.Hotkeys.HotkeyEvent.HotkeyEvent() -> void
-CheatEngine.Client.Hotkeys.HotkeyEvent.HotkeyEvent(string! name, CheatEngine.Client.Hotkeys.HotkeyGesture gesture, System.DateTimeOffset occurredAt) -> void
-CheatEngine.Client.Hotkeys.HotkeyEvent.Name.get -> string!
-CheatEngine.Client.Hotkeys.HotkeyEvent.OccurredAt.get -> System.DateTimeOffset
-CheatEngine.Client.Hotkeys.HotkeyGesture
-CheatEngine.Client.Hotkeys.HotkeyGesture.Equals(CheatEngine.Client.Hotkeys.HotkeyGesture other) -> bool
-CheatEngine.Client.Hotkeys.HotkeyGesture.HotkeyGesture() -> void
-CheatEngine.Client.Hotkeys.HotkeyGesture.HotkeyGesture(int virtualKey, CheatEngine.Client.Hotkeys.HotkeyModifiers modifiers = CheatEngine.Client.Hotkeys.HotkeyModifiers.None) -> void
-CheatEngine.Client.Hotkeys.HotkeyGesture.Modifiers.get -> CheatEngine.Client.Hotkeys.HotkeyModifiers
-CheatEngine.Client.Hotkeys.HotkeyGesture.VirtualKey.get -> int
-CheatEngine.Client.Hotkeys.HotkeyHandler
-CheatEngine.Client.Hotkeys.HotkeyModifiers
-CheatEngine.Client.Hotkeys.HotkeyModifiers.Alt = 1 -> CheatEngine.Client.Hotkeys.HotkeyModifiers
-CheatEngine.Client.Hotkeys.HotkeyModifiers.Control = 2 -> CheatEngine.Client.Hotkeys.HotkeyModifiers
-CheatEngine.Client.Hotkeys.HotkeyModifiers.None = 0 -> CheatEngine.Client.Hotkeys.HotkeyModifiers
-CheatEngine.Client.Hotkeys.HotkeyModifiers.Shift = 4 -> CheatEngine.Client.Hotkeys.HotkeyModifiers
-CheatEngine.Client.Hotkeys.HotkeyModifiers.Windows = 8 -> CheatEngine.Client.Hotkeys.HotkeyModifiers
-CheatEngine.Client.Hotkeys.HotkeyRegistration
-CheatEngine.Client.Hotkeys.HotkeyRegistration.Equals(CheatEngine.Client.Hotkeys.HotkeyRegistration other) -> bool
-CheatEngine.Client.Hotkeys.HotkeyRegistration.Gesture.get -> CheatEngine.Client.Hotkeys.HotkeyGesture
-CheatEngine.Client.Hotkeys.HotkeyRegistration.HotkeyRegistration() -> void
-CheatEngine.Client.Hotkeys.HotkeyRegistration.HotkeyRegistration(string! name, CheatEngine.Client.Hotkeys.HotkeyGesture gesture) -> void
-CheatEngine.Client.Hotkeys.HotkeyRegistration.Name.get -> string!
-CheatEngine.Client.Hotkeys.IHotkeyClient
-CheatEngine.Client.Hotkeys.IHotkeyClient.Register(CheatEngine.Client.Hotkeys.HotkeyRegistration registration, CheatEngine.Client.Hotkeys.HotkeyHandler! handler, CheatEngine.Client.Events.EventStreamOptions streamOptions, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Hotkeys.IHotkeyLease!
-CheatEngine.Client.Hotkeys.IHotkeyClient.TryRegister(CheatEngine.Client.Hotkeys.HotkeyRegistration registration, CheatEngine.Client.Hotkeys.HotkeyHandler! handler, CheatEngine.Client.Events.EventStreamOptions streamOptions, out CheatEngine.Client.Hotkeys.IHotkeyLease? lease, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
-CheatEngine.Client.Hotkeys.IHotkeyLease
-CheatEngine.Client.Hotkeys.IHotkeyLease.Registration.get -> CheatEngine.Client.Hotkeys.HotkeyRegistration
 CheatEngine.Client.ICheatEngineClient
 CheatEngine.Client.ICheatEngineClient.Allocations.get -> CheatEngine.Client.Allocations.IAllocationClient!
 CheatEngine.Client.ICheatEngineClient.Assembly.get -> CheatEngine.Client.Assembly.IAssemblyClient!
-CheatEngine.Client.ICheatEngineClient.Dbvm.get -> CheatEngine.Client.Dbvm.IDbvmClient!
-CheatEngine.Client.ICheatEngineClient.Debugger.get -> CheatEngine.Client.Debugger.IDebuggerClient!
 CheatEngine.Client.ICheatEngineClient.Dispatcher.get -> CheatEngine.Client.Dispatching.ICheatEngineDispatcher!
 CheatEngine.Client.ICheatEngineClient.Epoch.get -> long
-CheatEngine.Client.ICheatEngineClient.Hashing.get -> CheatEngine.Client.Hashing.IHashingClient!
-CheatEngine.Client.ICheatEngineClient.Hotkeys.get -> CheatEngine.Client.Hotkeys.IHotkeyClient!
 CheatEngine.Client.ICheatEngineClient.Inspection.get -> CheatEngine.Client.Inspection.IInspectionClient!
 CheatEngine.Client.ICheatEngineClient.Lua.get -> CheatEngine.Client.Lua.ILuaClient!
 CheatEngine.Client.ICheatEngineClient.Memory.get -> CheatEngine.Client.Memory.IMemoryClient!
 CheatEngine.Client.ICheatEngineClient.Patterns.get -> CheatEngine.Client.Scanning.IPatternScanner!
 CheatEngine.Client.ICheatEngineClient.Processes.get -> CheatEngine.Client.Processes.IProcessClient!
-CheatEngine.Client.ICheatEngineClient.RemoteExecution.get -> CheatEngine.Client.RemoteExecution.IRemoteExecutionClient!
 CheatEngine.Client.ICheatEngineClient.Runtime.get -> CheatEngine.Client.Runtime.ICheatEngineRuntime!
 CheatEngine.Client.ICheatEngineClient.Scans.get -> CheatEngine.Client.Scanning.IValueScanner!
-CheatEngine.Client.ICheatEngineClient.Speed.get -> CheatEngine.Client.Speed.ISpeedClient!
 CheatEngine.Client.ICheatEngineClient.Stopping.get -> System.Threading.CancellationToken
 CheatEngine.Client.ICheatEngineClient.Tables.get -> CheatEngine.Client.Tables.ITableClient!
-CheatEngine.Client.ICheatEngineClient.Timers.get -> CheatEngine.Client.Timers.ITimerClient!
 CheatEngine.Client.Inspection.IDetailedSymbolRegistrationLease
 CheatEngine.Client.Inspection.IDetailedSymbolRegistrationLease.ReleaseDetailed() -> CheatEngine.Client.Inspection.SymbolLeaseReleaseKind
 CheatEngine.Client.Inspection.IInspectionClient
@@ -572,29 +419,6 @@ CheatEngine.Client.Processes.ProcessStartRequest.ExecutablePath.get -> string!
 CheatEngine.Client.Processes.ProcessStartRequest.ProcessStartRequest() -> void
 CheatEngine.Client.Processes.ProcessStartRequest.ProcessStartRequest(string! executablePath, string? arguments = null, string? workingDirectory = null) -> void
 CheatEngine.Client.Processes.ProcessStartRequest.WorkingDirectory.get -> string?
-CheatEngine.Client.RemoteExecution.IRemoteExecutionClient
-CheatEngine.Client.RemoteExecution.IRemoteExecutionClient.InjectLibrary(CheatEngine.Client.RemoteExecution.RemoteDllInjectionRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> void
-CheatEngine.Client.RemoteExecution.IRemoteExecutionClient.Invoke(CheatEngine.Client.RemoteExecution.RemoteCallRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.RemoteExecution.RemoteCallResult
-CheatEngine.Client.RemoteExecution.IRemoteExecutionClient.TryInjectLibrary(CheatEngine.Client.RemoteExecution.RemoteDllInjectionRequest request, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
-CheatEngine.Client.RemoteExecution.IRemoteExecutionClient.TryInvoke(CheatEngine.Client.RemoteExecution.RemoteCallRequest request, out CheatEngine.Client.RemoteExecution.RemoteCallResult result, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
-CheatEngine.Client.RemoteExecution.RemoteCallRequest
-CheatEngine.Client.RemoteExecution.RemoteCallRequest.EntryPoint.get -> CheatEngine.SDK.Engine.Values.Address
-CheatEngine.Client.RemoteExecution.RemoteCallRequest.Equals(CheatEngine.Client.RemoteExecution.RemoteCallRequest other) -> bool
-CheatEngine.Client.RemoteExecution.RemoteCallRequest.Parameters.get -> System.Collections.Immutable.ImmutableArray<byte>
-CheatEngine.Client.RemoteExecution.RemoteCallRequest.RemoteCallRequest() -> void
-CheatEngine.Client.RemoteExecution.RemoteCallRequest.RemoteCallRequest(CheatEngine.SDK.Engine.Values.Address entryPoint, System.ReadOnlySpan<byte> parameters, System.TimeSpan timeout) -> void
-CheatEngine.Client.RemoteExecution.RemoteCallRequest.Timeout.get -> System.TimeSpan
-CheatEngine.Client.RemoteExecution.RemoteCallResult
-CheatEngine.Client.RemoteExecution.RemoteCallResult.Equals(CheatEngine.Client.RemoteExecution.RemoteCallResult other) -> bool
-CheatEngine.Client.RemoteExecution.RemoteCallResult.Output.get -> System.Collections.Immutable.ImmutableArray<byte>
-CheatEngine.Client.RemoteExecution.RemoteCallResult.RemoteCallResult() -> void
-CheatEngine.Client.RemoteExecution.RemoteCallResult.RemoteCallResult(ulong returnValue, System.ReadOnlySpan<byte> output) -> void
-CheatEngine.Client.RemoteExecution.RemoteCallResult.ReturnValue.get -> ulong
-CheatEngine.Client.RemoteExecution.RemoteDllInjectionRequest
-CheatEngine.Client.RemoteExecution.RemoteDllInjectionRequest.Equals(CheatEngine.Client.RemoteExecution.RemoteDllInjectionRequest other) -> bool
-CheatEngine.Client.RemoteExecution.RemoteDllInjectionRequest.LibraryPath.get -> string!
-CheatEngine.Client.RemoteExecution.RemoteDllInjectionRequest.RemoteDllInjectionRequest() -> void
-CheatEngine.Client.RemoteExecution.RemoteDllInjectionRequest.RemoteDllInjectionRequest(string! libraryPath) -> void
 CheatEngine.Client.Results.CheatEngineActivationExpiredException
 CheatEngine.Client.Results.CheatEngineActivationExpiredException.CheatEngineActivationExpiredException(string! operation, string! message, System.Exception? innerException = null) -> void
 CheatEngine.Client.Results.CheatEngineClientException
@@ -840,16 +664,6 @@ CheatEngine.Client.Scanning.ValueScanSessionState.Disposed = 4 -> CheatEngine.Cl
 CheatEngine.Client.Scanning.ValueScanSessionState.Invalidated = 3 -> CheatEngine.Client.Scanning.ValueScanSessionState
 CheatEngine.Client.Scanning.ValueScanSessionState.ResultsReady = 2 -> CheatEngine.Client.Scanning.ValueScanSessionState
 CheatEngine.Client.Scanning.ValueScanSessionState.Scanning = 1 -> CheatEngine.Client.Scanning.ValueScanSessionState
-CheatEngine.Client.Speed.ISpeedClient
-CheatEngine.Client.Speed.ISpeedClient.GetMultiplier(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Speed.SpeedMultiplier
-CheatEngine.Client.Speed.ISpeedClient.SetMultiplier(CheatEngine.Client.Speed.SpeedMultiplier multiplier, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> void
-CheatEngine.Client.Speed.ISpeedClient.TryGetMultiplier(out CheatEngine.Client.Speed.SpeedMultiplier multiplier, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
-CheatEngine.Client.Speed.ISpeedClient.TrySetMultiplier(CheatEngine.Client.Speed.SpeedMultiplier multiplier, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
-CheatEngine.Client.Speed.SpeedMultiplier
-CheatEngine.Client.Speed.SpeedMultiplier.Equals(CheatEngine.Client.Speed.SpeedMultiplier other) -> bool
-CheatEngine.Client.Speed.SpeedMultiplier.SpeedMultiplier() -> void
-CheatEngine.Client.Speed.SpeedMultiplier.SpeedMultiplier(double value) -> void
-CheatEngine.Client.Speed.SpeedMultiplier.Value.get -> double
 CheatEngine.Client.Tables.AddressTableSnapshot
 CheatEngine.Client.Tables.AddressTableSnapshot.AddressTableSnapshot() -> void
 CheatEngine.Client.Tables.AddressTableSnapshot.AddressTableSnapshot(System.Collections.Immutable.ImmutableArray<CheatEngine.Client.Tables.MemoryRecordSnapshot> records) -> void
@@ -985,23 +799,6 @@ CheatEngine.Client.Tables.TrustedTableFile.Equals(CheatEngine.Client.Tables.Trus
 CheatEngine.Client.Tables.TrustedTableFile.FullPath.get -> string!
 CheatEngine.Client.Tables.TrustedTableFile.TrustedTableFile() -> void
 CheatEngine.Client.Tables.TrustedTableFile.TrustedTableFile(string! path) -> void
-CheatEngine.Client.Timers.ITimerClient
-CheatEngine.Client.Timers.ITimerClient.Register(CheatEngine.Client.Timers.TimerRequest request, CheatEngine.Client.Timers.TimerHandler! handler, CheatEngine.Client.Events.EventStreamOptions streamOptions, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Timers.ITimerLease!
-CheatEngine.Client.Timers.ITimerClient.TryRegister(CheatEngine.Client.Timers.TimerRequest request, CheatEngine.Client.Timers.TimerHandler! handler, CheatEngine.Client.Events.EventStreamOptions streamOptions, out CheatEngine.Client.Timers.ITimerLease? lease, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
-CheatEngine.Client.Timers.ITimerLease
-CheatEngine.Client.Timers.ITimerLease.Request.get -> CheatEngine.Client.Timers.TimerRequest
-CheatEngine.Client.Timers.TimerHandler
-CheatEngine.Client.Timers.TimerRequest
-CheatEngine.Client.Timers.TimerRequest.Equals(CheatEngine.Client.Timers.TimerRequest other) -> bool
-CheatEngine.Client.Timers.TimerRequest.Interval.get -> System.TimeSpan
-CheatEngine.Client.Timers.TimerRequest.TimerRequest() -> void
-CheatEngine.Client.Timers.TimerRequest.TimerRequest(System.TimeSpan interval) -> void
-CheatEngine.Client.Timers.TimerTick
-CheatEngine.Client.Timers.TimerTick.Equals(CheatEngine.Client.Timers.TimerTick other) -> bool
-CheatEngine.Client.Timers.TimerTick.OccurredAt.get -> System.DateTimeOffset
-CheatEngine.Client.Timers.TimerTick.Sequence.get -> long
-CheatEngine.Client.Timers.TimerTick.TimerTick() -> void
-CheatEngine.Client.Timers.TimerTick.TimerTick(long sequence, System.DateTimeOffset occurredAt) -> void
 const CheatEngine.Client.Memory.MemoryBatchLimits.MaximumOperations = 1024 -> int
 const CheatEngine.Client.Memory.MemoryResourceLimits.DefaultMaximumBatchOperationCount = 1024 -> int
 const CheatEngine.Client.Memory.MemoryResourceLimits.DefaultMaximumBatchPayloadBytes = 65536 -> int
@@ -1012,20 +809,6 @@ override CheatEngine.Client.Allocations.TargetAllocationRequest.GetHashCode() ->
 override CheatEngine.Client.Assembly.AssemblyInstructionRequest.GetHashCode() -> int
 override CheatEngine.Client.Assembly.AssemblyInstructionSnapshot.GetHashCode() -> int
 override CheatEngine.Client.Assembly.AutoAssemblerScript.GetHashCode() -> int
-override CheatEngine.Client.Dbvm.DbvmInitializationRequest.GetHashCode() -> int
-override CheatEngine.Client.Dbvm.DbvmStatusSnapshot.GetHashCode() -> int
-override CheatEngine.Client.Dbvm.DbvmWatchEvent.GetHashCode() -> int
-override CheatEngine.Client.Dbvm.DbvmWatchRequest.GetHashCode() -> int
-override CheatEngine.Client.Debugger.BreakpointEvent.GetHashCode() -> int
-override CheatEngine.Client.Debugger.BreakpointRegisterSnapshot.GetHashCode() -> int
-override CheatEngine.Client.Debugger.BreakpointRequest.GetHashCode() -> int
-override CheatEngine.Client.Events.EventStreamOptions.GetHashCode() -> int
-override CheatEngine.Client.Hashing.FileHashRequest.GetHashCode() -> int
-override CheatEngine.Client.Hashing.HashDigest.GetHashCode() -> int
-override CheatEngine.Client.Hashing.MemoryHashRequest.GetHashCode() -> int
-override CheatEngine.Client.Hotkeys.HotkeyEvent.GetHashCode() -> int
-override CheatEngine.Client.Hotkeys.HotkeyGesture.GetHashCode() -> int
-override CheatEngine.Client.Hotkeys.HotkeyRegistration.GetHashCode() -> int
 override CheatEngine.Client.Inspection.InspectionCollectionRequest.GetHashCode() -> int
 override CheatEngine.Client.Inspection.SymbolRegistration.GetHashCode() -> int
 override CheatEngine.Client.Lua.LuaExportDescriptor.GetHashCode() -> int
@@ -1047,9 +830,6 @@ override CheatEngine.Client.Processes.ProcessInfoSnapshot.GetHashCode() -> int
 override CheatEngine.Client.Processes.ProcessPauseSnapshot.GetHashCode() -> int
 override CheatEngine.Client.Processes.ProcessSnapshot.GetHashCode() -> int
 override CheatEngine.Client.Processes.ProcessStartRequest.GetHashCode() -> int
-override CheatEngine.Client.RemoteExecution.RemoteCallRequest.GetHashCode() -> int
-override CheatEngine.Client.RemoteExecution.RemoteCallResult.GetHashCode() -> int
-override CheatEngine.Client.RemoteExecution.RemoteDllInjectionRequest.GetHashCode() -> int
 override CheatEngine.Client.Results.CheatEngineFailure.GetHashCode() -> int
 override CheatEngine.Client.Results.CheatEngineFailure.ToString() -> string!
 override CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.GetHashCode() -> int
@@ -1072,7 +852,6 @@ override CheatEngine.Client.Scanning.PatternScanMetrics.GetHashCode() -> int
 override CheatEngine.Client.Scanning.ValueScanMatch.GetHashCode() -> int
 override CheatEngine.Client.Scanning.ValueScanPage.GetHashCode() -> int
 override CheatEngine.Client.Scanning.ValueScanReadRequest.GetHashCode() -> int
-override CheatEngine.Client.Speed.SpeedMultiplier.GetHashCode() -> int
 override CheatEngine.Client.Tables.AddressTableSnapshot.GetHashCode() -> int
 override CheatEngine.Client.Tables.MemoryRecordCollectionRequest.GetHashCode() -> int
 override CheatEngine.Client.Tables.MemoryRecordContentSnapshot.GetHashCode() -> int
@@ -1086,8 +865,6 @@ override CheatEngine.Client.Tables.MemoryRecordUpdate.GetHashCode() -> int
 override CheatEngine.Client.Tables.TableLoadRequest.GetHashCode() -> int
 override CheatEngine.Client.Tables.TableSaveRequest.GetHashCode() -> int
 override CheatEngine.Client.Tables.TrustedTableFile.GetHashCode() -> int
-override CheatEngine.Client.Timers.TimerRequest.GetHashCode() -> int
-override CheatEngine.Client.Timers.TimerTick.GetHashCode() -> int
 static CheatEngine.Client.Allocations.TargetAllocationRequest.operator !=(CheatEngine.Client.Allocations.TargetAllocationRequest left, CheatEngine.Client.Allocations.TargetAllocationRequest right) -> bool
 static CheatEngine.Client.Allocations.TargetAllocationRequest.operator ==(CheatEngine.Client.Allocations.TargetAllocationRequest left, CheatEngine.Client.Allocations.TargetAllocationRequest right) -> bool
 static CheatEngine.Client.Assembly.AssemblyInstructionRequest.operator !=(CheatEngine.Client.Assembly.AssemblyInstructionRequest left, CheatEngine.Client.Assembly.AssemblyInstructionRequest right) -> bool
@@ -1096,34 +873,6 @@ static CheatEngine.Client.Assembly.AssemblyInstructionSnapshot.operator !=(Cheat
 static CheatEngine.Client.Assembly.AssemblyInstructionSnapshot.operator ==(CheatEngine.Client.Assembly.AssemblyInstructionSnapshot left, CheatEngine.Client.Assembly.AssemblyInstructionSnapshot right) -> bool
 static CheatEngine.Client.Assembly.AutoAssemblerScript.operator !=(CheatEngine.Client.Assembly.AutoAssemblerScript left, CheatEngine.Client.Assembly.AutoAssemblerScript right) -> bool
 static CheatEngine.Client.Assembly.AutoAssemblerScript.operator ==(CheatEngine.Client.Assembly.AutoAssemblerScript left, CheatEngine.Client.Assembly.AutoAssemblerScript right) -> bool
-static CheatEngine.Client.Dbvm.DbvmInitializationRequest.operator !=(CheatEngine.Client.Dbvm.DbvmInitializationRequest left, CheatEngine.Client.Dbvm.DbvmInitializationRequest right) -> bool
-static CheatEngine.Client.Dbvm.DbvmInitializationRequest.operator ==(CheatEngine.Client.Dbvm.DbvmInitializationRequest left, CheatEngine.Client.Dbvm.DbvmInitializationRequest right) -> bool
-static CheatEngine.Client.Dbvm.DbvmStatusSnapshot.operator !=(CheatEngine.Client.Dbvm.DbvmStatusSnapshot left, CheatEngine.Client.Dbvm.DbvmStatusSnapshot right) -> bool
-static CheatEngine.Client.Dbvm.DbvmStatusSnapshot.operator ==(CheatEngine.Client.Dbvm.DbvmStatusSnapshot left, CheatEngine.Client.Dbvm.DbvmStatusSnapshot right) -> bool
-static CheatEngine.Client.Dbvm.DbvmWatchEvent.operator !=(CheatEngine.Client.Dbvm.DbvmWatchEvent left, CheatEngine.Client.Dbvm.DbvmWatchEvent right) -> bool
-static CheatEngine.Client.Dbvm.DbvmWatchEvent.operator ==(CheatEngine.Client.Dbvm.DbvmWatchEvent left, CheatEngine.Client.Dbvm.DbvmWatchEvent right) -> bool
-static CheatEngine.Client.Dbvm.DbvmWatchRequest.operator !=(CheatEngine.Client.Dbvm.DbvmWatchRequest left, CheatEngine.Client.Dbvm.DbvmWatchRequest right) -> bool
-static CheatEngine.Client.Dbvm.DbvmWatchRequest.operator ==(CheatEngine.Client.Dbvm.DbvmWatchRequest left, CheatEngine.Client.Dbvm.DbvmWatchRequest right) -> bool
-static CheatEngine.Client.Debugger.BreakpointEvent.operator !=(CheatEngine.Client.Debugger.BreakpointEvent left, CheatEngine.Client.Debugger.BreakpointEvent right) -> bool
-static CheatEngine.Client.Debugger.BreakpointEvent.operator ==(CheatEngine.Client.Debugger.BreakpointEvent left, CheatEngine.Client.Debugger.BreakpointEvent right) -> bool
-static CheatEngine.Client.Debugger.BreakpointRegisterSnapshot.operator !=(CheatEngine.Client.Debugger.BreakpointRegisterSnapshot left, CheatEngine.Client.Debugger.BreakpointRegisterSnapshot right) -> bool
-static CheatEngine.Client.Debugger.BreakpointRegisterSnapshot.operator ==(CheatEngine.Client.Debugger.BreakpointRegisterSnapshot left, CheatEngine.Client.Debugger.BreakpointRegisterSnapshot right) -> bool
-static CheatEngine.Client.Debugger.BreakpointRequest.operator !=(CheatEngine.Client.Debugger.BreakpointRequest left, CheatEngine.Client.Debugger.BreakpointRequest right) -> bool
-static CheatEngine.Client.Debugger.BreakpointRequest.operator ==(CheatEngine.Client.Debugger.BreakpointRequest left, CheatEngine.Client.Debugger.BreakpointRequest right) -> bool
-static CheatEngine.Client.Events.EventStreamOptions.operator !=(CheatEngine.Client.Events.EventStreamOptions left, CheatEngine.Client.Events.EventStreamOptions right) -> bool
-static CheatEngine.Client.Events.EventStreamOptions.operator ==(CheatEngine.Client.Events.EventStreamOptions left, CheatEngine.Client.Events.EventStreamOptions right) -> bool
-static CheatEngine.Client.Hashing.FileHashRequest.operator !=(CheatEngine.Client.Hashing.FileHashRequest left, CheatEngine.Client.Hashing.FileHashRequest right) -> bool
-static CheatEngine.Client.Hashing.FileHashRequest.operator ==(CheatEngine.Client.Hashing.FileHashRequest left, CheatEngine.Client.Hashing.FileHashRequest right) -> bool
-static CheatEngine.Client.Hashing.HashDigest.operator !=(CheatEngine.Client.Hashing.HashDigest left, CheatEngine.Client.Hashing.HashDigest right) -> bool
-static CheatEngine.Client.Hashing.HashDigest.operator ==(CheatEngine.Client.Hashing.HashDigest left, CheatEngine.Client.Hashing.HashDigest right) -> bool
-static CheatEngine.Client.Hashing.MemoryHashRequest.operator !=(CheatEngine.Client.Hashing.MemoryHashRequest left, CheatEngine.Client.Hashing.MemoryHashRequest right) -> bool
-static CheatEngine.Client.Hashing.MemoryHashRequest.operator ==(CheatEngine.Client.Hashing.MemoryHashRequest left, CheatEngine.Client.Hashing.MemoryHashRequest right) -> bool
-static CheatEngine.Client.Hotkeys.HotkeyEvent.operator !=(CheatEngine.Client.Hotkeys.HotkeyEvent left, CheatEngine.Client.Hotkeys.HotkeyEvent right) -> bool
-static CheatEngine.Client.Hotkeys.HotkeyEvent.operator ==(CheatEngine.Client.Hotkeys.HotkeyEvent left, CheatEngine.Client.Hotkeys.HotkeyEvent right) -> bool
-static CheatEngine.Client.Hotkeys.HotkeyGesture.operator !=(CheatEngine.Client.Hotkeys.HotkeyGesture left, CheatEngine.Client.Hotkeys.HotkeyGesture right) -> bool
-static CheatEngine.Client.Hotkeys.HotkeyGesture.operator ==(CheatEngine.Client.Hotkeys.HotkeyGesture left, CheatEngine.Client.Hotkeys.HotkeyGesture right) -> bool
-static CheatEngine.Client.Hotkeys.HotkeyRegistration.operator !=(CheatEngine.Client.Hotkeys.HotkeyRegistration left, CheatEngine.Client.Hotkeys.HotkeyRegistration right) -> bool
-static CheatEngine.Client.Hotkeys.HotkeyRegistration.operator ==(CheatEngine.Client.Hotkeys.HotkeyRegistration left, CheatEngine.Client.Hotkeys.HotkeyRegistration right) -> bool
 static CheatEngine.Client.Inspection.InspectionCollectionRequest.operator !=(CheatEngine.Client.Inspection.InspectionCollectionRequest left, CheatEngine.Client.Inspection.InspectionCollectionRequest right) -> bool
 static CheatEngine.Client.Inspection.InspectionCollectionRequest.operator ==(CheatEngine.Client.Inspection.InspectionCollectionRequest left, CheatEngine.Client.Inspection.InspectionCollectionRequest right) -> bool
 static CheatEngine.Client.Inspection.SymbolRegistration.operator !=(CheatEngine.Client.Inspection.SymbolRegistration left, CheatEngine.Client.Inspection.SymbolRegistration right) -> bool
@@ -1166,12 +915,6 @@ static CheatEngine.Client.Processes.ProcessSnapshot.operator !=(CheatEngine.Clie
 static CheatEngine.Client.Processes.ProcessSnapshot.operator ==(CheatEngine.Client.Processes.ProcessSnapshot left, CheatEngine.Client.Processes.ProcessSnapshot right) -> bool
 static CheatEngine.Client.Processes.ProcessStartRequest.operator !=(CheatEngine.Client.Processes.ProcessStartRequest left, CheatEngine.Client.Processes.ProcessStartRequest right) -> bool
 static CheatEngine.Client.Processes.ProcessStartRequest.operator ==(CheatEngine.Client.Processes.ProcessStartRequest left, CheatEngine.Client.Processes.ProcessStartRequest right) -> bool
-static CheatEngine.Client.RemoteExecution.RemoteCallRequest.operator !=(CheatEngine.Client.RemoteExecution.RemoteCallRequest left, CheatEngine.Client.RemoteExecution.RemoteCallRequest right) -> bool
-static CheatEngine.Client.RemoteExecution.RemoteCallRequest.operator ==(CheatEngine.Client.RemoteExecution.RemoteCallRequest left, CheatEngine.Client.RemoteExecution.RemoteCallRequest right) -> bool
-static CheatEngine.Client.RemoteExecution.RemoteCallResult.operator !=(CheatEngine.Client.RemoteExecution.RemoteCallResult left, CheatEngine.Client.RemoteExecution.RemoteCallResult right) -> bool
-static CheatEngine.Client.RemoteExecution.RemoteCallResult.operator ==(CheatEngine.Client.RemoteExecution.RemoteCallResult left, CheatEngine.Client.RemoteExecution.RemoteCallResult right) -> bool
-static CheatEngine.Client.RemoteExecution.RemoteDllInjectionRequest.operator !=(CheatEngine.Client.RemoteExecution.RemoteDllInjectionRequest left, CheatEngine.Client.RemoteExecution.RemoteDllInjectionRequest right) -> bool
-static CheatEngine.Client.RemoteExecution.RemoteDllInjectionRequest.operator ==(CheatEngine.Client.RemoteExecution.RemoteDllInjectionRequest left, CheatEngine.Client.RemoteExecution.RemoteDllInjectionRequest right) -> bool
 static CheatEngine.Client.Results.CheatEngineFailure.operator !=(CheatEngine.Client.Results.CheatEngineFailure left, CheatEngine.Client.Results.CheatEngineFailure right) -> bool
 static CheatEngine.Client.Results.CheatEngineFailure.operator ==(CheatEngine.Client.Results.CheatEngineFailure left, CheatEngine.Client.Results.CheatEngineFailure right) -> bool
 static CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.operator !=(CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo left, CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo right) -> bool
@@ -1190,18 +933,11 @@ static CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate.operator !=(Cheat
 static CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate.operator ==(CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate left, CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate right) -> bool
 static CheatEngine.Client.Runtime.ClientCapabilityId.Allocations.get -> CheatEngine.Client.Runtime.ClientCapabilityId
 static CheatEngine.Client.Runtime.ClientCapabilityId.Assembly.get -> CheatEngine.Client.Runtime.ClientCapabilityId
-static CheatEngine.Client.Runtime.ClientCapabilityId.Dbvm.get -> CheatEngine.Client.Runtime.ClientCapabilityId
-static CheatEngine.Client.Runtime.ClientCapabilityId.Debugger.get -> CheatEngine.Client.Runtime.ClientCapabilityId
-static CheatEngine.Client.Runtime.ClientCapabilityId.Hashing.get -> CheatEngine.Client.Runtime.ClientCapabilityId
-static CheatEngine.Client.Runtime.ClientCapabilityId.Hotkeys.get -> CheatEngine.Client.Runtime.ClientCapabilityId
 static CheatEngine.Client.Runtime.ClientCapabilityId.Inspection.get -> CheatEngine.Client.Runtime.ClientCapabilityId
 static CheatEngine.Client.Runtime.ClientCapabilityId.PatternScanning.get -> CheatEngine.Client.Runtime.ClientCapabilityId
 static CheatEngine.Client.Runtime.ClientCapabilityId.ProcessSelection.get -> CheatEngine.Client.Runtime.ClientCapabilityId
 static CheatEngine.Client.Runtime.ClientCapabilityId.ProtectedLua.get -> CheatEngine.Client.Runtime.ClientCapabilityId
-static CheatEngine.Client.Runtime.ClientCapabilityId.RemoteExecution.get -> CheatEngine.Client.Runtime.ClientCapabilityId
-static CheatEngine.Client.Runtime.ClientCapabilityId.Speed.get -> CheatEngine.Client.Runtime.ClientCapabilityId
 static CheatEngine.Client.Runtime.ClientCapabilityId.Tables.get -> CheatEngine.Client.Runtime.ClientCapabilityId
-static CheatEngine.Client.Runtime.ClientCapabilityId.Timers.get -> CheatEngine.Client.Runtime.ClientCapabilityId
 static CheatEngine.Client.Runtime.ClientCapabilityId.TypedMemory.get -> CheatEngine.Client.Runtime.ClientCapabilityId
 static CheatEngine.Client.Runtime.ClientCapabilityId.UnsafeLuaExecution.get -> CheatEngine.Client.Runtime.ClientCapabilityId
 static CheatEngine.Client.Runtime.ClientCapabilityId.ValueScanning.get -> CheatEngine.Client.Runtime.ClientCapabilityId
@@ -1224,8 +960,6 @@ static CheatEngine.Client.Scanning.ValueScanPage.operator !=(CheatEngine.Client.
 static CheatEngine.Client.Scanning.ValueScanPage.operator ==(CheatEngine.Client.Scanning.ValueScanPage left, CheatEngine.Client.Scanning.ValueScanPage right) -> bool
 static CheatEngine.Client.Scanning.ValueScanReadRequest.operator !=(CheatEngine.Client.Scanning.ValueScanReadRequest left, CheatEngine.Client.Scanning.ValueScanReadRequest right) -> bool
 static CheatEngine.Client.Scanning.ValueScanReadRequest.operator ==(CheatEngine.Client.Scanning.ValueScanReadRequest left, CheatEngine.Client.Scanning.ValueScanReadRequest right) -> bool
-static CheatEngine.Client.Speed.SpeedMultiplier.operator !=(CheatEngine.Client.Speed.SpeedMultiplier left, CheatEngine.Client.Speed.SpeedMultiplier right) -> bool
-static CheatEngine.Client.Speed.SpeedMultiplier.operator ==(CheatEngine.Client.Speed.SpeedMultiplier left, CheatEngine.Client.Speed.SpeedMultiplier right) -> bool
 static CheatEngine.Client.Tables.AddressTableSnapshot.operator !=(CheatEngine.Client.Tables.AddressTableSnapshot left, CheatEngine.Client.Tables.AddressTableSnapshot right) -> bool
 static CheatEngine.Client.Tables.AddressTableSnapshot.operator ==(CheatEngine.Client.Tables.AddressTableSnapshot left, CheatEngine.Client.Tables.AddressTableSnapshot right) -> bool
 static CheatEngine.Client.Tables.MemoryRecordCollectionRequest.operator !=(CheatEngine.Client.Tables.MemoryRecordCollectionRequest left, CheatEngine.Client.Tables.MemoryRecordCollectionRequest right) -> bool
@@ -1252,14 +986,6 @@ static CheatEngine.Client.Tables.TableSaveRequest.operator !=(CheatEngine.Client
 static CheatEngine.Client.Tables.TableSaveRequest.operator ==(CheatEngine.Client.Tables.TableSaveRequest left, CheatEngine.Client.Tables.TableSaveRequest right) -> bool
 static CheatEngine.Client.Tables.TrustedTableFile.operator !=(CheatEngine.Client.Tables.TrustedTableFile left, CheatEngine.Client.Tables.TrustedTableFile right) -> bool
 static CheatEngine.Client.Tables.TrustedTableFile.operator ==(CheatEngine.Client.Tables.TrustedTableFile left, CheatEngine.Client.Tables.TrustedTableFile right) -> bool
-static CheatEngine.Client.Timers.TimerRequest.operator !=(CheatEngine.Client.Timers.TimerRequest left, CheatEngine.Client.Timers.TimerRequest right) -> bool
-static CheatEngine.Client.Timers.TimerRequest.operator ==(CheatEngine.Client.Timers.TimerRequest left, CheatEngine.Client.Timers.TimerRequest right) -> bool
-static CheatEngine.Client.Timers.TimerTick.operator !=(CheatEngine.Client.Timers.TimerTick left, CheatEngine.Client.Timers.TimerTick right) -> bool
-static CheatEngine.Client.Timers.TimerTick.operator ==(CheatEngine.Client.Timers.TimerTick left, CheatEngine.Client.Timers.TimerTick right) -> bool
-virtual CheatEngine.Client.Dbvm.DbvmWatchHandler.Invoke(CheatEngine.Client.Dbvm.DbvmWatchEvent watchEvent) -> void
-virtual CheatEngine.Client.Debugger.BreakpointHandler.Invoke(CheatEngine.Client.Debugger.BreakpointEvent breakpointEvent) -> CheatEngine.Client.Debugger.BreakpointDisposition
-virtual CheatEngine.Client.Hotkeys.HotkeyHandler.Invoke(CheatEngine.Client.Hotkeys.HotkeyEvent hotkeyEvent) -> void
-virtual CheatEngine.Client.Timers.TimerHandler.Invoke(CheatEngine.Client.Timers.TimerTick tick) -> void
 ~override CheatEngine.Client.Allocations.TargetAllocationRequest.Equals(object obj) -> bool
 ~override CheatEngine.Client.Allocations.TargetAllocationRequest.ToString() -> string
 ~override CheatEngine.Client.Assembly.AssemblyInstructionRequest.Equals(object obj) -> bool
@@ -1268,34 +994,6 @@ virtual CheatEngine.Client.Timers.TimerHandler.Invoke(CheatEngine.Client.Timers.
 ~override CheatEngine.Client.Assembly.AssemblyInstructionSnapshot.ToString() -> string
 ~override CheatEngine.Client.Assembly.AutoAssemblerScript.Equals(object obj) -> bool
 ~override CheatEngine.Client.Assembly.AutoAssemblerScript.ToString() -> string
-~override CheatEngine.Client.Dbvm.DbvmInitializationRequest.Equals(object obj) -> bool
-~override CheatEngine.Client.Dbvm.DbvmInitializationRequest.ToString() -> string
-~override CheatEngine.Client.Dbvm.DbvmStatusSnapshot.Equals(object obj) -> bool
-~override CheatEngine.Client.Dbvm.DbvmStatusSnapshot.ToString() -> string
-~override CheatEngine.Client.Dbvm.DbvmWatchEvent.Equals(object obj) -> bool
-~override CheatEngine.Client.Dbvm.DbvmWatchEvent.ToString() -> string
-~override CheatEngine.Client.Dbvm.DbvmWatchRequest.Equals(object obj) -> bool
-~override CheatEngine.Client.Dbvm.DbvmWatchRequest.ToString() -> string
-~override CheatEngine.Client.Debugger.BreakpointEvent.Equals(object obj) -> bool
-~override CheatEngine.Client.Debugger.BreakpointEvent.ToString() -> string
-~override CheatEngine.Client.Debugger.BreakpointRegisterSnapshot.Equals(object obj) -> bool
-~override CheatEngine.Client.Debugger.BreakpointRegisterSnapshot.ToString() -> string
-~override CheatEngine.Client.Debugger.BreakpointRequest.Equals(object obj) -> bool
-~override CheatEngine.Client.Debugger.BreakpointRequest.ToString() -> string
-~override CheatEngine.Client.Events.EventStreamOptions.Equals(object obj) -> bool
-~override CheatEngine.Client.Events.EventStreamOptions.ToString() -> string
-~override CheatEngine.Client.Hashing.FileHashRequest.Equals(object obj) -> bool
-~override CheatEngine.Client.Hashing.FileHashRequest.ToString() -> string
-~override CheatEngine.Client.Hashing.HashDigest.Equals(object obj) -> bool
-~override CheatEngine.Client.Hashing.HashDigest.ToString() -> string
-~override CheatEngine.Client.Hashing.MemoryHashRequest.Equals(object obj) -> bool
-~override CheatEngine.Client.Hashing.MemoryHashRequest.ToString() -> string
-~override CheatEngine.Client.Hotkeys.HotkeyEvent.Equals(object obj) -> bool
-~override CheatEngine.Client.Hotkeys.HotkeyEvent.ToString() -> string
-~override CheatEngine.Client.Hotkeys.HotkeyGesture.Equals(object obj) -> bool
-~override CheatEngine.Client.Hotkeys.HotkeyGesture.ToString() -> string
-~override CheatEngine.Client.Hotkeys.HotkeyRegistration.Equals(object obj) -> bool
-~override CheatEngine.Client.Hotkeys.HotkeyRegistration.ToString() -> string
 ~override CheatEngine.Client.Inspection.InspectionCollectionRequest.Equals(object obj) -> bool
 ~override CheatEngine.Client.Inspection.InspectionCollectionRequest.ToString() -> string
 ~override CheatEngine.Client.Inspection.SymbolRegistration.Equals(object obj) -> bool
@@ -1336,12 +1034,6 @@ virtual CheatEngine.Client.Timers.TimerHandler.Invoke(CheatEngine.Client.Timers.
 ~override CheatEngine.Client.Processes.ProcessSnapshot.ToString() -> string
 ~override CheatEngine.Client.Processes.ProcessStartRequest.Equals(object obj) -> bool
 ~override CheatEngine.Client.Processes.ProcessStartRequest.ToString() -> string
-~override CheatEngine.Client.RemoteExecution.RemoteCallRequest.Equals(object obj) -> bool
-~override CheatEngine.Client.RemoteExecution.RemoteCallRequest.ToString() -> string
-~override CheatEngine.Client.RemoteExecution.RemoteCallResult.Equals(object obj) -> bool
-~override CheatEngine.Client.RemoteExecution.RemoteCallResult.ToString() -> string
-~override CheatEngine.Client.RemoteExecution.RemoteDllInjectionRequest.Equals(object obj) -> bool
-~override CheatEngine.Client.RemoteExecution.RemoteDllInjectionRequest.ToString() -> string
 ~override CheatEngine.Client.Results.CheatEngineFailure.Equals(object obj) -> bool
 ~override CheatEngine.Client.Results.CheatEngineFailure.ToString() -> string
 ~override CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.Equals(object obj) -> bool
@@ -1371,8 +1063,6 @@ virtual CheatEngine.Client.Timers.TimerHandler.Invoke(CheatEngine.Client.Timers.
 ~override CheatEngine.Client.Scanning.ValueScanPage.ToString() -> string
 ~override CheatEngine.Client.Scanning.ValueScanReadRequest.Equals(object obj) -> bool
 ~override CheatEngine.Client.Scanning.ValueScanReadRequest.ToString() -> string
-~override CheatEngine.Client.Speed.SpeedMultiplier.Equals(object obj) -> bool
-~override CheatEngine.Client.Speed.SpeedMultiplier.ToString() -> string
 ~override CheatEngine.Client.Tables.AddressTableSnapshot.Equals(object obj) -> bool
 ~override CheatEngine.Client.Tables.AddressTableSnapshot.ToString() -> string
 ~override CheatEngine.Client.Tables.MemoryRecordCollectionRequest.Equals(object obj) -> bool
@@ -1399,7 +1089,3 @@ virtual CheatEngine.Client.Timers.TimerHandler.Invoke(CheatEngine.Client.Timers.
 ~override CheatEngine.Client.Tables.TableSaveRequest.ToString() -> string
 ~override CheatEngine.Client.Tables.TrustedTableFile.Equals(object obj) -> bool
 ~override CheatEngine.Client.Tables.TrustedTableFile.ToString() -> string
-~override CheatEngine.Client.Timers.TimerRequest.Equals(object obj) -> bool
-~override CheatEngine.Client.Timers.TimerRequest.ToString() -> string
-~override CheatEngine.Client.Timers.TimerTick.Equals(object obj) -> bool
-~override CheatEngine.Client.Timers.TimerTick.ToString() -> string

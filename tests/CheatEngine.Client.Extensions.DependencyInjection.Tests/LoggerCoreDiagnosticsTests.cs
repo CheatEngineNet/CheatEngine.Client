@@ -96,9 +96,9 @@ public sealed partial class LoggerCoreDiagnosticsTests
 
 		for (int attempt = 0; attempt < 3; attempt++)
 		{
-			diagnostics.CapabilityRefused("Client.Speed", "Speed.GetMultiplier",
+			diagnostics.CapabilityRefused("Client.Assembly", "Assembly.Disassemble",
 				ClientCapabilityEvidenceReasonCode.Implementation, ClientCapabilityEvidenceState.Missing);
-			diagnostics.CapabilityRefused("Client.Speed", "Speed.SetMultiplier",
+			diagnostics.CapabilityRefused("Client.Assembly", "Assembly.ApplyPatch",
 				ClientCapabilityEvidenceReasonCode.Implementation, ClientCapabilityEvidenceState.Missing);
 			diagnostics.CapabilityRefused("Client.UnsafeLuaExecution", "Lua.ExecuteUnsafe",
 				ClientCapabilityEvidenceReasonCode.Policy, ClientCapabilityEvidenceState.Missing);
@@ -106,13 +106,13 @@ public sealed partial class LoggerCoreDiagnosticsTests
 
 		Assert.Equal(
 			[
-				"Capability Client.Speed refused Speed.GetMultiplier: the Implementation gate is Missing.",
-				"Capability Client.Speed refused Speed.SetMultiplier: the Implementation gate is Missing.",
+				"Capability Client.Assembly refused Assembly.Disassemble: the Implementation gate is Missing.",
+				"Capability Client.Assembly refused Assembly.ApplyPatch: the Implementation gate is Missing.",
 				"Capability Client.UnsafeLuaExecution refused Lua.ExecuteUnsafe: the Policy gate is Missing."
 			],
 			logs.Entries.Select(static entry => entry.Message));
 		LoggerCoreDiagnostics nextActivation = new(factory);
-		nextActivation.CapabilityRefused("Client.Speed", "Speed.GetMultiplier",
+		nextActivation.CapabilityRefused("Client.Assembly", "Assembly.Disassemble",
 			ClientCapabilityEvidenceReasonCode.Implementation, ClientCapabilityEvidenceState.Missing);
 		Assert.Equal(4, logs.Entries.Count);
 	}
@@ -131,12 +131,12 @@ public sealed partial class LoggerCoreDiagnosticsTests
 
 		for (int attempt = 0; attempt < 3; attempt++)
 		{
-			diagnostics.CapabilityRefused("Client.Speed", "Speed.GetMultiplier",
+			diagnostics.CapabilityRefused("Client.Assembly", "Assembly.Disassemble",
 				ClientCapabilityEvidenceReasonCode.Implementation, ClientCapabilityEvidenceState.Missing);
 		}
 
 		Assert.Equal(0, logs.FailingLogs);
-		Assert.Equal(["Capability Client.Speed refused Speed.GetMultiplier: the Implementation gate is Missing."],
+		Assert.Equal(["Capability Client.Assembly refused Assembly.Disassemble: the Implementation gate is Missing."],
 			logs.Entries.Select(static entry => entry.Message));
 	}
 
@@ -181,7 +181,7 @@ public sealed partial class LoggerCoreDiagnosticsTests
 	private static void EmitScriptedRun(LoggerCoreDiagnostics diagnostics)
 	{
 		diagnostics.RuntimeSnapshotCaptured(17, CheatEngineArchitecture.X64, 8, 8, false);
-		diagnostics.CapabilityRefused("Client.Hotkeys", "Hotkeys.Register",
+		diagnostics.CapabilityRefused("Client.Allocations", "Allocations.Allocate",
 			ClientCapabilityEvidenceReasonCode.Implementation, ClientCapabilityEvidenceState.Missing);
 		diagnostics.TargetSelectionAdvanced(17, 2, "Processes.Attach", "PidChanged");
 		diagnostics.PointerWidthMismatchRefused("Memory.ReadPrimitive", 8, 4);

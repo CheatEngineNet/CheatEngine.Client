@@ -21,6 +21,7 @@ public sealed partial class CapabilityDocumentationTests
 	private const string EndMarker = "<!-- capability-table:end -->";
 	private const string AbstractionsReadme = "libs/CheatEngine.Client.Abstractions/README.md";
 	private const string CapabilityIdSource = "libs/CheatEngine.Client.Abstractions/Runtime/ClientCapabilityId.cs";
+	private const string CapabilityIdDeclarationPrefix = "public static ClientCapabilityId ";
 	private const string RuntimeClientSource = "libs/CheatEngine.Client.Core/Domains/RuntimeClient.cs";
 	private const string CoreLockFile = "libs/CheatEngine.Client.Core/packages.lock.json";
 	private const string ContractOnly = "Contract-only (Unavailable)";
@@ -43,8 +44,11 @@ public sealed partial class CapabilityDocumentationTests
 	{
 		string[] expected = [.. ReadCapabilityIds().Values.Order(StringComparer.Ordinal)];
 		IReadOnlyList<CapabilityTable> tables = ReadCapabilityTables();
+		// Every static declaration in the source must be parsed, so a declaration the pattern misses cannot drop a row.
+		int declared = Read(CapabilityIdSource).Split(CapabilityIdDeclarationPrefix, StringSplitOptions.None).Length - 1;
 
-		Assert.Equal(17, expected.Length);
+		Assert.True(declared > 0, $"{CapabilityIdSource} declares no Client capability.");
+		Assert.Equal(declared, expected.Length);
 		Assert.Contains(tables, static table => table.Path == AbstractionsReadme);
 		foreach (CapabilityTable table in tables)
 		{

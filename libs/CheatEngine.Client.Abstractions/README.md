@@ -60,10 +60,6 @@ namespaces only:
 | `.Tables`                    | copied Address List records and explicitly trusted table I/O requests |
 | `.Lua` / `.Modules`          | typed protected Lua operations, explicit modules, and leases          |
 | `.Allocations` / `.Assembly` | selection-bound allocation and reversible patch leases                |
-| `.RemoteExecution`           | bounded DLL injection and remote-call requests                        |
-| `.Debugger` / `.Hotkeys`     | synchronous copied callbacks and bounded stream projections           |
-| `.Timers` / `.Speed`         | activation-scoped timers and validated speed observations/mutations   |
-| `.Hashing` / `.Dbvm`         | separate memory/file hashes and explicit DBVM observation/control     |
 | `.Results`                   | classified expected failures and lifecycle exceptions                 |
 
 No public consumer should use `CheatEngine.Client.Abstractions` as a namespace.
@@ -104,13 +100,6 @@ or allocates target memory.
 | `Client.UnsafeLuaExecution` | Operational, policy opt-in | Evidence from the consumed CheatEngine.SDK 1.0.0 identity | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unavailable` without `EnableUnsafeLuaExecution()`; otherwise `Unknown` |
 | `Client.Allocations` | Contract-only (Unavailable) | `Missing`: CheatEngine.SDK 1.0.0 provides no target-bound owned allocation primitive | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unavailable` |
 | `Client.Assembly` | Contract-only (Unavailable) | `Missing`: CheatEngine.SDK 1.0.0 provides no target-bound owned Auto Assembler primitive | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unavailable` |
-| `Client.RemoteExecution` | Contract-only (Unavailable) | `Missing`: no CheatEngine.SDK release provides a qualified primitive | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unavailable` |
-| `Client.Debugger` | Contract-only (Unavailable) | `Missing`: no CheatEngine.SDK release provides a qualified primitive | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unavailable` |
-| `Client.Hotkeys` | Contract-only (Unavailable) | `Missing`: no qualified primitive until the SDK 2.0 hotkey owner is adopted | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unavailable` |
-| `Client.Timers` | Contract-only (Unavailable) | `Missing`: no qualified primitive until the SDK 2.0 timer owner is adopted | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unavailable` |
-| `Client.Speed` | Contract-only (Unavailable) | `Missing`: no CheatEngine.SDK release provides a qualified primitive | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unavailable` |
-| `Client.Hashing` | Contract-only (Unavailable) | `Missing`: no CheatEngine.SDK release provides a qualified primitive | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unavailable` |
-| `Client.Dbvm` | Contract-only (Unavailable) | `Missing`: no CheatEngine.SDK release provides a qualified primitive | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unavailable` |
 <!-- capability-table:end -->
 
 Every row also carries the lifetime gate (`Missing` once the activation has ended). A contract-only capability refuses
@@ -125,6 +114,22 @@ capability reports it.
 
 `IUnsafeLuaClient` is intentionally separate from `ILuaClient` and is not registered by default.
 It is for explicitly trusted source only and still never exposes a raw Lua state.
+
+### Not offered in 1.0
+
+These Cheat Engine features have no public Client contract, not even a gated placeholder:
+
+- timers and hotkeys;
+- the debugger and breakpoints;
+- the speed hack;
+- target-memory and file hashing;
+- DBVM;
+- remote execution and DLL injection;
+- pausing, resuming or creating a process, and attaching to the foreground process;
+- assembly comments;
+- detaching from a process.
+
+No CheatEngine.SDK primitive backs these yet; they may arrive in a 1.x minor release once the SDK provides an owner.
 
 ### AOB scan semantics and limits
 
@@ -238,7 +243,7 @@ dispatch and between Client-managed steps.
 | Lua typed operations and modules (`ILuaClient`) | Dispatch admission | `NotStarted` (cancellation), otherwise the operation's own failure | Owned by the operation; operation exceptions are rethrown unchanged |
 | Unsafe Lua (`IUnsafeLuaClient`) | Dispatch admission | `NotStarted` (policy), `Unknown` (SDK fault; the script may have run partially) | The script may have run partially before a Lua error |
 | Runtime and Processes (`ICheatEngineRuntime`, `IProcessClient`) | Dispatch admission | `Completed` (the selected target changed during the observation: `IndeterminateHostResult`), `Unknown` (SDK fault, no selected target) | A fact probe that fails leaves that fact `Unknown` in the snapshot or capability evidence instead of failing the call; `Attach` changes Cheat Engine's global selection |
-| Capability-gated domains (allocations, assembly, remote execution, debugger, hotkeys, timers, speed, hashing, DBVM) | Not applicable: no Cheat Engine work is dispatched | `NotStarted` (`CapabilityUnavailable` or `Cancelled`) | None |
+| Capability-gated domains (allocations, assembly) | Not applicable: no Cheat Engine work is dispatched | `NotStarted` (`CapabilityUnavailable` or `Cancelled`) | None |
 | Value scans (`IValueScanner`) | Not applicable: no Cheat Engine work is dispatched | Not yet reported (`Unknown`) | None; the refusal is the same `CapabilityUnavailable` or `Cancelled`, and reporting `NotStarted` here is scheduled with the other value-scan changes |
 
 ### Diagnostics and redaction
