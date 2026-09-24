@@ -59,13 +59,18 @@ internal sealed class FakeValueScanPort : IValueScanPort
 /// <summary>
 ///     Emulates the CheatEngine.SDK 2.0.0 <c>MemoryScanSession</c> state machine that the Client relies on: state checks
 ///     before the Cheat Engine calls, the conservative invalidation around them, cancellation milestones, the refusal of a
-///     call made while another member is inside Cheat Engine, and the one deferred release.
+///     call made while another member is inside Cheat Engine, the one deferred release, and the one cooperative stop
+///     (<c>terminateScan</c>, then <c>waitTillDone(5000)</c>) that the release makes when a scan may still be running.
 /// </summary>
 internal sealed class FakeValueScanSessionHandle : IValueScanSessionHandle
 {
 	private bool _active;
 	private ValueScanReleaseStatuses? _finalRelease;
 	private bool _releaseDeferred;
+
+	// As in the SDK: true from immediately before a firstScan or nextScan call until a wait returns, a stop is
+	// confirmed, or a reset succeeds.
+	private bool _scanMayBeRunning;
 
 	internal List<string> Calls
 	{
@@ -167,12 +172,35 @@ internal sealed class FakeValueScanSessionHandle : IValueScanSessionHandle
 		set;
 	}
 
-	internal ValueScanReleaseStatuses ReleaseStatuses
+	/// <summary>The SDK status of the release of the found list and of the scanner; both are released by default.</summary>
+	internal (TargetReleaseStatus FoundList, TargetReleaseStatus MemScan) OwnerReleases
 	{
 		get;
 		set;
-	} = new(TargetReleaseStatus.Released, TargetReleaseStatus.Released, MemoryScanTerminationStatus.NotRequired);
+	} = (TargetReleaseStatus.Released, TargetReleaseStatus.Released);
 
+	/// <summary>How the release's cooperative stop of a scan that may still run ends; confirmed by default.</summary>
+	internal MemoryScanTerminationStatus StopStatus
+	{
+		get;
+		set;
+	} = MemoryScanTerminationStatus.Confirmed;
+
+	/// <summary>Gets the number of cooperative stops the release requested from Cheat Engine.</summary>
+	internal int StopRequests
+	{
+		get;
+		private set;
+	}
+
+	/// <summary>Runs when the Client asks for the release, before the SDK decides anything.</summary>
+	internal Action? OnRelease
+	{
+		get;
+		set;
+	}
+
+	/// <summary>Gets the number of releases the SDK completed, each consuming both owners.</summary>
 	internal int Destroys
 	{
 		get;
@@ -266,6 +294,9 @@ internal sealed class FakeValueScanSessionHandle : IValueScanSessionHandle
 				Complete(MemoryScanState.ResultsReady);
 			}
 
+			// waitTillDone returned: the scan no longer runs, whether results or a deferred release follow.
+			_scanMayBeRunning = false;
+
 			ObserveCancellation(cancellationToken);
 		}
 		finally
@@ -303,6 +334,7 @@ internal sealed class FakeValueScanSessionHandle : IValueScanSessionHandle
 			}
 
 			Complete(MemoryScanState.New);
+			_scanMayBeRunning = false;
 			ObserveCancellation(cancellationToken);
 		}
 		finally
@@ -369,6 +401,7 @@ internal sealed class FakeValueScanSessionHandle : IValueScanSessionHandle
 
 	public ValueScanReleaseStatuses Release()
 	{
+		OnRelease?.Invoke();
 		if (ReleaseFault is { } fault)
 		{
 			throw fault;
@@ -401,6 +434,7 @@ internal sealed class FakeValueScanSessionHandle : IValueScanSessionHandle
 			BeforeStartCheck?.Invoke();
 			ThrowIfCancelledBeforeNativeCall(cancellationToken);
 			Invalidate(MemoryScanInvalidationReason.ProtectedLuaFailure);
+			_scanMayBeRunning = true;
 			DuringStart?.Invoke();
 			if (StartFault is { } fault)
 			{
@@ -464,9 +498,24 @@ internal sealed class FakeValueScanSessionHandle : IValueScanSessionHandle
 
 	private void CompleteRelease()
 	{
+		// A refused or detached release consumes both owners without any Cheat Engine call, so a scan that may run gets
+		// no stop request (NotInvoked); a release that reaches Cheat Engine first asks a running scan to stop, once.
+		bool consumedWithoutCleanup = OwnerReleases.FoundList is not (TargetReleaseStatus.Released
+			or TargetReleaseStatus.UnconfirmedAfterInvocation);
+		MemoryScanTerminationStatus termination = MemoryScanTerminationStatus.NotRequired;
+		if (_scanMayBeRunning && consumedWithoutCleanup)
+		{
+			termination = MemoryScanTerminationStatus.NotInvoked;
+		}
+		else if (_scanMayBeRunning)
+		{
+			StopRequests++;
+			termination = StopStatus;
+		}
+
 		Destroys++;
 		State = MemoryScanState.Disposed;
-		_finalRelease = ReleaseStatuses;
+		_finalRelease = new ValueScanReleaseStatuses(OwnerReleases.FoundList, OwnerReleases.MemScan, termination);
 	}
 
 	private void ThrowIfDisposed()

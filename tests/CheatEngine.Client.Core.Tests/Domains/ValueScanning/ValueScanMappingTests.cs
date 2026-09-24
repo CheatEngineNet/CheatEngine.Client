@@ -165,13 +165,23 @@ public sealed class ValueScanMappingTests
 	[Trait("Qualification", "Q48")]
 	public void EveryMemoryScanFailureKindTellsHowFarAScanGot()
 	{
+		// The SDK checks the runtime and the target before any Cheat Engine call of an operation; every other failure
+		// category comes from a Cheat Engine call that began.
+		Dictionary<MemoryScanFailureKind, CheatEngineHostEffect> expected = new()
+		{
+			[MemoryScanFailureKind.MissingCapability] = CheatEngineHostEffect.Started,
+			[MemoryScanFailureKind.LuaError] = CheatEngineHostEffect.Started,
+			[MemoryScanFailureKind.UnexpectedResult] = CheatEngineHostEffect.Started,
+			[MemoryScanFailureKind.RuntimeInvalidated] = CheatEngineHostEffect.NotStarted,
+			[MemoryScanFailureKind.TargetIdentityUnavailable] = CheatEngineHostEffect.NotStarted,
+			[MemoryScanFailureKind.TargetIdentityMismatch] = CheatEngineHostEffect.NotStarted
+		};
+
 		MappingTotality.AssertTotal<MemoryScanFailureKind>(
-			static kind => ValueScanMapping.MutationFaultEffect(kind) is CheatEngineHostEffect.NotStarted
-				or CheatEngineHostEffect.Started,
+			kind => expected.TryGetValue(kind, out CheatEngineHostEffect effect) &&
+					ValueScanMapping.MutationFaultEffect(kind) == effect,
 			static kind => ValueScanMapping.MutationFaultEffect(kind) == CheatEngineHostEffect.Unknown);
-		Assert.Equal(CheatEngineHostEffect.NotStarted,
-			ValueScanMapping.MutationFaultEffect(MemoryScanFailureKind.TargetIdentityMismatch));
-		Assert.Equal(CheatEngineHostEffect.Started, ValueScanMapping.MutationFaultEffect(MemoryScanFailureKind.LuaError));
+		Assert.Equal(Enum.GetValues<MemoryScanFailureKind>().Order(), expected.Keys.Order());
 		Assert.Equal(CheatEngineHostEffect.NotStarted, ValueScanMapping.MutationFaultEffect(ScanFaults.State()));
 		Assert.Equal(CheatEngineHostEffect.Unknown,
 			ValueScanMapping.MutationFaultEffect(new ObjectDisposedException("MemoryScanSession")));

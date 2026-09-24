@@ -294,8 +294,64 @@ public sealed class ValueScannerTests : IDisposable
 		Assert.False(reset);
 		Assert.Equal(CheatEngineFailureKind.InvalidState, resetFailure.Kind);
 		Assert.Equal(CheatEngineHostEffect.NotStarted, resetFailure.HostEffect);
-		Assert.Equal(LeaseReleaseKind.Released, released.Kind);
+		// The release asked Cheat Engine to stop the scan that may still run, and Cheat Engine confirmed the stop.
+		Assert.Equal(new LeaseReleaseOutcome(LeaseReleaseKind.Released, CheatEngineHostEffect.Completed), released);
+		Assert.Equal(1, Handle.StopRequests);
 		Assert.Equal(1, Handle.Destroys);
+	}
+
+	[Theory]
+	[InlineData(MemoryScanTerminationStatus.WaitTimedOut)]
+	[InlineData(MemoryScanTerminationStatus.TerminateFailed)]
+	[InlineData(MemoryScanTerminationStatus.WaitFailed)]
+	public void AStopOfARunningScanThatIsNotConfirmedLeavesTheReleaseUnconfirmed(MemoryScanTerminationStatus stop)
+	{
+		IValueScanSession session = CreateSession();
+		using CancellationTokenSource cancellation = new();
+		Handle.DuringStart = cancellation.Cancel;
+		Handle.StopStatus = stop;
+		_ = session.TryFirstScan(ValueScanFirstRequest.Exact(ValueScanValue.FromInt32(1)), out _, cancellation.Token);
+
+		LeaseReleaseOutcome released = session.Release();
+
+		// Both objects were destroyed, but a scan thread may still run: never reported as a confirmed release.
+		Assert.Equal(new LeaseReleaseOutcome(LeaseReleaseKind.CleanupUnconfirmed, CheatEngineHostEffect.Started),
+			released);
+		Assert.True(released.RequiresManualRecovery);
+		Assert.True(session.IsReleased);
+		Assert.Equal(1, Handle.StopRequests);
+	}
+
+	[Fact]
+	public void ACompletedScanNeedsNoStopWhenItIsReleased()
+	{
+		IValueScanSession session = CreateSession();
+		session.FirstScan(ValueScanFirstRequest.Exact(ValueScanValue.FromInt32(1)), Token);
+
+		LeaseReleaseOutcome released = session.Release();
+
+		Assert.Equal(new LeaseReleaseOutcome(LeaseReleaseKind.Released, CheatEngineHostEffect.Completed), released);
+		Assert.Equal(0, Handle.StopRequests);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q25")]
+	public async Task AReleaseFromAWorkerThreadRunsOnCheatEngineMainThreadAsync()
+	{
+		using DedicatedThreadInvoker mainThread = new();
+		SdkMainThreadDispatcher dispatcher = new(_lifetime, mainThread);
+		FakeValueScanPort port = new();
+		IValueScanSession session = new ValueScanner(dispatcher, FakeSelectedTarget.CreateProcessClient(dispatcher),
+			port).CreateSession(Token);
+		int? releaseThread = null;
+		port.Session.OnRelease = () => releaseThread = Environment.CurrentManagedThreadId;
+
+		LeaseReleaseOutcome released = await Task.Run(session.Release, Token);
+
+		Assert.Equal(new LeaseReleaseOutcome(LeaseReleaseKind.Released, CheatEngineHostEffect.Completed), released);
+		Assert.Equal(mainThread.ThreadId, releaseThread);
+		Assert.Equal(1, port.Session.Destroys);
+		Assert.True(session.IsReleased);
 	}
 
 	[Fact]
@@ -322,8 +378,7 @@ public sealed class ValueScannerTests : IDisposable
 	{
 		IValueScanSession session = CreateSession();
 		Handle.ContextFault = ScanFaults.Scan(MemoryScanFailureKind.TargetIdentityMismatch);
-		Handle.ReleaseStatuses = new ValueScanReleaseStatuses(TargetReleaseStatus.RefusedTargetChanged,
-			TargetReleaseStatus.RefusedTargetChanged, MemoryScanTerminationStatus.NotRequired);
+		Handle.OwnerReleases = (TargetReleaseStatus.RefusedTargetChanged, TargetReleaseStatus.RefusedTargetChanged);
 
 		bool scanned = session.TryFirstScan(ValueScanFirstRequest.Exact(ValueScanValue.FromInt32(1)),
 			out CheatEngineFailure failure, Token);
@@ -424,8 +479,7 @@ public sealed class ValueScannerTests : IDisposable
 		session.FirstScan(ValueScanFirstRequest.Exact(ValueScanValue.FromInt32(1)), Token);
 		Handle.ContextFault = ScanFaults.Scan(MemoryScanFailureKind.RuntimeInvalidated);
 		// CheatEngine.SDK consumes the owners of a session from an earlier runtime without any Cheat Engine call.
-		Handle.ReleaseStatuses = new ValueScanReleaseStatuses(TargetReleaseStatus.NotInvoked,
-			TargetReleaseStatus.NotInvoked, MemoryScanTerminationStatus.NotRequired);
+		Handle.OwnerReleases = (TargetReleaseStatus.NotInvoked, TargetReleaseStatus.NotInvoked);
 
 		bool counted = session.TryGetResultCount(out _, out CheatEngineFailure countFailure, Token);
 		bool scanned = session.TryNextScan(ValueScanNextRequest.Changed(), out CheatEngineFailure scanFailure, Token);
@@ -496,8 +550,7 @@ public sealed class ValueScannerTests : IDisposable
 	public void AReleaseThatCannotReachCheatEngineKeepsTheLeaseForTheDeactivationReport()
 	{
 		IValueScanSession session = CreateSession();
-		Handle.ReleaseStatuses = new ValueScanReleaseStatuses(TargetReleaseStatus.NotInvoked,
-			TargetReleaseStatus.NotInvoked, MemoryScanTerminationStatus.NotRequired);
+		Handle.OwnerReleases = (TargetReleaseStatus.NotInvoked, TargetReleaseStatus.NotInvoked);
 
 		_context.Stop();
 		LeaseReleaseOutcome refused = session.Release();
@@ -605,8 +658,7 @@ public sealed class ValueScannerTests : IDisposable
 	{
 		_ = _processes.GetCurrent(Token);
 		FakeValueScanSessionHandle first = Handle;
-		first.ReleaseStatuses = new ValueScanReleaseStatuses(TargetReleaseStatus.RefusedTargetChanged,
-			TargetReleaseStatus.RefusedTargetChanged, MemoryScanTerminationStatus.NotRequired);
+		first.OwnerReleases = (TargetReleaseStatus.RefusedTargetChanged, TargetReleaseStatus.RefusedTargetChanged);
 		IValueScanSession forFirst = CreateSession();
 		// Cheat Engine's own window selects another process: no Client call observes it.
 		_target.Select(FakeSelectedTarget.OtherProcessIncarnation);
