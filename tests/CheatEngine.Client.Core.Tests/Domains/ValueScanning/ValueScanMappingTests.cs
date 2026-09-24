@@ -37,11 +37,12 @@ public sealed class ValueScanMappingTests
 				(CheatEngineFailureKind.InvalidHostResult, CheatEngineHostEffect.NotApplied),
 			[MemoryScanCreationStatus.RollbackUnconfirmed] =
 				(CheatEngineFailureKind.IndeterminateHostResult, CheatEngineHostEffect.CleanupUnconfirmed),
-			// A success without a session breaks the port contract; Unknown is never produced by a completed factory.
+			// A success without a session breaks the port contract, and Unknown is never produced by a completed factory:
+			// like an unrecognized status, neither proves that no scanner remains.
 			[MemoryScanCreationStatus.Success] =
-				(CheatEngineFailureKind.IndeterminateHostResult, CheatEngineHostEffect.Unknown),
+				(CheatEngineFailureKind.IndeterminateHostResult, CheatEngineHostEffect.CleanupUnconfirmed),
 			[MemoryScanCreationStatus.Unknown] =
-				(CheatEngineFailureKind.IndeterminateHostResult, CheatEngineHostEffect.Unknown)
+				(CheatEngineFailureKind.IndeterminateHostResult, CheatEngineHostEffect.CleanupUnconfirmed)
 		};
 
 	private static Dictionary<MemoryScanMaterializationStatus, (CheatEngineFailureKind Kind, CheatEngineHostEffect Effect)>
@@ -78,7 +79,8 @@ public sealed class ValueScanMappingTests
 								 out (CheatEngineFailureKind Kind, CheatEngineHostEffect Effect) expected) &&
 							 Describe(ValueScanMapping.FromCreationStatus(status, Operation)) == expected,
 			status => ValueScanMapping.FromCreationStatus(status, Operation) == fallback);
-		Assert.Equal((CheatEngineFailureKind.IndeterminateHostResult, CheatEngineHostEffect.Unknown), Describe(fallback));
+		Assert.Equal((CheatEngineFailureKind.IndeterminateHostResult, CheatEngineHostEffect.CleanupUnconfirmed),
+			Describe(fallback));
 		Assert.Equal(Enum.GetValues<MemoryScanCreationStatus>().Order(), ExpectedCreationFailures.Keys.Order());
 	}
 

@@ -17,7 +17,18 @@ namespace CheatEngine.Client.Core.Domains.ValueScanning;
 ///     <para>
 ///         A creation that the SDK refused after it created an object has already been rolled back by the SDK, child
 ///         before parent: nothing that the Client owns remains, which <see cref="CheatEngineHostEffect.NotApplied" />
-///         reports. Only <see cref="MemoryScanCreationStatus.RollbackUnconfirmed" /> may leave a scanner in Cheat Engine.
+///         reports. <see cref="MemoryScanCreationStatus.RollbackUnconfirmed" /> may leave a scanner in Cheat Engine, and so
+///         may a status that contradicts the published session or that this Client version does not recognize, since
+///         nothing proves that no object remains: all three are
+///         <see cref="CheatEngineFailureKind.IndeterminateHostResult" /> with
+///         <see cref="CheatEngineHostEffect.CleanupUnconfirmed" />.
+///     </para>
+///     <para>
+///         The bounded AOB route reports the same three statuses with the same
+///         <see cref="CheatEngineHostEffect.CleanupUnconfirmed" /> effect but the
+///         <see cref="CheatEngineFailureKind.InvalidState" /> kind, because there a failed creation ends an internal step
+///         of a scan. Here the creation is the public operation, and the SDK reports only that the rollback was not
+///         confirmed, not why the creation failed: the result cannot be attributed to one cause.
 ///     </para>
 /// </remarks>
 internal static class ValueScanMapping
@@ -25,7 +36,9 @@ internal static class ValueScanMapping
 	/// <summary>Maps a creation status other than <see cref="MemoryScanCreationStatus.Success" /> to its failure.</summary>
 	/// <param name="status">The status of <c>MemoryScanSessions.TryCreateWithOutcome</c>.</param>
 	/// <param name="operation">The public Client operation name.</param>
-	/// <returns>The classified failure; a success without a session is a contract break, reported as indeterminate.</returns>
+	/// <returns>
+	///     The classified failure; a success without a session is a contract break, reported like an unrecognized status.
+	/// </returns>
 	internal static CheatEngineFailure FromCreationStatus(MemoryScanCreationStatus status, string operation)
 	{
 		return status switch
@@ -52,9 +65,13 @@ internal static class ValueScanMapping
 				"Creating the scan session failed and Cheat Engine did not confirm the destruction of the objects it " +
 				"had created: a scanner may remain in Cheat Engine."),
 			MemoryScanCreationStatus.Success => Failure(CheatEngineFailureKind.IndeterminateHostResult, operation,
-				CheatEngineHostEffect.Unknown, "CheatEngine.SDK reported a created scan session but published none."),
-			_ => Failure(CheatEngineFailureKind.IndeterminateHostResult, operation, CheatEngineHostEffect.Unknown,
-				"CheatEngine.SDK reported no recognized scan-session creation status.")
+				CheatEngineHostEffect.CleanupUnconfirmed,
+				"CheatEngine.SDK reported a created scan session but published none: a scanner may remain in Cheat " +
+				"Engine."),
+			_ => Failure(CheatEngineFailureKind.IndeterminateHostResult, operation,
+				CheatEngineHostEffect.CleanupUnconfirmed,
+				"CheatEngine.SDK reported no recognized scan-session creation status, so no scan object is known to " +
+				"have been removed.")
 		};
 	}
 
