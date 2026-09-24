@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 
 using CheatEngine.Client.Repository.Tests.Infrastructure;
+using CheatEngine.Client.Repository.Tests.Workflows;
 
 using YamlDotNet.RepresentationModel;
 
@@ -15,6 +16,8 @@ namespace CheatEngine.Client.Repository.Tests.Release;
 public sealed partial class ReleaseWorkflowTests
 {
 	private const string WorkflowPath = ".github/workflows/release.yml";
+	private const string ProvenancePredicate = "https://slsa.dev/provenance/v1";
+	private const string SpdxPredicate = "https://spdx.dev/Document/v2.2";
 
 	private static readonly string[] JobOrder = ["verify", "ci", "attest", "draft-release", "publish", "verify-publication", "finalize-release"];
 
@@ -251,6 +254,98 @@ public sealed partial class ReleaseWorkflowTests
 		Assert.Contains("$LASTEXITCODE", script, StringComparison.Ordinal);
 	}
 
+	/// <summary>
+	/// The REST lookup of a release by tag returns published releases only, so finalize-release reads the draft with gh
+	/// release view, publishes it with gh release edit and then verifies what consumers download: every asset against
+	/// SHA256SUMS and, for an immutable release, the release attestation (PKG-06).
+	/// </summary>
+	[Fact]
+	public void FinalizeReadsTheReleaseWithGhReleaseViewAndPublishesWithGhReleaseEdit()
+	{
+		List<YamlMappingNode> steps = Steps("finalize-release");
+		int state = steps.FindIndex(static step => StepId(step) == "state");
+		int publish = steps.FindIndex(static step => Run(step).Contains("gh release edit", StringComparison.Ordinal));
+		int verify = steps.FindIndex(static step => Run(step).Contains("gh release download", StringComparison.Ordinal));
+		Assert.True(state >= 0 && publish > state && verify > publish,
+			"finalize-release must read the release state, then publish the draft, then verify the published release.");
+
+		Assert.Matches(GhReleaseView(), Run(steps[state]));
+		Assert.Contains("draft=", Run(steps[state]), StringComparison.Ordinal);
+		Assert.Equal("steps.state.outputs.draft == 'true'", Scalar(steps[publish], "if"));
+		Assert.Matches(@"(?m)^\s*gh release edit \$env:TAG --draft=false\s*$", Run(steps[publish]));
+
+		string verification = Run(steps[verify]);
+		Assert.Matches(GhReleaseView(), verification);
+		Assert.Matches(@"\bgh release download \$env:TAG --dir \$published\b", verification);
+		Assert.Matches(@"\bgh release verify \$env:TAG\s", verification);
+		Assert.Matches(@"\bgh release verify-asset \$env:TAG\s", verification);
+		string[] required = ["SHA256SUMS", "Get-FileHash", "$state.isImmutable", "$state.isDraft", "GITHUB_STEP_SUMMARY"];
+		foreach (string value in required)
+		{
+			Assert.Contains(value, verification, StringComparison.Ordinal);
+		}
+
+		Assert.DoesNotContain(steps, static step => Regex.IsMatch(Run(step), @"\bgh api\b"));
+		string text = File.ReadAllText(Path.Combine(RepositoryRoot.Path, WorkflowPath));
+		Assert.DoesNotContain("releases/tags/", text, StringComparison.Ordinal);
+	}
+
+	/// <summary>
+	/// Every gh attestation verify of the workflow pins the identity RELEASING.md gives consumers (this repository, the
+	/// release.yml signer workflow, the tag as source ref, GitHub-hosted runners) and names the predicate it checks;
+	/// finalize-release checks both the provenance and the SPDX SBOM of each published package.
+	/// </summary>
+	[Fact]
+	public void AttestationVerificationPinsSignerSourceRefAndHostedRunners()
+	{
+		string[] identity =
+		[
+			"--repo", "CheatEngineNet/CheatEngine.Client",
+			"--signer-workflow", "CheatEngineNet/CheatEngine.Client/.github/workflows/release.yml",
+			"--source-ref", "refs/tags/$env:TAG",
+			"--deny-self-hosted-runners"
+		];
+		string[] predicates = [ProvenancePredicate, SpdxPredicate];
+		List<string> offenders = [];
+		foreach (YamlNode key in Mapping(Workflow.Value, "jobs").Children.Keys)
+		{
+			string job = ((YamlScalarNode) key).Value!;
+			foreach (string script in Steps(job).Select(Run))
+			{
+				string[] verifications = AttestationVerification().Matches(script).Select(static match => match.Value).ToArray();
+				if (verifications.Length == 0)
+				{
+					continue;
+				}
+
+				Match declaration = IdentityDeclaration().Match(script);
+				if (!declaration.Success || !Yaml.Tokens(declaration.Groups["body"].Value).SequenceEqual(identity))
+				{
+					offenders.Add($"{job}: $identity is not {string.Join(' ', identity)}");
+				}
+
+				foreach (string verification in verifications)
+				{
+					// The tokenizer drops the splatting '@', so '@identity' reads as 'identity'.
+					List<string> tokens = [.. Yaml.Tokens(verification)];
+					int predicate = tokens.IndexOf("--predicate-type");
+					bool pinned = tokens.Contains("identity") && predicate >= 0 && predicate < tokens.Count - 1 && predicates.Contains(tokens[predicate + 1]);
+					if (!pinned)
+					{
+						offenders.Add($"{job}: '{verification.Trim()}' must pass @identity and --predicate-type {string.Join(" or ", predicates)}");
+					}
+				}
+			}
+		}
+
+		Assert.True(offenders.Count == 0, string.Join(Environment.NewLine, offenders));
+		string finalize = Run(Steps("finalize-release").Single(static step => Run(step).Contains("gh release download", StringComparison.Ordinal)));
+		foreach (string predicate in predicates)
+		{
+			Assert.Contains($"@identity --predicate-type '{predicate}'", finalize, StringComparison.Ordinal);
+		}
+	}
+
 	private static YamlMappingNode LoadWorkflow()
 	{
 		YamlStream stream = new();
@@ -335,9 +430,37 @@ public sealed partial class ReleaseWorkflowTests
 			: [((YamlScalarNode) needs).Value!];
 	}
 
+	/// <summary>The steps of a job; empty for a reusable-workflow call.</summary>
+	private static List<YamlMappingNode> Steps(string job)
+	{
+		return Mapping(Mapping(Workflow.Value, "jobs"), job).Children.TryGetValue(new YamlScalarNode("steps"), out YamlNode? steps)
+			? Assert.IsType<YamlSequenceNode>(steps).Children.Cast<YamlMappingNode>().ToList()
+			: [];
+	}
+
+	/// <summary>The script of a step; empty for an action step.</summary>
+	private static string Run(YamlMappingNode step)
+	{
+		return step.Children.TryGetValue(new YamlScalarNode("run"), out YamlNode? run) ? Text(run) : string.Empty;
+	}
+
+	private static string? StepId(YamlMappingNode step)
+	{
+		return step.Children.TryGetValue(new YamlScalarNode("id"), out YamlNode? id) ? Text(id) : null;
+	}
+
 	[GeneratedRegex(@"'(?<id>CheatEngine\.Client(?:\.[A-Za-z.]+)?)'", RegexOptions.CultureInvariant, 1000)]
 	private static partial Regex QuotedPackageId();
 
 	[GeneratedRegex(@"\b(always|cancelled|failure)\s*\(", RegexOptions.CultureInvariant, 1000)]
 	private static partial Regex StatusFunction();
+
+	[GeneratedRegex(@"(?m)^\s*\$view = gh release view \$env:TAG --json isDraft,isImmutable\s*$", RegexOptions.CultureInvariant, 1000)]
+	private static partial Regex GhReleaseView();
+
+	[GeneratedRegex(@"(?m)^\s*gh attestation verify\b.*$", RegexOptions.CultureInvariant, 1000)]
+	private static partial Regex AttestationVerification();
+
+	[GeneratedRegex(@"\$identity = @\((?<body>[^)]*)\)", RegexOptions.CultureInvariant, 1000)]
+	private static partial Regex IdentityDeclaration();
 }
