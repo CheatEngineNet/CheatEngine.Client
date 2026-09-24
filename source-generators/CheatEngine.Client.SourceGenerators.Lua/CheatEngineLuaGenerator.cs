@@ -291,7 +291,7 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 			return true;
 		}
 
-		if (type.TypeKind == TypeKind.Error || type.TypeKind == TypeKind.Dynamic)
+		if (type.TypeKind is TypeKind.Error or TypeKind.Dynamic)
 		{
 			violation = path + " uses an unresolved or dynamic type.";
 			return true;

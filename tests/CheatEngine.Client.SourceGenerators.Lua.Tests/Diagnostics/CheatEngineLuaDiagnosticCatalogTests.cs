@@ -59,7 +59,7 @@ public sealed partial class CheatEngineLuaDiagnosticCatalogTests
 			Assert.StartsWith("CECLUA", id, StringComparison.Ordinal);
 			// Generator ranges: 1001-1006 modules, 1101-1106 operations, 1201-1209 module ownership (C-LUAGEN). 1107-1109
 			// (C-CORE-A) and 1301-1309 (C-CORE-B) belong to other lots and must never appear here.
-			Assert.True(number is >= 1001 and <= 1006 or >= 1101 and <= 1106 or >= 1201 and <= 1209,
+			Assert.True(number is (>= 1001 and <= 1006) or (>= 1101 and <= 1106) or (>= 1201 and <= 1209),
 				$"{id} is outside the ranges allocated to the Lua generator.");
 			Assert.Same(CheatEngineLuaDiagnostics.All.Single(descriptor => descriptor.Id == id),
 				CheatEngineLuaDiagnostics.Get(id));

@@ -139,7 +139,7 @@ internal static class AobScanOptionsNormalizer
 		for (int index = 0; index < value.Length; index++)
 		{
 			char character = value[index];
-			if (character is >= '0' and <= '9' or >= 'A' and <= 'F')
+			if (character is (>= '0' and <= '9') or (>= 'A' and <= 'F'))
 			{
 				normalized[index] = character;
 				continue;

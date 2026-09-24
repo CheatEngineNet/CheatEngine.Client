@@ -102,7 +102,7 @@ public readonly record struct CheatEngineRuntimeSnapshot
 	/// <summary>Gets whether the observed coarse CE version belongs to the qualified major/minor line.</summary>
 	public bool IsOnQualifiedCheatEngineLine => ObservedCheatEngineVersion is { } observed &&
 												observed >= QualifiedCheatEngineBaseline.Major +
-												QualifiedCheatEngineBaseline.Minor / 10d &&
+												(QualifiedCheatEngineBaseline.Minor / 10d) &&
 												observed < QualifiedCheatEngineBaseline.Major +
-												(QualifiedCheatEngineBaseline.Minor + 1) / 10d;
+												((QualifiedCheatEngineBaseline.Minor + 1) / 10d);
 }

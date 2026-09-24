@@ -168,7 +168,7 @@ public readonly record struct AobPattern
 
 	private static bool TryGetHexDigit(char value, out char normalized)
 	{
-		if (value is >= '0' and <= '9' or >= 'A' and <= 'F')
+		if (value is (>= '0' and <= '9') or (>= 'A' and <= 'F'))
 		{
 			normalized = value;
 			return true;

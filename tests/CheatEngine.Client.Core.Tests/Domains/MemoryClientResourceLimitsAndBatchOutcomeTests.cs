@@ -186,7 +186,7 @@ public sealed class MemoryClientResourceLimitsAndBatchOutcomeTests
 		Assert.Equal(failedIndex, outcome.FailedIndex);
 		Assert.Equal(expectedEffectState, outcome.EffectState);
 		Assert.Equal(CheatEngineFailureKind.MemoryWriteFailed, outcome.Cause?.Kind);
-		Assert.Equal(Enumerable.Range(0, failedIndex).Select(static index => 10 + index * 10), port.CommittedValues);
+		Assert.Equal(Enumerable.Range(0, failedIndex).Select(static index => 10 + (index * 10)), port.CommittedValues);
 		Assert.Equal(failedIndex + 1, port.WriteInvocationCount);
 	}
 

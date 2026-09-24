@@ -11,9 +11,8 @@ internal static class OperationParser
 {
 	public static OperationModel Parse(GeneratorAttributeSyntaxContext context)
 	{
-		IMethodSymbol? method = context.TargetSymbol as IMethodSymbol;
 		LocationInfo? location = LocationInfo.From(context.TargetNode);
-		if (method is null || !CheatEngineLuaGenerator.HasAttribute(method,
+		if (context.TargetSymbol is not IMethodSymbol method || !CheatEngineLuaGenerator.HasAttribute(method,
 				CheatEngineLuaGenerator.LuaGlobalAttributeMetadataName) ||
 			method.MethodKind != MethodKind.Ordinary ||
 			!method.IsStatic || method.IsGenericMethod || !method.IsPartialDefinition ||
