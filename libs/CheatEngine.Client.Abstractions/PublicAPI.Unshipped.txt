@@ -422,12 +422,16 @@ CheatEngine.Client.Results.CheatEngineFailureKind.MemoryWriteFailed = 13 -> Chea
 CheatEngine.Client.Results.CheatEngineFailureKind.NotFound = 4 -> CheatEngine.Client.Results.CheatEngineFailureKind
 CheatEngine.Client.Results.CheatEngineFailureKind.OperationRejected = 3 -> CheatEngine.Client.Results.CheatEngineFailureKind
 CheatEngine.Client.Results.CheatEngineFailureKind.ResultLimitExceeded = 6 -> CheatEngine.Client.Results.CheatEngineFailureKind
+CheatEngine.Client.Results.CheatEngineFailureKind.RuntimeChanged = 19 -> CheatEngine.Client.Results.CheatEngineFailureKind
+CheatEngine.Client.Results.CheatEngineFailureKind.TargetChanged = 17 -> CheatEngine.Client.Results.CheatEngineFailureKind
+CheatEngine.Client.Results.CheatEngineFailureKind.TargetIdentityUnavailable = 18 -> CheatEngine.Client.Results.CheatEngineFailureKind
 CheatEngine.Client.Results.CheatEngineFailureKind.TargetNotAttached = 11 -> CheatEngine.Client.Results.CheatEngineFailureKind
 CheatEngine.Client.Results.CheatEngineFailureKind.Unknown = 0 -> CheatEngine.Client.Results.CheatEngineFailureKind
 CheatEngine.Client.Results.CheatEngineFailureKind.Unsupported = 10 -> CheatEngine.Client.Results.CheatEngineFailureKind
 CheatEngine.Client.Results.CheatEngineHostEffect
 CheatEngine.Client.Results.CheatEngineHostEffect.CleanupUnconfirmed = 4 -> CheatEngine.Client.Results.CheatEngineHostEffect
 CheatEngine.Client.Results.CheatEngineHostEffect.Completed = 3 -> CheatEngine.Client.Results.CheatEngineHostEffect
+CheatEngine.Client.Results.CheatEngineHostEffect.NotApplied = 5 -> CheatEngine.Client.Results.CheatEngineHostEffect
 CheatEngine.Client.Results.CheatEngineHostEffect.NotStarted = 1 -> CheatEngine.Client.Results.CheatEngineHostEffect
 CheatEngine.Client.Results.CheatEngineHostEffect.Started = 2 -> CheatEngine.Client.Results.CheatEngineHostEffect
 CheatEngine.Client.Results.CheatEngineHostEffect.Unknown = 0 -> CheatEngine.Client.Results.CheatEngineHostEffect

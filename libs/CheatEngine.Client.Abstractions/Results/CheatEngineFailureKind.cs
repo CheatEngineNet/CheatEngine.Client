@@ -65,5 +65,36 @@ public enum CheatEngineFailureKind
 	///     <see cref="InvalidHostResult" /> (a result outside the documented shape was observed), and from
 	///     <see cref="NotFound" /> (absence was established).
 	/// </remarks>
-	IndeterminateHostResult = 16
+	IndeterminateHostResult = 16,
+
+	/// <summary>
+	///     The target process that the operation or resource was bound to is no longer the target Cheat Engine has
+	///     selected: the selection moved to another process, or the same process identifier now names another process
+	///     incarnation. Nothing is retried against the new target.
+	/// </summary>
+	/// <remarks>
+	///     This is distinct from <see cref="TargetNotAttached" /> (no target is selected at all) and from
+	///     <see cref="TargetIdentityUnavailable" /> (the identity of the current target could not be established).
+	/// </remarks>
+	TargetChanged = 17,
+
+	/// <summary>
+	///     The operation had to verify the identity of Cheat Engine's current target and could not establish it, so it
+	///     was refused instead of running against a target it cannot vouch for.
+	/// </summary>
+	/// <remarks>
+	///     The target may be unchanged: this kind reports missing evidence, never a proven change (which is
+	///     <see cref="TargetChanged" />).
+	/// </remarks>
+	TargetIdentityUnavailable = 18,
+
+	/// <summary>
+	///     The Cheat Engine Lua runtime that the operation or resource depends on is no longer current: Cheat Engine
+	///     replaced its Lua state outside the plugin's control, or the resource belongs to an earlier Lua attachment.
+	///     Resources created before the change are refused; disabling and re-enabling the plugin recovers.
+	/// </summary>
+	/// <remarks>
+	///     This is distinct from <see cref="ActivationExpired" />, which reports that the Client activation itself ended.
+	/// </remarks>
+	RuntimeChanged = 19
 }

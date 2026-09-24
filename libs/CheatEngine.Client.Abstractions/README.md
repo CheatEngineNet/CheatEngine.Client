@@ -225,8 +225,9 @@ replaced it, left in place), `ExternallyRemoved` or `CleanupUnavailable` (nothin
   `ILuaOperation<T>` operations) are rethrown as the same instance, never converted into a failure.
 
 `CheatEngineFailure.HostEffect` states how far the Cheat Engine primitive got: `NotStarted`, `Started` (effects may
-persist), `Completed` (the primitive returned; the failure happened while Core copied or validated), `CleanupUnconfirmed`
-(a resource or change may remain), or the conservative `Unknown`. A `CancellationToken` never interrupts a Cheat Engine
+persist), `Completed` (the primitive returned; the failure happened while Core copied or validated), `NotApplied` (the
+primitive returned its documented negative result, so nothing was applied), `CleanupUnconfirmed` (a resource or change
+may remain), or the conservative `Unknown`. A `CancellationToken` never interrupts a Cheat Engine
 call that has started and never removes a callback, primitive, or effect that has begun: it is observed only before
 dispatch and between Client-managed steps.
 
@@ -243,6 +244,47 @@ dispatch and between Client-managed steps.
 | Runtime and Processes (`ICheatEngineRuntime`, `IProcessClient`) | Dispatch admission | `Completed` (the selected target changed during the observation: `IndeterminateHostResult`), `Unknown` (SDK fault, no selected target) | A fact probe that fails leaves that fact `Unknown` in the snapshot or capability evidence instead of failing the call; `Attach` changes Cheat Engine's global selection |
 | Capability-gated domains (allocations, assembly) | Not applicable: no Cheat Engine work is dispatched | `NotStarted` (`CapabilityUnavailable` or `Cancelled`) | None |
 | Value scans (`IValueScanner`) | Not applicable: no Cheat Engine work is dispatched | Not yet reported (`Unknown`) | None; the refusal is the same `CapabilityUnavailable` or `Cancelled`, and reporting `NotStarted` here is scheduled with the other value-scan changes |
+
+### Failure kinds and host effects
+
+`CheatEngineFailureKind` says why an operation failed and `CheatEngineHostEffect` says how far the Cheat Engine primitive
+got. Both are `int` enums whose values never change meaning; new values can be added, so handle an unrecognized value
+like `Unknown`.
+
+| `CheatEngineFailureKind` | Value | Meaning |
+|---|---|---|
+| `Unknown` | 0 | The failure could not be classified more precisely |
+| `Cancelled` | 1 | The caller's token was observed; `HostEffect` tells whether Cheat Engine work had started |
+| `CapabilityUnavailable` | 2 | A required Cheat Engine capability or Lua global is unavailable, or the activation did not enable it |
+| `OperationRejected` | 3 | Cheat Engine or the Client rejected the request |
+| `NotFound` | 4 | Absence of the requested resource was established |
+| `AmbiguousMatch` | 5 | One result was expected and several were observed |
+| `ResultLimitExceeded` | 6 | The host result exceeded the caller's materialization limit |
+| `LuaError` | 7 | A protected Lua call failed |
+| `BindingError` | 8 | A CheatEngine.SDK binding could not uphold its documented contract |
+| `InvalidHostResult` | 9 | Cheat Engine returned a value outside the documented result shape |
+| `Unsupported` | 10 | The feature is intentionally not supported by this Client version |
+| `TargetNotAttached` | 11 | No target process is attached |
+| `MemoryReadFailed` | 12 | A target-memory read failed |
+| `MemoryWriteFailed` | 13 | A target-memory write failed |
+| `ActivationExpired` | 14 | The Client activation that owns the call or resource has ended |
+| `InvalidState` | 15 | The operation is not valid in the current lifecycle or session state |
+| `IndeterminateHostResult` | 16 | Several documented causes (for example no match and a host failure) are indistinguishable; never treat it as absence |
+| `TargetChanged` | 17 | The target the call or resource was bound to is no longer Cheat Engine's selected target: another process, or another incarnation of the same process identifier |
+| `TargetIdentityUnavailable` | 18 | The identity of Cheat Engine's current target could not be established, so the call was refused instead of running against an unverified target |
+| `RuntimeChanged` | 19 | Cheat Engine's Lua runtime was replaced outside the plugin's control, or the resource belongs to an earlier Lua attachment; disable and re-enable the plugin to recover |
+
+When CheatEngine.SDK reports the effect state of an effectful operation, Core maps it value by value; the other host
+effects are observed by the Client itself.
+
+| `CheatEngineHostEffect` | Value | Meaning | CheatEngine.SDK `EngineEffectState` mapped to it |
+|---|---|---|---|
+| `Unknown` | 0 | Any effect is possible | `Unknown`, and any value this Client version does not know |
+| `NotStarted` | 1 | The primitive was not invoked | `NotStarted` |
+| `Started` | 2 | The primitive was invoked; neither its completion nor a rollback was established | None: observed by the Client |
+| `Completed` | 3 | The primitive ran to completion; the failure happened afterwards inside the Client | `Applied` |
+| `CleanupUnconfirmed` | 4 | A resource or change may remain because its release or rollback was not confirmed | None: observed by the Client |
+| `NotApplied` | 5 | The primitive returned its documented negative result: nothing was applied and nothing needs cleanup | `NotApplied` |
 
 ### Diagnostics and redaction
 

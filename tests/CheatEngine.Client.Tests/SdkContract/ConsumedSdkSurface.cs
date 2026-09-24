@@ -222,6 +222,7 @@ internal static class ConsumedSdkSurface
 		"CheatEngine.Client.Core T CheatEngine.SDK.Engine.Memory.MemoryAccessFailure",
 		"CheatEngine.Client.Core T CheatEngine.SDK.Engine.Memory.TargetMemory",
 		"CheatEngine.Client.Core T CheatEngine.SDK.Engine.Objects.CEObject",
+		"CheatEngine.Client.Core T CheatEngine.SDK.Engine.Objects.EngineEffectState",
 		"CheatEngine.Client.Core T CheatEngine.SDK.Engine.Objects.Owned`1",
 		"CheatEngine.Client.Core T CheatEngine.SDK.Engine.Objects.StringList",
 		"CheatEngine.Client.Core T CheatEngine.SDK.Engine.Runtime.CheatEngineArchitecture",

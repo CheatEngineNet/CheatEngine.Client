@@ -109,7 +109,7 @@ public sealed class CheatEngineFailureTests
 	/// <summary>Rejects a host effect outside the documented vocabulary instead of storing an unclassifiable value.</summary>
 	[Theory]
 	[InlineData(-1)]
-	[InlineData(5)]
+	[InlineData(6)]
 	[InlineData(int.MaxValue)]
 	public void ConstructorRejectsAnUndefinedHostEffect(int value)
 	{
@@ -132,6 +132,45 @@ public sealed class CheatEngineFailureTests
 
 		Assert.Equal(failure, exception.Failure);
 		Assert.Equal(16, (int) CheatEngineFailureKind.IndeterminateHostResult);
+	}
+
+	/// <summary>The target, identity and runtime change kinds keep their published values after the 0 to 16 range.</summary>
+	[Fact]
+	public void TargetIdentityAndRuntimeChangeKindsHaveStableValues()
+	{
+		Assert.Equal(17, (int) CheatEngineFailureKind.TargetChanged);
+		Assert.Equal(18, (int) CheatEngineFailureKind.TargetIdentityUnavailable);
+		Assert.Equal(19, (int) CheatEngineFailureKind.RuntimeChanged);
+		Assert.Equal(Enumerable.Range(0, 20), Enum.GetValues<CheatEngineFailureKind>().Select(static kind => (int) kind));
+	}
+
+	/// <summary>A target, identity or runtime change is an operation failure, never a lifecycle exception.</summary>
+	[Theory]
+	[InlineData(CheatEngineFailureKind.TargetChanged)]
+	[InlineData(CheatEngineFailureKind.TargetIdentityUnavailable)]
+	[InlineData(CheatEngineFailureKind.RuntimeChanged)]
+	public void ChangeKindsThrowTheOperationException(CheatEngineFailureKind kind)
+	{
+		CheatEngineFailure failure = new(kind, "Patterns.Scan", "The target changed during the scan.", null,
+			CheatEngineHostEffect.Completed);
+
+		CheatEngineOperationException exception = Assert.Throws<CheatEngineOperationException>(failure.Throw);
+
+		Assert.Equal(failure, exception.Failure);
+		Assert.Equal(kind, exception.Failure.Kind);
+	}
+
+	/// <summary>The documented negative result is a host effect of its own, with a published value.</summary>
+	[Fact]
+	public void NotAppliedIsADefinedHostEffectThatRoundTrips()
+	{
+		CheatEngineFailure failure = new(CheatEngineFailureKind.OperationRejected, "Tables.SetActive",
+			"Cheat Engine refused the activation.", null, CheatEngineHostEffect.NotApplied);
+
+		Assert.Equal(5, (int) CheatEngineHostEffect.NotApplied);
+		Assert.Equal(CheatEngineHostEffect.NotApplied, failure.HostEffect);
+		Assert.Equal("OperationRejected in Tables.SetActive (host effect: NotApplied)", failure.ToString());
+		Assert.Equal(Enumerable.Range(0, 6), Enum.GetValues<CheatEngineHostEffect>().Select(static effect => (int) effect));
 	}
 
 	/// <summary>The dedicated lifecycle exceptions keep the complete failure, including its host effect.</summary>

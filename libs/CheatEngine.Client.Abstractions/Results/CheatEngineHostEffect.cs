@@ -45,5 +45,16 @@ public enum CheatEngineHostEffect
 	///     Cheat Engine work left a resource or change whose release or rollback could not be confirmed. A resource may
 	///     remain allocated, or a partial change may remain visible, until Cheat Engine or the target releases it.
 	/// </summary>
-	CleanupUnconfirmed = 4
+	CleanupUnconfirmed = 4,
+
+	/// <summary>
+	///     The requested Cheat Engine primitive ran and returned its documented negative result, which establishes that
+	///     the effect did not happen (for example an allocation that returned <c>nil</c>, or a change the host refused).
+	///     Nothing was applied, so nothing has to be released or rolled back.
+	/// </summary>
+	/// <remarks>
+	///     This is distinct from <see cref="NotStarted" /> (the primitive was never invoked) and from
+	///     <see cref="Unknown" /> (a refusal that does not prove the absence of a change).
+	/// </remarks>
+	NotApplied = 5
 }
