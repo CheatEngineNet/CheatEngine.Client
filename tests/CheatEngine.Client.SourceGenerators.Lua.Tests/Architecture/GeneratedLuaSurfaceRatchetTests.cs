@@ -18,10 +18,11 @@ namespace CheatEngine.Client.SourceGenerators.Lua.Tests.Architecture;
 ///     take, and the getters of the results they return), not raw stack access, and it may only shrink.
 /// </summary>
 /// <remarks>
-///     The members are read from the emitted image with System.Reflection.Metadata (member references whose declaring
-///     type is in a <c>CheatEngine.SDK.Lua</c> namespace); no generated code runs. A second check proves, on the
-///     semantic model, that only the generated adapter calls CheatEngine.SDK: the module and the registrar name SDK
-///     enum values and the bindings type's registration method only.
+///     The members are read from the emitted image with System.Reflection.Metadata: every member reference whose
+///     declaring type is in a <c>CheatEngine.SDK</c> namespace, whatever the SDK assembly, except the constructors of the
+///     attributes the test source applies (<c>[LuaFunction]</c>, <c>[LuaGlobal]</c>), which are metadata and not calls. No
+///     generated code runs. A second check proves, on the semantic model, that only the generated adapter calls
+///     CheatEngine.SDK: the module and the registrar name SDK types and enum values only.
 /// </remarks>
 public sealed class GeneratedLuaSurfaceRatchetTests
 {
@@ -148,16 +149,17 @@ public sealed class GeneratedLuaSurfaceRatchetTests
 		GeneratorRun run = GeneratorRun.Execute(ModuleSource);
 		Assert.Empty(run.Diagnostics);
 
-		string[] actual = [.. SdkLuaMemberReferences(Emit(run.OutputCompilation)).Order(StringComparer.Ordinal)];
+		string[] actual = [.. SdkMemberReferences(Emit(run.OutputCompilation)).Order(StringComparer.Ordinal)];
 		string[] allowed = [.. SdkImposedRegistrationSurface.Select(static member => member.Member)];
 
 		string[] added = [.. actual.Except(allowed, StringComparer.Ordinal)];
 		string[] removed = [.. allowed.Except(actual, StringComparer.Ordinal)];
 		Assert.True(added.Length == 0,
-			"New SDK Lua members in generated module code:" + Environment.NewLine + string.Join(Environment.NewLine, added) +
+			"New CheatEngine.SDK members in generated module code:" + Environment.NewLine +
+			string.Join(Environment.NewLine, added) +
 			Environment.NewLine + Guidance);
 		Assert.True(removed.Length == 0,
-			"These SDK Lua members are no longer used; shrink SdkImposedRegistrationSurface:" + Environment.NewLine +
+			"These CheatEngine.SDK members are no longer used; shrink SdkImposedRegistrationSurface:" + Environment.NewLine +
 			string.Join(Environment.NewLine, removed));
 		Assert.Equal(allowed.Order(StringComparer.Ordinal), allowed);
 		Assert.All(SdkImposedRegistrationSurface, static member =>
@@ -218,7 +220,24 @@ public sealed class GeneratedLuaSurfaceRatchetTests
 
 		Compilation compilation = run.OutputCompilation.AddSyntaxTrees(CSharpSyntaxTree.ParseText(OperationImplementations,
 			new CSharpParseOptions(LanguageVersion.CSharp14), cancellationToken: TestContext.Current.CancellationToken));
-		Assert.Empty(SdkLuaMemberReferences(Emit(compilation)));
+		Assert.Empty(SdkMemberReferences(Emit(compilation)));
+	}
+
+	[Fact]
+	public void TheSurfaceCheckSeesEverySdkAssemblyButNotAttributeMetadata()
+	{
+		// A call into a CheatEngine.SDK assembly other than the Lua one must not pass unseen.
+		Compilation compilation = GeneratorRun.Execute(ModuleSource).OutputCompilation.AddSyntaxTrees(
+			CSharpSyntaxTree.ParseText(
+				"namespace TestPlugin; internal static class Probe { internal static object Create() => " +
+				"new CheatEngine.SDK.Engine.Errors.EngineOperationFailedException(\"probe\", \"probe\"); }",
+				new CSharpParseOptions(LanguageVersion.CSharp14), cancellationToken: TestContext.Current.CancellationToken));
+
+		SortedSet<string> members = SdkMemberReferences(Emit(compilation));
+
+		Assert.Contains("CheatEngine.SDK.Engine.Errors.EngineOperationFailedException::.ctor(string,string)->void", members);
+		// The [LuaFunction] attributes of the test bindings are metadata of the test source, not calls.
+		Assert.DoesNotContain(members, static member => member.Contains("LuaFunctionAttribute", StringComparison.Ordinal));
 	}
 
 	private static byte[] Emit(Compilation compilation)
@@ -229,13 +248,22 @@ public sealed class GeneratedLuaSurfaceRatchetTests
 		return image.ToArray();
 	}
 
-	private static SortedSet<string> SdkLuaMemberReferences(byte[] image)
+	private static SortedSet<string> SdkMemberReferences(byte[] image)
 	{
 		using PEReader reader = new(new MemoryStream(image));
 		MetadataReader metadata = reader.GetMetadataReader();
+		HashSet<EntityHandle> attributeConstructors =
+		[
+			.. metadata.CustomAttributes.Select(handle => metadata.GetCustomAttribute(handle).Constructor)
+		];
 		SortedSet<string> members = new(StringComparer.Ordinal);
 		foreach (MemberReferenceHandle handle in metadata.MemberReferences)
 		{
+			if (attributeConstructors.Contains(handle))
+			{
+				continue;
+			}
+
 			MemberReference member = metadata.GetMemberReference(handle);
 			string declaringType = member.Parent.Kind switch
 			{
@@ -244,7 +272,7 @@ public sealed class GeneratedLuaSurfaceRatchetTests
 					.DecodeSignature(SignatureNames.Instance, null),
 				_ => string.Empty
 			};
-			if (!declaringType.StartsWith("CheatEngine.SDK.Lua", StringComparison.Ordinal))
+			if (!declaringType.StartsWith("CheatEngine.SDK.", StringComparison.Ordinal))
 			{
 				continue;
 			}
