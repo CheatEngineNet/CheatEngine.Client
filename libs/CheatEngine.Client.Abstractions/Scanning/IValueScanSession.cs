@@ -1,59 +1,140 @@
+using System.Diagnostics.CodeAnalysis;
+
 using CheatEngine.Client.Results;
-using CheatEngine.SDK.Engine.Scanning.Values;
 
 namespace CheatEngine.Client.Scanning;
 
-/// <summary>A main-thread-bound, explicitly disposable high-level value-scan session.</summary>
+/// <summary>One value scan over Cheat Engine's scanner: a first scan, next scans, and bounded reads of the results.</summary>
 /// <remarks>
 ///     <para>
 ///         <b>Call-only.</b> The Client implements this interface and applications call it. A minor release can add
 ///         members to it, so implement it only in a test double.
 ///     </para>
 ///     <para>
-///         The session exposes a Client-managed <see cref="ValueScanSessionState" /> rather than the SDK's raw scan
-///         state. Its operations complete Cheat Engine's required wait-and-initialize sequence before publishing copied
-///         results, and never expose MemScan, FoundList, Lua, or ownership wrappers.
+///         <b>Experimental (<c>CECLIENT5001</c>).</b> The value-scan API can change in a minor release until its live
+///         scenarios pass; see the Abstractions README.
+///     </para>
+///     <para>
+///         <b>Sequence.</b> A session accepts a first scan in <see cref="ValueScanSessionState.Created" />, then next
+///         scans, counts and reads in <see cref="ValueScanSessionState.ResultsReady" />; <see cref="TryReset" /> returns
+///         it to <see cref="ValueScanSessionState.Created" />. An operation that the state does not accept is refused with
+///         <see cref="CheatEngineFailureKind.InvalidState" /> and <see cref="CheatEngineHostEffect.NotStarted" />. Every
+///         operation runs on Cheat Engine's main thread through the activation dispatcher; a first or next scan starts
+///         Cheat Engine's scan and waits for it in the same call, so Cheat Engine's main thread is busy until the scan
+///         ends.
+///     </para>
+///     <para>
+///         <b>Re-entrancy.</b> Cheat Engine runs queued main-thread work while it waits for a scan. A call to this session
+///         made from such work is refused with <see cref="CheatEngineFailureKind.InvalidState" />; a release requested
+///         from it runs once, when the scan call has returned.
+///     </para>
+///     <para>
+///         <b>Cancellation.</b> The token is observed before each Cheat Engine call and never interrupts one. A scan
+///         cancelled after Cheat Engine started it and before the Client waits for it reports
+///         <see cref="CheatEngineFailureKind.Cancelled" /> with <see cref="CheatEngineHostEffect.Started" />: the session
+///         stays <see cref="ValueScanSessionState.Scanning" /> and accepts only its release, which asks Cheat Engine to
+///         stop the scan and waits for it for up to five seconds. A cancellation observed after Cheat Engine finished
+///         reports <see cref="CheatEngineHostEffect.Completed" /> and publishes nothing.
+///     </para>
+///     <para>
+///         <b>Failures.</b> When a scan fails after Cheat Engine began it, the failure message ends with Cheat Engine's own
+///         error text, bounded to 1024 bytes, when it reported one; classify the failure by its kind, never by that text.
+///         An operation after the session's target or Lua runtime changed is refused with
+///         <see cref="CheatEngineFailureKind.TargetChanged" />, <see cref="CheatEngineFailureKind.TargetIdentityUnavailable" />
+///         or <see cref="CheatEngineFailureKind.RuntimeChanged" />; only the release remains.
+///     </para>
+///     <para>
+///         <b>Release.</b> <see cref="ICheatEngineLease.Release" /> destroys the found list, then the scanner, on Cheat
+///         Engine's main thread, and reports the worse of the two outcomes. CheatEngine.SDK refuses to destroy them
+///         through another target or Lua runtime: the release then reports the refusal, which requires manual recovery.
 ///     </para>
 /// </remarks>
-public interface IValueScanSession : IDisposable
+[Experimental(ClientExperimentalDiagnostics.ValueScans, UrlFormat = ClientExperimentalDiagnostics.UrlFormat)]
+public interface IValueScanSession : ICheatEngineLease
 {
-	/// <summary>Gets the session's current conservative scan state.</summary>
+	/// <summary>Gets the session state that Cheat Engine's scan session reported after the last operation.</summary>
 	public ValueScanSessionState State
 	{
 		get;
 	}
 
-	/// <summary>Runs a first scan and prepares its results for reading.</summary>
-	public bool TryStart(FirstScanRequest request, out CheatEngineFailure failure,
+	/// <summary>
+	///     Gets why the session is <see cref="ValueScanSessionState.Invalidated" />, or
+	///     <see cref="ValueScanInvalidationKind.None" />.
+	/// </summary>
+	public ValueScanInvalidationKind Invalidation
+	{
+		get;
+	}
+
+	/// <summary>Tries to run a first scan and wait for its results.</summary>
+	/// <param name="request">The first scan.</param>
+	/// <param name="failure">The classified failure when the method returns <see langword="false" />.</param>
+	/// <param name="cancellationToken">Observed before the scan starts, before the wait, and after it.</param>
+	/// <returns><see langword="true" /> when the results are ready.</returns>
+	public bool TryFirstScan(ValueScanFirstRequest request, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
-	/// <summary>Runs a first scan or throws when it fails.</summary>
-	public void Start(FirstScanRequest request, CancellationToken cancellationToken = default);
+	/// <summary>Runs a first scan and waits for its results, or throws the failure.</summary>
+	/// <param name="request">The first scan.</param>
+	/// <param name="cancellationToken">Observed before the scan starts, before the wait, and after it.</param>
+	public void FirstScan(ValueScanFirstRequest request, CancellationToken cancellationToken = default);
 
-	/// <summary>Runs a next scan and prepares its results for reading.</summary>
-	public bool TryRunNextScan(NextScanRequest request, out CheatEngineFailure failure,
+	/// <summary>Tries to run a next scan over the current results and wait for its results.</summary>
+	/// <param name="request">The next scan.</param>
+	/// <param name="failure">The classified failure when the method returns <see langword="false" />.</param>
+	/// <param name="cancellationToken">Observed before the scan starts, before the wait, and after it.</param>
+	/// <returns><see langword="true" /> when the new results are ready.</returns>
+	public bool TryNextScan(ValueScanNextRequest request, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
-	/// <summary>Runs a next scan or throws when it fails.</summary>
-	public void RunNextScan(NextScanRequest request, CancellationToken cancellationToken = default);
+	/// <summary>Runs a next scan over the current results and waits for its results, or throws the failure.</summary>
+	/// <param name="request">The next scan.</param>
+	/// <param name="cancellationToken">Observed before the scan starts, before the wait, and after it.</param>
+	public void NextScan(ValueScanNextRequest request, CancellationToken cancellationToken = default);
 
-	/// <summary>Resets the scan session to its initial state.</summary>
+	/// <summary>Tries to clear the results so that the session accepts a new first scan.</summary>
+	/// <param name="failure">The classified failure when the method returns <see langword="false" />.</param>
+	/// <param name="cancellationToken">Observed before Cheat Engine clears the results, and after.</param>
+	/// <returns><see langword="true" /> when the session is <see cref="ValueScanSessionState.Created" />.</returns>
+	/// <remarks>
+	///     A reset recovers an <see cref="ValueScanSessionState.Invalidated" /> session while its target and Lua runtime
+	///     are unchanged; it is refused while Cheat Engine may still be scanning.
+	/// </remarks>
 	public bool TryReset(out CheatEngineFailure failure, CancellationToken cancellationToken = default);
 
-	/// <summary>Resets the scan session or throws when it fails.</summary>
+	/// <summary>Clears the results so that the session accepts a new first scan, or throws the failure.</summary>
+	/// <param name="cancellationToken">Observed before Cheat Engine clears the results, and after.</param>
 	public void Reset(CancellationToken cancellationToken = default);
 
-	/// <summary>Gets the current result count after results are ready.</summary>
+	/// <summary>Tries to read the number of current results.</summary>
+	/// <param name="resultCount">The number of results when the method returns <see langword="true" />.</param>
+	/// <param name="failure">The classified failure when the method returns <see langword="false" />.</param>
+	/// <param name="cancellationToken">Observed before Cheat Engine is asked, and after.</param>
+	/// <returns><see langword="true" /> when the count was read.</returns>
 	public bool TryGetResultCount(out ulong resultCount, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
-	/// <summary>Gets the current result count or throws when results are not ready.</summary>
+	/// <summary>Reads the number of current results, or throws the failure.</summary>
+	/// <param name="cancellationToken">Observed before Cheat Engine is asked, and after.</param>
+	/// <returns>The number of results.</returns>
 	public ulong GetResultCount(CancellationToken cancellationToken = default);
 
-	/// <summary>Copies a bounded page of current results after results are ready.</summary>
+	/// <summary>Tries to copy one bounded page of the current results.</summary>
+	/// <param name="request">The first index and the maximum number of results to copy.</param>
+	/// <param name="page">The copied page when the method returns <see langword="true" />.</param>
+	/// <param name="failure">The classified failure when the method returns <see langword="false" />.</param>
+	/// <param name="cancellationToken">Observed before the copy and between the copied results.</param>
+	/// <returns>
+	///     <see langword="true" /> when the page was copied; a scan without results reads as an empty page. A start index
+	///     at or beyond a non-zero result count is refused with <see cref="CheatEngineFailureKind.OperationRejected" />.
+	/// </returns>
 	public bool TryRead(ValueScanReadRequest request, out ValueScanPage page, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
-	/// <summary>Copies a bounded page or throws when the session is not ready.</summary>
+	/// <summary>Copies one bounded page of the current results, or throws the failure.</summary>
+	/// <param name="request">The first index and the maximum number of results to copy.</param>
+	/// <param name="cancellationToken">Observed before the copy and between the copied results.</param>
+	/// <returns>The copied page.</returns>
 	public ValueScanPage Read(ValueScanReadRequest request, CancellationToken cancellationToken = default);
 }

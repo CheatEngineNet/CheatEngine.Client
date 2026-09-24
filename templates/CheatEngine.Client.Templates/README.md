@@ -29,8 +29,8 @@ an application-owned Lua module. Keeping this path executable prevents package, 
 
 It deliberately does not imply that a Native AOT binary is loadable by Cheat Engine. The project enables AOT
 compatibility analysis for the library graph, but a plugin must be deployed as the complete managed output required by
-the SDK. Value scans remain capability-gated until their full Cheat Engine 7.7 x64 lifecycle has passed the opt-in
-live gate.
+the SDK. Value scans remain experimental (`CECLIENT5001`) until their full Cheat Engine 7.7 x64 lifecycle has passed
+the opt-in live gate, so the template does not use them.
 
 ## Create a plugin
 

@@ -689,7 +689,9 @@ internal static class QualificationScenarios
 				succeeded = client.Assembly.TryDisassemble(nullRegion, out _, out failure, client.Stopping);
 				return true;
 			case "Client.ValueScanning":
+#pragma warning disable CECLIENT5001 // The harness exercises the experimental value scans; the source is compiled standalone.
 				succeeded = client.Scans.TryCreateSession(out IValueScanSession? session, out failure, client.Stopping);
+#pragma warning restore CECLIENT5001
 				session?.Dispose();
 				return true;
 			default:

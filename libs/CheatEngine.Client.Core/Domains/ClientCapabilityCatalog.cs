@@ -55,7 +55,19 @@ internal sealed record ClientCapabilityDescriptor(
 	CapabilityImplementation Implementation,
 	CapabilityPolicySource Policy,
 	CapabilityHostSource Host,
-	ImmutableArray<string> RequiredScenarios);
+	ImmutableArray<string> RequiredScenarios)
+{
+	/// <summary>
+	///     Gets the diagnostic id of the <c>[Experimental]</c> attribute on the capability's public API (for example
+	///     <c>CECLIENT5001</c>), or <see langword="null" /> when the API is stable. The READMEs label the capability
+	///     "Operational adapter, experimental (id)" (<c>CapabilityDocumentationTests</c>).
+	/// </summary>
+	internal string? ExperimentalDiagnosticId
+	{
+		get;
+		init;
+	}
+}
 
 /// <summary>The one description of every Client capability, in the order the runtime snapshot reports them.</summary>
 /// <remarks>
@@ -85,8 +97,11 @@ internal static class ClientCapabilityCatalog
 			CapabilityPolicySource.NotRequired, CapabilityHostSource.NotProbed, "Q20", "Q21", "Q33"),
 		Entry(ClientCapabilityId.PatternScanning, CapabilityImplementation.Operational,
 			CapabilityPolicySource.NotRequired, CapabilityHostSource.NotProbed, "Q27", "Q28", "Q29"),
-		Entry(ClientCapabilityId.ValueScanning, CapabilityImplementation.ContractOnly,
-			CapabilityPolicySource.NotRequired, CapabilityHostSource.NotProbed, "Q25", "Q26"),
+		Entry(ClientCapabilityId.ValueScanning, CapabilityImplementation.Operational,
+			CapabilityPolicySource.NotRequired, CapabilityHostSource.NotProbed, "Q25", "Q26") with
+		{
+			ExperimentalDiagnosticId = "CECLIENT5001"
+		},
 		Entry(ClientCapabilityId.Inspection, CapabilityImplementation.Operational,
 			CapabilityPolicySource.NotRequired, CapabilityHostSource.NotProbed, "Q16.b", "Q28"),
 		Entry(ClientCapabilityId.Tables, CapabilityImplementation.Operational,

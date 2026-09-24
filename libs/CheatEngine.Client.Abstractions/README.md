@@ -105,7 +105,7 @@ memory. Each capability's qualification gate requires receipts for the live scen
 | `Client.ProcessSelection` | Operational adapter | Loaded CheatEngine.SDK 2.x at or above the consumed 2.0.0 | CheatEngine.SDK's read-only `Process.Current` observation | Unknown until Client receipts for Q30.a, Q31 and Q32 exist | `Unknown`; `Unavailable` when the package or host gate is `Missing` |
 | `Client.TypedMemory` | Operational adapter | Loaded CheatEngine.SDK 2.x at or above the consumed 2.0.0 | Not probed by the snapshot (`Unknown`) | Unknown until Client receipts for Q20, Q21 and Q33 exist | `Unknown`; `Unavailable` when the package gate is `Missing` |
 | `Client.PatternScanning` | Operational adapter | Loaded CheatEngine.SDK 2.x at or above the consumed 2.0.0 | Not probed by the snapshot (`Unknown`) | Unknown until Client receipts for Q27, Q28 and Q29 exist | `Unknown`; `Unavailable` when the package gate is `Missing` |
-| `Client.ValueScanning` | Contract-only (Unavailable) | Loaded CheatEngine.SDK 2.x at or above the consumed 2.0.0 | Not probed by the snapshot (`Unknown`) | Unknown until Client receipts for Q25 and Q26 exist | `Unavailable` |
+| `Client.ValueScanning` | Operational adapter, experimental (CECLIENT5001) | Loaded CheatEngine.SDK 2.x at or above the consumed 2.0.0 | Not probed by the snapshot (`Unknown`) | Unknown until Client receipts for Q25 and Q26 exist | `Unknown`; `Unavailable` when the package gate is `Missing` |
 | `Client.Inspection` | Operational adapter | Loaded CheatEngine.SDK 2.x at or above the consumed 2.0.0 | Not probed by the snapshot (`Unknown`) | Unknown until Client receipts for Q16.b and Q28 exist | `Unknown`; `Unavailable` when the package gate is `Missing` |
 | `Client.Tables` | Operational adapter | Loaded CheatEngine.SDK 2.x at or above the consumed 2.0.0 | Not probed by the snapshot (`Unknown`) | Unknown until Client receipts for Q34 exist | `Unknown`; `Unavailable` when the package gate is `Missing` |
 | `Client.ProtectedLua` | Operational adapter | Loaded CheatEngine.SDK 2.x at or above the consumed 2.0.0 | Not probed by the snapshot (`Unknown`) | Unknown until Client receipts for Q05, Q16 and Q19 exist | `Unknown`; `Unavailable` when the package gate is `Missing` |
@@ -117,14 +117,43 @@ memory. Each capability's qualification gate requires receipts for the live scen
 Every row also carries the lifetime gate (`Missing` once the activation has ended). A contract-only capability refuses
 each operation with `CapabilityUnavailable` and `CheatEngineHostEffect.NotStarted`; no Cheat Engine work is dispatched.
 
-The value-scan contract and state model are published, but Core does **not** create a live `MemScan`/`FoundList`
-session: this build composes no operational value-scan adapter, so the implementation gate of `Client.ValueScanning` is
-`Missing` and every session request is refused. An adapter changes that gate only once it passes the transfer,
-lifecycle and target-change tests and the Cheat Engine 7.7 live gate. Do not treat `IValueScanner` as available until
-its capability reports it.
+`Client.ValueScanning` is an operational adapter over CheatEngine.SDK's scan sessions, published as an experimental
+API (see "Experimental APIs" below): its implementation gate is `Satisfied`, and its qualification gate stays
+`Unknown` until Client receipts for Q25 and Q26 exist.
 
 `IUnsafeLuaClient` is intentionally separate from `ILuaClient` and is not registered by default.
 It is for explicitly trusted source only and still never exposes a raw Lua state.
+
+### Experimental APIs
+
+An experimental API is marked `[Experimental("CECLIENT500x")]`: the compiler reports that diagnostic wherever the API is
+used, and suppressing it (`<NoWarn>$(NoWarn);CECLIENT5001</NoWarn>` in the project, or a local
+`#pragma warning disable CECLIENT5001`) is the explicit opt-in. An experimental API can change or be removed in a minor
+release. Its id is lifted, and the API becomes stable, only when every live scenario of its capability passes on the
+exact host profile of the release; the documentation link of each diagnostic points to its anchor below.
+
+<a id="CECLIENT5001"></a>
+
+#### CECLIENT5001: value scans
+
+- **Scope:** `ICheatEngineClient.Scans`, `IValueScanner`, `IValueScanSession` and their types: `ValueScanFirstRequest`,
+  `ValueScanNextRequest`, `ValueScanValue`, `ValueScanValueType`, `ValueScanComparison`, `ValueScanReadRequest`,
+  `ValueScanPage`, `ValueScanMatch`, `ValueScanSessionState` and `ValueScanInvalidationKind`. The shared
+  `ScanProtectionFilter` and `ScanAlignment` options are stable.
+- **Behavior:** a session owns one Cheat Engine `MemScan` and its `FoundList`, created through CheatEngine.SDK's
+  scan-session factory for a target whose identity it could establish. A first or next scan starts Cheat Engine's scan
+  and waits for it in the same call, on Cheat Engine's main thread; a read copies one page of at most 1024 results, each
+  an address and Cheat Engine's value text. Read a typed value again with `IMemoryClient.ReadPrimitive<T>(match.Address)`.
+  The session is a lease (`ICheatEngineLease`): its release destroys the found list, then the scanner, on the main thread,
+  and it is released when Cheat Engine selects another process and before the plugin is disabled.
+- **Known limits:** on Cheat Engine 7.7 the stop address is exclusive and the start address is not byte-exact. Cheat
+  Engine's wait runs queued main-thread work, and a call to the same session from that work is refused with
+  `InvalidState`. A scan cancelled after it started and before the Client waited for it stays `Scanning` until its
+  release asks Cheat Engine to stop it. Floating-point values are written with a `.` separator, an alignment divisor as
+  decimal text, and an ordered comparison follows Cheat Engine's own signedness rules; none of this has a Client receipt
+  yet.
+- **Exit criteria:** the Client receipts of Q25 (session lifecycle, results, release) and Q26 (target change and stale
+  owners) on the exact host profile; the capability's qualification gate stays `Unknown` until then.
 
 ### Not offered in 1.0
 
@@ -396,7 +425,7 @@ dispatch and between Client-managed steps.
 | Unsafe Lua (`IUnsafeLuaClient`) | Dispatch admission | `NotStarted` (policy, or a Lua admission refused by CheatEngine.SDK), `Unknown` (SDK fault; the script may have run partially) | The script may have run partially before a Lua error |
 | Runtime and Processes (`ICheatEngineRuntime`, `IProcessClient`) | Dispatch admission; `AttachExactName` also observes it before the local process catalog, and `GetLocalProcesses`, which never dispatches, between catalog steps (`NotStarted`) | `Completed` (CheatEngine.SDK reported a status that establishes no target: `TargetChanged`, `TargetIdentityUnavailable` for a file opened as a process, `CapabilityUnavailable`, `LuaError`, `InvalidHostResult`), `Unknown` (SDK fault, no selected target, an attach that CheatEngine.SDK refused or could not confirm) | A fact CheatEngine.SDK could not read stays `Unknown` in the snapshot instead of failing the call; `Attach` changes Cheat Engine's global selection |
 | Capability-gated domains (allocations, assembly) | Not applicable: no Cheat Engine work is dispatched | `NotStarted` (`CapabilityUnavailable` or `Cancelled`) | None |
-| Value scans (`IValueScanner`) | Not applicable: no Cheat Engine work is dispatched | Not yet reported (`Unknown`) | None; the refusal is the same `CapabilityUnavailable` or `Cancelled`, and reporting `NotStarted` here is scheduled with the other value-scan changes |
+| Value scans (`IValueScanner`, `IValueScanSession`) | The start of Cheat Engine's first or next scan; a cancellation between the start and the wait leaves the session `Scanning`, and a later one discards the result | `NotStarted` (validation, session state, re-entrant call, changed target or runtime, cancellation before the start), `Started` (a scan, wait or reset call that failed or was cancelled before the wait), `Completed` (cancellation after the wait or the copy, a malformed count or page), `NotApplied` (a refused creation that CheatEngine.SDK rolled back), `CleanupUnconfirmed` (creation rollback not confirmed), `Unknown` (SDK fault) | A read publishes a whole page or nothing; a failed scan leaves the session `Invalidated` until a reset |
 
 ### Failure kinds and host effects
 

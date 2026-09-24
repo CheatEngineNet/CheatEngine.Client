@@ -38,8 +38,8 @@ turn the example into an artificial activation failure.
 
 `PluginLuaModule` is an attribute-only declaration. The Client generator emits the activation-scoped implementation
 that acquires Lua state and invokes the generated SDK registration calls; application code contains neither those calls
-nor raw Lua state or SDK ownership handles. The project does not demonstrate value scans because their complete
-Create/Scan/Destroy lifecycle is still capability-gated pending the opt-in Cheat Engine 7.7 x64 live validation.
+nor raw Lua state or SDK ownership handles. The project does not demonstrate value scans because their API stays
+experimental (`CECLIENT5001`) pending the opt-in Cheat Engine 7.7 x64 live validation of their lifecycle.
 
 ## Build
 

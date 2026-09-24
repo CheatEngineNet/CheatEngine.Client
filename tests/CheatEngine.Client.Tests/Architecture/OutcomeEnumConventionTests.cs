@@ -48,8 +48,7 @@ public sealed partial class OutcomeEnumConventionTests
 	private static readonly Dictionary<string, string> PendingCharterEnums = new(StringComparer.Ordinal)
 	{
 		["CheatEngine.Client.Allocations.TargetAllocationAccess"] =
-			"values are implicit; replaced by AllocationProtection (L16)",
-		["CheatEngine.Client.Scanning.ValueScanSessionState"] = "no Unknown = 0 (L15)"
+			"values are implicit; replaced by AllocationProtection (L16)"
 	};
 
 	[Fact]

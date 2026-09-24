@@ -17,4 +17,10 @@ internal static class ScanResourceLimits
 	///     managed peak stays near 1 MiB.
 	/// </remarks>
 	internal const int MaximumPatternMatches = 65_536;
+
+	/// <summary>
+	///     The largest number of value-scan results one read copies (<c>ValueScanReadRequest</c> states this value): each
+	///     result costs two Cheat Engine calls on the main thread, <c>getAddress</c> and <c>getValue</c>.
+	/// </summary>
+	internal const int MaximumValueScanPage = 1024;
 }

@@ -77,6 +77,24 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q25")]
+	public void AddCheatEngineClientComposesTheOperationalValueScannerAsASingleton()
+	{
+		ServiceCollection services = new();
+		services.AddCheatEngineClient();
+		ServiceDescriptor descriptor =
+			Assert.Single(services, static descriptor => descriptor.ServiceType == typeof(IValueScanner));
+		AliasRecordingServiceProvider provider = new();
+
+		object scanner = descriptor.ImplementationFactory!(provider);
+
+		Assert.Equal(ServiceLifetime.Singleton, descriptor.Lifetime);
+		Assert.IsAssignableFrom<IValueScanner>(scanner);
+		Type requested = Assert.Single(provider.RequestedTypes);
+		Assert.Equal("CheatEngine.Client.Core.Domains.ValueScanning.ValueScanner", requested.FullName);
+	}
+
+	[Fact]
 	[Trait("Qualification", "Q44")]
 	public void AddCheatEngineClientComposesOnlyUnavailableAdaptersForContractOnlyDomains()
 	{
@@ -84,7 +102,7 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		ServiceCollection services = new();
 		services.AddCheatEngineClient();
 		AliasRecordingServiceProvider provider = new();
-		Type[] contractOnly = [typeof(IValueScanner), typeof(IAllocationClient), typeof(IAssemblyClient)];
+		Type[] contractOnly = [typeof(IAllocationClient), typeof(IAssemblyClient)];
 
 		foreach (Type serviceType in contractOnly)
 		{

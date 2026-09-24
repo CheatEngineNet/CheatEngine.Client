@@ -330,6 +330,38 @@ internal static class SdkApiUsage
 		_ = scanFailure.FailureKind;
 	}
 
+	internal static void ValueScanSurface(MemoryScanSession session, MemoryScanCreationOutcome creation,
+		MemoryScanReleaseOutcome release, MemoryScanResult result, TargetReleaseOutcome target, Address address,
+		Address other)
+	{
+		FirstScanRequest first = new(ScanOption.ExactValue, VariableType.Dword, RoundingType.Rounded, "1",
+			string.Empty, new Address(0UL), address, string.Empty, FastScanMethod.NotAligned, string.Empty, false,
+			false, false, false);
+		NextScanRequest next = new(ScanOption.Changed, RoundingType.Rounded, string.Empty, string.Empty, false, false,
+			false, false, false, null);
+		Span<MemoryScanResult> page = new MemoryScanResult[1];
+		_ = MemoryScanSessions.TryCreateWithOutcome(out _);
+		_ = creation.Status;
+		session.StartFirstScanCancellable(in first, CancellationToken.None);
+		session.StartNextScanCancellable(in next, CancellationToken.None);
+		session.WaitForCompletionCancellable(CancellationToken.None);
+		session.ResetCancellable(CancellationToken.None);
+		_ = session.TryCopyResultsPageCancellable(0, page, out _, out _, CancellationToken.None);
+		_ = session.TryGetHostErrorText(out _, out _);
+		_ = session.ResultCount;
+		_ = session.State;
+		_ = session.InvalidationReason;
+		_ = session.LastCancellationMilestone;
+		_ = session.ReleaseWithOutcome();
+		_ = release.FoundList;
+		_ = release.MemScan;
+		_ = release.Termination;
+		_ = target.Status;
+		_ = result.Address;
+		_ = result.Value;
+		_ = address > other;
+	}
+
 	private sealed class CompileOnlyPlugin : CheatEnginePlugin
 	{
 		protected override void OnEnable()

@@ -66,12 +66,17 @@ public sealed partial class CapabilityDocumentationTests
 	{
 		Dictionary<string, string> ids = ReadCapabilityIds();
 		Dictionary<string, bool> implemented = new(StringComparer.Ordinal);
+		Dictionary<string, string> experimental = new(StringComparer.Ordinal);
 		string catalog = Read(CatalogSource);
 		foreach (Match match in ImplementationGate().Matches(catalog))
 		{
 			string id = ids[match.Groups["name"].Value];
 			Assert.True(implemented.TryAdd(id, match.Groups["gate"].Value == "Operational"),
 				$"{CatalogSource} describes {id} more than once.");
+			if (match.Groups["experimental"].Success)
+			{
+				experimental.Add(id, match.Groups["experimental"].Value);
+			}
 		}
 
 		Assert.Equal(ids.Count, implemented.Count);
@@ -81,9 +86,11 @@ public sealed partial class CapabilityDocumentationTests
 			foreach (CapabilityRow row in table.Rows)
 			{
 				bool matches = implemented.TryGetValue(row.Id, out bool isImplemented) &&
-							   (isImplemented
-								   ? OperationalImplementations.Contains(row.Implementation, StringComparer.Ordinal)
-								   : row.Implementation == ContractOnly);
+							   (!isImplemented
+								   ? row.Implementation == ContractOnly
+								   : experimental.TryGetValue(row.Id, out string? diagnosticId)
+									   ? row.Implementation == ExperimentalImplementation(diagnosticId)
+									   : OperationalImplementations.Contains(row.Implementation, StringComparer.Ordinal));
 				if (!matches)
 				{
 					offenders.Add($"{table.Path}:{row.Line} → {row.Id} says '{row.Implementation}'");
@@ -93,7 +100,8 @@ public sealed partial class CapabilityDocumentationTests
 
 		Assert.True(offenders.Count == 0,
 			"The Implementation column must follow the catalog's implementation gate ('Operational' → " +
-			$"{string.Join(" or ", OperationalImplementations)}; 'ContractOnly' → {ContractOnly}):" +
+			$"{string.Join(" or ", OperationalImplementations)}, or '{ExperimentalImplementation("id")}' for an " +
+			$"experimental API; 'ContractOnly' → {ContractOnly}):" +
 			Environment.NewLine + string.Join(Environment.NewLine, offenders));
 	}
 
@@ -150,6 +158,12 @@ public sealed partial class CapabilityDocumentationTests
 					line.Contains("local modification", StringComparison.OrdinalIgnoreCase)),
 				$"{guide} does not state the runtime configuration SHA-256 as a local modification.");
 		}
+	}
+
+	/// <summary>The Implementation label of an operational capability whose public API is experimental.</summary>
+	private static string ExperimentalImplementation(string diagnosticId)
+	{
+		return $"Operational adapter, experimental ({diagnosticId})";
 	}
 
 	/// <summary>Reads <c>ClientCapabilityId</c> property names and their stable id strings.</summary>
@@ -219,7 +233,7 @@ public sealed partial class CapabilityDocumentationTests
 	private static partial Regex CapabilityIdDeclaration();
 
 	[GeneratedRegex(
-		@"Entry\(ClientCapabilityId\.(?<name>\w+),\s*CapabilityImplementation\.(?<gate>Operational|ContractOnly)\b",
+		@"Entry\(ClientCapabilityId\.(?<name>\w+),\s*CapabilityImplementation\.(?<gate>Operational|ContractOnly)\b[^)]*\)(?:\s*with\s*\{\s*ExperimentalDiagnosticId\s*=\s*""(?<experimental>[^""]+)""\s*\})?",
 		RegexOptions.CultureInvariant, RegexTimeoutMilliseconds)]
 	private static partial Regex ImplementationGate();
 

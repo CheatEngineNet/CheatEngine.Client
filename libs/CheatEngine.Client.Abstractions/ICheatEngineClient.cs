@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 using CheatEngine.Client.Allocations;
 using CheatEngine.Client.Assembly;
 using CheatEngine.Client.Dispatching;
@@ -106,7 +108,9 @@ public interface ICheatEngineClient
 		get;
 	}
 
-	/// <summary>Gets value-scan operations.</summary>
+	/// <summary>Gets value-scan operations over Cheat Engine's scanner.</summary>
+	/// <remarks>Experimental (<c>CECLIENT5001</c>): see the Abstractions README.</remarks>
+	[Experimental(ClientExperimentalDiagnostics.ValueScans, UrlFormat = ClientExperimentalDiagnostics.UrlFormat)]
 	public IValueScanner Scans
 	{
 		get;

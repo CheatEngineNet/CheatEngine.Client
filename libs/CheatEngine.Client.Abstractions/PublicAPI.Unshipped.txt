@@ -72,7 +72,6 @@ CheatEngine.Client.ICheatEngineClient.Memory.get -> CheatEngine.Client.Memory.IM
 CheatEngine.Client.ICheatEngineClient.Patterns.get -> CheatEngine.Client.Scanning.IPatternScanner!
 CheatEngine.Client.ICheatEngineClient.Processes.get -> CheatEngine.Client.Processes.IProcessClient!
 CheatEngine.Client.ICheatEngineClient.Runtime.get -> CheatEngine.Client.Runtime.ICheatEngineRuntime!
-CheatEngine.Client.ICheatEngineClient.Scans.get -> CheatEngine.Client.Scanning.IValueScanner!
 CheatEngine.Client.ICheatEngineClient.Stopping.get -> System.Threading.CancellationToken
 CheatEngine.Client.ICheatEngineClient.Tables.get -> CheatEngine.Client.Tables.ITableClient!
 CheatEngine.Client.ICheatEngineLease
@@ -582,21 +581,6 @@ CheatEngine.Client.Scanning.IPatternScanner
 CheatEngine.Client.Scanning.IPatternScanner.Scan(CheatEngine.Client.Scanning.AobScanRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Scanning.AobScanResult
 CheatEngine.Client.Scanning.IPatternScanner.ScanDetailed(CheatEngine.Client.Scanning.AobScanRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Scanning.PatternScanOutcome!
 CheatEngine.Client.Scanning.IPatternScanner.TryScan(CheatEngine.Client.Scanning.AobScanRequest request, out CheatEngine.Client.Scanning.AobScanResult result, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
-CheatEngine.Client.Scanning.IValueScanSession
-CheatEngine.Client.Scanning.IValueScanSession.GetResultCount(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> ulong
-CheatEngine.Client.Scanning.IValueScanSession.Read(CheatEngine.Client.Scanning.ValueScanReadRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Scanning.ValueScanPage
-CheatEngine.Client.Scanning.IValueScanSession.Reset(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> void
-CheatEngine.Client.Scanning.IValueScanSession.RunNextScan(CheatEngine.SDK.Engine.Scanning.Values.NextScanRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> void
-CheatEngine.Client.Scanning.IValueScanSession.Start(CheatEngine.SDK.Engine.Scanning.Values.FirstScanRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> void
-CheatEngine.Client.Scanning.IValueScanSession.State.get -> CheatEngine.Client.Scanning.ValueScanSessionState
-CheatEngine.Client.Scanning.IValueScanSession.TryGetResultCount(out ulong resultCount, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
-CheatEngine.Client.Scanning.IValueScanSession.TryRead(CheatEngine.Client.Scanning.ValueScanReadRequest request, out CheatEngine.Client.Scanning.ValueScanPage page, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
-CheatEngine.Client.Scanning.IValueScanSession.TryReset(out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
-CheatEngine.Client.Scanning.IValueScanSession.TryRunNextScan(CheatEngine.SDK.Engine.Scanning.Values.NextScanRequest request, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
-CheatEngine.Client.Scanning.IValueScanSession.TryStart(CheatEngine.SDK.Engine.Scanning.Values.FirstScanRequest request, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
-CheatEngine.Client.Scanning.IValueScanner
-CheatEngine.Client.Scanning.IValueScanner.CreateSession(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Scanning.IValueScanSession!
-CheatEngine.Client.Scanning.IValueScanner.TryCreateSession(out CheatEngine.Client.Scanning.IValueScanSession? session, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
 CheatEngine.Client.Scanning.PatternScanHostOutcome
 CheatEngine.Client.Scanning.PatternScanHostOutcome.Cancelled = 12 -> CheatEngine.Client.Scanning.PatternScanHostOutcome
 CheatEngine.Client.Scanning.PatternScanHostOutcome.GlobalUnavailable = 4 -> CheatEngine.Client.Scanning.PatternScanHostOutcome
@@ -669,31 +653,6 @@ CheatEngine.Client.Scanning.ScanProtectionRequirement.Any = 3 -> CheatEngine.Cli
 CheatEngine.Client.Scanning.ScanProtectionRequirement.Excluded = 2 -> CheatEngine.Client.Scanning.ScanProtectionRequirement
 CheatEngine.Client.Scanning.ScanProtectionRequirement.Required = 1 -> CheatEngine.Client.Scanning.ScanProtectionRequirement
 CheatEngine.Client.Scanning.ScanProtectionRequirement.Unspecified = 0 -> CheatEngine.Client.Scanning.ScanProtectionRequirement
-CheatEngine.Client.Scanning.ValueScanMatch
-CheatEngine.Client.Scanning.ValueScanMatch.Address.get -> CheatEngine.SDK.Engine.Values.Address
-CheatEngine.Client.Scanning.ValueScanMatch.Equals(CheatEngine.Client.Scanning.ValueScanMatch other) -> bool
-CheatEngine.Client.Scanning.ValueScanMatch.Index.get -> int
-CheatEngine.Client.Scanning.ValueScanMatch.Value.get -> string!
-CheatEngine.Client.Scanning.ValueScanMatch.ValueScanMatch() -> void
-CheatEngine.Client.Scanning.ValueScanMatch.ValueScanMatch(int index, CheatEngine.SDK.Engine.Values.Address address, string! value) -> void
-CheatEngine.Client.Scanning.ValueScanPage
-CheatEngine.Client.Scanning.ValueScanPage.Equals(CheatEngine.Client.Scanning.ValueScanPage other) -> bool
-CheatEngine.Client.Scanning.ValueScanPage.Matches.get -> System.Collections.Immutable.ImmutableArray<CheatEngine.Client.Scanning.ValueScanMatch>
-CheatEngine.Client.Scanning.ValueScanPage.TotalCount.get -> ulong
-CheatEngine.Client.Scanning.ValueScanPage.ValueScanPage() -> void
-CheatEngine.Client.Scanning.ValueScanPage.ValueScanPage(ulong totalCount, System.Collections.Immutable.ImmutableArray<CheatEngine.Client.Scanning.ValueScanMatch> matches) -> void
-CheatEngine.Client.Scanning.ValueScanReadRequest
-CheatEngine.Client.Scanning.ValueScanReadRequest.Equals(CheatEngine.Client.Scanning.ValueScanReadRequest other) -> bool
-CheatEngine.Client.Scanning.ValueScanReadRequest.MaximumCount.get -> int
-CheatEngine.Client.Scanning.ValueScanReadRequest.StartIndex.get -> int
-CheatEngine.Client.Scanning.ValueScanReadRequest.ValueScanReadRequest() -> void
-CheatEngine.Client.Scanning.ValueScanReadRequest.ValueScanReadRequest(int startIndex, int maximumCount) -> void
-CheatEngine.Client.Scanning.ValueScanSessionState
-CheatEngine.Client.Scanning.ValueScanSessionState.Created = 0 -> CheatEngine.Client.Scanning.ValueScanSessionState
-CheatEngine.Client.Scanning.ValueScanSessionState.Disposed = 4 -> CheatEngine.Client.Scanning.ValueScanSessionState
-CheatEngine.Client.Scanning.ValueScanSessionState.Invalidated = 3 -> CheatEngine.Client.Scanning.ValueScanSessionState
-CheatEngine.Client.Scanning.ValueScanSessionState.ResultsReady = 2 -> CheatEngine.Client.Scanning.ValueScanSessionState
-CheatEngine.Client.Scanning.ValueScanSessionState.Scanning = 1 -> CheatEngine.Client.Scanning.ValueScanSessionState
 CheatEngine.Client.Tables.AddressTableSnapshot
 CheatEngine.Client.Tables.AddressTableSnapshot.AddressTableSnapshot() -> void
 CheatEngine.Client.Tables.AddressTableSnapshot.AddressTableSnapshot(System.Collections.Immutable.ImmutableArray<CheatEngine.Client.Tables.MemoryRecordSnapshot> records) -> void
@@ -825,6 +784,147 @@ CheatEngine.Client.Tables.TrustedTableFile.Equals(CheatEngine.Client.Tables.Trus
 CheatEngine.Client.Tables.TrustedTableFile.FullPath.get -> string!
 CheatEngine.Client.Tables.TrustedTableFile.TrustedTableFile() -> void
 CheatEngine.Client.Tables.TrustedTableFile.TrustedTableFile(string! path) -> void
+[CECLIENT5001]CheatEngine.Client.ICheatEngineClient.Scans.get -> CheatEngine.Client.Scanning.IValueScanner!
+[CECLIENT5001]CheatEngine.Client.Scanning.IValueScanSession
+[CECLIENT5001]CheatEngine.Client.Scanning.IValueScanSession.FirstScan(CheatEngine.Client.Scanning.ValueScanFirstRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> void
+[CECLIENT5001]CheatEngine.Client.Scanning.IValueScanSession.GetResultCount(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> ulong
+[CECLIENT5001]CheatEngine.Client.Scanning.IValueScanSession.Invalidation.get -> CheatEngine.Client.Scanning.ValueScanInvalidationKind
+[CECLIENT5001]CheatEngine.Client.Scanning.IValueScanSession.NextScan(CheatEngine.Client.Scanning.ValueScanNextRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> void
+[CECLIENT5001]CheatEngine.Client.Scanning.IValueScanSession.Read(CheatEngine.Client.Scanning.ValueScanReadRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Scanning.ValueScanPage
+[CECLIENT5001]CheatEngine.Client.Scanning.IValueScanSession.Reset(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> void
+[CECLIENT5001]CheatEngine.Client.Scanning.IValueScanSession.State.get -> CheatEngine.Client.Scanning.ValueScanSessionState
+[CECLIENT5001]CheatEngine.Client.Scanning.IValueScanSession.TryFirstScan(CheatEngine.Client.Scanning.ValueScanFirstRequest request, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
+[CECLIENT5001]CheatEngine.Client.Scanning.IValueScanSession.TryGetResultCount(out ulong resultCount, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
+[CECLIENT5001]CheatEngine.Client.Scanning.IValueScanSession.TryNextScan(CheatEngine.Client.Scanning.ValueScanNextRequest request, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
+[CECLIENT5001]CheatEngine.Client.Scanning.IValueScanSession.TryRead(CheatEngine.Client.Scanning.ValueScanReadRequest request, out CheatEngine.Client.Scanning.ValueScanPage page, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
+[CECLIENT5001]CheatEngine.Client.Scanning.IValueScanSession.TryReset(out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
+[CECLIENT5001]CheatEngine.Client.Scanning.IValueScanner
+[CECLIENT5001]CheatEngine.Client.Scanning.IValueScanner.CreateSession(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Scanning.IValueScanSession!
+[CECLIENT5001]CheatEngine.Client.Scanning.IValueScanner.TryCreateSession(out CheatEngine.Client.Scanning.IValueScanSession? session, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanComparison
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanComparison.Between = 1 -> CheatEngine.Client.Scanning.ValueScanComparison
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanComparison.BiggerThan = 2 -> CheatEngine.Client.Scanning.ValueScanComparison
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanComparison.Changed = 9 -> CheatEngine.Client.Scanning.ValueScanComparison
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanComparison.Decreased = 7 -> CheatEngine.Client.Scanning.ValueScanComparison
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanComparison.DecreasedBy = 8 -> CheatEngine.Client.Scanning.ValueScanComparison
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanComparison.Exact = 0 -> CheatEngine.Client.Scanning.ValueScanComparison
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanComparison.Increased = 5 -> CheatEngine.Client.Scanning.ValueScanComparison
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanComparison.IncreasedBy = 6 -> CheatEngine.Client.Scanning.ValueScanComparison
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanComparison.SmallerThan = 3 -> CheatEngine.Client.Scanning.ValueScanComparison
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanComparison.Unchanged = 10 -> CheatEngine.Client.Scanning.ValueScanComparison
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanComparison.UnknownInitialValue = 4 -> CheatEngine.Client.Scanning.ValueScanComparison
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanFirstRequest
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanFirstRequest.Alignment.get -> CheatEngine.Client.Scanning.ScanAlignment
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanFirstRequest.Comparison.get -> CheatEngine.Client.Scanning.ValueScanComparison
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanFirstRequest.Equals(CheatEngine.Client.Scanning.ValueScanFirstRequest other) -> bool
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanFirstRequest.Protection.get -> CheatEngine.Client.Scanning.ScanProtectionFilter
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanFirstRequest.StartAddress.get -> CheatEngine.SDK.Engine.Values.Address
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanFirstRequest.StopAddress.get -> CheatEngine.SDK.Engine.Values.Address
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanFirstRequest.UpperValue.get -> CheatEngine.Client.Scanning.ValueScanValue?
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanFirstRequest.Value.get -> CheatEngine.Client.Scanning.ValueScanValue?
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanFirstRequest.ValueScanFirstRequest() -> void
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanFirstRequest.ValueType.get -> CheatEngine.Client.Scanning.ValueScanValueType
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanFirstRequest.WithAlignment(CheatEngine.Client.Scanning.ScanAlignment alignment) -> CheatEngine.Client.Scanning.ValueScanFirstRequest
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanFirstRequest.WithProtection(CheatEngine.Client.Scanning.ScanProtectionFilter protection) -> CheatEngine.Client.Scanning.ValueScanFirstRequest
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanFirstRequest.WithRange(CheatEngine.SDK.Engine.Values.Address startAddress, CheatEngine.SDK.Engine.Values.Address stopAddress) -> CheatEngine.Client.Scanning.ValueScanFirstRequest
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanInvalidationKind
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanInvalidationKind.HostCallFailed = 2 -> CheatEngine.Client.Scanning.ValueScanInvalidationKind
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanInvalidationKind.None = 1 -> CheatEngine.Client.Scanning.ValueScanInvalidationKind
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanInvalidationKind.RuntimeChanged = 3 -> CheatEngine.Client.Scanning.ValueScanInvalidationKind
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanInvalidationKind.TargetChanged = 4 -> CheatEngine.Client.Scanning.ValueScanInvalidationKind
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanInvalidationKind.Unknown = 0 -> CheatEngine.Client.Scanning.ValueScanInvalidationKind
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanMatch
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanMatch.Address.get -> CheatEngine.SDK.Engine.Values.Address
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanMatch.Equals(CheatEngine.Client.Scanning.ValueScanMatch other) -> bool
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanMatch.ValueScanMatch() -> void
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanMatch.ValueScanMatch(CheatEngine.SDK.Engine.Values.Address address, string! valueText) -> void
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanMatch.ValueText.get -> string!
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanNextRequest
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanNextRequest.Comparison.get -> CheatEngine.Client.Scanning.ValueScanComparison
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanNextRequest.Equals(CheatEngine.Client.Scanning.ValueScanNextRequest other) -> bool
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanNextRequest.UpperValue.get -> CheatEngine.Client.Scanning.ValueScanValue?
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanNextRequest.Value.get -> CheatEngine.Client.Scanning.ValueScanValue?
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanNextRequest.ValueScanNextRequest() -> void
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanPage
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanPage.Equals(CheatEngine.Client.Scanning.ValueScanPage other) -> bool
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanPage.HasMore.get -> bool
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanPage.Matches.get -> System.Collections.Immutable.ImmutableArray<CheatEngine.Client.Scanning.ValueScanMatch>
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanPage.NextStartIndex.get -> long
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanPage.StartIndex.get -> long
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanPage.TotalCount.get -> ulong
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanPage.ValueScanPage() -> void
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanPage.ValueScanPage(long startIndex, ulong totalCount, System.Collections.Immutable.ImmutableArray<CheatEngine.Client.Scanning.ValueScanMatch> matches) -> void
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanReadRequest
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanReadRequest.Equals(CheatEngine.Client.Scanning.ValueScanReadRequest other) -> bool
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanReadRequest.MaximumCount.get -> int
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanReadRequest.StartIndex.get -> long
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanReadRequest.ValueScanReadRequest() -> void
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanReadRequest.ValueScanReadRequest(long startIndex, int maximumCount) -> void
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanSessionState
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanSessionState.Created = 1 -> CheatEngine.Client.Scanning.ValueScanSessionState
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanSessionState.Invalidated = 4 -> CheatEngine.Client.Scanning.ValueScanSessionState
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanSessionState.Released = 5 -> CheatEngine.Client.Scanning.ValueScanSessionState
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanSessionState.ResultsReady = 3 -> CheatEngine.Client.Scanning.ValueScanSessionState
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanSessionState.Scanning = 2 -> CheatEngine.Client.Scanning.ValueScanSessionState
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanSessionState.Unknown = 0 -> CheatEngine.Client.Scanning.ValueScanSessionState
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanValue
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanValue.Equals(CheatEngine.Client.Scanning.ValueScanValue other) -> bool
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanValue.IsNumeric.get -> bool
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanValue.Text.get -> string?
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanValue.Type.get -> CheatEngine.Client.Scanning.ValueScanValueType
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanValue.ValueScanValue() -> void
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanValueType
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanValueType.ByteArray = 8 -> CheatEngine.Client.Scanning.ValueScanValueType
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanValueType.DoubleFloat = 5 -> CheatEngine.Client.Scanning.ValueScanValueType
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanValueType.Integer16 = 1 -> CheatEngine.Client.Scanning.ValueScanValueType
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanValueType.Integer32 = 2 -> CheatEngine.Client.Scanning.ValueScanValueType
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanValueType.Integer64 = 3 -> CheatEngine.Client.Scanning.ValueScanValueType
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanValueType.Integer8 = 0 -> CheatEngine.Client.Scanning.ValueScanValueType
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanValueType.SingleFloat = 4 -> CheatEngine.Client.Scanning.ValueScanValueType
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanValueType.Utf16String = 7 -> CheatEngine.Client.Scanning.ValueScanValueType
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanValueType.Utf8String = 6 -> CheatEngine.Client.Scanning.ValueScanValueType
+[CECLIENT5001]override CheatEngine.Client.Scanning.ValueScanFirstRequest.GetHashCode() -> int
+[CECLIENT5001]override CheatEngine.Client.Scanning.ValueScanMatch.GetHashCode() -> int
+[CECLIENT5001]override CheatEngine.Client.Scanning.ValueScanNextRequest.GetHashCode() -> int
+[CECLIENT5001]override CheatEngine.Client.Scanning.ValueScanPage.GetHashCode() -> int
+[CECLIENT5001]override CheatEngine.Client.Scanning.ValueScanReadRequest.GetHashCode() -> int
+[CECLIENT5001]override CheatEngine.Client.Scanning.ValueScanValue.GetHashCode() -> int
+[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanFirstRequest.Between(CheatEngine.Client.Scanning.ValueScanValue lowest, CheatEngine.Client.Scanning.ValueScanValue highest) -> CheatEngine.Client.Scanning.ValueScanFirstRequest
+[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanFirstRequest.BiggerThan(CheatEngine.Client.Scanning.ValueScanValue value) -> CheatEngine.Client.Scanning.ValueScanFirstRequest
+[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanFirstRequest.Exact(CheatEngine.Client.Scanning.ValueScanValue value) -> CheatEngine.Client.Scanning.ValueScanFirstRequest
+[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanFirstRequest.SmallerThan(CheatEngine.Client.Scanning.ValueScanValue value) -> CheatEngine.Client.Scanning.ValueScanFirstRequest
+[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanFirstRequest.UnknownInitialValue(CheatEngine.Client.Scanning.ValueScanValueType valueType) -> CheatEngine.Client.Scanning.ValueScanFirstRequest
+[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanFirstRequest.operator !=(CheatEngine.Client.Scanning.ValueScanFirstRequest left, CheatEngine.Client.Scanning.ValueScanFirstRequest right) -> bool
+[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanFirstRequest.operator ==(CheatEngine.Client.Scanning.ValueScanFirstRequest left, CheatEngine.Client.Scanning.ValueScanFirstRequest right) -> bool
+[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanMatch.operator !=(CheatEngine.Client.Scanning.ValueScanMatch left, CheatEngine.Client.Scanning.ValueScanMatch right) -> bool
+[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanMatch.operator ==(CheatEngine.Client.Scanning.ValueScanMatch left, CheatEngine.Client.Scanning.ValueScanMatch right) -> bool
+[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanNextRequest.Between(CheatEngine.Client.Scanning.ValueScanValue lowest, CheatEngine.Client.Scanning.ValueScanValue highest) -> CheatEngine.Client.Scanning.ValueScanNextRequest
+[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanNextRequest.BiggerThan(CheatEngine.Client.Scanning.ValueScanValue value) -> CheatEngine.Client.Scanning.ValueScanNextRequest
+[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanNextRequest.Changed() -> CheatEngine.Client.Scanning.ValueScanNextRequest
+[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanNextRequest.Decreased() -> CheatEngine.Client.Scanning.ValueScanNextRequest
+[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanNextRequest.DecreasedBy(CheatEngine.Client.Scanning.ValueScanValue value) -> CheatEngine.Client.Scanning.ValueScanNextRequest
+[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanNextRequest.Exact(CheatEngine.Client.Scanning.ValueScanValue value) -> CheatEngine.Client.Scanning.ValueScanNextRequest
+[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanNextRequest.Increased() -> CheatEngine.Client.Scanning.ValueScanNextRequest
+[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanNextRequest.IncreasedBy(CheatEngine.Client.Scanning.ValueScanValue value) -> CheatEngine.Client.Scanning.ValueScanNextRequest
+[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanNextRequest.SmallerThan(CheatEngine.Client.Scanning.ValueScanValue value) -> CheatEngine.Client.Scanning.ValueScanNextRequest
+[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanNextRequest.Unchanged() -> CheatEngine.Client.Scanning.ValueScanNextRequest
+[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanNextRequest.operator !=(CheatEngine.Client.Scanning.ValueScanNextRequest left, CheatEngine.Client.Scanning.ValueScanNextRequest right) -> bool
+[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanNextRequest.operator ==(CheatEngine.Client.Scanning.ValueScanNextRequest left, CheatEngine.Client.Scanning.ValueScanNextRequest right) -> bool
+[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanPage.operator !=(CheatEngine.Client.Scanning.ValueScanPage left, CheatEngine.Client.Scanning.ValueScanPage right) -> bool
+[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanPage.operator ==(CheatEngine.Client.Scanning.ValueScanPage left, CheatEngine.Client.Scanning.ValueScanPage right) -> bool
+[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanReadRequest.operator !=(CheatEngine.Client.Scanning.ValueScanReadRequest left, CheatEngine.Client.Scanning.ValueScanReadRequest right) -> bool
+[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanReadRequest.operator ==(CheatEngine.Client.Scanning.ValueScanReadRequest left, CheatEngine.Client.Scanning.ValueScanReadRequest right) -> bool
+[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanValue.FromByte(byte value) -> CheatEngine.Client.Scanning.ValueScanValue
+[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanValue.FromBytes(System.ReadOnlySpan<byte> bytes) -> CheatEngine.Client.Scanning.ValueScanValue
+[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanValue.FromDouble(double value) -> CheatEngine.Client.Scanning.ValueScanValue
+[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanValue.FromInt16(short value) -> CheatEngine.Client.Scanning.ValueScanValue
+[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanValue.FromInt32(int value) -> CheatEngine.Client.Scanning.ValueScanValue
+[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanValue.FromInt64(long value) -> CheatEngine.Client.Scanning.ValueScanValue
+[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanValue.FromSingle(float value) -> CheatEngine.Client.Scanning.ValueScanValue
+[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanValue.FromUtf16String(string! text) -> CheatEngine.Client.Scanning.ValueScanValue
+[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanValue.FromUtf8String(string! text) -> CheatEngine.Client.Scanning.ValueScanValue
+[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanValue.operator !=(CheatEngine.Client.Scanning.ValueScanValue left, CheatEngine.Client.Scanning.ValueScanValue right) -> bool
+[CECLIENT5001]static CheatEngine.Client.Scanning.ValueScanValue.operator ==(CheatEngine.Client.Scanning.ValueScanValue left, CheatEngine.Client.Scanning.ValueScanValue right) -> bool
 const CheatEngine.Client.Memory.MemoryBatchLimits.MaximumOperations = 1024 -> int
 const CheatEngine.Client.Memory.MemoryResourceLimits.DefaultMaximumBatchOperationCount = 1024 -> int
 const CheatEngine.Client.Memory.MemoryResourceLimits.DefaultMaximumBatchPayloadBytes = 65536 -> int
@@ -877,9 +977,6 @@ override CheatEngine.Client.Scanning.AobScanResult.GetHashCode() -> int
 override CheatEngine.Client.Scanning.PatternScanMetrics.GetHashCode() -> int
 override CheatEngine.Client.Scanning.ScanAlignment.GetHashCode() -> int
 override CheatEngine.Client.Scanning.ScanProtectionFilter.GetHashCode() -> int
-override CheatEngine.Client.Scanning.ValueScanMatch.GetHashCode() -> int
-override CheatEngine.Client.Scanning.ValueScanPage.GetHashCode() -> int
-override CheatEngine.Client.Scanning.ValueScanReadRequest.GetHashCode() -> int
 override CheatEngine.Client.Tables.AddressTableSnapshot.GetHashCode() -> int
 override CheatEngine.Client.Tables.MemoryRecordCollectionRequest.GetHashCode() -> int
 override CheatEngine.Client.Tables.MemoryRecordContentSnapshot.GetHashCode() -> int
@@ -993,12 +1090,6 @@ static CheatEngine.Client.Scanning.ScanAlignment.operator !=(CheatEngine.Client.
 static CheatEngine.Client.Scanning.ScanAlignment.operator ==(CheatEngine.Client.Scanning.ScanAlignment left, CheatEngine.Client.Scanning.ScanAlignment right) -> bool
 static CheatEngine.Client.Scanning.ScanProtectionFilter.operator !=(CheatEngine.Client.Scanning.ScanProtectionFilter left, CheatEngine.Client.Scanning.ScanProtectionFilter right) -> bool
 static CheatEngine.Client.Scanning.ScanProtectionFilter.operator ==(CheatEngine.Client.Scanning.ScanProtectionFilter left, CheatEngine.Client.Scanning.ScanProtectionFilter right) -> bool
-static CheatEngine.Client.Scanning.ValueScanMatch.operator !=(CheatEngine.Client.Scanning.ValueScanMatch left, CheatEngine.Client.Scanning.ValueScanMatch right) -> bool
-static CheatEngine.Client.Scanning.ValueScanMatch.operator ==(CheatEngine.Client.Scanning.ValueScanMatch left, CheatEngine.Client.Scanning.ValueScanMatch right) -> bool
-static CheatEngine.Client.Scanning.ValueScanPage.operator !=(CheatEngine.Client.Scanning.ValueScanPage left, CheatEngine.Client.Scanning.ValueScanPage right) -> bool
-static CheatEngine.Client.Scanning.ValueScanPage.operator ==(CheatEngine.Client.Scanning.ValueScanPage left, CheatEngine.Client.Scanning.ValueScanPage right) -> bool
-static CheatEngine.Client.Scanning.ValueScanReadRequest.operator !=(CheatEngine.Client.Scanning.ValueScanReadRequest left, CheatEngine.Client.Scanning.ValueScanReadRequest right) -> bool
-static CheatEngine.Client.Scanning.ValueScanReadRequest.operator ==(CheatEngine.Client.Scanning.ValueScanReadRequest left, CheatEngine.Client.Scanning.ValueScanReadRequest right) -> bool
 static CheatEngine.Client.Tables.AddressTableSnapshot.operator !=(CheatEngine.Client.Tables.AddressTableSnapshot left, CheatEngine.Client.Tables.AddressTableSnapshot right) -> bool
 static CheatEngine.Client.Tables.AddressTableSnapshot.operator ==(CheatEngine.Client.Tables.AddressTableSnapshot left, CheatEngine.Client.Tables.AddressTableSnapshot right) -> bool
 static CheatEngine.Client.Tables.MemoryRecordCollectionRequest.operator !=(CheatEngine.Client.Tables.MemoryRecordCollectionRequest left, CheatEngine.Client.Tables.MemoryRecordCollectionRequest right) -> bool
@@ -1025,6 +1116,18 @@ static CheatEngine.Client.Tables.TableSaveRequest.operator !=(CheatEngine.Client
 static CheatEngine.Client.Tables.TableSaveRequest.operator ==(CheatEngine.Client.Tables.TableSaveRequest left, CheatEngine.Client.Tables.TableSaveRequest right) -> bool
 static CheatEngine.Client.Tables.TrustedTableFile.operator !=(CheatEngine.Client.Tables.TrustedTableFile left, CheatEngine.Client.Tables.TrustedTableFile right) -> bool
 static CheatEngine.Client.Tables.TrustedTableFile.operator ==(CheatEngine.Client.Tables.TrustedTableFile left, CheatEngine.Client.Tables.TrustedTableFile right) -> bool
+~[CECLIENT5001]override CheatEngine.Client.Scanning.ValueScanFirstRequest.Equals(object obj) -> bool
+~[CECLIENT5001]override CheatEngine.Client.Scanning.ValueScanFirstRequest.ToString() -> string
+~[CECLIENT5001]override CheatEngine.Client.Scanning.ValueScanMatch.Equals(object obj) -> bool
+~[CECLIENT5001]override CheatEngine.Client.Scanning.ValueScanMatch.ToString() -> string
+~[CECLIENT5001]override CheatEngine.Client.Scanning.ValueScanNextRequest.Equals(object obj) -> bool
+~[CECLIENT5001]override CheatEngine.Client.Scanning.ValueScanNextRequest.ToString() -> string
+~[CECLIENT5001]override CheatEngine.Client.Scanning.ValueScanPage.Equals(object obj) -> bool
+~[CECLIENT5001]override CheatEngine.Client.Scanning.ValueScanPage.ToString() -> string
+~[CECLIENT5001]override CheatEngine.Client.Scanning.ValueScanReadRequest.Equals(object obj) -> bool
+~[CECLIENT5001]override CheatEngine.Client.Scanning.ValueScanReadRequest.ToString() -> string
+~[CECLIENT5001]override CheatEngine.Client.Scanning.ValueScanValue.Equals(object obj) -> bool
+~[CECLIENT5001]override CheatEngine.Client.Scanning.ValueScanValue.ToString() -> string
 ~override CheatEngine.Client.Allocations.TargetAllocationRequest.Equals(object obj) -> bool
 ~override CheatEngine.Client.Allocations.TargetAllocationRequest.ToString() -> string
 ~override CheatEngine.Client.Assembly.AssemblyInstructionRequest.Equals(object obj) -> bool
@@ -1097,12 +1200,6 @@ static CheatEngine.Client.Tables.TrustedTableFile.operator ==(CheatEngine.Client
 ~override CheatEngine.Client.Scanning.ScanAlignment.ToString() -> string
 ~override CheatEngine.Client.Scanning.ScanProtectionFilter.Equals(object obj) -> bool
 ~override CheatEngine.Client.Scanning.ScanProtectionFilter.ToString() -> string
-~override CheatEngine.Client.Scanning.ValueScanMatch.Equals(object obj) -> bool
-~override CheatEngine.Client.Scanning.ValueScanMatch.ToString() -> string
-~override CheatEngine.Client.Scanning.ValueScanPage.Equals(object obj) -> bool
-~override CheatEngine.Client.Scanning.ValueScanPage.ToString() -> string
-~override CheatEngine.Client.Scanning.ValueScanReadRequest.Equals(object obj) -> bool
-~override CheatEngine.Client.Scanning.ValueScanReadRequest.ToString() -> string
 ~override CheatEngine.Client.Tables.AddressTableSnapshot.Equals(object obj) -> bool
 ~override CheatEngine.Client.Tables.AddressTableSnapshot.ToString() -> string
 ~override CheatEngine.Client.Tables.MemoryRecordCollectionRequest.Equals(object obj) -> bool

@@ -3,6 +3,8 @@
   <PropertyGroup>
     <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
     <Description>Microsoft.Extensions.DependencyInjection registrations for CheatEngine.Client: the activation-scoped client, modules, memory codecs and validated options.</Description>
+    <!-- DI composes the experimental Client APIs (CECLIENT5001 value scans); only Core, DI and tests may suppress them (ClientExperimentalDiagnosticsTests). -->
+    <NoWarn>$(NoWarn);CECLIENT5001</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

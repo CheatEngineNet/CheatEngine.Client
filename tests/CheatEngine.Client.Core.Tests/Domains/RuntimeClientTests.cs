@@ -417,11 +417,14 @@ public sealed class RuntimeClientTests
 
 		Assert.True(snapshot.Capabilities.TryGet(ClientCapabilityId.ValueScanning,
 			out ClientCapabilityAvailability valueScanning));
-		Assert.Equal(ClientCapabilityAvailabilityState.Unavailable, valueScanning.State);
-		Assert.Equal(ClientCapabilityEvidenceState.Missing, valueScanning.Evidence.Implementation.State);
+		// An experimental operational adapter: implemented, but its qualification gate stays unknown (Q25, Q26).
+		Assert.Equal(ClientCapabilityAvailabilityState.Unknown, valueScanning.State);
+		Assert.Equal(ClientCapabilityEvidenceState.Satisfied, valueScanning.Evidence.Implementation.State);
+		Assert.Equal(RuntimeClient.ExperimentalImplementationReason("CECLIENT5001"),
+			valueScanning.Evidence.Implementation.Reason);
 		// Without an embedded identity the package gate is the evidence's Unknown, as for every other capability.
 		Assert.Equal(ClientCapabilityEvidenceState.Unknown, valueScanning.Evidence.Package.State);
-		Assert.Equal(RuntimeClient.ContractOnlyReason, valueScanning.Reason);
+		Assert.Equal(ClientCapabilityEvidenceState.Unknown, valueScanning.Evidence.LiveQualification.State);
 		Assert.True(snapshot.Capabilities.TryGet(ClientCapabilityId.TypedMemory,
 			out ClientCapabilityAvailability typedMemory));
 		Assert.Equal(ClientCapabilityAvailabilityState.Unknown, typedMemory.State);
@@ -642,7 +645,6 @@ public sealed class RuntimeClientTests
 
 	[Theory]
 	[Trait("Qualification", "Q44")]
-	[InlineData(nameof(ClientCapabilityId.ValueScanning))]
 	[InlineData(nameof(ClientCapabilityId.Allocations))]
 	[InlineData(nameof(ClientCapabilityId.Assembly))]
 	public void ContractOnlyCapabilitiesAreRefusedByTheImplementationGateWithAPackageGateFromEvidence(string name)
@@ -776,15 +778,14 @@ public sealed class RuntimeClientTests
 	private static ClientCapabilityId[] OperationalCapabilities =>
 	[
 		ClientCapabilityId.ProcessSelection, ClientCapabilityId.TypedMemory, ClientCapabilityId.PatternScanning,
-		ClientCapabilityId.Inspection, ClientCapabilityId.Tables, ClientCapabilityId.ProtectedLua,
-		ClientCapabilityId.UnsafeLuaExecution
+		ClientCapabilityId.ValueScanning, ClientCapabilityId.Inspection, ClientCapabilityId.Tables,
+		ClientCapabilityId.ProtectedLua, ClientCapabilityId.UnsafeLuaExecution
 	];
 
 	private static ClientCapabilityId ContractOnlyCapability(string name)
 	{
 		return name switch
 		{
-			nameof(ClientCapabilityId.ValueScanning) => ClientCapabilityId.ValueScanning,
 			nameof(ClientCapabilityId.Allocations) => ClientCapabilityId.Allocations,
 			nameof(ClientCapabilityId.Assembly) => ClientCapabilityId.Assembly,
 			_ => throw new ArgumentOutOfRangeException(nameof(name), name, null)

@@ -37,8 +37,6 @@ internal static class ApprovedSdkClientTypes
 		"CheatEngine.SDK.Engine.Runtime.PointerSize",
 		"CheatEngine.SDK.Engine.Runtime.TargetAbi",
 		"CheatEngine.SDK.Engine.Runtime.TargetBackend",
-		"CheatEngine.SDK.Engine.Scanning.Values.FirstScanRequest",
-		"CheatEngine.SDK.Engine.Scanning.Values.NextScanRequest",
 		"CheatEngine.SDK.Engine.Values.Address"
 	];
 }

@@ -236,7 +236,11 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 			ClientCapabilityDescriptor entry = catalog[index];
 			capabilities[index] = Describe(
 				entry.Id,
-				entry.Implementation == CapabilityImplementation.Operational ? implemented : contractOnly,
+				entry.Implementation != CapabilityImplementation.Operational
+					? contractOnly
+					: entry.ExperimentalDiagnosticId is { } experimental
+						? Satisfied(ExperimentalImplementationReason(experimental))
+						: implemented,
 				package,
 				entry.Host == CapabilityHostSource.SdkSelectedProcess ? selectedProcess : unprobedHost,
 				qualificationUnknown,
@@ -245,6 +249,15 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 		}
 
 		return ClientCapabilities.Create(capabilities);
+	}
+
+	/// <summary>The implementation gate reason of an operational capability whose public API is experimental.</summary>
+	/// <param name="diagnosticId">The diagnostic id of the experimental API, for example <c>CECLIENT5001</c>.</param>
+	/// <returns>The reason.</returns>
+	internal static string ExperimentalImplementationReason(string diagnosticId)
+	{
+		return "The Client composes an operational adapter for this capability; its API is experimental (" +
+			   diagnosticId + ") until its live scenarios pass.";
 	}
 
 	private static ClientCapabilityAvailability Describe(

@@ -1,0 +1,126 @@
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
+
+using CheatEngine.Client.Core.Dispatching;
+using CheatEngine.Client.Core.Infrastructure;
+using CheatEngine.Client.Results;
+using CheatEngine.Client.Scanning;
+using CheatEngine.SDK.Engine.Scanning.Values;
+
+namespace CheatEngine.Client.Core.Domains.ValueScanning;
+
+/// <summary>Creates value-scan sessions through CheatEngine.SDK's scan-session factory, on Cheat Engine's main thread.</summary>
+/// <remarks>
+///     A created session is registered with the activation and with the target selection it was created for, in the same
+///     main-thread callback that created it, so no path leaves its Cheat Engine objects without an owner: a registration
+///     that fails, and a cancellation observed after the creation, release them at once.
+/// </remarks>
+internal sealed class ValueScanner : IValueScanner
+{
+	/// <summary>The public operation name of a session creation.</summary>
+	internal const string CreateOperation = "Scans.CreateSession";
+
+	private readonly SdkMainThreadDispatcher _dispatcher;
+	private readonly IValueScanPort _port;
+
+	/// <summary>Creates the value scanner of an activation.</summary>
+	/// <param name="dispatcher">The activation dispatcher.</param>
+	/// <param name="port">The session factory; CheatEngine.SDK's when omitted.</param>
+	internal ValueScanner(SdkMainThreadDispatcher dispatcher, IValueScanPort? port = null)
+	{
+		_dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
+		_port = port ?? SdkValueScanPort.Instance;
+	}
+
+	public bool TryCreateSession([NotNullWhen(true)] out IValueScanSession? session, out CheatEngineFailure failure,
+		CancellationToken cancellationToken = default)
+	{
+		session = null;
+		// An ended or stopping activation throws before a cancellation is reported, never the reverse.
+		_dispatcher.Lifetime.ThrowIfDispatchAllowed(CreateOperation);
+		if (cancellationToken.IsCancellationRequested)
+		{
+			failure = CancellationMapping.BeforeNativeCall(CreateOperation);
+			return false;
+		}
+
+		if (!_dispatcher.TryInvoke(() => CreateOnMainThread(cancellationToken), out CreateOutcome outcome,
+				out failure, cancellationToken))
+		{
+			return false;
+		}
+
+		session = outcome.Session;
+		failure = outcome.Failure;
+		return session is not null;
+	}
+
+	public IValueScanSession CreateSession(CancellationToken cancellationToken = default)
+	{
+		if (TryCreateSession(out IValueScanSession? session, out CheatEngineFailure failure, cancellationToken))
+		{
+			return session;
+		}
+
+		failure.Throw(cancellationToken);
+		throw new UnreachableException();
+	}
+
+	private CreateOutcome CreateOnMainThread(CancellationToken cancellationToken)
+	{
+		if (cancellationToken.IsCancellationRequested)
+		{
+			return new CreateOutcome(null, CancellationMapping.BeforeNativeCall(CreateOperation));
+		}
+
+		CoreLifetime lifetime = _dispatcher.Lifetime;
+		long selectionEpoch = lifetime.TargetSelection.Epoch;
+		MemoryScanCreationStatus status;
+		IValueScanSessionHandle? handle;
+		try
+		{
+			status = _port.TryCreate(out handle);
+		}
+		catch (Exception fault) when (SdkBoundary.IsSdkFault(fault))
+		{
+			// The SDK rolls back what it created before it throws; what the host did is not known.
+			return new CreateOutcome(null,
+				SdkBoundary.Translate(CreateOperation, fault, CheatEngineHostEffect.Unknown, lifetime));
+		}
+
+		if (status != MemoryScanCreationStatus.Success || handle is null)
+		{
+			_ = handle?.Release();
+			return new CreateOutcome(null, ValueScanMapping.FromCreationStatus(status, CreateOperation));
+		}
+
+		if (cancellationToken.IsCancellationRequested)
+		{
+			// Nothing is published after a late cancellation: the new objects are released at once.
+			LeaseReleaseOutcome released = ValueScanMapping.FromRelease(handle.Release());
+			return new CreateOutcome(null, released.IsComplete
+				? CancellationMapping.AfterNativeCall(CreateOperation)
+				: new CheatEngineFailure(CheatEngineFailureKind.Cancelled, CreateOperation,
+					"The operation was cancelled after Cheat Engine created the scan session, and its release ended " +
+					$"with {released.Kind}: a scanner may remain in Cheat Engine.", null,
+					CheatEngineHostEffect.CleanupUnconfirmed));
+		}
+
+		ValueScanSession session = new(_dispatcher, handle);
+		try
+		{
+			session.Register(lifetime, selectionEpoch);
+		}
+		catch (Exception)
+		{
+			// The activation or the target selection ended while the session was created: release it here, on the
+			// main thread, since no registry will.
+			_ = handle.Release();
+			throw;
+		}
+
+		return new CreateOutcome(session, default);
+	}
+
+	private readonly record struct CreateOutcome(ValueScanSession? Session, CheatEngineFailure Failure);
+}

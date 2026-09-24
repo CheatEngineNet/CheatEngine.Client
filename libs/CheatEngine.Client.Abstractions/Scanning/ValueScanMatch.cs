@@ -1,34 +1,38 @@
+using System.Diagnostics.CodeAnalysis;
+
 using CheatEngine.SDK.Engine.Values;
 
 namespace CheatEngine.Client.Scanning;
 
-/// <summary>A copied value-scan match; it owns no FoundList or other CE resource.</summary>
+/// <summary>One copied value-scan result: an address and the value text Cheat Engine displays for it.</summary>
+/// <remarks>
+///     The match owns no Cheat Engine object and stays valid after its session is released. <see cref="ValueText" /> is
+///     Cheat Engine's text, formatted by Cheat Engine for the scanned type: to read the typed value, read the address
+///     again, for example with <c>IMemoryClient.ReadPrimitive&lt;int&gt;(match.Address)</c>. The address and the text
+///     are user data: log them only on an explicit opt-in.
+/// </remarks>
+[Experimental(ClientExperimentalDiagnostics.ValueScans, UrlFormat = ClientExperimentalDiagnostics.UrlFormat)]
 public readonly record struct ValueScanMatch
 {
 	/// <summary>Creates a copied value-scan match.</summary>
-	public ValueScanMatch(int index, Address address, string value)
+	/// <param name="address">The target address of the match.</param>
+	/// <param name="valueText">The value text Cheat Engine returned for the match.</param>
+	/// <exception cref="ArgumentNullException"><paramref name="valueText" /> is <see langword="null" />.</exception>
+	public ValueScanMatch(Address address, string valueText)
 	{
-		ArgumentOutOfRangeException.ThrowIfNegative(index);
-		ArgumentNullException.ThrowIfNull(value);
-		Index = index;
+		ArgumentNullException.ThrowIfNull(valueText);
 		Address = address;
-		Value = value;
+		ValueText = valueText;
 	}
 
-	/// <summary>Gets the zero-based index in the CE found list.</summary>
-	public int Index
-	{
-		get;
-	}
-
-	/// <summary>Gets the parsed target address.</summary>
+	/// <summary>Gets the target address of the match.</summary>
 	public Address Address
 	{
 		get;
 	}
 
-	/// <summary>Gets the verbatim value text returned by Cheat Engine.</summary>
-	public string Value
+	/// <summary>Gets the value text Cheat Engine returned for the match, verbatim.</summary>
+	public string ValueText
 	{
 		get;
 	}

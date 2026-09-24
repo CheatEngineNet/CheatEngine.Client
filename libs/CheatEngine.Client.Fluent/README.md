@@ -88,8 +88,8 @@ may expose stable SDK value types already present in the Abstractions vocabulary
 and `ModuleName`; AOB options are the Client-owned `ScanProtectionFilter` and `ScanAlignment`. They
 never expose Lua states, CE objects, SDK option types, or SDK ownership wrappers.
 
-Fluent does not make a capability available. For example, it has no value-scan builder and cannot
-turn the currently gated `IValueScanner` contract into a live scan. A builder remains valid as a
+Fluent does not make a capability available. For example, it has no builder for the experimental
+value scans (`CECLIENT5001`): use `IValueScanner` directly. A builder remains valid as a
 managed value, but executing it through a stale scoped service still follows the implementation's
 activation and target-epoch rules.
 

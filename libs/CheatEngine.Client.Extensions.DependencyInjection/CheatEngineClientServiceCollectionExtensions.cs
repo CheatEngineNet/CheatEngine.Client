@@ -5,6 +5,7 @@ using CheatEngine.Client.Core.Dispatching;
 using CheatEngine.Client.Core.Domains;
 using CheatEngine.Client.Core.Domains.Allocations;
 using CheatEngine.Client.Core.Domains.Assembly;
+using CheatEngine.Client.Core.Domains.ValueScanning;
 using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Inspection;
@@ -139,8 +140,11 @@ public static class CheatEngineClientServiceCollectionExtensions
 		services.TryAddSingleton<IPatternScanner>(static serviceProvider =>
 			serviceProvider.GetRequiredService<PatternScanner>());
 
+		services.TryAddSingleton<ValueScanner>(static serviceProvider =>
+			new ValueScanner(serviceProvider.GetRequiredService<SdkMainThreadDispatcher>()));
 		services.TryAddSingleton<IValueScanner>(static serviceProvider =>
-			new UnavailableValueScanner(serviceProvider.GetRequiredService<CoreLifetime>()));
+			serviceProvider.GetRequiredService<ValueScanner>());
+
 		services.TryAddSingleton<IAllocationClient>(static serviceProvider =>
 			new UnavailableAllocationClient(serviceProvider.GetRequiredService<CoreLifetime>()));
 		services.TryAddSingleton<IAssemblyClient>(static serviceProvider =>

@@ -11,8 +11,9 @@ Core owns the behavior that is easy to get wrong at the SDK boundary: dispatch a
 selection changes, LIFO resource cleanup, failure mapping, protected Lua calls and module leases, memory codecs, AOB
 result ownership, process/runtime adapters, table mutations, and symbol-registration cleanup.
 
-It also verifies the conservative value-scan gate and its managed state machine. It does not fabricate SDK-owned scan
-handles or present an unvalidated Cheat Engine 7.7 x64 value-scan lifecycle as supported.
+It also runs the value-scan battery of the audit (chapter 13) against a scripted port that emulates CheatEngine.SDK's
+scan session: results, cancellation, target and runtime changes, re-entrant calls and releases. It does not fabricate
+SDK-owned scan handles or present an unvalidated Cheat Engine 7.7 x64 value-scan lifecycle as supported.
 
 ## How it helps improve CheatEngine.Client
 

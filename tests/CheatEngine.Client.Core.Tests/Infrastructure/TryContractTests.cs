@@ -6,6 +6,7 @@ using CheatEngine.Client.Allocations;
 using CheatEngine.Client.Core.Dispatching;
 using CheatEngine.Client.Core.Domains;
 using CheatEngine.Client.Core.Domains.Allocations;
+using CheatEngine.Client.Core.Domains.ValueScanning;
 using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Core.Tests.TestSupport;
 using CheatEngine.Client.Inspection;
@@ -56,7 +57,8 @@ public sealed class TryContractTests
 		"UnsafeLua",
 		"UnavailableCapability",
 		"Processes",
-		"Runtime"
+		"Runtime",
+		"ValueScans"
 	};
 
 	public static TheoryData<string, string> SdkFaultCases
@@ -120,7 +122,9 @@ public sealed class TryContractTests
 		"Processes.GetCurrent",
 		"Processes.Attach",
 		"Runtime.GetSnapshot",
-		"Lua.RegisterModule"
+		"Lua.RegisterModule",
+		"Scans.CreateSession",
+		"Scans.GetResultCount"
 	];
 
 	[Theory]
@@ -135,6 +139,7 @@ public sealed class TryContractTests
 		SdkMainThreadDispatcher dispatcher = new(lifetime, new InlineMainThreadInvoker());
 		CancellationToken cancelled = new(true);
 		ThrowingPorts ports = new(new InvalidOperationException("never reached"));
+		FakeValueScanPort scans = new();
 		CoreClientPolicy policy = new([], enableUnsafeLuaExecution: true);
 
 		Action entryPoint = family switch
@@ -161,6 +166,7 @@ public sealed class TryContractTests
 			"Processes" => () => new ProcessClient(dispatcher, ports, ports, ports, lifetime)
 				.TryGetCurrent(out _, out _, cancelled),
 			"Runtime" => () => new RuntimeClient(dispatcher, ports, static () => 1).TryGetSnapshot(out _, out _, cancelled),
+			"ValueScans" => () => new ValueScanner(dispatcher, scans).TryCreateSession(out _, out _, cancelled),
 			_ => throw new ArgumentOutOfRangeException(nameof(family), family, null)
 		};
 
@@ -169,6 +175,7 @@ public sealed class TryContractTests
 
 		Assert.Equal(CheatEngineFailureKind.ActivationExpired, exception.Failure.Kind);
 		Assert.Equal(0, ports.Calls);
+		Assert.Equal(0, scans.Creations);
 	}
 
 	[Theory]
@@ -245,6 +252,12 @@ public sealed class TryContractTests
 			"Lua.RegisterModule" => Run(new LuaClient(dispatcher, lifetime), new PortBackedModule(ports),
 				static (client, module, t) => (client.TryRegisterModule(module, out _, out CheatEngineFailure f, t), f),
 				static (client, module, t) => client.RegisterModule(module, t), token),
+			"Scans.CreateSession" => Run(new ValueScanner(dispatcher, new FakeValueScanPort { Fault = fault }), 0,
+				static (scanner, _, t) => (scanner.TryCreateSession(out IValueScanSession? _, out CheatEngineFailure f, t), f),
+				static (scanner, _, t) => scanner.CreateSession(t), token),
+			"Scans.GetResultCount" => Run(CreateScanSession(dispatcher, fault, token), 0,
+				static (session, _, t) => (session.TryGetResultCount(out ulong _, out CheatEngineFailure f, t), f),
+				static (session, _, t) => session.GetResultCount(t), token),
 			_ => throw new ArgumentOutOfRangeException(nameof(entryPoint), entryPoint, null)
 		};
 
@@ -334,6 +347,7 @@ public sealed class TryContractTests
 			MemoryClient memory = new(dispatcher, lifetime);
 			PatternScanner patterns = new(dispatcher);
 			UnsafeLuaClient unsafeLua = new(dispatcher, new CoreClientPolicy([], true), lifetime);
+			ValueScanner scans = new(dispatcher);
 			CancellationToken token = TestContext.Current.CancellationToken;
 
 			// No Lua runtime is attached in unit tests: every SDK static below throws InvalidOperationException, and the
@@ -353,15 +367,19 @@ public sealed class TryContractTests
 			// The global route: AobScanner.TryScanOutcome with its target context.
 			Assert.False(patterns.TryScan(Request(), out _, out CheatEngineFailure scanFailure, token));
 			Assert.False(unsafeLua.TryExecute(new LuaScript("return 1"), out CheatEngineFailure luaFailure, token));
+			// MemoryScanSessions.TryCreateWithOutcome, behind the value-scan session factory.
+			Assert.False(scans.TryCreateSession(out IValueScanSession? session, out CheatEngineFailure createFailure,
+				token));
 
 			Assert.Null(lease);
 			Assert.Null(name);
+			Assert.Null(session);
 			Assert.True(bytes.IsEmpty);
 			Assert.Equal(0, detailed.ConfirmedLength);
 			CheatEngineFailure[] failures =
 				[
 					loadFailure, deleteFailure, registerFailure, nameFailure, readFailure, detailed.Failure!.Value,
-					scanFailure
+					scanFailure, createFailure
 				];
 			Assert.All(
 				failures,
@@ -496,6 +514,8 @@ public sealed class TryContractTests
 	[InlineData("LuaPreDispatchCancellation")]
 	[InlineData("ProcessesAttachExactNameCancellation")]
 	[InlineData("LuaModuleRegistrationPreDispatchCancellation")]
+	[InlineData("ValueScansPreDispatchCancellation")]
+	[InlineData("ValueScansInvalidRequest")]
 	public void RefusalBeforeStartReportsNotStarted(string refusal)
 	{
 		CoreLifetime lifetime = InertCoreLifetime.Create();
@@ -538,6 +558,12 @@ public sealed class TryContractTests
 			"LuaModuleRegistrationPreDispatchCancellation" => TryFailure(() =>
 				(new LuaClient(dispatcher, lifetime).TryRegisterModule(new PortBackedModule(ports), out _,
 					out CheatEngineFailure f, cancelled), f)),
+			"ValueScansPreDispatchCancellation" => TryFailure(() =>
+				(new ValueScanner(dispatcher, new FakeValueScanPort()).TryCreateSession(out _,
+					out CheatEngineFailure f, cancelled), f)),
+			"ValueScansInvalidRequest" => TryFailure(() =>
+				(new ValueScanner(dispatcher, new FakeValueScanPort()).CreateSession(token).TryFirstScan(default,
+					out CheatEngineFailure f, token), f)),
 			_ => throw new ArgumentOutOfRangeException(nameof(refusal), refusal, null)
 		};
 
@@ -559,6 +585,7 @@ public sealed class TryContractTests
 	[InlineData("Processes")]
 	[InlineData("Runtime")]
 	[InlineData("LuaModuleRegistration")]
+	[InlineData("ValueScans")]
 	public void ThrowingFormsRaiseTheCancellationExceptionOfTheirTryForm(string family)
 	{
 		CoreLifetime lifetime = InertCoreLifetime.Create();
@@ -573,6 +600,7 @@ public sealed class TryContractTests
 		ProcessClient processes = new(dispatcher, ports, ports, ports, lifetime);
 		RuntimeClient runtime = new(dispatcher, ports, static () => 1);
 		PortBackedModule module = new(ports);
+		ValueScanner scans = new(dispatcher, new FakeValueScanPort());
 		CancellationToken cancelled = new(true);
 
 		(CheatEngineFailure Expected, Action ThrowingForm) scenario = family switch
@@ -600,6 +628,8 @@ public sealed class TryContractTests
 			"LuaModuleRegistration" => (TryFailure(() =>
 					(lua.TryRegisterModule(module, out _, out CheatEngineFailure f, cancelled), f)),
 				() => _ = lua.RegisterModule(module, cancelled)),
+			"ValueScans" => (TryFailure(() => (scans.TryCreateSession(out _, out CheatEngineFailure f, cancelled), f)),
+				() => _ = scans.CreateSession(cancelled)),
 			_ => throw new ArgumentOutOfRangeException(nameof(family), family, null)
 		};
 
@@ -692,6 +722,17 @@ public sealed class TryContractTests
 		(bool succeeded, CheatEngineFailure failure) = attempt();
 		Assert.False(succeeded);
 		return failure;
+	}
+
+	/// <summary>Creates a value-scan session whose results are ready and whose result count throws <paramref name="fault" />.</summary>
+	private static IValueScanSession CreateScanSession(SdkMainThreadDispatcher dispatcher, Exception fault,
+		CancellationToken cancellationToken)
+	{
+		FakeValueScanPort port = new();
+		IValueScanSession session = new ValueScanner(dispatcher, port).CreateSession(cancellationToken);
+		session.FirstScan(ValueScanFirstRequest.Exact(ValueScanValue.FromInt32(1)), cancellationToken);
+		port.Session.CountFault = fault;
+		return session;
 	}
 
 	private static AobScanRequest Request(ModuleName? module = null)

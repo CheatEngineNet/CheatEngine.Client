@@ -86,13 +86,25 @@ public sealed partial class ClientCapabilityCatalogTests
 	}
 
 	[Fact]
-	public void TheContractOnlyCapabilitiesAreValueScanningAllocationsAndAssembly()
+	public void TheContractOnlyCapabilitiesAreAllocationsAndAssembly()
 	{
 		Assert.Equal(
-			[ClientCapabilityId.ValueScanning, ClientCapabilityId.Allocations, ClientCapabilityId.Assembly],
+			[ClientCapabilityId.Allocations, ClientCapabilityId.Assembly],
 			ClientCapabilityCatalog.Entries
 				.Where(static entry => entry.Implementation == CapabilityImplementation.ContractOnly)
 				.Select(static entry => entry.Id));
+	}
+
+	[Fact]
+	public void OnlyOperationalCapabilitiesCanBeExperimentalAndValueScanningIsCeclient5001()
+	{
+		Assert.Equal(
+			[(ClientCapabilityId.ValueScanning, "CECLIENT5001")],
+			ClientCapabilityCatalog.Entries
+				.Where(static entry => entry.ExperimentalDiagnosticId is not null)
+				.Select(static entry => (entry.Id, entry.ExperimentalDiagnosticId!)));
+		Assert.All(ClientCapabilityCatalog.Entries.Where(static entry => entry.ExperimentalDiagnosticId is not null),
+			static entry => Assert.Equal(CapabilityImplementation.Operational, entry.Implementation));
 	}
 
 	[GeneratedRegex(@"^Q\d{2}(\.[a-z])?$", RegexOptions.CultureInvariant, 1000)]

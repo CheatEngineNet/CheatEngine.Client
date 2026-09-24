@@ -57,4 +57,17 @@ if (evidence.EffectiveReasonCode != ClientCapabilityEvidenceReasonCode.Lifetime 
 	return 1;
 }
 
+#pragma warning disable CECLIENT5001 // The probe keeps the experimental value scans in the NativeAOT graph.
+_ = typeof(IValueScanner);
+_ = typeof(IValueScanSession);
+ValueScanFirstRequest firstScan = ValueScanFirstRequest.Exact(ValueScanValue.FromInt32(100))
+	.WithAlignment(ScanAlignment.AlignedTo(4));
+if (firstScan.ValueType != ValueScanValueType.Integer32 || firstScan.Alignment.Divisor != 4 ||
+	ValueScanValue.FromBytes([0x90, 0x0F]).Text != "90 0F" ||
+	new ValueScanPage(0, 2, [new ValueScanMatch(default, "100")]).NextStartIndex != 1)
+{
+	return 1;
+}
+#pragma warning restore CECLIENT5001
+
 return services.Count == 0 ? 1 : 0;

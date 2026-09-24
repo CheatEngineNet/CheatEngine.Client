@@ -2,6 +2,8 @@
 
   <PropertyGroup>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- These tests use the experimental Client value scans (CECLIENT5001); ClientExperimentalDiagnosticsTests allows it under tests/. -->
+    <NoWarn>$(NoWarn);CECLIENT5001</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

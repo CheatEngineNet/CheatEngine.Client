@@ -5,6 +5,8 @@
     <!-- The final plugin executable owns the SDK dynamic-loading bootstrap and runtimeconfig. -->
     <EnableDynamicLoading>false</EnableDynamicLoading>
     <Description>The CheatEngine.SDK-facing implementation of the CheatEngine.Client contracts for an enabled, in-process Cheat Engine plugin. Composed through dependency injection; plugins do not call it directly.</Description>
+    <!-- Core implements the experimental Client APIs (CECLIENT5001 value scans); only Core, DI and tests may suppress them (ClientExperimentalDiagnosticsTests). -->
+    <NoWarn>$(NoWarn);CECLIENT5001</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
