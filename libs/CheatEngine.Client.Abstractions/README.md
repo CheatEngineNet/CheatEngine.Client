@@ -248,9 +248,11 @@ exact host profile of the release; the documentation link of each diagnostic poi
   `targetself`) and returns the lease that owns the disable information Cheat Engine returned. Releasing the lease
   validates that the patch's target is still selected, then runs `[DISABLE]` once with that information. The Client
   never rebuilds a `[DISABLE]` section, and it does not expose the disable information (allocations, registered
-  symbols) itself. A release refused on another target or after a Lua state reset, or a disable Cheat Engine did not
-  confirm, leaves `RequiresManualRecovery` set. The lease is bound to the target selection: selecting another process
-  releases it.
+  symbols) itself. The first release attempt that reaches CheatEngine.SDK consumes that information whatever its
+  result, so it ends the lease: a release refused on another target (`RefusedTargetChanged`), after a Lua runtime
+  detach or state reset or before the disable could begin (`RefusedRuntimeChanged`), or a disable Cheat Engine did not
+  confirm (`CleanupUnconfirmed`) leaves `RequiresManualRecovery` set and is never retried. The lease is bound to the
+  target selection: selecting another process releases it.
 - **Outcomes:** `Applied` returns the lease; `AppliedTargetChanged` returns it with `AppliedAfterTargetChange` set and
   logs warning event 1800 (the patch stays bound to the target observed before the activation); `Rejected` is
   `OperationRejected` with an `Unknown` host effect (a rejected script can have applied part of its effects) and Cheat

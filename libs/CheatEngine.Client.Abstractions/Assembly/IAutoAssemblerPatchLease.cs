@@ -14,11 +14,12 @@ namespace CheatEngine.Client.Assembly;
 ///         The lease holds the only disable information Cheat Engine returned for the patch. The first release attempt
 ///         that reaches Cheat Engine consumes it: CheatEngine.SDK validates that the target the patch was applied to is
 ///         still selected, then runs the script's <c>[DISABLE]</c> section once with that information. A release on
-///         another target is refused (<see cref="LeaseReleaseKind.RefusedTargetChanged" />) without selecting a process,
-///         a release after Cheat Engine replaced its Lua state is refused
-///         (<see cref="LeaseReleaseKind.RefusedRuntimeChanged" />), and a disable that Cheat Engine did not confirm is
-///         <see cref="LeaseReleaseKind.CleanupUnconfirmed" />. In each case the patch may remain in the target and
-///         <see cref="RequiresManualRecovery" /> becomes <see langword="true" />: no later release can disable it.
+///         another target is refused (<see cref="LeaseReleaseKind.RefusedTargetChanged" />) without selecting a process;
+///         a release after Cheat Engine's Lua runtime detached or replaced its Lua state, or one that could not begin
+///         the disable, is refused (<see cref="LeaseReleaseKind.RefusedRuntimeChanged" />); and a disable that Cheat
+///         Engine did not confirm is <see cref="LeaseReleaseKind.CleanupUnconfirmed" />. In each case the attempt ended
+///         the lease, the patch may remain in the target, and <see cref="RequiresManualRecovery" /> becomes
+///         <see langword="true" />: no later release can disable it.
 ///     </para>
 ///     <para>
 ///         The Client never rebuilds a <c>[DISABLE]</c> section, and it does not expose Cheat Engine's disable
@@ -85,8 +86,9 @@ public interface IAutoAssemblerPatchLease : ICheatEngineLease
 	/// </summary>
 	/// <remarks>
 	///     This covers every outcome whose <see cref="LeaseReleaseOutcome.RequiresManualRecovery" /> is
-	///     <see langword="true" />, and also a <see cref="LeaseReleaseKind.CleanupUnavailable" /> attempt that consumed the
-	///     disable information before the disable could begin: retrying such a lease makes no Cheat Engine call.
+	///     <see langword="true" />. A <see cref="LeaseReleaseKind.CleanupUnavailable" /> outcome means that the release
+	///     could not be dispatched to Cheat Engine: the disable information was not consumed, and a later release can
+	///     still run <c>[DISABLE]</c>.
 	/// </remarks>
 	public bool RequiresManualRecovery
 	{

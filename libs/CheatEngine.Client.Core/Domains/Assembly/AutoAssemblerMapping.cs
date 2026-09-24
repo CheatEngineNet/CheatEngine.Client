@@ -69,6 +69,10 @@ namespace CheatEngine.Client.Core.Domains.Assembly;
 ///         <see cref="CheatEngineFailureKind.Unknown" />, each with an unknown effect.
 ///     </para>
 ///     <para>
+///         Release (<see cref="TargetReleaseStatus" /> of the patch owner): <see cref="SdkReleaseOutcomes.FromTarget" />,
+///         except <c>NotInvoked</c>, which is terminal for this owner (see <see cref="ToReleaseOutcome" />).
+///     </para>
+///     <para>
 ///         The host effect of an activation comes from the SDK's own effect state through
 ///         <see cref="HostEffectMapping" />. The mapping-totality tests fail when the consumed SDK adds a category.
 ///     </para>
@@ -161,6 +165,26 @@ internal static class AutoAssemblerMapping
 					CheatEngineHostEffect.Unknown);
 				return false;
 		}
+	}
+
+	/// <summary>Maps the status of the one release attempt of an Auto Assembler patch owner.</summary>
+	/// <param name="status">The status CheatEngine.SDK's <c>AutoAssemblerPatch.ReleaseWithTargetOutcome</c> reported.</param>
+	/// <returns>The Client outcome; <see cref="LeaseReleaseKind.Unknown" /> for an unrecognized value.</returns>
+	/// <remarks>
+	///     Every status follows <see cref="SdkReleaseOutcomes.FromTarget" /> except <c>NotInvoked</c>. The shared mapping
+	///     keeps it retryable (<see cref="LeaseReleaseKind.CleanupUnavailable" />), but CheatEngine.SDK consumes and
+	///     unroots the patch's disable information on that path as well: the Lua runtime detached, the disable reference
+	///     is no longer current in the attached Lua state, Lua admission closed, or <c>autoAssemble</c> could not be
+	///     resolved. No later attempt can run <c>[DISABLE]</c>, and the SDK sets its own <c>RequiresManualRecovery</c>.
+	///     The Client therefore reports <see cref="LeaseReleaseKind.RefusedRuntimeChanged" /> with
+	///     <see cref="CheatEngineHostEffect.NotStarted" />: refused before any Cheat Engine call, never retried, and
+	///     requiring manual recovery.
+	/// </remarks>
+	internal static LeaseReleaseOutcome ToReleaseOutcome(TargetReleaseStatus status)
+	{
+		return status == TargetReleaseStatus.NotInvoked
+			? new LeaseReleaseOutcome(LeaseReleaseKind.RefusedRuntimeChanged, CheatEngineHostEffect.NotStarted)
+			: SdkReleaseOutcomes.FromTarget(status);
 	}
 
 	private static string WithHostText(string message, string? hostText, bool truncated)

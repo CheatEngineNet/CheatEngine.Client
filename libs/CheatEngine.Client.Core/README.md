@@ -109,7 +109,10 @@ of the same Client call is never `NotStarted`.
 options, behind `LuaAdmission`); `AutoAssemblerMapping` maps every SDK outcome category totally.
 The applied patch is handed to `AutoAssemblerPatchLease`, a target-bound `HostResourceLease`
 registered inside the same dispatched callback, which releases through the SDK owner's
-`ReleaseWithTargetOutcome` and never rebuilds a `[DISABLE]` section.
+`ReleaseWithTargetOutcome` and never rebuilds a `[DISABLE]` section. That owner consumes its
+disable information on every release status, so `AutoAssemblerMapping.ToReleaseOutcome` reports
+`NotInvoked` as `RefusedRuntimeChanged` (manual recovery) instead of the shared retryable
+`CleanupUnavailable`.
 
 Core composes nothing for the domains that no CheatEngine.SDK primitive backs (timers, hotkeys, the debugger,
 the speed hack, hashing, DBVM and remote execution): the Client has no contract for them, as the

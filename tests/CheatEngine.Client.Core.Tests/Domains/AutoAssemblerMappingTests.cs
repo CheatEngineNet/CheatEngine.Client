@@ -6,6 +6,7 @@ using CheatEngine.Client.Core.Tests.TestSupport;
 using CheatEngine.Client.Results;
 using CheatEngine.SDK.Engine.Assembly;
 using CheatEngine.SDK.Engine.Objects;
+using CheatEngine.SDK.Engine.Targets;
 using CheatEngine.SDK.Lua.Calls;
 
 namespace CheatEngine.Client.Core.Tests.Domains;
@@ -50,6 +51,52 @@ public sealed class AutoAssemblerMappingTests
 			[AutoAssemblerCheckOutcomeKind.ProtectedLuaFailure] = (null, CheatEngineFailureKind.LuaError),
 			[AutoAssemblerCheckOutcomeKind.InvalidResult] = (null, CheatEngineFailureKind.InvalidHostResult)
 		};
+
+	/// <summary>The Client outcome of each release status of a patch owner.</summary>
+	private static readonly Dictionary<TargetReleaseStatus, LeaseReleaseOutcome> ReleaseOutcomes = new()
+	{
+		[TargetReleaseStatus.Unspecified] = new(LeaseReleaseKind.Unknown, CheatEngineHostEffect.NotStarted),
+		[TargetReleaseStatus.Released] = new(LeaseReleaseKind.Released, CheatEngineHostEffect.Completed),
+		[TargetReleaseStatus.RefusedNoTarget] = new(LeaseReleaseKind.RefusedNoTarget, CheatEngineHostEffect.NotStarted),
+		[TargetReleaseStatus.RefusedIdentityUnavailable] =
+			new(LeaseReleaseKind.RefusedTargetIdentityUnavailable, CheatEngineHostEffect.NotStarted),
+		[TargetReleaseStatus.RefusedTargetChanged] =
+			new(LeaseReleaseKind.RefusedTargetChanged, CheatEngineHostEffect.NotStarted),
+		[TargetReleaseStatus.RefusedProcessReused] =
+			new(LeaseReleaseKind.RefusedTargetChanged, CheatEngineHostEffect.NotStarted),
+		[TargetReleaseStatus.UnconfirmedAfterInvocation] =
+			new(LeaseReleaseKind.CleanupUnconfirmed, CheatEngineHostEffect.Started),
+		// The owner consumed its disable information although the disable could not begin: nothing is left to retry.
+		[TargetReleaseStatus.NotInvoked] = new(LeaseReleaseKind.RefusedRuntimeChanged, CheatEngineHostEffect.NotStarted),
+		[TargetReleaseStatus.RefusedRuntimeChanged] =
+			new(LeaseReleaseKind.RefusedRuntimeChanged, CheatEngineHostEffect.NotStarted)
+	};
+
+	[Fact]
+	[Trait("Qualification", "Q48")]
+	public void EveryReleaseStatusOfAPatchOwnerMapsToItsOutcome()
+	{
+		MappingTotality.AssertTotal<TargetReleaseStatus>(
+			static status => ReleaseOutcomes.TryGetValue(status, out LeaseReleaseOutcome expected) &&
+							 AutoAssemblerMapping.ToReleaseOutcome(status) == expected,
+			static status => AutoAssemblerMapping.ToReleaseOutcome(status) ==
+							 new LeaseReleaseOutcome(LeaseReleaseKind.Unknown, CheatEngineHostEffect.Unknown));
+	}
+
+	[Fact]
+	public void EveryStatusOfAConsumedPatchOwnerEndsTheLease()
+	{
+		// CheatEngine.SDK's own TargetReleaseOutcome.RequiresManualRecovery holds for every status of a consumed owner
+		// except Released; none of them leaves anything to retry.
+		foreach (TargetReleaseStatus status in Enum.GetValues<TargetReleaseStatus>()
+					 .Where(static status => status != TargetReleaseStatus.Unspecified))
+		{
+			LeaseReleaseOutcome outcome = AutoAssemblerMapping.ToReleaseOutcome(status);
+
+			Assert.False(outcome.IsRetryable, $"{status} is retryable.");
+			Assert.Equal(status != TargetReleaseStatus.Released, outcome.RequiresManualRecovery);
+		}
+	}
 
 	[Fact]
 	[Trait("Qualification", "Q48")]

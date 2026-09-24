@@ -14,13 +14,16 @@ namespace CheatEngine.Client.Core.Domains.Assembly;
 ///         The release runs on Cheat Engine's main thread through <see cref="HostResourceLease" /> and calls the SDK
 ///         owner's <c>ReleaseWithTargetOutcome</c> once: the SDK validates the captured target, then runs
 ///         <c>[DISABLE]</c> with the disable information Cheat Engine returned. The Client never rebuilds a
-///         <c>[DISABLE]</c> section. The status is mapped with <see cref="SdkReleaseOutcomes.FromTarget" />.
+///         <c>[DISABLE]</c> section. The status is mapped with <see cref="AutoAssemblerMapping.ToReleaseOutcome" />.
 ///     </para>
 ///     <para>
-///         The SDK consumes the disable information on the first attempt that reaches it, whatever the result. When that
-///         attempt could not begin the disable (<c>NotInvoked</c>, the retryable
-///         <see cref="LeaseReleaseKind.CleanupUnavailable" />), a later attempt makes no Cheat Engine call and reports
-///         the recorded status again, and <see cref="RequiresManualRecovery" /> is <see langword="true" />.
+///         The SDK consumes the disable information on the first attempt that reaches it, whatever the result, so every
+///         outcome of that attempt ends the lease: <see cref="LeaseReleaseKind.Released" />, or a kind that requires
+///         manual recovery. An attempt that could not begin the disable (<c>NotInvoked</c>) is
+///         <see cref="LeaseReleaseKind.RefusedRuntimeChanged" />, never the retryable
+///         <see cref="LeaseReleaseKind.CleanupUnavailable" />, because nothing is left to retry. Only a status this Client
+///         version does not recognize stays retryable; a later attempt then makes no Cheat Engine call and reports the
+///         recorded status again.
 ///     </para>
 /// </remarks>
 internal sealed class AutoAssemblerPatchLease : HostResourceLease, IAutoAssemblerPatchLease
@@ -86,6 +89,6 @@ internal sealed class AutoAssemblerPatchLease : HostResourceLease, IAutoAssemble
 	{
 		// One disable attempt per patch: a consumed owner reports the status of the attempt that consumed it.
 		TargetReleaseStatus status = _patch.IsConsumed ? _patch.LastReleaseStatus : _patch.Release();
-		return SdkReleaseOutcomes.FromTarget(status);
+		return AutoAssemblerMapping.ToReleaseOutcome(status);
 	}
 }

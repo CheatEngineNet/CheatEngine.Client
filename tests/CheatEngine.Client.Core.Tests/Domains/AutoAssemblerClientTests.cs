@@ -335,6 +335,7 @@ public sealed class AutoAssemblerClientTests : IDisposable
 
 	[Theory]
 	[InlineData(TargetReleaseStatus.RefusedRuntimeChanged, LeaseReleaseKind.RefusedRuntimeChanged)]
+	[InlineData(TargetReleaseStatus.NotInvoked, LeaseReleaseKind.RefusedRuntimeChanged)]
 	[InlineData(TargetReleaseStatus.RefusedIdentityUnavailable, LeaseReleaseKind.RefusedTargetIdentityUnavailable)]
 	[InlineData(TargetReleaseStatus.UnconfirmedAfterInvocation, LeaseReleaseKind.CleanupUnconfirmed)]
 	public void AReleaseThatConsumedTheDisableInformationWithoutConfirmationRequiresManualRecovery(
@@ -371,7 +372,7 @@ public sealed class AutoAssemblerClientTests : IDisposable
 	}
 
 	[Fact]
-	public void ADisableThatCouldNotBeginIsReportedAgainWithoutASecondCheatEngineCall()
+	public void ADisableThatCouldNotBeginEndsTheLeaseAndIsReportedForManualRecovery()
 	{
 		AutoAssemblerClient client = CreateClient();
 		IAutoAssemblerPatchLease lease =
@@ -380,14 +381,40 @@ public sealed class AutoAssemblerClientTests : IDisposable
 
 		LeaseReleaseOutcome first = lease.Release();
 		LeaseReleaseOutcome second = lease.Release();
+		Exception? report = ((IOutcomeReportingResource) lease).ReleaseForDeactivation();
 
-		LeaseReleaseOutcome unavailable = new(LeaseReleaseKind.CleanupUnavailable, CheatEngineHostEffect.NotStarted);
-		Assert.Equal(unavailable, first);
-		Assert.Equal(unavailable, second);
-		Assert.False(lease.IsReleased);
+		// CheatEngine.SDK consumed the disable information: nothing is left to retry, so the lease ended.
+		Assert.Equal(new LeaseReleaseOutcome(LeaseReleaseKind.RefusedRuntimeChanged, CheatEngineHostEffect.NotStarted),
+			first);
+		Assert.False(first.IsRetryable);
+		Assert.True(first.RequiresManualRecovery);
+		Assert.Equal(LeaseReleaseKind.AlreadyReleased, second.Kind);
+		Assert.Equal(first, lease.LastReleaseOutcome);
+		Assert.True(lease.IsReleased);
 		Assert.True(lease.RequiresManualRecovery);
 		Assert.False(lease.IsEnabled);
+		Assert.Equal(CheatEngineFailureKind.RuntimeChanged,
+			Assert.IsType<CheatEngineOperationException>(report).Failure.Kind);
 		Assert.Equal(1, _port.Owner.ReleaseCalls);
+	}
+
+	[Fact]
+	public void AReleaseThatCouldNotBeDispatchedKeepsTheDisableInformationForALaterRelease()
+	{
+		AutoAssemblerClient client = CreateClient();
+		IAutoAssemblerPatchLease lease =
+			client.ApplyPatch(new AutoAssemblerScript(Script), TestContext.Current.CancellationToken);
+		_invoker.Refuse = true;
+
+		LeaseReleaseOutcome refused = lease.Release();
+		_invoker.Refuse = false;
+		LeaseReleaseOutcome released = lease.Release();
+
+		Assert.Equal(new LeaseReleaseOutcome(LeaseReleaseKind.CleanupUnavailable, CheatEngineHostEffect.NotStarted),
+			refused);
+		Assert.Equal(LeaseReleaseKind.Released, released.Kind);
+		Assert.False(lease.RequiresManualRecovery);
+		Assert.Equal(1, _port.Owner!.ReleaseCalls);
 	}
 
 	[Fact]
@@ -486,6 +513,13 @@ public sealed class AutoAssemblerClientTests : IDisposable
 
 		internal bool IsInvoking => _depth > 0;
 
+		/// <summary>Gets or sets whether the invoker refuses the work without running it, like a closed dispatch.</summary>
+		internal bool Refuse
+		{
+			get;
+			set;
+		}
+
 		public Exception? Invoke(Action callback)
 		{
 			return Invoke<bool>(() =>
@@ -498,6 +532,12 @@ public sealed class AutoAssemblerClientTests : IDisposable
 		public MainThreadInvocationResult<T> Invoke<T>(Func<T> callback)
 		{
 			Calls++;
+			if (Refuse)
+			{
+				return new MainThreadInvocationResult<T>(default!,
+					new InvalidOperationException("Cheat Engine's main thread refused the work."));
+			}
+
 			_depth++;
 			try
 			{
