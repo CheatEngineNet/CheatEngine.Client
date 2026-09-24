@@ -367,8 +367,10 @@ internal sealed class InspectionClient(
 	/// </summary>
 	/// <remarks>
 	///     The lease joins the activation before the callback returns, so a registration never outlives an activation
-	///     that starts stopping afterwards. When the activation stopped between the dispatch admission and that step, the
-	///     registration has no owner: it is released once, here, and the failure reports what the release established.
+	///     that starts stopping afterwards. When the lease cannot join it (the activation stopped between the dispatch
+	///     admission and that step, or its resources were already drained, which closes the registry with an
+	///     <see cref="ObjectDisposedException" />), the registration has no owner: it is released once, here, and the
+	///     failure reports what the release established.
 	/// </remarks>
 	private RegistrationStep RegisterOnMainThread(SymbolRegistration registration)
 	{
@@ -393,8 +395,9 @@ internal sealed class InspectionClient(
 			lease.Register(_lifetime);
 			return new RegistrationStep(preflight, attempt.Status, lease, null, default);
 		}
-		catch (CheatEngineClientException exception)
+		catch (Exception exception)
 		{
+			// Whatever kept the lease out of the activation, nothing owns the registration: release it once.
 			return new RegistrationStep(preflight, attempt.Status, null, exception,
 				SdkReleaseOutcomes.FromSymbolRegistration(handle.Release()));
 		}
@@ -452,12 +455,15 @@ internal sealed class InspectionClient(
 	/// <param name="Preflight">The collision pre-check status; only <see cref="InspectionStatus.NotFound" /> registers.</param>
 	/// <param name="Status">The registration status CheatEngine.SDK reported, when the registration was attempted.</param>
 	/// <param name="Lease">The lease, registered with the activation, when the registration succeeded.</param>
-	/// <param name="TrackingFault">The lifecycle fault that prevented the activation from owning the lease.</param>
+	/// <param name="TrackingFault">
+	///     The fault that prevented the activation from owning the lease: a lifecycle exception, or the
+	///     <see cref="ObjectDisposedException" /> of a resource registry that was already drained.
+	/// </param>
 	/// <param name="Compensation">The outcome of the one release made after <paramref name="TrackingFault" />.</param>
 	private readonly record struct RegistrationStep(
 		InspectionStatus Preflight,
 		LuaOperationStatus Status,
 		SymbolRegistrationLease? Lease,
-		CheatEngineClientException? TrackingFault,
+		Exception? TrackingFault,
 		LeaseReleaseOutcome Compensation);
 }

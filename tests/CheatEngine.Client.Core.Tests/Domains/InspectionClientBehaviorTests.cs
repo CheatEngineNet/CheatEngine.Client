@@ -549,6 +549,40 @@ public sealed class InspectionClientBehaviorTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q43")]
+	public void ARegistrationWhoseActivationResourcesWereDrainedIsReleasedOnceOnTheMainThread()
+	{
+		// The activation is still current, but its resources were drained before the lease could join them: the
+		// closed registry refuses the lease with an ObjectDisposedException, so nothing would own the registration.
+		using ControlledCoreLifetimeContext context = new();
+		using CoreLifetime lifetime = new(context);
+		FakeInspectionPort port = new()
+		{
+			OnRegister = () =>
+			{
+				using (lifetime.EnterCleanupScope())
+				{
+					lifetime.DrainOwnedResourcesForDisable();
+				}
+			}
+		};
+		InspectionClient client = CreateClient(lifetime, port);
+
+		bool succeeded = client.TryRegisterSymbol(new SymbolRegistration("fixture-symbol", new Address(0x401000)),
+			out ISymbolRegistrationLease? lease, out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Null(lease);
+		Assert.Equal(CheatEngineFailureKind.InvalidState, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.Completed, failure.HostEffect);
+		Assert.Equal("Inspection.RegisterSymbol", failure.Operation);
+		Assert.IsType<ObjectDisposedException>(failure.Exception);
+		Assert.Equal(["fixture-symbol"], port.UnregisteredNames);
+		Assert.Equal(1, port.ReleaseCalls);
+		Assert.False(port.Symbols.ContainsKey("fixture-symbol"));
+	}
+
+	[Fact]
 	public void CancelledInspectionDoesNotContactTheSdkPort()
 	{
 		using ControlledCoreLifetimeContext context = new();
