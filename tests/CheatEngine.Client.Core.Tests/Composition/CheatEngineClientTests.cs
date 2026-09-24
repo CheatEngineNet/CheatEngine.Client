@@ -1,3 +1,5 @@
+#pragma warning disable CECLIENT5003 // The composition tests cover the experimental instruction client property.
+
 using System.Reflection;
 
 using CheatEngine.Client.Allocations;

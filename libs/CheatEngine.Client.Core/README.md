@@ -85,13 +85,21 @@ and fakes; no Client qualification receipt exists yet, so their qualification ga
 token is observed before dispatch or between Client-managed steps, not as an interruption of an
 already-running Lua primitive.
 
-The other domains are contract-only: Core composes an unavailable adapter that refuses every
-operation with `CapabilityUnavailable` and `CheatEngineHostEffect.NotStarted`, without dispatching
-Cheat Engine work, and a capability test keeps them that way on the supported SDK major
-(`_CheatEngineClientSupportedSdkMajor` in `eng/CheatEngineSdk.props`). Their implementation gate
-is `Missing`; their package gate is the same consumed-SDK evidence as every other capability.
+No domain is contract-only any more: every capability composes one operational adapter, and a
+capability test keeps it that way on the supported SDK major (`_CheatEngineClientSupportedSdkMajor`
+in `eng/CheatEngineSdk.props`).
 
-- **Assembly**: Core composes no operational instruction adapter.
+**Instructions** (experimental, `CECLIENT5003`) are operational: the internal `AssemblyClient`
+runs each call in one dispatched callback behind one `LuaAdmission`, observes the instruction
+profile once (`InstructionProfiles.TryObserveCurrent`), refuses an address wider than that profile
+before any instruction function of Cheat Engine is called, and passes the same profile to
+`SdkInstructionPort` (`InstructionAssembler`, `InstructionDisassembler`, `InstructionNavigator` and
+the counted `TargetMemory.TryReadBytes`). Assembly uses a 16-byte buffer bounded by
+`MemoryResourceLimits.MaximumReadBytes`, with one retry at the exact length the SDK reports, and
+refuses an empty result; a disassembly reads its bytes from target memory for the reported length,
+between two SDK target checks, and never parses the disassembler's byte column. `InstructionMapping`
+maps every `InstructionOperationStatus` totally, and a step that follows an earlier instruction call
+of the same Client call is never `NotStarted`.
 
 **Auto Assembler patches** (experimental, `CECLIENT5004`) are operational but opt-in: the internal
 `AutoAssemblerClient` is registered only by `EnableAutoAssemblerPatches()`, which also sets

@@ -1,3 +1,5 @@
+#pragma warning disable CECLIENT5003 // These tests compose the experimental instruction client of ICheatEngineClient.
+
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
@@ -113,24 +115,21 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 	}
 
 	[Fact]
-	[Trait("Qualification", "Q44")]
-	public void AddCheatEngineClientComposesOnlyUnavailableAdaptersForContractOnlyDomains()
+	public void AddCheatEngineClientResolvesTheInstructionClientToTheOperationalAssemblyClientSingleton()
 	{
-		// ADR-09 / A17-20: a contract-only interface is composed with its unavailable adapter, never an operational one.
 		ServiceCollection services = new();
 		services.AddCheatEngineClient();
+		ServiceDescriptor descriptor =
+			Assert.Single(services, static descriptor => descriptor.ServiceType == typeof(IAssemblyClient));
 		AliasRecordingServiceProvider provider = new();
-		Type[] contractOnly = [typeof(IAssemblyClient)];
 
-		foreach (Type serviceType in contractOnly)
-		{
-			ServiceDescriptor descriptor = Assert.Single(services, descriptor => descriptor.ServiceType == serviceType);
-			object implementation = descriptor.ImplementationFactory!(provider);
+		object implementation = descriptor.ImplementationFactory!(provider);
 
-			Assert.Matches(@"^CheatEngine\.Client\.Core\.Domains(\.[A-Za-z]+)?\.Unavailable[A-Za-z]+$",
-				implementation.GetType().FullName!);
-			Assert.IsAssignableFrom(serviceType, implementation);
-		}
+		Assert.Equal(ServiceLifetime.Singleton, descriptor.Lifetime);
+		Assert.IsAssignableFrom<IAssemblyClient>(implementation);
+		Type requested = Assert.Single(provider.RequestedTypes);
+		Assert.Equal("CheatEngine.Client.Core.Domains.Assembly.AssemblyClient", requested.FullName);
+		Assert.DoesNotContain("Unavailable", implementation.GetType().FullName!, StringComparison.Ordinal);
 	}
 
 	[Fact]

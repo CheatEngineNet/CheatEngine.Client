@@ -142,7 +142,12 @@ public interface ICheatEngineClient
 		get;
 	}
 
-	/// <summary>Gets copied assembly, disassembly, and Auto Assembler patch operations.</summary>
+	/// <summary>Gets copied single-instruction assembly, disassembly and length operations.</summary>
+	/// <remarks>
+	///     Experimental (<c>CECLIENT5003</c>). Auto Assembler patches are not part of it: they are applied through
+	///     <c>IAutoAssemblerClient</c>, which only the <c>EnableAutoAssemblerPatches()</c> opt-in registers.
+	/// </remarks>
+	[Experimental("CECLIENT5003", UrlFormat = "https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/libs/CheatEngine.Client.Abstractions/README.md#{0}")]
 	public IAssemblyClient Assembly
 	{
 		get;

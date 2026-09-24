@@ -36,6 +36,8 @@ public sealed partial class OutcomeEnumConventionTests
 	{
 		["CheatEngine.Client.Allocations.AllocationProtection"] =
 			"ReadWrite (0) is the default protection of an allocation request.",
+		["CheatEngine.Client.Assembly.InstructionEncodingPreference"] =
+			"None (0) lets Cheat Engine choose the encoding of an assembled instruction.",
 		["CheatEngine.Client.Inspection.AddressResolutionMode"] =
 			"Default (0) is Cheat Engine's ordinary address resolution.",
 		["CheatEngine.Client.Memory.MemoryStringEncoding"] = "Utf8 (0) is the default encoding of a string request.",

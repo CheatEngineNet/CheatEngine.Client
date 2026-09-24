@@ -39,13 +39,17 @@ _ = typeof(ILuaResultMapper<,>);
 _ = typeof(LuaModuleDescriptor);
 _ = typeof(AotProbeLuaModule);
 _ = AotProbeMapperInvocation.Map<AotProbeScalarMapper>(42);
+#pragma warning disable CECLIENT5003 // The experimental instruction surface stays reachable under NativeAOT.
 _ = typeof(IAssemblyClient);
+_ = typeof(AssemblyInstructionRequest);
+_ = typeof(AssemblyInstructionSnapshot);
+_ = typeof(InstructionEncodingPreference);
+#pragma warning restore CECLIENT5003
 #pragma warning disable CECLIENT5004 // The experimental Auto Assembler surface stays reachable under NativeAOT.
 _ = typeof(IAutoAssemblerClient);
 _ = typeof(IAutoAssemblerPatchLease);
 _ = typeof(AutoAssemblerCheckResult);
 #pragma warning restore CECLIENT5004
-_ = typeof(AssemblyInstructionRequest);
 _ = new AobPattern("90");
 
 const string evidenceReason = "Activation evidence is current.";

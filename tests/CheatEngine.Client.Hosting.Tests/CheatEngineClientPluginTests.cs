@@ -1020,6 +1020,8 @@ public sealed class CheatEngineClientPluginTests
 		public ITableClient Tables => null!;
 		public ILuaClient Lua => null!;
 		public IAllocationClient Allocations => null!;
+#pragma warning disable CECLIENT5003 // The test client implements the experimental instruction property.
 		public IAssemblyClient Assembly => null!;
+#pragma warning restore CECLIENT5003
 	}
 }

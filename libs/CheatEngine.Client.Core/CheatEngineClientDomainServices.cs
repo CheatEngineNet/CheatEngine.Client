@@ -1,3 +1,5 @@
+#pragma warning disable CECLIENT5003 // Core composes the experimental instruction client it serves.
+
 using CheatEngine.Client.Allocations;
 using CheatEngine.Client.Assembly;
 using CheatEngine.Client.Inspection;

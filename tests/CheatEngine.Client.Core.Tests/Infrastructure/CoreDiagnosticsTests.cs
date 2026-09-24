@@ -3,7 +3,6 @@ using System.Text.RegularExpressions;
 
 using CheatEngine.Client.Core.Dispatching;
 using CheatEngine.Client.Core.Domains;
-using CheatEngine.Client.Core.Domains.Assembly;
 using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Core.Tests.TestSupport;
 using CheatEngine.Client.Dispatching;
@@ -67,7 +66,6 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 				nameof(ICoreDiagnostics.RecordActivationNotApplied),
 				nameof(ICoreDiagnostics.SymbolRegistrationRejected), nameof(ICoreDiagnostics.LeaseReleased),
 				nameof(ICoreDiagnostics.PatternScanCompleted), nameof(ICoreDiagnostics.LuaOperationCompleted),
-				nameof(ICoreDiagnostics.CapabilityRefused), nameof(ICoreDiagnostics.CapabilityRefused),
 				nameof(ICoreDiagnostics.CapabilityRefused),
 				nameof(ICoreDiagnostics.CoreResourceCleanupFailed)
 			],
@@ -113,11 +111,7 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 		Assert.Equal(
 			[
 				Fields(ClientCapabilityId.UnsafeLuaExecution.Value, "Lua.ExecuteUnsafe",
-					ClientCapabilityEvidenceReasonCode.Policy, ClientCapabilityEvidenceState.Missing),
-				Fields(ClientCapabilityId.Assembly.Value, "Assembly.GetInstructionSize",
-					ClientCapabilityEvidenceReasonCode.Implementation, ClientCapabilityEvidenceState.Missing),
-				Fields(ClientCapabilityId.Assembly.Value, "Assembly.GetInstructionSize",
-					ClientCapabilityEvidenceReasonCode.Implementation, ClientCapabilityEvidenceState.Missing)
+					ClientCapabilityEvidenceReasonCode.Policy, ClientCapabilityEvidenceState.Missing)
 			],
 			diagnostics.All(nameof(ICoreDiagnostics.CapabilityRefused)));
 		Assert.Equal(Fields(nameof(ThrowingDisposable), typeof(InvalidOperationException).FullName),
@@ -172,8 +166,8 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 		IReadOnlyList<string> withThrowingDiagnostics = RunScenario(throwing, throwingTracker);
 
 		Assert.Equal(withoutDiagnostics, withThrowingDiagnostics);
-		Assert.Equal(16, throwing.Emissions.Count);
-		Assert.Contains("Assembly.GetInstructionSize:False:CapabilityUnavailable", withThrowingDiagnostics);
+		Assert.Equal(14, throwing.Emissions.Count);
+		Assert.Contains("Lua.ExecuteUnsafe:False:CapabilityUnavailable", withThrowingDiagnostics);
 		Assert.Contains("Cleanup:InvalidOperationException", withThrowingDiagnostics);
 	}
 
@@ -272,12 +266,6 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 		UnsafeLuaClient unsafeLua = new(dispatcher, new CoreClientPolicy([_root], false), lifetime);
 		outcomes.Add(Describe("Lua.ExecuteUnsafe",
 			unsafeLua.TryExecute(new LuaScript(SensitiveScript), out failure, cancellationToken), failure));
-
-		UnavailableAssemblyClient assembly = new(lifetime);
-		outcomes.Add(Describe("Assembly.GetInstructionSize",
-			assembly.TryGetInstructionSize(new Address(0x1000), out _, out failure, cancellationToken), failure));
-		outcomes.Add(Describe("Assembly.GetInstructionSize",
-			assembly.TryGetInstructionSize(new Address(0x1000), out _, out failure, cancellationToken), failure));
 
 		lifetime.Track(new ThrowingDisposable());
 		Exception cleanup = Assert.ThrowsAny<Exception>(lifetime.Dispose);

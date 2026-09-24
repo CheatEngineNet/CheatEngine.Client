@@ -46,6 +46,10 @@ public readonly struct ClientCapabilityId : IEquatable<ClientCapabilityId>
 	public static ClientCapabilityId Allocations => new("Client.Allocations");
 
 	/// <summary>Gets the Client capability for instruction assembly and disassembly.</summary>
+	/// <remarks>
+	///     The identifier is stable, but the instruction client it describes (<c>ICheatEngineClient.Assembly</c>) is
+	///     experimental (<c>CECLIENT5003</c>).
+	/// </remarks>
 	public static ClientCapabilityId Assembly => new("Client.Assembly");
 
 	/// <summary>Gets the Client capability for explicitly opted-in Auto Assembler patches.</summary>

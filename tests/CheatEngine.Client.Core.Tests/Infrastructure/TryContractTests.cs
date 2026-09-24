@@ -1,3 +1,4 @@
+#pragma warning disable CECLIENT5003 // The Try contract covers the experimental instruction family.
 #pragma warning disable CECLIENT5004 // The Try contract covers the experimental Auto Assembler family.
 
 using System.Collections.Immutable;
@@ -60,12 +61,12 @@ public sealed class TryContractTests
 		"LuaTypedOperation",
 		"LuaModuleRegistration",
 		"UnsafeLua",
-		"UnavailableCapability",
 		"Processes",
 		"Runtime",
 		"ValueScans",
 		"Allocations",
-		"AutoAssembler"
+		"AutoAssembler",
+		"Instructions"
 	};
 
 	public static TheoryData<string, string> SdkFaultCases
@@ -134,7 +135,11 @@ public sealed class TryContractTests
 		"Scans.GetResultCount",
 		"Allocations.Allocate",
 		"AutoAssembler.ApplyPatch",
-		"AutoAssembler.Check"
+		"AutoAssembler.Check",
+		"Assembly.Assemble",
+		"Assembly.Disassemble",
+		"Assembly.GetInstructionLength",
+		"Assembly.GetPreviousInstruction"
 	];
 
 	[Theory]
@@ -172,8 +177,6 @@ public sealed class TryContractTests
 				.TryRegisterModule(new PortBackedModule(ports), out _, out _, cancelled),
 			"UnsafeLua" => () => new UnsafeLuaClient(dispatcher, policy, lifetime)
 				.TryExecute(new LuaScript("return 1"), out _, cancelled),
-			"UnavailableCapability" => () => new UnavailableAssemblyClient(lifetime)
-				.TryDisassemble(Target, out _, out _, cancelled),
 			"Processes" => () => new ProcessClient(dispatcher, ports, ports, ports, lifetime)
 				.TryGetCurrent(out _, out _, cancelled),
 			"Runtime" => () => new RuntimeClient(dispatcher, ports, static () => 1).TryGetSnapshot(out _, out _, cancelled),
@@ -183,6 +186,8 @@ public sealed class TryContractTests
 				.TryAllocate(new AllocationRequest(4096), out _, out _, cancelled),
 			"AutoAssembler" => () => new AutoAssemblerClient(dispatcher, AutoAssemblerPolicy(), lifetime, ports)
 				.TryApplyPatch(new AutoAssemblerScript("[ENABLE]"), out _, out _, cancelled),
+			"Instructions" => () => new AssemblyClient(dispatcher, lifetime, new MemoryResourceLimits(), ports)
+				.TryDisassemble(Target, out _, out _, cancelled),
 			_ => throw new ArgumentOutOfRangeException(nameof(family), family, null)
 		};
 
@@ -327,6 +332,24 @@ public sealed class TryContractTests
 				new AutoAssemblerScript("[ENABLE]"),
 				static (client, script, t) => (client.TryCheck(script, out _, out CheatEngineFailure f, t), f),
 				static (client, script, t) => client.Check(script, t), token),
+			"Assembly.Assemble" => Run(new AssemblyClient(dispatcher, lifetime, new MemoryResourceLimits(), ports),
+				new AssemblyInstructionRequest(Target, "nop"),
+				static (client, request, t) => (client.TryAssemble(request, out _, out CheatEngineFailure f, t), f),
+				static (client, request, t) => client.Assemble(request, t), token),
+			"Assembly.Disassemble" => Run(new AssemblyClient(dispatcher, lifetime, new MemoryResourceLimits(), ports),
+				Target,
+				static (client, address, t) => (client.TryDisassemble(address, out _, out CheatEngineFailure f, t), f),
+				static (client, address, t) => client.Disassemble(address, t), token),
+			"Assembly.GetInstructionLength" => Run(
+				new AssemblyClient(dispatcher, lifetime, new MemoryResourceLimits(), ports), Target,
+				static (client, address, t) =>
+					(client.TryGetInstructionLength(address, out _, out CheatEngineFailure f, t), f),
+				static (client, address, t) => client.GetInstructionLength(address, t), token),
+			"Assembly.GetPreviousInstruction" => Run(
+				new AssemblyClient(dispatcher, lifetime, new MemoryResourceLimits(), ports), Target,
+				static (client, address, t) =>
+					(client.TryGetPreviousInstruction(address, out _, out CheatEngineFailure f, t), f),
+				static (client, address, t) => client.GetPreviousInstruction(address, t), token),
 			_ => throw new ArgumentOutOfRangeException(nameof(entryPoint), entryPoint, null)
 		};
 
@@ -419,6 +442,7 @@ public sealed class TryContractTests
 			ValueScanner scans = new(dispatcher, Binder(dispatcher));
 			AllocationClient allocations = new(dispatcher, Binder(dispatcher));
 			AutoAssemblerClient autoAssembler = new(dispatcher, AutoAssemblerPolicy(), lifetime);
+			AssemblyClient instructions = new(dispatcher, lifetime, new MemoryResourceLimits());
 			CancellationToken token = TestContext.Current.CancellationToken;
 
 			// No Lua runtime is attached in unit tests: every SDK static below throws InvalidOperationException, and the
@@ -448,6 +472,10 @@ public sealed class TryContractTests
 				out CheatEngineFailure applyFailure, token));
 			Assert.False(autoAssembler.TryCheck(new AutoAssemblerScript("[ENABLE]"), out _,
 				out CheatEngineFailure checkFailure, token));
+			Assert.False(instructions.TryAssemble(new AssemblyInstructionRequest(Target, "nop"),
+				out ImmutableArray<byte> assembled, out CheatEngineFailure assembleFailure, token));
+			Assert.False(instructions.TryDisassemble(Target, out AssemblyInstructionSnapshot disassembled,
+				out CheatEngineFailure disassembleFailure, token));
 
 			Assert.Null(lease);
 			Assert.Null(name);
@@ -487,6 +515,20 @@ public sealed class TryContractTests
 				});
 			Assert.Equal(["AutoAssembler.ApplyPatch", "AutoAssembler.Check"],
 				autoAssemblerFailures.Select(static failure => failure.Operation));
+			// The instruction port asks for one admission before the profile observation and every instruction call.
+			Assert.True(assembled.IsDefault);
+			Assert.Equal(default, disassembled);
+			CheatEngineFailure[] instructionFailures = [assembleFailure, disassembleFailure];
+			Assert.All(
+				instructionFailures,
+				static failure =>
+				{
+					Assert.Null(failure.Exception);
+					Assert.Equal(CheatEngineFailureKind.ActivationExpired, failure.Kind);
+					Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
+				});
+			Assert.Equal(["Assembly.Assemble", "Assembly.Disassemble"],
+				instructionFailures.Select(static failure => failure.Operation));
 		}
 		finally
 		{
@@ -602,7 +644,6 @@ public sealed class TryContractTests
 	[InlineData("MemoryBytesDetailedBudget")]
 	[InlineData("TablesPolicy")]
 	[InlineData("UnsafeLuaPolicy")]
-	[InlineData("UnavailableCapability")]
 	[InlineData("LuaPreDispatchCancellation")]
 	[InlineData("ProcessesAttachExactNameCancellation")]
 	[InlineData("LuaModuleRegistrationPreDispatchCancellation")]
@@ -612,6 +653,7 @@ public sealed class TryContractTests
 	[InlineData("AllocationsInvalidRequest")]
 	[InlineData("AutoAssemblerPolicy")]
 	[InlineData("AutoAssemblerPreDispatchCancellation")]
+	[InlineData("InstructionsPreDispatchCancellation")]
 	public void RefusalBeforeStartReportsNotStarted(string refusal)
 	{
 		CoreLifetime lifetime = InertCoreLifetime.Create();
@@ -642,9 +684,6 @@ public sealed class TryContractTests
 			"UnsafeLuaPolicy" => TryFailure(() =>
 				(new UnsafeLuaClient(dispatcher, new CoreClientPolicy([], false), lifetime)
 					.TryExecute(new LuaScript("return 1"), out CheatEngineFailure f, token), f)),
-			"UnavailableCapability" => TryFailure(() =>
-				(new UnavailableAssemblyClient(lifetime).TryDisassemble(Target, out _, out CheatEngineFailure f, token),
-					f)),
 			"LuaPreDispatchCancellation" => TryFailure(() =>
 				(new LuaClient(dispatcher, lifetime).TryExecute<ConstantOperation, int>(new ConstantOperation(), out _,
 					out CheatEngineFailure f, cancelled), f)),
@@ -672,6 +711,10 @@ public sealed class TryContractTests
 			"AutoAssemblerPreDispatchCancellation" => TryFailure(() =>
 				(new AutoAssemblerClient(dispatcher, AutoAssemblerPolicy(), lifetime, ports)
 					.TryCheck(new AutoAssemblerScript("[ENABLE]"), out _, out CheatEngineFailure f, cancelled), f)),
+			"InstructionsPreDispatchCancellation" => TryFailure(() =>
+				(new AssemblyClient(dispatcher, lifetime, new MemoryResourceLimits(), ports)
+					.TryAssemble(new AssemblyInstructionRequest(Target, "nop"), out _, out CheatEngineFailure f,
+						cancelled), f)),
 			_ => throw new ArgumentOutOfRangeException(nameof(refusal), refusal, null)
 		};
 
@@ -695,6 +738,7 @@ public sealed class TryContractTests
 	[InlineData("LuaModuleRegistration")]
 	[InlineData("ValueScans")]
 	[InlineData("Allocations")]
+	[InlineData("Instructions")]
 	public void ThrowingFormsRaiseTheCancellationExceptionOfTheirTryForm(string family)
 	{
 		CoreLifetime lifetime = InertCoreLifetime.Create();
@@ -711,6 +755,7 @@ public sealed class TryContractTests
 		PortBackedModule module = new(ports);
 		ValueScanner scans = new(dispatcher, processes, new FakeValueScanPort());
 		AllocationClient allocations = new(dispatcher, processes, new FakeAllocationPort());
+		AssemblyClient instructions = new(dispatcher, lifetime, new MemoryResourceLimits(), ports);
 		CancellationToken cancelled = new(true);
 
 		(CheatEngineFailure Expected, Action ThrowingForm) scenario = family switch
@@ -743,6 +788,8 @@ public sealed class TryContractTests
 			"Allocations" => (TryFailure(() => (allocations.TryAllocate(new AllocationRequest(4096), out _,
 					out CheatEngineFailure f, cancelled), f)),
 				() => _ = allocations.Allocate(new AllocationRequest(4096), cancelled)),
+			"Instructions" => (TryFailure(() => (instructions.TryGetInstructionLength(Target, out _,
+				out CheatEngineFailure f, cancelled), f)), () => _ = instructions.GetInstructionLength(Target, cancelled)),
 			_ => throw new ArgumentOutOfRangeException(nameof(family), family, null)
 		};
 
@@ -888,7 +935,7 @@ public sealed class TryContractTests
 	/// <summary>One fake for every Core port; each call throws the configured SDK fault unless configured otherwise.</summary>
 	private sealed class ThrowingPorts(Exception fault)
 		: IAobScanPort, IInspectionPort, ITableRecordLookupPort, ITableRecordMutationPort, IMemoryCodecContextPort,
-			IRuntimeObservationPort, IProcessSelectionPort, IProcessHost, IAutoAssemblerPort
+			IRuntimeObservationPort, IProcessSelectionPort, IProcessHost, IAutoAssemblerPort, IInstructionPort
 	{
 		private int _writes;
 
@@ -1215,6 +1262,44 @@ public sealed class TryContractTests
 
 		public bool TryCheck(string operation, string script, AutoAssemblerOptions options,
 			out AutoAssemblerCheckFacts facts, out CheatEngineFailure admissionFailure)
+		{
+			throw Fault();
+		}
+
+		public bool TryRunAdmitted(string operation, Action work, out CheatEngineFailure admissionFailure)
+		{
+			// The fake admits every call; the fault comes from the first instruction call inside it.
+			admissionFailure = default;
+			work();
+			return true;
+		}
+
+		public InstructionOperationStatus ObserveProfile(out InstructionProfileObservation profile)
+		{
+			throw Fault();
+		}
+
+		public InstructionOperationStatus Assemble(InstructionProfileObservation profile, string instruction,
+			Address address, AssemblePreference preference, bool skipRangeCheck, Span<byte> destination,
+			out int written, out int requiredLength)
+		{
+			throw Fault();
+		}
+
+		public InstructionOperationStatus Disassemble(InstructionProfileObservation profile, Address address,
+			int maximumUtf8Bytes, out InstructionDisassembly disassembly)
+		{
+			throw Fault();
+		}
+
+		public InstructionOperationStatus GetLength(InstructionProfileObservation profile, Address address,
+			out int length)
+		{
+			throw Fault();
+		}
+
+		public InstructionOperationStatus GetPrevious(InstructionProfileObservation profile, Address address,
+			out Address previous)
 		{
 			throw Fault();
 		}

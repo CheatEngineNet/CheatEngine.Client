@@ -343,6 +343,25 @@ internal static class SdkApiUsage
 		_ = release.Status;
 	}
 
+	internal static void InstructionSurface(InstructionTargetProfile target, InstructionAssembly assembly,
+		InstructionDisassembly disassembly)
+	{
+		_ = InstructionProfiles.TryObserveCurrent(out _);
+		_ = target.Target;
+		_ = target.Profile.Architecture;
+		_ = target.Profile.AddressWidth;
+		_ = InstructionAssembler.TryAssemble(target, "nop", Address.Zero, AssemblePreference.None, false,
+			Span<byte>.Empty, out _);
+		_ = assembly.Written;
+		_ = assembly.RequiredLength;
+		_ = InstructionDisassembler.TryDisassemble(target, Address.Zero, 1, out _, out _);
+		_ = disassembly.AddressText;
+		_ = disassembly.Opcode;
+		_ = disassembly.Extra;
+		_ = InstructionNavigator.TryGetLength(target, Address.Zero, out _);
+		_ = InstructionNavigator.TryGetPrevious(target, Address.Zero, out _);
+	}
+
 	internal static void LuaSurface(LuaState state, LuaStatus status)
 	{
 		LuaError error = LuaError.FromStack(state, status);

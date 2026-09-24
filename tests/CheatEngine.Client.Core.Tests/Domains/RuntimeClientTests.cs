@@ -440,18 +440,20 @@ public sealed class RuntimeClientTests
 			out ClientCapabilityAvailability unsafeLua));
 		Assert.Equal(ClientCapabilityAvailabilityState.Unavailable, unsafeLua.State);
 
-		ClientCapabilityId[] contractOnlyCapabilities =
-		[
-			ClientCapabilityId.Assembly
-		];
-		foreach (ClientCapabilityId capability in contractOnlyCapabilities)
+		// Instruction assembly is experimental too: implemented, with a qualification gate unknown until Q32.
+		Assert.True(snapshot.Capabilities.TryGet(ClientCapabilityId.Assembly,
+			out ClientCapabilityAvailability assembly));
+		Assert.Equal(ClientCapabilityAvailabilityState.Unknown, assembly.State);
+		Assert.Equal(ClientCapabilityEvidenceState.Satisfied, assembly.Evidence.Implementation.State);
+		Assert.Equal(RuntimeClient.ExperimentalImplementationReason("CECLIENT5003"),
+			assembly.Evidence.Implementation.Reason);
+		Assert.Equal(ClientCapabilityEvidenceState.Unknown, assembly.Evidence.LiveQualification.State);
+		// No capability is contract-only: every implementation gate is satisfied, and none is available yet.
+		Assert.All(snapshot.Capabilities.Entries.ToArray(), static availability =>
 		{
-			Assert.True(snapshot.Capabilities.TryGet(capability, out ClientCapabilityAvailability availability));
-			Assert.Equal(ClientCapabilityAvailabilityState.Unavailable, availability.State);
+			Assert.Equal(ClientCapabilityEvidenceState.Satisfied, availability.Evidence.Implementation.State);
 			Assert.False(availability.IsAvailable);
-			Assert.Equal(ClientCapabilityEvidenceState.Missing, availability.Evidence.Implementation.State);
-			Assert.Equal(ClientCapabilityEvidenceState.Unknown, availability.Evidence.Package.State);
-		}
+		});
 	}
 
 	/// <summary>
@@ -682,39 +684,6 @@ public sealed class RuntimeClientTests
 			current.LoadedInformationalVersion);
 	}
 
-	[Theory]
-	[Trait("Qualification", "Q44")]
-	[InlineData(nameof(ClientCapabilityId.Assembly))]
-	public void ContractOnlyCapabilitiesAreRefusedByTheImplementationGateWithAPackageGateFromEvidence(string name)
-	{
-		// ADR-10: the package gate states what the evidence shows about the consumed package, never a claim about what
-		// an SDK version provides; the contract-only implementation gate alone keeps the capability unavailable.
-		ClientCapabilityId capability = ContractOnlyCapability(name);
-		ConsumedSdkIdentity differentPackage = new(SdkVersion, SdkCommit, SdkContentHash, SdkSupportedMajor,
-			OtherSdkInformationalVersion);
-
-		ClientCapabilityAvailability matching = GetClientCapability(MatchingIdentity(), capability);
-		ClientCapabilityAvailability different = GetClientCapability(differentPackage, capability);
-		ClientCapabilityAvailability notEmbedded = GetClientCapability(ConsumedSdkIdentity.NotEmbedded, capability);
-
-		ClientCapabilityAvailability[] availabilities = [matching, different, notEmbedded];
-		foreach (ClientCapabilityAvailability availability in availabilities)
-		{
-			Assert.Equal(ClientCapabilityAvailabilityState.Unavailable, availability.State);
-			Assert.False(availability.IsAvailable);
-			Assert.Equal(ClientCapabilityEvidenceState.Missing, availability.Evidence.Implementation.State);
-			Assert.Equal(RuntimeClient.ContractOnlyReason, availability.Evidence.Implementation.Reason);
-			Assert.Equal(RuntimeClient.ContractOnlyReason, availability.Reason);
-		}
-
-		Assert.Equal(MatchingIdentity().PackageGate, matching.Evidence.Package);
-		Assert.Equal(ClientCapabilityEvidenceState.Satisfied, matching.Evidence.Package.State);
-		Assert.Equal(differentPackage.PackageGate, different.Evidence.Package);
-		Assert.Equal(ClientCapabilityEvidenceState.Missing, different.Evidence.Package.State);
-		Assert.Equal(ConsumedSdkIdentity.NotEmbedded.PackageGate, notEmbedded.Evidence.Package);
-		Assert.Equal(ClientCapabilityEvidenceState.Unknown, notEmbedded.Evidence.Package.State);
-	}
-
 	[Fact]
 	[Trait("Qualification", "Q44")]
 	public void NoCapabilityIsAvailableWithoutEverySixGates()
@@ -818,17 +787,8 @@ public sealed class RuntimeClientTests
 		ClientCapabilityId.ProcessSelection, ClientCapabilityId.TypedMemory, ClientCapabilityId.PatternScanning,
 		ClientCapabilityId.ValueScanning, ClientCapabilityId.Inspection, ClientCapabilityId.Tables,
 		ClientCapabilityId.ProtectedLua, ClientCapabilityId.UnsafeLuaExecution, ClientCapabilityId.Allocations,
-		ClientCapabilityId.AutoAssemblerPatches
+		ClientCapabilityId.Assembly, ClientCapabilityId.AutoAssemblerPatches
 	];
-
-	private static ClientCapabilityId ContractOnlyCapability(string name)
-	{
-		return name switch
-		{
-			nameof(ClientCapabilityId.Assembly) => ClientCapabilityId.Assembly,
-			_ => throw new ArgumentOutOfRangeException(nameof(name), name, null)
-		};
-	}
 
 	private static ConsumedSdkIdentity MatchingIdentity()
 	{

@@ -1,3 +1,5 @@
+#pragma warning disable CECLIENT5003 // DI composes the experimental instruction client of ICheatEngineClient.
+
 using CheatEngine.Client.Allocations;
 using CheatEngine.Client.Assembly;
 using CheatEngine.Client.Core;
@@ -154,8 +156,21 @@ public static class CheatEngineClientServiceCollectionExtensions
 				serviceProvider.GetRequiredService<ProcessClient>()));
 		services.TryAddSingleton<IAllocationClient>(static serviceProvider =>
 			serviceProvider.GetRequiredService<AllocationClient>());
+
+		services.TryAddSingleton<AssemblyClient>(static serviceProvider =>
+		{
+			CheatEngineClientOptions options =
+				serviceProvider.GetRequiredService<IOptions<CheatEngineClientOptions>>().Value;
+			MemoryResourceLimits limits = options.MemoryResourceLimits
+										  ?? throw new InvalidOperationException(
+											  "MemoryResourceLimits must be validated before the Client instruction service is created.");
+			return new AssemblyClient(
+				serviceProvider.GetRequiredService<SdkMainThreadDispatcher>(),
+				serviceProvider.GetRequiredService<CoreLifetime>(),
+				limits);
+		});
 		services.TryAddSingleton<IAssemblyClient>(static serviceProvider =>
-			new UnavailableAssemblyClient(serviceProvider.GetRequiredService<CoreLifetime>()));
+			serviceProvider.GetRequiredService<AssemblyClient>());
 
 		services.TryAddSingleton<InspectionClient>(static serviceProvider =>
 			new InspectionClient(

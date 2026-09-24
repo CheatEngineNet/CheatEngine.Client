@@ -1,6 +1,7 @@
+using System.Reflection;
 using System.Reflection.Metadata;
 
-using CheatEngine.Client.Assembly;
+using CheatEngine.Client.Runtime;
 using CheatEngine.Client.Tests.Infrastructure;
 
 namespace CheatEngine.Client.Tests.Architecture;
@@ -8,8 +9,8 @@ namespace CheatEngine.Client.Tests.Architecture;
 /// <summary>
 ///     C0 capability ratchets (audit ADR-09, ADR-09a, A17-19, A17-20, SRC02-08): runtime and target observations call
 ///     only read-only CheatEngine.SDK operations, the one selection call is reachable only from
-///     <c>ProcessClient.TryAttach</c>, and contract-only domains stay unavailable on the CheatEngine.SDK major the Client
-///     supports (<c>_CheatEngineClientSupportedSdkMajor</c> in <c>eng/CheatEngineSdk.props</c>).
+///     <c>ProcessClient.TryAttach</c>, and every capability has one operational adapter on the CheatEngine.SDK major the
+///     Client supports (<c>_CheatEngineClientSupportedSdkMajor</c> in <c>eng/CheatEngineSdk.props</c>).
 /// </summary>
 /// <remarks>Everything is read from the compiled Client assemblies; no Client code runs.</remarks>
 public sealed class CapabilityRatchetTests
@@ -77,6 +78,33 @@ public sealed class CapabilityRatchetTests
 		ObservationPortType,
 		"CheatEngine.Client.Core.Domains.TargetArchitectureObserver",
 		"CheatEngine.Client.Core.Infrastructure.ConsumedSdkIdentity"
+	];
+
+	/// <summary>
+	///     The public client interface of every <c>ClientCapabilityId</c> and the one Core adapter that serves it (plan
+	///     L18: no capability is contract-only). Names, not types, so the experimental interfaces need no suppression.
+	/// </summary>
+	private static readonly (string Capability, string Contract, string Adapter)[] CapabilityAdapters =
+	[
+		("ProcessSelection", "CheatEngine.Client.Processes.IProcessClient",
+			"CheatEngine.Client.Core.Domains.ProcessClient"),
+		("TypedMemory", "CheatEngine.Client.Memory.IMemoryClient", "CheatEngine.Client.Core.Domains.MemoryClient"),
+		("PatternScanning", "CheatEngine.Client.Scanning.IPatternScanner",
+			"CheatEngine.Client.Core.Domains.PatternScanner"),
+		("ValueScanning", "CheatEngine.Client.Scanning.IValueScanner",
+			"CheatEngine.Client.Core.Domains.ValueScanning.ValueScanner"),
+		("Inspection", "CheatEngine.Client.Inspection.IInspectionClient",
+			"CheatEngine.Client.Core.Domains.InspectionClient"),
+		("Tables", "CheatEngine.Client.Tables.ITableClient", "CheatEngine.Client.Core.Domains.TableClient"),
+		("ProtectedLua", "CheatEngine.Client.Lua.ILuaClient", "CheatEngine.Client.Core.Domains.LuaClient"),
+		("UnsafeLuaExecution", "CheatEngine.Client.Lua.IUnsafeLuaClient",
+			"CheatEngine.Client.Core.Domains.UnsafeLuaClient"),
+		("Allocations", "CheatEngine.Client.Allocations.IAllocationClient",
+			"CheatEngine.Client.Core.Domains.Allocations.AllocationClient"),
+		("Assembly", "CheatEngine.Client.Assembly.IAssemblyClient",
+			"CheatEngine.Client.Core.Domains.Assembly.AssemblyClient"),
+		("AutoAssemblerPatches", "CheatEngine.Client.Assembly.IAutoAssemblerClient",
+			"CheatEngine.Client.Core.Domains.Assembly.AutoAssemblerClient")
 	];
 
 	[Fact]
@@ -180,25 +208,42 @@ public sealed class CapabilityRatchetTests
 
 	[Fact]
 	[Trait("Qualification", "Q44")]
-	public void ContractOnlyDomainsHaveNoOperationalImplementationOnTheSupportedSdkMajor()
+	public void EveryCapabilityHasAnOperationalAdapter()
 	{
-		// SRC02-08: an Assembly folder never activates the capability; composing an operational adapter for it must
-		// update this test deliberately, together with the capability gates it locks. The allocations became an
-		// operational experimental adapter (CECLIENT5002) in plan L16.
-		Type[] implementations = ClientAssemblyCatalog.LoadAll()
-			.SelectMany(static assembly => assembly.GetTypes())
-			.Where(static type => type is { IsInterface: false, IsAbstract: false } &&
-								  typeof(IAssemblyClient).IsAssignableFrom(type))
-			.ToArray();
+		// SRC02-08, plan L18: on the supported CheatEngine.SDK major every capability's client interface has exactly
+		// one implementation, its operational Core adapter, and no Client assembly keeps an Unavailable* placeholder
+		// that refuses every operation. Making a domain contract-only again must update this test deliberately,
+		// together with the catalog's implementation gate and the capability tables.
+		Type[] types = [.. ClientAssemblyCatalog.LoadAll().SelectMany(static assembly => assembly.GetTypes())];
+		Type[] concrete = [.. types.Where(static type => type is { IsInterface: false, IsAbstract: false })];
+		string[] capabilities =
+		[
+			.. typeof(ClientCapabilityId).GetProperties(BindingFlags.Public | BindingFlags.Static)
+				.Where(static property => property.PropertyType == typeof(ClientCapabilityId))
+				.Select(static property => property.Name)
+				.Order(StringComparer.Ordinal)
+		];
 		int referencedSdkMajor = ClientAssemblyCatalog.Load(CoreAssembly).GetReferencedAssemblies()
 			.Single(static name => name.Name == "CheatEngine.SDK.Engine").Version!.Major;
 
 		Assert.Equal(SdkPin.SupportedMajor, referencedSdkMajor);
-		Assert.Equal(
+		Assert.Equal(capabilities,
+			CapabilityAdapters.Select(static adapter => adapter.Capability).Order(StringComparer.Ordinal));
+		foreach ((string capability, string contract, string adapter) in CapabilityAdapters)
+		{
+			Type contractType = Assert.Single(types, type => type.FullName == contract);
+			string[] implementations =
 			[
-				"CheatEngine.Client.Core.Domains.Assembly.UnavailableAssemblyClient"
-			],
-			implementations.Select(static type => type.FullName!).Order(StringComparer.Ordinal));
+				.. concrete.Where(type => contractType.IsAssignableFrom(type))
+					.Select(static type => type.FullName!)
+					.Order(StringComparer.Ordinal)
+			];
+			Assert.True(implementations.SequenceEqual([adapter], StringComparer.Ordinal),
+				$"{capability}: {contract} must be implemented only by its operational adapter {adapter}, not by " +
+				$"[{string.Join(", ", implementations)}].");
+		}
+
+		Assert.DoesNotContain(concrete, static type => type.Name.StartsWith("Unavailable", StringComparison.Ordinal));
 	}
 
 	/// <summary>Returns every reference from a Core method body to a CheatEngine.SDK member.</summary>

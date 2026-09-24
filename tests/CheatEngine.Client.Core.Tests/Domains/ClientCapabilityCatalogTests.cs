@@ -104,13 +104,11 @@ public sealed partial class ClientCapabilityCatalogTests
 	}
 
 	[Fact]
-	public void TheContractOnlyCapabilityIsAssembly()
+	public void NoCapabilityIsContractOnly()
 	{
-		Assert.Equal(
-			[ClientCapabilityId.Assembly],
-			ClientCapabilityCatalog.Entries
-				.Where(static entry => entry.Implementation == CapabilityImplementation.ContractOnly)
-				.Select(static entry => entry.Id));
+		Assert.Empty(ClientCapabilityCatalog.Entries
+			.Where(static entry => entry.Implementation == CapabilityImplementation.ContractOnly)
+			.Select(static entry => entry.Id));
 	}
 
 	[Fact]
@@ -119,7 +117,7 @@ public sealed partial class ClientCapabilityCatalogTests
 		Assert.Equal(
 			[
 				(ClientCapabilityId.ValueScanning, "CECLIENT5001"), (ClientCapabilityId.Allocations, "CECLIENT5002"),
-				(ClientCapabilityId.AutoAssemblerPatches, "CECLIENT5004")
+				(ClientCapabilityId.Assembly, "CECLIENT5003"), (ClientCapabilityId.AutoAssemblerPatches, "CECLIENT5004")
 			],
 			ClientCapabilityCatalog.Entries
 				.Where(static entry => entry.ExperimentalDiagnosticId is not null)

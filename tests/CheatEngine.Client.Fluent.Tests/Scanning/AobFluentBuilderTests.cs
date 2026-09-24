@@ -550,7 +550,9 @@ public sealed class AobFluentBuilderTests
 		public ITableClient Tables => NotUsed<ITableClient>();
 		public ILuaClient Lua => NotUsed<ILuaClient>();
 		public IAllocationClient Allocations => NotUsed<IAllocationClient>();
+#pragma warning disable CECLIENT5003 // The test client implements the experimental instruction property.
 		public IAssemblyClient Assembly => NotUsed<IAssemblyClient>();
+#pragma warning restore CECLIENT5003
 
 		private static T NotUsed<T>()
 			where T : class

@@ -1,3 +1,4 @@
+#pragma warning disable CECLIENT5003 // The contract tests compare the Auto Assembler surface with the instruction client.
 #pragma warning disable CECLIENT5004 // The contract tests exercise the experimental Auto Assembler surface.
 
 using System.Diagnostics.CodeAnalysis;

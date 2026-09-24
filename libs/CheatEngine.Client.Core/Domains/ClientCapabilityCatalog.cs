@@ -119,8 +119,12 @@ internal static class ClientCapabilityCatalog
 		{
 			ExperimentalDiagnosticId = "CECLIENT5002"
 		},
-		Entry(ClientCapabilityId.Assembly, CapabilityImplementation.ContractOnly,
-			CapabilityPolicySource.NotRequired, CapabilityHostSource.NotProbed, "Q32"),
+		// Experimental (CECLIENT5003); Q32 covers the instruction profile of the x64 and the x86 target.
+		Entry(ClientCapabilityId.Assembly, CapabilityImplementation.Operational,
+			CapabilityPolicySource.NotRequired, CapabilityHostSource.NotProbed, "Q32") with
+		{
+			ExperimentalDiagnosticId = "CECLIENT5003"
+		},
 		// Experimental (CECLIENT5004) and registered only by the EnableAutoAssemblerPatches opt-in; Q44 is the policy
 		// refusal without it.
 		Entry(ClientCapabilityId.AutoAssemblerPatches, CapabilityImplementation.Operational,

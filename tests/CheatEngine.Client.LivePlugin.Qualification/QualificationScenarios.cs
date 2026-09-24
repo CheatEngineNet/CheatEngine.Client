@@ -688,7 +688,9 @@ internal static class QualificationScenarios
 #pragma warning restore CECLIENT5002
 				return true;
 			case "Client.Assembly":
+#pragma warning disable CECLIENT5003 // The harness probes the experimental instruction client (Q32, Q44).
 				succeeded = client.Assembly.TryDisassemble(nullRegion, out _, out failure, client.Stopping);
+#pragma warning restore CECLIENT5003
 				return true;
 			case "Client.ValueScanning":
 #pragma warning disable CECLIENT5001 // The harness exercises the experimental value scans; the source is compiled standalone.
