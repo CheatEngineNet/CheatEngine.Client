@@ -169,7 +169,10 @@ pull request that finds it; there is no scheduled job that re-runs threading-sen
   dispatcher and ports; the SDK remains the only native authority.
 - The architecture ratchet in `tests/CheatEngine.Client.Tests/Architecture` freezes the Client's remaining ADR-01 debt:
   the Lua globals it binds itself and its direct Lua and owner usages. Shrinking a list is always allowed; growing it
-  requires a registered exception, in the ratchet itself, naming its own SDK 2.0 replacement as the removal reason.
+  requires a registered exception, in the ratchet itself, with its reason and the CheatEngine.SDK primitive that
+  replaces it (and the lot that adopts it) or that is still missing. The typed SDK Lua API the Client uses is an exact,
+  reasoned inventory of its own, and no Client code references or suppresses an `[Experimental]` SDK member
+  (`CESDK5xxx`).
 
 ## Evidence and qualification levels
 

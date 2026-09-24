@@ -63,12 +63,13 @@ reviews:
           activation-bound handle or another SDK ownership type, or an SDK type outside the allowlist of
           tests/CheatEngine.Client.Tests/PublicClientSignatureBoundaryTests.cs; a Core implementation type becomes
           public; Client code declares a native import or binds a Lua global itself without a registered exception in
-          the architecture ratchet (tests/CheatEngine.Client.Tests/Architecture) naming its own SDK 2.0 replacement as
-          the removal reason; a CheatEngine.SDK version literal appears outside eng/CheatEngineSdk.props, or the pin
-          moves to another SDK major without that being a deliberate, reviewed migration (there is no automated
-          migration guide; the bump procedure and the major migration checklist are documented in
-          eng/CheatEngineSdk.props itself); or a packages.lock.json
-          changes without a project or package change that explains it. Otherwise pass.
+          the architecture ratchet (tests/CheatEngine.Client.Tests/Architecture) stating its reason and the
+          CheatEngine.SDK primitive that replaces it or is missing; Client code references or suppresses an
+          [Experimental] CheatEngine.SDK member (CESDK5xxx); a CheatEngine.SDK version literal appears outside
+          eng/CheatEngineSdk.props, or the pin moves to another SDK major without that being a deliberate, reviewed
+          migration (there is no automated migration guide; the bump procedure and the major migration checklist are
+          documented in eng/CheatEngineSdk.props itself); or a packages.lock.json changes without a project or package
+          change that explains it. Otherwise pass.
       - name: "Qualification evidence"
         mode: "warning"
         instructions: >-
@@ -155,8 +156,10 @@ reviews:
     - path: "tests/**/Architecture/**"
       instructions: |
         The architecture ratchet freezes the Client's ADR-01 debt. Shrinking a frozen list is always acceptable;
-        growing it requires a registered exception, in the ratchet itself, naming its own SDK 2.0 replacement as the
-        removal reason (there is no separate migration guide file).
+        growing it requires a registered exception, in the ratchet itself, with its reason and the CheatEngine.SDK
+        primitive that replaces it (and the plan lot that adopts it) or that is still missing (there is no separate
+        migration guide file). SanctionedSdkLuaSurface is exact: each typed SDK Lua member the Client uses carries its
+        reason. SdkExperimentalApiRatchetTests forbids any reference to or suppression of an [Experimental] SDK member.
 
     - path: ".github/**"
       instructions: |

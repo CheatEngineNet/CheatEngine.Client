@@ -67,6 +67,43 @@ internal static class MetadataSurface
 		return $"{declaringType.FullName}::{name}{generic}({parameters})->{signature.ReturnType.Display}";
 	}
 
+	/// <summary>
+	///     Describes a method definition with the text <see cref="DescribeMember" /> gives a reference to it, so that a
+	///     definition read from an SDK assembly and a reference read from a Client assembly compare as equal strings.
+	/// </summary>
+	internal static string DescribeMethodDefinition(MetadataReader reader, MethodDefinitionHandle handle)
+	{
+		MethodDefinition method = reader.GetMethodDefinition(handle);
+		TypeIdentity declaringType = ResolveTypeDefinition(reader, method.GetDeclaringType());
+		MethodSignature<SignatureName> signature = method.DecodeSignature(new SignatureNameProvider(), null);
+		string generic = signature.GenericParameterCount == 0 ? string.Empty : $"``{signature.GenericParameterCount}";
+		string parameters = string.Join(",", signature.ParameterTypes.Select(static parameter => parameter.Display));
+		string name = reader.GetString(method.Name);
+		return $"{declaringType.FullName}::{name}{generic}({parameters})->{signature.ReturnType.Display}";
+	}
+
+	/// <summary>Describes a field definition with the text <see cref="DescribeMember" /> gives a reference to it.</summary>
+	internal static string DescribeFieldDefinition(MetadataReader reader, FieldDefinitionHandle handle)
+	{
+		FieldDefinition field = reader.GetFieldDefinition(handle);
+		TypeIdentity declaringType = ResolveTypeDefinition(reader, field.GetDeclaringType());
+		SignatureName fieldType = field.DecodeSignature(new SignatureNameProvider(), null);
+		return $"{declaringType.FullName}::{reader.GetString(field.Name)}:{fieldType.Display}";
+	}
+
+	/// <summary>Gets the full name of the type of a custom attribute.</summary>
+	internal static string GetAttributeTypeName(MetadataReader reader, CustomAttribute attribute)
+	{
+		return attribute.Constructor.Kind switch
+		{
+			HandleKind.MemberReference => ResolveType(reader,
+				reader.GetMemberReference((MemberReferenceHandle) attribute.Constructor).Parent).FullName,
+			HandleKind.MethodDefinition => ResolveTypeDefinition(reader,
+				reader.GetMethodDefinition((MethodDefinitionHandle) attribute.Constructor).GetDeclaringType()).FullName,
+			_ => string.Empty
+		};
+	}
+
 	/// <summary>Enumerates the metadata tokens referenced by every method body, with the outermost declaring type.</summary>
 	/// <remarks>Closures, lambdas, local functions, and state machines are nested types; they fold into their container.</remarks>
 	internal static IEnumerable<IlReference> ReadIlReferences(MetadataReader reader, PEReader peReader)

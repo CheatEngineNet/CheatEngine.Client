@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 
 using CheatEngine.Client.Tables;
 
@@ -11,96 +12,194 @@ namespace CheatEngine.Client.Tests.Architecture;
 
 /// <summary>
 ///     C0 architecture ratchet for ADR-01 ("the SDK is the only native authority") and ADR-06 ("ownership is explicit"):
-///     the Client never declares native imports, never references the SDK ABI or Lua interop assemblies, and keeps its
-///     remaining direct Lua and owner usages frozen to a reviewed list that may only shrink.
+///     the Client never declares native imports, never references the SDK ABI or Lua interop assemblies, reaches the SDK
+///     Lua runtime only through reviewed typed SDK API, and keeps its remaining direct Lua and owner usages frozen to a
+///     reviewed list that may only shrink.
 /// </summary>
 /// <remarks>
-///     Everything is read from the compiled Client assemblies with System.Reflection.Metadata; no Client code runs. The
-///     frozen lists below are the registered ADR-01 debt of the Client; each entry names its own
-///     removal reason and is removed once the SDK 2.0 replacement it names ships. Shrinking a list is always allowed;
-///     growing it requires a registered exception with its own removal reason, here, not in an external document.
+///     <para>
+///         Everything is read from the compiled Client assemblies with System.Reflection.Metadata; no Client code runs.
+///     </para>
+///     <para>
+///         <see cref="FrozenLuaGlobals" /> and <see cref="FrozenLuaUsage" /> are the registered ADR-01 debt of the Client.
+///         Each entry states why it exists and how it ends: the CheatEngine.SDK primitive that replaces it and the plan
+///         lot that removes it, the SDK primitive that is still missing, or a permanent reason. The replacing members
+///         are resolved in the consumed SDK, so a stale name fails here. Shrinking a list is always allowed; growing it
+///         requires a registered exception with its own reason and its replacing or missing SDK primitive, here, not in
+///         an external document.
+///     </para>
+///     <para>
+///         <see cref="SanctionedSdkLuaSurface" /> is the exact inventory of the typed SDK Lua API the Client is expected to
+///         use (admission, the external reset fact, SDK owners), one reason per member. It is not debt, but it is exact
+///         too: an unused member leaves it, and a new one is a reviewed addition.
+///     </para>
 /// </remarks>
-public sealed class ArchitectureRatchetTests
+public sealed partial class ArchitectureRatchetTests
 {
 	private const string Adr01Guidance =
-		"ADR-01 exception: register it in the ratchet (tests/CheatEngine.Client.Tests/Architecture) with its own " +
-		"removal reason naming its SDK 2.0 replacement, or route the work through the SDK.";
-
-	private const string SdkRemoval = "SDK 2.0";
+		"ADR-01 exception: register it in the ratchet (tests/CheatEngine.Client.Tests/Architecture) with its reason and " +
+		"the CheatEngine.SDK primitive that replaces it or is missing, or route the work through the SDK.";
 
 	private const string ClientLuaGlobalsType = "CheatEngine.Client.Core.Infrastructure.ClientLuaGlobals";
+
+	private const string MutationPort = "CheatEngine.Client.Core.Domains.SdkTableRecordMutationPort";
+
+	private const string TableClientType = "CheatEngine.Client.Core.Domains.TableClient";
+
+	private const string UnsafeLuaClientType = "CheatEngine.Client.Core.Domains.UnsafeLuaClient";
+
+	private const string AddressListMutations = "CheatEngine.SDK.Engine.AddressList.AddressListMutations";
+
+	private const string CheatTableFiles = "CheatEngine.SDK.Engine.Tables.CheatTableFiles";
+
+	private const string RuntimeHostOperations = "CheatEngine.SDK.Engine.Processes.RuntimeHostOperations";
+
+	private const string RuntimeProcessOperations = "CheatEngine.SDK.Engine.Processes.RuntimeProcessOperations";
+
+	private const string SymbolRegistrationLease = "CheatEngine.SDK.Engine.Inspection.SymbolRegistrationLease";
+
+	private const string SymbolRegistry = "CheatEngine.SDK.Engine.Inspection.SymbolRegistry";
+
+	private const string UnsafeLuaReason =
+		"CheatEngine.SDK 2.0.0 exposes no protected chunk-execution service; caller-supplied Lua runs only behind " +
+		"EnableUnsafeLuaExecution";
+
+	private const string ParentChainReason =
+		"Parent-chain walk of SetParent (cycle and depth guard): reads Parent through the raw Lua stack";
+
+	private const string ClientLuaGlobalsReason =
+		"Code the SDK LuaBindings generator emits for the FrozenLuaGlobals bindings; ClientLuaGlobals.cs is deleted " +
+		"with the last of them";
 
 	/// <summary>The only Lua globals the Client may bind itself, each a registered ADR-01 exception.</summary>
 	private static readonly FrozenLuaGlobal[] FrozenLuaGlobals =
 	[
-		new("getOpenedProcessID", "Process selection reads the opened PID; SDK 1.0.0 has no process observation.",
-			false),
-		new("openProcess", "Process attach; SDK 1.0.0 has no attach service.", false),
-		new("getCEVersion", "Runtime version fact for the capability snapshot.", false),
-		new("getSystemArchitecture", "Host architecture fact for the capability snapshot.", false),
-		new("getABI", "Target ABI fact for the capability snapshot.", false),
-		new("targetIs64Bit", "Target bitness for codec pointer width and the runtime snapshot.", false),
-		new("loadTable", "Trusted table import behind the Client path policy.", false),
-		new("saveTable", "Trusted table export behind the Client path policy.", false),
-		new("getNameFromAddress", "Symbol name resolution; SDK 1.0.0 has no name lookup service.", false),
-		new("registerSymbol", "Activation-owned symbol registration lease.", false),
-		new("unregisterSymbol", "Release of an activation-owned symbol registration.", false),
-		new("getPointerSize", "F08 ISA/pointer-size observation on SDK 1.0.0 (spike-c3 D2/D3).", false),
-		new("targetIsX86", "F08 ISA/pointer-size observation on SDK 1.0.0 (spike-c3 D2/D3).", false),
-		new("targetIsArm", "F08 ISA/pointer-size observation on SDK 1.0.0 (spike-c3 D2/D3).", false)
+		new("getOpenedProcessID", "Reads the opened process identifier for process selection and the snapshot.",
+			new SdkReplacement(RuntimeProcessOperations, "L9", ["ObserveCurrent"])),
+		new("openProcess", "Selects the target process for Attach.",
+			new SdkReplacement(RuntimeProcessOperations, "L9", ["SelectAndObserve"])),
+		new("getCEVersion", "Runtime version fact for the capability snapshot.",
+			new SdkReplacement(RuntimeHostOperations, "L9", ["TryGetCheatEngineFileVersion"])),
+		new("getSystemArchitecture", "Host architecture fact for the capability snapshot.",
+			new SdkReplacement(RuntimeHostOperations, "L9", ["ObserveHost"])),
+		new("getABI", "Target ABI fact for the capability snapshot.",
+			new SdkReplacement(RuntimeProcessOperations, "L9", ["ObserveTargetArchitecture"])),
+		new("targetIs64Bit", "Target bitness for codec pointer width and the runtime snapshot.",
+			new SdkReplacement(RuntimeProcessOperations, "L9", ["ObserveTargetArchitecture"])),
+		new("loadTable", "Trusted table import behind the Client path policy.",
+			new SdkReplacement(CheatTableFiles, "L13", ["TryLoad"])),
+		new("saveTable", "Trusted table export behind the Client path policy.",
+			new SdkReplacement(CheatTableFiles, "L13", ["TrySave"])),
+		new("getNameFromAddress", "Symbol name lookup of the inspection client and of the registration collision check.",
+			new SdkReplacement(SymbolRegistry, "L12", ["TryGetName"])),
+		new("registerSymbol", "Activation-owned symbol registration lease.",
+			new SdkReplacement(SymbolRegistry, "L12", ["TryRegisterOwned"])),
+		new("unregisterSymbol", "Release of an activation-owned symbol registration.",
+			new SdkReplacement(SymbolRegistrationLease, "L12", ["Release"])),
+		new("getPointerSize", "Configured pointer size of the F08 pointer-width observation.",
+			new SdkReplacement(RuntimeProcessOperations, "L9", ["TryGetConfiguredPointerSize"])),
+		new("targetIsX86", "ISA family of the F08 pointer-width observation.",
+			new SdkReplacement(RuntimeProcessOperations, "L9", ["ObserveTargetArchitecture"])),
+		new("targetIsArm", "ISA family of the F08 pointer-width observation.",
+			new SdkReplacement(RuntimeProcessOperations, "L9", ["ObserveTargetArchitecture"]))
 	];
 
 	/// <summary>
-	///     Every direct use of Lua-stack or SDK-owner primitives in Client code, by outermost declaring type. Regenerated
-	///     from the compiled assemblies; it may only shrink.
+	///     Every direct use of the SDK Lua stack or of SDK ownership in Client code that is not sanctioned typed SDK API, by
+	///     outermost declaring type. Ordered ordinally; it may only shrink.
 	/// </summary>
-	private static readonly string[] FrozenLuaUsage =
+	private static readonly FrozenLuaUse[] FrozenLuaUsage =
 	[
-		"CheatEngine.Client.Core.Domains.SdkAobScanPort -> CheatEngine.SDK.Engine.Objects.Owned`1::Dispose()->void",
-		"CheatEngine.Client.Core.Domains.SdkAobScanPort -> CheatEngine.SDK.Engine.Objects.Owned`1::get_Value()->!0",
-		"CheatEngine.Client.Core.Domains.SdkAobScanPort -> CheatEngine.SDK.Engine.Objects.StringList::TryGetCount(int32&)->boolean",
-		"CheatEngine.Client.Core.Domains.SdkAobScanPort -> CheatEngine.SDK.Engine.Objects.StringList::TryGetItem(int32,string&)->boolean",
-		"CheatEngine.Client.Core.Domains.SdkTableRecordMutationPort -> CheatEngine.SDK.Engine.AddressList.MemoryRecord::TryRead(CheatEngine.SDK.Lua.State.LuaState,int32,CheatEngine.SDK.Engine.AddressList.MemoryRecord&)->boolean",
-		"CheatEngine.Client.Core.Domains.SdkTableRecordMutationPort -> CheatEngine.SDK.Engine.Objects.CEObject::TryCallMethod(System.ReadOnlySpan`1<byte>)->boolean",
-		"CheatEngine.Client.Core.Domains.SdkTableRecordMutationPort -> CheatEngine.SDK.Engine.Objects.CEObject::TryGetProperty(CheatEngine.SDK.Lua.State.LuaState,System.ReadOnlySpan`1<byte>)->CheatEngine.SDK.Lua.Calls.LuaStatus",
-		"CheatEngine.Client.Core.Domains.SdkTableRecordMutationPort -> CheatEngine.SDK.Engine.Objects.CEObject::TryGetProperty``2(System.ReadOnlySpan`1<byte>,!!1&)->boolean",
-		"CheatEngine.Client.Core.Domains.SdkTableRecordMutationPort -> CheatEngine.SDK.Engine.Objects.CEObject::TrySetProperty``2(System.ReadOnlySpan`1<byte>,!!1)->boolean",
-		"CheatEngine.Client.Core.Domains.SdkTableRecordMutationPort -> CheatEngine.SDK.Lua.Runtime.LuaRuntimeOperation::Dispose()->void",
-		"CheatEngine.Client.Core.Domains.SdkTableRecordMutationPort -> CheatEngine.SDK.Lua.Runtime.LuaRuntimeOperation::get_State()->CheatEngine.SDK.Lua.State.LuaState",
-		"CheatEngine.Client.Core.Domains.SdkTableRecordMutationPort -> CheatEngine.SDK.Lua.State.LuaFrame::.ctor(CheatEngine.SDK.Lua.State.LuaState)->void",
-		"CheatEngine.Client.Core.Domains.SdkTableRecordMutationPort -> CheatEngine.SDK.Lua.State.LuaFrame::Dispose()->void",
-		"CheatEngine.Client.Core.Domains.SdkTableRecordMutationPort -> CheatEngine.SDK.Lua.State.LuaState::IsNil(int32)->boolean",
-		"CheatEngine.Client.Core.Domains.TableClient -> CheatEngine.SDK.Engine.Objects.CEObject::TryGetProperty``2(System.ReadOnlySpan`1<byte>,!!1&)->boolean",
-		"CheatEngine.Client.Core.Domains.UnsafeLuaClient -> CheatEngine.SDK.Lua.Calls.LuaError::FromStack(CheatEngine.SDK.Lua.State.LuaState,CheatEngine.SDK.Lua.Calls.LuaStatus)->CheatEngine.SDK.Lua.Calls.LuaError",
-		"CheatEngine.Client.Core.Domains.UnsafeLuaClient -> CheatEngine.SDK.Lua.Calls.LuaError::get_Message()->string",
-		"CheatEngine.Client.Core.Domains.UnsafeLuaClient -> CheatEngine.SDK.Lua.Runtime.LuaRuntimeOperation::Dispose()->void",
-		"CheatEngine.Client.Core.Domains.UnsafeLuaClient -> CheatEngine.SDK.Lua.Runtime.LuaRuntimeOperation::get_State()->CheatEngine.SDK.Lua.State.LuaState",
-		"CheatEngine.Client.Core.Domains.UnsafeLuaClient -> CheatEngine.SDK.Lua.State.LuaFrame::.ctor(CheatEngine.SDK.Lua.State.LuaState)->void",
-		"CheatEngine.Client.Core.Domains.UnsafeLuaClient -> CheatEngine.SDK.Lua.State.LuaFrame::Dispose()->void",
-		"CheatEngine.Client.Core.Domains.UnsafeLuaClient -> CheatEngine.SDK.Lua.State.LuaState::TryExecute(System.ReadOnlySpan`1<byte>,int32,System.ReadOnlySpan`1<byte>)->CheatEngine.SDK.Lua.Calls.LuaStatus",
-		"CheatEngine.Client.Core.Infrastructure.ClientLuaGlobals -> CheatEngine.SDK.Lua.CompilerServices.LuaCallSupport::Fail``1(CheatEngine.SDK.Lua.State.LuaState,int32,!!0&)->boolean",
-		"CheatEngine.Client.Core.Infrastructure.ClientLuaGlobals -> CheatEngine.SDK.Lua.CompilerServices.LuaCallSupport::Throw(CheatEngine.SDK.Lua.State.LuaState,int32,CheatEngine.SDK.Lua.Calls.LuaStatus)->void",
-		"CheatEngine.Client.Core.Infrastructure.ClientLuaGlobals -> CheatEngine.SDK.Lua.CompilerServices.LuaCallSupport::ThrowUnexpectedResult(CheatEngine.SDK.Lua.State.LuaState,int32,int32,string,string)->void",
-		"CheatEngine.Client.Core.Infrastructure.ClientLuaGlobals -> CheatEngine.SDK.Lua.CompilerServices.LuaCallSupport::ThrowUnresolvedGlobal(CheatEngine.SDK.Lua.State.LuaState,int32,string)->void",
-		"CheatEngine.Client.Core.Infrastructure.ClientLuaGlobals -> CheatEngine.SDK.Lua.CompilerServices.LuaGlobalFunctions::TryPush(CheatEngine.SDK.Lua.State.LuaState,CheatEngine.SDK.Lua.References.LuaRef,System.ReadOnlySpan`1<byte>)->boolean",
-		"CheatEngine.Client.Core.Infrastructure.ClientLuaGlobals -> CheatEngine.SDK.Lua.Marshalling.AddressMarshaller::Push(CheatEngine.SDK.Lua.State.LuaState,uintptr)->void",
-		"CheatEngine.Client.Core.Infrastructure.ClientLuaGlobals -> CheatEngine.SDK.Lua.Marshalling.BooleanMarshaller::Push(CheatEngine.SDK.Lua.State.LuaState,boolean)->void",
-		"CheatEngine.Client.Core.Infrastructure.ClientLuaGlobals -> CheatEngine.SDK.Lua.Marshalling.BooleanMarshaller::TryRead(CheatEngine.SDK.Lua.State.LuaState,int32,boolean&)->boolean",
-		"CheatEngine.Client.Core.Infrastructure.ClientLuaGlobals -> CheatEngine.SDK.Lua.Marshalling.DoubleMarshaller::TryRead(CheatEngine.SDK.Lua.State.LuaState,int32,double&)->boolean",
-		"CheatEngine.Client.Core.Infrastructure.ClientLuaGlobals -> CheatEngine.SDK.Lua.Marshalling.Int32Marshaller::TryRead(CheatEngine.SDK.Lua.State.LuaState,int32,int32&)->boolean",
-		"CheatEngine.Client.Core.Infrastructure.ClientLuaGlobals -> CheatEngine.SDK.Lua.Marshalling.Int64Marshaller::Push(CheatEngine.SDK.Lua.State.LuaState,int64)->void",
-		"CheatEngine.Client.Core.Infrastructure.ClientLuaGlobals -> CheatEngine.SDK.Lua.Marshalling.Int64Marshaller::TryRead(CheatEngine.SDK.Lua.State.LuaState,int32,int64&)->boolean",
-		"CheatEngine.Client.Core.Infrastructure.ClientLuaGlobals -> CheatEngine.SDK.Lua.Marshalling.StringMarshaller::Push(CheatEngine.SDK.Lua.State.LuaState,string)->void",
-		"CheatEngine.Client.Core.Infrastructure.ClientLuaGlobals -> CheatEngine.SDK.Lua.Marshalling.StringMarshaller::TryRead(CheatEngine.SDK.Lua.State.LuaState,int32,string&)->boolean",
-		"CheatEngine.Client.Core.Infrastructure.ClientLuaGlobals -> CheatEngine.SDK.Lua.References.LuaRef::.ctor()->void",
-		"CheatEngine.Client.Core.Infrastructure.ClientLuaGlobals -> CheatEngine.SDK.Lua.Runtime.LuaRuntime::AcquireOperation()->CheatEngine.SDK.Lua.Runtime.LuaRuntimeOperation",
-		"CheatEngine.Client.Core.Infrastructure.ClientLuaGlobals -> CheatEngine.SDK.Lua.Runtime.LuaRuntimeOperation::Dispose()->void",
-		"CheatEngine.Client.Core.Infrastructure.ClientLuaGlobals -> CheatEngine.SDK.Lua.Runtime.LuaRuntimeOperation::get_State()->CheatEngine.SDK.Lua.State.LuaState",
-		"CheatEngine.Client.Core.Infrastructure.ClientLuaGlobals -> CheatEngine.SDK.Lua.State.LuaState::SetTop(int32)->void",
-		"CheatEngine.Client.Core.Infrastructure.ClientLuaGlobals -> CheatEngine.SDK.Lua.State.LuaState::TryCall(int32,int32)->CheatEngine.SDK.Lua.Calls.LuaStatus",
-		"CheatEngine.Client.Core.Infrastructure.ClientLuaGlobals -> CheatEngine.SDK.Lua.State.LuaState::get_Top()->int32",
-		"CheatEngine.Client.Core.Infrastructure.LuaAdmission -> CheatEngine.SDK.Lua.Runtime.LuaRuntime::TryAcquireOperationWithOutcome(CheatEngine.SDK.Lua.Runtime.LuaRuntimeOperation&)->CheatEngine.SDK.Lua.Runtime.LuaAdmissionStatus",
-		"CheatEngine.Client.Core.Infrastructure.SdkBoundary -> CheatEngine.SDK.Lua.Runtime.LuaRuntime::get_ExternalStateResetDetected()->boolean"
+		new(MutationPort,
+			"CheatEngine.SDK.Engine.AddressList.MemoryRecord::TryRead(CheatEngine.SDK.Lua.State.LuaState,int32,CheatEngine.SDK.Engine.AddressList.MemoryRecord&)->boolean",
+			ParentChainReason, new LuaDebtKind.Transitional(new SdkReplacement(AddressListMutations, "L13", ["SetParent"]))),
+		new(MutationPort,
+			"CheatEngine.SDK.Engine.Objects.CEObject::TryCallMethod(System.ReadOnlySpan`1<byte>)->boolean",
+			"Destroys a record (Delete, and the one rollback of a failed Create) through a raw method call",
+			new LuaDebtKind.Transitional(new SdkReplacement(AddressListMutations, "L13", ["Delete"]))),
+		new(MutationPort,
+			"CheatEngine.SDK.Engine.Objects.CEObject::TryGetProperty(CheatEngine.SDK.Lua.State.LuaState,System.ReadOnlySpan`1<byte>)->CheatEngine.SDK.Lua.Calls.LuaStatus",
+			ParentChainReason, new LuaDebtKind.Transitional(new SdkReplacement(AddressListMutations, "L13", ["SetParent"]))),
+		new(MutationPort,
+			"CheatEngine.SDK.Engine.Objects.CEObject::TryGetProperty``2(System.ReadOnlySpan`1<byte>,!!1&)->boolean",
+			"Activation algorithm: reads Active and AsyncProcessing through raw property access",
+			new LuaDebtKind.Transitional(new SdkReplacement(AddressListMutations, "L13", ["SetActive"]))),
+		new(MutationPort,
+			"CheatEngine.SDK.Engine.Objects.CEObject::TrySetProperty``2(System.ReadOnlySpan`1<byte>,!!1)->boolean",
+			"Writes Parent and Active through raw property access",
+			new LuaDebtKind.Transitional(new SdkReplacement(AddressListMutations, "L13", ["SetParent", "SetActive"]))),
+		new(MutationPort, "CheatEngine.SDK.Lua.State.LuaFrame::.ctor(CheatEngine.SDK.Lua.State.LuaState)->void",
+			ParentChainReason, new LuaDebtKind.Transitional(new SdkReplacement(AddressListMutations, "L13", ["SetParent"]))),
+		new(MutationPort, "CheatEngine.SDK.Lua.State.LuaFrame::Dispose()->void",
+			ParentChainReason, new LuaDebtKind.Transitional(new SdkReplacement(AddressListMutations, "L13", ["SetParent"]))),
+		new(MutationPort, "CheatEngine.SDK.Lua.State.LuaState::IsNil(int32)->boolean",
+			ParentChainReason, new LuaDebtKind.Transitional(new SdkReplacement(AddressListMutations, "L13", ["SetParent"]))),
+		new(TableClientType,
+			"CheatEngine.SDK.Engine.Objects.CEObject::TryGetProperty``2(System.ReadOnlySpan`1<byte>,!!1&)->boolean",
+			"Record snapshots read Count, which ChildCount keeps for ADR-08 precision (A3): CheatEngine.SDK 2.0.0 only " +
+			"offers MemoryRecord.TryGetChild(int), which conflates out-of-range with failure; the Active read of the " +
+			"same member moves to MemoryRecord.TryGetActive in L13",
+			new LuaDebtKind.AwaitingSdkPrimitive("a MemoryRecord child-count getter")),
+		new(UnsafeLuaClientType,
+			"CheatEngine.SDK.Lua.Calls.LuaError::FromStack(CheatEngine.SDK.Lua.State.LuaState,CheatEngine.SDK.Lua.Calls.LuaStatus)->CheatEngine.SDK.Lua.Calls.LuaError",
+			UnsafeLuaReason, new LuaDebtKind.Permanent()),
+		new(UnsafeLuaClientType, "CheatEngine.SDK.Lua.Calls.LuaError::get_Message()->string", UnsafeLuaReason,
+			new LuaDebtKind.Permanent()),
+		new(UnsafeLuaClientType, "CheatEngine.SDK.Lua.State.LuaFrame::.ctor(CheatEngine.SDK.Lua.State.LuaState)->void",
+			UnsafeLuaReason, new LuaDebtKind.Permanent()),
+		new(UnsafeLuaClientType, "CheatEngine.SDK.Lua.State.LuaFrame::Dispose()->void", UnsafeLuaReason,
+			new LuaDebtKind.Permanent()),
+		new(UnsafeLuaClientType,
+			"CheatEngine.SDK.Lua.State.LuaState::TryExecute(System.ReadOnlySpan`1<byte>,int32,System.ReadOnlySpan`1<byte>)->CheatEngine.SDK.Lua.Calls.LuaStatus",
+			UnsafeLuaReason, new LuaDebtKind.Permanent()),
+		.. ClientLuaGlobalsDebt(
+			"CheatEngine.SDK.Lua.CompilerServices.LuaCallSupport::Fail``1(CheatEngine.SDK.Lua.State.LuaState,int32,!!0&)->boolean",
+			"CheatEngine.SDK.Lua.CompilerServices.LuaCallSupport::Throw(CheatEngine.SDK.Lua.State.LuaState,int32,CheatEngine.SDK.Lua.Calls.LuaStatus)->void",
+			"CheatEngine.SDK.Lua.CompilerServices.LuaCallSupport::ThrowUnexpectedResult(CheatEngine.SDK.Lua.State.LuaState,int32,int32,string,string)->void",
+			"CheatEngine.SDK.Lua.CompilerServices.LuaCallSupport::ThrowUnresolvedGlobal(CheatEngine.SDK.Lua.State.LuaState,int32,string)->void",
+			"CheatEngine.SDK.Lua.CompilerServices.LuaGlobalFunctions::TryPush(CheatEngine.SDK.Lua.State.LuaState,CheatEngine.SDK.Lua.References.LuaRef,System.ReadOnlySpan`1<byte>)->boolean",
+			"CheatEngine.SDK.Lua.Marshalling.AddressMarshaller::Push(CheatEngine.SDK.Lua.State.LuaState,uintptr)->void",
+			"CheatEngine.SDK.Lua.Marshalling.BooleanMarshaller::Push(CheatEngine.SDK.Lua.State.LuaState,boolean)->void",
+			"CheatEngine.SDK.Lua.Marshalling.BooleanMarshaller::TryRead(CheatEngine.SDK.Lua.State.LuaState,int32,boolean&)->boolean",
+			"CheatEngine.SDK.Lua.Marshalling.DoubleMarshaller::TryRead(CheatEngine.SDK.Lua.State.LuaState,int32,double&)->boolean",
+			"CheatEngine.SDK.Lua.Marshalling.Int32Marshaller::TryRead(CheatEngine.SDK.Lua.State.LuaState,int32,int32&)->boolean",
+			"CheatEngine.SDK.Lua.Marshalling.Int64Marshaller::Push(CheatEngine.SDK.Lua.State.LuaState,int64)->void",
+			"CheatEngine.SDK.Lua.Marshalling.Int64Marshaller::TryRead(CheatEngine.SDK.Lua.State.LuaState,int32,int64&)->boolean",
+			"CheatEngine.SDK.Lua.Marshalling.StringMarshaller::Push(CheatEngine.SDK.Lua.State.LuaState,string)->void",
+			"CheatEngine.SDK.Lua.Marshalling.StringMarshaller::TryRead(CheatEngine.SDK.Lua.State.LuaState,int32,string&)->boolean",
+			"CheatEngine.SDK.Lua.References.LuaRef::.ctor()->void",
+			"CheatEngine.SDK.Lua.Runtime.LuaRuntime::AcquireOperation()->CheatEngine.SDK.Lua.Runtime.LuaRuntimeOperation",
+			"CheatEngine.SDK.Lua.State.LuaState::SetTop(int32)->void",
+			"CheatEngine.SDK.Lua.State.LuaState::TryCall(int32,int32)->CheatEngine.SDK.Lua.Calls.LuaStatus",
+			"CheatEngine.SDK.Lua.State.LuaState::get_Top()->int32")
+	];
+
+	/// <summary>
+	///     The typed CheatEngine.SDK Lua API the Client uses, member by member, each with its reason. Exact: every member
+	///     is used, and every use of the scanned SDK surface is either one of these members or a
+	///     <see cref="FrozenLuaUsage" /> entry.
+	/// </summary>
+	private static readonly SanctionedSdkLuaMember[] SanctionedSdkLuaSurface =
+	[
+		new("CheatEngine.SDK.Engine.Objects.Owned`1::Dispose()->void",
+			"Releases the AOB result-list owner that AobScanner.TryScan hands out, through OwnershipHandoff, the only " +
+			"release authority (F13); swapped 1:1 for Owned<StringList>.ReleaseWithOutcome in L11"),
+		new("CheatEngine.SDK.Engine.Objects.Owned`1::get_Value()->!0",
+			"Reads the StringList of the AOB result-list owner, the only result shape AobScanner.TryScan returns"),
+		new("CheatEngine.SDK.Engine.Objects.StringList::TryGetCount(int32&)->boolean",
+			"Counts the AOB result rows through the SDK's typed StringList"),
+		new("CheatEngine.SDK.Engine.Objects.StringList::TryGetItem(int32,string&)->boolean",
+			"Reads one AOB result row through the SDK's typed StringList"),
+		new("CheatEngine.SDK.Lua.Runtime.LuaRuntime::TryAcquireOperationWithOutcome(CheatEngine.SDK.Lua.Runtime.LuaRuntimeOperation&)->CheatEngine.SDK.Lua.Runtime.LuaAdmissionStatus",
+			"The SDK's non-throwing Lua admission with its factual LuaAdmissionStatus; LuaAdmission is its only caller " +
+			"and classifies every refusal", "CheatEngine.Client.Core.Infrastructure.LuaAdmission"),
+		new("CheatEngine.SDK.Lua.Runtime.LuaRuntime::get_ExternalStateResetDetected()->boolean",
+			"The SDK's sticky external Lua state reset fact; SdkBoundary reads it to report a plain " +
+			"InvalidOperationException as RuntimeChanged", "CheatEngine.Client.Core.Infrastructure.SdkBoundary"),
+		new("CheatEngine.SDK.Lua.Runtime.LuaRuntimeOperation::Dispose()->void",
+			"Ends an admission the SDK granted, on the acquiring thread, before control returns to Cheat Engine"),
+		new("CheatEngine.SDK.Lua.Runtime.LuaRuntimeOperation::get_State()->CheatEngine.SDK.Lua.State.LuaState",
+			"The Lua state of an admitted operation; every raw use of that state is a FrozenLuaUsage entry of its own")
 	];
 
 	private static readonly Dictionary<string, string[]> AllowedSdkAssemblyReferences = new(StringComparer.Ordinal)
@@ -248,7 +347,7 @@ public sealed class ArchitectureRatchetTests
 		}
 
 		HashSet<string> actualNames = new(actual.Select(static binding => binding.Name), StringComparer.Ordinal);
-		foreach (FrozenLuaGlobal entry in FrozenLuaGlobals.Where(static entry => !entry.Reserved))
+		foreach (FrozenLuaGlobal entry in FrozenLuaGlobals)
 		{
 			if (!actualNames.Contains(entry.Name))
 			{
@@ -257,25 +356,48 @@ public sealed class ArchitectureRatchetTests
 		}
 
 		Assert.Equal(actual.Count, actualNames.Count);
-		Assert.All(FrozenLuaGlobals, static entry =>
-		{
-			Assert.False(string.IsNullOrWhiteSpace(entry.Reason));
-			Assert.Equal(SdkRemoval, entry.Removal);
-		});
+		Assert.Equal(FrozenLuaGlobals.Length, FrozenLuaGlobals.DistinctBy(static entry => entry.Name).Count());
 		Assert.True(violations.Count == 0, string.Join(Environment.NewLine, violations));
 	}
 
 	[Fact]
-	public void DirectLuaStateUsageIsLimitedToTheFrozenAllowlist()
+	public void EveryFrozenLuaGlobalNamesItsReplacingSdkMemberAndLot()
 	{
-		SortedSet<string> actual = new(StringComparer.Ordinal);
-		foreach (string assembly in ClientAssemblyCatalog.Names)
+		List<string> violations = [];
+		foreach (FrozenLuaGlobal entry in FrozenLuaGlobals)
 		{
-			actual.UnionWith(LuaUsageScanner.Scan(assembly));
+			if (string.IsNullOrWhiteSpace(entry.Reason))
+			{
+				violations.Add($"{entry.Name} has no reason.");
+			}
+
+			violations.AddRange(FindUnresolvedReplacement(entry.Name, entry.Replacement));
 		}
 
-		string[] added = actual.Except(FrozenLuaUsage, StringComparer.Ordinal).ToArray();
-		string[] removed = FrozenLuaUsage.Except(actual, StringComparer.Ordinal).ToArray();
+		Assert.True(violations.Count == 0, string.Join(Environment.NewLine, violations));
+		Assert.Equal("RuntimeProcessOperations.ObserveCurrent (L9)",
+			FrozenLuaGlobals.Single(static entry => entry.Name == "getOpenedProcessID").Replacement.ToString());
+	}
+
+	[Fact]
+	public void SdkLuaSurfaceUseIsSanctionedTypedApiOrRegisteredDebt()
+	{
+		List<LuaSurfaceUse> uses = [.. ClientAssemblyCatalog.Names.SelectMany(LuaUsageScanner.Scan)];
+		Dictionary<string, SanctionedSdkLuaMember> sanctioned =
+			SanctionedSdkLuaSurface.ToDictionary(static member => member.Member, StringComparer.Ordinal);
+
+		string[] debt = [.. uses.Where(use => !sanctioned.ContainsKey(use.Symbol)).Select(static use => use.ToString())];
+		string[] frozen = [.. FrozenLuaUsage.Select(static entry => entry.Usage)];
+		string[] added = [.. debt.Except(frozen, StringComparer.Ordinal)];
+		string[] removed = [.. frozen.Except(debt, StringComparer.Ordinal)];
+		string[] unusedSanctioned =
+			[.. sanctioned.Keys.Where(member => !uses.Exists(use => use.Symbol == member)).Order(StringComparer.Ordinal)];
+		string[] misplaced =
+		[
+			.. uses.Where(use => sanctioned.TryGetValue(use.Symbol, out SanctionedSdkLuaMember? member) &&
+								 member.OnlyIn is { } owner && owner != use.OuterType)
+				.Select(static use => use.ToString())
+		];
 
 		Assert.True(added.Length == 0,
 			"New direct Lua-stack or SDK-owner usage in Client code:" + Environment.NewLine +
@@ -283,6 +405,57 @@ public sealed class ArchitectureRatchetTests
 		Assert.True(removed.Length == 0,
 			"These frozen ADR-01 usages no longer exist; shrink FrozenLuaUsage (ratchet):" + Environment.NewLine +
 			string.Join(Environment.NewLine, removed));
+		Assert.True(unusedSanctioned.Length == 0,
+			"These sanctioned SDK Lua members are no longer used; shrink SanctionedSdkLuaSurface:" + Environment.NewLine +
+			string.Join(Environment.NewLine, unusedSanctioned));
+		Assert.True(misplaced.Length == 0,
+			"These sanctioned SDK Lua members are used outside their single owner:" + Environment.NewLine +
+			string.Join(Environment.NewLine, misplaced));
+	}
+
+	[Fact]
+	public void LuaInventoriesAreOrderedAndEveryEntryStatesHowItEnds()
+	{
+		string[] usages = [.. FrozenLuaUsage.Select(static entry => entry.Usage)];
+		string[] members = [.. SanctionedSdkLuaSurface.Select(static member => member.Member)];
+		List<string> violations = [];
+		foreach (FrozenLuaUse entry in FrozenLuaUsage)
+		{
+			if (string.IsNullOrWhiteSpace(entry.Reason))
+			{
+				violations.Add($"{entry.Usage} has no reason.");
+			}
+
+			switch (entry.Kind)
+			{
+				case LuaDebtKind.Permanent
+					when !entry.Usage.StartsWith(UnsafeLuaClientType + " -> ", StringComparison.Ordinal):
+					violations.Add($"{entry.Usage} is Permanent; only UnsafeLuaClient may be.");
+					break;
+				case LuaDebtKind.Transitional transitional:
+					violations.AddRange(FindUnresolvedReplacement(entry.Usage, transitional.Replacement));
+					break;
+				case LuaDebtKind.AwaitingSdkPrimitive awaiting when string.IsNullOrWhiteSpace(awaiting.Primitive):
+					violations.Add($"{entry.Usage} does not name the missing SDK primitive.");
+					break;
+			}
+
+			if (members.Contains(entry.Usage.Split(" -> ", 2)[1], StringComparer.Ordinal))
+			{
+				violations.Add($"{entry.Usage} is sanctioned SDK API; it cannot also be debt.");
+			}
+		}
+
+		violations.AddRange(SanctionedSdkLuaSurface.Where(static member => string.IsNullOrWhiteSpace(member.Reason))
+			.Select(static member => $"{member.Member} has no reason."));
+		Assert.True(violations.Count == 0, string.Join(Environment.NewLine, violations));
+		Assert.Equal(usages.Order(StringComparer.Ordinal), usages);
+		Assert.Equal(usages.Length, usages.Distinct(StringComparer.Ordinal).Count());
+		Assert.Equal(members.Order(StringComparer.Ordinal), members);
+		Assert.Equal(members.Length, members.Distinct(StringComparer.Ordinal).Count());
+		Assert.Equal(UnsafeLuaReason,
+			Assert.Single(FrozenLuaUsage.Where(static entry => entry.Kind is LuaDebtKind.Permanent)
+				.Select(static entry => entry.Reason).Distinct(StringComparer.Ordinal)));
 	}
 
 	[Fact]
@@ -307,6 +480,28 @@ public sealed class ArchitectureRatchetTests
 		}
 
 		Assert.True(violations.Count == 0, string.Join(Environment.NewLine, violations));
+	}
+
+	[Fact]
+	public void EveryPublicSdkAbandonMemberIsAForbiddenOwnershipBypass()
+	{
+		string[] abandonMembers =
+		[
+			.. ConsumedSdkAssemblies.All.SelectMany(static assembly => assembly.GetExportedTypes())
+				.SelectMany(static type => type.GetMethods(BindingFlags.Public | BindingFlags.Instance |
+														   BindingFlags.Static | BindingFlags.DeclaredOnly)
+					.Where(static method => method.Name.StartsWith("Abandon", StringComparison.Ordinal))
+					.Select(method => $"{type.FullName}::{method.Name}()"))
+				.Distinct(StringComparer.Ordinal)
+				.Order(StringComparer.Ordinal)
+		];
+
+		// ADR-06: abandoning an owner leaks its Cheat Engine object on purpose. The Client never does it, including the
+		// session-level MemoryScanSession.Abandon of CheatEngine.SDK 2.0.0.
+		Assert.Contains("CheatEngine.SDK.Engine.Scanning.Values.MemoryScanSession::Abandon()", abandonMembers);
+		Assert.Contains("CheatEngine.SDK.Engine.Objects.Owned`1::Abandon()", abandonMembers);
+		Assert.All(abandonMembers, static member =>
+			Assert.True(IsOwnershipAdoption(member, member.Split("::", 2)[0]), $"{member} is not forbidden."));
 	}
 
 	[Fact]
@@ -434,9 +629,39 @@ public sealed class ArchitectureRatchetTests
 			   member.Contains("::FromHandle(", StringComparison.Ordinal) ||
 			   declaringType == "CheatEngine.SDK.Engine.Objects.ICEObject`1" ||
 			   (declaringType == "CheatEngine.SDK.Engine.Objects.Owned`1" &&
-				(member.Contains("::Transfer(", StringComparison.Ordinal) ||
-				 member.Contains("::Abandon(", StringComparison.Ordinal))) ||
+				member.Contains("::Transfer(", StringComparison.Ordinal)) ||
+			   member.Contains("::Abandon", StringComparison.Ordinal) ||
 			   member.Contains("::PushUncheckedFunction(", StringComparison.Ordinal);
+	}
+
+	/// <summary>Resolves a replacement in the consumed SDK and returns the violations of one ratchet entry.</summary>
+	private static IEnumerable<string> FindUnresolvedReplacement(string entry, SdkReplacement replacement)
+	{
+		if (!LotPattern().IsMatch(replacement.Lot))
+		{
+			yield return $"{entry}: '{replacement.Lot}' is not a plan lot (L<number>).";
+		}
+
+		if (ConsumedSdkAssemblies.FindPublicType(replacement.Type) is not { } type)
+		{
+			yield return $"{entry}: {replacement.Type} is not a public type of the consumed CheatEngine.SDK.";
+			yield break;
+		}
+
+		foreach (string member in replacement.Members)
+		{
+			if (type.GetMember(member, BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance).Length == 0)
+			{
+				yield return $"{entry}: {replacement} names no public member {type.Name}.{member} in the consumed SDK.";
+			}
+		}
+	}
+
+	private static IEnumerable<FrozenLuaUse> ClientLuaGlobalsDebt(params string[] symbols)
+	{
+		SdkReplacement lastBindings = new(CheatTableFiles, "L13", ["TryLoad", "TrySave"]);
+		return symbols.Select(symbol => new FrozenLuaUse(ClientLuaGlobalsType, symbol, ClientLuaGlobalsReason,
+			new LuaDebtKind.Transitional(lastBindings)));
 	}
 
 	private static List<string> FindNativeImports(string assemblyPath)
@@ -465,7 +690,7 @@ public sealed class ArchitectureRatchetTests
 
 			foreach (CustomAttributeHandle attributeHandle in method.GetCustomAttributes())
 			{
-				string attributeType = GetAttributeType(reader, reader.GetCustomAttribute(attributeHandle));
+				string attributeType = MetadataSurface.GetAttributeTypeName(reader, reader.GetCustomAttribute(attributeHandle));
 				if (ForbiddenInteropAttributes.Contains(attributeType, StringComparer.Ordinal))
 				{
 					violations.Add($"{assembly}: {owner} carries {attributeType.Split('.')[^1]}.");
@@ -490,18 +715,6 @@ public sealed class ArchitectureRatchetTests
 		return violations;
 	}
 
-	private static string GetAttributeType(MetadataReader reader, CustomAttribute attribute)
-	{
-		return attribute.Constructor.Kind switch
-		{
-			HandleKind.MemberReference => MetadataSurface.ResolveType(reader,
-				reader.GetMemberReference((MemberReferenceHandle) attribute.Constructor).Parent).FullName,
-			HandleKind.MethodDefinition => MetadataSurface.ResolveTypeDefinition(reader,
-				reader.GetMethodDefinition((MethodDefinitionHandle) attribute.Constructor).GetDeclaringType()).FullName,
-			_ => string.Empty
-		};
-	}
-
 	private static string DescribeSignature(MetadataReader reader, MethodDefinition method)
 	{
 		MethodSignature<MetadataSurface.SignatureName> signature =
@@ -510,7 +723,47 @@ public sealed class ArchitectureRatchetTests
 			   signature.ReturnType.Display;
 	}
 
-	private sealed record FrozenLuaGlobal(string Name, string Reason, bool Reserved, string Removal = SdkRemoval);
+	[GeneratedRegex("^L[1-9][0-9]*$", RegexOptions.CultureInvariant, 1000)]
+	private static partial Regex LotPattern();
+
+	/// <summary>A Lua global the Client binds itself, why, and the SDK member that replaces the binding.</summary>
+	private sealed record FrozenLuaGlobal(string Name, string Reason, SdkReplacement Replacement);
+
+	/// <summary>One registered ADR-01 debt entry: a direct SDK Lua-stack or ownership use, why, and how it ends.</summary>
+	private sealed record FrozenLuaUse(string Usage, string Reason, LuaDebtKind Kind)
+	{
+		internal FrozenLuaUse(string outerType, string symbol, string reason, LuaDebtKind kind)
+			: this($"{outerType} -> {symbol}", reason, kind)
+		{
+		}
+	}
+
+	/// <summary>A typed SDK Lua member the Client uses, why, and the single Client type allowed to use it, if any.</summary>
+	private sealed record SanctionedSdkLuaMember(string Member, string Reason, string? OnlyIn = null);
+
+	/// <summary>The CheatEngine.SDK members that replace a registered exception, and the plan lot that adopts them.</summary>
+	private sealed record SdkReplacement(string Type, string Lot, string[] Members)
+	{
+		/// <summary>Formats the replacement as <c>Type.Member (Lot)</c>, for example
+		///     <c>RuntimeProcessOperations.ObserveCurrent (L9)</c>.</summary>
+		public override string ToString()
+		{
+			return $"{Type[(Type.LastIndexOf('.') + 1)..]}.{string.Join(" and ", Members)} ({Lot})";
+		}
+	}
+
+	/// <summary>How a registered ADR-01 debt entry ends.</summary>
+	private abstract record LuaDebtKind
+	{
+		/// <summary>Kept by design: the SDK offers no replacement and the Client deliberately exposes the capability.</summary>
+		internal sealed record Permanent : LuaDebtKind;
+
+		/// <summary>Removed by a plan lot that adopts the named SDK replacement.</summary>
+		internal sealed record Transitional(SdkReplacement Replacement) : LuaDebtKind;
+
+		/// <summary>Kept until the consumed SDK offers the named primitive.</summary>
+		internal sealed record AwaitingSdkPrimitive(string Primitive) : LuaDebtKind;
+	}
 
 	/// <summary>Deliberate native-interop forms proving that the scan is not vacuous. Never called.</summary>
 	private static unsafe class NativeImportFixture
