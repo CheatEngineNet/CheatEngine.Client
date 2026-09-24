@@ -515,8 +515,11 @@ public sealed class ArchitectureRatchetTests
 	/// <summary>Deliberate native-interop forms proving that the scan is not vacuous. Never called.</summary>
 	private static unsafe class NativeImportFixture
 	{
+		// The ratchet must see a real DllImport; LibraryImport would hide it behind generated code.
+#pragma warning disable SYSLIB1054
 		[DllImport("kernel32.dll")]
 		internal static extern uint GetCurrentThreadId();
+#pragma warning restore SYSLIB1054
 
 		[UnmanagedCallersOnly]
 		internal static int Callback(int value)
