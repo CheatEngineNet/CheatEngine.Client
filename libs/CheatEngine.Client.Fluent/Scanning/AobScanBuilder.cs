@@ -6,10 +6,11 @@ namespace CheatEngine.Client.Scanning;
 /// <summary>An immutable, handle-free AOB scan builder before its result cardinality is selected.</summary>
 /// <remarks>
 ///     <para>
-///         <see cref="InModule(string)" /> and <see cref="InRange" /> scope the scan. On a qualified local target Cheat
+///         <see cref="InModule(string)" /> and <see cref="InRange" /> scope the scan with one rule on every route: a match
+///         must lie entirely inside the module, and its start must lie in the range. On a qualified local target Cheat
 ///         Engine scans only the module intersected with the range (a bounded MemScan that blocks Cheat Engine's main
 ///         thread and cannot be interrupted once started); otherwise Cheat Engine runs one global <c>AOBScan</c> and Core
-///         keeps only the addresses inside the module or range, which does not reduce Cheat Engine's scan time or memory.
+///         applies the same rule while copying, which does not reduce Cheat Engine's scan time or memory.
 ///         <see cref="Take" />, <see cref="FirstOrNone" /> (1) and <see cref="RequireSingle" /> (2) bound only how many
 ///         addresses Core copies; they never stop Cheat Engine early.
 ///     </para>
@@ -76,9 +77,9 @@ public readonly record struct AobScanBuilder
 	/// <param name="moduleName">The non-empty module name that Core resolves before any scan.</param>
 	/// <returns>A new immutable builder.</returns>
 	/// <remarks>
-	///     On a qualified local target Cheat Engine scans only the module, and a match must lie entirely inside it.
-	///     Otherwise Cheat Engine scans the whole target and Core keeps the addresses that start inside the module, at the
-	///     cost of a global scan.
+	///     A match is kept only when all of its pattern bytes lie inside the module, on every route. On a qualified local
+	///     target Cheat Engine scans only the module; otherwise Cheat Engine scans the whole target and Core applies the
+	///     same rule while copying, at the cost of a global scan.
 	/// </remarks>
 	public AobScanBuilder InModule(string moduleName)
 	{
@@ -89,9 +90,9 @@ public readonly record struct AobScanBuilder
 	/// <param name="module">The module name Core resolves before any scan.</param>
 	/// <returns>A new immutable builder.</returns>
 	/// <remarks>
-	///     On a qualified local target Cheat Engine scans only the module, and a match must lie entirely inside it.
-	///     Otherwise Cheat Engine scans the whole target and Core keeps the addresses that start inside the module, at the
-	///     cost of a global scan.
+	///     A match is kept only when all of its pattern bytes lie inside the module, on every route. On a qualified local
+	///     target Cheat Engine scans only the module; otherwise Cheat Engine scans the whole target and Core applies the
+	///     same rule while copying, at the cost of a global scan.
 	/// </remarks>
 	public AobScanBuilder InModule(ModuleName module)
 	{
@@ -108,9 +109,10 @@ public readonly record struct AobScanBuilder
 	/// <param name="end">The last allowed match start.</param>
 	/// <returns>A new immutable builder.</returns>
 	/// <remarks>
-	///     On a qualified local target Cheat Engine scans only <c>[start, end + pattern length)</c>, intersected with the
-	///     module. Otherwise the global scan is not narrowed and Core applies the range while copying, before the
-	///     materialization limit is counted.
+	///     A match is kept when its start lies in the range, on every route (and, with a module, when it also fits entirely
+	///     inside the module). On a qualified local target Cheat Engine scans only <c>[start, end + pattern length)</c>,
+	///     intersected with the module. Otherwise the global scan is not narrowed and Core applies the range while copying,
+	///     before the materialization limit is counted.
 	/// </remarks>
 	public AobScanBuilder InRange(Address start, Address end)
 	{
@@ -201,7 +203,7 @@ public readonly record struct AobScanBuilder
 	/// <exception cref="ArgumentOutOfRangeException"><paramref name="maximumResults" /> is zero or negative.</exception>
 	/// <remarks>
 	///     This bound applies only while Core materializes the result. It is not pushed into Cheat Engine, does not
-	///     request early termination, and does not reduce scan work; the bounded route copies at most 65,535 addresses.
+	///     request early termination, and does not reduce scan work; every route copies at most 65,535 addresses.
 	/// </remarks>
 	public AobManyMatchBuilder Take(int maximumResults)
 	{

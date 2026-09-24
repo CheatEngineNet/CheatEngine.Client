@@ -64,11 +64,12 @@ internal static class AobHosts
 
 /// <summary>
 ///     A configurable <see cref="IAobScanPort" />. By default the global route hands out its list with the outcome the SDK
-///     reports for that list (<c>Matches</c>, or <c>NoMatches</c> for an empty list) on a qualified local target, and
-///     reports <c>InvalidResult</c> without a list. The selection observation is unqualified unless
-///     <see cref="Selection" /> is set, so a scoped request takes the global route with managed post-filters. The bounded
-///     route copies <see cref="BoundedRows" /> into the destination like the SDK, unless <see cref="BoundedResult" /> says
-///     what the SDK reports instead.
+///     reports for that list (<c>Matches</c>, or <c>NoMatches</c> for an empty list), and reports <c>InvalidResult</c>
+///     without a list; its before and after target observations are <see cref="Selection" /> when it is set, and a
+///     qualified local target otherwise, so an unqualified selection never yields a qualified global context. The
+///     selection observation is unqualified unless <see cref="Selection" /> is set, so a scoped request takes the global
+///     route with managed post-filters. The bounded route copies <see cref="BoundedRows" /> into the destination like the
+///     SDK (which drops rows by their start only), unless <see cref="BoundedResult" /> says what the SDK reports instead.
 /// </summary>
 internal sealed class FakeAobScanPort(RecordingAobMatchList? matchList = null) : IAobScanPort
 {
@@ -235,10 +236,11 @@ internal sealed class FakeAobScanPort(RecordingAobMatchList? matchList = null) :
 		EnumerationCallsWhenScanStarted ??= EnumerationCalls;
 		OnScan?.Invoke();
 		matches = matchList;
+		TargetSelectionFacts context = Selection == default ? AobHosts.Local() : Selection;
 		return Outcome ?? (matchList is null
-			? AobHosts.Outcome(AobScanOutcomeKind.InvalidResult)
+			? AobHosts.Outcome(AobScanOutcomeKind.InvalidResult, context, context)
 			: AobHosts.Outcome(matchList.Count == 0 ? AobScanOutcomeKind.NoMatches : AobScanOutcomeKind.Matches,
-				matchList.Count));
+				context, context, matchList.Count));
 	}
 
 	public InspectionStatus EnumerateModules(ModuleInfo[] destination, out int written)

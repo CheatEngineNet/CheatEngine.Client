@@ -4,11 +4,12 @@ namespace CheatEngine.Client.Scanning;
 
 /// <summary>An inclusive range of AOB match start addresses.</summary>
 /// <remarks>
-///     <see cref="End" /> is the last allowed match start. On the bounded route Cheat Engine scans only
-///     <c>[Start, End + pattern length)</c>, saturated at the top of the address space, so a match starting at
-///     <see cref="End" /> is found. When the bounded route cannot run, the global <c>AOBScan</c> is not narrowed: Core
-///     applies the range while copying each matching address, before it contributes to the caller's materialization
-///     limit, and the range does not reduce Cheat Engine's scan time or memory.
+///     <see cref="End" /> is the last allowed match start, on every route. On the bounded route Cheat Engine scans only
+///     <c>[Start, End + pattern length)</c>, so a match starting at <see cref="End" /> is found when it also fits entirely
+///     inside the requested module, if any, and ends below the top of the 64-bit address space (the stop bound
+///     saturates there). When the bounded route cannot run, the global <c>AOBScan</c> is not narrowed: Core applies the
+///     same rule while copying each matching address, before it contributes to the caller's materialization limit, and
+///     the range does not reduce Cheat Engine's scan time or memory.
 /// </remarks>
 public readonly record struct AobScanRange
 {

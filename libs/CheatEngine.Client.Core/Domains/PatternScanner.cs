@@ -28,6 +28,14 @@ namespace CheatEngine.Client.Core.Domains;
 ///         from the copy time.
 ///     </para>
 ///     <para>
+///         <b>One scope rule on every route.</b> A module keeps a match only when all of its pattern bytes lie inside
+///         <c>[BaseAddress, BaseAddress + ImageSize)</c>; a range keeps a match whose start lies in <c>[Start, End]</c>.
+///         Both routes apply the same predicate (<see cref="IsInsideRequest" />) while copying, so the bounded route's
+///         reliance on Cheat Engine honouring its stop bound becomes a Client guarantee, and the same request gives the
+///         same addresses whichever route ran. Both routes copy at most
+///         <c>ScanResourceLimits.MaximumPatternMatches - 1</c> addresses.
+///     </para>
+///     <para>
 ///         <b>Host outcomes (audit F06).</b> <see cref="AobScanMapping" /> classifies each outcome of both routes. On the
 ///         global route <c>NoResult</c> stays <see cref="CheatEngineFailureKind.IndeterminateHostResult" />, because on
 ///         Cheat Engine 7.7 zero matches and host failures share that shape; only the bounded route reports a factual zero,
@@ -149,10 +157,15 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 	/// <param name="patternLength">The number of byte positions of the pattern.</param>
 	/// <param name="bounds">The half-open bounds when the method returns <see langword="true" />.</param>
 	/// <param name="failure">The refusal otherwise; nothing was started.</param>
-	/// <returns><see langword="false" /> when the bounds are empty or the module does not fit the address space.</returns>
+	/// <returns>
+	///     <see langword="false" /> when the bounds cannot hold one whole match, or the module does not fit the address
+	///     space.
+	/// </returns>
 	/// <remarks>
-	///     Both routes use these bounds as a precondition, so a range that does not overlap the module is refused before
-	///     any scan instead of costing a global scan that can only return nothing.
+	///     Both routes use these bounds as a precondition. Bounds shorter than the pattern hold no match start that
+	///     <see cref="IsInsideRequest" /> could keep (a range that ends before the module can hold a whole match, or a
+	///     module smaller than the pattern), so such a request is refused before any scan instead of costing a global scan
+	///     that can only return nothing.
 	/// </remarks>
 	internal static bool TryCreateBounds(ModuleInfo? module, AobScanRange? range, int patternLength,
 		out AobScanBounds bounds, out CheatEngineFailure failure)
@@ -187,16 +200,43 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 			}
 		}
 
-		if (AobScanBounds.TryCreate(start, stop, out bounds))
+		if (start < stop && stop.Value - start.Value >= PatternLength(patternLength) &&
+			AobScanBounds.TryCreate(start, stop, out bounds))
 		{
 			failure = default;
 			return true;
 		}
 
-		failure = Rejected(module.HasValue && range.HasValue
-			? "The AOB range does not overlap the requested module."
+		bounds = default;
+		failure = Rejected(module.HasValue
+			? range.HasValue
+				? "The AOB range leaves no room for a whole match inside the requested module."
+				: "The requested module is smaller than the AOB pattern."
 			: "The AOB range leaves no room for a match below the top of the 64-bit address space.");
 		return false;
+	}
+
+	/// <summary>
+	///     The one scope rule of both routes: a module keeps a match only when all of its pattern bytes lie inside it, and a
+	///     range keeps a match whose start lies in <c>[Start, End]</c> and whose last byte lies below the top of the address
+	///     space (the bounded route cannot express a stop above it).
+	/// </summary>
+	/// <param name="address">A match start that Cheat Engine returned.</param>
+	/// <param name="request">The validated request.</param>
+	/// <param name="moduleRange">The resolved module, or <see cref="ModuleRange.None" />.</param>
+	/// <returns><see langword="true" /> when the match belongs to the request.</returns>
+	private static bool IsInsideRequest(Address address, AobScanRequest request, ModuleRange moduleRange)
+	{
+		ulong length = PatternLength(request.Pattern.ByteLength);
+		return moduleRange.ContainsMatch(address, length) &&
+			   (request.Range is not { } range ||
+				(range.Contains(address) && address.Value <= ulong.MaxValue - length));
+	}
+
+	/// <summary>Returns the byte length of a match, at least one.</summary>
+	private static ulong PatternLength(int patternLength)
+	{
+		return (ulong) Math.Max(patternLength, 1);
 	}
 
 	/// <summary>
@@ -211,16 +251,28 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 	/// </returns>
 	internal static Address ToStop(Address end, int patternLength)
 	{
-		ulong length = (ulong) Math.Max(patternLength, 1);
+		ulong length = PatternLength(patternLength);
 		return end.Value > ulong.MaxValue - length ? new Address(ulong.MaxValue) : new Address(end.Value + length);
 	}
 
-	/// <summary>Returns the bounded route's destination length: one more than the limit, capped by the Client.</summary>
+	/// <summary>Returns how many addresses either route copies: the request limit, capped by the Client.</summary>
+	/// <param name="maximumResults">The requested materialization limit.</param>
+	/// <returns><c>min(maximumResults, ScanResourceLimits.MaximumPatternMatches - 1)</c>.</returns>
+	/// <remarks>
+	///     The same cap on both routes keeps one request's answer independent of the route: a result cut by the cap is
+	///     truncated on either route.
+	/// </remarks>
+	internal static int GetMaterializationLimit(int maximumResults)
+	{
+		return Math.Min(maximumResults, ScanResourceLimits.MaximumPatternMatches - 1);
+	}
+
+	/// <summary>Returns the bounded route's destination length: one more than the copy limit, to prove truncation.</summary>
 	/// <param name="maximumResults">The requested materialization limit.</param>
 	/// <returns><c>min(maximumResults + 1, ScanResourceLimits.MaximumPatternMatches)</c>.</returns>
 	internal static int GetBoundedDestinationLength(int maximumResults)
 	{
-		return (int) Math.Min(maximumResults + 1L, ScanResourceLimits.MaximumPatternMatches);
+		return GetMaterializationLimit(maximumResults) + 1;
 	}
 
 	/// <summary>Validates, dispatches, and classifies one scan identically for every public entry point.</summary>
@@ -317,13 +369,20 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 	}
 
 	/// <summary>Runs the global route for a module or range request whose bounded route cannot run.</summary>
+	/// <remarks>
+	///     The route reason says that the bounded route could not qualify the target, so the result is never reported as
+	///     verified, even when the global scan's own before and after observations named one qualified incarnation (for
+	///     example after Cheat Engine returned no MemScan on a qualified target): the two public values never contradict
+	///     each other, and a consumer that gates on either one reaches the same conclusion.
+	/// </remarks>
 	private ScanOutcome FallBack(AobScanRequest request, ModuleRange moduleRange, CancellationToken cancellationToken)
 	{
 		ScanOutcome global =
 			ScanGlobal(request, moduleRange, PatternScanScope.GlobalHostScanWithManagedFilter, cancellationToken);
 		return global with
 		{
-			RouteReason = PatternScanRouteReason.TargetIdentityNotQualified
+			RouteReason = PatternScanRouteReason.TargetIdentityNotQualified,
+			TargetIdentityVerified = false
 		};
 	}
 
@@ -388,11 +447,13 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		};
 	}
 
-	/// <summary>Publishes the in-bounds addresses the SDK copied, after the Client's own range and module check.</summary>
+	/// <summary>Publishes the in-bounds addresses the SDK copied, after the Client's own scope check.</summary>
 	/// <remarks>
-	///     The SDK already dropped every address below the start or at or after the stop. The Client keeps its inclusive
-	///     range and module post-filters as a defensive check; an address they drop is counted as filtered out. The
-	///     destination holds one more address than the limit, so a full destination proves truncation.
+	///     The SDK already dropped every address below the start or at or after the stop, but it tests the match start
+	///     only: a match that straddles the module end is excluded only because Cheat Engine honours its stop bound (a
+	///     host observation). <see cref="IsInsideRequest" />, the rule of the global route too, makes that exclusion a
+	///     Client guarantee; an address it drops is counted as filtered out. The destination holds one more address than
+	///     the limit, so a full destination proves truncation.
 	/// </remarks>
 	private static ScanOutcome Publish(AobBoundedHostResult bounded, Address[] destination, AobScanRequest request,
 		ModuleRange moduleRange, CancellationToken cancellationToken)
@@ -417,7 +478,7 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		for (int index = 0; index < bounded.Written; index++)
 		{
 			Address address = destination[index];
-			if (!moduleRange.Contains(address) || (request.Range.HasValue && !request.Range.Value.Contains(address)))
+			if (!IsInsideRequest(address, request, moduleRange))
 			{
 				dropped++;
 				continue;
@@ -610,6 +671,7 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 	{
 		// Do not preallocate to a caller-controlled materialization limit. The limit remains strict below, while
 		// storage grows only for addresses that survived every managed filter.
+		int limit = GetMaterializationLimit(request.MaximumResults);
 		ImmutableArray<Address>.Builder materialized = ImmutableArray.CreateBuilder<Address>();
 		for (int index = 0; index < progress.HostResultCount; index++)
 		{
@@ -626,14 +688,13 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 			}
 
 			progress.Examined++;
-			if (!moduleRange.Contains(address) ||
-				(request.Range.HasValue && !request.Range.Value.Contains(address)))
+			if (!IsInsideRequest(address, request, moduleRange))
 			{
 				progress.FilteredOut++;
 				continue;
 			}
 
-			if (materialized.Count == request.MaximumResults)
+			if (materialized.Count == limit)
 			{
 				// One more post-filtered address proves that the copy is incomplete. It is examined but not copied.
 				return ScanOutcome.Success(new AobScanResult(materialized.ToImmutable(), true));
@@ -893,9 +954,13 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		{
 		}
 
-		internal bool Contains(Address address)
+		/// <summary>Gets whether a match of <paramref name="length" /> bytes starting at the address lies entirely inside.</summary>
+		/// <param name="address">The match start.</param>
+		/// <param name="length">The match length in bytes, at least one.</param>
+		/// <returns><see langword="true" /> without a module, or when <c>[address, address + length)</c> is inside it.</returns>
+		internal bool ContainsMatch(Address address, ulong length)
 		{
-			return !IsActive || (address.Value >= Start && address.Value - Start < Size);
+			return !IsActive || (length <= Size && address.Value >= Start && address.Value - Start <= Size - length);
 		}
 	}
 }

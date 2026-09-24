@@ -9,7 +9,8 @@ internal static class ScanResourceLimits
 {
 	/// <summary>
 	///     The largest destination of the bounded AOB route: <c>AobScanRequest.MaximumResults + 1</c> addresses, capped
-	///     here. The extra slot proves truncation, so the route copies at most <c>MaximumPatternMatches - 1</c> addresses.
+	///     here. The extra slot proves truncation, so the route copies at most <c>MaximumPatternMatches - 1</c> addresses;
+	///     the global route applies the same copy limit, so one request's answer does not depend on the route.
 	/// </summary>
 	/// <remarks>
 	///     65,536 addresses are 512 KiB; CheatEngine.SDK stages them in a pooled buffer of the same length, so the call's

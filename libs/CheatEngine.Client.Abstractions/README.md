@@ -152,24 +152,32 @@ No CheatEngine.SDK primitive backs these yet; they may arrive in a 1.x minor rel
 |-----------------------------------|-------------------------------------------------------------------------------------|---------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------|
 | `GlobalHostScan`                  | No module and no range (`UnscopedRequest`)                                          | Exact matches; zero matches are `IndeterminateHostResult`                       | One global `AOBScan` over the whole target                                                                                                         |
 | `HostBoundedRange`                | A module and/or range, on a qualified local target (`ScopedRequestOnQualifiedTarget`) | Exact matches; zero matches are a factual empty result when the error text was read | An exhaustive MemScan limited to the module intersected with the range; blocks Cheat Engine's main thread and cannot be interrupted once started in 1.0 |
-| `GlobalHostScanWithManagedFilter` | A module and/or range whose bounded route cannot run (`TargetIdentityNotQualified`) | Exact matches inside the module and range; zero matches are `IndeterminateHostResult` | One global `AOBScan` over the whole target; Core keeps only the addresses that start inside the module and range                                  |
+| `GlobalHostScanWithManagedFilter` | A module and/or range whose bounded route cannot run (`TargetIdentityNotQualified`) | Exact matches inside the module and range; a list without such a match is an empty success; a `nil` list is `IndeterminateHostResult` | One global `AOBScan` over the whole target, after the bounded scan when that scan had run; Core applies the module and range while copying |
 
 The bounded route runs when `TargetSelection.ObserveCurrent` qualifies Cheat Engine's selected target as a local process
 incarnation. A CEServer or file-as-process target, a MemScan session CheatEngine.SDK could not create, or a target the
-SDK could not qualify during the scan falls back to the global route with managed filters. Core resolves the module
-before any scan, and a range that does not overlap the module is refused (`OperationRejected`, `NotStarted`) before any
-scan. The range end is the last allowed match start: the bounded route scans up to `End + pattern length`, saturated at
-the top of the address space. On the bounded route a match must lie entirely inside the module; the managed filter tests
-the match start only. `AobScanRequest.MaximumResults` bounds only how many addresses Core copies; it never stops Cheat
-Engine early, and the bounded route copies at most 65,535 addresses. The copied order is Cheat Engine's result-list
-order, which Cheat Engine does not specify: the first copied address is not guaranteed to be the lowest address or the
-first logical region.
+SDK could not qualify during the scan falls back to the global route with managed filters.
+
+One scope rule applies on every route, so the same request returns the same addresses whichever route ran:
+
+- with a module, a match is kept only when all of its pattern bytes lie inside `[BaseAddress, BaseAddress + ImageSize)`;
+  a match that straddles the module end is never reported;
+- with a range, a match is kept when its start lies in `[Start, End]`: the range end is the last allowed match start,
+  and the bounded route scans up to `End + pattern length`, saturated at the top of the address space.
+
+Core resolves the module before any scan, and a request whose module and range leave no room for one whole match (a
+range that ends before the module can hold one, or a module smaller than the pattern) is refused (`OperationRejected`,
+`NotStarted`) before any scan. `AobScanRequest.MaximumResults` bounds only how many addresses Core copies; it never stops
+Cheat Engine early, and every route copies at most 65,535 addresses (`IsTruncated` reports a result cut by either
+limit). The copied order is Cheat Engine's result-list order, which Cheat Engine does not specify: the first copied
+address is not guaranteed to be the lowest address or the first logical region.
 
 The memory protection and alignment of a scan are Client values: `ScanProtectionFilter` holds one
 `ScanProtectionRequirement` (`Unspecified`, `Required`, `Excluded`, `Any`) per Cheat Engine flag (executable,
 copy-on-write, writable), and `ScanAlignment` is `None`, `AlignedTo(divisor)` or `LastDigits(digits)`. Both validate
-when they are created, and Core translates them into Cheat Engine's protection text (for example `+X-C-W`) and
-fast-scan method on every route; no CheatEngine.SDK option type appears in the public surface.
+when they are created, and Core translates them into Cheat Engine's protection text (for example `+X-C-W`, or the
+empty "find everything" text for the default filter) and fast-scan method on every route; no CheatEngine.SDK option type
+appears in the public surface.
 
 Four scan limits are distinct and must not be confused:
 
@@ -192,7 +200,8 @@ Four scan limits are distinct and must not be confused:
 - `RouteReason` (`PatternScanRouteReason`): why the scan ran on its route.
 - `TargetIdentityVerified`: whether the copied addresses are attributed to one qualified local target incarnation for
   the whole scan; always on a successful bounded scan, only when the selection was the same qualified incarnation
-  before and after the call on a global scan, and never on a failure.
+  before and after the call on an unscoped global scan, and never on a failure or on the
+  `GlobalHostScanWithManagedFilter` route, whose `TargetIdentityNotQualified` reason it never contradicts.
 
 The global routes call `AobScanner.TryScanOutcome` of CheatEngine.SDK 2.0.0, which reports each host outcome
 separately:

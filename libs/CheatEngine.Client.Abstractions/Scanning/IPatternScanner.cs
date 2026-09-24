@@ -35,8 +35,7 @@ namespace CheatEngine.Client.Scanning;
 ///                 MemScan limited to the module intersected with the range, so its cost is proportional to those bounds,
 ///                 and zero matches are a factual empty result when Cheat Engine's error text was readable. The call
 ///                 blocks Cheat Engine's main thread for the scan, the copy and the release, and a started scan cannot be
-///                 interrupted in 1.0: cancellation is observed only between Cheat Engine calls. A match must lie entirely
-///                 inside the module, and a match starting at the range end is included.
+///                 interrupted in 1.0: cancellation is observed only between Cheat Engine calls.
 ///             </description>
 ///         </item>
 ///         <item>
@@ -45,17 +44,28 @@ namespace CheatEngine.Client.Scanning;
 ///                 A module and/or range request whose bounded route cannot run
 ///                 (<see cref="PatternScanRouteReason.TargetIdentityNotQualified" />): an unqualified target such as a
 ///                 CEServer or file-as-process selection, or a scan session CheatEngine.SDK could not create or attach to
-///                 one target. Cheat Engine runs the global scan, at the cost of a full scan, and Core keeps only the
-///                 addresses whose start lies inside the module and range; zero matches are indeterminate as on the global
+///                 one target. Cheat Engine runs the global scan, at the cost of a full scan (after the bounded scan, when
+///                 that scan had run before the SDK lost the target's identity), and Core applies the module and range
+///                 while copying. A global result list with no match inside the request is a successful empty result; a
+///                 global scan that returns no list is indeterminate as on the global route.
+///                 <see cref="PatternScanOutcome.TargetIdentityVerified" /> is always <see langword="false" /> on this
 ///                 route.
 ///             </description>
 ///         </item>
 ///     </list>
 ///     <para>
-///         Core resolves the module before any scan, and a range that does not overlap the module is refused before any
-///         scan. <see cref="AobScanRequest.MaximumResults" /> bounds only how many addresses Core copies; it never stops
-///         Cheat Engine early, and the bounded route copies at most 65,535 addresses. The copied order is Cheat Engine's
-///         result-list order, which Cheat Engine does not specify.
+///         <b>One scope rule on every route.</b> With <see cref="AobScanRequest.Module" />, a match is kept only when all
+///         of its pattern bytes lie inside <c>[BaseAddress, BaseAddress + ImageSize)</c>: a match that straddles the module
+///         end is never reported. With <see cref="AobScanRequest.Range" />, a match is kept when its start lies in
+///         <c>[Start, End]</c>. Both rules apply together, so the same request returns the same addresses whichever route
+///         ran. Core resolves the module before any scan, and a request whose module and range leave no room for one whole
+///         match (a range that ends before the module can hold one, or a module smaller than the pattern) is refused before
+///         any scan.
+///     </para>
+///     <para>
+///         <see cref="AobScanRequest.MaximumResults" /> bounds only how many addresses Core copies; it never stops Cheat
+///         Engine early, and every route copies at most 65,535 addresses. The copied order is Cheat Engine's result-list
+///         order, which Cheat Engine does not specify.
 ///     </para>
 ///     <para>
 ///         Four scan limits are distinct: the Cheat Engine work limit (the bounds on the bounded route, none on the global

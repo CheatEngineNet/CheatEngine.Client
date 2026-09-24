@@ -39,15 +39,18 @@ public sealed class PatternScannerTests
 		Assert.Equal(default, failure);
 	}
 
-	/// <summary>The Client-owned options reach Cheat Engine as its own protection text and fast-scan method.</summary>
+	/// <summary>
+	///     The Client-owned options reach Cheat Engine as its own protection text and fast-scan method; the default filter
+	///     is the empty text, the SDK-documented "find everything" value, never an omitted argument.
+	/// </summary>
 	[Theory]
-	[InlineData(Unspecified, Unspecified, Unspecified, null)]
+	[InlineData(Unspecified, Unspecified, Unspecified, "")]
 	[InlineData(Required, Excluded, Excluded, "+X-C-W")]
 	[InlineData(Unspecified, Excluded, Required, "-C+W")]
 	[InlineData(Any, Any, Any, "*X*C*W")]
 	[InlineData(Excluded, Unspecified, Unspecified, "-X")]
 	public void TheProtectionFilterBecomesCheatEngineProtectionText(ScanProtectionRequirement executable,
-		ScanProtectionRequirement copyOnWrite, ScanProtectionRequirement writable, string? expected)
+		ScanProtectionRequirement copyOnWrite, ScanProtectionRequirement writable, string expected)
 	{
 		AobScanOptions options = AobScanMapping.ToSdkOptions(
 			new ScanProtectionFilter(executable, copyOnWrite, writable), ScanAlignment.None);
@@ -67,7 +70,31 @@ public sealed class PatternScannerTests
 		Assert.Equal("16", aligned.AlignmentParameter);
 		Assert.Equal(FastScanMethod.LastDigits, lastDigits.AlignmentMethod);
 		Assert.Equal("F0", lastDigits.AlignmentParameter);
-		Assert.Null(lastDigits.ProtectionFlags);
+		Assert.Equal(string.Empty, lastDigits.ProtectionFlags);
+	}
+
+	/// <summary>Both routes send the same explicit protection text for the default filter.</summary>
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public void TheDefaultFilterIsTheSameEmptyProtectionTextOnBothRoutes(bool bounded)
+	{
+		FakeAobScanPort port = new(new RecordingAobMatchList(["4010"]))
+		{
+			Modules = [new ModuleInfo("game.exe", 0x4000, new MemorySize(0x100), true, "game.exe")],
+			Selection = bounded ? AobHosts.Local() : default,
+			BoundedRows = [0x4010]
+		};
+		PatternScanner scanner = new(
+			new SdkMainThreadDispatcher(InertCoreLifetime.Create(), new InlineMainThreadInvoker()), port);
+
+		Assert.True(scanner.TryScan(new AobScanRequest(new AobPattern("90"), 1, new ModuleName("game.exe")), out _,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken), failure.Message);
+
+		AobScanOptions options = Assert.NotNull(port.LastOptions);
+		Assert.Equal(string.Empty, options.ProtectionFlags);
+		Assert.Equal(FastScanMethod.NotAligned, options.AlignmentMethod);
+		Assert.Equal(bounded ? 1 : 0, port.BoundedCalls);
 	}
 
 	[Theory]

@@ -250,7 +250,12 @@ becomes `End + pattern length`, checked and saturated) and, when the port's `Tar
 qualifies the target, runs the stable `AobScanner.TryScanWithinBounds` overload with a destination of
 `min(MaximumResults + 1, ScanResourceLimits.MaximumPatternMatches)` addresses and the caller's token. An unqualified
 target, or a session the SDK could not create or attach to one target, falls back to the global scan with the module and
-range applied while copying. `MaximumResults` bounds only the copy, and a cancellation token cannot interrupt a started
+range applied while copying; the fallback never reports a verified target identity. Both routes copy through one scope
+predicate (`PatternScanner.IsInsideRequest`): a module keeps a match only when all of its pattern bytes lie inside it, and
+a range keeps a match whose start lies in `[Start, End]`. On the bounded route the predicate turns Cheat Engine's
+observed stop-bound behavior into a Client guarantee, and bounds that cannot hold one whole match are refused before any
+scan. Both routes copy at most `ScanResourceLimits.MaximumPatternMatches - 1` addresses, and both send the empty
+protection text for the default filter. `MaximumResults` bounds only the copy, and a cancellation token cannot interrupt a started
 scan: a cancellation observed after the scan returns `Cancelled` with `CheatEngineHostEffect.Completed`. `ScanDetailed` measures the Cheat
 Engine scan call and the Client copy separately (`PatternScanMetrics`) and reports the host outcome, the route reason and
 whether the target identity was verified; `tests/CheatEngine.Client.Benchmarks/AobRouteComparisonBenchmarks.cs`

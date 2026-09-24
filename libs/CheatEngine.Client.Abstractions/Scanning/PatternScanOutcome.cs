@@ -123,9 +123,11 @@ public sealed class PatternScanOutcome
 
 	/// <summary>
 	///     Gets whether the copied addresses are attributed to one qualified local target incarnation for the whole scan:
-	///     always on a successful bounded scan, and on a global scan only when Cheat Engine's selection was the same
-	///     qualified incarnation before and after the call. <see langword="false" /> for an unqualified target (CEServer,
-	///     file as process) and on every failure.
+	///     always on a successful bounded scan, and on an unscoped global scan only when Cheat Engine's selection was the
+	///     same qualified incarnation before and after the call. <see langword="false" /> for an unqualified target
+	///     (CEServer, file as process), on every failure, and always on the
+	///     <see cref="PatternScanScope.GlobalHostScanWithManagedFilter" /> route, whose
+	///     <see cref="PatternScanRouteReason.TargetIdentityNotQualified" /> reason it never contradicts.
 	/// </summary>
 	public bool TargetIdentityVerified
 	{

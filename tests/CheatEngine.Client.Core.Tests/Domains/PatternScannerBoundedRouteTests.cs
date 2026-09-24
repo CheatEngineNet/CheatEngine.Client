@@ -1,3 +1,5 @@
+using System.Globalization;
+
 using CheatEngine.Client.Core.Dispatching;
 using CheatEngine.Client.Core.Domains;
 using CheatEngine.Client.Core.Tests.TestSupport;
@@ -177,10 +179,116 @@ public sealed class PatternScannerBoundedRouteTests
 
 		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
 		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
-		Assert.Equal("The AOB range does not overlap the requested module.", failure.Message);
+		Assert.Equal("The AOB range leaves no room for a whole match inside the requested module.", failure.Message);
 		Assert.Equal(0, port.SelectionCalls);
 		Assert.Equal(0, port.BoundedCalls);
 		Assert.Equal(0, port.ScanCalls);
+	}
+
+	/// <summary>
+	///     A range that ends fewer than pattern-length bytes before the module overlaps the module's bytes but allows no
+	///     match start whose whole match fits inside it, so it is refused before any scan, like a module smaller than the
+	///     pattern.
+	/// </summary>
+	[Theory]
+	[InlineData(true, "Range", "The AOB range leaves no room for a whole match inside the requested module.")]
+	[InlineData(false, "Range", "The AOB range leaves no room for a whole match inside the requested module.")]
+	[InlineData(true, "SmallModule", "The requested module is smaller than the AOB pattern.")]
+	[InlineData(false, "SmallModule", "The requested module is smaller than the AOB pattern.")]
+	public void BoundsThatCannotHoldAWholeMatchAreRefusedBeforeAnyScanOnBothRoutes(bool qualified, string shape,
+		string expectedMessage)
+	{
+		ModuleInfo module = shape == "SmallModule"
+			? new ModuleInfo("game.exe", new Address(ModuleBase), new MemorySize(3), true, "game.exe")
+			: Module();
+		FakeAobScanPort port = new(new RecordingAobMatchList(["3FFF"]))
+		{
+			Modules = [module],
+			Selection = qualified ? AobHosts.Local() : default
+		};
+		PatternScanner scanner = CreateScanner(port);
+		AobScanRequest request = shape == "SmallModule"
+			? new AobScanRequest(new AobPattern("90 90 90 90"), 1, new ModuleName("game.exe"))
+			: Request(new ModuleName("game.exe"), new AobScanRange(0x3000, ModuleBase - 1), 1);
+
+		Assert.False(scanner.TryScan(request, out _, out CheatEngineFailure failure,
+			TestContext.Current.CancellationToken));
+
+		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
+		Assert.Equal(expectedMessage, failure.Message);
+		Assert.Equal(0, port.BoundedCalls);
+		Assert.Equal(0, port.ScanCalls);
+	}
+
+	/// <summary>
+	///     Deviation 9 settled: the same module request gives the same addresses on both routes. A match must lie entirely
+	///     inside the module, so a match that straddles the module end is dropped on the fallback route by the managed
+	///     filter, and on the bounded route by the same Client check even if Cheat Engine reported it (the SDK drops rows by
+	///     their start only).
+	/// </summary>
+	[Theory]
+	[Trait("Qualification", "Q28")]
+	[InlineData(false)]
+	[InlineData(true)]
+	public void BothRoutesKeepOnlyMatchesThatLieEntirelyInsideTheModule(bool withRange)
+	{
+		// A 4-byte pattern in the module [0x4000, 0x4100): 0x40FC is its last whole match, 0x40FD and 0x40FF straddle
+		// the module end, and 0x4100 starts after it.
+		string[] hostRows = ["40FC", "40FD", "40FF", "4100"];
+		AobScanRequest request = new(new AobPattern("90 90 90 90"), 10, new ModuleName("game.exe"),
+			withRange ? new AobScanRange(0x40F0, 0x40FE) : null);
+
+		PatternScanOutcome bounded = Scan(AobHosts.Local());
+		PatternScanOutcome global = Scan(AobHosts.Remote);
+
+		Assert.True(bounded.IsSuccess, bounded.Failure?.Message);
+		Assert.True(global.IsSuccess, global.Failure?.Message);
+		Assert.Equal(PatternScanScope.HostBoundedRange, Assert.NotNull(bounded.Metrics).Scope);
+		Assert.Equal(PatternScanScope.GlobalHostScanWithManagedFilter, Assert.NotNull(global.Metrics).Scope);
+		Assert.Equal([0x40FC], bounded.Result!.Value.Matches);
+		Assert.Equal(bounded.Result.Value.Matches, global.Result!.Value.Matches);
+		Assert.Equal(bounded.Result.Value.IsTruncated, global.Result.Value.IsTruncated);
+		Assert.Equal(3UL, bounded.Metrics.Value.FilteredOutCount);
+		Assert.Equal(3UL, global.Metrics.Value.FilteredOutCount);
+
+		PatternScanOutcome Scan(TargetSelectionFacts selection)
+		{
+			FakeAobScanPort port = new(new RecordingAobMatchList(hostRows))
+			{
+				Modules = [Module()],
+				Selection = selection,
+				BoundedRows = [.. hostRows.Select(static row => Address.Parse(row))]
+			};
+			return CreateScanner(port).ScanDetailed(request, TestContext.Current.CancellationToken);
+		}
+	}
+
+	/// <summary>Both routes copy at most the Client's cap, so a request above it is truncated the same way on each.</summary>
+	[Theory]
+	[Trait("Qualification", "Q29")]
+	[InlineData(true)]
+	[InlineData(false)]
+	public void BothRoutesCopyAtMostTheClientCapAndReportTheCutAsTruncation(bool qualified)
+	{
+		const int rows = ScanResourceLimits.MaximumPatternMatches;
+		ModuleInfo module = new("game.exe", new Address(ModuleBase), new MemorySize(0x10_0000), true, "game.exe");
+		Address[] found = [.. Enumerable.Range(0, rows).Select(static index => new Address(ModuleBase + (ulong) index))];
+		FakeAobScanPort port = new(new RecordingAobMatchList(
+			[.. found.Select(static address => address.Value.ToString("X", CultureInfo.InvariantCulture))]))
+		{
+			Modules = [module],
+			Selection = qualified ? AobHosts.Local() : AobHosts.Remote,
+			BoundedRows = found
+		};
+		PatternScanner scanner = CreateScanner(port);
+
+		Assert.True(scanner.TryScan(Request(new ModuleName("game.exe"), null, 100_000), out AobScanResult result,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken), failure.Message);
+
+		Assert.Equal(ScanResourceLimits.MaximumPatternMatches - 1, result.Matches.Length);
+		Assert.True(result.IsTruncated);
+		Assert.Equal(qualified ? 1 : 0, port.BoundedCalls);
 	}
 
 	/// <summary>One slot more than the limit proves truncation; the Client caps the destination.</summary>
@@ -315,6 +423,8 @@ public sealed class PatternScannerBoundedRouteTests
 		Assert.True(outcome.IsSuccess, outcome.Failure?.Message);
 		Assert.Equal([0x4010], outcome.Result!.Value.Matches);
 		Assert.Equal(PatternScanScope.GlobalHostScanWithManagedFilter, Assert.NotNull(outcome.Metrics).Scope);
+		Assert.Equal(PatternScanRouteReason.TargetIdentityNotQualified, outcome.RouteReason);
+		Assert.False(outcome.TargetIdentityVerified);
 		Assert.Equal(1, port.ScanCalls);
 		Assert.Equal(bounded.HasValue ? 1 : 0, port.BoundedCalls);
 		Assert.Equal(1, matches.ReleaseCount);

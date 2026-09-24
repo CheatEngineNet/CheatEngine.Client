@@ -3,9 +3,10 @@ namespace CheatEngine.Client.Scanning;
 /// <summary>The memory protection a scan requires, one tri-state requirement per Cheat Engine protection flag.</summary>
 /// <remarks>
 ///     <para>
-///         The default value leaves every flag unspecified, so Cheat Engine scans memory whatever its protection. Core
-///         passes the filter to Cheat Engine as its protection text, in the order executable, copy-on-write, writable: for
-///         example executable, not copy-on-write and not writable memory is <c>+X-C-W</c>.
+///         Core passes the filter to Cheat Engine as its protection text, in the order executable, copy-on-write,
+///         writable: for example executable, not copy-on-write and not writable memory is <c>+X-C-W</c>. The default
+///         value leaves every flag unspecified and is passed as the empty text, Cheat Engine's documented "find
+///         everything" value, on every route.
 ///     </para>
 ///     <para>
 ///         The filter is a Client value; CheatEngine.SDK's option type never appears in a public signature.

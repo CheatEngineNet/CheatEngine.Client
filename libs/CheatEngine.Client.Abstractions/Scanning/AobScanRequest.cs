@@ -48,8 +48,8 @@ public readonly record struct AobScanRequest
 	/// <remarks>
 	///     This is the materialization limit: it bounds how many addresses Core copies from Cheat Engine's result. It does
 	///     not bound or terminate the Cheat Engine scan, and it is not the number of available results (see
-	///     <see cref="PatternScanMetrics.HostResultCount" />). The bounded route copies at most 65,535 addresses, whatever
-	///     this limit.
+	///     <see cref="PatternScanMetrics.HostResultCount" />). Every route copies at most 65,535 addresses, whatever this
+	///     limit; a result cut by that cap is truncated (<see cref="AobScanResult.IsTruncated" />).
 	/// </remarks>
 	public int MaximumResults
 	{
@@ -58,9 +58,10 @@ public readonly record struct AobScanRequest
 
 	/// <summary>Gets the optional module that scopes the scan; Core resolves it before any scan.</summary>
 	/// <remarks>
-	///     On a qualified local target Cheat Engine scans only the module (intersected with <see cref="Range" />,
-	///     <see cref="PatternScanScope.HostBoundedRange" />), and a match must lie entirely inside it. Otherwise Cheat Engine
-	///     scans the whole target and Core keeps the addresses that start inside the module
+	///     A match is kept only when all of its pattern bytes lie inside the module, on every route: a match that
+	///     straddles the module end is never reported. On a qualified local target Cheat Engine scans only the module
+	///     (intersected with <see cref="Range" />, <see cref="PatternScanScope.HostBoundedRange" />); otherwise Cheat
+	///     Engine scans the whole target and Core applies the same rule while copying
 	///     (<see cref="PatternScanScope.GlobalHostScanWithManagedFilter" />).
 	/// </remarks>
 	public ModuleName? Module
@@ -70,10 +71,11 @@ public readonly record struct AobScanRequest
 
 	/// <summary>Gets the optional inclusive range of match start addresses that scopes the scan.</summary>
 	/// <remarks>
-	///     On a qualified local target Cheat Engine scans only <c>[Start, End + pattern length)</c>, intersected with
-	///     <see cref="Module" /> (<see cref="PatternScanScope.HostBoundedRange" />); otherwise the range is applied while
-	///     copying and does not reduce Cheat Engine's scan time or memory
-	///     (<see cref="PatternScanScope.GlobalHostScanWithManagedFilter" />).
+	///     A match is kept when its start lies in the range, on every route (and, with <see cref="Module" />, when it also
+	///     fits entirely inside the module). On a qualified local target Cheat Engine scans only
+	///     <c>[Start, End + pattern length)</c>, intersected with <see cref="Module" />
+	///     (<see cref="PatternScanScope.HostBoundedRange" />); otherwise the range is applied while copying and does not
+	///     reduce Cheat Engine's scan time or memory (<see cref="PatternScanScope.GlobalHostScanWithManagedFilter" />).
 	/// </remarks>
 	public AobScanRange? Range
 	{

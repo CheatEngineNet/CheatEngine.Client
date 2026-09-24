@@ -46,6 +46,9 @@ internal static class QualificationScenarios
 	private const int DefaultResultLimit = 100_000;
 	private const int MaximumResultLimit = 1_000_000;
 
+	// IPatternScanner documents that every route copies at most 65,535 addresses, whatever MaximumResults.
+	private const int DocumentedCopyCap = 65_535;
+
 	// Offsets inside the scratch region, one slot per scenario kind so that no write overlaps another.
 	private const int BytesOffset = 0;
 	private const int Utf8Offset = 64;
@@ -264,7 +267,8 @@ internal static class QualificationScenarios
 
 			bool cancelled = outcome.Failure is { Kind: CheatEngineFailureKind.Cancelled };
 			observation.BeginObject("checks")
-				.Boolean("truncationExplicit", outcome.IsSuccess && truncated && matches.Count == limit)
+				.Boolean("truncationExplicit",
+					outcome.IsSuccess && truncated && matches.Count == Math.Min(limit, DocumentedCopyCap))
 				.Boolean("cancellationHonest", (cancelled && outcome.Result is null) || (outcome.IsSuccess && !truncated))
 				.Boolean("noPrefixPublished", outcome.IsSuccess || outcome.Result is null)
 				.Boolean("notFoundReported", outcome.Failure is { Kind: CheatEngineFailureKind.NotFound })
@@ -1004,14 +1008,18 @@ internal static class QualificationScenarios
 			return;
 		}
 
+		// The Client's one module rule on every route: all pattern bytes of a match lie inside the module.
 		ulong start = found.BaseAddress.Value;
-		ulong end = start + size.Value;
-		bool allInside = filtered.TrueForAll(address => address >= start && address < end);
+		ulong length = (ulong) Math.Max(pattern.ByteLength, 1);
+		bool FitsInside(ulong address) =>
+			length <= size.Value && address >= start && address - start <= size.Value - length;
+
+		bool allInside = filtered.TrueForAll(FitsInside);
 		PatternScanOutcome global = active.Scans.ScanDetailed(new AobScanRequest(pattern, limit));
 		List<ulong> globalMatches = global.Result is { } result
 			? [.. result.Matches.Select(static address => address.Value)]
 			: [];
-		int insideCount = globalMatches.Count(address => address >= start && address < end);
+		int insideCount = globalMatches.Count(FitsInside);
 		bool globalComplete = global.IsSuccess && global.Result is { IsTruncated: false };
 		observation.Boolean("moduleFound", true)
 			.BeginObject("moduleCheck")

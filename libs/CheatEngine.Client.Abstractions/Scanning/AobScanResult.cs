@@ -26,7 +26,10 @@ public readonly record struct AobScanResult
 		get;
 	}
 
-	/// <summary>Gets whether additional CE matches were omitted because the request limit was reached.</summary>
+	/// <summary>
+	///     Gets whether further matches inside the request exist beyond the copied ones: the copy stopped at
+	///     <see cref="AobScanRequest.MaximumResults" /> or at the Client's cap of 65,535 addresses, whichever is lower.
+	/// </summary>
 	public bool IsTruncated
 	{
 		get;

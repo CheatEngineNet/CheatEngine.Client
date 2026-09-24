@@ -154,6 +154,11 @@ public sealed class PatternScannerDetailedOutcomeTests
 		Assert.False(Assert.NotNull(outcome.Metrics).InBoundsCountIsExact);
 	}
 
+	/// <summary>
+	///     A fallback never reports a verified target, even after a session-creation failure on a qualified target whose
+	///     global scan saw the same incarnation before and after: the reason says the identity was not qualified, and the
+	///     flag agrees with it (plan L11, commit 2).
+	/// </summary>
 	[Theory]
 	[Trait("Qualification", "Q28")]
 	[InlineData(false)]
@@ -181,6 +186,7 @@ public sealed class PatternScannerDetailedOutcomeTests
 		Assert.Equal(PatternScanScope.GlobalHostScanWithManagedFilter, Assert.NotNull(outcome.Metrics).Scope);
 		Assert.Equal(PatternScanRouteReason.TargetIdentityNotQualified, outcome.RouteReason);
 		Assert.Equal(PatternScanHostOutcome.Matches, outcome.HostOutcome);
+		Assert.False(outcome.TargetIdentityVerified);
 	}
 
 	[Fact]

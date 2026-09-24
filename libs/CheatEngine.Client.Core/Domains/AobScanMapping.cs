@@ -289,28 +289,34 @@ internal static class AobScanMapping
 	}
 
 	/// <summary>Translates the Client-owned protection filter and alignment rule into CheatEngine.SDK's scan options.</summary>
-	/// <param name="protection">The protection filter; an all-unspecified filter omits Cheat Engine's argument.</param>
+	/// <param name="protection">
+	///     The protection filter; an all-unspecified filter is the empty protection text, which CheatEngine.SDK documents as
+	///     Cheat Engine's "find everything" value.
+	/// </param>
 	/// <param name="alignment">The alignment rule.</param>
 	/// <returns>
 	///     The SDK options: the protection text in Cheat Engine's order (<c>X</c>, <c>C</c>, <c>W</c>; <c>+</c> required,
 	///     <c>-</c> excluded, <c>*</c> either), and the fast-scan method with its decimal divisor or upper-case digits.
 	/// </returns>
 	/// <remarks>
-	///     The public values validate themselves when they are created; <see cref="PatternScanner.TryValidateRequest" />
-	///     refuses an undefined value before dispatch, so this translation never sees one.
+	///     <para>
+	///         The protection text is always explicit, so both routes send Cheat Engine the same argument: the bounded route
+	///         turns an omitted text into the empty string itself, and the global <c>AOBScan</c> receives the empty string
+	///         instead of an omitted or <c>nil</c> argument, whose meaning the SDK does not document.
+	///     </para>
+	///     <para>
+	///         The public values validate themselves when they are created; <see cref="PatternScanner.TryValidateRequest" />
+	///         refuses an undefined value before dispatch, so this translation never sees one.
+	///     </para>
 	/// </remarks>
 	internal static AobScanOptions ToSdkOptions(ScanProtectionFilter protection, ScanAlignment alignment)
 	{
-		string? flags = null;
-		if (!protection.IsUnspecified)
-		{
-			Span<char> text = stackalloc char[6];
-			int written = 0;
-			AppendProtection(text, ref written, protection.Executable, 'X');
-			AppendProtection(text, ref written, protection.CopyOnWrite, 'C');
-			AppendProtection(text, ref written, protection.Writable, 'W');
-			flags = new string(text[..written]);
-		}
+		Span<char> text = stackalloc char[6];
+		int written = 0;
+		AppendProtection(text, ref written, protection.Executable, 'X');
+		AppendProtection(text, ref written, protection.CopyOnWrite, 'C');
+		AppendProtection(text, ref written, protection.Writable, 'W');
+		string flags = written == 0 ? string.Empty : new string(text[..written]);
 
 		return alignment.Kind switch
 		{
