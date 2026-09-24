@@ -19,9 +19,9 @@ namespace CheatEngine.Client.Scanning;
 ///         counts and the Cheat Engine scan time separately from the Client copy time.
 ///     </para>
 ///     <para>
-///         With CheatEngine.SDK 1.0.0 a scan that finds nothing is reported as
-///         <see cref="CheatEngineFailureKind.IndeterminateHostResult" />: zero matches and a host failure are
-///         indistinguishable with that SDK version. It is never reported as <see cref="CheatEngineFailureKind.NotFound" />.
+///         A scan that finds nothing is reported as <see cref="CheatEngineFailureKind.IndeterminateHostResult" />: this
+///         scan route observes only whether Cheat Engine returned a result list, so zero matches and a host failure are
+///         indistinguishable. It is never reported as <see cref="CheatEngineFailureKind.NotFound" />.
 ///     </para>
 /// </remarks>
 public interface IPatternScanner

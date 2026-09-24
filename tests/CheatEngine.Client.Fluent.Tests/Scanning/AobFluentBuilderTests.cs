@@ -396,7 +396,7 @@ public sealed class AobFluentBuilderTests
 	{
 		CheatEngineFailure indeterminate = new(CheatEngineFailureKind.IndeterminateHostResult, "Patterns.Scan",
 			"Cheat Engine returned no AOB result list: zero matches or a host failure " +
-			"(indistinguishable with CheatEngine.SDK 1.0.0).", null, CheatEngineHostEffect.Completed);
+			"(indistinguishable on this scan route).", null, CheatEngineHostEffect.Completed);
 		FakePatternScanner scanner = new(indeterminate);
 		AobScanBuilder builder = scanner.Aob("90 90").InModule("game.exe");
 

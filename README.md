@@ -10,7 +10,7 @@
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4?style=flat-square&logo=dotnet&logoColor=white&labelColor=24292f)](https://dotnet.microsoft.com/download/dotnet/10.0)
 [![Windows x64](https://img.shields.io/badge/platform-Windows%20x64-0078D4?style=flat-square&labelColor=24292f)](#requirements)
 
-[Quick start](#quick-start) · [Lifecycle](#the-plugin-lifecycle) · [Packages](#packages-and-direct-sdk-reference) · [Capabilities](#v010-capability-status) · [Contributing](CONTRIBUTING.md)
+[Quick start](#quick-start) · [Lifecycle](#the-plugin-lifecycle) · [Packages](#packages-and-direct-sdk-reference) · [Capabilities](#10-capability-status) · [Contributing](CONTRIBUTING.md)
 
 </div>
 
@@ -54,16 +54,16 @@ surface reviewable: high-level APIs remain fluent for consumers while the Core r
 
 ## Requirements
 
-| Requirement                 | Baseline                                                                                                                             |
-|-----------------------------|--------------------------------------------------------------------------------------------------------------------------------------|
-| .NET SDK                    | 10.0.401 exactly (`global.json` `rollForward: disable`); install it with `winget install Microsoft.DotNet.SDK.10 --version 10.0.401` |
-| Target framework / language | `net10.0` / C# 14                                                                                                                    |
-| Cheat Engine host           | 7.7, Windows x64                                                                                                                     |
-| Plugin form                 | Framework-dependent managed plugin output folder                                                                                     |
-| SDK package                 | `CheatEngine.SDK` 1.0.0, pinned in `eng/CheatEngineSdk.props`; the Client declares `[1.0.0, 2.0.0)` and is not compatible with 2.x   |
+| Requirement                 | Baseline                                                                                                                                                                                                 |
+|-----------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| .NET SDK                    | 10.0.401 exactly (`global.json` `rollForward: disable`); install it with `winget install Microsoft.DotNet.SDK.10 --version 10.0.401`                                                                     |
+| Target framework / language | `net10.0` / C# 14                                                                                                                                                                                        |
+| Cheat Engine host           | 7.7, Windows x64                                                                                                                                                                                         |
+| Plugin form                 | Framework-dependent managed plugin output folder                                                                                                                                                         |
+| SDK package                 | `CheatEngine.SDK` 2.0.0, pinned in `eng/CheatEngineSdk.props`; the Client declares `[2.0.0, 3.0.0)`: a 3.x SDK fails the build with `CECLIENT017`, a version below 2.0.0 fails the restore with `NU1605` |
 
 Cheat Engine remains the compatibility authority. The Client is not an IPC client, a remote-process service, or a
-standalone executable; v0.1 runs only in process inside an enabled Cheat Engine plugin. It is neither Cheat Engine's
+standalone executable; it runs only in process inside an enabled Cheat Engine plugin. It is neither Cheat Engine's
 `luaclient` library nor an RPC client of `ceserver`.
 
 ## Quick start
@@ -91,14 +91,15 @@ The generated project intentionally retains these direct dependencies:
 
 <ItemGroup>
   <PackageReference Include="CheatEngine.Client" Version="X.Y.Z" />
-  <PackageReference Include="CheatEngine.SDK" Version="1.0.0" />
+  <PackageReference Include="CheatEngine.SDK" Version="2.0.0" />
   <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.12" />
 </ItemGroup>
 ```
 
 Replace `X.Y.Z` with the CheatEngine.Client version you install; the `ceplugin` template writes it for you. Keep
-`CheatEngine.SDK` on 1.x: this Client release is built and tested against CheatEngine.SDK 1.0.0 and declares
-`[1.0.0, 2.0.0)`. Do not upgrade to 2.x until a Client release says so.
+`CheatEngine.SDK` on 2.x: this Client release is built and tested against CheatEngine.SDK 2.0.0 and declares
+`[2.0.0, 3.0.0)`. A 3.x SDK fails the build with `CECLIENT017`, and a version below 2.0.0 fails the restore with
+`NU1605`. Do not upgrade to 3.x until a Client release says so.
 
 `CheatEngine.SDK` must be referenced **directly by the plugin project**. Its build assets generate the Cheat Engine
 entry point and provide the native Lua bridge; NuGet transitivity is not sufficient at that host boundary. Setting
@@ -152,8 +153,8 @@ client.Memory.At(address + 0x14).Write(999);
 `InModule(...)` and `InRange(...)` are managed post-filters: Cheat Engine still runs one global `AOBScan` over the whole
 target, and Core copies only the addresses inside the module or range. `Take(n)`, `FirstOrNone()` and `RequireSingle()`
 bound only how many filtered addresses Core copies; they never stop Cheat Engine early, and `FirstOrNone()` follows
-Cheat Engine's unspecified result-list order. With CheatEngine.SDK 1.0.0 a scan that finds nothing is reported as
-`IndeterminateHostResult`, never as `null` or `NotFound`.
+Cheat Engine's unspecified result-list order. A scan that finds nothing is reported as `IndeterminateHostResult`
+(the scan route cannot tell zero matches from a host failure), never as `null` or `NotFound`.
 
 Use the `Try...` terminal operations when absence of a process, scan result, or runtime capability is an expected
 condition. Do not make a worker wait for the Cheat Engine thread if that worker can call back into the Client.
@@ -229,12 +230,12 @@ public contracts ─────────────────────
 Package and assembly names describe delivery, not user code. Consumer-facing APIs use functional namespaces such as
 `CheatEngine.Client.Memory`, `.Scanning`, `.Tables`, `.Lua`, `.Processes`, `.Runtime`, and `.Hosting`.
 
-## v0.1.0 capability status
+## 1.0 capability status
 
 The Client reports runtime capability rather than assuming a particular Cheat Engine global or ownership contract. The
 following table is a delivery statement, not a substitute for a live host check.
 
-| Area                                                | v0.1.0 status                   | Boundary                                                                                                                                                                         |
+| Area                                                | 1.0 status                      | Boundary                                                                                                                                                                         |
 |-----------------------------------------------------|---------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Lifecycle, dispatch, DI, modules, options           | Available                       | Per-enable provider and scope; modules stop in reverse order                                                                                                                     |
 | Runtime facts and selected process                  | Available                       | Snapshot and attachment state are re-read through the active host                                                                                                                |
@@ -249,7 +250,7 @@ following table is a delivery statement, not a substitute for a live host check.
 Target allocations and assembly with Auto Assembler patches now have public Client API contracts. Each remains
 `Unknown` or `Unavailable` until its primitive, ownership, and lifecycle behavior passes the corresponding Cheat
 Engine 7.7 x64 live gate. IPC, remote clients, UI/forms, structures, Mono/IL2CPP, and advanced ABI hooks remain
-outside v0.1 and have no placeholder public API. The capability table above is the current public-surface contract.
+outside 1.0 and have no placeholder public API. The capability table above is the current public-surface contract.
 
 ### Not offered in 1.0
 

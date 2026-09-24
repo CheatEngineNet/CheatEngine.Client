@@ -120,7 +120,7 @@ public sealed class CheatEngineFailureTests
 		Assert.Equal("hostEffect", exception.ParamName);
 	}
 
-	/// <summary>The indeterminate SDK 1.0.0 result is an ordinary operation failure, never a lifecycle fault.</summary>
+	/// <summary>The indeterminate AOB "no result list" outcome is an operation failure, never a lifecycle fault.</summary>
 	[Fact]
 	[Trait("Qualification", "Q27")]
 	public void IndeterminateHostResultThrowsTheOperationException()

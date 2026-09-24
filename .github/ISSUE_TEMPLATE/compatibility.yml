@@ -24,7 +24,7 @@ body:
     attributes:
       label: CheatEngine.Client version
       description: All CheatEngine.Client* packages share one version. Read it from your plugin's packages.lock.json.
-      placeholder: 0.1.0
+      placeholder: 1.0.0
     validations:
       required: true
   - type: input
@@ -32,7 +32,7 @@ body:
     attributes:
       label: CheatEngine.SDK version
       description: The `resolved` version of CheatEngine.SDK in your plugin's packages.lock.json.
-      placeholder: 1.0.0
+      placeholder: 2.0.0
     validations:
       required: true
   - type: input
@@ -40,7 +40,7 @@ body:
     attributes:
       label: CheatEngine.SDK contentHash
       description: The `contentHash` of the same CheatEngine.SDK entry, copied from packages.lock.json (not recomputed).
-      placeholder: n7nHqZ8v...gA==
+      placeholder: NLEdZYJ9...lQ==
     validations:
       required: true
   - type: input

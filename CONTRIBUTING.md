@@ -61,11 +61,12 @@ The Client consumes exactly one `CheatEngine.SDK` package, pinned in the single 
 script for the bump; the props file's own header documents the procedure, all of it in one pull request: update
 `CheatEngineSdkVersion`, update the reviewed identity literals it names
 (`tests/CheatEngine.Client.Tests/Packaging/PackagedClientFeedFixture.cs`,
-`tests/CheatEngine.Client.Repository.Tests/LockFiles/LockFileTests.cs`) to the new package's hashes, regenerate every
-`packages.lock.json` (coexistence fixtures first, one project at a time), and update the SDK version named in prose
-(`SdkPinTests.ProseMentionsOfTheConsumedSdkEqualThePin` lists the files). `CHEATENGINECLIENT9016`, `9017` and
-`CECLIENT017` guard the pin at build and consumption time. Moving to another SDK major is a migration of the Client,
-not a dependency bump.
+`tests/CheatEngine.Client.Repository.Tests/LockFiles/LockFileTests.cs`) and the identity the three install guides state
+to the new package's hashes, regenerate every `packages.lock.json` (coexistence fixtures first, one project at a time),
+and update the SDK version named in prose (`SdkPinTests.ProseMentionsOfTheConsumedSdkEqualThePin` lists the files).
+`CHEATENGINECLIENT9016`, `9017` and `CECLIENT017` guard the pin at build and consumption time. Moving to another SDK
+major is a migration of the Client, not a dependency bump: the props file's "Major migration" checklist lists what else
+it changes.
 
 ### NuGet audit and build guards
 

@@ -30,10 +30,11 @@ reduce Cheat Engine's scan time or memory. `Take(n)`, `FirstOrNone()` (1) and `R
 filtered addresses Core copies; they never stop Cheat Engine early. `FirstOrNone()` returns the first element in Cheat
 Engine's result-list order, which Cheat Engine does not specify (not the lowest address, not the first logical region).
 `RequireSingle()` copies up to two matches from Cheat Engine's exhaustive list, so a truncated copy is reported as
-ambiguous. With CheatEngine.SDK 1.0.0 a scan that finds nothing is reported as `IndeterminateHostResult` (zero matches
-and a host failure are indistinguishable with that SDK version), never as `null` or `NotFound`. A cancellation token
-cannot interrupt a scan that Cheat Engine has started. `IPatternScanOutcomeClient.ScanDetailed` reports the host match
-count, the examined/filtered/copied counts, and the Cheat Engine scan time separately from the copy time.
+ambiguous. A scan that finds nothing is reported as `IndeterminateHostResult` (the scan route observes only whether
+Cheat Engine returned a result list, so zero matches and a host failure are indistinguishable), never as `null` or
+`NotFound`. A cancellation token cannot interrupt a scan that Cheat Engine has started.
+`IPatternScanOutcomeClient.ScanDetailed` reports the host match count, the examined/filtered/copied counts, and the
+Cheat Engine scan time separately from the copy time.
 
 ## Why This Project Exists
 

@@ -83,7 +83,7 @@ The SDK versions that these guard cases, the `CHEATENGINECLIENT9050` pin-drift c
 Two metadata suites read the built Client assemblies with `System.Reflection.Metadata`. `Architecture/` is the
 ADR-01 ratchet. It freezes the direct Lua-stack and SDK-owner usages, the `[LuaGlobal]` inventory, and the absence of
 native imports, and it rejects Client logging that could carry user data (Q46). A new debt entry fails the suite. When a
-debt entry disappears, it must be deleted from its frozen list in the same change, so the lists only shrink. `SdkContract/` holds the Q48 consumer contracts against CheatEngine.SDK 1.0.0. It checks the shared
+debt entry disappears, it must be deleted from its frozen list in the same change, so the lists only shrink. `SdkContract/` holds the Q48 consumer contracts against the consumed CheatEngine.SDK (the pin). It checks the shared
 SDK type allowlist, the committed consumed-surface inventory, and the compile-only `SdkApiUsage` map. Both suites are
 activation-independent and run in the Debug and Release test legs.
 

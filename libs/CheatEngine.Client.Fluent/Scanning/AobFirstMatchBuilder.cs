@@ -15,10 +15,10 @@ namespace CheatEngine.Client.Scanning;
 ///         specify: it is not guaranteed to be the lowest address or the first logical region.
 ///     </para>
 ///     <para>
-///         <see langword="null" /> means Cheat Engine returned a result list without any post-filtered match. With
-///         CheatEngine.SDK 1.0.0 a scan that finds nothing is usually reported as
-///         <see cref="CheatEngineFailureKind.IndeterminateHostResult" /> (no result list: zero matches or a host failure,
-///         indistinguishable with that SDK version), never converted to <see langword="null" />.
+///         <see langword="null" /> means Cheat Engine returned a result list without any post-filtered match. A scan
+///         that finds nothing is usually reported as <see cref="CheatEngineFailureKind.IndeterminateHostResult" /> (no
+///         result list: zero matches or a host failure, indistinguishable on this scan route), never converted to
+///         <see langword="null" />.
 ///     </para>
 /// </remarks>
 public readonly record struct AobFirstMatchBuilder
@@ -42,7 +42,7 @@ public readonly record struct AobFirstMatchBuilder
 	/// </param>
 	/// <returns>The first copied target address, or <see langword="null" />.</returns>
 	/// <exception cref="CheatEngineOperationException">
-	///     The scan operation failed, including the SDK 1.0.0 indeterminate "no result list" outcome.
+	///     The scan operation failed, including the indeterminate "no result list" outcome.
 	/// </exception>
 	public Address? Execute(CancellationToken cancellationToken = default)
 	{

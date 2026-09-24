@@ -16,12 +16,12 @@
   </PropertyGroup>
 
   <!--
-    Keep CheatEngine.SDK on 1.x: this template is built and tested against CheatEngine.SDK 1.0.0 and CheatEngine.Client
-    declares [1.0.0, 2.0.0). The packed template references the exact CheatEngine.Client version it was released with.
+    Keep CheatEngine.SDK on 2.x: this template is built and tested against CheatEngine.SDK 2.0.0 and CheatEngine.Client
+    declares [2.0.0, 3.0.0). The packed template references the exact CheatEngine.Client version it was released with.
   -->
   <ItemGroup>
-    <PackageReference Include="CheatEngine.Client" Version="0.1.0"/>
-    <PackageReference Include="CheatEngine.SDK" Version="1.0.0"/>
+    <PackageReference Include="CheatEngine.Client" Version="1.0.0"/>
+    <PackageReference Include="CheatEngine.SDK" Version="2.0.0"/>
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.12"/>
   </ItemGroup>
 

@@ -68,8 +68,8 @@ list. Because Windows cannot transactionally swap a non-empty directory, run it 
 
 ## Supported host profile
 
-This Client release consumes CheatEngine.SDK 1.0.0 and names one Cheat Engine host profile, the profile that
-CheatEngine.SDK 1.0.0 targets. A profile is what a qualification result can name; it is not itself a qualification
+This Client release consumes CheatEngine.SDK 2.0.0 and names one Cheat Engine host profile, the qualifiable profile
+that CheatEngine.SDK 2.0.0 names. A profile is what a qualification result can name; it is not itself a qualification
 result.
 
 | Item | Value |
@@ -78,8 +78,8 @@ result.
 | Host executable | `cheatengine-x86_64.exe` 7.7.0.10621, machine AMD64, SHA-256 `9727076da50924e4a097b49a02155e4b34759269c3017ff31375364b8826eb4d`; not the `Cheat Engine.exe` launcher and not the `cheatengine-x86_64-SSE4-AVX2.exe` variant |
 | Load profile | `managed-hostfxr`: the plugin is a framework-dependent .NET component started by Cheat Engine's nethost/hostfxr route |
 | Runtime configuration | The qualification host's `ce.runtimeconfig.json` (`net10.0`), SHA-256 `68f5d81c0a17cc5bdac40bb3d5d88a624f4d31b414f7195ad847d57b0126ac2b`, is a local modification, not an installer baseline |
-| Consumed SDK package | `CheatEngine.SDK` 1.0.0, NuGet content hash (SHA-512, base64) `n7nHqZ8vzo7Vf20jF0fkh/jUtR3yo1TwRGpXE7ERxZeJ4C5S/Nsft4lqOg7zGwfsD5Nh9tTVgdw4PrybJRF0gA==` |
-| SDK native bridge | `build/native/cheatengine-sdk-lua-bridge.dll`, SHA-256 `da08c2ba03019da3a8c432ef061d5d6133fd2169ba3a6a8e9ac903353856d994` |
+| Consumed SDK package | `CheatEngine.SDK` 2.0.0, source commit `325c47b573f8bd39a247f1d0101f110fa36c1696`, NuGet content hash (SHA-512, base64) `NLEdZYJ9LKW3EFNB4X5snKCQf7ZS86GkCQ+El7o+S1XQcxHQGjS45Q1ap8lfjQuIwm004mQ3TPxo+ph1yvRrlQ==` |
+| SDK native bridge | `build/native/cheatengine-sdk-lua-bridge.dll`, SHA-256 `b008c8d8c136187f241542e6223dc0831999d8300dc2c4c01e1cf49f6fba7698` |
 | Client qualification | `NotExecuted` for this Client tuple until Client qualification receipts exist for it (there is no separate qualification documentation tree; receipts, when they exist, are test-owned data under the relevant `*.Repository.Tests` project) |
 
 Never edit an installed Cheat Engine to match this profile: its runtime configuration applies to every managed plugin of
@@ -100,8 +100,8 @@ under one owning service descriptor, and use a non-disposable facade if the appl
 Before deployment, replace the illustrative AOB pattern and offset in `Modules/PluginClientModule.cs`, and choose an
 application-specific Lua global name in `Modules/PluginLuaFunctions.cs`. Keep AOB copies bounded: `InModule` filters the
 addresses after a global Cheat Engine scan, so it does not reduce the scan's cost, and `FirstOrNone` follows Cheat
-Engine's unspecified result order. With CheatEngine.SDK 1.0.0 a scan that finds nothing is reported as
-`IndeterminateHostResult` (zero matches or a host failure), so the example treats it as a skipped probe.
+Engine's unspecified result order. A scan that finds nothing is reported as `IndeterminateHostResult` (zero matches or
+a host failure: the scan route cannot tell them apart), so the example treats it as a skipped probe.
 
 ## Diagnostics and redaction
 

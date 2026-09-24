@@ -11,11 +11,14 @@ namespace CheatEngine.Client.Core.Tests.Domains;
 
 public sealed class RuntimeClientTests
 {
-	private const string SdkVersion = "1.0.0";
-	private const string SdkCommit = "a6fefb93e9c6f85a1bcedb68bf97e6741175b227";
+	private const string SdkVersion = "2.0.0";
+	private const string SdkCommit = "325c47b573f8bd39a247f1d0101f110fa36c1696";
 
 	private const string SdkContentHash =
-		"n7nHqZ8vzo7Vf20jF0fkh/jUtR3yo1TwRGpXE7ERxZeJ4C5S/Nsft4lqOg7zGwfsD5Nh9tTVgdw4PrybJRF0gA==";
+		"NLEdZYJ9LKW3EFNB4X5snKCQf7ZS86GkCQ+El7o+S1XQcxHQGjS45Q1ap8lfjQuIwm004mQ3TPxo+ph1yvRrlQ==";
+
+	// Another CheatEngine.SDK build loaded next to this Client: a prerelease of the next major.
+	private const string OtherSdkInformationalVersion = "3.0.0-alpha.0.1+0123456789abcdef0123456789abcdef01234567";
 
 	[Fact]
 	public void SnapshotReportsOnlyTheObservedCeLineAndIndependentCapabilities()
@@ -29,7 +32,7 @@ public sealed class RuntimeClientTests
 			OpenedProcessId = 42,
 			TargetIs64BitValue = true
 		};
-		RuntimeClient runtime = new(dispatcher, probe, static () => 84, new Version(0, 1, 0), new Version(1, 0, 0));
+		RuntimeClient runtime = new(dispatcher, probe, static () => 84, new Version(1, 0, 0), new Version(2, 0, 0));
 
 		bool succeeded =
 			runtime.TryGetSnapshot(out CheatEngineRuntimeSnapshot snapshot, out CheatEngineFailure failure,
@@ -145,8 +148,9 @@ public sealed class RuntimeClientTests
 			out ClientCapabilityAvailability valueScanning));
 		Assert.Equal(ClientCapabilityAvailabilityState.Unavailable, valueScanning.State);
 		Assert.Equal(ClientCapabilityEvidenceState.Missing, valueScanning.Evidence.Implementation.State);
-		Assert.Equal(ClientCapabilityEvidenceState.Missing, valueScanning.Evidence.Package.State);
-		Assert.Contains("unavailable adapter", valueScanning.Reason, StringComparison.OrdinalIgnoreCase);
+		// Without an embedded identity the package gate is the evidence's Unknown, as for every other capability.
+		Assert.Equal(ClientCapabilityEvidenceState.Unknown, valueScanning.Evidence.Package.State);
+		Assert.Equal(RuntimeClient.ContractOnlyReason, valueScanning.Reason);
 		Assert.True(snapshot.ClientCapabilities.TryGet(ClientCapabilityId.TypedMemory,
 			out ClientCapabilityAvailability typedMemory));
 		Assert.Equal(ClientCapabilityAvailabilityState.Unknown, typedMemory.State);
@@ -165,6 +169,7 @@ public sealed class RuntimeClientTests
 			Assert.Equal(ClientCapabilityAvailabilityState.Unavailable, availability.State);
 			Assert.False(availability.IsAvailable);
 			Assert.Equal(ClientCapabilityEvidenceState.Missing, availability.Evidence.Implementation.State);
+			Assert.Equal(ClientCapabilityEvidenceState.Unknown, availability.Evidence.Package.State);
 		}
 	}
 
@@ -542,8 +547,8 @@ public sealed class RuntimeClientTests
 	[InlineData(nameof(IRuntimeProbe.GetConfiguredPointerSize))]
 	public void SnapshotClassifiesLuaExceptionsFromGeneratedBindingsAsFaultedWithoutEscaping(string member)
 	{
-		// The single failure shape of a throwing-form CheatEngine.SDK 1.0.0 binding: undefined global, raised Lua
-		// error and unexpected result type all surface as LuaException.
+		// The single failure type of a throwing-form generated binding: undefined global, raised Lua error and
+		// unexpected result type all surface as LuaException.
 		LuaException fault = new("generated binding failure");
 		FakeRuntimeProbe probe = new()
 		{
@@ -638,6 +643,7 @@ public sealed class RuntimeClientTests
 		CheatEngineRuntimeSnapshot snapshot = runtime.GetSnapshot(TestContext.Current.CancellationToken);
 
 		Assert.Equal("Runtime.ConfiguredPointerSize", RuntimeClient.ConfiguredPointerSizeCapability.Value);
+		Assert.Equal(RuntimeClient.ConfiguredPointerSizeCapabilityValue, RuntimeCapabilityId.ConfiguredPointerSize.Value);
 		Assert.True(snapshot.SdkCapabilities.TryGet(new RuntimeCapabilityId("Runtime.ConfiguredPointerSize"),
 			out RuntimeCapabilityAvailability availability));
 		Assert.Equal(RuntimeCapabilityAvailabilityState.Available, availability.State);
@@ -681,14 +687,13 @@ public sealed class RuntimeClientTests
 	[Fact]
 	public void PackageGateIsMissingWhenTheLoadedSdkDiffersFromTheEmbeddedIdentity()
 	{
-		const string Loaded = "2.0.0-alpha.0.1+0123456789abcdef0123456789abcdef01234567";
-		ConsumedSdkIdentity identity = new(SdkVersion, SdkCommit, SdkContentHash, Loaded);
+		ConsumedSdkIdentity identity = new(SdkVersion, SdkCommit, SdkContentHash, OtherSdkInformationalVersion);
 
 		ClientCapabilityAvailability typedMemory = GetClientCapability(identity, ClientCapabilityId.TypedMemory);
 
 		Assert.Equal(ClientCapabilityEvidenceState.Missing, typedMemory.Evidence.Package.State);
 		Assert.Equal(ClientCapabilityAvailabilityState.Unavailable, typedMemory.State);
-		Assert.Contains(Loaded, typedMemory.Evidence.Package.Reason, StringComparison.Ordinal);
+		Assert.Contains(OtherSdkInformationalVersion, typedMemory.Evidence.Package.Reason, StringComparison.Ordinal);
 		Assert.Contains("refuses to treat it as its SDK", typedMemory.Evidence.Package.Reason, StringComparison.Ordinal);
 	}
 
@@ -733,41 +738,38 @@ public sealed class RuntimeClientTests
 			current.LoadedInformationalVersion);
 	}
 
-	[Fact]
+	[Theory]
 	[Trait("Qualification", "Q44")]
-	public void ValueScanningCapabilityReportsMissingWithTheSdkOneZeroReason()
+	[InlineData(nameof(ClientCapabilityId.ValueScanning))]
+	[InlineData(nameof(ClientCapabilityId.Allocations))]
+	[InlineData(nameof(ClientCapabilityId.Assembly))]
+	public void ContractOnlyCapabilitiesAreRefusedByTheImplementationGateWithAPackageGateFromEvidence(string name)
 	{
-		ClientCapabilityAvailability valueScanning = GetClientCapability(MatchingIdentity(),
-			ClientCapabilityId.ValueScanning);
+		// ADR-10: the package gate states what the evidence shows about the consumed package, never a claim about what
+		// an SDK version provides; the contract-only implementation gate alone keeps the capability unavailable.
+		ClientCapabilityId capability = ContractOnlyCapability(name);
+		ConsumedSdkIdentity differentPackage = new(SdkVersion, SdkCommit, SdkContentHash, OtherSdkInformationalVersion);
 
-		Assert.Equal(ClientCapabilityAvailabilityState.Unavailable, valueScanning.State);
-		Assert.Equal(ClientCapabilityEvidenceState.Missing, valueScanning.Evidence.Implementation.State);
-		Assert.Equal(ClientCapabilityEvidenceState.Missing, valueScanning.Evidence.Package.State);
-		Assert.Equal(
-			"CheatEngine.SDK 1.0.0 does not provide the public MemScan and FoundList ownership factory required by Client.",
-			valueScanning.Evidence.Package.Reason);
-	}
+		ClientCapabilityAvailability matching = GetClientCapability(MatchingIdentity(), capability);
+		ClientCapabilityAvailability different = GetClientCapability(differentPackage, capability);
+		ClientCapabilityAvailability notEmbedded = GetClientCapability(ConsumedSdkIdentity.NotEmbedded, capability);
 
-	[Fact]
-	[Trait("Qualification", "Q44")]
-	public void AllocationAndAssemblyCapabilitiesAreUnavailableWhileTheClientConsumesSdkOneZero()
-	{
-		ConsumedSdkIdentity identity = MatchingIdentity();
-		ClientCapabilityAvailability allocations = GetClientCapability(identity, ClientCapabilityId.Allocations);
-		ClientCapabilityAvailability assembly = GetClientCapability(identity, ClientCapabilityId.Assembly);
-
-		foreach (ClientCapabilityAvailability capability in (ClientCapabilityAvailability[]) [allocations, assembly])
+		ClientCapabilityAvailability[] availabilities = [matching, different, notEmbedded];
+		foreach (ClientCapabilityAvailability availability in availabilities)
 		{
-			Assert.Equal(ClientCapabilityAvailabilityState.Unavailable, capability.State);
-			Assert.False(capability.IsAvailable);
-			Assert.Equal(ClientCapabilityEvidenceState.Missing, capability.Evidence.Implementation.State);
-			Assert.Equal(ClientCapabilityEvidenceState.Missing, capability.Evidence.Package.State);
-			Assert.Contains("CheatEngine.SDK 1.0.0 provides no target-bound owned", capability.Evidence.Package.Reason,
-				StringComparison.Ordinal);
+			Assert.Equal(ClientCapabilityAvailabilityState.Unavailable, availability.State);
+			Assert.False(availability.IsAvailable);
+			Assert.Equal(ClientCapabilityEvidenceState.Missing, availability.Evidence.Implementation.State);
+			Assert.Equal(RuntimeClient.ContractOnlyReason, availability.Evidence.Implementation.Reason);
+			Assert.Equal(RuntimeClient.ContractOnlyReason, availability.Reason);
 		}
 
-		Assert.Contains("allocation", allocations.Evidence.Package.Reason, StringComparison.Ordinal);
-		Assert.Contains("Auto Assembler", assembly.Evidence.Package.Reason, StringComparison.Ordinal);
+		Assert.Equal(MatchingIdentity().PackageGate, matching.Evidence.Package);
+		Assert.Equal(ClientCapabilityEvidenceState.Satisfied, matching.Evidence.Package.State);
+		Assert.Equal(differentPackage.PackageGate, different.Evidence.Package);
+		Assert.Equal(ClientCapabilityEvidenceState.Missing, different.Evidence.Package.State);
+		Assert.Equal(ConsumedSdkIdentity.NotEmbedded.PackageGate, notEmbedded.Evidence.Package);
+		Assert.Equal(ClientCapabilityEvidenceState.Unknown, notEmbedded.Evidence.Package.State);
 	}
 
 	[Fact]
@@ -801,15 +803,29 @@ public sealed class RuntimeClientTests
 			static () => 1, sdkIdentity: MatchingIdentity());
 
 		CheatEngineRuntimeSnapshot snapshot = runtime.GetSnapshot(TestContext.Current.CancellationToken);
+		string reason = RuntimeClient.QualificationUnknownReason(MatchingIdentity());
 
 		foreach (ClientCapabilityAvailability capability in snapshot.ClientCapabilities.Entries)
 		{
 			Assert.Equal(ClientCapabilityEvidenceState.Unknown, capability.Evidence.LiveQualification.State);
-			Assert.Equal(RuntimeClient.QualificationUnknownReason, capability.Evidence.LiveQualification.Reason);
+			Assert.Equal(reason, capability.Evidence.LiveQualification.Reason);
 		}
 
-		Assert.Contains("SDK-branch receipts never qualify the Client tuple", RuntimeClient.QualificationUnknownReason,
-			StringComparison.Ordinal);
+		Assert.Contains("SDK-branch receipts never qualify the Client tuple", reason, StringComparison.Ordinal);
+		Assert.Contains(ConsumedSdkIdentity.SupportedHostProfileId, reason, StringComparison.Ordinal);
+		// The Client tuple names the embedded identity, not a version written in the source.
+		Assert.Contains($"CheatEngine.SDK {SdkVersion}+{SdkCommit}", reason, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q44")]
+	public void QualificationReasonNamesNoSdkVersionWithoutAnEmbeddedIdentity()
+	{
+		string reason = RuntimeClient.QualificationUnknownReason(ConsumedSdkIdentity.NotEmbedded);
+
+		Assert.Contains("embeds no identity", reason, StringComparison.Ordinal);
+		Assert.Contains(ConsumedSdkIdentity.SupportedHostProfileId, reason, StringComparison.Ordinal);
+		Assert.DoesNotMatch(@"CheatEngine\.SDK \d", reason);
 	}
 
 	[Fact]
@@ -847,6 +863,17 @@ public sealed class RuntimeClientTests
 		ClientCapabilityId.Inspection, ClientCapabilityId.Tables, ClientCapabilityId.ProtectedLua,
 		ClientCapabilityId.UnsafeLuaExecution
 	];
+
+	private static ClientCapabilityId ContractOnlyCapability(string name)
+	{
+		return name switch
+		{
+			nameof(ClientCapabilityId.ValueScanning) => ClientCapabilityId.ValueScanning,
+			nameof(ClientCapabilityId.Allocations) => ClientCapabilityId.Allocations,
+			nameof(ClientCapabilityId.Assembly) => ClientCapabilityId.Assembly,
+			_ => throw new ArgumentOutOfRangeException(nameof(name), name, null)
+		};
+	}
 
 	private static ConsumedSdkIdentity MatchingIdentity()
 	{

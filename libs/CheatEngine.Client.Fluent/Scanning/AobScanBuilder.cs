@@ -21,7 +21,7 @@ namespace CheatEngine.Client.Scanning;
 ///         never backed by a bounded or "first found" scan.
 ///     </para>
 ///     <para>
-///         With CheatEngine.SDK 1.0.0 a scan that finds nothing is reported as
+///         A scan that finds nothing is reported as
 ///         <see cref="CheatEngine.Client.Results.CheatEngineFailureKind.IndeterminateHostResult" />, not as
 ///         <see langword="null" /> or <see cref="CheatEngine.Client.Results.CheatEngineFailureKind.NotFound" />. A
 ///         cancellation token cannot interrupt a scan that Cheat Engine has started.

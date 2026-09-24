@@ -136,8 +136,8 @@ public sealed class LuaModuleReleaseOutcomeTests
 	[Fact]
 	public void KindNumbersMatchTheSdkRegistrationReleaseKinds()
 	{
-		// CheatEngine.SDK 2.0 LuaRegistrationReleaseKind: Released = 1, PartiallyReleased = 2, Stale = 3. The Client stays
-		// on SDK 1.0.0, so the numbers are frozen here for the one-to-one migration mapping.
+		// CheatEngine.SDK 2.0.0 LuaRegistrationReleaseKind: Released = 1, PartiallyReleased = 2, Stale = 3. Generated
+		// modules do not use the SDK leases, so the numbers are frozen here to keep the documented correspondence.
 		Assert.Equal(1, (int) LuaModuleReleaseKind.Released);
 		Assert.Equal(2, (int) LuaModuleReleaseKind.PartiallyReleased);
 		Assert.Equal(3, (int) LuaModuleReleaseKind.Stale);

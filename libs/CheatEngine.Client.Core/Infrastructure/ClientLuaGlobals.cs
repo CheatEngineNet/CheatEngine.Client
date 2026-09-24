@@ -5,10 +5,10 @@ using CheatEngine.SDK.Annotations.Lua;
 namespace CheatEngine.Client.Core.Infrastructure;
 
 /// <summary>
-///     Internal generated bindings for CE globals that CheatEngine.SDK 1.0.0 does not expose as high-level services. Every
-///     binding is a frozen ADR-01 exception registered in the architecture ratchet
+///     Internal generated bindings for the CE globals that the Client binds directly instead of calling a high-level
+///     CheatEngine.SDK service. Every binding is a frozen ADR-01 exception registered in the architecture ratchet
 ///     (<c>tests/CheatEngine.Client.Tests/Architecture/ArchitectureRatchetTests.cs</c>), which names its own removal
-///     condition; it is removed once the SDK 2.0 replacement it names ships.
+///     condition; the list only shrinks.
 /// </summary>
 internal static partial class ClientLuaGlobals
 {
@@ -32,8 +32,8 @@ internal static partial class ClientLuaGlobals
 
 	/// <summary>Reads whether the selected target belongs to the x86 ISA family (x86 or x64).</summary>
 	/// <remarks>
-	///     Temporary ADR-01 exception, frozen by the architecture ratchet; its removal condition is the SDK 2.0
-	///     RuntimeProcessOperations.ObserveTargetArchitecture replacement. With no target opened, Cheat
+	///     Temporary ADR-01 exception, frozen by the architecture ratchet; its removal condition is a Client adapter over
+	///     CheatEngine.SDK 2.0.0 RuntimeProcessOperations.ObserveTargetArchitecture. With no target opened, Cheat
 	///     Engine still reports the x86 family, so callers read the opened process identifier first.
 	/// </remarks>
 	[LuaGlobal("targetIsX86")]
@@ -41,16 +41,16 @@ internal static partial class ClientLuaGlobals
 
 	/// <summary>Reads whether the selected target belongs to the ARM ISA family (ARM32 or ARM64).</summary>
 	/// <remarks>
-	///     Temporary ADR-01 exception, frozen by the architecture ratchet; its removal condition is the SDK 2.0
-	///     RuntimeProcessOperations.ObserveTargetArchitecture replacement.
+	///     Temporary ADR-01 exception, frozen by the architecture ratchet; its removal condition is a Client adapter over
+	///     CheatEngine.SDK 2.0.0 RuntimeProcessOperations.ObserveTargetArchitecture.
 	/// </remarks>
 	[LuaGlobal("targetIsArm")]
 	internal static partial bool TargetIsArm();
 
 	/// <summary>Reads Cheat Engine's configured pointer size for the current attachment, as the raw integer.</summary>
 	/// <remarks>
-	///     Temporary ADR-01 exception, frozen by the architecture ratchet; its removal condition is the SDK 2.0
-	///     RuntimeProcessOperations.TryGetConfiguredPointerSize replacement. The value is per-attachment
+	///     Temporary ADR-01 exception, frozen by the architecture ratchet; its removal condition is a Client adapter over
+	///     CheatEngine.SDK 2.0.0 RuntimeProcessOperations.TryGetConfiguredPointerSize. The value is per-attachment
 	///     state that any (re)attach resets, and it is independent of the target process width.
 	/// </remarks>
 	[LuaGlobal("getPointerSize")]

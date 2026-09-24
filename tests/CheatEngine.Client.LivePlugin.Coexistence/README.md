@@ -34,7 +34,7 @@ and retained-owner behavior remain `Specified_Not_Executed` until their exact co
 ## Package and host boundary
 
 The fixture references the changed Client Hosting/source-generator graph so a source build exercises the new Client
-contract. It still references the released `CheatEngine.SDK` 1.0.0 package directly, which supplies the SDK entry-point
+contract. It references the released `CheatEngine.SDK` 2.0.0 package directly, which supplies the SDK entry-point
 generator and bridge assets. The default `CoexistenceSdkPackageVersion` follows the repository pin in
 `eng/CheatEngineSdk.props`. It can be overridden per fixture project only when an operator has an exact candidate SDK
 package source and tuple to qualify. A version other than the pin never rewrites this fixture's committed
@@ -47,8 +47,8 @@ The source fixture is not a replacement for a clean Client package consumer. The
 `CHEATENGINE_CLIENT_PACKAGE_SOURCE`. The coexistence fixture skips direct-package profile validation because its
 Client graph is a project reference; that distinction must remain explicit in any live qualification receipt.
 
-The resolved SDK package is not evidence that it contains the later SDK PR #56 source merge, nor is that merge a
-published-package or live-host qualification. Before a real run, identify the exact qualified Client/SDK package tuple,
+The resolved `CheatEngine.SDK` 2.0.0 package contains the SDK PR #56 source merge, but neither the package nor that
+merge is a live-host qualification. Before a real run, identify the exact qualified Client/SDK package tuple,
 record package and DLL SHA-256 hashes, and keep the complete dependency closure for each plugin in its own directory.
 Never copy DLLs from one output into another, reuse a bundle directory, or infer the selected SDK version from a
 filename.
@@ -132,9 +132,8 @@ print(cheatengine_client_coexistence_b_ping())
 ```
 
 Expected result: A's disable removes the globals A still owns, leaves the third-party value under
-`cheatengine_client_coexistence_a_ping` in place, and does not touch B. A Client whose generated modules still release
-through the legacy SDK 1.0.0 unregistration helper writes `nil` there, so the first assertion fails. A failing assertion
-is recorded as `Failed` and is never repaired.
+`cheatengine_client_coexistence_a_ping` in place, and does not touch B. A failing assertion is recorded as `Failed` and
+is never repaired.
 
 The operator then removes the third party. While it holds the name, the generated preflight refuses to enable A again,
 because the global is defined; that refusal is expected and is not the result of this step:

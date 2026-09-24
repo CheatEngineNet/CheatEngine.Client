@@ -10,22 +10,18 @@ namespace CheatEngine.Client.Core.Domains;
 internal sealed class RuntimeClient : ICheatEngineRuntime
 {
 	/// <summary>
-	///     The capability identifier of Cheat Engine's configured pointer size. It is the same string as the SDK 2.0
-	///     <c>RuntimeCapabilityId.ConfiguredPointerSize</c>; replace it with the SDK static once that release ships.
+	///     The capability identifier of Cheat Engine's configured pointer size. It equals the CheatEngine.SDK 2.0.0
+	///     <c>RuntimeCapabilityId.ConfiguredPointerSize</c> string; the Client declares its own constant and does not
+	///     reference that SDK member.
 	/// </summary>
 	internal const string ConfiguredPointerSizeCapabilityValue = "Runtime.ConfiguredPointerSize";
 
 	/// <summary>
-	///     The qualification gate reason of every capability until a Client qualification receipt exists (audit A20-19):
-	///     receipts produced for the SDK branch never qualify the Client tuple.
+	///     The implementation gate reason of a contract-only capability: its Client adapter refuses every operation. It
+	///     names no SDK version, because what the consumed package provides is the package gate's evidence (ADR-10).
 	/// </summary>
-	internal const string QualificationUnknownReason =
-		"No Client qualification receipt for profile ce-7.7.0.10621-x64-managed-hostfxr with CheatEngine.SDK 1.0.0 is " +
-		"embedded in this build; SDK-branch receipts never qualify the Client tuple.";
-
-	/// <summary>The package gate reason of value scanning; it names the true 1.0.0 limitation (audit A10-19, A21-21).</summary>
-	internal const string ValueScanningPackageReason =
-		"CheatEngine.SDK 1.0.0 does not provide the public MemScan and FoundList ownership factory required by Client.";
+	internal const string ContractOnlyReason =
+		"The Client composes no operational adapter for this capability in this build.";
 
 	private const string SnapshotOperation = "Runtime.GetSnapshot";
 
@@ -95,6 +91,22 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 
 	/// <summary>Gets the SDK runtime capability identifier of Cheat Engine's configured pointer size.</summary>
 	internal static RuntimeCapabilityId ConfiguredPointerSizeCapability => new(ConfiguredPointerSizeCapabilityValue);
+
+	/// <summary>
+	///     Creates the qualification gate reason of every capability until a Client qualification receipt exists (audit
+	///     A20-19): receipts produced for the SDK branch never qualify the Client tuple. The tuple names the consumed
+	///     CheatEngine.SDK identity this build embeds, never a version written in the source.
+	/// </summary>
+	/// <param name="sdkIdentity">The consumed-SDK identity evidence of this build.</param>
+	internal static string QualificationUnknownReason(ConsumedSdkIdentity sdkIdentity)
+	{
+		ArgumentNullException.ThrowIfNull(sdkIdentity);
+		string package = sdkIdentity.ExpectedInformationalVersion is { } identity
+			? "CheatEngine.SDK " + identity
+			: "the consumed CheatEngine.SDK (this build embeds no identity for it)";
+		return $"No Client qualification receipt for profile {ConsumedSdkIdentity.SupportedHostProfileId} with {package} " +
+			"is embedded in this build; SDK-branch receipts never qualify the Client tuple.";
+	}
 
 	public long Epoch => _getEpoch();
 
@@ -258,18 +270,18 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 		ClientCapabilityEvidenceGate lifetime = _isActivationCurrent()
 			? Satisfied("The Client activation is current.")
 			: Missing("The Client activation is no longer current.");
-		// ADR-09: the package gate of an operational capability comes from evidence (the embedded consumed-SDK identity
+		// ADR-09, ADR-10: the package gate of every capability comes from evidence (the embedded consumed-SDK identity
 		// compared with the loaded CheatEngine.SDK.Engine), never from the presence of an interface or a version name.
+		// A contract-only capability is refused by its implementation gate, not by a claim about the package.
 		ClientCapabilityEvidenceGate package = _sdkIdentity.PackageGate;
-		ClientCapabilityEvidenceGate qualificationUnknown = UnknownEvidence(QualificationUnknownReason);
+		ClientCapabilityEvidenceGate qualificationUnknown = UnknownEvidence(QualificationUnknownReason(_sdkIdentity));
 		ClientCapabilityEvidenceGate policyNotRequired = Satisfied(
 			"This capability has no additional activation policy opt-in.");
 		ClientCapabilityEvidenceGate unprobedHost = UnknownEvidence(
 			"The runtime snapshot does not probe every host primitive required by this capability.");
 		ClientCapabilityEvidenceGate implemented = Satisfied(
 			"The Client composes an operational adapter for this capability.");
-		ClientCapabilityEvidenceGate contractOnly = Missing(
-			"The Client package currently composes only an unavailable adapter for this capability.");
+		ClientCapabilityEvidenceGate contractOnly = Missing(ContractOnlyReason);
 
 		ClientCapabilityAvailability[] capabilities =
 		[
@@ -279,8 +291,8 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 				policyNotRequired, lifetime),
 			Describe(ClientCapabilityId.PatternScanning, implemented, package, unprobedHost, qualificationUnknown,
 				policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.ValueScanning, contractOnly, Missing(ValueScanningPackageReason),
-				unprobedHost, qualificationUnknown, policyNotRequired, lifetime),
+			Describe(ClientCapabilityId.ValueScanning, contractOnly, package, unprobedHost, qualificationUnknown,
+				policyNotRequired, lifetime),
 			Describe(ClientCapabilityId.Inspection, implemented, package, unprobedHost, qualificationUnknown,
 				policyNotRequired, lifetime),
 			Describe(ClientCapabilityId.Tables, implemented, package, unprobedHost, qualificationUnknown,
@@ -294,14 +306,10 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 					: Missing(
 						"Unsafe Lua execution requires explicit EnableUnsafeLuaExecution opt-in for this activation."),
 				lifetime),
-			Describe(ClientCapabilityId.Allocations, contractOnly,
-				Missing("CheatEngine.SDK 1.0.0 provides no target-bound owned allocation primitive; see the SDK 2.0 " +
-						"migration guide."),
-				unprobedHost, qualificationUnknown, policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.Assembly, contractOnly,
-				Missing("CheatEngine.SDK 1.0.0 provides no target-bound owned Auto Assembler primitive; see the SDK 2.0 " +
-						"migration guide."),
-				unprobedHost, qualificationUnknown, policyNotRequired, lifetime)
+			Describe(ClientCapabilityId.Allocations, contractOnly, package, unprobedHost, qualificationUnknown,
+				policyNotRequired, lifetime),
+			Describe(ClientCapabilityId.Assembly, contractOnly, package, unprobedHost, qualificationUnknown,
+				policyNotRequired, lifetime)
 		];
 
 		return ClientCapabilities.Create(capabilities);

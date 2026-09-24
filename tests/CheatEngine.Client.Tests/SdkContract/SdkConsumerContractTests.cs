@@ -9,8 +9,9 @@ using ReflectionAssembly = System.Reflection.Assembly;
 namespace CheatEngine.Client.Tests.SdkContract;
 
 /// <summary>
-///     Consumer contracts against the consumed CheatEngine.SDK 1.0.0 package (audit Q48, ADR-10, A11-17, A11-30): an SDK
-///     change that the Client did not adapt to is detected here, before publication, instead of by a plugin at runtime.
+///     Consumer contracts against the consumed CheatEngine.SDK package, the pin of <c>eng/CheatEngineSdk.props</c>
+///     (audit Q48, ADR-10, A11-17, A11-30): an SDK change that the Client did not adapt to is detected here, before
+///     publication, instead of by a plugin at runtime.
 /// </summary>
 /// <remarks>
 ///     Q48 is <em>Partial</em> by decision: the Client has no next-SDK build leg, and no job builds it against an
@@ -40,7 +41,7 @@ public sealed class SdkConsumerContractTests
 			}
 		}
 
-		// A stale entry, such as the SDK AOB pattern type that CheatEngine.SDK 1.0.0 never shipped, fails here.
+		// A stale entry, such as an SDK AOB pattern type the consumed package does not ship, fails here.
 		Assert.True(unresolved.Count == 0,
 			"These allowlisted SDK types do not resolve to public value types in the consumed CheatEngine.SDK package: " +
 			string.Join(", ", unresolved));

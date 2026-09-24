@@ -398,7 +398,7 @@ internal sealed class InspectionClient(
 
 	/// <summary>
 	///     Runs on Cheat Engine's main thread for a lease: unregisters the name only when it still resolves to the leased
-	///     address (audit A14-25, same rule as the SDK 2.0 symbol leases).
+	///     address (audit A14-25; the CheatEngine.SDK 2.0.0 symbol registration leases apply the same rule).
 	/// </summary>
 	/// <remarks>
 	///     Best effort, not atomic: a third party can replace the name between the lookup and the unregistration, and a

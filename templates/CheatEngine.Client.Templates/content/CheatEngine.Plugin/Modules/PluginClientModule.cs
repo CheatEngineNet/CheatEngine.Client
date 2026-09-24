@@ -57,8 +57,8 @@ internal sealed partial class PluginClientModule(
 			scan = scan.InModule(processName);
 		}
 
-		// With CheatEngine.SDK 1.0.0 a scan that finds nothing fails with IndeterminateHostResult: zero matches and a
-		// host failure are indistinguishable, so it is logged as a skipped probe, never treated as "not found".
+		// A scan that finds nothing fails with IndeterminateHostResult: this scan route cannot tell zero matches from a
+		// host failure, so it is logged as a skipped probe, never treated as "not found".
 		if (!scan.ReadableExecutable()
 				.FirstOrNone()
 				.TryExecute(out Address? address, out CheatEngineFailure scanFailure))

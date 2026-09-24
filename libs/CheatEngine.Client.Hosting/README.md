@@ -111,13 +111,14 @@ entry point (`CECLIENT008` and `CESDK0003`).
 
 <ItemGroup>
   <PackageReference Include="CheatEngine.Client" Version="X.Y.Z" />
-  <PackageReference Include="CheatEngine.SDK" Version="1.0.0" />
+  <PackageReference Include="CheatEngine.SDK" Version="2.0.0" />
   <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.12" />
 </ItemGroup>
 ```
 
-Replace `X.Y.Z` with the installed CheatEngine.Client version. Keep `CheatEngine.SDK` on 1.x: this Client release is
-built and tested against CheatEngine.SDK 1.0.0 and declares `[1.0.0, 2.0.0)`.
+Replace `X.Y.Z` with the installed CheatEngine.Client version. Keep `CheatEngine.SDK` on 2.x: this Client release is
+built and tested against CheatEngine.SDK 2.0.0 and declares `[2.0.0, 3.0.0)`. A 3.x SDK fails the build with
+`CECLIENT017`, and a version below 2.0.0 fails the restore with `NU1605`.
 
 `CheatEngine.Client.Templates` contains a complete plugin layout that applies this configuration and includes a bounded
 AOB, memory, Address List, and Lua-module example.

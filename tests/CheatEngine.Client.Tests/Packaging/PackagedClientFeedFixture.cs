@@ -100,7 +100,7 @@ public sealed class PackagedClientFeedFixture : IAsyncLifetime
 	                                      """;
 
 	/// <summary>
-	/// The reviewed identity of the published CheatEngine.SDK 1.0.0 (shared-contracts.md §2.4, verified 2026-09-23):
+	/// The reviewed identity of the published CheatEngine.SDK 2.0.0, verified 2026-09-24:
 	/// the NuGet content hash a lock file records, the nuget.org repository-signed file's SHA-512, and the SHA-256 of
 	/// the native bridge packaged inside it. Hardcoded, not read from a reviewed-identity file: the sync mechanism
 	/// that used to keep such a file current was removed, and the Client's SDK pin (eng/CheatEngineSdk.props) does not
@@ -108,10 +108,10 @@ public sealed class PackagedClientFeedFixture : IAsyncLifetime
 	/// </summary>
 	private static readonly JsonDocument PinnedSdkIdentity = JsonDocument.Parse("""
 		{
-		  "version": "1.0.0",
-		  "contentHashSha512": "n7nHqZ8vzo7Vf20jF0fkh/jUtR3yo1TwRGpXE7ERxZeJ4C5S/Nsft4lqOg7zGwfsD5Nh9tTVgdw4PrybJRF0gA==",
-		  "nugetOrgSignedSha512": "1a2B/E6reX5e636hfdb+Zdj3kT6817DuNES1RWvprhRyuyztE/56Zk2iHOMQIKpGH+O2Va8rYJxXXXTVq5aN9Q==",
-		  "nativeBridge": { "sha256": "da08c2ba03019da3a8c432ef061d5d6133fd2169ba3a6a8e9ac903353856d994" }
+		  "version": "2.0.0",
+		  "contentHashSha512": "NLEdZYJ9LKW3EFNB4X5snKCQf7ZS86GkCQ+El7o+S1XQcxHQGjS45Q1ap8lfjQuIwm004mQ3TPxo+ph1yvRrlQ==",
+		  "nugetOrgSignedSha512": "R5aMq17JFx5tU6kEk9WR1ySFgP6W90yA2Hmowbn3BRQyI7MVe5429mSRu/Crhk4wROwdtK9IhACRwcCtukGY+Q==",
+		  "nativeBridge": { "sha256": "b008c8d8c136187f241542e6223dc0831999d8300dc2c4c01e1cf49f6fba7698" }
 		}
 		""");
 

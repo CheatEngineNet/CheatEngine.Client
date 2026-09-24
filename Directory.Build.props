@@ -56,11 +56,11 @@
   <PropertyGroup Label="Packaging and versioning">
     <!-- MinVer derives one version for every package from the nearest v* tag, so CI must fetch full history and tags. -->
     <MinVerTagPrefix>v</MinVerTagPrefix>
-    <!-- Floor for commits no v* tag covers yet, which build as 0.1.0-alpha.0.N. Raise it after each release to open the next line, and never above the line of the tag being released. -->
-    <MinVerMinimumMajorMinor>0.1</MinVerMinimumMajorMinor>
+    <!-- Floor for commits no v* tag covers yet, which build as 1.0.0-alpha.0.N. Raise it after each release to open the next line, and never above the line of the tag being released. -->
+    <MinVerMinimumMajorMinor>1.0</MinVerMinimumMajorMinor>
     <!--
       Evaluation-time placeholder equal to the MinVer floor: NuGet records it for project references in lock files
-      ([0.1.0, )), including the Coexistence fixtures that are outside Central Package Management; MinVer computes the
+      ([1.0.0, )), including the Coexistence fixtures that are outside Central Package Management; MinVer computes the
       real version at build and pack. CHEATENGINECLIENT9019 refuses any other version source.
     -->
     <VersionPrefix>$(MinVerMinimumMajorMinor).0</VersionPrefix>

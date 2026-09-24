@@ -1,5 +1,7 @@
 using System.Globalization;
 
+using CheatEngine.Client.Repository.Tests.Packaging;
+
 using YamlDotNet.RepresentationModel;
 
 namespace CheatEngine.Client.Repository.Tests.Governance;
@@ -8,8 +10,8 @@ namespace CheatEngine.Client.Repository.Tests.Governance;
 /// Hardened Dependabot configuration (PR-CQ-08, A21-36, CI-BOTH-6): a cooldown on every ecosystem (zizmor
 /// dependabot-cooldown threshold: 7 days, https://docs.zizmor.sh/audits/#dependabot-cooldown), NuGet, GitHub Actions
 /// (workflows and composite actions) and the .NET SDK covered, and the ignores that protect frozen decisions: the
-/// Client stays on CheatEngine.SDK 1.x, Roslyn moves with the generator floor, SDK-implicit packages move with
-/// global.json.
+/// Client stays on the CheatEngine.SDK major of its pin (eng/CheatEngineSdk.props), Roslyn moves with the generator
+/// floor, SDK-implicit packages move with global.json.
 /// Options: https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference
 /// </summary>
 public sealed class DependabotConfigurationTests
@@ -64,6 +66,18 @@ public sealed class DependabotConfigurationTests
 
 		Assert.Equal(["version-update:semver-major"], GovernanceFile.Strings(GovernanceFile.Child(ignore, "update-types")));
 		Assert.Null(GovernanceFile.Child(ignore, "versions"));
+	}
+
+	[Fact]
+	public void CheatEngineSdkIgnoreStatesThePinnedRangeAndTheFirstIgnoredMajor()
+	{
+		// A semver-major ignore is relative to the version in the repository, so it needs no edit at a major migration;
+		// its comment does, and this keeps the comment in step with the pin (eng/CheatEngineSdk.props, "Major migration").
+		string text = GovernanceFile.ReadText(ConfigurationPath);
+
+		Assert.Contains($"CheatEngine.SDK {SdkPin.SupportedMajor}.x", text, StringComparison.Ordinal);
+		Assert.Contains($"[{SdkPin.Version},{SdkPin.UpperBound})", text, StringComparison.Ordinal);
+		Assert.Contains($"({SdkPin.UpperBound} and later) is ignored", text, StringComparison.Ordinal);
 	}
 
 	[Fact]

@@ -10,7 +10,7 @@ namespace CheatEngine.Client.Scanning;
 ///         treating the copy as complete.
 ///     </para>
 ///     <para>
-///         With CheatEngine.SDK 1.0.0 a scan that finds nothing is usually reported as
+///         A scan that finds nothing is usually reported as
 ///         <see cref="CheatEngineFailureKind.IndeterminateHostResult" />, not as an empty result.
 ///     </para>
 /// </remarks>

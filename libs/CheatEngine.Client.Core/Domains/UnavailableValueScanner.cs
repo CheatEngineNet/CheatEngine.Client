@@ -13,14 +13,13 @@ namespace CheatEngine.Client.Core.Domains;
 /// </summary>
 internal sealed class UnavailableValueScanner : IValueScanner
 {
-	// This is a deliberate product gate, not a transient host-capability probe.  SDK 1.0.0 exposes the state machine
-	// only through MemoryScanSession.Adopt(Owned<MemScan>, Owned<FoundList>), while Owned<T> has an internal
-	// constructor and the Lua-global generator cannot marshal CEObject results.  Bypassing that with reflection or a
-	// hand-rolled destroy owner would make an unverified CE ownership assumption part of the Client contract.
+	// This is a deliberate product gate, not a transient host-capability probe: this build composes no operational
+	// value-scan adapter, so no MemScan or FoundList is ever created. An adapter must own both objects through the
+	// consumed SDK's owners (never reflection or a hand-rolled destroy owner, which would make an unverified CE
+	// ownership assumption part of the Client contract) and pass the live gate before this refusal is lifted.
 	private const string OwnershipGateMessage =
-		"Value scans are disabled: CheatEngine.SDK 1.0.0 has no public ownership factory for createMemScan or " +
-		"createFoundList, and its generated Lua globals cannot return CEObject handles. Enablement requires the " +
-		"Cheat Engine 7.7 ownership and reactivation live gate.";
+		"Value scans are unavailable: this Client build composes no operational value-scan adapter, so it creates no " +
+		"MemScan or FoundList. Enablement requires the Cheat Engine 7.7 ownership and reactivation live gate.";
 
 	private readonly CoreLifetime? _lifetime;
 

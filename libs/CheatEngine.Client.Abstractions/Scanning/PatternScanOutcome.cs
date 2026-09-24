@@ -8,7 +8,7 @@ namespace CheatEngine.Client.Scanning;
 ///         Exactly one of <see cref="Result" /> and <see cref="Cause" /> is present. <see cref="Metrics" /> is present on
 ///         every success, and on a failure whenever Cheat Engine returned a result list whose count Core could read (for
 ///         example a cancellation observed while copying). It is <see langword="null" /> when no list was obtained, as
-///         for the CheatEngine.SDK 1.0.0 <see cref="CheatEngineFailureKind.IndeterminateHostResult" /> outcome.
+///         for the <see cref="CheatEngineFailureKind.IndeterminateHostResult" /> outcome of a scan that returned none.
 ///     </para>
 ///     <para>
 ///         <see cref="Result" /> and <see cref="Cause" /> are classified exactly as

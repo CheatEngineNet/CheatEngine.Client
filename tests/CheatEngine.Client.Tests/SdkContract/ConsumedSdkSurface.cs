@@ -1,7 +1,8 @@
 namespace CheatEngine.Client.Tests.SdkContract;
 
 /// <summary>
-///     The committed inventory of the CheatEngine.SDK 1.0.0 surface that the shipped Client assemblies reference (Q48).
+///     The committed inventory of the consumed CheatEngine.SDK surface (the pin of <c>eng/CheatEngineSdk.props</c>)
+///     that the shipped Client assemblies reference (Q48).
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -203,6 +204,8 @@ internal static class ConsumedSdkSurface
 		"CheatEngine.Client.Core T CheatEngine.SDK.Engine.Errors.EngineMarshallingDirection",
 		"CheatEngine.Client.Core T CheatEngine.SDK.Engine.Errors.EngineMarshallingException",
 		"CheatEngine.Client.Core T CheatEngine.SDK.Engine.Errors.EngineOperationFailedException",
+		"CheatEngine.Client.Core T CheatEngine.SDK.Engine.Errors.EngineResourceHandoffException",
+		"CheatEngine.Client.Core T CheatEngine.SDK.Engine.Errors.EngineTargetIdentityException",
 		"CheatEngine.Client.Core T CheatEngine.SDK.Engine.Inspection.AddressResolutionOptions",
 		"CheatEngine.Client.Core T CheatEngine.SDK.Engine.Inspection.EngineInspection",
 		"CheatEngine.Client.Core T CheatEngine.SDK.Engine.Inspection.InspectionStatus",
@@ -213,6 +216,8 @@ internal static class ConsumedSdkSurface
 		"CheatEngine.Client.Core T CheatEngine.SDK.Engine.Inspection.ModuleSectionInfo",
 		"CheatEngine.Client.Core T CheatEngine.SDK.Engine.Inspection.SymbolExpression",
 		"CheatEngine.Client.Core T CheatEngine.SDK.Engine.Inspection.SymbolInfo",
+		"CheatEngine.Client.Core T CheatEngine.SDK.Engine.Inspection.SymbolListRegistrationHandoffException",
+		"CheatEngine.Client.Core T CheatEngine.SDK.Engine.Inspection.SymbolRegistrationHandoffException",
 		"CheatEngine.Client.Core T CheatEngine.SDK.Engine.Inspection.TargetProcessId",
 		"CheatEngine.Client.Core T CheatEngine.SDK.Engine.Memory.MemoryAccessFailure",
 		"CheatEngine.Client.Core T CheatEngine.SDK.Engine.Memory.TargetMemory",
@@ -231,6 +236,7 @@ internal static class ConsumedSdkSurface
 		"CheatEngine.Client.Core T CheatEngine.SDK.Engine.Runtime.TargetAbi",
 		"CheatEngine.Client.Core T CheatEngine.SDK.Engine.Scanning.Aob.AobScanOptions",
 		"CheatEngine.Client.Core T CheatEngine.SDK.Engine.Scanning.Aob.AobScanner",
+		"CheatEngine.Client.Core T CheatEngine.SDK.Engine.Scanning.Values.MemoryScanStateException",
 		"CheatEngine.Client.Core T CheatEngine.SDK.Engine.Values.Address",
 		"CheatEngine.Client.Core T CheatEngine.SDK.Hosting.Bootstrap.PluginHost",
 		"CheatEngine.Client.Core T CheatEngine.SDK.Hosting.Context.PluginContext",

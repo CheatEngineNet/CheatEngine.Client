@@ -48,7 +48,7 @@
     major of CheatEngineSdkUpperBound in eng/CheatEngineSdk.props.
   -->
   <PropertyGroup>
-    <_CheatEngineClientSdkUpperMajor>2</_CheatEngineClientSdkUpperMajor>
+    <_CheatEngineClientSdkUpperMajor>3</_CheatEngineClientSdkUpperMajor>
   </PropertyGroup>
 
   <Target Name="CheatEngineClientValidateResolvedSdkMajor"

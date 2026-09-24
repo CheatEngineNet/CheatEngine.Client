@@ -2,12 +2,14 @@ using System.Reflection.Metadata;
 
 using CheatEngine.Client.Allocations;
 using CheatEngine.Client.Assembly;
+using CheatEngine.Client.Tests.Infrastructure;
 
 namespace CheatEngine.Client.Tests.Architecture;
 
 /// <summary>
 ///     C0 capability ratchets (audit ADR-09, ADR-09a, A17-19, A17-20, SRC02-08): runtime probes call only read-only
-///     Cheat Engine globals, and contract-only domains stay unavailable while the Client consumes CheatEngine.SDK 1.x.
+///     Cheat Engine globals, and contract-only domains stay unavailable on the CheatEngine.SDK major the Client
+///     supports (<c>_CheatEngineClientSupportedSdkMajor</c> in <c>eng/CheatEngineSdk.props</c>).
 /// </summary>
 /// <remarks>Everything is read from the compiled Client assemblies; no Client code runs.</remarks>
 public sealed class CapabilityRatchetTests
@@ -83,10 +85,10 @@ public sealed class CapabilityRatchetTests
 
 	[Fact]
 	[Trait("Qualification", "Q44")]
-	public void ContractOnlyDomainsHaveNoOperationalImplementationWhileTheSdkMajorIsOne()
+	public void ContractOnlyDomainsHaveNoOperationalImplementationOnTheSupportedSdkMajor()
 	{
-		// SRC02-08: an Allocation or Assembly folder never activates the capability; adopting CheatEngine.SDK 2.0 must
-		// update this test deliberately, together with the capability gates it locks.
+		// SRC02-08: an Allocation or Assembly folder never activates the capability; composing an operational adapter
+		// for either domain must update this test deliberately, together with the capability gates it locks.
 		Type[] implementations = ClientAssemblyCatalog.LoadAll()
 			.SelectMany(static assembly => assembly.GetTypes())
 			.Where(static type => type is { IsInterface: false, IsAbstract: false } &&
@@ -96,7 +98,7 @@ public sealed class CapabilityRatchetTests
 		int referencedSdkMajor = ClientAssemblyCatalog.Load(CoreAssembly).GetReferencedAssemblies()
 			.Single(static name => name.Name == "CheatEngine.SDK.Engine").Version!.Major;
 
-		Assert.Equal(1, referencedSdkMajor);
+		Assert.Equal(SdkPin.SupportedMajor, referencedSdkMajor);
 		Assert.Equal(
 			[
 				"CheatEngine.Client.Core.Domains.Allocations.UnavailableAllocationClient",

@@ -8,10 +8,10 @@ internal enum AobScanHostStatus
 	Success,
 
 	/// <summary>
-	///     CheatEngine.SDK 1.0.0 <c>AobScanner.TryScan</c> returned <see langword="false" />: zero matches (the common
-	///     cause on profile ce-7.7.0.10621-x64-managed-hostfxr, where <c>AOBScan</c> returns no value for zero matches),
-	///     an unresolved global, a protected Lua failure, or a non-object result. The causes are indistinguishable with
-	///     SDK 1.0.0.
+	///     The boolean <c>AobScanner.TryScan</c> returned <see langword="false" />: zero matches (the common cause on
+	///     profile ce-7.7.0.10621-x64-managed-hostfxr, where <c>AOBScan</c> returns no value for zero matches), an
+	///     unresolved global, a protected Lua failure, or a non-object result. That boolean does not tell the causes
+	///     apart.
 	/// </summary>
 	NoResultList,
 

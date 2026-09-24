@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 
 using CheatEngine.Client.Repository.Tests.Infrastructure;
+using CheatEngine.Client.Repository.Tests.Packaging;
 
 namespace CheatEngine.Client.Repository.Tests.LockFiles;
 
@@ -9,7 +10,8 @@ namespace CheatEngine.Client.Repository.Tests.LockFiles;
 /// project restores with a committed lock file; the three Coexistence fixtures stay outside Central Package
 /// Management with version 1 lock files (a solution-level <c>--force-evaluate</c> once gave them CentralTransitive
 /// entries and broke every locked restore, which is why regeneration always restores each project on its own); the
-/// whole graph consumes one CheatEngine.SDK identity (ADR-10: the Client follows the consumed package, SDK 1.0.0).
+/// whole graph consumes one CheatEngine.SDK identity, the pin of <c>eng/CheatEngineSdk.props</c> (ADR-10: the Client
+/// follows the consumed package); every lock file ends exactly as NuGet writes it.
 /// </summary>
 public sealed class LockFileTests
 {
@@ -19,26 +21,10 @@ public sealed class LockFileTests
 	private const string CoexistenceFolder = "tests/CheatEngine.Client.LivePlugin.Coexistence/";
 	private const string CoexistenceProps = CoexistenceFolder + "CoexistencePlugin.props";
 
-	// The published CheatEngine.SDK 1.0.0 as NuGet records it (SHA-512 of the unsigned package, base64).
-	private const string ConsumedSdkVersion = "1.0.0";
+	// The reviewed NuGet content hash of the pinned CheatEngine.SDK package (SHA-512 of the unsigned package, base64),
+	// as every lock file records it. The version it belongs to is the pin itself (SdkPin.Version).
 	private const string ConsumedSdkContentHash =
-		"n7nHqZ8vzo7Vf20jF0fkh/jUtR3yo1TwRGpXE7ERxZeJ4C5S/Nsft4lqOg7zGwfsD5Nh9tTVgdw4PrybJRF0gA==";
-
-	/// <summary>
-	/// Lock files whose committed text ends with a newline. NuGet writes none; the committed lock files keep whatever
-	/// was committed so a regeneration of an unchanged graph produces no diff.
-	/// </summary>
-	private static readonly HashSet<string> LockFilesEndingWithNewline = new(StringComparer.Ordinal)
-	{
-		"libs/CheatEngine.Client.Abstractions/packages.lock.json",
-		"libs/CheatEngine.Client.Core/packages.lock.json",
-		"libs/CheatEngine.Client.Extensions.DependencyInjection/packages.lock.json",
-		"libs/CheatEngine.Client.Fluent/packages.lock.json",
-		"libs/CheatEngine.Client.Hosting/packages.lock.json",
-		"src/CheatEngine.Client/packages.lock.json",
-		"templates/CheatEngine.Client.Templates/packages.lock.json",
-		"tests/CheatEngine.Client.AotProbe/packages.lock.json"
-	};
+		"NLEdZYJ9LKW3EFNB4X5snKCQf7ZS86GkCQ+El7o+S1XQcxHQGjS45Q1ap8lfjQuIwm004mQ3TPxo+ph1yvRrlQ==";
 
 	[Fact]
 	public void EveryProjectHasACommittedLockFileExceptTheTemplateContent()
@@ -149,8 +135,9 @@ public sealed class LockFileTests
 	}
 
 	[Fact]
-	public void EveryLockResolvesCheatEngineSdk100WithTheRecordedContentHash()
+	public void EveryLockResolvesThePinnedSdkWithTheRecordedContentHash()
 	{
+		string pin = SdkPin.Version;
 		List<string> consumers = [];
 		foreach (string lockFile in RepositoryRoot.EnumerateSourceFiles(LockFileName))
 		{
@@ -162,10 +149,12 @@ public sealed class LockFileTests
 				}
 
 				consumers.Add(lockFile);
-				Assert.True((string?) entry["resolved"] == ConsumedSdkVersion,
-					$"{lockFile} [{section}] resolves CheatEngine.SDK {(string?) entry["resolved"]}; the Client consumes {ConsumedSdkVersion}.");
+				Assert.True((string?) entry["resolved"] == pin,
+					$"{lockFile} [{section}] resolves CheatEngine.SDK {(string?) entry["resolved"]}; " +
+					$"the Client consumes the pin {pin} ({SdkPin.PropsPath}).");
 				Assert.True((string?) entry["contentHash"] == ConsumedSdkContentHash,
-					$"{lockFile} [{section}] records CheatEngine.SDK contentHash {(string?) entry["contentHash"]}, not the published 1.0.0 package.");
+					$"{lockFile} [{section}] records CheatEngine.SDK contentHash {(string?) entry["contentHash"]}, " +
+					$"not the reviewed hash of the published {pin} package.");
 			}
 		}
 
@@ -223,24 +212,23 @@ public sealed class LockFileTests
 	}
 
 	[Fact]
-	public void LockFilesKeepTheirCommittedTrailingNewlineState()
+	public void LockFilesEndExactlyAsNuGetWritesThem()
 	{
 		List<string> lockFiles = [.. RepositoryRoot.EnumerateSourceFiles(LockFileName)];
-		foreach (string expected in LockFilesEndingWithNewline)
-		{
-			Assert.Contains(expected, lockFiles);
-		}
-
+		Assert.NotEmpty(lockFiles);
+		List<string> offenders = [];
 		foreach (string lockFile in lockFiles)
 		{
 			string text = File.ReadAllText(Path.Combine(RepositoryRoot.Path, lockFile));
-			bool endsWithNewline = text.EndsWith('\n');
-			bool expectedNewline = LockFilesEndingWithNewline.Contains(lockFile);
-			Assert.True(endsWithNewline == expectedNewline,
-				expectedNewline
-					? $"{lockFile} lost its committed final newline; regenerate it with 'dotnet restore <project> --force-evaluate' instead of a plain restore."
-					: $"{lockFile} gained a final newline NuGet does not write; regenerate it with 'dotnet restore <project> --force-evaluate'.");
+			if (text.EndsWith('\n') || text.EndsWith('\r'))
+			{
+				offenders.Add(lockFile);
+			}
 		}
+
+		Assert.True(offenders.Count == 0,
+			"NuGet writes no final newline, so an editor or a hand edit added one to: " + string.Join(", ", offenders) +
+			". Regenerate each with 'dotnet restore <project> --force-evaluate' instead of editing it.");
 	}
 
 	private static string[] CoexistenceFixtures()

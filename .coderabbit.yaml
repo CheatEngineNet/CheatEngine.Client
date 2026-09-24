@@ -65,8 +65,9 @@ reviews:
           public; Client code declares a native import or binds a Lua global itself without a registered exception in
           the architecture ratchet (tests/CheatEngine.Client.Tests/Architecture) naming its own SDK 2.0 replacement as
           the removal reason; a CheatEngine.SDK version literal appears outside eng/CheatEngineSdk.props, or the pin
-          moves to 2.x without that being a deliberate, reviewed migration (there is no automated migration guide; the
-          bump procedure is documented in eng/CheatEngineSdk.props itself); or a packages.lock.json
+          moves to another SDK major without that being a deliberate, reviewed migration (there is no automated
+          migration guide; the bump procedure and the major migration checklist are documented in
+          eng/CheatEngineSdk.props itself); or a packages.lock.json
           changes without a project or package change that explains it. Otherwise pass.
       - name: "Qualification evidence"
         mode: "warning"

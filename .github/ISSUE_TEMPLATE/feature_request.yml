@@ -29,7 +29,7 @@ body:
   - type: dropdown
     id: sdk-dependency
     attributes:
-      label: Does it need something CheatEngine.SDK 1.0.0 does not expose?
+      label: Does it need something CheatEngine.SDK does not expose?
       options:
         - "No"
         - "Yes"

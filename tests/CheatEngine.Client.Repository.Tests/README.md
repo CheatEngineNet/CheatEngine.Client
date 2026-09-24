@@ -23,6 +23,8 @@ read committed files: the project never builds, packs, restores or starts a proc
     `eng/CheatEngineSdk.props`;
   - `ProseMentionsOfTheConsumedSdkEqualThePin`: documentation and diagnostics that name the SDK version name the pin;
   - `EveryLockFileResolvesThePinnedSdkWithOneContentHash`: every lock resolves the pin with one content hash;
+  - `RetiredSdkIdentityLiteralsAppearNowhere`: no text file keeps the content hash, signed-file hash, bridge hash or
+    source commit of an SDK package the Client no longer consumes;
   - `SdkPinIsAStableVersionOfTheSupportedMajor` and `CoexistenceFixturesDeriveTheirSdkVersionFromThePin`.
 - `Packaging/PackageVersioningTests` and `Packaging/PackageMetadataTests` pin the package versioning and metadata:
   MinVer configured once for every package (`MinVerIsConfiguredOnceForEveryPackage`), the Roslyn pin of the packed
@@ -55,9 +57,10 @@ read committed files: the project never builds, packs, restores or starts a proc
 - `LockFiles/LockFileTests` checks the structural invariants of every committed lock file directly: every project has
   one, the Coexistence fixtures keep version 1 lock files without `CentralTransitive` entries (the failure a
   solution-level `--force-evaluate` once caused, which is why regeneration always restores each project on its own),
-  every other project has a version 2 lock file, the whole graph consumes CheatEngine.SDK 1.0.0 with its recorded
-  content hash, no Client package comes from a feed, the Native AOT probe records its runtime packs, and each lock
-  file keeps its committed final newline.
+  every other project has a version 2 lock file, the whole graph consumes the pinned CheatEngine.SDK with its reviewed
+  content hash (`EveryLockResolvesThePinnedSdkWithTheRecordedContentHash`), no Client package comes from a feed, the
+  Native AOT probe records its runtime packs, and every lock file ends exactly as NuGet writes it, without a final
+  newline (`LockFilesEndExactlyAsNuGetWritesThem`).
 - `Workflows/WorkflowContractTests` freeze the CI contract shared with CheatEngine.SDK, over every workflow that
   exists: callers reach `ci.yml` through job `ci` named `CI`, so the only required check is `CI / Gate`; the Gate runs
   `always()` without permissions and needs every other job; the Sonar condition equals the Gate's `SONAR_EXPECTED`;

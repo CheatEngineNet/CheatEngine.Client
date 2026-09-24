@@ -21,7 +21,8 @@ using CheatEngine.SDK.Lua.State;
 namespace CheatEngine.Client.Tests.SdkContract;
 
 /// <summary>
-///     Compile-only map of every CheatEngine.SDK 1.0.0 member that the shipped Client assemblies consume (Q48).
+///     Compile-only map of every member of the consumed CheatEngine.SDK (the pin of <c>eng/CheatEngineSdk.props</c>)
+///     that the shipped Client assemblies consume (Q48).
 /// </summary>
 /// <remarks>
 ///     <para>

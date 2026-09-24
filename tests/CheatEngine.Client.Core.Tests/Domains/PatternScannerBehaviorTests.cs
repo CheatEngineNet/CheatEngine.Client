@@ -457,7 +457,7 @@ public sealed class PatternScannerBehaviorTests
 		Assert.Equal("Patterns.Scan", failure.Operation);
 		Assert.Equal(
 			"Cheat Engine returned no AOB result list: zero matches or a host failure " +
-			"(indistinguishable with CheatEngine.SDK 1.0.0).",
+			"(indistinguishable on this scan route).",
 			failure.Message);
 		Assert.Equal(CheatEngineHostEffect.Completed, failure.HostEffect);
 		Assert.Null(failure.Exception);

@@ -25,7 +25,7 @@ public interface ILuaModule
 	///         write, it rolls back the globals it published (ownership-aware) and throws an exception of the same type as the
 	///         original failure whose message starts with the original message; a rollback failure is attached as an
 	///         <see cref="AggregateException" /> inner exception whose first element is the original failure. On
-	///         CheatEngine.SDK 1.0.0 a combined SDK <c>LuaException</c> cannot carry both a Lua status and an inner exception,
+	///         CheatEngine.SDK 2.0.0 a combined SDK <c>LuaException</c> cannot carry both a Lua status and an inner exception,
 	///         so its <c>Status</c> is <c>Ok</c>; read the original status from that first element. Without a rollback
 	///         failure the original exception is thrown itself, status included.
 	///     </para>

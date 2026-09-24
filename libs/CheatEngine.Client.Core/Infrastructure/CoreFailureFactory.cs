@@ -1,5 +1,7 @@
 using CheatEngine.Client.Results;
 using CheatEngine.SDK.Engine.Errors;
+using CheatEngine.SDK.Engine.Inspection;
+using CheatEngine.SDK.Engine.Scanning.Values;
 using CheatEngine.SDK.Lua.Calls;
 
 namespace CheatEngine.Client.Core.Infrastructure;
@@ -38,6 +40,14 @@ internal static class CoreFailureFactory
 		string message = string.IsNullOrWhiteSpace(exception.Message)
 			? $"The operation failed with {exception.GetType().Name}."
 			: exception.Message;
+		// Interim: a handoff exception reports an effect Cheat Engine already accepted, whose single compensation may not
+		// have removed it, so an unknown effect is recorded as CleanupUnconfirmed. The final classification lands with the
+		// SDK 2.0 failure vocabulary in the next lot.
+		if (hostEffect == CheatEngineHostEffect.Unknown && IsInterimHandoffException(exception))
+		{
+			hostEffect = CheatEngineHostEffect.CleanupUnconfirmed;
+		}
+
 		return new CheatEngineFailure(GetKind(exception), operation, message, exception, hostEffect);
 	}
 
@@ -72,10 +82,25 @@ internal static class CoreFailureFactory
 			LuaException => CheatEngineFailureKind.LuaError,
 			EngineBindingException => CheatEngineFailureKind.BindingError,
 			EngineMarshallingException => CheatEngineFailureKind.InvalidHostResult,
+			// Interim arms for the exception types CheatEngine.SDK 2.0.0 added; the final classification lands with the
+			// SDK 2.0 failure vocabulary in the next lot. MemoryScanStateException derives from InvalidOperationException,
+			// so it must precede that arm.
+			EngineTargetIdentityException => CheatEngineFailureKind.InvalidState,
+			EngineResourceHandoffException => CheatEngineFailureKind.OperationRejected,
+			SymbolRegistrationHandoffException => CheatEngineFailureKind.OperationRejected,
+			SymbolListRegistrationHandoffException => CheatEngineFailureKind.OperationRejected,
+			MemoryScanStateException => CheatEngineFailureKind.InvalidState,
 			ObjectDisposedException => CheatEngineFailureKind.InvalidState,
 			ArgumentException => CheatEngineFailureKind.OperationRejected,
 			InvalidOperationException => CheatEngineFailureKind.OperationRejected,
 			_ => CheatEngineFailureKind.Unknown
 		};
+	}
+
+	/// <summary>Whether the exception reports a failed ownership handoff after Cheat Engine accepted the effect.</summary>
+	private static bool IsInterimHandoffException(Exception exception)
+	{
+		return exception is EngineResourceHandoffException or SymbolRegistrationHandoffException
+			or SymbolListRegistrationHandoffException;
 	}
 }

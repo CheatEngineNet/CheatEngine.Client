@@ -16,7 +16,7 @@ namespace CheatEngine.Client.Tests.Architecture;
 /// </summary>
 /// <remarks>
 ///     Everything is read from the compiled Client assemblies with System.Reflection.Metadata; no Client code runs. The
-///     frozen lists below are the registered ADR-01 debt of the Client on CheatEngine.SDK 1.0.0; each entry names its own
+///     frozen lists below are the registered ADR-01 debt of the Client; each entry names its own
 ///     removal reason and is removed once the SDK 2.0 replacement it names ships. Shrinking a list is always allowed;
 ///     growing it requires a registered exception with its own removal reason, here, not in an external document.
 /// </remarks>

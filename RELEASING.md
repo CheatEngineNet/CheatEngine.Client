@@ -93,7 +93,9 @@ package's native bridge, the Cheat Engine host profile and the load profile. Bef
 - the result of Q40 (clean installation from the packages) on the exact host profile, in addition to the package
   consumption tests that CI runs on every change;
 - a green consumer-contract run against the pinned SDK (Q48 at the managed-test level);
-- that audit finding F05 (Client and SDK `main` diverge) stays open while the Client consumes `CheatEngine.SDK` 1.0.0.
+- that audit finding F05 (Client and SDK diverge) stays open while `Client.ValueScanning` is contract-only: the consumed
+  `CheatEngine.SDK` ships value-scan sessions that the Client does not compose, and closing F05 takes an operational
+  adapter with the Q25 and Q26 receipts.
 
 A CI result is never presented as a host result, and a scenario that was not run stays not run.
 

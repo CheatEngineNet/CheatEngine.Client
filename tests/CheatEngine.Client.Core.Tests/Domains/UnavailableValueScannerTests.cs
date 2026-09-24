@@ -21,8 +21,10 @@ public sealed class UnavailableValueScannerTests
 		Assert.Null(session);
 		Assert.Equal(CheatEngineFailureKind.CapabilityUnavailable, failure.Kind);
 		Assert.Equal((string?) "Scans.CreateSession", (string?) failure.Operation);
-		Assert.Contains("no public ownership factory", failure.Message, StringComparison.Ordinal);
-		Assert.Contains("cannot return CEObject", failure.Message, StringComparison.Ordinal);
+		Assert.Contains("composes no operational value-scan adapter", failure.Message, StringComparison.Ordinal);
+		Assert.Contains("live gate", failure.Message, StringComparison.Ordinal);
+		// The refusal is the Client's own gate: it names no SDK version and makes no claim about what the SDK provides.
+		Assert.DoesNotContain("CheatEngine.SDK", failure.Message, StringComparison.Ordinal);
 	}
 
 	[Fact]

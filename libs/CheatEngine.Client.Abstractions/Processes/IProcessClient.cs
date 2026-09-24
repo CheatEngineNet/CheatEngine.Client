@@ -14,8 +14,8 @@ namespace CheatEngine.Client.Processes;
 ///         Every observation reads the opened process identifier first: with no target opened, Cheat Engine reports the
 ///         same ISA family, width and pointer size as an x64 target. The ISA is derived from Cheat Engine's x86 and ARM
 ///         family facts together with its 64-bit fact, never from the 64-bit fact alone; the process width is stored as
-///         observed. Identifier reuse by another process and CEServer or file-as-process backends are not detected with
-///         CheatEngine.SDK 1.0.0; closing this gap needs target-identity evidence that only a later SDK provides.
+///         observed. This client reads no target-identity evidence, so it detects neither identifier reuse by another
+///         process nor a CEServer or file-as-process backend.
 ///     </para>
 /// </remarks>
 public interface IProcessClient

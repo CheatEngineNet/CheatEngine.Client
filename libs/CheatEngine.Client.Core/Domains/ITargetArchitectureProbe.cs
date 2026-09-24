@@ -14,8 +14,8 @@ namespace CheatEngine.Client.Core.Domains;
 ///         With no target opened, Cheat Engine reports the same family, width and pointer size as an x64 target, so a
 ///         caller always reads <see cref="GetOpenedProcessId" /> first (spike C3 D2). The production implementations use
 ///         temporary, frozen ADR-01 bindings registered in the architecture ratchet
-///         (<c>tests/CheatEngine.Client.Tests/Architecture/ArchitectureRatchetTests.cs</c>), which names the SDK 2.0
-///         replacement that retires each one.
+///         (<c>tests/CheatEngine.Client.Tests/Architecture/ArchitectureRatchetTests.cs</c>), which records the removal
+///         condition of each one.
 ///     </para>
 /// </remarks>
 internal interface ITargetArchitectureProbe

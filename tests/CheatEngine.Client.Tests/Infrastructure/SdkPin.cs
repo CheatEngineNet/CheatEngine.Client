@@ -34,6 +34,10 @@ internal static class SdkPin
 	/// <summary>The major version of the upper bound: the first CheatEngine.SDK major this Client does not support.</summary>
 	internal static int UpperMajor => Component(UpperBound, 0);
 
+	/// <summary><c>_CheatEngineClientSupportedSdkMajor</c>: the one CheatEngine.SDK major this Client supports.</summary>
+	internal static int SupportedMajor =>
+		int.Parse(Property("_CheatEngineClientSupportedSdkMajor"), NumberStyles.None, CultureInfo.InvariantCulture);
+
 	private static string Property(string name)
 	{
 		XElement[] elements = Props.Value.Descendants(name).ToArray();

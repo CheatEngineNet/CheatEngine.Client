@@ -12,25 +12,46 @@
     - the CHEATENGINECLIENT9016/9017 guards in Directory.Build.targets.
     The reviewed identity of the pinned package (content hash, signed-file hashes, bridge) is hardcoded next to its
     consumers: tests/CheatEngine.Client.Tests/Packaging/PackagedClientFeedFixture.cs (PinnedSdkIdentity) and
-    tests/CheatEngine.Client.Repository.Tests/LockFiles/LockFileTests.cs (ConsumedSdkContentHash). Tests keep this
-    file, those literals, the lock files and the documentation in agreement.
+    tests/CheatEngine.Client.Repository.Tests/LockFiles/LockFileTests.cs (ConsumedSdkContentHash). The three install
+    guides state the same identity: src/CheatEngine.Client/README.md, templates/CheatEngine.Client.Templates/README.md
+    and templates/CheatEngine.Client.Templates/content/CheatEngine.Plugin/README.md. Tests keep this file, those
+    literals, the lock files and the documentation in agreement.
 
     The properties are assigned unconditionally: an environment variable cannot change the pin, only an explicit
     -p: global property can.
 
     Bump procedure (no script; every step lands in one pull request): update CheatEngineSdkVersion here; update the
-    reviewed identity literals named above to the new package's hashes; regenerate every packages.lock.json with a
-    force-evaluate restore of each project (Coexistence fixtures first, one by one, never the solution with a
-    force-evaluate restore: that once rewrote their legacy lock files with CentralTransitive entries and broke every
-    locked restore); update the SDK version named in prose (SdkPinTests.ProseMentionsOfTheConsumedSdkEqualThePin lists
-    the files). Never edit the version by hand without the identity literals, and never move to another major in a
-    dependency bump.
+    reviewed identity literals named above to the new package's hashes, and the NuGet content hash, bridge SHA-256 and
+    source commit that the three install guides state (the host executable and runtime configuration hashes name the
+    Cheat Engine host, not the SDK); regenerate every packages.lock.json with a force-evaluate restore of each project
+    (Coexistence fixtures first, one by one, never the solution with a force-evaluate restore: that once rewrote their
+    legacy lock files with CentralTransitive entries and broke every locked restore); update the SDK version named in
+    prose (SdkPinTests.ProseMentionsOfTheConsumedSdkEqualThePin lists the files). Never edit the version by hand without
+    the identity literals, and never move to another major in a dependency bump.
+
+    Major migration (a deliberate maintainer decision, never a dependency bump): the bump procedure above, plus
+    - CheatEngineSdkUpperBound and _CheatEngineClientSupportedSdkMajor here, and _CheatEngineClientSdkUpperMajor in
+      libs/CheatEngine.Client.Hosting/buildTransitive/CheatEngine.Client.Hosting.targets (the CECLIENT017 guard);
+    - the CheatEngine.SDK default of the template content project and its "Keep CheatEngine.SDK on N.x" comment
+      (templates/CheatEngine.Client.Templates/content/CheatEngine.Plugin/CheatEngine.Plugin.csproj);
+    - the identity literals of PackagedClientFeedFixture.PinnedSdkIdentity and LockFileTests, and the sample identity
+      of tests/CheatEngine.Client.Core.Tests/Domains/RuntimeClientTests.cs; the retired literals join
+      SdkPinTests.RetiredSdkIdentityLiteralsAppearNowhere;
+    - the NuGet content hash, bridge SHA-256 and source commit lines of the three install guides;
+    - the CheatEngine.SDK major ignored by .github/dependabot.yml (DependabotConfigurationTests) and the Client, SDK and
+      content hash placeholders of the .github/ISSUE_TEMPLATE forms;
+    - the capability reasons of libs/CheatEngine.Client.Core/Domains/RuntimeClient.cs and every sentence that states
+      what the consumed SDK provides: rewrite what it means for the new major, not only its number;
+    - the lock file regeneration above, with the .NET SDK CLI that global.json pins, project by project;
+    - after a .NET SDK bump, a check that the internal .NET SDK target _GetProjectReferenceVersions still exists: it
+      computes the dependency versions of project references in packed nuspecs, and an internal target can change
+      without notice.
   -->
   <PropertyGroup Label="Consumed CheatEngine.SDK">
-    <CheatEngineSdkVersion>1.0.0</CheatEngineSdkVersion>
-    <CheatEngineSdkUpperBound>2.0.0</CheatEngineSdkUpperBound>
+    <CheatEngineSdkVersion>2.0.0</CheatEngineSdkVersion>
+    <CheatEngineSdkUpperBound>3.0.0</CheatEngineSdkUpperBound>
     <CheatEngineSdkVersionRange>[$(CheatEngineSdkVersion),$(CheatEngineSdkUpperBound))</CheatEngineSdkVersionRange>
-    <!-- Raising this is the SDK 2.0 migration, a deliberate maintainer decision; never raise it in a dependency bump. -->
-    <_CheatEngineClientSupportedSdkMajor>1</_CheatEngineClientSupportedSdkMajor>
+    <!-- The one SDK major this Client supports. Changing it is a major migration (see above), not a dependency bump. -->
+    <_CheatEngineClientSupportedSdkMajor>2</_CheatEngineClientSupportedSdkMajor>
   </PropertyGroup>
 </Project>

@@ -21,19 +21,32 @@ public sealed partial class SdkPinTests
 		"$(CoexistenceSdkPackageVersion)"
 	};
 
+	/// <summary>
+	/// The reviewed identity literals of CheatEngine.SDK packages the Client no longer consumes. Each value is written
+	/// here once so the fact below can find it; a major migration appends the identity it retires.
+	/// </summary>
+	private static readonly (string Literal, string Meaning)[] RetiredSdkIdentityLiterals =
+	[
+		("n7nHqZ8vzo7Vf20jF0fkh/jUtR3yo1TwRGpXE7ERxZeJ4C5S/Nsft4lqOg7zGwfsD5Nh9tTVgdw4PrybJRF0gA==",
+			"the NuGet content hash of the retired 1.0.0 package"),
+		("1a2B/E6reX5e636hfdb+Zdj3kT6817DuNES1RWvprhRyuyztE/56Zk2iHOMQIKpGH+O2Va8rYJxXXXTVq5aN9Q==",
+			"the nuget.org signed-file SHA-512 of the retired 1.0.0 package"),
+		("da08c2ba03019da3a8c432ef061d5d6133fd2169ba3a6a8e9ac903353856d994",
+			"the SHA-256 of the native bridge packed in the retired 1.0.0 package"),
+		("a6fefb93e9c6f85a1bcedb68bf97e6741175b227", "the source commit of the retired 1.0.0 package")
+	];
+
 	/// <summary>Properties that only <c>eng/CheatEngineSdk.props</c> may assign.</summary>
 	private static readonly string[] PinProperties =
 		["CheatEngineSdkVersion", "CheatEngineSdkUpperBound", "CheatEngineSdkVersionRange", "_CheatEngineClientSupportedSdkMajor"];
 
 	/// <summary>
 	/// Files that name the consumed SDK version in prose or in a sample. Each must name it at least once, and only as the
-	/// pin: "CheatEngine.SDK 1.0.0" stays true exactly as long as the pin is 1.0.0.
+	/// pin: a sentence such as "CheatEngine.SDK X.Y.Z" stays true exactly as long as the pin is X.Y.Z.
 	/// </summary>
 	private static readonly string[] ProseLocations =
 	[
 		"README.md",
-		"libs/CheatEngine.Client.Core/Domains/RuntimeClient.cs",
-		"libs/CheatEngine.Client.Core/Domains/UnavailableValueScanner.cs",
 		"libs/CheatEngine.Client.Core/README.md",
 		"libs/CheatEngine.Client.Hosting/README.md",
 		"src/CheatEngine.Client/README.md",
@@ -171,6 +184,38 @@ public sealed partial class SdkPinTests
 	}
 
 	[Fact]
+	public void RetiredSdkIdentityLiteralsAppearNowhere()
+	{
+		const string self = "tests/CheatEngine.Client.Repository.Tests/Packaging/SdkPinTests.cs";
+		List<string> offenders = [];
+		int scanned = 0;
+		foreach (string file in RepositoryRoot.EnumerateSourceFiles("*"))
+		{
+			// .claude/ holds local agent state (for example worktree copies of older commits), never repository content.
+			if (file == self || file.StartsWith(".claude/", StringComparison.Ordinal) || !IsTextFile(file))
+			{
+				continue;
+			}
+
+			scanned++;
+			string text = File.ReadAllText(Path.Combine(RepositoryRoot.Path, file));
+			foreach ((string literal, string meaning) in RetiredSdkIdentityLiterals)
+			{
+				if (text.Contains(literal, StringComparison.Ordinal))
+				{
+					offenders.Add($"{file} → {meaning}");
+				}
+			}
+		}
+
+		Assert.True(scanned >= 100,
+			$"Expected the repository's text files (lock files, workflows, sources, documentation), found {scanned}.");
+		AssertNoOffenders(offenders,
+			"No file keeps the identity of a CheatEngine.SDK package the Client no longer consumes; state the pinned " +
+			$"identity instead ({SdkPin.PropsPath})");
+	}
+
+	[Fact]
 	public void SdkPinIsAStableVersionOfTheSupportedMajor()
 	{
 		Match version = StableVersion().Match(SdkPin.Version);
@@ -227,6 +272,15 @@ public sealed partial class SdkPinTests
 	private static bool IsTemplateContent(string file)
 	{
 		return file.StartsWith("templates/", StringComparison.Ordinal) && file.Contains("/content/", StringComparison.Ordinal);
+	}
+
+	/// <summary>A file is text unless its first 8 KiB contain a NUL byte (the heuristic Git uses).</summary>
+	private static bool IsTextFile(string file)
+	{
+		using FileStream stream = File.OpenRead(Path.Combine(RepositoryRoot.Path, file));
+		Span<byte> head = stackalloc byte[8192];
+		int read = stream.ReadAtLeast(head, head.Length, throwOnEndOfStream: false);
+		return !head[..read].Contains((byte) 0);
 	}
 
 	private static bool IsSdk(string? packageId)

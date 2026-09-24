@@ -78,7 +78,7 @@ public sealed class InspectionClientBehaviorTests
 		InspectionClient client = CreateClient(lifetime, port);
 		ModuleName module = new("fixture.exe");
 		SymbolExpression symbol = new("fixture+10");
-		AddressResolutionOptions options = new(true, true);
+		AddressResolutionOptions options = new(Shallow: true);
 
 		Assert.True(client.TryGetModuleSections(module, new InspectionCollectionRequest(2),
 			out ImmutableArray<ModuleSectionInfo> sections, out CheatEngineFailure sectionsFailure,
@@ -106,6 +106,7 @@ public sealed class InspectionClientBehaviorTests
 		Assert.Equal(symbol, port.LastSymbolExpression);
 		Assert.Equal(symbol, port.LastAddressExpression);
 		Assert.Equal(options, port.LastAddressOptions);
+		Assert.True(port.LastAddressOptions.Shallow);
 	}
 
 	[Theory]

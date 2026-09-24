@@ -32,8 +32,10 @@ updates:
         applies-to: security-updates
         patterns: [ '*' ]
     ignore:
-      # The Client stays on CheatEngine.SDK 1.x: range [1.0.0,2.0.0) (CHEATENGINECLIENT9016). This covers the CPM entry
-      # and the Coexistence fixtures' CoexistenceSdkPackageVersion property. SDK 2.0 adoption is a planned migration.
+      # The Client stays on CheatEngine.SDK 2.x: range [2.0.0,3.0.0) (CHEATENGINECLIENT9016), so every major
+      # update (3.0.0 and later) is ignored. This covers the CPM entry and the Coexistence fixtures'
+      # CoexistenceSdkPackageVersion property. Another major is a deliberate maintainer migration
+      # (eng/CheatEngineSdk.props), never a dependency bump.
       - dependency-name: CheatEngine.SDK
         update-types: [ 'version-update:semver-major' ]
       # Roslyn moves only with the Lua generator's compiler floor (CHEATENGINECLIENT9020).

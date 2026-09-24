@@ -27,9 +27,9 @@ namespace CheatEngine.Client.Core.Domains;
 internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobScanPort? scanPort = null)
 	: IPatternScanner, IPatternScanOutcomeClient
 {
-	/// <summary>The exact, documented SDK 1.0.0 message for a scan that returned no result list.</summary>
+	/// <summary>The exact, documented message for a scan that returned no result list.</summary>
 	internal const string NoResultListMessage =
-		"Cheat Engine returned no AOB result list: zero matches or a host failure (indistinguishable with CheatEngine.SDK 1.0.0).";
+		"Cheat Engine returned no AOB result list: zero matches or a host failure (indistinguishable on this scan route).";
 
 	private const int MaximumModuleSnapshot = 4096;
 	private const string InModuleOperation = "Patterns.InModule";
@@ -196,9 +196,10 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 
 	/// <summary>Classifies a scan that returned no usable list, by SDK status only (never by error text).</summary>
 	/// <remarks>
-	///     With CheatEngine.SDK 1.0.0 a missing list is explicitly indeterminate: zero matches and several host failures
-	///     are indistinguishable (spike C3 D1: <c>AOBScan</c> returns no value for zero matches on the pinned profile). It is
-	///     never reported as <see cref="CheatEngineFailureKind.NotFound" /> or as a host rejection.
+	///     A missing list is explicitly indeterminate: the boolean <c>AobScanner.TryScan</c> that the port calls does not
+	///     tell zero matches from several host failures (spike C3 D1: <c>AOBScan</c> returns no value for zero matches on
+	///     the pinned profile). It is never reported as <see cref="CheatEngineFailureKind.NotFound" /> or as a host
+	///     rejection.
 	/// </remarks>
 	private static CheatEngineFailure CreateMissingListFailure(AobScanHostStatus status)
 	{

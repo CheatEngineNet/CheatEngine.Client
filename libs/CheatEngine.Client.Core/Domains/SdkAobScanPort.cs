@@ -49,9 +49,11 @@ internal sealed class SdkAobScanPort : IAobScanPort
 
 		/// <summary>Releases the Cheat Engine list through the SDK owner.</summary>
 		/// <remarks>
-		///     CheatEngine.SDK 1.0.0 <c>Owned&lt;T&gt;.Dispose</c> throws <see cref="InvalidOperationException" /> and
-		///     retains ownership when the runtime is detached; that exception is the only "release not confirmed" signal
-		///     available to the Client on 1.0.0, so it is propagated to <see cref="PatternScanner" /> unchanged.
+		///     CheatEngine.SDK 2.0.0 <c>Owned&lt;T&gt;.Dispose</c> throws <see cref="InvalidOperationException" /> and
+		///     retains ownership when no Lua operation can be admitted (for example a detached runtime); it does not throw
+		///     when <c>destroy()</c> raises or when the owner belongs to a previous runtime. That exception is the only
+		///     "release not confirmed" signal this port observes, so it is propagated to <see cref="PatternScanner" />
+		///     unchanged.
 		/// </remarks>
 		public void Dispose()
 		{

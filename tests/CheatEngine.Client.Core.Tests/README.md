@@ -23,8 +23,8 @@ user process. Regressions in lifecycle code fail quickly before they can leak in
 Three suites guard the SDK boundary contracts. `Infrastructure/TryContractTests` checks that no SDK exception crosses a
 `Try*` method, that an expired activation is never reclassified, and that consumer exceptions are rethrown as the same
 instance. `Infrastructure/OwnershipHandoffTests` checks that an SDK owner is released exactly once when publication
-fails. `SdkContract/SdkMappingContractTests` checks that every SDK 1.0.0 status value and exception type the Client
-translates maps to a known Client failure kind.
+fails. `SdkContract/SdkMappingContractTests` checks that every status value and exception type of the consumed SDK
+that the Client translates maps to a known Client failure kind.
 
 The runtime and target suites pin the observed-fact model: `Domains/TargetArchitectureObserverTests` and
 `Domains/RuntimeClientTests` derive the ISA from the family facts with the PID read first and never from the 64-bit

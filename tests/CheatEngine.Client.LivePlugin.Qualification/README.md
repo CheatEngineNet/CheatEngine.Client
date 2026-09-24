@@ -101,6 +101,6 @@ dotnet build .\tests\CheatEngine.Client.LivePlugin.Qualification\CheatEngine.Cli
 ```
 
 A host run never uses that build: a future qualification procedure would compile the same sources again outside the
-repository against the exact CI Client packages and CheatEngine.SDK 1.0.0 from nuget.org, then invoke a CheatEngine.SDK
-runner. That procedure and its evidence rules are not part of this repository (see the note above); nothing here starts
-Cheat Engine or the SDK runner.
+repository against the exact CI Client packages and the pinned CheatEngine.SDK 2.0.0 from nuget.org, then invoke a
+CheatEngine.SDK runner. That procedure and its evidence rules are not part of this repository (see the note above);
+nothing here starts Cheat Engine or the SDK runner.

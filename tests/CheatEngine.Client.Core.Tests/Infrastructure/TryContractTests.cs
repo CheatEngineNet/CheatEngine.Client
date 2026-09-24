@@ -239,7 +239,7 @@ public sealed class TryContractTests
 			UnsafeLuaClient unsafeLua = new(dispatcher, new CoreClientPolicy([], true), lifetime);
 			CancellationToken token = TestContext.Current.CancellationToken;
 
-			// No Lua runtime is attached in unit tests: every SDK 1.0.0 static below throws InvalidOperationException.
+			// No Lua runtime is attached in unit tests: every SDK static below throws InvalidOperationException.
 			Assert.False(tables.TryLoadTrustedTable(new TableLoadRequest(new TrustedTableFile(tablePath)),
 				out CheatEngineFailure loadFailure, token));
 			Assert.False(inspection.TryRegisterSymbol(new SymbolRegistration("contractSymbol", Target),

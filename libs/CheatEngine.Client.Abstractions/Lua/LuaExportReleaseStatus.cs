@@ -4,8 +4,8 @@ namespace CheatEngine.Client.Lua;
 /// <remarks>
 ///     Generated <see cref="CheatEngineLuaModuleAttribute" /> modules compare the current global with the value they
 ///     published by primitive identity (no <c>__eq</c> metamethod) and clear it only while it is still theirs. The values
-///     mirror the per-entry vocabulary of the CheatEngine.SDK 2.0 registration leases so the SDK 2.0 migration is a
-///     mapping, not a redesign.
+///     follow the release vocabulary of the CheatEngine.SDK 2.0.0 registration leases (removed, replaced, failed),
+///     which generated modules do not use: the ownership check is the generator's own.
 /// </remarks>
 public enum LuaExportReleaseStatus
 {

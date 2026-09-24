@@ -81,36 +81,35 @@ deterministic priority. The reason text remains available for display and diagno
 
 The table below is what this Client build reports through `ICheatEngineRuntime.TryGetClientCapability`. No Client
 capability is host-qualified yet: the qualification gate stays `Unknown` until a Client qualification receipt exists,
-so no capability reports `Available`. The package gate of an operational capability is evidence, not a version name:
-it is `Satisfied` only when the loaded `CheatEngine.SDK.Engine` declares the informational version of the
-CheatEngine.SDK 1.0.0 package this build consumed, `Missing` for any other package, and `Unknown` for a build that
-embeds no identity. Probes are read-only: taking a snapshot never loads a driver, runs remote code, changes the target
-or allocates target memory.
+so no capability reports `Available`. The package gate of every capability is evidence, not a version name: it is
+`Satisfied` only when the loaded `CheatEngine.SDK.Engine` declares the informational version of the CheatEngine.SDK
+2.0.0 package this build consumed, `Missing` for any other package, and `Unknown` for a build that embeds no identity.
+A contract-only capability is refused by its implementation gate, whatever its package gate reports. Probes are
+read-only: taking a snapshot never loads a driver, runs remote code, changes the target or allocates target memory.
 
 <!-- capability-table:start -->
 | Capability id | Implementation | Package | Host | Qualification | Status reported at runtime |
 |---|---|---|---|---|---|
-| `Client.ProcessSelection` | Operational adapter | Evidence from the consumed CheatEngine.SDK 1.0.0 identity | Read-only opened-process probe | Unknown until a Client receipt exists | `Unknown`; `Unavailable` when the package or host gate is `Missing` |
-| `Client.TypedMemory` | Operational adapter | Evidence from the consumed CheatEngine.SDK 1.0.0 identity | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unknown`; `Unavailable` when the package gate is `Missing` |
-| `Client.PatternScanning` | Operational adapter | Evidence from the consumed CheatEngine.SDK 1.0.0 identity | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unknown`; `Unavailable` when the package gate is `Missing` |
-| `Client.ValueScanning` | Contract-only (Unavailable) | `Missing`: CheatEngine.SDK 1.0.0 does not provide the public MemScan and FoundList ownership factory required by Client | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unavailable` |
-| `Client.Inspection` | Operational adapter | Evidence from the consumed CheatEngine.SDK 1.0.0 identity | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unknown`; `Unavailable` when the package gate is `Missing` |
-| `Client.Tables` | Operational adapter | Evidence from the consumed CheatEngine.SDK 1.0.0 identity | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unknown`; `Unavailable` when the package gate is `Missing` |
-| `Client.ProtectedLua` | Operational adapter | Evidence from the consumed CheatEngine.SDK 1.0.0 identity | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unknown`; `Unavailable` when the package gate is `Missing` |
-| `Client.UnsafeLuaExecution` | Operational, policy opt-in | Evidence from the consumed CheatEngine.SDK 1.0.0 identity | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unavailable` without `EnableUnsafeLuaExecution()`; otherwise `Unknown` |
-| `Client.Allocations` | Contract-only (Unavailable) | `Missing`: CheatEngine.SDK 1.0.0 provides no target-bound owned allocation primitive | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unavailable` |
-| `Client.Assembly` | Contract-only (Unavailable) | `Missing`: CheatEngine.SDK 1.0.0 provides no target-bound owned Auto Assembler primitive | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unavailable` |
+| `Client.ProcessSelection` | Operational adapter | Evidence from the consumed CheatEngine.SDK 2.0.0 identity | Read-only opened-process probe | Unknown until a Client receipt exists | `Unknown`; `Unavailable` when the package or host gate is `Missing` |
+| `Client.TypedMemory` | Operational adapter | Evidence from the consumed CheatEngine.SDK 2.0.0 identity | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unknown`; `Unavailable` when the package gate is `Missing` |
+| `Client.PatternScanning` | Operational adapter | Evidence from the consumed CheatEngine.SDK 2.0.0 identity | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unknown`; `Unavailable` when the package gate is `Missing` |
+| `Client.ValueScanning` | Contract-only (Unavailable) | Evidence from the consumed CheatEngine.SDK 2.0.0 identity | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unavailable` |
+| `Client.Inspection` | Operational adapter | Evidence from the consumed CheatEngine.SDK 2.0.0 identity | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unknown`; `Unavailable` when the package gate is `Missing` |
+| `Client.Tables` | Operational adapter | Evidence from the consumed CheatEngine.SDK 2.0.0 identity | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unknown`; `Unavailable` when the package gate is `Missing` |
+| `Client.ProtectedLua` | Operational adapter | Evidence from the consumed CheatEngine.SDK 2.0.0 identity | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unknown`; `Unavailable` when the package gate is `Missing` |
+| `Client.UnsafeLuaExecution` | Operational, policy opt-in | Evidence from the consumed CheatEngine.SDK 2.0.0 identity | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unavailable` without `EnableUnsafeLuaExecution()`; otherwise `Unknown` |
+| `Client.Allocations` | Contract-only (Unavailable) | Evidence from the consumed CheatEngine.SDK 2.0.0 identity | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unavailable` |
+| `Client.Assembly` | Contract-only (Unavailable) | Evidence from the consumed CheatEngine.SDK 2.0.0 identity | Not probed by the snapshot (`Unknown`) | Unknown until a Client receipt exists | `Unavailable` |
 <!-- capability-table:end -->
 
 Every row also carries the lifetime gate (`Missing` once the activation has ended). A contract-only capability refuses
 each operation with `CapabilityUnavailable` and `CheatEngineHostEffect.NotStarted`; no Cheat Engine work is dispatched.
 
 The value-scan contract and state model are published, but Core does **not** create a live `MemScan`/`FoundList`
-session: CheatEngine.SDK 1.0.0 does not provide the public MemScan and FoundList ownership factory required by Client,
-so the package gate of `Client.ValueScanning` is `Missing`. Changing that requires a Client release that consumes an SDK
-package with such a factory, compiles against it, and passes the transfer, lifecycle and target-change tests; that
-work is out of scope until a qualified factory package exists. Do not treat `IValueScanner` as available until its
-capability reports it.
+session: this build composes no operational value-scan adapter, so the implementation gate of `Client.ValueScanning` is
+`Missing` and every session request is refused. An adapter changes that gate only once it passes the transfer,
+lifecycle and target-change tests and the Cheat Engine 7.7 live gate. Do not treat `IValueScanner` as available until
+its capability reports it.
 
 `IUnsafeLuaClient` is intentionally separate from `ILuaClient` and is not registered by default.
 It is for explicitly trusted source only and still never exposes a raw Lua state.
@@ -154,12 +153,11 @@ same classification as `TryScan` plus `PatternScanMetrics`: host, examined, filt
 scope, and the Cheat Engine scan time (`HostScanElapsed`) separately from the Client copy time
 (`MaterializationElapsed`). Counts and durations never contain addresses and are safe to log.
 
-With CheatEngine.SDK 1.0.0 a scan that finds nothing returns `CheatEngineFailureKind.IndeterminateHostResult`: Cheat
-Engine 7.7 returns no result list for zero matches, and SDK 1.0.0 cannot distinguish that from an unresolved global, a
-protected Lua failure, or a non-object result. It is never reported as `NotFound` or as a host rejection; an empty
-result list that Cheat Engine does return remains a normal, successful no-match. A future SDK release that separates
-these kinds at the source replaces this with the detailed outcome; on CheatEngine.SDK 1.0.0 the indeterminate
-category is the accurate one.
+A scan that finds nothing returns `CheatEngineFailureKind.IndeterminateHostResult`: Cheat Engine 7.7 returns no result
+list for zero matches, and Core's AOB route calls the boolean `AobScanner.TryScan` of CheatEngine.SDK 2.0.0, which
+reports that exactly as it reports an unresolved global, a protected Lua failure, or a non-object result. It is never
+reported as `NotFound` or as a host rejection; an empty result list that Cheat Engine does return remains a normal,
+successful no-match. On this route the indeterminate category is the accurate one.
 
 ### Target selection, runtime facts and pointer width
 
@@ -235,7 +233,7 @@ dispatch and between Client-managed steps.
 | Family | Cancellation stops preventing the host effect at | `HostEffect` values produced | Partial effects |
 |---|---|---|---|
 | Dispatcher (`ICheatEngineDispatcher`) | Dispatch admission: a `Cancelled` result proves the callback did not run | `NotStarted` (cancelled), `Unknown` (infrastructure failure) | Whatever the callback did; callback exceptions are rethrown unchanged |
-| Patterns / AOB (`IPatternScanner`, `IPatternScanOutcomeClient`, Fluent `Aob`) | The start of the global `AOBScan`; later cancellation discards the copy | `NotStarted` (validation, module lookup, cancellation before the scan), `Completed` (cancellation or invalid data after the scan, SDK 1.0.0 `IndeterminateHostResult`), `CleanupUnconfirmed` (result-list release not confirmed), `Unknown` (SDK fault during the scan call) | None published: a failed scan never returns a prefix |
+| Patterns / AOB (`IPatternScanner`, `IPatternScanOutcomeClient`, Fluent `Aob`) | The start of the global `AOBScan`; later cancellation discards the copy | `NotStarted` (validation, module lookup, cancellation before the scan), `Completed` (cancellation or invalid data after the scan, `IndeterminateHostResult` when no result list is returned), `CleanupUnconfirmed` (result-list release not confirmed), `Unknown` (SDK fault during the scan call) | None published: a failed scan never returns a prefix |
 | Memory primitives, codecs, bytes, strings, pointer chains (`IMemoryClient`) | Dispatch admission; one call is one Cheat Engine operation | `NotStarted` (budget, unsupported type, configured/process pointer-width mismatch, no process width), `Started` (a pointer chain stopped at an intermediate address above a 32-bit process width), `Unknown` (SDK fault, host refusal) | A codec may perform several reads or writes; a failed write codec can leave earlier writes in place |
 | Memory batches (`IMemoryBatchClient`) | Dispatch admission: a `Cancelled` dispatch reports `MemoryBatchWriteEffectState.NotStarted` | `NotStarted` (admission, pre-dispatch cancellation, unsupported type), `Started` (a completed prefix persists), `Unknown` (SDK fault or other dispatch failure) | `EffectState` is authoritative: `Partial` with `CompletedCount`/`FailedIndex`, never rolled back |
 | Inspection and symbol leases (`IInspectionClient`) | Dispatch admission | `NotStarted` (name already reserved by this activation, name already resolves, failed collision check), `CleanupUnconfirmed` (lease release not confirmed), `Unknown` (SDK fault) | A faulted `registerSymbol` is not claimed and not retried; a replaced name is left in place |
@@ -307,6 +305,6 @@ overwrites a value a third party put there (audit finding F12, qualification sce
 `Replaced`, `Absent`, `Failed`, or `NotAttempted` for a registration that belongs to an earlier Lua state) and a computed
 `LuaModuleReleaseKind` (`Released`, `PartiallyReleased`, `Stale`). The outcome is published before `Unregister` throws
 for a failed export, and a second `Unregister` is a no-op. The outcome holds copied names and statuses only. The
-vocabulary mirrors the CheatEngine.SDK 2.0 registration leases, so moving the Client onto SDK 2.0 replaces the
-generator's ownership check with the SDK's own lease outcome without renaming these types. This behavior is covered by
-managed tests against a Lua-globals double (C1); it is not a host qualification.
+vocabulary follows the CheatEngine.SDK 2.0.0 registration leases (`LuaRegistrationReleaseKind` values 1 to 3 have the
+same meaning and number), which generated modules do not use: the ownership check is the generator's own. This
+behavior is covered by managed tests against a Lua-globals double (C1); it is not a host qualification.

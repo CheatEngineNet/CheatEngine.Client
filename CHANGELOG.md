@@ -29,9 +29,9 @@ Each release separates four kinds of change, because a consumer reacts to each d
 
 ### Changed
 
-- An AOB scan for which CheatEngine.SDK 1.0.0 returns no result list fails with `IndeterminateHostResult` instead of
-  `OperationRejected`: with that SDK, zero matches and a host failure cannot be told apart. It is never reported as
-  `null` or `NotFound`.
+- An AOB scan for which Cheat Engine returns no result list fails with `IndeterminateHostResult` instead of
+  `OperationRejected`: the Client's scan route calls the boolean `AobScanner.TryScan`, so zero matches and a host
+  failure cannot be told apart. It is never reported as `null` or `NotFound`.
 - `Try...` methods no longer let a CheatEngine.SDK exception escape. An SDK fault raised by Client-internal work
   becomes a `CheatEngineFailure` chosen by exception type, and an SDK fault after the activation ended throws
   `CheatEngineActivationExpiredException`. Exceptions from your own callbacks, codecs and Lua operations are still
@@ -54,16 +54,16 @@ Each release separates four kinds of change, because a consumer reacts to each d
 - The `ceplugin` template no longer logs the AOB match address or whole failures; it logs the failure kind, operation
   and host effect only. A test rejects any logging event of the Client packages whose parameters could carry an
   address, expression, path, script, message, exception or failure.
-- A plugin that references `CheatEngine.SDK` 2.0 or later directly next to this Client now fails to build with
+- A plugin that references `CheatEngine.SDK` 3.0 or later directly next to this Client now fails to build with
   `CECLIENT017`. `CheatEngineClientAllowUnsupportedSdk=true` turns the error into a warning; such a plugin is
-  unsupported and is expected to break at run time.
+  unsupported and is expected to break at run time. A direct reference below 2.0.0 fails the restore with `NU1605`.
 
 ### Deployment
 
 - Every Client package is versioned by MinVer from `v*` tags, in lockstep: untagged builds are
-  `0.1.0-alpha.0.<height>`, and the assembly version keeps the major and minor numbers (`0.1.0.0`).
-- The Client consumes exactly `CheatEngine.SDK` 1.0.0 and declares `[1.0.0, 2.0.0)`. The pin has a single source,
-  `eng/CheatEngineSdk.props`. The build refuses a 2.x or prerelease pin (`CHEATENGINECLIENT9016`).
+  `1.0.0-alpha.0.<height>`, and the assembly version carries the major number only (`1.0.0.0`).
+- The Client consumes exactly `CheatEngine.SDK` 2.0.0 and declares `[2.0.0, 3.0.0)`. The pin has a single source,
+  `eng/CheatEngineSdk.props`. The build refuses a pin outside 2.x or a prerelease pin (`CHEATENGINECLIENT9016`).
 - The `ceplugin` template references the exact `CheatEngine.Client` version it was packed with and the pinned
   `CheatEngine.SDK`, and the template is validated when it is built.
 - Every package embeds an SPDX 2.2 software bill of materials at `_manifest/spdx_2.2/manifest.spdx.json`, has its own

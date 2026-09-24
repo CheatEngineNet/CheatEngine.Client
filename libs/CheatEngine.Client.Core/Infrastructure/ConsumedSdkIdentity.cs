@@ -38,9 +38,9 @@ internal sealed class ConsumedSdkIdentity
 	internal const string ContentHashKey = "CheatEngine.Client.ConsumedSdk.ContentHashSha512";
 
 	/// <summary>
-	///     The id of the Cheat Engine host profile the consumed CheatEngine.SDK 1.0.0 was qualified on. It names the
-	///     supported profile; it is not a Client qualification (the Client tuple stays <c>NotExecuted</c> until a Client
-	///     receipt exists).
+	///     The id of the Cheat Engine host profile that the consumed CheatEngine.SDK 2.0.0 names as qualifiable. It names
+	///     the supported profile; it is not a Client qualification (the Client tuple stays <c>NotExecuted</c> until a
+	///     Client receipt exists).
 	/// </summary>
 	internal const string SupportedHostProfileId = "ce-7.7.0.10621-x64-managed-hostfxr";
 

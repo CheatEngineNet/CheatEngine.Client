@@ -14,7 +14,8 @@ namespace CheatEngine.Client.Lua;
 ///         <see cref="LuaExportReleaseStatus.Absent" /> is <see cref="LuaModuleReleaseKind.Released" />.
 ///     </para>
 ///     <para>
-///         The counts map to the CheatEngine.SDK 2.0 registration lease outcome: the values 1 to 3 of <see cref="Kind" />
+///         The counts map to the CheatEngine.SDK 2.0.0 registration lease outcome: the values 1 to 3 of
+///         <see cref="Kind" />
 ///         map one to one onto <c>LuaRegistrationReleaseKind</c> (whose <c>NotAttempted</c> and <c>AlreadyReleased</c>
 ///         values have no Client counterpart), and the SDK <c>ReplacementCount</c> corresponds to
 ///         <see cref="ReplacedCount" /> plus <see cref="AbsentCount" />.
@@ -140,7 +141,8 @@ public sealed class LuaModuleReleaseOutcome
 
 	/// <summary>
 	///     Gets whether no release step failed: <see cref="Kind" /> is <see cref="LuaModuleReleaseKind.Released" /> or
-	///     <see cref="LuaModuleReleaseKind.Stale" />, the same meaning as the CheatEngine.SDK 2.0 <c>IsComplete</c>.
+	///     <see cref="LuaModuleReleaseKind.Stale" />, the same meaning as the CheatEngine.SDK 2.0.0 <c>IsComplete</c> for
+	///     these kinds.
 	/// </summary>
 	/// <remarks>
 	///     A <see cref="LuaModuleReleaseKind.Stale" /> release attempted no Lua operation: the registration's Lua state or
