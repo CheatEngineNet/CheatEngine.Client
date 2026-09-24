@@ -51,7 +51,7 @@ public sealed class TableClientCoverageTests
 		TableClient client = CreateClient(dispatcher);
 
 		Assert.Throws<ArgumentOutOfRangeException>(() =>
-			client.TryGetRecord(-1, out _, out _, TestContext.Current.CancellationToken));
+			client.TryGetRecordAt(-1, out _, out _, TestContext.Current.CancellationToken));
 
 		Assert.Equal(0, dispatcher.InvocationCount);
 	}
@@ -112,7 +112,7 @@ public sealed class TableClientCoverageTests
 			out CheatEngineFailure snapshotFailure, TestContext.Current.CancellationToken));
 		Assert.Equal(default, snapshot);
 		Assert.Equal(expected, snapshotFailure);
-		Assert.False(client.TryGetRecord(0, out MemoryRecordSnapshot indexedRecord,
+		Assert.False(client.TryGetRecordAt(0, out MemoryRecordSnapshot indexedRecord,
 			out CheatEngineFailure indexedFailure,
 			TestContext.Current.CancellationToken));
 		Assert.Equal(default, indexedRecord);

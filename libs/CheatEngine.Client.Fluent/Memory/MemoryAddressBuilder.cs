@@ -303,26 +303,7 @@ public readonly record struct MemoryAddressBuilder
 	/// <exception cref="ArgumentNullException"><paramref name="codec" /> is <see langword="null" />.</exception>
 	public T ReadWith<T>(IMemoryCodec<T> codec, CancellationToken cancellationToken = default)
 	{
-		return ReadWith(RequireMemory(), codec, cancellationToken);
-	}
-
-	/// <summary>Reads one typed value through an explicit target-memory service.</summary>
-	/// <typeparam name="T">The managed value type represented by <paramref name="codec" />.</typeparam>
-	/// <param name="memory">The scoped target-memory service used for this operation.</param>
-	/// <param name="codec">The deterministic codec that maps <typeparamref name="T" /> to Cheat Engine memory.</param>
-	/// <param name="cancellationToken">
-	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
-	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
-	/// </param>
-	/// <returns>The managed value returned by Cheat Engine.</returns>
-	/// <exception cref="ArgumentNullException">
-	///     <paramref name="memory" /> or <paramref name="codec" /> is
-	///     <see langword="null" />.
-	/// </exception>
-	public T ReadWith<T>(IMemoryClient memory, IMemoryCodec<T> codec,
-		CancellationToken cancellationToken = default)
-	{
-		ArgumentNullException.ThrowIfNull(memory);
+		IMemoryClient memory = RequireMemory();
 		ArgumentNullException.ThrowIfNull(codec);
 		return memory.Read(new MemoryReadRequest<T>(Address, codec), cancellationToken);
 	}
@@ -343,28 +324,7 @@ public readonly record struct MemoryAddressBuilder
 		out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
-		return TryReadWith(RequireMemory(), codec, out value, out failure, cancellationToken);
-	}
-
-	/// <summary>Tries to read one typed value through an explicit target-memory service.</summary>
-	/// <typeparam name="T">The managed value type represented by <paramref name="codec" />.</typeparam>
-	/// <param name="memory">The scoped target-memory service used for this operation.</param>
-	/// <param name="codec">The deterministic codec that maps <typeparamref name="T" /> to Cheat Engine memory.</param>
-	/// <param name="value">The managed value when the method returns <see langword="true" />.</param>
-	/// <param name="failure">The classified operation failure when the method returns <see langword="false" />.</param>
-	/// <param name="cancellationToken">
-	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
-	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
-	/// </param>
-	/// <returns><see langword="true" /> when a value was read.</returns>
-	/// <exception cref="ArgumentNullException">
-	///     <paramref name="memory" /> or <paramref name="codec" /> is
-	///     <see langword="null" />.
-	/// </exception>
-	public bool TryReadWith<T>(IMemoryClient memory, IMemoryCodec<T> codec, [MaybeNullWhen(false)] out T value,
-		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
-	{
-		ArgumentNullException.ThrowIfNull(memory);
+		IMemoryClient memory = RequireMemory();
 		ArgumentNullException.ThrowIfNull(codec);
 		return memory.TryRead(new MemoryReadRequest<T>(Address, codec), out value, out failure, cancellationToken);
 	}
@@ -382,27 +342,7 @@ public readonly record struct MemoryAddressBuilder
 	/// <exception cref="ArgumentNullException"><paramref name="codec" /> is <see langword="null" />.</exception>
 	public void WriteWith<T>(T value, IMemoryCodec<T> codec, CancellationToken cancellationToken = default)
 	{
-		WriteWith(RequireMemory(), value, codec, cancellationToken);
-	}
-
-	/// <summary>Writes one typed value through an explicit target-memory service.</summary>
-	/// <typeparam name="T">The managed value type represented by <paramref name="codec" />.</typeparam>
-	/// <param name="memory">The scoped target-memory service used for this operation.</param>
-	/// <param name="value">The managed value to write.</param>
-	/// <param name="codec">The deterministic codec that maps <typeparamref name="T" /> to Cheat Engine memory.</param>
-	/// <param name="cancellationToken">
-	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
-	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
-	/// </param>
-	/// <returns>Nothing when Cheat Engine accepted the write.</returns>
-	/// <exception cref="ArgumentNullException">
-	///     <paramref name="memory" /> or <paramref name="codec" /> is
-	///     <see langword="null" />.
-	/// </exception>
-	public void WriteWith<T>(IMemoryClient memory, T value, IMemoryCodec<T> codec,
-		CancellationToken cancellationToken = default)
-	{
-		ArgumentNullException.ThrowIfNull(memory);
+		IMemoryClient memory = RequireMemory();
 		ArgumentNullException.ThrowIfNull(codec);
 		memory.Write(new MemoryWriteRequest<T>(Address, value, codec), cancellationToken);
 	}
@@ -422,29 +362,7 @@ public readonly record struct MemoryAddressBuilder
 	public bool TryWriteWith<T>(T value, IMemoryCodec<T> codec, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
-		return TryWriteWith(RequireMemory(), value, codec, out failure, cancellationToken);
-	}
-
-	/// <summary>Tries to write one typed value through an explicit target-memory service.</summary>
-	/// <typeparam name="T">The managed value type represented by <paramref name="codec" />.</typeparam>
-	/// <param name="memory">The scoped target-memory service used for this operation.</param>
-	/// <param name="value">The managed value to write.</param>
-	/// <param name="codec">The deterministic codec that maps <typeparamref name="T" /> to Cheat Engine memory.</param>
-	/// <param name="failure">The classified operation failure when the method returns <see langword="false" />.</param>
-	/// <param name="cancellationToken">
-	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
-	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
-	/// </param>
-	/// <returns><see langword="true" /> when Cheat Engine accepted the write.</returns>
-	/// <exception cref="ArgumentNullException">
-	///     <paramref name="memory" /> or <paramref name="codec" /> is
-	///     <see langword="null" />.
-	/// </exception>
-	public bool TryWriteWith<T>(IMemoryClient memory, T value, IMemoryCodec<T> codec,
-		out CheatEngineFailure failure,
-		CancellationToken cancellationToken = default)
-	{
-		ArgumentNullException.ThrowIfNull(memory);
+		IMemoryClient memory = RequireMemory();
 		ArgumentNullException.ThrowIfNull(codec);
 		return memory.TryWrite(new MemoryWriteRequest<T>(Address, value, codec), out failure, cancellationToken);
 	}

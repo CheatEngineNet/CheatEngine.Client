@@ -7,6 +7,12 @@ namespace CheatEngine.Client.Dispatching;
 /// <summary>Synchronously dispatches managed work to Cheat Engine's captured main thread.</summary>
 /// <remarks>
 ///     <para>
+///         Every operation has a form without a cancellation token and a form with one, like
+///         <see cref="Task.Run(Action)" /> and <see cref="Task.Run(Action, CancellationToken)" />. The forms without a
+///         token are default interface members that pass <see cref="CancellationToken.None" />; an implementation provides
+///         only the forms that take a token.
+///     </para>
+///     <para>
 ///         <b>Try is not "never throws".</b> The <c>TryInvoke</c> overloads return <see langword="false" /> only for a
 ///         pre-admission cancellation or a dispatcher admission/infrastructure failure. They <b>throw</b>
 ///         <see cref="CheatEngineActivationExpiredException" /> when the plugin activation has ended,
@@ -35,6 +41,16 @@ public interface ICheatEngineDispatcher
 	}
 
 	/// <summary>Runs a callback on the captured main thread.</summary>
+	/// <remarks>Equivalent to <see cref="TryInvoke(Action, out CheatEngineFailure, CancellationToken)" /> without a token.</remarks>
+	/// <exception cref="ArgumentNullException"><paramref name="callback" /> is <see langword="null" />.</exception>
+	/// <exception cref="CheatEngineActivationExpiredException">The plugin activation has ended.</exception>
+	/// <exception cref="CheatEngineClientLifecycleException">The activation is stopping and admits no new work.</exception>
+	public bool TryInvoke(Action callback, out CheatEngineFailure failure)
+	{
+		return TryInvoke(callback, out failure, CancellationToken.None);
+	}
+
+	/// <summary>Runs a callback on the captured main thread.</summary>
 	/// <remarks>
 	///     <paramref name="cancellationToken" /> is observed before dispatch admission only. It never attempts to
 	///     interrupt a callback or Lua primitive that has already begun on Cheat Engine's main thread.
@@ -46,8 +62,20 @@ public interface ICheatEngineDispatcher
 	/// <exception cref="ArgumentNullException"><paramref name="callback" /> is <see langword="null" />.</exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The plugin activation has ended.</exception>
 	/// <exception cref="CheatEngineClientLifecycleException">The activation is stopping and admits no new work.</exception>
-	public bool TryInvoke(Action callback, out CheatEngineFailure failure,
-		CancellationToken cancellationToken = default);
+	public bool TryInvoke(Action callback, out CheatEngineFailure failure, CancellationToken cancellationToken);
+
+	/// <summary>Runs a callback on the captured main thread and returns its managed result.</summary>
+	/// <remarks>
+	///     Equivalent to <see cref="TryInvoke{T}(Func{T}, out T, out CheatEngineFailure, CancellationToken)" /> without a
+	///     token.
+	/// </remarks>
+	/// <exception cref="ArgumentNullException"><paramref name="callback" /> is <see langword="null" />.</exception>
+	/// <exception cref="CheatEngineActivationExpiredException">The plugin activation has ended.</exception>
+	/// <exception cref="CheatEngineClientLifecycleException">The activation is stopping and admits no new work.</exception>
+	public bool TryInvoke<T>(Func<T> callback, [MaybeNullWhen(false)] out T result, out CheatEngineFailure failure)
+	{
+		return TryInvoke(callback, out result, out failure, CancellationToken.None);
+	}
 
 	/// <summary>Runs a callback on the captured main thread and returns its managed result.</summary>
 	/// <remarks>
@@ -59,21 +87,34 @@ public interface ICheatEngineDispatcher
 	/// <exception cref="ArgumentNullException"><paramref name="callback" /> is <see langword="null" />.</exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The plugin activation has ended.</exception>
 	/// <exception cref="CheatEngineClientLifecycleException">The activation is stopping and admits no new work.</exception>
-	public bool TryInvoke<T>(Func<T> callback, [MaybeNullWhen(false)] out T result,
-		out CheatEngineFailure failure,
-		CancellationToken cancellationToken = default);
+	public bool TryInvoke<T>(Func<T> callback, [MaybeNullWhen(false)] out T result, out CheatEngineFailure failure,
+		CancellationToken cancellationToken);
+
+	/// <summary>Runs a callback on the captured main thread or throws when dispatch fails.</summary>
+	/// <remarks>Equivalent to <see cref="Invoke(Action, CancellationToken)" /> without a token.</remarks>
+	public void Invoke(Action callback)
+	{
+		Invoke(callback, CancellationToken.None);
+	}
 
 	/// <summary>Runs a callback on the captured main thread or throws when dispatch fails.</summary>
 	/// <remarks>
 	///     Cancellation is observed before dispatch admission only, never while a callback is running. Callback
 	///     exceptions are rethrown unchanged.
 	/// </remarks>
-	public void Invoke(Action callback, CancellationToken cancellationToken = default);
+	public void Invoke(Action callback, CancellationToken cancellationToken);
+
+	/// <summary>Runs a callback on the captured main thread or throws when dispatch fails.</summary>
+	/// <remarks>Equivalent to <see cref="Invoke{T}(Func{T}, CancellationToken)" /> without a token.</remarks>
+	public T Invoke<T>(Func<T> callback)
+	{
+		return Invoke(callback, CancellationToken.None);
+	}
 
 	/// <summary>Runs a callback on the captured main thread or throws when dispatch fails.</summary>
 	/// <remarks>
 	///     Cancellation is observed before dispatch admission only, never while a callback is running. Callback
 	///     exceptions are rethrown unchanged.
 	/// </remarks>
-	public T Invoke<T>(Func<T> callback, CancellationToken cancellationToken = default);
+	public T Invoke<T>(Func<T> callback, CancellationToken cancellationToken);
 }

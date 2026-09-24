@@ -169,11 +169,11 @@ internal sealed class TableClient(
 		return [];
 	}
 
-	public bool TryGetRecord(int index, out MemoryRecordSnapshot record, out CheatEngineFailure failure,
+	public bool TryGetRecordAt(int index, out MemoryRecordSnapshot record, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
 		ArgumentOutOfRangeException.ThrowIfNegative(index);
-		return TryRecord("Tables.GetRecord", null, (out result) =>
+		return TryRecord("Tables.GetRecordAt", null, (out result) =>
 			_recordLookups.TryGetRecord(index, out result), out record, out failure, cancellationToken);
 	}
 
@@ -190,9 +190,9 @@ internal sealed class TableClient(
 			_recordLookups.TryGetRecord(id, out result), out record, out failure, cancellationToken);
 	}
 
-	public MemoryRecordSnapshot GetRecord(int index, CancellationToken cancellationToken = default)
+	public MemoryRecordSnapshot GetRecordAt(int index, CancellationToken cancellationToken = default)
 	{
-		if (TryGetRecord(index, out MemoryRecordSnapshot result, out CheatEngineFailure failure, cancellationToken))
+		if (TryGetRecordAt(index, out MemoryRecordSnapshot result, out CheatEngineFailure failure, cancellationToken))
 		{
 			return result;
 		}

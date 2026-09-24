@@ -230,13 +230,13 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 		File.WriteAllText(tablePath, "<CheatTable/>");
 		TableClient tables = new(dispatcher, new CoreClientPolicy([_root], false), new RefusingMutationPort(), lifetime,
 			new SingleRecordLookupPort(), new AcceptingFilePort());
-		outcomes.Add(Describe("Tables.HandOut", tables.TryGetRecord(0, out _, out failure, cancellationToken), failure));
+		outcomes.Add(Describe("Tables.HandOut", tables.TryGetRecordAt(0, out _, out failure, cancellationToken), failure));
 		outcomes.Add(Describe("Tables.Load",
 			tables.TryLoadTrustedTable(new TableLoadRequest(new TrustedTableFile(tablePath)), out failure,
 				cancellationToken), failure));
 		outcomes.Add(Describe("Tables.Stale",
 			tables.TrySetActive(HandedOut, true, out _, out failure, cancellationToken), failure));
-		outcomes.Add(Describe("Tables.Reobserve", tables.TryGetRecord(0, out _, out failure, cancellationToken),
+		outcomes.Add(Describe("Tables.Reobserve", tables.TryGetRecordAt(0, out _, out failure, cancellationToken),
 			failure));
 		outcomes.Add(Describe("Tables.Refused",
 			tables.TrySetActive(HandedOut, true, out _, out failure, cancellationToken), failure));

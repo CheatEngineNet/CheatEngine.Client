@@ -71,7 +71,7 @@ public sealed class TableClientGenerationTests : IDisposable
 		Fixture fixture = CreateFixture();
 		HandOutAndLoad(fixture);
 
-		Assert.True(fixture.Client.TryGetRecord(0, out MemoryRecordSnapshot reobserved, out _,
+		Assert.True(fixture.Client.TryGetRecordAt(0, out MemoryRecordSnapshot reobserved, out _,
 			TestContext.Current.CancellationToken));
 		bool succeeded = fixture.Client.TrySetActive(HandedOut, true, out _, out CheatEngineFailure failure,
 			TestContext.Current.CancellationToken);
@@ -113,7 +113,7 @@ public sealed class TableClientGenerationTests : IDisposable
 			Assert.True(fixture.Client.TryLoadTrustedTable(new TableLoadRequest(fixture.TableFile), out _,
 				TestContext.Current.CancellationToken)));
 
-		Assert.True(fixture.Client.TryGetRecord(0, out MemoryRecordSnapshot copiedBeforeLoad, out _,
+		Assert.True(fixture.Client.TryGetRecordAt(0, out MemoryRecordSnapshot copiedBeforeLoad, out _,
 			TestContext.Current.CancellationToken));
 		bool succeeded = fixture.Client.TrySetActive(copiedBeforeLoad.Id, true, out _, out CheatEngineFailure failure,
 			TestContext.Current.CancellationToken);
@@ -136,10 +136,10 @@ public sealed class TableClientGenerationTests : IDisposable
 		// it, and the loading worker resumes last. The generation advanced inside the load, so the later snapshot is
 		// current and its identifier is accepted instead of being turned stale by the loading worker.
 		Fixture fixture = CreateFixture();
-		Assert.True(fixture.Client.TryGetRecord(0, out _, out _, TestContext.Current.CancellationToken));
+		Assert.True(fixture.Client.TryGetRecordAt(0, out _, out _, TestContext.Current.CancellationToken));
 		MemoryRecordSnapshot copiedAfterLoad = default;
 		fixture.Dispatcher.AfterNextCallback(() =>
-			Assert.True(fixture.Client.TryGetRecord(0, out copiedAfterLoad, out _,
+			Assert.True(fixture.Client.TryGetRecordAt(0, out copiedAfterLoad, out _,
 				TestContext.Current.CancellationToken)));
 
 		Assert.True(fixture.Client.TryLoadTrustedTable(new TableLoadRequest(fixture.TableFile), out _,
@@ -162,7 +162,7 @@ public sealed class TableClientGenerationTests : IDisposable
 		// The identifier is current when the caller checks it, but a trusted load dispatched by another worker runs on
 		// the main thread before this operation's callback: the callback checks again and never calls Cheat Engine.
 		Fixture fixture = CreateFixture();
-		Assert.True(fixture.Client.TryGetRecord(0, out _, out _, TestContext.Current.CancellationToken));
+		Assert.True(fixture.Client.TryGetRecordAt(0, out _, out _, TestContext.Current.CancellationToken));
 		fixture.Dispatcher.BeforeNextCallback(() =>
 			Assert.True(fixture.Client.TryLoadTrustedTable(new TableLoadRequest(fixture.TableFile), out _,
 				TestContext.Current.CancellationToken)));
@@ -185,7 +185,7 @@ public sealed class TableClientGenerationTests : IDisposable
 		// The load may have cleared or replaced the table before it failed, so earlier identifiers are not trusted.
 		LuaException fault = new("the table script failed");
 		Fixture fixture = CreateFixture(fileFault: fault);
-		Assert.True(fixture.Client.TryGetRecord(0, out _, out _, TestContext.Current.CancellationToken));
+		Assert.True(fixture.Client.TryGetRecordAt(0, out _, out _, TestContext.Current.CancellationToken));
 
 		bool loaded = fixture.Client.TryLoadTrustedTable(new TableLoadRequest(fixture.TableFile, Merge: true),
 			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
@@ -206,7 +206,7 @@ public sealed class TableClientGenerationTests : IDisposable
 		// A14-27: the trust policy refuses the path before dispatch; the Client never retries it through another
 		// loadTable overload or a stream (ITableClient exposes no stream or byte load path at all).
 		Fixture fixture = CreateFixture();
-		Assert.True(fixture.Client.TryGetRecord(0, out _, out _, TestContext.Current.CancellationToken));
+		Assert.True(fixture.Client.TryGetRecordAt(0, out _, out _, TestContext.Current.CancellationToken));
 		int dispatchedBefore = fixture.Dispatcher.InvocationCount;
 		string outside = Path.Combine(Path.GetTempPath(), "outside-" + Guid.NewGuid().ToString("N"), "table.ct");
 
@@ -277,7 +277,7 @@ public sealed class TableClientGenerationTests : IDisposable
 
 	private static void HandOutAndLoad(Fixture fixture)
 	{
-		Assert.True(fixture.Client.TryGetRecord(0, out MemoryRecordSnapshot handedOut, out _,
+		Assert.True(fixture.Client.TryGetRecordAt(0, out MemoryRecordSnapshot handedOut, out _,
 			TestContext.Current.CancellationToken));
 		Assert.Equal(HandedOut, handedOut.Id);
 		Assert.True(fixture.Client.TryLoadTrustedTable(new TableLoadRequest(fixture.TableFile), out _,

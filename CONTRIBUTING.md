@@ -158,9 +158,12 @@ pull request that finds it; there is no scheduled job that re-runs threading-sen
 - Use file-scoped namespaces, explicit types instead of `var`, braces, explicit accessibility and `_camelCase` private
   fields. Constants and `static readonly` fields are PascalCase at every accessibility, and async methods end with
   `Async`. Test names are PascalCase sentences; async tests keep the `Async` suffix.
-- Public APIs require XML documentation. A public API change in Abstractions, Fluent, Hosting, the DI extensions or the
-  facade is declared in that project's `PublicAPI.Unshipped.txt` (RS0016/RS0017 are errors); `PublicAPI.Shipped.txt`
-  changes only in a release pull request.
+- Public APIs require XML documentation. A public API change in Abstractions, Fluent, Hosting or the DI extensions is
+  declared in that project's `PublicAPI.Unshipped.txt` (RS0016/RS0017 are errors); Core has no public API and the
+  `CheatEngine.Client` facade ships no assembly. `PublicAPI.Shipped.txt` changes only in a release pull request. No
+  Client package has been published yet: the 1.0.0 release pull request (#59) cleared every `PublicAPI.Shipped.txt`
+  when it started and promotes `Unshipped` to `Shipped` once, as its last API commit, so no `*REMOVED*` entry is ever
+  written for an API that never shipped.
 - Core implementation types stay `internal sealed`, and every Cheat Engine interaction goes through the Client's
   dispatcher and ports; the SDK remains the only native authority.
 - The architecture ratchet in `tests/CheatEngine.Client.Tests/Architecture` freezes the Client's remaining ADR-01 debt:

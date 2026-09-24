@@ -22,13 +22,13 @@ public sealed class TableClientLookupTests
 		};
 		TableClient client = CreateClient(lookups);
 
-		bool succeeded = client.TryGetRecord(3, out MemoryRecordSnapshot record, out CheatEngineFailure failure,
+		bool succeeded = client.TryGetRecordAt(3, out MemoryRecordSnapshot record, out CheatEngineFailure failure,
 			TestContext.Current.CancellationToken);
 
 		Assert.False(succeeded);
 		Assert.Equal(default, record);
 		Assert.Equal(CheatEngineFailureKind.CapabilityUnavailable, failure.Kind);
-		Assert.Equal("Tables.GetRecord", failure.Operation);
+		Assert.Equal("Tables.GetRecordAt", failure.Operation);
 		Assert.Equal("Cheat Engine's Address List capability is unavailable.", failure.Message);
 		Assert.Equal(3, lookups.LastIndex);
 	}
@@ -140,7 +140,7 @@ public sealed class TableClientLookupTests
 		};
 		TableClient client = CreateClient(lookups);
 
-		bool succeeded = client.TryGetRecord(1000, out MemoryRecordSnapshot record, out CheatEngineFailure failure,
+		bool succeeded = client.TryGetRecordAt(1000, out MemoryRecordSnapshot record, out CheatEngineFailure failure,
 			TestContext.Current.CancellationToken);
 
 		Assert.False(succeeded);

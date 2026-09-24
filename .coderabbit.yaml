@@ -53,7 +53,9 @@ reviews:
           API change, every new public member has XML documentation, the sibling README.md is updated where it
           documents the contract, and CHANGELOG.md has an entry under "## [Unreleased]" in the matching category
           (Added for an extension, Changed for a semantic correction, Security for a hardened refusal, Deployment for
-          what is built, packed, pinned or published). Fail otherwise.
+          what is built, packed, pinned or published). Also fail when PublicAPI.Shipped.txt changes outside a release
+          pull request: before 1.0.0 every Shipped file holds only "#nullable enable", and the 1.0.0 release pull
+          request promotes Unshipped to Shipped once, as its last API commit. Fail otherwise.
       - name: "SDK boundary and pin"
         mode: "warning"
         instructions: >-

@@ -56,15 +56,16 @@ public interface ITableClient
 		CancellationToken cancellationToken = default);
 
 	/// <summary>Gets one record by its current zero-based address-list index.</summary>
-	public bool TryGetRecord(int index, out MemoryRecordSnapshot record, out CheatEngineFailure failure,
+	/// <remarks>An index is positional and changes when records are added, removed or moved; prefer an identifier.</remarks>
+	public bool TryGetRecordAt(int index, out MemoryRecordSnapshot record, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
 	/// <summary>Gets one record by its stable Cheat Engine identifier.</summary>
 	public bool TryGetRecord(MemoryRecordId id, out MemoryRecordSnapshot record, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
-	/// <summary>Gets one record by index or throws when it is unavailable.</summary>
-	public MemoryRecordSnapshot GetRecord(int index, CancellationToken cancellationToken = default);
+	/// <summary>Gets one record by its current zero-based address-list index or throws when it is unavailable.</summary>
+	public MemoryRecordSnapshot GetRecordAt(int index, CancellationToken cancellationToken = default);
 
 	/// <summary>Gets one record by identifier or throws when it is unavailable.</summary>
 	public MemoryRecordSnapshot GetRecord(MemoryRecordId id, CancellationToken cancellationToken = default);
