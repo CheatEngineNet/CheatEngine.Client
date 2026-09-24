@@ -17,6 +17,7 @@ using CheatEngine.Client.Tables;
 using CheatEngine.SDK.Engine.AddressList;
 using CheatEngine.SDK.Engine.Enums;
 using CheatEngine.SDK.Engine.Inspection;
+using CheatEngine.SDK.Engine.Memory;
 using CheatEngine.SDK.Engine.Processes;
 using CheatEngine.SDK.Engine.Runtime;
 using CheatEngine.SDK.Engine.Scanning.Aob;
@@ -545,29 +546,44 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 			return [];
 		}
 
-		public bool TryReadBytes(Address address, Span<byte> destination, out string? failure)
+		public bool TryReadBytes(Address address, Span<byte> destination, out MemoryAccessFailure failure)
 		{
 			destination.Clear();
-			failure = null;
+			failure = MemoryAccessFailure.None;
 			return true;
 		}
 
-		public bool TryWriteBytes(Address address, ReadOnlySpan<byte> source, out string? failure)
+		public bool TryWriteBytes(Address address, ReadOnlySpan<byte> source, out MemoryAccessFailure failure)
 		{
-			failure = null;
+			failure = MemoryAccessFailure.None;
 			return true;
 		}
 
-		public bool TryReadPrimitive<T>(Address address, out T value, out string? failure)
+		public bool TryReadPrimitive<T>(Address address, out T value, out MemoryAccessFailure failure)
 		{
 			value = default!;
-			failure = null;
+			failure = MemoryAccessFailure.None;
 			return true;
 		}
 
-		public bool TryWritePrimitive<T>(Address address, T value, out string? failure)
+		public bool TryWritePrimitive<T>(Address address, T value, out MemoryAccessFailure failure)
 		{
-			failure = null;
+			failure = MemoryAccessFailure.None;
+			return true;
+		}
+
+		public bool TryReadPointer(Address address, PointerSize pointerSize, out Address value,
+			out MemoryAccessFailure failure)
+		{
+			value = default;
+			failure = MemoryAccessFailure.None;
+			return true;
+		}
+
+		public bool TryWritePointer(Address address, Address value, PointerSize pointerSize,
+			out MemoryAccessFailure failure)
+		{
+			failure = MemoryAccessFailure.None;
 			return true;
 		}
 

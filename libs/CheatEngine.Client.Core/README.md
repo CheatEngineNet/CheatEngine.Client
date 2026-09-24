@@ -159,11 +159,20 @@ incarnation and no local metadata: local process name and path come from the ope
 describe local processes only.
 
 Codecs use the target bitness (`targetIs64Bit`, the width `readPointer` follows), never the plugin's
-own width. When the SDK reports that Cheat Engine's configured pointer size differs from the bitness
-(`ConfiguredPointerSizeDiffersFromBitness`), the Client's own pointer-typed operations are refused
-before any memory access (`OperationRejected`, `NotStarted`); the configured size is exposed as a
-fact to custom codecs. A width that cannot be observed keeps the kind of the status the SDK
-reported; only an observed "no process selected" is `TargetNotAttached`.
+own width. Every pointer read and write goes through the width-qualified `TargetMemory.TryReadPointer`
+and `TryWritePointer` overloads with that observed bitness, so CheatEngine.SDK refuses a value that
+does not fit a 32-bit target instead of truncating it. When the SDK reports that Cheat Engine's
+configured pointer size differs from the bitness (`ConfiguredPointerSizeDiffersFromBitness`), or when
+the bitness is unknown, the Client's own pointer-typed operations are refused before any memory
+access (`NotStarted`: `OperationRejected` for a mismatch, `InvalidState` for a selected target
+without a bitness); the configured size is exposed as a fact to custom codecs. A width that cannot
+be observed keeps the kind of the status the SDK reported; only an observed "no process selected" is
+`TargetNotAttached`. A pointer chain on a 32-bit target also refuses a base address, or an address it
+computes by adding an offset, above 4 GiB, because the SDK qualifies only the pointer values it
+reads.
+
+Every `MemoryAccessFailure` the SDK reports reaches the caller through `MemoryAccessFailureMapping`,
+value by value and never as text: see the table in the Abstractions README.
 
 Cost: every `ReadPrimitive<Address>`/`WritePrimitive<Address>` call, every Address primitive batch,
 every pointer chain and every built-in Address codec invocation observes the target facts once

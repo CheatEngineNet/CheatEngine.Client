@@ -5,6 +5,7 @@ using CheatEngine.Client.Core.Tests.TestSupport;
 using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Memory;
 using CheatEngine.Client.Results;
+using CheatEngine.SDK.Engine.Memory;
 using CheatEngine.SDK.Engine.Processes;
 using CheatEngine.SDK.Engine.Runtime;
 using CheatEngine.SDK.Engine.Values;
@@ -276,10 +277,189 @@ public sealed class MemoryPointerWidthTests
 		Assert.False(succeeded);
 		Assert.Equal(default, resolved);
 		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
-		Assert.Equal(CheatEngineHostEffect.Started, failure.HostEffect);
-		Assert.Contains("hop 1", failure.Message, StringComparison.Ordinal);
+		// The one read returned; the Client refused the address it computed, and a read leaves no target effect.
+		Assert.Equal(CheatEngineHostEffect.Completed, failure.HostEffect);
+		Assert.Contains("hop 1 of 2", failure.Message, StringComparison.Ordinal);
 		Assert.DoesNotContain("100000010", failure.Message, StringComparison.OrdinalIgnoreCase);
 		Assert.Equal(1, port.PointerReads);
+		Assert.Equal([PointerSize.Bit32], port.Widths);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q21")]
+	public void ResolvePointerChainRefusesABaseAddressBeyondAThirtyTwoBitTargetBeforeAnyRead()
+	{
+		PointerWidthPort port = new()
+		{
+			Is64Bit = false,
+			ConfiguredPointerSize = 4
+		};
+
+		bool succeeded = CreateClient(port).TryResolvePointerChain(
+			new PointerChainRequest(new Address(0x1_0000_0000), [0x10L]), out _, out CheatEngineFailure failure,
+			TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
+		Assert.Equal(0, port.PointerReads);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q21")]
+	public void ResolvePointerChainReportsTheHopWhosePointerExceedsTheTargetWidth()
+	{
+		// The second hop reads a value above 4 GiB on a 32-bit target: the SDK overload refuses it and the chain names
+		// the hop instead of truncating the value.
+		PointerWidthPort port = new()
+		{
+			Is64Bit = false,
+			ConfiguredPointerSize = 4,
+			Pointers =
+			{
+				[TestAddress] = new Address(0x500000),
+				[new Address(0x500010)] = new Address(0x1_0000_0000)
+			}
+		};
+
+		bool succeeded = CreateClient(port).TryResolvePointerChain(
+			new PointerChainRequest(TestAddress, [0x10L, 0x8L, 0x4L]), out Address resolved,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(default, resolved);
+		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.Completed, failure.HostEffect);
+		Assert.Contains("hop 2 of 3", failure.Message, StringComparison.Ordinal);
+		Assert.Equal(2, port.PointerReads);
+		Assert.All(port.Widths, static width => Assert.Equal(PointerSize.Bit32, width));
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q21")]
+	public void WritingAnAddressAboveFourGibibytesToAThirtyTwoBitTargetIsRefusedBeforeCheatEngineIsCalled()
+	{
+		PointerWidthPort port = new()
+		{
+			Is64Bit = false,
+			ConfiguredPointerSize = 4
+		};
+		MemoryClient client = CreateClient(port);
+
+		bool refused = client.TryWritePrimitive(TestAddress, new Address(0x1_0000_0000),
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+		bool admitted = client.TryWritePrimitive(TestAddress, new Address(uint.MaxValue), out _,
+			TestContext.Current.CancellationToken);
+
+		Assert.False(refused);
+		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
+		Assert.Equal("Memory.WritePrimitive", failure.Operation);
+		Assert.True(admitted);
+		Assert.Equal(new Address(uint.MaxValue), port.Pointers[TestAddress]);
+		Assert.Equal([PointerSize.Bit32, PointerSize.Bit32], port.Widths);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q21")]
+	public void AnAddressAboveFourGibibytesRoundTripsOnASixtyFourBitTarget()
+	{
+		// 0x7FF612345678 is a typical x64 image address; the SDK receives the observed 64-bit width both ways.
+		PointerWidthPort port = new();
+		MemoryClient client = CreateClient(port);
+		Address value = new(0x7FF6_1234_5678);
+
+		bool written = client.TryWritePrimitive(TestAddress, value, out CheatEngineFailure writeFailure,
+			TestContext.Current.CancellationToken);
+		bool read = client.TryReadPrimitive(TestAddress, out Address readBack, out CheatEngineFailure readFailure,
+			TestContext.Current.CancellationToken);
+
+		Assert.True(written, writeFailure.ToString());
+		Assert.True(read, readFailure.ToString());
+		Assert.Equal(value, readBack);
+		Assert.Equal([PointerSize.Bit64, PointerSize.Bit64], port.Widths);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q33")]
+	public void AnAddressBatchWriteStopsAtTheFirstValueWiderThanAThirtyTwoBitTarget()
+	{
+		PointerWidthPort port = new()
+		{
+			Is64Bit = false,
+			ConfiguredPointerSize = 4
+		};
+
+		MemoryPrimitiveBatchWriteOutcome outcome = CreateClient(port).WritePrimitiveBatchDetailed(
+			new MemoryPrimitiveBatchWriteRequest<Address>([
+				new MemoryAddressValue<Address>(TestAddress, new Address(0x401000)),
+				new MemoryAddressValue<Address>(TestAddress + 4, new Address(0x1_0000_0000)),
+				new MemoryAddressValue<Address>(TestAddress + 8, new Address(0x402000))
+			]), TestContext.Current.CancellationToken);
+
+		Assert.Equal(1, outcome.CompletedCount);
+		Assert.Equal(1, outcome.FailedIndex);
+		Assert.Equal(MemoryBatchWriteEffectState.Partial, outcome.EffectState);
+		Assert.Equal(CheatEngineFailureKind.OperationRejected, outcome.Cause!.Value.Kind);
+		Assert.Equal(CheatEngineHostEffect.Started, outcome.Cause.Value.HostEffect);
+		Assert.Equal(2, port.PointerWrites);
+		Assert.Single(port.Pointers);
+	}
+
+	[Theory]
+	[Trait("Qualification", "Q21")]
+	[InlineData("ReadPrimitive")]
+	[InlineData("WritePrimitive")]
+	[InlineData("ReadBatch")]
+	[InlineData("WriteBatch")]
+	[InlineData("PointerChain")]
+	[InlineData("AddressCodec")]
+	public void AnUnknownTargetBitnessRefusesEveryPointerPathBeforeAnyAccess(string path)
+	{
+		PointerWidthPort port = new()
+		{
+			UnknownBitness = true
+		};
+		MemoryClient client = CreateClient(port);
+		CancellationToken token = TestContext.Current.CancellationToken;
+
+		CheatEngineFailure failure = path switch
+		{
+			"ReadPrimitive" => Refused(client.TryReadPrimitive(TestAddress, out Address _, out CheatEngineFailure f,
+				token), f),
+			"WritePrimitive" => Refused(client.TryWritePrimitive(TestAddress, TestAddress, out CheatEngineFailure f,
+				token), f),
+			"ReadBatch" => client.ReadPrimitiveBatchDetailed(new MemoryPrimitiveBatchReadRequest<Address>([TestAddress]),
+				token).Cause!.Value,
+			"WriteBatch" => client.WritePrimitiveBatchDetailed(new MemoryPrimitiveBatchWriteRequest<Address>([
+				new MemoryAddressValue<Address>(TestAddress, TestAddress)
+			]), token).Cause!.Value,
+			"PointerChain" => Refused(client.TryResolvePointerChain(new PointerChainRequest(TestAddress, [0x10L]),
+				out _, out CheatEngineFailure f, token), f),
+			_ => Refused(client.TryRead(new MemoryReadRequest<Address>(TestAddress, new PolicyCodec()), out _,
+				out CheatEngineFailure f, token), f)
+		};
+
+		Assert.Equal(CheatEngineFailureKind.InvalidState, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
+		Assert.Equal(0, port.PointerReads + port.PointerWrites + port.ByteReads + port.ByteWrites);
+	}
+
+	[Fact]
+	public void AnAddressPrimitiveWithoutASelectedTargetIsRefusedAsTargetNotAttached()
+	{
+		PointerWidthPort port = new()
+		{
+			ProcessId = 0
+		};
+
+		bool succeeded = CreateClient(port).TryReadPrimitive(TestAddress, out Address _,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(CheatEngineFailureKind.TargetNotAttached, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
+		Assert.Equal(0, port.PointerReads);
 	}
 
 	[Fact]
@@ -331,6 +511,12 @@ public sealed class MemoryPointerWidthTests
 	private static MemoryClient CreateClient(PointerWidthPort port)
 	{
 		return new MemoryClient(new ThreadBoundDispatcher(), InertCoreLifetime.Create(), port);
+	}
+
+	private static CheatEngineFailure Refused(bool succeeded, CheatEngineFailure failure)
+	{
+		Assert.False(succeeded);
+		return failure;
 	}
 
 	/// <summary>Records the pointer-width facts that an application codec observes through its context.</summary>
@@ -500,7 +686,26 @@ public sealed class MemoryPointerWidthTests
 			init;
 		} = new byte[8];
 
+		/// <summary>Reports a selected target whose bitness Cheat Engine did not establish.</summary>
+		internal bool UnknownBitness
+		{
+			init
+			{
+				if (value)
+				{
+					Target = new TargetArchitectureObservation(Target.ProcessId, TargetBackend.LocalProcess,
+						PointerSize.Unknown, true, false, false, 0, null);
+				}
+			}
+		}
+
 		internal Dictionary<Address, Address> Pointers
+		{
+			get;
+		} = [];
+
+		/// <summary>Gets the pointer width passed to every pointer read and write, in call order.</summary>
+		internal List<PointerSize> Widths
 		{
 			get;
 		} = [];
@@ -529,47 +734,72 @@ public sealed class MemoryPointerWidthTests
 			private set;
 		}
 
-		public bool TryReadBytes(Address address, Span<byte> destination, out string? failure)
+		public bool TryReadBytes(Address address, Span<byte> destination, out MemoryAccessFailure failure)
 		{
 			ByteReads++;
 			Bytes.AsSpan(0, destination.Length).CopyTo(destination);
-			failure = null;
+			failure = MemoryAccessFailure.None;
 			return true;
 		}
 
-		public bool TryWriteBytes(Address address, ReadOnlySpan<byte> source, out string? failure)
+		public bool TryWriteBytes(Address address, ReadOnlySpan<byte> source, out MemoryAccessFailure failure)
 		{
 			ByteWrites++;
-			failure = null;
+			failure = MemoryAccessFailure.None;
 			return true;
 		}
 
-		public bool TryReadPrimitive<T>(Address address, out T value, out string? failure)
+		public bool TryReadPrimitive<T>(Address address, out T value, out MemoryAccessFailure failure)
 		{
-			if (typeof(T) == typeof(Address))
-			{
-				PointerReads++;
-				Address pointer = Pointers.GetValueOrDefault(address);
-				value = (T) (object) pointer;
-			}
-			else
-			{
-				value = default!;
-			}
-
-			failure = null;
+			Assert.NotEqual(typeof(Address), typeof(T));
+			value = default!;
+			failure = MemoryAccessFailure.None;
 			return true;
 		}
 
-		public bool TryWritePrimitive<T>(Address address, T value, out string? failure)
+		public bool TryWritePrimitive<T>(Address address, T value, out MemoryAccessFailure failure)
 		{
-			if (typeof(T) == typeof(Address))
+			Assert.NotEqual(typeof(Address), typeof(T));
+			failure = MemoryAccessFailure.None;
+			return true;
+		}
+
+		/// <summary>Behaves like <c>TargetMemory.TryReadPointer(Address, PointerSize, …)</c> over <see cref="Pointers" />.</summary>
+		public bool TryReadPointer(Address address, PointerSize pointerSize, out Address value,
+			out MemoryAccessFailure failure)
+		{
+			PointerReads++;
+			Widths.Add(pointerSize);
+			Address pointer = Pointers.GetValueOrDefault(address);
+			failure = !pointerSize.IsKnown
+				? MemoryAccessFailure.PointerWidthUnknown
+				: pointerSize == PointerSize.Bit32 && pointer.Value > uint.MaxValue
+					? MemoryAccessFailure.PointerValueExceedsTargetWidth
+					: MemoryAccessFailure.None;
+			value = failure == MemoryAccessFailure.None ? pointer : default;
+			return failure == MemoryAccessFailure.None;
+		}
+
+		/// <summary>
+		///     Behaves like <c>TargetMemory.TryWritePointer(Address, Address, PointerSize, …)</c>: a value wider than a
+		///     32-bit target is refused before anything is stored.
+		/// </summary>
+		public bool TryWritePointer(Address address, Address value, PointerSize pointerSize,
+			out MemoryAccessFailure failure)
+		{
+			PointerWrites++;
+			Widths.Add(pointerSize);
+			failure = !pointerSize.IsKnown
+				? MemoryAccessFailure.PointerWidthUnknown
+				: pointerSize == PointerSize.Bit32 && value.Value > uint.MaxValue
+					? MemoryAccessFailure.PointerValueExceedsTargetWidth
+					: MemoryAccessFailure.None;
+			if (failure == MemoryAccessFailure.None)
 			{
-				PointerWrites++;
+				Pointers[address] = value;
 			}
 
-			failure = null;
-			return true;
+			return failure == MemoryAccessFailure.None;
 		}
 	}
 

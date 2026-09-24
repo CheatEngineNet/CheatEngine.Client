@@ -19,6 +19,7 @@ using CheatEngine.Client.Tables;
 using CheatEngine.SDK.Engine.AddressList;
 using CheatEngine.SDK.Engine.Errors;
 using CheatEngine.SDK.Engine.Inspection;
+using CheatEngine.SDK.Engine.Memory;
 using CheatEngine.SDK.Engine.Processes;
 using CheatEngine.SDK.Engine.Runtime;
 using CheatEngine.SDK.Engine.Scanning.Aob;
@@ -97,6 +98,7 @@ public sealed class TryContractTests
 		"Memory.ReadPrimitive",
 		"Memory.ReadBytes",
 		"Memory.WritePrimitiveBatch",
+		"Memory.ResolvePointerChain",
 		"Processes.GetCurrent",
 		"Processes.Attach",
 		"Runtime.GetSnapshot"
@@ -199,6 +201,11 @@ public sealed class TryContractTests
 				]),
 				static (client, request, t) => (client.TryWritePrimitiveBatch(request, out CheatEngineFailure f, t), f),
 				static (client, request, t) => client.WritePrimitiveBatch(request, t), token),
+			"Memory.ResolvePointerChain" => Run(new MemoryClient(dispatcher, lifetime, ports),
+				new PointerChainRequest(Target, [0x10L, 0x8L]),
+				static (client, request, t) =>
+					(client.TryResolvePointerChain(request, out _, out CheatEngineFailure f, t), f),
+				static (client, request, t) => client.ResolvePointerChain(request, t), token),
 			"Processes.GetCurrent" => Run(new ProcessClient(dispatcher, ports, ports, ports, lifetime), 0,
 				static (client, _, t) => (client.TryGetCurrent(out ProcessSnapshot _, out CheatEngineFailure f, t), f),
 				static (client, _, t) => client.GetCurrent(t), token),
@@ -864,34 +871,46 @@ public sealed class TryContractTests
 			throw Fault();
 		}
 
-		public bool TryReadBytes(Address address, Span<byte> destination, out string? failure)
+		public bool TryReadBytes(Address address, Span<byte> destination, out MemoryAccessFailure failure)
 		{
 			throw Fault();
 		}
 
-		public bool TryWriteBytes(Address address, ReadOnlySpan<byte> source, out string? failure)
+		public bool TryWriteBytes(Address address, ReadOnlySpan<byte> source, out MemoryAccessFailure failure)
 		{
 			throw Fault();
 		}
 
-		public bool TryReadPrimitive<T>(Address address, out T value, out string? failure)
+		public bool TryReadPrimitive<T>(Address address, out T value, out MemoryAccessFailure failure)
 		{
 			throw Fault();
 		}
 
-		public bool TryWritePrimitive<T>(Address address, T value, out string? failure)
+		public bool TryReadPointer(Address address, PointerSize pointerSize, out Address value,
+			out MemoryAccessFailure failure)
+		{
+			throw Fault();
+		}
+
+		public bool TryWritePointer(Address address, Address value, PointerSize pointerSize,
+			out MemoryAccessFailure failure)
+		{
+			throw Fault();
+		}
+
+		public bool TryWritePrimitive<T>(Address address, T value, out MemoryAccessFailure failure)
 		{
 			Calls++;
 			if (_writes < SucceedingWrites)
 			{
 				_writes++;
-				failure = null;
+				failure = MemoryAccessFailure.None;
 				return true;
 			}
 
 			if (RejectAfterSucceedingWrites)
 			{
-				failure = "WriteFailed";
+				failure = MemoryAccessFailure.WriteFailed;
 				return false;
 			}
 

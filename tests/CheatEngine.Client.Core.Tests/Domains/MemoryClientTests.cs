@@ -5,6 +5,7 @@ using CheatEngine.Client.Core.Tests.TestSupport;
 using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Memory;
 using CheatEngine.Client.Results;
+using CheatEngine.SDK.Engine.Memory;
 using CheatEngine.SDK.Engine.Values;
 
 namespace CheatEngine.Client.Core.Tests.Domains;
@@ -136,22 +137,22 @@ public sealed class MemoryClientTests
 			get;
 		} = [];
 
-		public bool TryReadBytes(Address address, Span<byte> destination, out string? failure)
+		public bool TryReadBytes(Address address, Span<byte> destination, out MemoryAccessFailure failure)
 		{
 			throw new InvalidOperationException("A string read must not use the byte port.");
 		}
 
-		public bool TryWriteBytes(Address address, ReadOnlySpan<byte> source, out string? failure)
+		public bool TryWriteBytes(Address address, ReadOnlySpan<byte> source, out MemoryAccessFailure failure)
 		{
 			throw new InvalidOperationException("A string read must not use the byte port.");
 		}
 
 		public bool TryReadString(Address address, int maximumLength, bool wideCharacter, out string? value,
-			out string? failure)
+			out MemoryAccessFailure failure)
 		{
 			StringReads.Add((address, maximumLength, wideCharacter));
 			value = Text;
-			failure = null;
+			failure = MemoryAccessFailure.None;
 			return true;
 		}
 	}

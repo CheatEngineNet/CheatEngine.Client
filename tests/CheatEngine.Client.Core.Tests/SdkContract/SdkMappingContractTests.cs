@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 
 using CheatEngine.Client.Core.Dispatching;
@@ -25,6 +26,35 @@ namespace CheatEngine.Client.Core.Tests.SdkContract;
 /// </summary>
 public sealed class SdkMappingContractTests
 {
+	/// <summary>
+	///     The Client failure kind and host effects of every SDK memory failure (plan L10). A pointer value wider than the
+	///     target is refused after Cheat Engine returned it on a read, and before Cheat Engine is called on a write.
+	/// </summary>
+	private static Dictionary<MemoryAccessFailure, ExpectedMemoryFailure> ExpectedMemoryFailures => new()
+	{
+		[MemoryAccessFailure.None] = new ExpectedMemoryFailure(CheatEngineFailureKind.IndeterminateHostResult,
+			CheatEngineHostEffect.Unknown, CheatEngineHostEffect.Unknown),
+		[MemoryAccessFailure.GlobalUnavailable] = new ExpectedMemoryFailure(
+			CheatEngineFailureKind.CapabilityUnavailable, CheatEngineHostEffect.NotStarted,
+			CheatEngineHostEffect.NotStarted),
+		[MemoryAccessFailure.LuaError] = new ExpectedMemoryFailure(CheatEngineFailureKind.LuaError,
+			CheatEngineHostEffect.Unknown, CheatEngineHostEffect.Unknown),
+		[MemoryAccessFailure.ReadFailed] = new ExpectedMemoryFailure(CheatEngineFailureKind.MemoryReadFailed,
+			CheatEngineHostEffect.Unknown, CheatEngineHostEffect.Unknown),
+		[MemoryAccessFailure.PartialRead] = new ExpectedMemoryFailure(CheatEngineFailureKind.MemoryReadFailed,
+			CheatEngineHostEffect.Unknown, CheatEngineHostEffect.Unknown),
+		[MemoryAccessFailure.DestinationTooSmall] = new ExpectedMemoryFailure(
+			CheatEngineFailureKind.ResultLimitExceeded, CheatEngineHostEffect.Unknown, CheatEngineHostEffect.Unknown),
+		[MemoryAccessFailure.PointerWidthUnknown] = new ExpectedMemoryFailure(CheatEngineFailureKind.InvalidState,
+			CheatEngineHostEffect.NotStarted, CheatEngineHostEffect.NotStarted),
+		[MemoryAccessFailure.PointerValueExceedsTargetWidth] = new ExpectedMemoryFailure(
+			CheatEngineFailureKind.OperationRejected, CheatEngineHostEffect.Completed, CheatEngineHostEffect.NotStarted),
+		[MemoryAccessFailure.WriteFailed] = new ExpectedMemoryFailure(CheatEngineFailureKind.MemoryWriteFailed,
+			CheatEngineHostEffect.Unknown, CheatEngineHostEffect.Unknown),
+		[MemoryAccessFailure.InvalidResult] = new ExpectedMemoryFailure(CheatEngineFailureKind.InvalidHostResult,
+			CheatEngineHostEffect.Unknown, CheatEngineHostEffect.Unknown)
+	};
+
 	/// <summary>The public exception types of the consumed CheatEngine.SDK: every EngineException subclass, the
 	///     memory-scan exceptions and the Lua call exception.</summary>
 	private static Type[] SdkExceptionTypes =>
@@ -147,23 +177,45 @@ public sealed class SdkMappingContractTests
 
 	[Fact]
 	[Trait("Qualification", "Q48")]
-	public void EveryMemoryAccessFailureIsReportedAsAMemoryFailure()
+	public void EveryMemoryAccessFailureMapsToItsClientKindAndHostEffect()
+	{
+		MappingTotality.AssertTotal<MemoryAccessFailure>(
+			static access => ExpectedMemoryFailures.TryGetValue(access, out ExpectedMemoryFailure expected) &&
+							 MemoryAccessFailureMapping.ToFailureKind(access) == expected.Kind &&
+							 MemoryAccessFailureMapping.ToHostEffect(access, false) == expected.ReadEffect &&
+							 MemoryAccessFailureMapping.ToHostEffect(access, true) == expected.WriteEffect,
+			static access =>
+				MemoryAccessFailureMapping.ToFailureKind(access) == CheatEngineFailureKind.IndeterminateHostResult &&
+				MemoryAccessFailureMapping.ToHostEffect(access, false) == CheatEngineHostEffect.Unknown &&
+				MemoryAccessFailureMapping.ToHostEffect(access, true) == CheatEngineHostEffect.Unknown);
+	}
+
+	/// <summary>
+	///     End to end through <see cref="MemoryClient" />: every SDK failure of a byte read and a byte write reaches the
+	///     caller with its mapped kind and effect, and none of them, <see cref="MemoryAccessFailure.None" /> included,
+	///     is ever a success.
+	/// </summary>
+	[Fact]
+	[Trait("Qualification", "Q20")]
+	public void EveryMemoryAccessFailureReachesTheCallerWithItsMappedKindAndNeverSucceeds()
 	{
 		CoreLifetime lifetime = InertCoreLifetime.Create();
-		foreach (MemoryAccessFailure access in Enum.GetValues<MemoryAccessFailure>().Where(static value =>
-					 value != MemoryAccessFailure.None))
+		foreach (MemoryAccessFailure access in Enum.GetValues<MemoryAccessFailure>())
 		{
-			RefusingPort port = new(access.ToString());
+			RefusingPort port = new(access);
 			MemoryClient client = new(new SdkMainThreadDispatcher(lifetime, new InlineMainThreadInvoker()), lifetime, port);
+			ExpectedMemoryFailure expected = ExpectedMemoryFailures[access];
 
-			Assert.False(client.TryReadBytes(new MemoryBytesReadRequest(0x1000, 4), out _,
+			Assert.False(client.TryReadBytes(new MemoryBytesReadRequest(0x1000, 4), out ImmutableArray<byte> bytes,
 				out CheatEngineFailure readFailure, TestContext.Current.CancellationToken));
 			Assert.False(client.TryWriteBytes(new MemoryBytesWriteRequest(0x1000, [1]),
 				out CheatEngineFailure writeFailure, TestContext.Current.CancellationToken));
 
-			Assert.Equal(CheatEngineFailureKind.MemoryReadFailed, readFailure.Kind);
-			Assert.Equal(CheatEngineFailureKind.MemoryWriteFailed, writeFailure.Kind);
-			Assert.Equal(access.ToString(), readFailure.Message);
+			Assert.True(bytes.IsEmpty);
+			Assert.Equal((expected.Kind, expected.ReadEffect, "Memory.ReadBytes"),
+				(readFailure.Kind, readFailure.HostEffect, readFailure.Operation));
+			Assert.Equal((expected.Kind, expected.WriteEffect, "Memory.WriteBytes"),
+				(writeFailure.Kind, writeFailure.HostEffect, writeFailure.Operation));
 		}
 	}
 
@@ -186,20 +238,24 @@ public sealed class SdkMappingContractTests
 			   failure.Operation == "Lua.Contract";
 	}
 
-	/// <summary>Reports every access as refused with the SDK's own failure name, as <c>SdkMemoryCodecContextPort</c> does.</summary>
-	private sealed class RefusingPort(string failure) : TargetObservationDouble, IMemoryCodecContextPort
+	/// <summary>Reports every access as refused with one SDK failure, as <c>SdkMemoryCodecContextPort</c> passes it on.</summary>
+	private sealed class RefusingPort(MemoryAccessFailure failure) : TargetObservationDouble, IMemoryCodecContextPort
 	{
-
-		public bool TryReadBytes(Address address, Span<byte> destination, out string? hostFailure)
+		public bool TryReadBytes(Address address, Span<byte> destination, out MemoryAccessFailure hostFailure)
 		{
 			hostFailure = failure;
 			return false;
 		}
 
-		public bool TryWriteBytes(Address address, ReadOnlySpan<byte> source, out string? hostFailure)
+		public bool TryWriteBytes(Address address, ReadOnlySpan<byte> source, out MemoryAccessFailure hostFailure)
 		{
 			hostFailure = failure;
 			return false;
 		}
 	}
+
+	private readonly record struct ExpectedMemoryFailure(
+		CheatEngineFailureKind Kind,
+		CheatEngineHostEffect ReadEffect,
+		CheatEngineHostEffect WriteEffect);
 }

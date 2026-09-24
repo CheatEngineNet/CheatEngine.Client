@@ -115,7 +115,7 @@ internal static class SdkApiUsage
 		_ = TargetMemory.TryReadInt32(address, out _, out _);
 		_ = TargetMemory.TryReadInt64(address, out _, out _);
 		_ = TargetMemory.TryReadInt8(address, out _, out _);
-		_ = TargetMemory.TryReadPointer(address, out _, out _);
+		_ = TargetMemory.TryReadPointer(address, PointerSize.Bit64, out _, out _);
 		_ = TargetMemory.TryReadSingle(address, out _, out _);
 		_ = TargetMemory.TryReadString(address, 1, false, out _, out _);
 		_ = TargetMemory.TryReadUInt16(address, out _, out _);
@@ -128,7 +128,7 @@ internal static class SdkApiUsage
 		_ = TargetMemory.TryWriteInt32(address, 0, out _);
 		_ = TargetMemory.TryWriteInt64(address, 0L, out _);
 		_ = TargetMemory.TryWriteInt8(address, 0, out _);
-		_ = TargetMemory.TryWritePointer(address, address, out _);
+		_ = TargetMemory.TryWritePointer(address, address, PointerSize.Bit64, out _);
 		_ = TargetMemory.TryWriteSingle(address, 0f, out _);
 		_ = TargetMemory.TryWriteString(address, ReadOnlySpan<char>.Empty, false, out _);
 		_ = TargetMemory.TryWriteUInt16(address, 0, out _);
@@ -149,6 +149,7 @@ internal static class SdkApiUsage
 		_ = PointerSize.Unknown;
 		_ = pointerSize.Bytes;
 		_ = pointerSize.IsKnown;
+		_ = pointerSize != PointerSize.Bit32;
 		_ = capabilities.TryGet(id, out RuntimeCapabilityAvailability availability);
 		_ = availability.State;
 		_ = capabilities.GetState(id);

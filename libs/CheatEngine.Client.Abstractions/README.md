@@ -210,11 +210,16 @@ groups them in `Version`, `Platform`, `Capabilities` and `Lua` and keeps separat
 - **External Lua state reset** (`CheatEngineRuntimeLuaInfo.ExternalStateResetDetected`): CheatEngine.SDK detected that
   Cheat Engine replaced its Lua state outside the plugin's control; Lua work is then refused with `RuntimeChanged`.
 
-Cheat Engine's pointer read follows the process width, not the configured size. The Client therefore keeps the process
-width for every pointer-typed operation (`Address` primitives, primitive batches, pointer chains, the built-in `Address`
-codec) and, when the configured size is known and differs, refuses the operation before any memory access with
-`OperationRejected` and `CheatEngineHostEffect.NotStarted`. A configured size that could not be observed is no evidence
-of a mismatch. A pointer chain on a 32-bit target refuses an intermediate address above 4 GiB instead of truncating it.
+Cheat Engine's pointer read follows the process width, not the configured size. The Client therefore passes the
+observed process width to CheatEngine.SDK's width-qualified pointer reads and writes on every pointer-typed operation
+(`Address` primitives, primitive batches, pointer chains). Before any memory access it refuses the operation with
+`CheatEngineHostEffect.NotStarted` when the width is unknown (`InvalidState` for a selected target, otherwise the kind of
+the status CheatEngine.SDK reported, such as `TargetNotAttached`) and when the configured size is known and differs
+(`OperationRejected`); the built-in `Address` codec follows the same policy. A configured size that could not be
+observed is no evidence of a mismatch. On a 32-bit target nothing is truncated: writing an `Address` above 4 GiB is
+refused with `OperationRejected` and `NotStarted`, a pointer value above 4 GiB returned by Cheat Engine is refused with
+`OperationRejected` and `Completed`, and a pointer chain refuses a base or computed address above 4 GiB and names the hop
+in its message.
 Custom codecs receive the facts through `IMemoryPointerWidthContext` (`ProcessPointerSize`, `ConfiguredPointerSize`,
 `ConfiguredPointerSizeDiffersFromProcessWidth`); what the configured size affects besides the reported value is not
 established.
@@ -289,7 +294,7 @@ dispatch and between Client-managed steps.
 |---|---|---|---|
 | Dispatcher (`ICheatEngineDispatcher`) | Dispatch admission: a `Cancelled` result proves the callback did not run | `NotStarted` (cancelled), `Unknown` (infrastructure failure) | Whatever the callback did; callback exceptions are rethrown unchanged |
 | Patterns / AOB (`IPatternScanner`, `IPatternScanOutcomeClient`, Fluent `Aob`) | The start of the global `AOBScan`; later cancellation discards the copy | `NotStarted` (validation, module lookup, cancellation before the scan), `Completed` (cancellation or invalid data after the scan, `IndeterminateHostResult` when no result list is returned), `CleanupUnconfirmed` (result-list release not confirmed), `Unknown` (SDK fault during the scan call) | None published: a failed scan never returns a prefix |
-| Memory primitives, codecs, bytes, strings, pointer chains (`IMemoryClient`) | Dispatch admission; one call is one Cheat Engine operation | `NotStarted` (budget, unsupported type, configured/process pointer-width mismatch, no process width), `Started` (a pointer chain stopped at an intermediate address above a 32-bit process width), `Unknown` (SDK fault, host refusal) | A codec may perform several reads or writes; a failed write codec can leave earlier writes in place |
+| Memory primitives, codecs, bytes, strings, pointer chains (`IMemoryClient`) | Dispatch admission; one call is one Cheat Engine operation | `NotStarted` (budget, unsupported type, unknown or mismatched pointer width, unavailable memory global, a pointer value above a 32-bit target on a write, a pointer chain base address above it), `Completed` (a pointer value or computed chain address above a 32-bit target after the reads returned), `Unknown` (SDK fault, host refusal, a failed codec) | A codec may perform several reads or writes; a failed write codec can leave earlier writes in place |
 | Memory batches (`IMemoryBatchClient`) | Dispatch admission: a `Cancelled` dispatch reports `MemoryBatchWriteEffectState.NotStarted` | `NotStarted` (admission, pre-dispatch cancellation, unsupported type), `Started` (a completed prefix persists), `Unknown` (SDK fault or other dispatch failure) | `EffectState` is authoritative: `Partial` with `CompletedCount`/`FailedIndex`, never rolled back |
 | Inspection and symbol leases (`IInspectionClient`) | Dispatch admission | `NotStarted` (name already reserved by this activation, name already resolves, failed collision check), `CleanupUnconfirmed` (lease release not confirmed), `Unknown` (SDK fault) | A faulted `registerSymbol` is not claimed and not retried; a replaced name is left in place |
 | Tables (`ITableClient`) | Dispatch admission; `Find` filters a copied snapshot | `NotStarted` (policy, invalid relationship, stale record identifier, activation of a record that was not found), `Started` (activation refused by the host or pending), `Completed` (`Find` cancelled after the snapshot, failed `Create` whose rollback was confirmed), `CleanupUnconfirmed` (record rollback not confirmed), `Unknown` (SDK fault, `loadTable` fault, indeterminate activation) | A failed `Create` destroys the partial record once and never retries; a refused activation can leave partial script effects; `loadTable` can execute table Lua |
@@ -339,6 +344,22 @@ effects are observed by the Client itself.
 | `Completed` | 3 | The primitive ran to completion; the failure happened afterwards inside the Client | `Applied` |
 | `CleanupUnconfirmed` | 4 | A resource or change may remain because its release or rollback was not confirmed | None: observed by the Client |
 | `NotApplied` | 5 | The primitive returned its documented negative result: nothing was applied and nothing needs cleanup | `NotApplied` |
+
+Every target-memory failure CheatEngine.SDK reports (`MemoryAccessFailure`) maps value by value; the message names the
+category, never an address or a value.
+
+| CheatEngine.SDK `MemoryAccessFailure` | `CheatEngineFailureKind` | `CheatEngineHostEffect` |
+|---|---|---|
+| `GlobalUnavailable` | `CapabilityUnavailable` | `NotStarted` |
+| `LuaError` | `LuaError` | `Unknown` |
+| `ReadFailed` | `MemoryReadFailed` | `Unknown` |
+| `PartialRead` | `MemoryReadFailed` | `Unknown` |
+| `DestinationTooSmall` | `ResultLimitExceeded` | `Unknown` |
+| `PointerWidthUnknown` | `InvalidState` | `NotStarted` |
+| `PointerValueExceedsTargetWidth` | `OperationRejected`; a pointer chain names the hop | `NotStarted` for a write, `Completed` for a read |
+| `WriteFailed` | `MemoryWriteFailed` | `Unknown` |
+| `InvalidResult` | `InvalidHostResult` | `Unknown` |
+| A failure without a recognized cause | `IndeterminateHostResult` | `Unknown` |
 
 ### Leases and release outcomes
 

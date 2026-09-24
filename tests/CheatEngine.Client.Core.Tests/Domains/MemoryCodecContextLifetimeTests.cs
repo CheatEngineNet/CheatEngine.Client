@@ -7,6 +7,7 @@ using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Memory;
 using CheatEngine.Client.Results;
 using CheatEngine.SDK.Engine.Inspection;
+using CheatEngine.SDK.Engine.Memory;
 using CheatEngine.SDK.Engine.Processes;
 using CheatEngine.SDK.Engine.Runtime;
 using CheatEngine.SDK.Engine.Values;
@@ -444,18 +445,18 @@ public sealed class MemoryCodecContextLifetimeTests
 			private set;
 		}
 
-		public bool TryReadBytes(Address address, Span<byte> destination, out string? failure)
+		public bool TryReadBytes(Address address, Span<byte> destination, out MemoryAccessFailure failure)
 		{
 			ReadBytesCallCount++;
 			destination.Clear();
-			failure = null;
+			failure = MemoryAccessFailure.None;
 			return true;
 		}
 
-		public bool TryWriteBytes(Address address, ReadOnlySpan<byte> source, out string? failure)
+		public bool TryWriteBytes(Address address, ReadOnlySpan<byte> source, out MemoryAccessFailure failure)
 		{
 			WriteBytesCallCount++;
-			failure = null;
+			failure = MemoryAccessFailure.None;
 			return true;
 		}
 	}

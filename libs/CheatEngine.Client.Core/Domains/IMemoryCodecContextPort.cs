@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
 using CheatEngine.SDK.Engine.Memory;
@@ -10,62 +11,76 @@ namespace CheatEngine.Client.Core.Domains;
 /// <summary>Provides the SDK-backed operations available to a scoped application memory codec.</summary>
 /// <remarks>
 ///     The port is internal so Core tests can prove that an expired context never reaches SDK statics. It is not a
-///     replacement public memory abstraction. Its target facts are the read-only CheatEngine.SDK observations of
-///     <see cref="ITargetObservationPort" />: the width of every pointer-typed path is the target bitness they report,
-///     never the plugin's own process width.
+///     replacement public memory abstraction. Every access reports the SDK's own <see cref="MemoryAccessFailure" />,
+///     never its text; <see cref="MemoryAccessFailureMapping" /> classifies it. Its target facts are the read-only
+///     CheatEngine.SDK observations of <see cref="ITargetObservationPort" />: every pointer access passes the target
+///     bitness they report to the width-qualified SDK overload, never the plugin's own process width (CESDK1020).
 /// </remarks>
 internal interface IMemoryCodecContextPort : ITargetObservationPort
 {
-	public bool TryReadBytes(Address address, Span<byte> destination, out string? failure);
+	public bool TryReadBytes(Address address, Span<byte> destination, out MemoryAccessFailure failure);
 
-	public bool TryWriteBytes(Address address, ReadOnlySpan<byte> source, out string? failure);
+	public bool TryWriteBytes(Address address, ReadOnlySpan<byte> source, out MemoryAccessFailure failure);
 
-	/// <summary>Tries one built-in primitive read after the Core client has admitted the operation.</summary>
-	public bool TryReadPrimitive<T>(Address address, out T value, out string? failure)
+	/// <summary>Tries one built-in scalar read after the Core client has admitted the operation.</summary>
+	/// <remarks>Pointers never take this route: they go through <see cref="TryReadPointer" /> with the observed width.</remarks>
+	public bool TryReadPrimitive<T>(Address address, out T value, out MemoryAccessFailure failure)
 	{
 		return SdkMemoryPrimitivePort.TryRead(address, out value, out failure);
 	}
 
-	/// <summary>Tries one built-in primitive write after the Core client has admitted the operation.</summary>
-	public bool TryWritePrimitive<T>(Address address, T value, out string? failure)
+	/// <summary>Tries one built-in scalar write after the Core client has admitted the operation.</summary>
+	/// <remarks>Pointers never take this route: they go through <see cref="TryWritePointer" /> with the observed width.</remarks>
+	public bool TryWritePrimitive<T>(Address address, T value, out MemoryAccessFailure failure)
 	{
 		return SdkMemoryPrimitivePort.TryWrite(address, value, out failure);
+	}
+
+	/// <summary>
+	///     Tries one pointer read qualified by the observed target bitness (<c>TargetMemory.TryReadPointer</c> with a
+	///     <see cref="PointerSize" />): the SDK refuses an unknown width, and a returned value wider than the width.
+	/// </summary>
+	public bool TryReadPointer(Address address, PointerSize pointerSize, out Address value,
+		out MemoryAccessFailure failure)
+	{
+		return TargetMemory.TryReadPointer(address, pointerSize, out value, out failure);
+	}
+
+	/// <summary>
+	///     Tries one pointer write qualified by the observed target bitness (<c>TargetMemory.TryWritePointer</c> with a
+	///     <see cref="PointerSize" />): the SDK refuses an unknown width, and a value wider than the width, before Cheat
+	///     Engine is called.
+	/// </summary>
+	public bool TryWritePointer(Address address, Address value, PointerSize pointerSize,
+		out MemoryAccessFailure failure)
+	{
+		return TargetMemory.TryWritePointer(address, value, pointerSize, out failure);
 	}
 
 	/// <summary>Tries one bounded string read after the Core client has admitted the operation.</summary>
 	/// <remarks><paramref name="maximumLength" /> is passed unchanged as Cheat Engine's <c>readString</c> limit.</remarks>
 	public bool TryReadString(Address address, int maximumLength, bool wideCharacter, out string? value,
-		out string? failure)
+		out MemoryAccessFailure failure)
 	{
-		if (TargetMemory.TryReadString(address, maximumLength, wideCharacter, out value,
-				out MemoryAccessFailure sdkFailure))
-		{
-			failure = null;
-			return true;
-		}
-
-		failure = sdkFailure.ToString();
-		return false;
+		return TargetMemory.TryReadString(address, maximumLength, wideCharacter, out value, out failure);
 	}
 
 	/// <summary>Tries one string write after the Core client has admitted the operation.</summary>
-	public bool TryWriteString(Address address, ReadOnlySpan<char> value, bool wideCharacter, out string? failure)
+	public bool TryWriteString(Address address, ReadOnlySpan<char> value, bool wideCharacter,
+		out MemoryAccessFailure failure)
 	{
-		if (TargetMemory.TryWriteString(address, value, wideCharacter, out MemoryAccessFailure sdkFailure))
-		{
-			failure = null;
-			return true;
-		}
-
-		failure = sdkFailure.ToString();
-		return false;
+		return TargetMemory.TryWriteString(address, value, wideCharacter, out failure);
 	}
 }
 
-/// <summary>Maps the Core's supported primitive set to the SDK while retaining an injectable port boundary.</summary>
+/// <summary>Maps the Core's supported scalar set to the SDK while retaining an injectable port boundary.</summary>
+/// <remarks>
+///     The Core client admits the type before it calls the port and routes <see cref="Address" /> to the width-qualified
+///     pointer overloads, so any other type reaching this class is a Client defect, never a host outcome.
+/// </remarks>
 internal static class SdkMemoryPrimitivePort
 {
-	internal static bool TryRead<T>(Address address, out T value, out string? failure)
+	internal static bool TryRead<T>(Address address, out T value, out MemoryAccessFailure failure)
 	{
 		if (typeof(T) == typeof(byte))
 		{
@@ -117,17 +132,10 @@ internal static class SdkMemoryPrimitivePort
 			return TryRead<T, double>(TargetMemory.TryReadDouble, address, out value, out failure);
 		}
 
-		if (typeof(T) == typeof(Address))
-		{
-			return TryRead<T, Address>(TargetMemory.TryReadPointer, address, out value, out failure);
-		}
-
-		value = default!;
-		failure = $"'{typeof(T).FullName}' is not a built-in CheatEngine.Client memory type.";
-		return false;
+		throw NotAScalar<T>();
 	}
 
-	internal static bool TryWrite<T>(Address address, T value, out string? failure)
+	internal static bool TryWrite<T>(Address address, T value, out MemoryAccessFailure failure)
 	{
 		if (typeof(T) == typeof(byte))
 		{
@@ -179,40 +187,33 @@ internal static class SdkMemoryPrimitivePort
 			return TryWrite<T, double>(TargetMemory.TryWriteDouble, address, value, out failure);
 		}
 
-		if (typeof(T) == typeof(Address))
-		{
-			return TryWrite<T, Address>(TargetMemory.TryWritePointer, address, value, out failure);
-		}
-
-		failure = $"'{typeof(T).FullName}' is not a built-in CheatEngine.Client memory type.";
-		return false;
+		throw NotAScalar<T>();
 	}
 
-	private static bool TryRead<T, TValue>(Reader<TValue> reader, Address address, out T value, out string? failure)
+	private static UnreachableException NotAScalar<T>()
 	{
-		if (reader(address, out TValue readValue, out MemoryAccessFailure sdkFailure))
+		return new UnreachableException(
+			$"'{typeof(T).FullName}' is not a built-in CheatEngine.Client scalar; the Core client admits the type first.");
+	}
+
+	private static bool TryRead<T, TValue>(Reader<TValue> reader, Address address, out T value,
+		out MemoryAccessFailure failure)
+	{
+		if (reader(address, out TValue readValue, out failure))
 		{
 			value = Unsafe.As<TValue, T>(ref readValue);
-			failure = null;
 			return true;
 		}
 
 		value = default!;
-		failure = sdkFailure.ToString();
 		return false;
 	}
 
-	private static bool TryWrite<T, TValue>(Writer<TValue> writer, Address address, T value, out string? failure)
+	private static bool TryWrite<T, TValue>(Writer<TValue> writer, Address address, T value,
+		out MemoryAccessFailure failure)
 	{
 		TValue writeValue = Unsafe.As<T, TValue>(ref value);
-		if (writer(address, writeValue, out MemoryAccessFailure sdkFailure))
-		{
-			failure = null;
-			return true;
-		}
-
-		failure = sdkFailure.ToString();
-		return false;
+		return writer(address, writeValue, out failure);
 	}
 
 	private delegate bool Reader<T>(Address address, out T value, out MemoryAccessFailure failure);
@@ -250,27 +251,13 @@ internal sealed class SdkMemoryCodecContextPort : IMemoryCodecContextPort
 		return SdkRuntimeObservationPort.Instance.TryGetConfiguredPointerSize(out rawBytes, out pointerSize);
 	}
 
-	public bool TryReadBytes(Address address, Span<byte> destination, out string? failure)
+	public bool TryReadBytes(Address address, Span<byte> destination, out MemoryAccessFailure failure)
 	{
-		if (TargetMemory.TryReadBytes(address, destination, out MemoryAccessFailure sdkFailure))
-		{
-			failure = null;
-			return true;
-		}
-
-		failure = sdkFailure.ToString();
-		return false;
+		return TargetMemory.TryReadBytes(address, destination, out failure);
 	}
 
-	public bool TryWriteBytes(Address address, ReadOnlySpan<byte> source, out string? failure)
+	public bool TryWriteBytes(Address address, ReadOnlySpan<byte> source, out MemoryAccessFailure failure)
 	{
-		if (TargetMemory.TryWriteBytes(address, source, out MemoryAccessFailure sdkFailure))
-		{
-			failure = null;
-			return true;
-		}
-
-		failure = sdkFailure.ToString();
-		return false;
+		return TargetMemory.TryWriteBytes(address, source, out failure);
 	}
 }

@@ -6,6 +6,7 @@ using CheatEngine.Client.Core.Tests.TestSupport;
 using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Memory;
 using CheatEngine.Client.Results;
+using CheatEngine.SDK.Engine.Memory;
 using CheatEngine.SDK.Engine.Values;
 
 namespace CheatEngine.Client.Core.Tests.Domains;
@@ -356,47 +357,47 @@ public sealed class MemoryClientResourceLimitsAndBatchOutcomeTests
 			private set;
 		}
 
-		public bool TryReadBytes(Address address, Span<byte> destination, out string? failure)
+		public bool TryReadBytes(Address address, Span<byte> destination, out MemoryAccessFailure failure)
 		{
 			RawReadInvocationCount++;
 			destination.Clear();
-			failure = null;
+			failure = MemoryAccessFailure.None;
 			return true;
 		}
 
-		public bool TryReadPrimitive<T>(Address address, out T value, out string? failure)
+		public bool TryReadPrimitive<T>(Address address, out T value, out MemoryAccessFailure failure)
 		{
 			int index = ReadInvocationCount++;
 			if (index == ReadFailureIndex)
 			{
 				value = default!;
-				failure = $"Read failure {index}.";
+				failure = MemoryAccessFailure.ReadFailed;
 				return false;
 			}
 
 			value = (T) (object) (100 + index);
-			failure = null;
+			failure = MemoryAccessFailure.None;
 			return true;
 		}
 
-		public bool TryWriteBytes(Address address, ReadOnlySpan<byte> source, out string? failure)
+		public bool TryWriteBytes(Address address, ReadOnlySpan<byte> source, out MemoryAccessFailure failure)
 		{
 			RawWriteInvocationCount++;
-			failure = null;
+			failure = MemoryAccessFailure.None;
 			return true;
 		}
 
-		public bool TryWritePrimitive<T>(Address address, T value, out string? failure)
+		public bool TryWritePrimitive<T>(Address address, T value, out MemoryAccessFailure failure)
 		{
 			int index = WriteInvocationCount++;
 			if (index == WriteFailureIndex)
 			{
-				failure = $"Write failure {index}.";
+				failure = MemoryAccessFailure.WriteFailed;
 				return false;
 			}
 
 			CommittedValues.Add((int) (object) value!);
-			failure = null;
+			failure = MemoryAccessFailure.None;
 			return true;
 		}
 	}
