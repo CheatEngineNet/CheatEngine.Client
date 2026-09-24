@@ -343,10 +343,10 @@ atomic.
 - **Returned as `CheatEngineFailure`:** request refusals, policy refusals, budget refusals, pre-admission cancellation,
   Cheat Engine results that are false, absent, indeterminate, or malformed, and every CheatEngine.SDK exception raised by
   Client-internal SDK work (mapped by exception type and the SDK's own failure category, never by message text). No
-  SDK exception type crosses a `Try*`. A Lua admission that the Client asks for itself (unsafe Lua) and that
-  CheatEngine.SDK refuses is `ActivationExpired`, `RuntimeChanged` or `InvalidState` with `NotStarted`, never
-  `OperationRejected`. Every other CheatEngine.SDK call (Address List mutations, table files, memory, inspection,
-  scans) acquires its own admission and raises a plain `InvalidOperationException` when it is refused: that is
+  SDK exception type crosses a `Try*`. A Lua admission that the Client asks for itself (for example unsafe Lua)
+  and that CheatEngine.SDK refuses is `ActivationExpired`, `RuntimeChanged` or `InvalidState` with `NotStarted`,
+  never `OperationRejected`. A CheatEngine.SDK call that acquires its own admission (Address List mutations, table
+  files, memory, inspection, scans) raises a plain `InvalidOperationException` when it is refused: that is
   `OperationRejected` with `Unknown` while the activation is current, `RuntimeChanged` after CheatEngine.SDK
   detected an external Lua state reset, and a thrown `CheatEngineActivationExpiredException` once the activation
   ended.

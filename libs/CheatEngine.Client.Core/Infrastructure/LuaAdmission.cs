@@ -45,12 +45,12 @@ namespace CheatEngine.Client.Core.Infrastructure;
 ///         A refusal is never <see cref="CheatEngineFailureKind.OperationRejected" />: nothing reached Cheat Engine.
 ///     </para>
 ///     <para>
-///         It classifies only the admissions Core asks for itself (unsafe Lua execution). A CheatEngine.SDK command that
-///         acquires its own admission, such as an <c>AddressListMutations</c> command or a <c>CheatTableFiles</c> call,
-///         raises a plain <see cref="InvalidOperationException" /> when it is refused: <see cref="SdkBoundary" /> reports
-///         it as <see cref="CheatEngineFailureKind.OperationRejected" /> with an unknown effect, unless the activation
-///         ended (<see cref="CheatEngineActivationExpiredException" />) or the SDK detected an external Lua state reset
-///         (<see cref="CheatEngineFailureKind.RuntimeChanged" />).
+///         It classifies only the admissions Core asks for itself, such as unsafe Lua execution. A CheatEngine.SDK
+///         command that acquires its own admission, such as an <c>AddressListMutations</c> command or a
+///         <c>CheatTableFiles</c> call, raises a plain <see cref="InvalidOperationException" /> when it is refused:
+///         <see cref="SdkBoundary" /> reports it as <see cref="CheatEngineFailureKind.OperationRejected" /> with an
+///         unknown effect, unless the activation ended (<see cref="CheatEngineActivationExpiredException" />) or the SDK
+///         detected an external Lua state reset (<see cref="CheatEngineFailureKind.RuntimeChanged" />).
 ///     </para>
 /// </remarks>
 internal static class LuaAdmission
