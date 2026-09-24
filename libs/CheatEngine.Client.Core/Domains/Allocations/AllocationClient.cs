@@ -14,7 +14,9 @@ namespace CheatEngine.Client.Core.Domains.Allocations;
 ///     <para>
 ///         A published allocation is registered with the activation and with the target selection it was made in, in the
 ///         same main-thread callback that made it, so no path leaves it without an owner: a registration that fails, and
-///         a cancellation observed after the allocation, release it at once.
+///         a cancellation observed after the allocation, release it at once. An ended or stopping activation is refused
+///         in that callback before Cheat Engine allocates, since no lease could own the allocation; a registration refused
+///         after the allocation reports the release and the address (<see cref="LeaseRegistration" />).
 ///     </para>
 ///     <para>
 ///         The target selection is the one of the process incarnation that CheatEngine.SDK bound the allocation to
@@ -94,6 +96,9 @@ internal sealed class AllocationClient : IAllocationClient
 		}
 
 		CoreLifetime lifetime = _dispatcher.Lifetime;
+		// No lease can be registered once the activation stops or ends (a deactivation cleanup scope included): refuse
+		// before Cheat Engine allocates anything that no lease could own.
+		lifetime.ThrowIfInactive(AllocateOperation);
 		AllocationAttempt attempt;
 		IAllocatedRegionHandle? region;
 		try
@@ -121,26 +126,33 @@ internal sealed class AllocationClient : IAllocationClient
 				AllocationMapping.CancelledAfterAllocation(released, attempt.Address, request.Size, AllocateOperation));
 		}
 
-		TargetSelectionBinding binding;
-		TargetMemoryLease lease;
+		TargetSelectionBinding binding = default;
 		try
 		{
 			binding = _selection.BindOwner(region.TargetIncarnation, AllocateOperation);
-			lease = new TargetMemoryLease(_dispatcher, region, attempt.Address, request, binding.SelectionEpoch);
+			TargetMemoryLease lease = new(_dispatcher, region, attempt.Address, request, binding.SelectionEpoch);
 			lease.Register(lifetime, binding.SelectionEpoch);
+			return new AllocateOutcome(lease, default)
+			{
+				Binding = binding
+			};
 		}
-		catch (Exception)
+		catch (Exception registration)
 		{
 			// The activation or the target selection ended while the allocation was made: release it here, on the main
 			// thread, since no registry will.
-			_ = region.Release();
-			throw;
-		}
+			LeaseReleaseOutcome released = SdkReleaseOutcomes.FromTarget(region.Release());
+			if (registration is not (CheatEngineClientException or ObjectDisposedException))
+			{
+				throw;
+			}
 
-		return new AllocateOutcome(lease, default)
-		{
-			Binding = binding
-		};
+			return new AllocateOutcome(null, LeaseRegistration.Refused(lifetime, AllocateOperation, registration,
+				released, AllocationMapping.Describe(attempt.Address, request.Size)))
+			{
+				Binding = binding
+			};
+		}
 	}
 
 	private readonly record struct AllocateOutcome(TargetMemoryLease? Lease, CheatEngineFailure Failure)

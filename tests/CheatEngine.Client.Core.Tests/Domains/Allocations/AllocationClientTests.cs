@@ -28,6 +28,7 @@ public sealed class AllocationClientTests : IDisposable
 {
 	private readonly AllocationClient _client;
 	private readonly ControlledCoreLifetimeContext _context = new();
+	private readonly SdkMainThreadDispatcher _dispatcher;
 	private readonly CoreLifetime _lifetime;
 	private readonly FakeAllocationPort _port = new();
 	private readonly ProcessClient _processes;
@@ -36,9 +37,9 @@ public sealed class AllocationClientTests : IDisposable
 	public AllocationClientTests()
 	{
 		_lifetime = new CoreLifetime(_context);
-		SdkMainThreadDispatcher dispatcher = new(_lifetime, new InlineMainThreadInvoker());
-		_processes = FakeSelectedTarget.CreateProcessClient(dispatcher, _target);
-		_client = new AllocationClient(dispatcher, _processes, _port);
+		_dispatcher = new SdkMainThreadDispatcher(_lifetime, new InlineMainThreadInvoker());
+		_processes = FakeSelectedTarget.CreateProcessClient(_dispatcher, _target);
+		_client = new AllocationClient(_dispatcher, _processes, _port);
 	}
 
 	private FakeAllocatedRegion Region => _port.Region;
@@ -466,6 +467,59 @@ public sealed class AllocationClientTests : IDisposable
 		Assert.Equal(0, Region.ReleaseCalls);
 	}
 
+	[Fact]
+	[Trait("Qualification", "Q43")]
+	public void AnAllocationDuringTheDeactivationCleanupIsRefusedBeforeCheatEngineAllocates()
+	{
+		_context.Stop();
+		using (_lifetime.EnterCleanupScope())
+		{
+			Assert.Throws<CheatEngineClientLifecycleException>(() =>
+				_client.TryAllocate(new AllocationRequest(64), out _, out _, Token));
+		}
+
+		Assert.Equal(0, _port.Allocations);
+	}
+
+	[Theory]
+	[Trait("Qualification", "Q43")]
+	[InlineData(TargetReleaseStatus.Released, "which was released at once")]
+	[InlineData(TargetReleaseStatus.UnconfirmedAfterInvocation, "64 bytes at 0x7FF000001000")]
+	public void AnActivationStoppingDuringTheAllocationThrowsWhatTheReleaseLeft(TargetReleaseStatus release,
+		string expected)
+	{
+		_port.DuringAllocate = _context.Stop;
+		Region.ReleaseStatus = release;
+
+		CheatEngineClientLifecycleException stopping = Assert.Throws<CheatEngineClientLifecycleException>(() =>
+			_client.TryAllocate(new AllocationRequest(64), out _, out _, Token));
+
+		Assert.Contains(expected, stopping.Message, StringComparison.Ordinal);
+		Assert.Equal(AllocationClient.AllocateOperation, stopping.Failure.Operation);
+		Assert.Equal(1, Region.ReleaseCalls);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q30.a")]
+	public void ARegistrationRefusedByAnotherSelectionIsAFailureThatCarriesTheAddress()
+	{
+		AllocationClient client = new(_dispatcher, new StaleSelectionBinder(), _port);
+		Region.ReleaseStatus = TargetReleaseStatus.RefusedTargetChanged;
+
+		bool allocated = client.TryAllocate(new AllocationRequest(64), out ITargetMemoryLease? lease,
+			out CheatEngineFailure failure, Token);
+
+		Assert.False(allocated);
+		Assert.Null(lease);
+		Assert.Equal(CheatEngineFailureKind.TargetChanged, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.CleanupUnconfirmed, failure.HostEffect);
+		Assert.Contains("64 bytes at 0x7FF000001000", failure.Message, StringComparison.Ordinal);
+		Assert.IsType<CheatEngineClientLifecycleException>(failure.Exception);
+		Assert.Equal(1, Region.ReleaseCalls);
+		Assert.Equal(0, Region.Deallocations);
+		Assert.Throws<CheatEngineOperationException>(() => client.Allocate(new AllocationRequest(64), Token));
+	}
+
 	private CheatEngineOperationException DrainExpectingOneReport()
 	{
 		_context.Stop();
@@ -488,5 +542,18 @@ public sealed class AllocationClientTests : IDisposable
 
 		Assert.NotNull(report);
 		return Assert.IsType<CheatEngineOperationException>(Assert.Single(report.InnerExceptions));
+	}
+
+	/// <summary>A binder that keys every owner to an epoch the selection already left.</summary>
+	private sealed class StaleSelectionBinder : ITargetSelectionBinder
+	{
+		public TargetSelectionBinding BindOwner(TargetProcessIncarnation incarnation, string operation)
+		{
+			return new TargetSelectionBinding(-1, null);
+		}
+
+		public void ReportBinding(TargetSelectionBinding binding, string operation)
+		{
+		}
 	}
 }

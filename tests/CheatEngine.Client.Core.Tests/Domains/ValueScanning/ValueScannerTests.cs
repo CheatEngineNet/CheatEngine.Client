@@ -631,6 +631,33 @@ public sealed class ValueScannerTests : IDisposable
 		Assert.Equal(ValueScanSessionState.ResultsReady, forSecond.State);
 	}
 
+	[Fact]
+	[Trait("Qualification", "Q43")]
+	public void ASessionDuringTheDeactivationCleanupIsRefusedBeforeCheatEngineCreatesIt()
+	{
+		_context.Stop();
+		using (_lifetime.EnterCleanupScope())
+		{
+			Assert.Throws<CheatEngineClientLifecycleException>(() => _scanner.TryCreateSession(out _, out _, Token));
+		}
+
+		Assert.Equal(0, _port.Creations);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q43")]
+	public void AnActivationStoppingDuringTheCreationReleasesTheSessionAndThrows()
+	{
+		_port.DuringCreate = _context.Stop;
+
+		CheatEngineClientLifecycleException stopping = Assert.Throws<CheatEngineClientLifecycleException>(() =>
+			_scanner.TryCreateSession(out _, out _, Token));
+
+		Assert.Contains("the new scan session, which was released at once", stopping.Message, StringComparison.Ordinal);
+		Assert.Equal(ValueScanner.CreateOperation, stopping.Failure.Operation);
+		Assert.Equal(1, Handle.Destroys);
+	}
+
 	private IValueScanSession CreateSession()
 	{
 		Assert.True(_scanner.TryCreateSession(out IValueScanSession? session, out CheatEngineFailure failure, Token),

@@ -209,7 +209,7 @@ internal static class AllocationMapping
 	}
 
 	/// <summary>Describes an allocation for a failure message: its size and hexadecimal target address.</summary>
-	private static string Describe(Address address, long size)
+	internal static string Describe(Address address, long size)
 	{
 		return string.Create(CultureInfo.InvariantCulture, $"{size} bytes at 0x{address.Value:X}");
 	}

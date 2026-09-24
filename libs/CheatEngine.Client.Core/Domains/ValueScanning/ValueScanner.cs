@@ -14,7 +14,9 @@ namespace CheatEngine.Client.Core.Domains.ValueScanning;
 ///     <para>
 ///         A created session is registered with the activation and with the target selection it was created for, in the
 ///         same main-thread callback that created it, so no path leaves its Cheat Engine objects without an owner: a
-///         registration that fails, and a cancellation observed after the creation, release them at once.
+///         registration that fails, and a cancellation observed after the creation, release them at once. An ended or
+///         stopping activation is refused in that callback before Cheat Engine creates anything, since no lease could own
+///         it; a registration refused after the creation reports the release (<see cref="LeaseRegistration" />).
 ///     </para>
 ///     <para>
 ///         The target selection is the one of the process incarnation that CheatEngine.SDK bound the session to
@@ -87,6 +89,9 @@ internal sealed class ValueScanner : IValueScanner
 		}
 
 		CoreLifetime lifetime = _dispatcher.Lifetime;
+		// No lease can be registered once the activation stops or ends (a deactivation cleanup scope included): refuse
+		// before Cheat Engine creates objects that no lease could own.
+		lifetime.ThrowIfInactive(CreateOperation);
 		MemoryScanCreationStatus status;
 		IValueScanSessionHandle? handle;
 		try
@@ -118,25 +123,33 @@ internal sealed class ValueScanner : IValueScanner
 					CheatEngineHostEffect.CleanupUnconfirmed));
 		}
 
-		TargetSelectionBinding binding;
+		TargetSelectionBinding binding = default;
 		ValueScanSession session = new(_dispatcher, handle);
 		try
 		{
 			binding = _selection.BindOwner(handle.TargetIncarnation, CreateOperation);
 			session.Register(lifetime, binding.SelectionEpoch);
+			return new CreateOutcome(session, default)
+			{
+				Binding = binding
+			};
 		}
-		catch (Exception)
+		catch (Exception registration)
 		{
 			// The activation or the target selection ended while the session was created: release it here, on the
 			// main thread, since no registry will.
-			_ = handle.Release();
-			throw;
-		}
+			LeaseReleaseOutcome released = ValueScanMapping.FromRelease(handle.Release());
+			if (registration is not (CheatEngineClientException or ObjectDisposedException))
+			{
+				throw;
+			}
 
-		return new CreateOutcome(session, default)
-		{
-			Binding = binding
-		};
+			return new CreateOutcome(null, LeaseRegistration.Refused(lifetime, CreateOperation, registration,
+				released, "the new scan session"))
+			{
+				Binding = binding
+			};
+		}
 	}
 
 	private readonly record struct CreateOutcome(ValueScanSession? Session, CheatEngineFailure Failure)
