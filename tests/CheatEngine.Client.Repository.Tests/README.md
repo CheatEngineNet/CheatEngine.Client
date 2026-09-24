@@ -30,6 +30,10 @@ read committed files: the project never builds, packs, restores or starts a proc
   `TemplateSdkConstraintDoesNotExceedTheRepositorySdk`), readable template defaults
   (`TemplateProjectDefaultsMatchTheCentralVersions`), one description per package, the license holder as copyright, the
   `artifacts/nuget` output folder, Source Link from the .NET SDK, and the same SPDX SBOM settings in both profiles.
+- `Packaging/PublicApiFileTests` keeps the PublicAPI baselines truthful before the first release: every shipping library
+  declares both files and a project that packs no assembly declares none, entries are ordinally sorted, no `*REMOVED*`
+  entry and no `PublicAPI.Shipped.txt` entry exists until `CHANGELOG.md` records a dated release, and the files that
+  still suppress RS0026/RS0027 may only shrink.
 - `Release/ReleaseWorkflowTests` proves that `release.yml` keeps the contract job order, calls `ci.yml` with the
   package version and a 90-day retention but no Sonar, confines the `nuget` environment and secrets to `publish`, never
   caches packages, and pushes the seven packages in dependency order (audit A21-06).
