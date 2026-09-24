@@ -473,8 +473,7 @@ public sealed class PublicClientSignatureBoundaryTests
 		}
 
 		if (definition.Assembly.GetName().Name?.StartsWith("CheatEngine.SDK", StringComparison.Ordinal) == true &&
-			(!definition.IsValueType || !ApprovedSdkValueTypes.Contains(typeName)) &&
-			!IsShippedRuntimeCapabilitiesDebt(definition, declaringMember))
+			(!definition.IsValueType || !ApprovedSdkValueTypes.Contains(typeName)))
 		{
 			violations.Add($"{source} exposes non-approved SDK type '{typeName}'.");
 			return true;
@@ -640,22 +639,6 @@ public sealed class PublicClientSignatureBoundaryTests
 	{
 		_ = declaringMember;
 		return false;
-	}
-
-	private static bool IsShippedRuntimeCapabilitiesDebt(Type type, MemberInfo? declaringMember)
-	{
-		// PublicAPI.Shipped preserves this one legacy class reference. It is deliberately a member-level exception:
-		// every other SDK reference type remains prohibited by this recursive boundary test.
-		return type.FullName == "CheatEngine.SDK.Engine.Runtime.RuntimeCapabilities" &&
-			   declaringMember?.DeclaringType?.FullName == "CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot" &&
-			   declaringMember switch
-			   {
-				   FieldInfo { Name: "<SdkCapabilities>k__BackingField" } => true,
-				   ConstructorInfo => true,
-				   MethodInfo { Name: "get_SdkCapabilities" } => true,
-				   PropertyInfo { Name: "SdkCapabilities" } => true,
-				   _ => false
-			   };
 	}
 
 	private static void AssertViolation(Type type, string expectedFragment)

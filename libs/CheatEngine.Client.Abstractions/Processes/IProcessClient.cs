@@ -109,4 +109,22 @@ public interface IProcessClient
 
 	/// <summary>Attaches to the single exact-name match or throws when none or several exist.</summary>
 	public ProcessSnapshot AttachExactName(string processName, CancellationToken cancellationToken = default);
+
+	/// <summary>Tries to enumerate copied local-process metadata within an explicit materialization bound.</summary>
+	/// <remarks>
+	///     This is an offline diagnostic of the local operating-system process catalog. It neither dispatches to Cheat
+	///     Engine nor observes, selects or proves a Cheat Engine target, needs no current activation, and its values
+	///     remain ordinary managed snapshots after the plugin is disabled. The catalog never describes a CEServer target
+	///     or a file opened as a process, and a local identifier equal to a Cheat Engine target identifier is not evidence
+	///     that both name the same process. Request validation occurs first; cancellation is then observed before catalog
+	///     access and between Client-managed materialization steps and reported as
+	///     <see cref="CheatEngineFailureKind.Cancelled" /> with <see cref="CheatEngineHostEffect.NotStarted" />. A
+	///     catalog that cannot be read is <see cref="CheatEngineFailureKind.OperationRejected" />.
+	/// </remarks>
+	public bool TryGetLocalProcesses(ProcessEnumerationRequest request, out ProcessEnumerationResult result,
+		out CheatEngineFailure failure, CancellationToken cancellationToken = default);
+
+	/// <summary>Enumerates copied local-process metadata within an explicit materialization bound.</summary>
+	public ProcessEnumerationResult GetLocalProcesses(ProcessEnumerationRequest request,
+		CancellationToken cancellationToken = default);
 }

@@ -7,14 +7,10 @@ public sealed class ClientCapabilitiesTests
 	[Fact]
 	public void CollectionPreservesDistinctObservedCapabilitiesAndTheirReasons()
 	{
-		ClientCapabilityAvailability unsafeLua = new(
-			ClientCapabilityId.UnsafeLuaExecution,
-			ClientCapabilityAvailabilityState.Available,
-			"Explicit opt-in.");
-		ClientCapabilityAvailability valueScanning = new(
-			ClientCapabilityId.ValueScanning,
-			ClientCapabilityAvailabilityState.Unavailable,
-			"Live ownership gate pending.");
+		ClientCapabilityAvailability unsafeLua = Create(ClientCapabilityId.UnsafeLuaExecution,
+			ClientCapabilityEvidenceState.Satisfied, "Explicit opt-in.");
+		ClientCapabilityAvailability valueScanning = Create(ClientCapabilityId.ValueScanning,
+			ClientCapabilityEvidenceState.Missing, "Live ownership gate pending.");
 
 		ClientCapabilities capabilities = ClientCapabilities.Create([unsafeLua, valueScanning]);
 
@@ -28,6 +24,7 @@ public sealed class ClientCapabilitiesTests
 		Assert.Equal(valueScanning, foundValueScanning);
 		Assert.False(foundValueScanning.IsAvailable);
 		Assert.True(foundValueScanning.IsKnown);
+		Assert.Equal("Live ownership gate pending.", foundValueScanning.Reason);
 	}
 
 	[Fact]
@@ -85,23 +82,28 @@ public sealed class ClientCapabilitiesTests
 	[Fact]
 	public void CollectionRejectsDuplicateCapabilityIdentifiers()
 	{
-		ClientCapabilityAvailability observation = new(
-			ClientCapabilityId.ValueScanning,
-			ClientCapabilityAvailabilityState.Unavailable,
-			"Live ownership gate pending.");
+		ClientCapabilityAvailability observation = Create(ClientCapabilityId.ValueScanning,
+			ClientCapabilityEvidenceState.Missing, "Live ownership gate pending.");
 
 		Assert.Throws<ArgumentException>(() => ClientCapabilities.Create([observation, observation]));
 	}
 
 	[Theory]
-	[InlineData(3)]
-	[InlineData(255)]
-	public void AvailabilityRejectsUndefinedStates(byte state)
+	[InlineData(5)]
+	[InlineData(-1)]
+	public void EvidenceGateRejectsUndefinedStates(int state)
 	{
-		Assert.Throws<ArgumentOutOfRangeException>(() => new ClientCapabilityAvailability(
-			ClientCapabilityId.ValueScanning,
-			(ClientCapabilityAvailabilityState) state,
-			"Invalid test state."));
+		Assert.Throws<ArgumentOutOfRangeException>(() => new ClientCapabilityEvidenceGate(
+			(ClientCapabilityEvidenceState) state, "Invalid test state."));
+	}
+
+	[Fact]
+	public void AvailabilityRejectsAnEmptyCapabilityIdentifier()
+	{
+		ClientCapabilityEvidenceGate gate = new(ClientCapabilityEvidenceState.Unknown, "Not established.");
+
+		Assert.Throws<ArgumentException>(() => new ClientCapabilityAvailability(default,
+			new ClientCapabilityEvidence(gate, gate, gate, gate, gate, gate)));
 	}
 
 	[Fact]
@@ -113,6 +115,14 @@ public sealed class ClientCapabilitiesTests
 
 		Assert.Equal("Client.Sample", capability.Value);
 		Assert.Equal(capability.Value, capability.ToString());
+	}
+
+	private static ClientCapabilityAvailability Create(ClientCapabilityId capability, ClientCapabilityEvidenceState state,
+		string reason)
+	{
+		ClientCapabilityEvidenceGate gate = new(state, reason);
+		return new ClientCapabilityAvailability(capability, new ClientCapabilityEvidence(gate, gate, gate, gate, gate,
+			gate));
 	}
 
 	[Fact]

@@ -1,5 +1,4 @@
 using CheatEngine.Client.Results;
-using CheatEngine.SDK.Engine.Runtime;
 
 namespace CheatEngine.Client.Runtime;
 
@@ -24,18 +23,6 @@ public interface ICheatEngineRuntime
 
 	/// <summary>Captures the runtime facts or throws when they are unavailable.</summary>
 	public CheatEngineRuntimeSnapshot GetSnapshot(CancellationToken cancellationToken = default);
-
-	/// <summary>Reads one SDK capability observation without exposing its backing Lua global.</summary>
-	public bool TryGetSdkCapability(
-		RuntimeCapabilityId capability,
-		out RuntimeCapabilityAvailability availability,
-		out CheatEngineFailure failure,
-		CancellationToken cancellationToken = default);
-
-	/// <summary>Reads one SDK capability observation or throws when it cannot be observed.</summary>
-	public RuntimeCapabilityAvailability GetSdkCapability(
-		RuntimeCapabilityId capability,
-		CancellationToken cancellationToken = default);
 
 	/// <summary>Reads one Client capability observation without exposing internal adapters or handles.</summary>
 	public bool TryGetClientCapability(

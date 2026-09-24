@@ -2,80 +2,107 @@ using CheatEngine.SDK.Engine.Runtime;
 
 namespace CheatEngine.Client.Runtime;
 
-/// <summary>Immutable platform observations captured during one active Cheat Engine activation.</summary>
+/// <summary>Immutable host and target platform observations captured during one active Cheat Engine activation.</summary>
 /// <remarks>
 ///     <para>
-///         The host architecture, the target ISA, the target process width, the target ABI and Cheat Engine's configured
-///         pointer size are independent observations (audit F08). A fact that was not observed stays unknown; none of
-///         them is inferred from another.
+///         Every fact is one Cheat Engine global that CheatEngine.SDK read, and none is inferred from another (audit F08):
+///         the host operating system, whether Cheat Engine itself is 64-bit, the host architecture, the target backend,
+///         the target ISA, the target bitness, the target ABI, whether the target is Android, and Cheat Engine's
+///         configured pointer size. A fact that was not observed stays unknown or <see langword="null" />.
 ///     </para>
 ///     <para>
 ///         Cheat Engine's configured pointer size is per-attachment state: any (re)attach resets it to the target
-///         default, so a Client attach silently undoes an earlier override. What it affects besides the value that
-///         Cheat Engine reports is not established, and it never changes <see cref="TargetPointerSize" />.
+///         default, so a Client attach silently undoes an earlier override. Cheat Engine's <c>readPointer</c> follows the
+///         bitness, not the configured size, and the configured size never changes <see cref="TargetBitness" />.
 ///     </para>
 /// </remarks>
 public readonly record struct CheatEngineRuntimePlatformInfo
 {
-	/// <summary>Creates runtime platform observations from copied host facts, without a configured pointer size.</summary>
-	/// <exception cref="ArgumentException">
-	///     <paramref name="targetArchitecture" /> and <paramref name="targetPointerSize" /> are both known and the width
-	///     differs from the natural width of that architecture.
-	/// </exception>
-	public CheatEngineRuntimePlatformInfo(
-		CheatEngineArchitecture systemArchitecture,
-		CheatEngineArchitecture targetArchitecture,
-		PointerSize targetPointerSize,
-		TargetAbi targetAbi)
-		: this(systemArchitecture, targetArchitecture, targetPointerSize, targetAbi, null)
-	{
-	}
-
 	/// <summary>Creates runtime platform observations from copied host facts.</summary>
-	/// <param name="systemArchitecture">The Cheat Engine host architecture.</param>
-	/// <param name="targetArchitecture">The target ISA derived from the observed ISA families, or unknown.</param>
-	/// <param name="targetPointerSize">The target process width, or unknown.</param>
-	/// <param name="targetAbi">The target ABI, or unknown.</param>
+	/// <param name="hostOperatingSystem">The operating system Cheat Engine reports (<c>getOperatingSystem</c>).</param>
+	/// <param name="isCheatEngine64Bit">
+	///     Whether Cheat Engine itself is 64-bit (<c>cheatEngineIs64Bit</c>), or <see langword="null" /> when unknown.
+	/// </param>
+	/// <param name="systemArchitecture">The Cheat Engine host architecture (<c>getSystemArchitecture</c>).</param>
+	/// <param name="targetBackend">How Cheat Engine reaches the selected target, or unknown.</param>
+	/// <param name="targetArchitecture">The target ISA CheatEngine.SDK derived from the family facts, or unknown.</param>
+	/// <param name="targetBitness">The target bitness (<c>targetIs64Bit</c>), or unknown.</param>
+	/// <param name="targetAbi">The target ABI (<c>getABI</c>), or unknown.</param>
+	/// <param name="targetIsAndroid">
+	///     Whether the target is Android (<c>targetIsAndroid</c>), or <see langword="null" /> when unknown.
+	/// </param>
 	/// <param name="configuredPointerSizeBytes">
 	///     The raw value of Cheat Engine's configured pointer size, or <see langword="null" /> when it was not observed.
 	///     Any integer is kept, because Cheat Engine accepts any integer as its configured pointer size.
 	/// </param>
 	/// <exception cref="ArgumentException">
-	///     <paramref name="targetArchitecture" /> and <paramref name="targetPointerSize" /> are both known and the width
+	///     <paramref name="targetArchitecture" /> and <paramref name="targetBitness" /> are both known and the bitness
 	///     differs from the natural width of that architecture (4 bytes for X86 and Arm32, 8 bytes for X64 and Arm64).
 	/// </exception>
 	public CheatEngineRuntimePlatformInfo(
+		CheatEngineOperatingSystem hostOperatingSystem,
+		bool? isCheatEngine64Bit,
 		CheatEngineArchitecture systemArchitecture,
+		TargetBackend targetBackend,
 		CheatEngineArchitecture targetArchitecture,
-		PointerSize targetPointerSize,
+		PointerSize targetBitness,
 		TargetAbi targetAbi,
+		bool? targetIsAndroid,
 		int? configuredPointerSizeBytes)
 	{
-		if (GetNaturalWidth(targetArchitecture) is { } naturalBytes && targetPointerSize.IsKnown &&
-			targetPointerSize.Bytes != naturalBytes)
+		if (GetNaturalWidth(targetArchitecture) is { } naturalBytes && targetBitness.IsKnown &&
+			targetBitness.Bytes != naturalBytes)
 		{
 			throw new ArgumentException(
-				"A known target pointer size must match the natural width of a known target architecture.",
-				nameof(targetPointerSize));
+				"A known target bitness must match the natural width of a known target architecture.",
+				nameof(targetBitness));
 		}
 
+		HostOperatingSystem = hostOperatingSystem;
+		IsCheatEngine64Bit = isCheatEngine64Bit;
 		SystemArchitecture = systemArchitecture;
+		TargetBackend = targetBackend;
 		TargetArchitecture = targetArchitecture;
-		TargetPointerSize = targetPointerSize;
+		TargetBitness = targetBitness;
 		TargetAbi = targetAbi;
+		TargetIsAndroid = targetIsAndroid;
 		ConfiguredPointerSizeBytes = configuredPointerSizeBytes;
 	}
 
-	/// <summary>Gets the CE host architecture observed from CE's system-architecture global.</summary>
+	/// <summary>Gets the operating system Cheat Engine reports it runs on, or unknown.</summary>
+	public CheatEngineOperatingSystem HostOperatingSystem
+	{
+		get;
+	}
+
+	/// <summary>
+	///     Gets whether the Cheat Engine process itself is 64-bit (<c>cheatEngineIs64Bit</c>), or
+	///     <see langword="null" /> when unknown; never derived from <see cref="SystemArchitecture" />.
+	/// </summary>
+	public bool? IsCheatEngine64Bit
+	{
+		get;
+	}
+
+	/// <summary>Gets the Cheat Engine host architecture (<c>getSystemArchitecture</c>), or unknown.</summary>
 	public CheatEngineArchitecture SystemArchitecture
 	{
 		get;
 	}
 
 	/// <summary>
-	///     Gets the target ISA derived from Cheat Engine's <c>targetIsX86</c>/<c>targetIsArm</c> family facts and its
-	///     <c>targetIs64Bit</c> fact; unknown when a fact is missing or the families are contradictory. It is never
-	///     derived from the 64-bit fact alone.
+	///     Gets how Cheat Engine reaches the selected target: a local process, a file opened as a process, CEServer, or
+	///     unknown when no target is selected or the backend fact is not established.
+	/// </summary>
+	public TargetBackend TargetBackend
+	{
+		get;
+	}
+
+	/// <summary>
+	///     Gets the target ISA CheatEngine.SDK derived from Cheat Engine's <c>targetIsX86</c>/<c>targetIsArm</c> family
+	///     facts and its <c>targetIs64Bit</c> fact; unknown when a fact is missing or the families are contradictory.
+	///     It is never derived from the 64-bit fact alone.
 	/// </summary>
 	public CheatEngineArchitecture TargetArchitecture
 	{
@@ -83,17 +110,22 @@ public readonly record struct CheatEngineRuntimePlatformInfo
 	}
 
 	/// <summary>
-	///     Gets the process width observed from Cheat Engine's <c>targetIs64Bit</c> for the selected target (the width
-	///     Cheat Engine's <c>readPointer</c> uses); not Cheat Engine's configured pointer size. Unknown when no target is
-	///     selected or the fact was not observed.
+	///     Gets the target bitness (<c>targetIs64Bit</c>, the width Cheat Engine's <c>readPointer</c> follows); not Cheat
+	///     Engine's configured pointer size. Unknown when no target is selected or the fact was not observed.
 	/// </summary>
-	public PointerSize TargetPointerSize
+	public PointerSize TargetBitness
 	{
 		get;
 	}
 
-	/// <summary>Gets the target ABI observed from CE's ABI global, or unknown.</summary>
+	/// <summary>Gets the target ABI (<c>getABI</c>), or unknown.</summary>
 	public TargetAbi TargetAbi
+	{
+		get;
+	}
+
+	/// <summary>Gets whether the target is Android (<c>targetIsAndroid</c>), or <see langword="null" /> when unknown.</summary>
+	public bool? TargetIsAndroid
 	{
 		get;
 	}
@@ -123,12 +155,12 @@ public readonly record struct CheatEngineRuntimePlatformInfo
 	};
 
 	/// <summary>
-	///     Gets whether Cheat Engine's configured pointer size differs from <see cref="TargetPointerSize" />, or
-	///     <see langword="null" /> when either value is unknown.
+	///     Gets whether Cheat Engine's configured pointer size differs from <see cref="TargetBitness" /> (audit Q31.a),
+	///     or <see langword="null" /> when either value is unknown.
 	/// </summary>
-	public bool? ConfiguredPointerSizeDiffersFromTargetPointerSize =>
-		ConfiguredPointerSizeBytes is { } configured && TargetPointerSize.IsKnown
-			? configured != TargetPointerSize.Bytes
+	public bool? ConfiguredPointerSizeDiffersFromBitness =>
+		ConfiguredPointerSizeBytes is { } configured && TargetBitness.IsKnown
+			? configured != TargetBitness.Bytes
 			: null;
 
 	private static int? GetNaturalWidth(CheatEngineArchitecture architecture)

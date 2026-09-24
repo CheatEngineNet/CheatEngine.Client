@@ -85,11 +85,17 @@ public readonly record struct ClientCapabilityEvidence
 	/// <summary>Gets whether every prerequisite has been independently established.</summary>
 	public bool IsExecutable => AllSatisfied;
 
-	/// <summary>Gets the reason for the highest-priority missing, faulted, malformed, or unknown prerequisite.</summary>
-	public string EffectiveReason => GetGate(EffectiveReasonCode).Reason;
+	/// <summary>
+	///     Gets the reason for the highest-priority missing, faulted, malformed, or unknown prerequisite; empty for the
+	///     uninitialized default value.
+	/// </summary>
+	public string EffectiveReason => EffectiveReasonCode == ClientCapabilityEvidenceReasonCode.Unknown
+		? string.Empty
+		: GetGate(EffectiveReasonCode).Reason;
 
 	/// <summary>
-	///     Gets the stable code for the evidence gate that supplies <see cref="EffectiveReason" />. Its state remains
+	///     Gets the stable code for the evidence gate that supplies <see cref="EffectiveReason" />, or
+	///     <see cref="ClientCapabilityEvidenceReasonCode.Unknown" /> for the uninitialized default value. Its state remains
 	///     available through the corresponding evidence-gate property.
 	/// </summary>
 	public ClientCapabilityEvidenceReasonCode EffectiveReasonCode => GetEffectiveReasonCode();
@@ -100,6 +106,12 @@ public readonly record struct ClientCapabilityEvidence
 
 	private ClientCapabilityEvidenceReasonCode GetEffectiveReasonCode()
 	{
+		// The constructor requires a reason for every gate, so a gate without one is the uninitialized default value.
+		if (Implementation.Reason is null)
+		{
+			return ClientCapabilityEvidenceReasonCode.Unknown;
+		}
+
 		if (Lifetime.State == ClientCapabilityEvidenceState.Missing)
 		{
 			return ClientCapabilityEvidenceReasonCode.Lifetime;

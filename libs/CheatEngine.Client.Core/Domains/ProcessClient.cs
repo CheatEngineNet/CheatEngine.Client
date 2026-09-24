@@ -252,6 +252,30 @@ internal sealed class ProcessClient : IProcessClient
 		return default;
 	}
 
+	public bool TryGetLocalProcesses(
+		ProcessEnumerationRequest request,
+		out ProcessEnumerationResult result,
+		out CheatEngineFailure failure,
+		CancellationToken cancellationToken = default)
+	{
+		// An offline diagnostic of the local catalog: no activation admission and no Cheat Engine dispatch.
+		return LocalProcessCatalog.TryEnumerate(_host, request, out result, out failure, cancellationToken);
+	}
+
+	public ProcessEnumerationResult GetLocalProcesses(
+		ProcessEnumerationRequest request,
+		CancellationToken cancellationToken = default)
+	{
+		if (TryGetLocalProcesses(request, out ProcessEnumerationResult result, out CheatEngineFailure failure,
+				cancellationToken))
+		{
+			return result;
+		}
+
+		failure.Throw(cancellationToken);
+		return default;
+	}
+
 	private bool TryReadCurrent(
 		string operation,
 		out ProcessSnapshot snapshot,
@@ -353,7 +377,7 @@ internal sealed class ProcessClient : IProcessClient
 
 		ProcessSnapshot snapshot = ObserveSelection(
 			new ProcessSelection(id, target.Backend, target.Architecture, target.Bitness, incarnation.Incarnation),
-			process, operation, out SelectionAdvance? advance);
+			process, target.ConfiguredPointerSizeBytes, operation, out SelectionAdvance? advance);
 		return new CurrentProcessCapture(snapshot)
 		{
 			Advance = advance
@@ -452,8 +476,8 @@ internal sealed class ProcessClient : IProcessClient
 	///     unknown fact neither advances the epoch nor erases the last fact known for the same selection, so a transient
 	///     observation failure does not invalidate target-bound leases and does not weaken the identity to the PID alone.
 	/// </summary>
-	private ProcessSnapshot ObserveSelection(ProcessSelection observed, LocalProcessInfo process, string operation,
-		out SelectionAdvance? advance)
+	private ProcessSnapshot ObserveSelection(ProcessSelection observed, LocalProcessInfo process,
+		int? configuredPointerSizeBytes, string operation, out SelectionAdvance? advance)
 	{
 		advance = null;
 		lock (_selectionGate)
@@ -472,8 +496,21 @@ internal sealed class ProcessClient : IProcessClient
 			}
 
 			_lastSelection = selection;
-			return new ProcessSnapshot(selection.Id, process.Name, process.ExecutablePath, selection.Architecture,
-				selection.Width, _selectionLifetime.Epoch);
+			// The configured pointer size is a fact of this observation, not of the selection identity, so it is never
+			// merged with an earlier value. Local metadata and the start time describe a local process only.
+			bool isLocal = selection.Backend == TargetBackend.LocalProcess;
+			return new ProcessSnapshot(
+				selection.Id,
+				isLocal ? process.Name : null,
+				isLocal ? process.ExecutablePath : null,
+				selection.Backend,
+				selection.Architecture,
+				selection.Width,
+				configuredPointerSizeBytes,
+				isLocal && selection.Incarnation is { } incarnation
+					? new DateTimeOffset(incarnation.StartedAtUtcTicks, TimeSpan.Zero)
+					: null,
+				_selectionLifetime.Epoch);
 		}
 	}
 

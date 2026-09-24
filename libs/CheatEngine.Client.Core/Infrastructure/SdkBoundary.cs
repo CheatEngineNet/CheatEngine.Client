@@ -36,6 +36,12 @@ namespace CheatEngine.Client.Core.Infrastructure;
 /// </remarks>
 internal static class SdkBoundary
 {
+	/// <summary>
+	///     Gets the SDK's sticky external Lua state reset fact (<see cref="LuaRuntime.ExternalStateResetDetected" />), the
+	///     same fact this boundary classifies faults with; the runtime snapshot reports it (A8).
+	/// </summary>
+	internal static bool ExternalStateResetDetected => LuaRuntime.ExternalStateResetDetected;
+
 	/// <summary>Gets whether <paramref name="exception" /> is an SDK or host fault that a <c>Try*</c> method must translate.</summary>
 	internal static bool IsSdkFault(Exception exception)
 	{

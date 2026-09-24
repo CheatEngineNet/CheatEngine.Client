@@ -100,6 +100,13 @@ internal class FakeRuntimeObservationPort : TargetObservationDouble, IRuntimeObs
 		get;
 	} = [];
 
+	/// <summary>Gets or sets whether CheatEngine.SDK detected an external Lua state reset.</summary>
+	public bool ExternalStateResetDetected
+	{
+		get;
+		set;
+	}
+
 	/// <summary>Gets or sets the incarnation of a local target; <see langword="null" /> leaves it unqualified.</summary>
 	internal TargetProcessIncarnation? Incarnation
 	{

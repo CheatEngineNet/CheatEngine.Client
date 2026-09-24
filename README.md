@@ -187,8 +187,9 @@ All Client operations are synchronous. For stateful Client operations, request v
 admission, then caller-cancellation observation, and only then policy checks or Cheat Engine work. A stale activation
 therefore throws `CheatEngineActivationExpiredException` even when the requested capability is currently gated. A
 cancellation token can prevent dispatch or stop Client-managed work between steps, but it does not claim to interrupt
-a Lua primitive that has already started. `ILocalProcessDiagnostics` is the explicit exception: it is an offline BCL
-catalog service, never a proof of Cheat Engine target identity, and its copied snapshots remain usable after disable.
+a Lua primitive that has already started. `IProcessClient.TryGetLocalProcesses` is the explicit exception: it is an
+offline BCL catalog read, never a proof of Cheat Engine target identity, and its copied snapshots remain usable after
+disable.
 Services that touch Cheat Engine must preserve this activation-lifecycle contract.
 
 ### Failures, exceptions and cancellation

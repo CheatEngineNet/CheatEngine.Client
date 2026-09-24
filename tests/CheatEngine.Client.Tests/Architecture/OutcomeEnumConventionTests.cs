@@ -47,9 +47,6 @@ public sealed partial class OutcomeEnumConventionTests
 		["CheatEngine.Client.Inspection.SymbolLeaseReleaseKind"] =
 			"backed by byte; removed with IDetailedSymbolRegistrationLease (L12)",
 		["CheatEngine.Client.Memory.MemoryBatchWriteEffectState"] = "Unknown is 3, not 0 (L10)",
-		["CheatEngine.Client.Runtime.ClientCapabilityAvailabilityState"] = "backed by byte (L19)",
-		["CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode"] = "backed by byte (L19)",
-		["CheatEngine.Client.Runtime.ClientCapabilityEvidenceState"] = "backed by byte (L19)",
 		["CheatEngine.Client.Scanning.ValueScanSessionState"] = "no Unknown = 0 (L15)"
 	};
 

@@ -345,17 +345,16 @@ CheatEngine.Client.Memory.PointerChainRequest.PointerChainRequest(CheatEngine.SD
 CheatEngine.Client.Modules.ICheatEngineClientModule
 CheatEngine.Client.Modules.ICheatEngineClientModule.OnDisabling(CheatEngine.Client.ICheatEngineClient! client) -> void
 CheatEngine.Client.Modules.ICheatEngineClientModule.OnEnabled(CheatEngine.Client.ICheatEngineClient! client) -> void
-CheatEngine.Client.Processes.ILocalProcessDiagnostics
-CheatEngine.Client.Processes.ILocalProcessDiagnostics.GetProcesses(CheatEngine.Client.Processes.ProcessEnumerationRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Processes.ProcessEnumerationResult
-CheatEngine.Client.Processes.ILocalProcessDiagnostics.TryGetProcesses(CheatEngine.Client.Processes.ProcessEnumerationRequest request, out CheatEngine.Client.Processes.ProcessEnumerationResult result, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
 CheatEngine.Client.Processes.IProcessClient
 CheatEngine.Client.Processes.IProcessClient.Attach(CheatEngine.SDK.Engine.Inspection.TargetProcessId processId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Processes.ProcessSnapshot
 CheatEngine.Client.Processes.IProcessClient.AttachExactName(string! processName, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Processes.ProcessSnapshot
 CheatEngine.Client.Processes.IProcessClient.GetCurrent(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Processes.ProcessSnapshot
+CheatEngine.Client.Processes.IProcessClient.GetLocalProcesses(CheatEngine.Client.Processes.ProcessEnumerationRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Processes.ProcessEnumerationResult
 CheatEngine.Client.Processes.IProcessClient.Refresh(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Processes.ProcessSnapshot
 CheatEngine.Client.Processes.IProcessClient.TryAttach(CheatEngine.SDK.Engine.Inspection.TargetProcessId processId, out CheatEngine.Client.Processes.ProcessSnapshot snapshot, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
 CheatEngine.Client.Processes.IProcessClient.TryAttachExactName(string! processName, out CheatEngine.Client.Processes.ProcessSnapshot snapshot, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
 CheatEngine.Client.Processes.IProcessClient.TryGetCurrent(out CheatEngine.Client.Processes.ProcessSnapshot snapshot, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
+CheatEngine.Client.Processes.IProcessClient.TryGetLocalProcesses(CheatEngine.Client.Processes.ProcessEnumerationRequest request, out CheatEngine.Client.Processes.ProcessEnumerationResult result, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
 CheatEngine.Client.Processes.IProcessClient.TryRefresh(out CheatEngine.Client.Processes.ProcessSnapshot snapshot, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
 CheatEngine.Client.Processes.LocalProcessId
 CheatEngine.Client.Processes.LocalProcessId.Equals(CheatEngine.Client.Processes.LocalProcessId other) -> bool
@@ -382,17 +381,20 @@ CheatEngine.Client.Processes.ProcessInfoSnapshot.Name.get -> string?
 CheatEngine.Client.Processes.ProcessInfoSnapshot.ProcessInfoSnapshot() -> void
 CheatEngine.Client.Processes.ProcessInfoSnapshot.ProcessInfoSnapshot(CheatEngine.Client.Processes.LocalProcessId id, string? name, string? executablePath) -> void
 CheatEngine.Client.Processes.ProcessSnapshot
+CheatEngine.Client.Processes.ProcessSnapshot.Architecture.get -> CheatEngine.SDK.Engine.Runtime.CheatEngineArchitecture
+CheatEngine.Client.Processes.ProcessSnapshot.Backend.get -> CheatEngine.SDK.Engine.Runtime.TargetBackend
+CheatEngine.Client.Processes.ProcessSnapshot.Bitness.get -> CheatEngine.SDK.Engine.Runtime.PointerSize
+CheatEngine.Client.Processes.ProcessSnapshot.ConfiguredPointerSize.get -> CheatEngine.SDK.Engine.Runtime.PointerSize
+CheatEngine.Client.Processes.ProcessSnapshot.ConfiguredPointerSizeBytes.get -> int?
+CheatEngine.Client.Processes.ProcessSnapshot.ConfiguredPointerSizeDiffersFromBitness.get -> bool?
 CheatEngine.Client.Processes.ProcessSnapshot.Equals(CheatEngine.Client.Processes.ProcessSnapshot other) -> bool
 CheatEngine.Client.Processes.ProcessSnapshot.ExecutablePath.get -> string?
 CheatEngine.Client.Processes.ProcessSnapshot.Id.get -> CheatEngine.SDK.Engine.Inspection.TargetProcessId
 CheatEngine.Client.Processes.ProcessSnapshot.Name.get -> string?
 CheatEngine.Client.Processes.ProcessSnapshot.ProcessSnapshot() -> void
-CheatEngine.Client.Processes.ProcessSnapshot.ProcessSnapshot(CheatEngine.SDK.Engine.Inspection.TargetProcessId id, string? name, string? executablePath) -> void
-CheatEngine.Client.Processes.ProcessSnapshot.ProcessSnapshot(CheatEngine.SDK.Engine.Inspection.TargetProcessId id, string? name, string? executablePath, CheatEngine.SDK.Engine.Runtime.CheatEngineArchitecture targetArchitecture, CheatEngine.SDK.Engine.Runtime.PointerSize targetPointerSize, long selectionEpoch) -> void
-CheatEngine.Client.Processes.ProcessSnapshot.ProcessSnapshot(CheatEngine.SDK.Engine.Inspection.TargetProcessId id, string? name, string? executablePath, CheatEngine.SDK.Engine.Runtime.CheatEngineArchitecture targetArchitecture, long selectionEpoch) -> void
+CheatEngine.Client.Processes.ProcessSnapshot.ProcessSnapshot(CheatEngine.SDK.Engine.Inspection.TargetProcessId id, string? name, string? executablePath, CheatEngine.SDK.Engine.Runtime.TargetBackend backend, CheatEngine.SDK.Engine.Runtime.CheatEngineArchitecture architecture, CheatEngine.SDK.Engine.Runtime.PointerSize bitness, int? configuredPointerSizeBytes, System.DateTimeOffset? startTimeUtc, long selectionEpoch) -> void
 CheatEngine.Client.Processes.ProcessSnapshot.SelectionEpoch.get -> long
-CheatEngine.Client.Processes.ProcessSnapshot.TargetArchitecture.get -> CheatEngine.SDK.Engine.Runtime.CheatEngineArchitecture
-CheatEngine.Client.Processes.ProcessSnapshot.TargetPointerSize.get -> CheatEngine.SDK.Engine.Runtime.PointerSize
+CheatEngine.Client.Processes.ProcessSnapshot.StartTimeUtc.get -> System.DateTimeOffset?
 CheatEngine.Client.Results.CheatEngineActivationExpiredException
 CheatEngine.Client.Results.CheatEngineActivationExpiredException.CheatEngineActivationExpiredException(string! operation, string! message, System.Exception? innerException = null) -> void
 CheatEngine.Client.Results.CheatEngineClientException
@@ -466,46 +468,46 @@ CheatEngine.Client.Results.LeaseReleaseOutcome.Kind.get -> CheatEngine.Client.Re
 CheatEngine.Client.Results.LeaseReleaseOutcome.LeaseReleaseOutcome() -> void
 CheatEngine.Client.Results.LeaseReleaseOutcome.LeaseReleaseOutcome(CheatEngine.Client.Results.LeaseReleaseKind kind, CheatEngine.Client.Results.CheatEngineHostEffect hostEffect) -> void
 CheatEngine.Client.Results.LeaseReleaseOutcome.RequiresManualRecovery.get -> bool
+CheatEngine.Client.Runtime.CheatEngineRuntimeLuaInfo
+CheatEngine.Client.Runtime.CheatEngineRuntimeLuaInfo.CheatEngineRuntimeLuaInfo() -> void
+CheatEngine.Client.Runtime.CheatEngineRuntimeLuaInfo.CheatEngineRuntimeLuaInfo(bool externalStateResetDetected) -> void
+CheatEngine.Client.Runtime.CheatEngineRuntimeLuaInfo.Equals(CheatEngine.Client.Runtime.CheatEngineRuntimeLuaInfo other) -> bool
+CheatEngine.Client.Runtime.CheatEngineRuntimeLuaInfo.ExternalStateResetDetected.get -> bool
 CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo
 CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.CheatEngineRuntimePlatformInfo() -> void
-CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.CheatEngineRuntimePlatformInfo(CheatEngine.SDK.Engine.Runtime.CheatEngineArchitecture systemArchitecture, CheatEngine.SDK.Engine.Runtime.CheatEngineArchitecture targetArchitecture, CheatEngine.SDK.Engine.Runtime.PointerSize targetPointerSize, CheatEngine.SDK.Engine.Runtime.TargetAbi targetAbi) -> void
-CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.CheatEngineRuntimePlatformInfo(CheatEngine.SDK.Engine.Runtime.CheatEngineArchitecture systemArchitecture, CheatEngine.SDK.Engine.Runtime.CheatEngineArchitecture targetArchitecture, CheatEngine.SDK.Engine.Runtime.PointerSize targetPointerSize, CheatEngine.SDK.Engine.Runtime.TargetAbi targetAbi, int? configuredPointerSizeBytes) -> void
+CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.CheatEngineRuntimePlatformInfo(CheatEngine.SDK.Engine.Runtime.CheatEngineOperatingSystem hostOperatingSystem, bool? isCheatEngine64Bit, CheatEngine.SDK.Engine.Runtime.CheatEngineArchitecture systemArchitecture, CheatEngine.SDK.Engine.Runtime.TargetBackend targetBackend, CheatEngine.SDK.Engine.Runtime.CheatEngineArchitecture targetArchitecture, CheatEngine.SDK.Engine.Runtime.PointerSize targetBitness, CheatEngine.SDK.Engine.Runtime.TargetAbi targetAbi, bool? targetIsAndroid, int? configuredPointerSizeBytes) -> void
 CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.ConfiguredPointerSize.get -> CheatEngine.SDK.Engine.Runtime.PointerSize
 CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.ConfiguredPointerSizeBytes.get -> int?
-CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.ConfiguredPointerSizeDiffersFromTargetPointerSize.get -> bool?
+CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.ConfiguredPointerSizeDiffersFromBitness.get -> bool?
 CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.Equals(CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo other) -> bool
+CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.HostOperatingSystem.get -> CheatEngine.SDK.Engine.Runtime.CheatEngineOperatingSystem
+CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.IsCheatEngine64Bit.get -> bool?
 CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.SystemArchitecture.get -> CheatEngine.SDK.Engine.Runtime.CheatEngineArchitecture
 CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.TargetAbi.get -> CheatEngine.SDK.Engine.Runtime.TargetAbi
 CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.TargetArchitecture.get -> CheatEngine.SDK.Engine.Runtime.CheatEngineArchitecture
-CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.TargetPointerSize.get -> CheatEngine.SDK.Engine.Runtime.PointerSize
+CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.TargetBackend.get -> CheatEngine.SDK.Engine.Runtime.TargetBackend
+CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.TargetBitness.get -> CheatEngine.SDK.Engine.Runtime.PointerSize
+CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.TargetIsAndroid.get -> bool?
 CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot
+CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.Capabilities.get -> CheatEngine.Client.Runtime.ClientCapabilities!
 CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.CheatEngineRuntimeSnapshot() -> void
-CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.CheatEngineRuntimeSnapshot(long epoch, CheatEngine.Client.Runtime.CheatEngineRuntimeVersionInfo versionInfo, CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo platformInfo, CheatEngine.SDK.Engine.Runtime.RuntimeCapabilities! sdkCapabilities, CheatEngine.Client.Runtime.ClientCapabilities! clientCapabilities) -> void
-CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.CheatEngineVersion.get -> CheatEngine.SDK.Engine.Runtime.CheatEngineVersion?
-CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.ClientAssemblyVersion.get -> System.Version!
-CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.ClientCapabilities.get -> CheatEngine.Client.Runtime.ClientCapabilities!
-CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.ConfiguredPointerSize.get -> CheatEngine.SDK.Engine.Runtime.PointerSize
+CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.CheatEngineRuntimeSnapshot(long epoch, CheatEngine.Client.Runtime.CheatEngineRuntimeVersionInfo version, CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo platform, CheatEngine.Client.Runtime.ClientCapabilities! capabilities, CheatEngine.Client.Runtime.CheatEngineRuntimeLuaInfo lua) -> void
 CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.Epoch.get -> long
 CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.Equals(CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot other) -> bool
-CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.IsOnQualifiedCheatEngineLine.get -> bool
+CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.Lua.get -> CheatEngine.Client.Runtime.CheatEngineRuntimeLuaInfo
 CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.Platform.get -> CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo
-CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.QualifiedCheatEngineBaseline.get -> CheatEngine.SDK.Engine.Runtime.CheatEngineVersion
-CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.SdkAssemblyVersion.get -> System.Version!
-CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.SdkCapabilities.get -> CheatEngine.SDK.Engine.Runtime.RuntimeCapabilities!
-CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.SystemArchitecture.get -> CheatEngine.SDK.Engine.Runtime.CheatEngineArchitecture
-CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.TargetAbi.get -> CheatEngine.SDK.Engine.Runtime.TargetAbi
-CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.TargetArchitecture.get -> CheatEngine.SDK.Engine.Runtime.CheatEngineArchitecture
-CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.TargetPointerSize.get -> CheatEngine.SDK.Engine.Runtime.PointerSize
 CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.Version.get -> CheatEngine.Client.Runtime.CheatEngineRuntimeVersionInfo
 CheatEngine.Client.Runtime.CheatEngineRuntimeVersionInfo
 CheatEngine.Client.Runtime.CheatEngineRuntimeVersionInfo.CheatEngineRuntimeVersionInfo() -> void
-CheatEngine.Client.Runtime.CheatEngineRuntimeVersionInfo.CheatEngineRuntimeVersionInfo(CheatEngine.SDK.Engine.Runtime.CheatEngineVersion? cheatEngineVersion, CheatEngine.SDK.Engine.Runtime.CheatEngineVersion qualifiedCheatEngineBaseline, System.Version! clientAssemblyVersion, System.Version! sdkAssemblyVersion) -> void
+CheatEngine.Client.Runtime.CheatEngineRuntimeVersionInfo.CheatEngineRuntimeVersionInfo(CheatEngine.SDK.Engine.Runtime.CheatEngineVersion? cheatEngineVersion, CheatEngine.SDK.Engine.Runtime.CheatEngineVersion qualifiedCheatEngineBaseline, System.Version! clientAssemblyVersion, System.Version! sdkAssemblyVersion, string? sdkPackageVersion, bool isReviewedSdkPackage) -> void
 CheatEngine.Client.Runtime.CheatEngineRuntimeVersionInfo.CheatEngineVersion.get -> CheatEngine.SDK.Engine.Runtime.CheatEngineVersion?
 CheatEngine.Client.Runtime.CheatEngineRuntimeVersionInfo.ClientAssemblyVersion.get -> System.Version!
 CheatEngine.Client.Runtime.CheatEngineRuntimeVersionInfo.Equals(CheatEngine.Client.Runtime.CheatEngineRuntimeVersionInfo other) -> bool
 CheatEngine.Client.Runtime.CheatEngineRuntimeVersionInfo.IsOnQualifiedCheatEngineLine.get -> bool
+CheatEngine.Client.Runtime.CheatEngineRuntimeVersionInfo.IsReviewedSdkPackage.get -> bool
 CheatEngine.Client.Runtime.CheatEngineRuntimeVersionInfo.QualifiedCheatEngineBaseline.get -> CheatEngine.SDK.Engine.Runtime.CheatEngineVersion
 CheatEngine.Client.Runtime.CheatEngineRuntimeVersionInfo.SdkAssemblyVersion.get -> System.Version!
+CheatEngine.Client.Runtime.CheatEngineRuntimeVersionInfo.SdkPackageVersion.get -> string?
 CheatEngine.Client.Runtime.ClientCapabilities
 CheatEngine.Client.Runtime.ClientCapabilities.Count.get -> int
 CheatEngine.Client.Runtime.ClientCapabilities.Entries.get -> System.ReadOnlySpan<CheatEngine.Client.Runtime.ClientCapabilityAvailability>
@@ -514,7 +516,6 @@ CheatEngine.Client.Runtime.ClientCapabilities.TryGet(CheatEngine.Client.Runtime.
 CheatEngine.Client.Runtime.ClientCapabilityAvailability
 CheatEngine.Client.Runtime.ClientCapabilityAvailability.Capability.get -> CheatEngine.Client.Runtime.ClientCapabilityId
 CheatEngine.Client.Runtime.ClientCapabilityAvailability.ClientCapabilityAvailability() -> void
-CheatEngine.Client.Runtime.ClientCapabilityAvailability.ClientCapabilityAvailability(CheatEngine.Client.Runtime.ClientCapabilityId capability, CheatEngine.Client.Runtime.ClientCapabilityAvailabilityState state, string! reason) -> void
 CheatEngine.Client.Runtime.ClientCapabilityAvailability.ClientCapabilityAvailability(CheatEngine.Client.Runtime.ClientCapabilityId capability, CheatEngine.Client.Runtime.ClientCapabilityEvidence evidence) -> void
 CheatEngine.Client.Runtime.ClientCapabilityAvailability.Equals(CheatEngine.Client.Runtime.ClientCapabilityAvailability other) -> bool
 CheatEngine.Client.Runtime.ClientCapabilityAvailability.Evidence.get -> CheatEngine.Client.Runtime.ClientCapabilityEvidence
@@ -548,12 +549,13 @@ CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate.IsSatisfied.get -> bool
 CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate.Reason.get -> string!
 CheatEngine.Client.Runtime.ClientCapabilityEvidenceGate.State.get -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceState
 CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode
-CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode.Host = 2 -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode
-CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode.Implementation = 0 -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode
-CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode.Lifetime = 5 -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode
-CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode.LiveQualification = 3 -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode
-CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode.Package = 1 -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode
-CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode.Policy = 4 -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode
+CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode.Host = 3 -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode
+CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode.Implementation = 1 -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode
+CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode.Lifetime = 6 -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode
+CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode.LiveQualification = 4 -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode
+CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode.Package = 2 -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode
+CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode.Policy = 5 -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode
+CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode.Unknown = 0 -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode
 CheatEngine.Client.Runtime.ClientCapabilityEvidenceState
 CheatEngine.Client.Runtime.ClientCapabilityEvidenceState.Faulted = 3 -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceState
 CheatEngine.Client.Runtime.ClientCapabilityEvidenceState.Malformed = 4 -> CheatEngine.Client.Runtime.ClientCapabilityEvidenceState
@@ -569,10 +571,8 @@ CheatEngine.Client.Runtime.ClientCapabilityId.Value.get -> string!
 CheatEngine.Client.Runtime.ICheatEngineRuntime
 CheatEngine.Client.Runtime.ICheatEngineRuntime.Epoch.get -> long
 CheatEngine.Client.Runtime.ICheatEngineRuntime.GetClientCapability(CheatEngine.Client.Runtime.ClientCapabilityId capability, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Runtime.ClientCapabilityAvailability
-CheatEngine.Client.Runtime.ICheatEngineRuntime.GetSdkCapability(CheatEngine.SDK.Engine.Runtime.RuntimeCapabilityId capability, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.SDK.Engine.Runtime.RuntimeCapabilityAvailability
 CheatEngine.Client.Runtime.ICheatEngineRuntime.GetSnapshot(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot
 CheatEngine.Client.Runtime.ICheatEngineRuntime.TryGetClientCapability(CheatEngine.Client.Runtime.ClientCapabilityId capability, out CheatEngine.Client.Runtime.ClientCapabilityAvailability availability, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
-CheatEngine.Client.Runtime.ICheatEngineRuntime.TryGetSdkCapability(CheatEngine.SDK.Engine.Runtime.RuntimeCapabilityId capability, out CheatEngine.SDK.Engine.Runtime.RuntimeCapabilityAvailability availability, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
 CheatEngine.Client.Runtime.ICheatEngineRuntime.TryGetSnapshot(out CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot snapshot, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
 CheatEngine.Client.Scanning.AobPattern
 CheatEngine.Client.Scanning.AobPattern.AobPattern() -> void
@@ -836,6 +836,7 @@ override CheatEngine.Client.Results.CheatEngineFailure.GetHashCode() -> int
 override CheatEngine.Client.Results.CheatEngineFailure.ToString() -> string!
 override CheatEngine.Client.Results.LeaseReleaseOutcome.GetHashCode() -> int
 override CheatEngine.Client.Results.LeaseReleaseOutcome.ToString() -> string!
+override CheatEngine.Client.Runtime.CheatEngineRuntimeLuaInfo.GetHashCode() -> int
 override CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.GetHashCode() -> int
 override CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.GetHashCode() -> int
 override CheatEngine.Client.Runtime.CheatEngineRuntimeVersionInfo.GetHashCode() -> int
@@ -919,6 +920,8 @@ static CheatEngine.Client.Results.CheatEngineFailure.operator !=(CheatEngine.Cli
 static CheatEngine.Client.Results.CheatEngineFailure.operator ==(CheatEngine.Client.Results.CheatEngineFailure left, CheatEngine.Client.Results.CheatEngineFailure right) -> bool
 static CheatEngine.Client.Results.LeaseReleaseOutcome.operator !=(CheatEngine.Client.Results.LeaseReleaseOutcome left, CheatEngine.Client.Results.LeaseReleaseOutcome right) -> bool
 static CheatEngine.Client.Results.LeaseReleaseOutcome.operator ==(CheatEngine.Client.Results.LeaseReleaseOutcome left, CheatEngine.Client.Results.LeaseReleaseOutcome right) -> bool
+static CheatEngine.Client.Runtime.CheatEngineRuntimeLuaInfo.operator !=(CheatEngine.Client.Runtime.CheatEngineRuntimeLuaInfo left, CheatEngine.Client.Runtime.CheatEngineRuntimeLuaInfo right) -> bool
+static CheatEngine.Client.Runtime.CheatEngineRuntimeLuaInfo.operator ==(CheatEngine.Client.Runtime.CheatEngineRuntimeLuaInfo left, CheatEngine.Client.Runtime.CheatEngineRuntimeLuaInfo right) -> bool
 static CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.operator !=(CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo left, CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo right) -> bool
 static CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.operator ==(CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo left, CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo right) -> bool
 static CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.operator !=(CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot left, CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot right) -> bool
@@ -1035,6 +1038,8 @@ static CheatEngine.Client.Tables.TrustedTableFile.operator ==(CheatEngine.Client
 ~override CheatEngine.Client.Results.CheatEngineFailure.Equals(object obj) -> bool
 ~override CheatEngine.Client.Results.CheatEngineFailure.ToString() -> string
 ~override CheatEngine.Client.Results.LeaseReleaseOutcome.Equals(object obj) -> bool
+~override CheatEngine.Client.Runtime.CheatEngineRuntimeLuaInfo.Equals(object obj) -> bool
+~override CheatEngine.Client.Runtime.CheatEngineRuntimeLuaInfo.ToString() -> string
 ~override CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.Equals(object obj) -> bool
 ~override CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.ToString() -> string
 ~override CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.Equals(object obj) -> bool

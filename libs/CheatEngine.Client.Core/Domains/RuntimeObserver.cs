@@ -21,7 +21,7 @@ namespace CheatEngine.Client.Core.Domains;
 ///         <c>RuntimeHostOperations.ObserveHost</c>, and each fact alone when that fails too, and the target through
 ///         <see cref="TargetArchitectureObserver" />. The host evidence of process selection then comes from the target
 ///         observation's status (<see cref="RuntimeObservationMapping.ToHostEvidenceState(ProcessOperationStatusKind)" />)
-///         instead of the SDK's capability list, which is empty.
+///         instead of the SDK's capability list.
 ///     </para>
 /// </remarks>
 internal static class RuntimeObserver
@@ -46,12 +46,11 @@ internal static class RuntimeObserver
 					RuntimeCapabilityAvailabilityState.Unavailable
 						? ProcessOperationStatus.GlobalUnavailable
 						: ProcessOperationStatus.TargetNotAttached, default, null);
-			return new ObservedRuntime(status, host, target, info.Capabilities,
-				FromSdkCapability(info.Capabilities));
+			return new ObservedRuntime(status, host, target, FromSdkCapability(info.Capabilities));
 		}
 
 		ObservedTarget observed = TargetArchitectureObserver.Observe(port);
-		return new ObservedRuntime(status, ObserveHost(port), observed, RuntimeCapabilities.Empty,
+		return new ObservedRuntime(status, ObserveHost(port), observed,
 			FromTargetObservation(status, observed.Status));
 	}
 
@@ -116,11 +115,12 @@ internal static class RuntimeObserver
 /// <param name="RuntimeInfoStatus">The status of <c>RuntimeObservations.TryObserveRuntimeInfo</c>.</param>
 /// <param name="Host">The host facts; a fact that could not be read is <see langword="null" /> or unknown.</param>
 /// <param name="Target">The target observation.</param>
-/// <param name="Capabilities">The SDK's capability observations, empty when the SDK produced no snapshot.</param>
-/// <param name="ProcessSelectionHost">The host evidence of the selected-process primitive.</param>
+/// <param name="ProcessSelectionHost">
+///     The host evidence of the selected-process primitive: the SDK's <c>Process.Current</c> capability entry, or the
+///     status of the target observation when the SDK produced no snapshot.
+/// </param>
 internal sealed record ObservedRuntime(
 	ProcessOperationStatus RuntimeInfoStatus,
 	CheatEngineHostObservation Host,
 	ObservedTarget Target,
-	RuntimeCapabilities Capabilities,
 	ClientCapabilityEvidenceGate ProcessSelectionHost);

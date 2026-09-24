@@ -54,6 +54,13 @@ public sealed class SdkRuntimeObservationPortTests
 	}
 
 	[Fact]
+	public void TheExternalStateResetFactIsReadWithoutALuaAdmission()
+	{
+		// The SDK's sticky reset fact is lock-free and readable on any thread; no Lua state was ever replaced here.
+		Assert.False(SdkRuntimeObservationPort.Instance.ExternalStateResetDetected);
+	}
+
+	[Fact]
 	[Trait("Qualification", "Q30.a")]
 	public void TheSelectionPortRequiresAnEnabledPluginContext()
 	{

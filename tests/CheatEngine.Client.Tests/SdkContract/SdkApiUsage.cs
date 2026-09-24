@@ -149,13 +149,9 @@ internal static class SdkApiUsage
 		_ = PointerSize.Unknown;
 		_ = pointerSize.Bytes;
 		_ = pointerSize.IsKnown;
-		RuntimeCapabilityAvailability availability = new(id, RuntimeCapabilityAvailabilityState.Unknown,
-			RuntimeCapabilityContract.Unknown);
+		_ = capabilities.TryGet(id, out RuntimeCapabilityAvailability availability);
 		_ = availability.State;
-		_ = RuntimeCapabilities.Empty;
-		_ = capabilities.TryGet(id, out _);
 		_ = capabilities.GetState(id);
-		_ = id.IsEmpty;
 		_ = RuntimeCapabilityId.CurrentProcess;
 		_ = RuntimeCapabilityId.TargetArchitecture;
 		_ = info.Capabilities;
@@ -163,7 +159,9 @@ internal static class SdkApiUsage
 		_ = info.Target;
 		_ = new CheatEngineHostObservation(version, CheatEngineArchitecture.X64, true,
 			CheatEngineOperatingSystem.Windows);
+		_ = host.CheatEngineIs64Bit;
 		_ = host.FileVersion;
+		_ = host.OperatingSystem;
 		_ = host.SystemArchitecture;
 		_ = new TargetArchitectureObservation(new TargetProcessId(1), TargetBackend.LocalProcess, pointerSize, true,
 			false, false, 0, 8);
@@ -174,6 +172,7 @@ internal static class SdkApiUsage
 		_ = target.ConfiguredPointerSize;
 		_ = target.ConfiguredPointerSizeBytes;
 		_ = target.ConfiguredPointerSizeDiffersFromBitness;
+		_ = target.IsAndroid;
 		_ = target.ProcessId;
 	}
 
@@ -213,6 +212,7 @@ internal static class SdkApiUsage
 		_ = observation.Incarnation;
 		_ = observation.SelectedProcessId;
 		_ = observation.Status;
+		_ = incarnation.StartedAtUtcTicks;
 		_ = incarnation != other;
 	}
 

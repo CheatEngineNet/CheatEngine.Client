@@ -801,6 +801,8 @@ public sealed class TryContractTests
 			throw Fault();
 		}
 
+		public bool ExternalStateResetDetected => throw Fault();
+
 		public ProcessOperationStatus TryObserveRuntimeInfo(out RuntimeInfo? info)
 		{
 			throw Fault();

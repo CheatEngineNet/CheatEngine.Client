@@ -39,15 +39,19 @@ public sealed class RuntimeClientTests
 		Assert.Equal(default, failure);
 		Assert.Equal(84, snapshot.Epoch);
 		Assert.Equal(new CheatEngineVersion(7, 7, 0, 10621), snapshot.Version.CheatEngineVersion);
-		Assert.Equal(new CheatEngineVersion(7, 7, 0, 10621), snapshot.QualifiedCheatEngineBaseline);
-		Assert.True(snapshot.IsOnQualifiedCheatEngineLine);
-		Assert.Equal(CheatEngineArchitecture.X64, snapshot.SystemArchitecture);
-		Assert.Equal(CheatEngineArchitecture.X64, snapshot.TargetArchitecture);
-		Assert.Equal(PointerSize.Bit64, snapshot.TargetPointerSize);
-		Assert.Equal(TargetAbi.Windows, snapshot.TargetAbi);
+		Assert.Equal(new CheatEngineVersion(7, 7, 0, 10621), snapshot.Version.QualifiedCheatEngineBaseline);
+		Assert.True(snapshot.Version.IsOnQualifiedCheatEngineLine);
+		Assert.Equal(CheatEngineArchitecture.X64, snapshot.Platform.SystemArchitecture);
+		Assert.Equal(CheatEngineArchitecture.X64, snapshot.Platform.TargetArchitecture);
+		Assert.Equal(PointerSize.Bit64, snapshot.Platform.TargetBitness);
+		Assert.Equal(TargetAbi.Windows, snapshot.Platform.TargetAbi);
 		Assert.Equal(8, snapshot.Platform.ConfiguredPointerSizeBytes);
-		Assert.Equal(RuntimeCapabilityAvailabilityState.Available,
-			snapshot.SdkCapabilities.GetState(RuntimeCapabilityId.CurrentProcess));
+		Assert.Equal(CheatEngineOperatingSystem.Windows, snapshot.Platform.HostOperatingSystem);
+		Assert.True(snapshot.Platform.IsCheatEngine64Bit);
+		Assert.Equal(TargetBackend.LocalProcess, snapshot.Platform.TargetBackend);
+		Assert.False(snapshot.Platform.TargetIsAndroid);
+		Assert.False(snapshot.Lua.ExternalStateResetDetected);
+		Assert.Equal(ClientCapabilityEvidenceState.Satisfied, ProcessSelectionHost(snapshot).State);
 		Assert.Equal(1, dispatcher.InvocationCount);
 		// The SDK snapshot answers alone: no host or target fact is read again.
 		Assert.Equal([nameof(IRuntimeObservationPort.TryObserveRuntimeInfo)], port.Calls);
@@ -67,12 +71,12 @@ public sealed class RuntimeClientTests
 
 		CheatEngineRuntimeSnapshot snapshot = runtime.GetSnapshot(TestContext.Current.CancellationToken);
 
-		Assert.Equal(CheatEngineArchitecture.Unknown, snapshot.TargetArchitecture);
-		Assert.Equal(PointerSize.Unknown, snapshot.TargetPointerSize);
-		Assert.Equal(TargetAbi.Unknown, snapshot.TargetAbi);
+		Assert.Equal(CheatEngineArchitecture.Unknown, snapshot.Platform.TargetArchitecture);
+		Assert.Equal(PointerSize.Unknown, snapshot.Platform.TargetBitness);
+		Assert.Equal(TargetAbi.Unknown, snapshot.Platform.TargetAbi);
 		Assert.Null(snapshot.Platform.ConfiguredPointerSizeBytes);
-		Assert.Null(snapshot.Platform.ConfiguredPointerSizeDiffersFromTargetPointerSize);
-		Assert.Equal(CheatEngineArchitecture.X64, snapshot.SystemArchitecture);
+		Assert.Null(snapshot.Platform.ConfiguredPointerSizeDiffersFromBitness);
+		Assert.Equal(CheatEngineArchitecture.X64, snapshot.Platform.SystemArchitecture);
 		Assert.Equal(ClientCapabilityEvidenceState.Satisfied, ProcessSelectionHost(snapshot).State);
 		Assert.Empty(port.TargetCalls);
 	}
@@ -88,12 +92,12 @@ public sealed class RuntimeClientTests
 
 		CheatEngineRuntimeSnapshot snapshot = runtime.GetSnapshot(TestContext.Current.CancellationToken);
 
-		Assert.True(snapshot.ClientCapabilities.TryGet(ClientCapabilityId.ProcessSelection,
+		Assert.True(snapshot.Capabilities.TryGet(ClientCapabilityId.ProcessSelection,
 			out ClientCapabilityAvailability processSelection));
 		Assert.Equal(ClientCapabilityEvidenceState.Missing, processSelection.Evidence.Host.State);
 		Assert.Equal(ClientCapabilityAvailabilityState.Unavailable, processSelection.State);
 		Assert.Contains("Process.Current", processSelection.Evidence.Host.Reason, StringComparison.Ordinal);
-		Assert.Equal(CheatEngineArchitecture.Unknown, snapshot.TargetArchitecture);
+		Assert.Equal(CheatEngineArchitecture.Unknown, snapshot.Platform.TargetArchitecture);
 	}
 
 	[Theory]
@@ -116,10 +120,12 @@ public sealed class RuntimeClientTests
 		Assert.True(succeeded);
 		Assert.Equal(default, failure);
 		Assert.Equal(new CheatEngineVersion(7, 7, 0, 10621), snapshot.Version.CheatEngineVersion);
-		Assert.Equal(CheatEngineArchitecture.X64, snapshot.SystemArchitecture);
-		Assert.Equal(CheatEngineArchitecture.Unknown, snapshot.TargetArchitecture);
-		Assert.Equal(PointerSize.Unknown, snapshot.TargetPointerSize);
-		Assert.Equal(0, snapshot.SdkCapabilities.Count);
+		Assert.Equal(CheatEngineArchitecture.X64, snapshot.Platform.SystemArchitecture);
+		Assert.Equal(CheatEngineArchitecture.Unknown, snapshot.Platform.TargetArchitecture);
+		Assert.Equal(PointerSize.Unknown, snapshot.Platform.TargetBitness);
+		Assert.Equal(kind == ProcessOperationStatusKind.FileAsProcessTarget
+			? TargetBackend.FileAsProcess
+			: TargetBackend.Unknown, snapshot.Platform.TargetBackend);
 		ClientCapabilityEvidenceGate host = ProcessSelectionHost(snapshot);
 		Assert.Equal(ClientCapabilityEvidenceState.Unknown, host.State);
 		Assert.Contains(kind.ToString(), host.Reason, StringComparison.Ordinal);
@@ -141,9 +147,9 @@ public sealed class RuntimeClientTests
 
 		CheatEngineRuntimeSnapshot snapshot = runtime.GetSnapshot(TestContext.Current.CancellationToken);
 
-		Assert.Equal(CheatEngineArchitecture.Arm64, snapshot.TargetArchitecture);
-		Assert.Equal(PointerSize.Bit64, snapshot.TargetPointerSize);
-		Assert.Equal(TargetAbi.Unix, snapshot.TargetAbi);
+		Assert.Equal(CheatEngineArchitecture.Arm64, snapshot.Platform.TargetArchitecture);
+		Assert.Equal(PointerSize.Bit64, snapshot.Platform.TargetBitness);
+		Assert.Equal(TargetAbi.Unix, snapshot.Platform.TargetAbi);
 	}
 
 	[Fact]
@@ -161,10 +167,10 @@ public sealed class RuntimeClientTests
 		CheatEngineRuntimeSnapshot snapshot = runtime.GetSnapshot(TestContext.Current.CancellationToken);
 
 		Assert.Null(snapshot.Version.CheatEngineVersion);
-		Assert.False(snapshot.IsOnQualifiedCheatEngineLine);
-		Assert.Equal(CheatEngineArchitecture.Unknown, snapshot.SystemArchitecture);
+		Assert.False(snapshot.Version.IsOnQualifiedCheatEngineLine);
+		Assert.Equal(CheatEngineArchitecture.Unknown, snapshot.Platform.SystemArchitecture);
 		// The target is observed on its own through the target observation policy.
-		Assert.Equal(CheatEngineArchitecture.X64, snapshot.TargetArchitecture);
+		Assert.Equal(CheatEngineArchitecture.X64, snapshot.Platform.TargetArchitecture);
 		Assert.Equal(ClientCapabilityEvidenceState.Satisfied, ProcessSelectionHost(snapshot).State);
 		Assert.Equal(
 		[
@@ -188,11 +194,11 @@ public sealed class RuntimeClientTests
 
 		CheatEngineRuntimeSnapshot snapshot = runtime.GetSnapshot(TestContext.Current.CancellationToken);
 
-		Assert.Equal(CheatEngineArchitecture.Unknown, snapshot.TargetArchitecture);
-		Assert.Equal(PointerSize.Bit64, snapshot.TargetPointerSize);
-		Assert.Equal(TargetAbi.Unknown, snapshot.TargetAbi);
+		Assert.Equal(CheatEngineArchitecture.Unknown, snapshot.Platform.TargetArchitecture);
+		Assert.Equal(PointerSize.Bit64, snapshot.Platform.TargetBitness);
+		Assert.Equal(TargetAbi.Unknown, snapshot.Platform.TargetAbi);
 		Assert.Equal(4, snapshot.Platform.ConfiguredPointerSizeBytes);
-		Assert.True(snapshot.Platform.ConfiguredPointerSizeDiffersFromTargetPointerSize);
+		Assert.True(snapshot.Platform.ConfiguredPointerSizeDiffersFromBitness);
 	}
 
 	[Theory]
@@ -216,7 +222,7 @@ public sealed class RuntimeClientTests
 
 		CheatEngineRuntimeSnapshot snapshot = runtime.GetSnapshot(TestContext.Current.CancellationToken);
 
-		Assert.True(snapshot.ClientCapabilities.TryGet(ClientCapabilityId.ProcessSelection,
+		Assert.True(snapshot.Capabilities.TryGet(ClientCapabilityId.ProcessSelection,
 			out ClientCapabilityAvailability availability));
 		Assert.Equal(expectedHost, availability.Evidence.Host.State);
 		Assert.Equal(expectedAvailability, availability.State);
@@ -235,11 +241,11 @@ public sealed class RuntimeClientTests
 
 		CheatEngineRuntimeSnapshot snapshot = runtime.GetSnapshot(TestContext.Current.CancellationToken);
 
-		Assert.Equal(CheatEngineArchitecture.X64, snapshot.TargetArchitecture);
-		Assert.Equal(PointerSize.Bit64, snapshot.TargetPointerSize);
-		Assert.Equal(PointerSize.Bit32, snapshot.ConfiguredPointerSize);
+		Assert.Equal(CheatEngineArchitecture.X64, snapshot.Platform.TargetArchitecture);
+		Assert.Equal(PointerSize.Bit64, snapshot.Platform.TargetBitness);
+		Assert.Equal(PointerSize.Bit32, snapshot.Platform.ConfiguredPointerSize);
 		Assert.Equal(4, snapshot.Platform.ConfiguredPointerSizeBytes);
-		Assert.True(snapshot.Platform.ConfiguredPointerSizeDiffersFromTargetPointerSize);
+		Assert.True(snapshot.Platform.ConfiguredPointerSizeDiffersFromBitness);
 	}
 
 	[Fact]
@@ -256,9 +262,9 @@ public sealed class RuntimeClientTests
 		CheatEngineRuntimeSnapshot snapshot = runtime.GetSnapshot(TestContext.Current.CancellationToken);
 
 		Assert.Equal(2, snapshot.Platform.ConfiguredPointerSizeBytes);
-		Assert.Equal(PointerSize.Unknown, snapshot.ConfiguredPointerSize);
-		Assert.Equal(PointerSize.Bit64, snapshot.TargetPointerSize);
-		Assert.True(snapshot.Platform.ConfiguredPointerSizeDiffersFromTargetPointerSize);
+		Assert.Equal(PointerSize.Unknown, snapshot.Platform.ConfiguredPointerSize);
+		Assert.Equal(PointerSize.Bit64, snapshot.Platform.TargetBitness);
+		Assert.True(snapshot.Platform.ConfiguredPointerSizeDiffersFromBitness);
 	}
 
 	[Theory]
@@ -282,8 +288,8 @@ public sealed class RuntimeClientTests
 
 		CheatEngineRuntimeSnapshot snapshot = runtime.GetSnapshot(TestContext.Current.CancellationToken);
 
-		Assert.Equal(expected, snapshot.TargetArchitecture);
-		Assert.Equal(is64Bit ? PointerSize.Bit64 : PointerSize.Bit32, snapshot.TargetPointerSize);
+		Assert.Equal(expected, snapshot.Platform.TargetArchitecture);
+		Assert.Equal(is64Bit ? PointerSize.Bit64 : PointerSize.Bit32, snapshot.Platform.TargetBitness);
 	}
 
 	[Fact]
@@ -306,21 +312,81 @@ public sealed class RuntimeClientTests
 	}
 
 	[Fact]
-	public void TryGetSdkCapabilityReturnsUnknownForAnIdentifierThatWasNotProbed()
+	[Trait("Qualification", "Q32")]
+	public void SnapshotReportsTheBackendOfEveryTargetItObserves()
 	{
-		RuntimeClient runtime = new(new InlineDispatcher(), new FakeRuntimeObservationPort(), static () => 1);
-		RuntimeCapabilityId customCapability = new("Client.Custom");
+		// SDK2-08[O]: a CEServer target keeps the facts Cheat Engine reports about it; a file opened as a process is a
+		// snapshot too, with its backend and no target fact.
+		FakeRuntimeObservationPort remote = new()
+		{
+			Target = TargetObservations.Create(processId: 900, backend: TargetBackend.CEServer)
+		};
+		FakeRuntimeObservationPort file = new()
+		{
+			TargetStatus = ProcessOperationStatus.FileAsProcessTarget
+		};
 
-		bool succeeded = runtime.TryGetSdkCapability(
-			customCapability,
-			out RuntimeCapabilityAvailability availability,
-			out CheatEngineFailure failure,
-			TestContext.Current.CancellationToken);
+		CheatEngineRuntimeSnapshot remoteSnapshot = new RuntimeClient(new InlineDispatcher(), remote, static () => 1)
+			.GetSnapshot(TestContext.Current.CancellationToken);
+		CheatEngineRuntimeSnapshot fileSnapshot = new RuntimeClient(new InlineDispatcher(), file, static () => 1)
+			.GetSnapshot(TestContext.Current.CancellationToken);
 
-		Assert.True(succeeded);
-		Assert.Equal(default, failure);
-		Assert.Equal(customCapability, availability.Capability);
-		Assert.Equal(RuntimeCapabilityAvailabilityState.Unknown, availability.State);
+		Assert.Equal(TargetBackend.CEServer, remoteSnapshot.Platform.TargetBackend);
+		Assert.Equal(CheatEngineArchitecture.X64, remoteSnapshot.Platform.TargetArchitecture);
+		Assert.Equal(TargetBackend.FileAsProcess, fileSnapshot.Platform.TargetBackend);
+		Assert.Equal(PointerSize.Unknown, fileSnapshot.Platform.TargetBitness);
+		Assert.Equal(CheatEngineOperatingSystem.Windows, fileSnapshot.Platform.HostOperatingSystem);
+	}
+
+	[Theory]
+	[InlineData(true)]
+	[InlineData(false)]
+	public void SnapshotReportsTheExternalLuaStateResetFact(bool detected)
+	{
+		// A8: the SDK's sticky reset fact enters the snapshot.
+		RuntimeClient runtime = new(new InlineDispatcher(), new FakeRuntimeObservationPort
+		{
+			ExternalStateResetDetected = detected
+		}, static () => 1);
+
+		CheatEngineRuntimeSnapshot snapshot = runtime.GetSnapshot(TestContext.Current.CancellationToken);
+
+		Assert.Equal(detected, snapshot.Lua.ExternalStateResetDetected);
+	}
+
+	[Theory]
+	[InlineData(SdkVersion + "+" + SdkCommit, true)]
+	[InlineData("2.0.1", false)]
+	[InlineData(null, false)]
+	public void SnapshotReportsTheLoadedSdkPackageAndWhetherItIsTheReviewedOne(string? loaded, bool reviewed)
+	{
+		ConsumedSdkIdentity identity = new(SdkVersion, SdkCommit, SdkContentHash, SdkSupportedMajor, loaded);
+		RuntimeClient runtime = new(new InlineDispatcher(), new FakeRuntimeObservationPort(), static () => 1,
+			sdkIdentity: identity);
+
+		CheatEngineRuntimeSnapshot snapshot = runtime.GetSnapshot(TestContext.Current.CancellationToken);
+
+		Assert.Equal(loaded, snapshot.Version.SdkPackageVersion);
+		Assert.Equal(reviewed, snapshot.Version.IsReviewedSdkPackage);
+	}
+
+	[Fact]
+	public void SnapshotComparesTheCheatEngineVersionLineAsIntegers()
+	{
+		// 7.10 is its own line: the coarse decimal of getCEVersion would have read it as 7.1.
+		FakeRuntimeObservationPort port = new()
+		{
+			Host = FakeRuntimeObservationPort.DefaultHost with
+			{
+				FileVersion = new CheatEngineVersion(7, 10, 0, 1)
+			}
+		};
+		RuntimeClient runtime = new(new InlineDispatcher(), port, static () => 1);
+
+		CheatEngineRuntimeSnapshot snapshot = runtime.GetSnapshot(TestContext.Current.CancellationToken);
+
+		Assert.Equal(new CheatEngineVersion(7, 10, 0, 1), snapshot.Version.CheatEngineVersion);
+		Assert.False(snapshot.Version.IsOnQualifiedCheatEngineLine);
 	}
 
 	[Fact]
@@ -349,17 +415,17 @@ public sealed class RuntimeClientTests
 
 		CheatEngineRuntimeSnapshot snapshot = runtime.GetSnapshot(TestContext.Current.CancellationToken);
 
-		Assert.True(snapshot.ClientCapabilities.TryGet(ClientCapabilityId.ValueScanning,
+		Assert.True(snapshot.Capabilities.TryGet(ClientCapabilityId.ValueScanning,
 			out ClientCapabilityAvailability valueScanning));
 		Assert.Equal(ClientCapabilityAvailabilityState.Unavailable, valueScanning.State);
 		Assert.Equal(ClientCapabilityEvidenceState.Missing, valueScanning.Evidence.Implementation.State);
 		// Without an embedded identity the package gate is the evidence's Unknown, as for every other capability.
 		Assert.Equal(ClientCapabilityEvidenceState.Unknown, valueScanning.Evidence.Package.State);
 		Assert.Equal(RuntimeClient.ContractOnlyReason, valueScanning.Reason);
-		Assert.True(snapshot.ClientCapabilities.TryGet(ClientCapabilityId.TypedMemory,
+		Assert.True(snapshot.Capabilities.TryGet(ClientCapabilityId.TypedMemory,
 			out ClientCapabilityAvailability typedMemory));
 		Assert.Equal(ClientCapabilityAvailabilityState.Unknown, typedMemory.State);
-		Assert.True(snapshot.ClientCapabilities.TryGet(ClientCapabilityId.UnsafeLuaExecution,
+		Assert.True(snapshot.Capabilities.TryGet(ClientCapabilityId.UnsafeLuaExecution,
 			out ClientCapabilityAvailability unsafeLua));
 		Assert.Equal(ClientCapabilityAvailabilityState.Unavailable, unsafeLua.State);
 
@@ -370,7 +436,7 @@ public sealed class RuntimeClientTests
 		];
 		foreach (ClientCapabilityId capability in contractOnlyCapabilities)
 		{
-			Assert.True(snapshot.ClientCapabilities.TryGet(capability, out ClientCapabilityAvailability availability));
+			Assert.True(snapshot.Capabilities.TryGet(capability, out ClientCapabilityAvailability availability));
 			Assert.Equal(ClientCapabilityAvailabilityState.Unavailable, availability.State);
 			Assert.False(availability.IsAvailable);
 			Assert.Equal(ClientCapabilityEvidenceState.Missing, availability.Evidence.Implementation.State);
@@ -391,10 +457,10 @@ public sealed class RuntimeClientTests
 		CheatEngineRuntimeSnapshot snapshot = runtime.GetSnapshot(TestContext.Current.CancellationToken);
 
 		Assert.Equal(ClientCapabilityCatalog.Entries.Select(static entry => entry.Id),
-			snapshot.ClientCapabilities.Entries.ToArray().Select(static availability => availability.Capability));
+			snapshot.Capabilities.Entries.ToArray().Select(static availability => availability.Capability));
 		foreach (ClientCapabilityDescriptor entry in ClientCapabilityCatalog.Entries)
 		{
-			Assert.True(snapshot.ClientCapabilities.TryGet(entry.Id, out ClientCapabilityAvailability availability));
+			Assert.True(snapshot.Capabilities.TryGet(entry.Id, out ClientCapabilityAvailability availability));
 			Assert.Equal(entry.Implementation == CapabilityImplementation.Operational
 				? ClientCapabilityEvidenceState.Satisfied
 				: ClientCapabilityEvidenceState.Missing, availability.Evidence.Implementation.State);
@@ -440,7 +506,7 @@ public sealed class RuntimeClientTests
 
 		CheatEngineRuntimeSnapshot snapshot = runtime.GetSnapshot(TestContext.Current.CancellationToken);
 
-		Assert.True(snapshot.ClientCapabilities.TryGet(ClientCapabilityId.TypedMemory,
+		Assert.True(snapshot.Capabilities.TryGet(ClientCapabilityId.TypedMemory,
 			out ClientCapabilityAvailability availability));
 		Assert.Equal(ClientCapabilityEvidenceState.Missing, availability.Evidence.Lifetime.State);
 		Assert.Equal(ClientCapabilityAvailabilityState.Unavailable, availability.State);
@@ -452,10 +518,10 @@ public sealed class RuntimeClientTests
 	{
 		RuntimeClient runtime = new(new InlineDispatcher(), new FakeRuntimeObservationPort(), static () => 7);
 
-		bool sdkSucceeded = runtime.TryGetSdkCapability(
-			RuntimeCapabilityId.CheatEngineVersion,
-			out RuntimeCapabilityAvailability sdkAvailability,
-			out CheatEngineFailure sdkFailure,
+		bool undefinedSucceeded = runtime.TryGetClientCapability(
+			new ClientCapabilityId("Client.Custom"),
+			out ClientCapabilityAvailability undefined,
+			out CheatEngineFailure undefinedFailure,
 			TestContext.Current.CancellationToken);
 		bool clientSucceeded = runtime.TryGetClientCapability(
 			ClientCapabilityId.ProcessSelection,
@@ -463,9 +529,10 @@ public sealed class RuntimeClientTests
 			out CheatEngineFailure clientFailure,
 			TestContext.Current.CancellationToken);
 
-		Assert.True(sdkSucceeded);
-		Assert.Equal(default, sdkFailure);
-		Assert.Equal(RuntimeCapabilityAvailabilityState.Available, sdkAvailability.State);
+		Assert.True(undefinedSucceeded);
+		Assert.Equal(default, undefinedFailure);
+		Assert.Equal(ClientCapabilityAvailabilityState.Unknown, undefined.State);
+		Assert.Contains("does not define a probe or policy gate", undefined.Reason, StringComparison.Ordinal);
 		Assert.True(clientSucceeded);
 		Assert.Equal(default, clientFailure);
 		Assert.Equal(ClientCapabilityAvailabilityState.Unknown, clientAvailability.State);
@@ -479,8 +546,6 @@ public sealed class RuntimeClientTests
 		InlineDispatcher dispatcher = new();
 		RuntimeClient runtime = new(dispatcher, new FakeRuntimeObservationPort(), static () => 7);
 
-		Assert.Throws<ArgumentException>(() => runtime.TryGetSdkCapability(
-			default, out _, out _, TestContext.Current.CancellationToken));
 		Assert.Throws<ArgumentException>(() => runtime.TryGetClientCapability(
 			default, out _, out _, TestContext.Current.CancellationToken));
 		Assert.Equal(0, dispatcher.InvocationCount);
@@ -624,8 +689,8 @@ public sealed class RuntimeClientTests
 		int declaredCapabilities = typeof(ClientCapabilityId)
 			.GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
 			.Count(static property => property.PropertyType == typeof(ClientCapabilityId));
-		Assert.Equal(declaredCapabilities, snapshot.ClientCapabilities.Count);
-		foreach (ClientCapabilityAvailability capability in snapshot.ClientCapabilities.Entries)
+		Assert.Equal(declaredCapabilities, snapshot.Capabilities.Count);
+		foreach (ClientCapabilityAvailability capability in snapshot.Capabilities.Entries)
 		{
 			Assert.False(capability.IsAvailable, capability.Capability.Value);
 			Assert.NotEqual(ClientCapabilityAvailabilityState.Available, capability.State);
@@ -643,7 +708,7 @@ public sealed class RuntimeClientTests
 		CheatEngineRuntimeSnapshot snapshot = runtime.GetSnapshot(TestContext.Current.CancellationToken);
 		string reason = RuntimeClient.QualificationUnknownReason(MatchingIdentity());
 
-		foreach (ClientCapabilityAvailability capability in snapshot.ClientCapabilities.Entries)
+		foreach (ClientCapabilityAvailability capability in snapshot.Capabilities.Entries)
 		{
 			Assert.Equal(ClientCapabilityEvidenceState.Unknown, capability.Evidence.LiveQualification.State);
 			Assert.Equal(reason, capability.Evidence.LiveQualification.Reason);
@@ -685,7 +750,7 @@ public sealed class RuntimeClientTests
 		];
 		System.Reflection.MethodInfo[] members =
 		[
-			.. typeof(IRuntimeObservationPort).GetMethods(),
+			.. typeof(IRuntimeObservationPort).GetMethods().Where(static method => !method.IsSpecialName),
 			.. typeof(IRuntimeObservationPort).GetInterfaces().SelectMany(static inherited => inherited.GetMethods())
 		];
 
@@ -703,7 +768,8 @@ public sealed class RuntimeClientTests
 				Assert.True(parameter.IsOut || parameter.ParameterType == typeof(TargetProcessIncarnation),
 					parameter.Name));
 		});
-		Assert.Empty(typeof(IRuntimeObservationPort).GetProperties());
+		Assert.Equal(nameof(IRuntimeObservationPort.ExternalStateResetDetected),
+			Assert.Single(typeof(IRuntimeObservationPort).GetProperties()).Name);
 		Assert.Empty(typeof(IRuntimeObservationPort).GetEvents());
 	}
 
@@ -737,13 +803,13 @@ public sealed class RuntimeClientTests
 		RuntimeClient runtime = new(new InlineDispatcher(), new FakeRuntimeObservationPort(),
 			static () => 1, sdkIdentity: identity);
 		CheatEngineRuntimeSnapshot snapshot = runtime.GetSnapshot(TestContext.Current.CancellationToken);
-		Assert.True(snapshot.ClientCapabilities.TryGet(capability, out ClientCapabilityAvailability availability));
+		Assert.True(snapshot.Capabilities.TryGet(capability, out ClientCapabilityAvailability availability));
 		return availability;
 	}
 
 	private static ClientCapabilityEvidenceGate ProcessSelectionHost(CheatEngineRuntimeSnapshot snapshot)
 	{
-		Assert.True(snapshot.ClientCapabilities.TryGet(ClientCapabilityId.ProcessSelection,
+		Assert.True(snapshot.Capabilities.TryGet(ClientCapabilityId.ProcessSelection,
 			out ClientCapabilityAvailability availability));
 		return availability.Evidence.Host;
 	}

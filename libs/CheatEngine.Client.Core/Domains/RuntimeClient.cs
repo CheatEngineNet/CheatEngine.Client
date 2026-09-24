@@ -122,9 +122,9 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 		}
 
 		snapshot = captured;
-		_diagnostics.RuntimeSnapshotCaptured(captured.Epoch, captured.TargetArchitecture,
-			captured.TargetPointerSize.Bytes, captured.Platform.ConfiguredPointerSizeBytes ?? 0,
-			captured.Platform.ConfiguredPointerSizeDiffersFromTargetPointerSize == true);
+		_diagnostics.RuntimeSnapshotCaptured(captured.Epoch, captured.Platform.TargetArchitecture,
+			captured.Platform.TargetBitness.Bytes, captured.Platform.ConfiguredPointerSizeBytes ?? 0,
+			captured.Platform.ConfiguredPointerSizeDiffersFromBitness == true);
 		return true;
 	}
 
@@ -133,50 +133,6 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 		if (TryGetSnapshot(out CheatEngineRuntimeSnapshot snapshot, out CheatEngineFailure failure, cancellationToken))
 		{
 			return snapshot;
-		}
-
-		failure.Throw(cancellationToken);
-		return default;
-	}
-
-	public bool TryGetSdkCapability(
-		RuntimeCapabilityId capability,
-		out RuntimeCapabilityAvailability availability,
-		out CheatEngineFailure failure,
-		CancellationToken cancellationToken = default)
-	{
-		if (capability.IsEmpty)
-		{
-			throw new ArgumentException("A runtime capability identifier is required.", nameof(capability));
-		}
-
-		if (!TryGetSnapshot(out CheatEngineRuntimeSnapshot snapshot, out failure, cancellationToken))
-		{
-			availability = default;
-			return false;
-		}
-
-		if (snapshot.SdkCapabilities.TryGet(capability, out availability))
-		{
-			return true;
-		}
-
-		availability = new RuntimeCapabilityAvailability(
-			capability,
-			RuntimeCapabilityAvailabilityState.Unknown,
-			RuntimeCapabilityContract.Unknown);
-		failure = default;
-		return true;
-	}
-
-	public RuntimeCapabilityAvailability GetSdkCapability(
-		RuntimeCapabilityId capability,
-		CancellationToken cancellationToken = default)
-	{
-		if (TryGetSdkCapability(capability, out RuntimeCapabilityAvailability availability,
-				out CheatEngineFailure failure, cancellationToken))
-		{
-			return availability;
 		}
 
 		failure.Throw(cancellationToken);
@@ -200,15 +156,15 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 			return false;
 		}
 
-		if (snapshot.ClientCapabilities.TryGet(capability, out availability))
+		if (snapshot.Capabilities.TryGet(capability, out availability))
 		{
 			return true;
 		}
 
-		availability = new ClientCapabilityAvailability(
-			capability,
-			ClientCapabilityAvailabilityState.Unknown,
+		ClientCapabilityEvidenceGate undefined = UnknownEvidence(
 			"This Client release does not define a probe or policy gate for the requested capability.");
+		availability = new ClientCapabilityAvailability(capability,
+			new ClientCapabilityEvidence(undefined, undefined, undefined, undefined, undefined, undefined));
 		failure = default;
 		return true;
 	}
@@ -235,15 +191,19 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 		return new CheatEngineRuntimeSnapshot(
 			Epoch,
 			new CheatEngineRuntimeVersionInfo(host.FileVersion, CheatEngineVersion.Ce77010621, _clientAssemblyVersion,
-				_sdkAssemblyVersion),
+				_sdkAssemblyVersion, _sdkIdentity.LoadedInformationalVersion, _sdkIdentity.ExactReviewedIdentity),
 			new CheatEngineRuntimePlatformInfo(
+				host.OperatingSystem,
+				host.CheatEngineIs64Bit,
 				host.SystemArchitecture,
+				target.Backend,
 				target.Architecture,
 				target.Bitness,
 				target.Abi,
+				target.IsAndroid,
 				target.ConfiguredPointerSizeBytes),
-			observed.Capabilities,
-			CreateClientCapabilities(observed.ProcessSelectionHost));
+			CreateClientCapabilities(observed.ProcessSelectionHost),
+			new CheatEngineRuntimeLuaInfo(_port.ExternalStateResetDetected));
 	}
 
 	private ClientCapabilities CreateClientCapabilities(ClientCapabilityEvidenceGate selectedProcess)

@@ -27,7 +27,7 @@ public sealed class ProcessClientTests
 		ProcessSnapshot refreshed = client.Refresh(TestContext.Current.CancellationToken);
 
 		Assert.Equal(initial.Id, refreshed.Id);
-		Assert.Equal(initial.TargetArchitecture, refreshed.TargetArchitecture);
+		Assert.Equal(initial.Architecture, refreshed.Architecture);
 		Assert.Equal(0, initial.SelectionEpoch);
 		Assert.Equal(initial.SelectionEpoch, refreshed.SelectionEpoch);
 	}
@@ -65,7 +65,7 @@ public sealed class ProcessClientTests
 		ProcessSnapshot refreshed = client.Refresh(TestContext.Current.CancellationToken);
 
 		Assert.Equal(new TargetProcessId(42), refreshed.Id);
-		Assert.Equal(CheatEngineArchitecture.X64, refreshed.TargetArchitecture);
+		Assert.Equal(CheatEngineArchitecture.X64, refreshed.Architecture);
 		Assert.Equal(1, refreshed.SelectionEpoch);
 		Assert.NotEqual(initial.SelectionEpoch, refreshed.SelectionEpoch);
 	}
@@ -238,9 +238,9 @@ public sealed class ProcessClientTests
 
 		ProcessSnapshot refreshed = client.Refresh(TestContext.Current.CancellationToken);
 
-		Assert.Equal(CheatEngineArchitecture.Unknown, initial.TargetArchitecture);
-		Assert.Equal(PointerSize.Bit32, initial.TargetPointerSize);
-		Assert.Equal(PointerSize.Bit64, refreshed.TargetPointerSize);
+		Assert.Equal(CheatEngineArchitecture.Unknown, initial.Architecture);
+		Assert.Equal(PointerSize.Bit32, initial.Bitness);
+		Assert.Equal(PointerSize.Bit64, refreshed.Bitness);
 		Assert.Equal(initial.SelectionEpoch + 1, refreshed.SelectionEpoch);
 		Assert.Equal(1, lease.DisposeCount);
 	}
@@ -263,10 +263,10 @@ public sealed class ProcessClientTests
 		ProcessSnapshot recovered = client.Refresh(TestContext.Current.CancellationToken);
 
 		Assert.Equal(initial.SelectionEpoch, transient.SelectionEpoch);
-		Assert.Equal(CheatEngineArchitecture.X64, transient.TargetArchitecture);
-		Assert.Equal(PointerSize.Bit64, transient.TargetPointerSize);
+		Assert.Equal(CheatEngineArchitecture.X64, transient.Architecture);
+		Assert.Equal(PointerSize.Bit64, transient.Bitness);
 		Assert.Equal(initial.SelectionEpoch, recovered.SelectionEpoch);
-		Assert.Equal(CheatEngineArchitecture.X64, recovered.TargetArchitecture);
+		Assert.Equal(CheatEngineArchitecture.X64, recovered.Architecture);
 		Assert.Equal(0, lease.DisposeCount);
 	}
 
@@ -286,8 +286,8 @@ public sealed class ProcessClientTests
 
 		Assert.Equal(new TargetProcessId(43), refreshed.Id);
 		Assert.Equal(initial.SelectionEpoch + 1, refreshed.SelectionEpoch);
-		Assert.Equal(CheatEngineArchitecture.Unknown, refreshed.TargetArchitecture);
-		Assert.Equal(PointerSize.Bit64, refreshed.TargetPointerSize);
+		Assert.Equal(CheatEngineArchitecture.Unknown, refreshed.Architecture);
+		Assert.Equal(PointerSize.Bit64, refreshed.Bitness);
 	}
 
 	[Fact]
@@ -302,8 +302,8 @@ public sealed class ProcessClientTests
 
 		ProcessSnapshot snapshot = client.GetCurrent(TestContext.Current.CancellationToken);
 
-		Assert.Equal(CheatEngineArchitecture.Unknown, snapshot.TargetArchitecture);
-		Assert.Equal(PointerSize.Bit64, snapshot.TargetPointerSize);
+		Assert.Equal(CheatEngineArchitecture.Unknown, snapshot.Architecture);
+		Assert.Equal(PointerSize.Bit64, snapshot.Bitness);
 		Assert.Equal([nameof(ITargetObservationPort.ObserveTargetArchitecture)], host.Port.TargetCalls);
 	}
 
@@ -346,8 +346,8 @@ public sealed class ProcessClientTests
 		Assert.True(succeeded);
 		Assert.Equal(default, failure);
 		Assert.Equal(new TargetProcessId(42), snapshot.Id);
-		Assert.Equal(CheatEngineArchitecture.Unknown, snapshot.TargetArchitecture);
-		Assert.Equal(PointerSize.Bit64, snapshot.TargetPointerSize);
+		Assert.Equal(CheatEngineArchitecture.Unknown, snapshot.Architecture);
+		Assert.Equal(PointerSize.Bit64, snapshot.Bitness);
 	}
 
 	[Fact]
@@ -865,10 +865,51 @@ public sealed class ProcessClientTests
 		ProcessSnapshot snapshot = client.GetCurrent(TestContext.Current.CancellationToken);
 
 		Assert.Equal(new TargetProcessId(42), snapshot.Id);
+		Assert.Equal(backend, snapshot.Backend);
 		Assert.Null(snapshot.Name);
 		Assert.Null(snapshot.ExecutablePath);
+		Assert.Null(snapshot.StartTimeUtc);
 		Assert.Equal(0, host.Port.Count(nameof(IRuntimeObservationPort.ObserveSelection)));
 		Assert.Equal(0, host.Port.Count(nameof(IRuntimeObservationPort.ValidateSelection)));
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q32")]
+	public void ALocalSnapshotCarriesItsBackendBitnessConfiguredSizeAndIncarnationStartTime()
+	{
+		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X86);
+		long startedAtUtcTicks = new DateTime(2026, 9, 24, 10, 30, 0, DateTimeKind.Utc).Ticks;
+		host.Port.Incarnation = TargetObservations.Incarnation(42, startedAtUtcTicks);
+		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
+		ProcessClient client = new(new InlineDispatcher(), host, host.Port, host.Port, selectionLifetime);
+
+		ProcessSnapshot snapshot = client.GetCurrent(TestContext.Current.CancellationToken);
+
+		Assert.Equal(TargetBackend.LocalProcess, snapshot.Backend);
+		Assert.Equal(CheatEngineArchitecture.X86, snapshot.Architecture);
+		Assert.Equal(PointerSize.Bit32, snapshot.Bitness);
+		Assert.Equal(4, snapshot.ConfiguredPointerSizeBytes);
+		Assert.False(snapshot.ConfiguredPointerSizeDiffersFromBitness);
+		Assert.Equal(new DateTimeOffset(startedAtUtcTicks, TimeSpan.Zero), snapshot.StartTimeUtc);
+		Assert.Equal("fixture", snapshot.Name);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q31")]
+	public void TheSnapshotReportsAConfiguredPointerSizeThatDiffersFromTheBitnessWithoutUsingIt()
+	{
+		// Spike C3 D3: setPointerSize(4) on an x64 target leaves targetIs64Bit true and readPointer 8 bytes wide.
+		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
+		host.Port.Target = TargetObservations.Create(configuredPointerSizeBytes: 4);
+		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
+		ProcessClient client = new(new InlineDispatcher(), host, host.Port, host.Port, selectionLifetime);
+
+		ProcessSnapshot snapshot = client.GetCurrent(TestContext.Current.CancellationToken);
+
+		Assert.Equal(PointerSize.Bit64, snapshot.Bitness);
+		Assert.Equal(4, snapshot.ConfiguredPointerSizeBytes);
+		Assert.Equal(PointerSize.Bit32, snapshot.ConfiguredPointerSize);
+		Assert.True(snapshot.ConfiguredPointerSizeDiffersFromBitness);
 	}
 
 	[Fact]

@@ -124,6 +124,9 @@ internal readonly record struct ObservedTarget(
 	/// <summary>Gets the decoded target ABI, or unknown.</summary>
 	internal TargetAbi Abi => HasTarget ? Facts.Abi : TargetAbi.Unknown;
 
+	/// <summary>Gets whether the target is Android, or <see langword="null" /> when unknown.</summary>
+	internal bool? IsAndroid => HasTarget ? Facts.IsAndroid : null;
+
 	/// <summary>Gets the raw configured pointer size, or <see langword="null" /> when it was not observed.</summary>
 	internal int? ConfiguredPointerSizeBytes => HasTarget ? Facts.ConfiguredPointerSizeBytes : null;
 

@@ -22,9 +22,6 @@ public sealed class SdkConsumerContractTests
 {
 	private const string CompilerServicesNamespace = "CheatEngine.SDK.Lua.CompilerServices.";
 
-	/// <summary>The single documented member-level debt of the Abstractions public surface.</summary>
-	private const string RuntimeCapabilitiesDebt = "CheatEngine.SDK.Engine.Runtime.RuntimeCapabilities";
-
 	[Fact]
 	[Trait("Qualification", "Q48")]
 	public void AllowlistedSdkTypesResolveAndBothAllowlistsAreEqual()
@@ -55,7 +52,7 @@ public sealed class SdkConsumerContractTests
 	[Trait("Qualification", "Q48")]
 	public void PublicSdkTypeReferencesOfAbstractionsFluentAndDependencyInjectionAreAllowlisted()
 	{
-		HashSet<string> allowed = new(ApprovedSdkClientTypes.Names, StringComparer.Ordinal) { RuntimeCapabilitiesDebt };
+		HashSet<string> allowed = new(ApprovedSdkClientTypes.Names, StringComparer.Ordinal);
 		List<string> violations = [];
 		foreach (string assembly in new[]
 				 {

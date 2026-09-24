@@ -124,7 +124,7 @@ internal static class QualificationScenarios
 
 			observation.BeginObject("process")
 				.Number("processId", process.Id.Value)
-				.String("targetArchitecture", process.TargetArchitecture.ToString())
+				.String("targetArchitecture", process.Architecture.ToString())
 				.Number("selectionEpoch", process.SelectionEpoch)
 				.EndObject()
 				.Boolean("targetSelected", process.Id.Value != 0);
@@ -135,10 +135,10 @@ internal static class QualificationScenarios
 				if (active.Client.Runtime.TryGetSnapshot(out CheatEngineRuntimeSnapshot snapshot, out failure))
 				{
 					observation.BeginObject("runtime")
-						.String("systemArchitecture", snapshot.SystemArchitecture.ToString())
-						.String("targetArchitecture", snapshot.TargetArchitecture.ToString())
-						.Number("targetPointerSizeBytes", snapshot.TargetPointerSize.Bytes)
-						.String("targetAbi", snapshot.TargetAbi.ToString())
+						.String("systemArchitecture", snapshot.Platform.SystemArchitecture.ToString())
+						.String("targetArchitecture", snapshot.Platform.TargetArchitecture.ToString())
+						.Number("targetPointerSizeBytes", snapshot.Platform.TargetBitness.Bytes)
+						.String("targetAbi", snapshot.Platform.TargetAbi.ToString())
 						.Number("activationEpoch", snapshot.Epoch)
 						.EndObject();
 				}

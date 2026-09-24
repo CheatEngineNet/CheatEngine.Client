@@ -6,9 +6,17 @@ namespace CheatEngine.Client.Processes;
 /// <summary>An immutable snapshot of the process currently selected in Cheat Engine.</summary>
 /// <remarks>
 ///     <para>
-///         The identifier, the architecture and the process width are Cheat Engine observations. Name and executable
-///         path are optional local BCL enrichment: they describe a local process only, never a CEServer target or a file
-///         opened as a process, and they do not establish liveness or authoritative target provenance.
+///         The identifier, the backend, the architecture, the bitness and the configured pointer size are Cheat Engine
+///         observations that CheatEngine.SDK reported. The start time is the creation time CheatEngine.SDK observed for
+///         a local process together with the local backend; with the identifier it is the process incarnation. Name and
+///         executable path are optional local operating-system enrichment. Start time, name and path describe a local
+///         process only: a CEServer target, a file opened as a process or a target whose backend is not established
+///         never has them, and they do not establish liveness.
+///     </para>
+///     <para>
+///         Every value is stored as observed; none is derived from another. In particular the bitness is never derived
+///         from the architecture or from the plugin's own process width, and the configured pointer size is never
+///         taken for the bitness.
 ///     </para>
 ///     <para>
 ///         Cheat Engine's selected target is ambient: holding this snapshot does not stop the user, another plugin or a
@@ -18,45 +26,39 @@ namespace CheatEngine.Client.Processes;
 /// </remarks>
 public readonly record struct ProcessSnapshot
 {
-	/// <summary>Creates a selected-process snapshot without a target-architecture observation.</summary>
-	public ProcessSnapshot(TargetProcessId id, string? name, string? executablePath)
-		: this(id, name, executablePath, CheatEngineArchitecture.Unknown, PointerSize.Unknown, 0)
-	{
-	}
-
-	/// <summary>Creates a selected-process snapshot whose process width is the natural width of its architecture.</summary>
-	/// <remarks>
-	///     Kept for source compatibility: the width is 4 bytes for X86 and Arm32, 8 bytes for X64 and Arm64, and unknown
-	///     for an unknown architecture. Use the constructor that takes the observed width when the ISA is unknown.
-	/// </remarks>
-	public ProcessSnapshot(
-		TargetProcessId id,
-		string? name,
-		string? executablePath,
-		CheatEngineArchitecture targetArchitecture,
-		long selectionEpoch)
-		: this(id, name, executablePath, targetArchitecture, GetNaturalWidth(targetArchitecture), selectionEpoch)
-	{
-	}
-
 	/// <summary>Creates a selected-process snapshot from copied host observations.</summary>
-	/// <param name="id">The Cheat Engine opened process identifier.</param>
-	/// <param name="name">The local process name, when the local catalog supplied one.</param>
-	/// <param name="executablePath">The local executable path, when the local catalog supplied one.</param>
-	/// <param name="targetArchitecture">The ISA derived from Cheat Engine's family facts, or unknown.</param>
-	/// <param name="targetPointerSize">The process width observed from Cheat Engine's 64-bit fact, or unknown.</param>
+	/// <param name="id">The Cheat Engine selected process identifier.</param>
+	/// <param name="name">The local process name, when the local catalog supplied one for a local process.</param>
+	/// <param name="executablePath">The local executable path, when the local catalog supplied one for a local process.</param>
+	/// <param name="backend">How Cheat Engine reaches the target, or unknown.</param>
+	/// <param name="architecture">The ISA CheatEngine.SDK derived from Cheat Engine's family facts, or unknown.</param>
+	/// <param name="bitness">The target bitness (<c>targetIs64Bit</c>), or unknown.</param>
+	/// <param name="configuredPointerSizeBytes">
+	///     The raw value of Cheat Engine's configured pointer size for the current attachment, or
+	///     <see langword="null" /> when it was not observed. Any integer is kept.
+	/// </param>
+	/// <param name="startTimeUtc">
+	///     The creation time CheatEngine.SDK observed for a local process, in UTC, or <see langword="null" />.
+	/// </param>
 	/// <param name="selectionEpoch">The target-selection epoch of the observation.</param>
 	/// <exception cref="ArgumentException">
-	///     <paramref name="name" /> or <paramref name="executablePath" /> is empty, or a known
-	///     <paramref name="targetArchitecture" /> and a known <paramref name="targetPointerSize" /> disagree.
+	///     <paramref name="name" /> or <paramref name="executablePath" /> is empty; a known
+	///     <paramref name="architecture" /> and a known <paramref name="bitness" /> disagree;
+	///     <paramref name="startTimeUtc" /> is not a UTC time; or local metadata or a start time is supplied for a
+	///     backend other than <see cref="TargetBackend.LocalProcess" />.
 	/// </exception>
-	/// <exception cref="ArgumentOutOfRangeException"><paramref name="selectionEpoch" /> is negative.</exception>
+	/// <exception cref="ArgumentOutOfRangeException">
+	///     <paramref name="backend" /> is not a defined value, or <paramref name="selectionEpoch" /> is negative.
+	/// </exception>
 	public ProcessSnapshot(
 		TargetProcessId id,
 		string? name,
 		string? executablePath,
-		CheatEngineArchitecture targetArchitecture,
-		PointerSize targetPointerSize,
+		TargetBackend backend,
+		CheatEngineArchitecture architecture,
+		PointerSize bitness,
+		int? configuredPointerSizeBytes,
+		DateTimeOffset? startTimeUtc,
 		long selectionEpoch)
 	{
 		if (name is { Length: 0 })
@@ -69,12 +71,29 @@ public readonly record struct ProcessSnapshot
 			throw new ArgumentException("An executable path must be null or non-empty.", nameof(executablePath));
 		}
 
-		if (GetNaturalWidth(targetArchitecture) is { IsKnown: true } naturalWidth && targetPointerSize.IsKnown &&
-			targetPointerSize.Bytes != naturalWidth.Bytes)
+		if (!Enum.IsDefined(backend))
+		{
+			throw new ArgumentOutOfRangeException(nameof(backend), backend, "The target backend is not defined.");
+		}
+
+		if (backend != TargetBackend.LocalProcess && (name is not null || executablePath is not null ||
+													   startTimeUtc is not null))
 		{
 			throw new ArgumentException(
-				"A known target pointer size must match the natural width of a known target architecture.",
-				nameof(targetPointerSize));
+				"Local process metadata and a start time describe a local process only, never another backend.",
+				nameof(backend));
+		}
+
+		if (GetNaturalWidth(architecture) is { IsKnown: true } naturalWidth && bitness.IsKnown &&
+			bitness.Bytes != naturalWidth.Bytes)
+		{
+			throw new ArgumentException("A known bitness must match the natural width of a known architecture.",
+				nameof(bitness));
+		}
+
+		if (startTimeUtc is { Offset: var offset } && offset != TimeSpan.Zero)
+		{
+			throw new ArgumentException("A process start time must be expressed in UTC.", nameof(startTimeUtc));
 		}
 
 		ArgumentOutOfRangeException.ThrowIfNegative(selectionEpoch);
@@ -82,8 +101,11 @@ public readonly record struct ProcessSnapshot
 		Id = id;
 		Name = name;
 		ExecutablePath = executablePath;
-		TargetArchitecture = targetArchitecture;
-		TargetPointerSize = targetPointerSize;
+		Backend = backend;
+		Architecture = architecture;
+		Bitness = bitness;
+		ConfiguredPointerSizeBytes = configuredPointerSizeBytes;
+		StartTimeUtc = startTimeUtc;
 		SelectionEpoch = selectionEpoch;
 	}
 
@@ -93,32 +115,75 @@ public readonly record struct ProcessSnapshot
 		get;
 	}
 
-	/// <summary>Gets the local process display name when the local catalog supplied one.</summary>
+	/// <summary>Gets the local process display name when the local catalog supplied one for a local process.</summary>
 	public string? Name
 	{
 		get;
 	}
 
-	/// <summary>Gets the local executable path when the local catalog supplied one.</summary>
+	/// <summary>Gets the local executable path when the local catalog supplied one for a local process.</summary>
 	public string? ExecutablePath
 	{
 		get;
 	}
 
 	/// <summary>
-	///     Gets the target ISA derived from Cheat Engine's <c>targetIsX86</c>/<c>targetIsArm</c> and
-	///     <c>targetIs64Bit</c> facts, or unknown when no probe established it.
+	///     Gets how Cheat Engine reaches the target: a local process, CEServer, or unknown when the backend fact was not
+	///     established.
 	/// </summary>
-	public CheatEngineArchitecture TargetArchitecture
+	public TargetBackend Backend
 	{
 		get;
 	}
 
 	/// <summary>
-	///     Gets the process width observed from Cheat Engine's <c>targetIs64Bit</c>, or unknown. It is stored as observed,
-	///     not derived from <see cref="TargetArchitecture" />, and it is not Cheat Engine's configured pointer size.
+	///     Gets the ISA CheatEngine.SDK derived from Cheat Engine's <c>targetIsX86</c>/<c>targetIsArm</c> and
+	///     <c>targetIs64Bit</c> facts, or unknown; never derived from the bitness alone.
 	/// </summary>
-	public PointerSize TargetPointerSize
+	public CheatEngineArchitecture Architecture
+	{
+		get;
+	}
+
+	/// <summary>
+	///     Gets the target bitness (<c>targetIs64Bit</c>, the width Cheat Engine's <c>readPointer</c> follows), or
+	///     unknown. It is stored as observed and is not Cheat Engine's configured pointer size.
+	/// </summary>
+	public PointerSize Bitness
+	{
+		get;
+	}
+
+	/// <summary>
+	///     Gets the raw value of Cheat Engine's configured pointer size (<c>getPointerSize</c>) for the current
+	///     attachment, or <see langword="null" /> when it was not observed.
+	/// </summary>
+	/// <remarks>Any (re)attach resets it; it can hold a value other than 4 or 8.</remarks>
+	public int? ConfiguredPointerSizeBytes
+	{
+		get;
+	}
+
+	/// <summary>Gets the configured pointer size as a width when it is 4 or 8 bytes; otherwise unknown.</summary>
+	public PointerSize ConfiguredPointerSize => ConfiguredPointerSizeBytes switch
+	{
+		sizeof(uint) => PointerSize.Bit32,
+		sizeof(ulong) => PointerSize.Bit64,
+		_ => PointerSize.Unknown
+	};
+
+	/// <summary>
+	///     Gets whether the configured pointer size differs from <see cref="Bitness" />, or <see langword="null" /> when
+	///     either value is unknown.
+	/// </summary>
+	public bool? ConfiguredPointerSizeDiffersFromBitness =>
+		ConfiguredPointerSizeBytes is { } configured && Bitness.IsKnown ? configured != Bitness.Bytes : null;
+
+	/// <summary>
+	///     Gets the creation time CheatEngine.SDK observed for a local process, in UTC, or <see langword="null" />. With
+	///     <see cref="Id" /> it identifies the process incarnation.
+	/// </summary>
+	public DateTimeOffset? StartTimeUtc
 	{
 		get;
 	}

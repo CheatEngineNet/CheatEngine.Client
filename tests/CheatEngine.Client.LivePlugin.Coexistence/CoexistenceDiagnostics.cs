@@ -72,7 +72,7 @@ internal static class CoexistenceDiagnostics
 		return client.Processes.TryRefresh(out ProcessSnapshot snapshot, out CheatEngineFailure failure, client.Stopping)
 			? string.Create(
 				CultureInfo.InvariantCulture,
-				$"Target=Selected; ProcessId={snapshot.Id.Value}; SelectionEpoch={snapshot.SelectionEpoch}; Architecture={snapshot.TargetArchitecture}")
+				$"Target=Selected; ProcessId={snapshot.Id.Value}; SelectionEpoch={snapshot.SelectionEpoch}; Architecture={snapshot.Architecture}")
 			: DescribeFailure("Target", failure);
 	}
 
