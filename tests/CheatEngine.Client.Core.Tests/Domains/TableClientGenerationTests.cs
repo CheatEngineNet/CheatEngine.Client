@@ -262,6 +262,7 @@ public sealed class TableClientGenerationTests : IDisposable
 		Assert.Equal(expectedKind, failure.Kind);
 		Assert.Equal(expectedEffect, failure.HostEffect);
 		Assert.Equal("Tables.SaveTable", failure.Operation);
+		Assert.DoesNotContain(fixture.TableFile.FullPath, failure.Message, StringComparison.OrdinalIgnoreCase);
 		Assert.Equal(1, fixture.Files.Saves);
 	}
 

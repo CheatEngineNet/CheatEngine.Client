@@ -172,26 +172,86 @@ public sealed class TableClientLookupTests
 	}
 
 	/// <summary>
-	///     A hierarchy copy reads every child position below the reported count; a child Cheat Engine refuses is reported
-	///     at its position, apart from a malformed record.
+	///     A hierarchy copy reads the child positions of each record below its reported count, and stops at the first
+	///     position where Cheat Engine returns no child: that position is reported with the record identifier and the
+	///     count, apart from a malformed record.
 	/// </summary>
 	[Fact]
-	[Trait("Qualification", "Q34")]
-	public void AChildRefusedBelowTheReportedCountIsReportedAtItsPosition()
+	public void AChildMissingBelowTheReportedCountIsReportedAtItsPosition()
 	{
-		CheatEngineFailure failure = TableClient.ChildUnavailableFailure(new MemoryRecordId(12), 2, 5);
+		FakeHierarchyRecord root = new(12, childCount: 3)
+		{
+			Children =
+			{
+				[0] = new FakeHierarchyRecord(13),
+				[2] = new FakeHierarchyRecord(15)
+			}
+		};
+		TableClient client = CreateHierarchyClient(root);
 
+		bool succeeded = client.TryGetHierarchy(new MemoryRecordId(12), new MemoryRecordHierarchyRequest(16, 4),
+			out MemoryRecordHierarchySnapshot hierarchy, out CheatEngineFailure failure,
+			TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(default, hierarchy);
 		Assert.Equal(CheatEngineFailureKind.InvalidHostResult, failure.Kind);
 		Assert.Equal(CheatEngineHostEffect.Unknown, failure.HostEffect);
 		Assert.Equal("Tables.GetHierarchy", failure.Operation);
-		Assert.Equal("Cheat Engine did not return child 2 of memory record 12, which reports 5 children.",
+		Assert.Equal("Cheat Engine did not return child 1 of memory record 12, which reports 3 children.",
 			failure.Message);
 		Assert.NotEqual(TableMapping.InvalidContractMessage, failure.Message);
+		Assert.Equal([0, 1], root.RequestedChildren);
+	}
+
+	[Fact]
+	public void AHierarchyCopyReadsEveryChildPositionBelowEachReportedCount()
+	{
+		FakeHierarchyRecord grandchild = new(14);
+		FakeHierarchyRecord first = new(13, childCount: 1)
+		{
+			Children =
+			{
+				[0] = grandchild
+			}
+		};
+		FakeHierarchyRecord second = new(15);
+		FakeHierarchyRecord root = new(12, childCount: 2)
+		{
+			Children =
+			{
+				[0] = first,
+				[1] = second
+			}
+		};
+		TableClient client = CreateHierarchyClient(root);
+
+		bool succeeded = client.TryGetHierarchy(new MemoryRecordId(12), new MemoryRecordHierarchyRequest(16, 4),
+			out MemoryRecordHierarchySnapshot hierarchy, out CheatEngineFailure failure,
+			TestContext.Current.CancellationToken);
+
+		Assert.True(succeeded);
+		Assert.Equal(default, failure);
+		Assert.Equal(new MemoryRecordId(12), hierarchy.Record.Id);
+		Assert.Equal([new MemoryRecordId(13), new MemoryRecordId(15)],
+			hierarchy.Children.Select(static child => child.Record.Id));
+		Assert.Equal(new MemoryRecordId(14), Assert.Single(hierarchy.Children[0].Children).Record.Id);
+		Assert.Empty(hierarchy.Children[1].Children);
+		Assert.Equal([0, 1], root.RequestedChildren);
+		Assert.Equal([0], first.RequestedChildren);
+		Assert.Empty(grandchild.RequestedChildren);
+		Assert.Empty(second.RequestedChildren);
 	}
 
 	private static TableClient CreateClient(FakeRecordLookupPort lookups)
 	{
 		return new TableClient(new InlineDispatcher(), CoreClientPolicy.SafeDefaults, recordLookups: lookups);
+	}
+
+	private static TableClient CreateHierarchyClient(FakeHierarchyRecord root)
+	{
+		return new TableClient(new InlineDispatcher(), CoreClientPolicy.SafeDefaults,
+			hierarchy: new FakeHierarchyPort(root));
 	}
 
 	private static MemoryRecordSnapshot Snapshot(int id, string description)
@@ -290,6 +350,49 @@ public sealed class TableClientLookupTests
 
 			table = new AddressTableSnapshot([.. Table]);
 			return RecordLookupStatus.Success;
+		}
+	}
+
+	private sealed class FakeHierarchyPort(FakeHierarchyRecord record) : ITableHierarchyPort
+	{
+		public RecordLookupStatus TryGetRoot(MemoryRecordId id, out ITableHierarchyRecord? root)
+		{
+			root = id == record.Id ? record : null;
+			return root is null ? RecordLookupStatus.NotFound : RecordLookupStatus.Success;
+		}
+	}
+
+	/// <summary>A record that reports a child count and returns the children it holds, recording each position read.</summary>
+	private sealed class FakeHierarchyRecord(int id, int childCount = 0) : ITableHierarchyRecord
+	{
+		internal MemoryRecordId Id
+		{
+			get;
+		} = new(id);
+
+		internal Dictionary<int, FakeHierarchyRecord> Children
+		{
+			get;
+		} = [];
+
+		internal List<int> RequestedChildren
+		{
+			get;
+		} = [];
+
+		public bool TrySnapshot(out MemoryRecordSnapshot snapshot)
+		{
+			snapshot = new MemoryRecordSnapshot(Id, 0,
+				new MemoryRecordContentSnapshot("Group", "game.exe+24", "50", VariableType.Dword),
+				new MemoryRecordStateSnapshot(null, childCount: childCount));
+			return true;
+		}
+
+		public bool TryGetChild(int index, [NotNullWhen(true)] out ITableHierarchyRecord? child)
+		{
+			RequestedChildren.Add(index);
+			child = Children.GetValueOrDefault(index);
+			return child is not null;
 		}
 	}
 

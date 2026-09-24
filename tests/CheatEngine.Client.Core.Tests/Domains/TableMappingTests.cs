@@ -123,18 +123,19 @@ public sealed class TableMappingTests
 	[Trait("Qualification", "Q34")]
 	[InlineData(true)]
 	[InlineData(false)]
-	public void TableFileFailuresNameTheActionAndNeverThePath(bool load)
+	public void TableFileFailuresNameOnlyTheirOwnAction(bool load)
 	{
+		// The mapping never receives the path; TableClientGenerationTests proves through TableClient that no failure
+		// message of a load or a save contains it.
+		string operation = load ? "Tables.LoadTrustedTable" : "Tables.SaveTable";
 		foreach (LuaOperationStatusKind status in Enum.GetValues<LuaOperationStatusKind>())
 		{
-			bool succeeded = TableMapping.TryClassifyTableFile("Tables.LoadTrustedTable", load, status,
-				out CheatEngineFailure failure);
+			bool succeeded = TableMapping.TryClassifyTableFile(operation, load, status, out CheatEngineFailure failure);
 
 			Assert.Equal(status == LuaOperationStatusKind.Success, succeeded);
 			if (!succeeded)
 			{
-				Assert.Equal("Tables.LoadTrustedTable", failure.Operation);
-				Assert.DoesNotContain(".ct", failure.Message, StringComparison.OrdinalIgnoreCase);
+				Assert.Equal(operation, failure.Operation);
 				Assert.DoesNotContain(load ? "save" : "load", failure.Message, StringComparison.Ordinal);
 			}
 		}

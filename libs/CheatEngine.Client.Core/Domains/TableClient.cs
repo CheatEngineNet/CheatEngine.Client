@@ -27,7 +27,8 @@ internal sealed class TableClient(
 	ITableRecordMutationPort? recordMutations = null,
 	CoreLifetime? lifetime = null,
 	ITableRecordLookupPort? recordLookups = null,
-	ITableFilePort? tableFiles = null) : ITableClient
+	ITableFilePort? tableFiles = null,
+	ITableHierarchyPort? hierarchy = null) : ITableClient
 {
 	/// <summary>The message of a refused identifier captured before the last trusted table load.</summary>
 	internal const string StaleRecordIdentifierMessage =
@@ -47,6 +48,7 @@ internal sealed class TableClient(
 	private readonly ITableRecordLookupPort _recordLookups = recordLookups ?? new SdkTableRecordLookupPort();
 	private readonly ITableRecordMutationPort _recordMutations = recordMutations ?? new SdkTableRecordMutationPort();
 	private readonly ITableFilePort _tableFiles = tableFiles ?? SdkTableFilePort.Instance;
+	private readonly ITableHierarchyPort _hierarchy = hierarchy ?? new SdkTableRecordLookupPort();
 
 	// Depth of the trusted table loads in progress. Read and written only inside dispatched callbacks, on Cheat Engine's
 	// main thread, where every load runs: a callback that observes a non-zero depth runs inside a load, like a script of
@@ -542,8 +544,8 @@ internal sealed class TableClient(
 		HierarchyProblem problem = default;
 		if (!TryDispatch(GetHierarchyOperation, rootId, null, () =>
 			{
-				if (!AddressListAccess.TryGetCurrent(out AddressList list) ||
-					!list.TryGetMemoryRecordById(rootId, out MemoryRecord root))
+				if (_hierarchy.TryGetRoot(rootId, out ITableHierarchyRecord? root) != RecordLookupStatus.Success ||
+					root is null)
 				{
 					return;
 				}
@@ -881,8 +883,7 @@ internal sealed class TableClient(
 		return value.Handle.TryGetProperty<Int32Marshaller, int>("Count"u8, out childCount) && childCount >= 0;
 	}
 
-
-	private static bool TryBuildHierarchy(MemoryRecord value, MemoryRecordHierarchyRequest request, int depth,
+	private static bool TryBuildHierarchy(ITableHierarchyRecord value, MemoryRecordHierarchyRequest request, int depth,
 		HashSet<MemoryRecordId> visited, ref int materialized, out MemoryRecordHierarchySnapshot hierarchy,
 		out HierarchyProblem problem)
 	{
@@ -893,7 +894,7 @@ internal sealed class TableClient(
 			return false;
 		}
 
-		if (!TrySnapshot(value, out MemoryRecordSnapshot snapshot) || !visited.Add(snapshot.Id))
+		if (!value.TrySnapshot(out MemoryRecordSnapshot snapshot) || !visited.Add(snapshot.Id))
 		{
 			problem = new HierarchyProblem(HierarchyBuildProblem.InvalidShape);
 			return false;
@@ -925,7 +926,7 @@ internal sealed class TableClient(
 		for (int index = 0; index < childCount; index++)
 		{
 			// Every position below the reported count must hold a child: Cheat Engine refusing one is reported at it.
-			if (!value.TryGetChild(index, out MemoryRecord child))
+			if (!value.TryGetChild(index, out ITableHierarchyRecord? child))
 			{
 				problem = new HierarchyProblem(HierarchyBuildProblem.ChildUnavailable, snapshot.Id, index, childCount);
 				return false;
@@ -988,9 +989,9 @@ internal sealed class TableClient(
 
 	/// <summary>
 	///     Creates the failure of a hierarchy copy that stopped because Cheat Engine did not return a child at a position
-	///     below the record's reported child count. Internal for the hierarchy tests.
+	///     below the record's reported child count.
 	/// </summary>
-	internal static CheatEngineFailure ChildUnavailableFailure(MemoryRecordId recordId, int childIndex, int childCount)
+	private static CheatEngineFailure ChildUnavailableFailure(MemoryRecordId recordId, int childIndex, int childCount)
 	{
 		return new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult, GetHierarchyOperation,
 			$"Cheat Engine did not return child {childIndex} of memory record {recordId.Value}, which reports " +
