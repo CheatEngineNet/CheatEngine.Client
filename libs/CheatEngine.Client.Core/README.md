@@ -91,8 +91,7 @@ compares the CheatEngine.SDK identity embedded in this assembly at build time (v
 commit and NuGet content hash, as `AssemblyMetadata`, taken from the locked and restored package)
 with the informational version of the `CheatEngine.SDK.Engine` assembly actually loaded; it reads
 assembly attributes only. A build that cannot embed that identity fails with
-`CHEATENGINECLIENT9050`, except the SDK-side canary build, whose package gate reports `Unknown`. UI/forms,
-structures, Mono/IL2CPP, and ABI hooks are outside this layer.
+`CHEATENGINECLIENT9050`. UI/forms, structures, Mono/IL2CPP, and ABI hooks are outside this layer.
 
 ## Runtime facts, target selection and pointer width
 

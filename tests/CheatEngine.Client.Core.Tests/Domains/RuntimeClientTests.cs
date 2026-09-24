@@ -721,8 +721,8 @@ public sealed class RuntimeClientTests
 	public void TheIdentityOfThisBuildMatchesTheLoadedSdkPackage()
 	{
 		// The Core assembly under test embeds the identity of its locked and restored CheatEngine.SDK package (a
-		// non-canary build that cannot embed it fails with CHEATENGINECLIENT9050), and the test process loads that
-		// package, so the production identity is embedded and Satisfied. Only the SDK-side canary embeds nothing.
+		// build that cannot embed it fails with CHEATENGINECLIENT9050), and the test process loads that package, so
+		// the production identity is embedded and Satisfied.
 		ConsumedSdkIdentity current = ConsumedSdkIdentity.Current;
 
 		Assert.True(current.IsEmbedded, "The Core assembly under test embeds no consumed CheatEngine.SDK identity.");

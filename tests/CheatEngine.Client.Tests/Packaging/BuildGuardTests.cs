@@ -30,12 +30,17 @@ public sealed class BuildGuardTests
 	[Fact]
 	public async Task SdkMajorTwoPinFailsWithCHEATENGINECLIENT9016Async()
 	{
-		DotNetProcessResult result = await RunGuardAsync(SdkFacingLibrary, SdkPinGuard,
-			"-p:CheatEngineSdkVersion=2.0.0", "-p:CheatEngineSdkUpperBound=3.0.0");
+		string[] majorTwo = ["-p:CheatEngineSdkVersion=2.0.0", "-p:CheatEngineSdkUpperBound=3.0.0"];
+
+		DotNetProcessResult result = await RunGuardAsync(SdkFacingLibrary, SdkPinGuard, majorTwo);
+		DotNetProcessResult pack = await RunGuardAsync(SdkFacingLibrary, SdkPackGuard, majorTwo);
 
 		Assert.True(result.ExitCode != 0, result.ToString());
 		Assert.Contains("error CHEATENGINECLIENT9016", result.StandardOutput, StringComparison.Ordinal);
 		Assert.Contains("'2.0.0' has major version 2", result.StandardOutput, StringComparison.Ordinal);
+		Assert.True(pack.ExitCode != 0, pack.ToString());
+		Assert.Contains("error CHEATENGINECLIENT9016", pack.StandardOutput, StringComparison.Ordinal);
+		Assert.Contains("cannot be packed", pack.StandardOutput, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -47,24 +52,6 @@ public sealed class BuildGuardTests
 		Assert.True(result.ExitCode != 0, result.ToString());
 		Assert.Contains("error CHEATENGINECLIENT9016", result.StandardOutput, StringComparison.Ordinal);
 		Assert.Contains("'1.1.0-beta.1' is a prerelease", result.StandardOutput, StringComparison.Ordinal);
-	}
-
-	[Fact]
-	public async Task CanarySwitchKeepsTheBuildRunningButStillBlocksPackAsync()
-	{
-		string[] canary =
-		[
-			"-p:CheatEngineSdkVersion=2.0.0-alpha.0.1", "-p:CheatEngineSdkUpperBound=3.0.0", "-p:CheatEngineSdkCanary=true"
-		];
-
-		DotNetProcessResult build = await RunGuardAsync(SdkFacingLibrary, SdkPinGuard, canary);
-		DotNetProcessResult pack = await RunGuardAsync(SdkFacingLibrary, SdkPackGuard, canary);
-
-		Assert.True(build.ExitCode == 0, build.ToString());
-		Assert.Contains("CHEATENGINECLIENT9016 (canary build, not enforced", build.StandardOutput, StringComparison.Ordinal);
-		Assert.DoesNotContain("error CHEATENGINECLIENT", build.StandardOutput, StringComparison.Ordinal);
-		Assert.True(pack.ExitCode != 0, pack.ToString());
-		Assert.Contains("error CHEATENGINECLIENT9016", pack.StandardOutput, StringComparison.Ordinal);
 	}
 
 	[Fact]
@@ -112,7 +99,7 @@ public sealed class BuildGuardTests
 		List<string> arguments =
 		[
 			"msbuild", RepositoryLayout.Combine(project), $"-t:{target}", "-nologo", "-nodeReuse:false",
-			"-verbosity:minimal", "-p:CheatEngineSdkCanary=false"
+			"-verbosity:minimal"
 		];
 		arguments.AddRange(properties);
 		return DotNetProcess.RunAsync(RepositoryLayout.Root, [.. arguments]);

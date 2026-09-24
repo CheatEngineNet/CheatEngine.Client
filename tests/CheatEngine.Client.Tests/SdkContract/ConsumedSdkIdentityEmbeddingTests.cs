@@ -11,7 +11,7 @@ namespace CheatEngine.Client.Tests.SdkContract;
 ///     The consumed CheatEngine.SDK identity that Client.Core embeds for its runtime package gate (audit ADR-09, ADR-10,
 ///     A21-35) is the locked and restored package: the version and content hash of the resolved lock-file entry, the pin
 ///     of <c>eng/CheatEngineSdk.props</c>, and the source commit of the CheatEngine.SDK.Engine assembly actually loaded.
-///     A build that cannot embed it fails with <c>CHEATENGINECLIENT9050</c> unless it is the SDK-side canary.
+///     A build that cannot embed it fails with <c>CHEATENGINECLIENT9050</c>.
 /// </summary>
 /// <remarks>
 ///     The guard cases run only the evaluation and the guard target of <c>CheatEngine.Client.Core.csproj</c> (nothing is
@@ -81,30 +81,12 @@ public sealed partial class ConsumedSdkIdentityEmbeddingTests
 			StringComparison.Ordinal);
 	}
 
-	[Fact]
-	[Trait("Qualification", "Q48")]
-	public async Task CanaryBuildEmbedsNoConsumedSdkIdentityAndIsNotRefusedAsync()
-	{
-		using TemporaryDirectory emptyPackageRoot = new("empty-package-root");
-
-		DotNetProcessResult guard = await RunGuardAsync($"-p:NuGetPackageRoot={emptyPackageRoot.Path}",
-			"-p:CheatEngineSdkCanary=true");
-		DotNetProcessResult items = await DotNetProcess.RunAsync(RepositoryLayout.Root, "msbuild",
-			RepositoryLayout.Combine(CoreProject), "-nologo", "-nodeReuse:false", "-getItem:AssemblyMetadata",
-			"-p:CheatEngineSdkCanary=true");
-
-		Assert.True(guard.ExitCode == 0, guard.ToString());
-		Assert.DoesNotContain("CHEATENGINECLIENT9050", guard.StandardOutput, StringComparison.Ordinal);
-		Assert.True(items.ExitCode == 0, items.ToString());
-		Assert.DoesNotContain(MetadataPrefix, items.StandardOutput, StringComparison.Ordinal);
-	}
-
 	private static Task<DotNetProcessResult> RunGuardAsync(params string[] properties)
 	{
 		List<string> arguments =
 		[
 			"msbuild", RepositoryLayout.Combine(CoreProject), $"-t:{IdentityGuard}", "-nologo", "-nodeReuse:false",
-			"-verbosity:minimal", "-p:CheatEngineSdkCanary=false"
+			"-verbosity:minimal"
 		];
 		arguments.AddRange(properties);
 		return DotNetProcess.RunAsync(RepositoryLayout.Root, [.. arguments]);

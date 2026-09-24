@@ -63,17 +63,11 @@ These are package-level results (fixture level C2); a Cheat Engine host run of Q
 `origin` remote of the checkout that packs. CI checks out this repository, so it holds there; a local run in a clone
 whose `origin` is a fork or a local path produces other URLs or none, and fails that fact.
 
-`SdkCanaryRecipeTests.CanaryRecipeBuildsAgainstACandidateSdkButNeverPacksAsync` shares the same fixture and category. It
-runs the canary recipe of `eng/CheatEngineSdk.props` (the SDK-side client-canary job, audit Q48) on a throw-away copy of
-`CheatEngine.Client.Abstractions`, against the pinned SDK re-versioned as `2.0.0-alpha.0.42`: the restore rewrites the
-copy's lock file instead of failing (NU1005), `CHEATENGINECLIENT9016` reports without failing the build, and the pack
-is still refused.
-
 `BuildGuardTests` run the repository's MSBuild guard targets against real projects with overridden global properties,
-without restoring or building: `CommittedPinPassesTheSdkGuardAsync`, `SdkMajorTwoPinFailsWithCHEATENGINECLIENT9016Async`,
-`PrereleaseSdkPinFailsWithCHEATENGINECLIENT9016Async` and `CanarySwitchKeepsTheBuildRunningButStillBlocksPackAsync` prove that the
-consumed `CheatEngine.SDK` pin cannot move to a 2.x or prerelease package, and that the SDK-side canary build can report
-breakage but never produce a package. `RoslynPinDriftFailsWithCHEATENGINECLIENT9020Async` proves that the Roslyn pin of the
+without restoring or building: `CommittedPinPassesTheSdkGuardAsync`, `SdkMajorTwoPinFailsWithCHEATENGINECLIENT9016Async`
+and `PrereleaseSdkPinFailsWithCHEATENGINECLIENT9016Async` prove that the consumed `CheatEngine.SDK` pin cannot move to a
+2.x or prerelease package, and that such a pin never produces a package (the pack guard refuses it with
+`CHEATENGINECLIENT9016` too). `RoslynPinDriftFailsWithCHEATENGINECLIENT9020Async` proves that the Roslyn pin of the
 packed Lua generator cannot drift from its declared floor, and `LockstepGuardAcceptsMinVerAndRefusesEveryOtherVersionSourceAsync`
 that a package version comes from MinVer only (`CHEATENGINECLIENT9019`). `SbomGuardRefusesAPackWithoutTheSbomAsync` proves
 that a package cannot be packed without its SPDX SBOM (`CHEATENGINECLIENT9021`).

@@ -74,8 +74,7 @@
   <!--
     CHEATENGINECLIENT9016 and 9017: the consumed CheatEngine.SDK comes from eng/CheatEngineSdk.props only (audit ADR-10,
     A21-01). The checks run before NuGet collects package references, so restore and build of every project fail before
-    NuGet resolves anything (no NU1102, no silently resolved 2.x package). The canary switch turns the 9016 errors into
-    messages for the SDK-side advisory client-canary job; packing is refused regardless.
+    NuGet resolves anything (no NU1102, no silently resolved package of an unsupported major).
   -->
   <Target Name="_CheatEngineClientComputeSdkPinProblem">
     <PropertyGroup>
@@ -92,12 +91,9 @@
   <Target Name="CheatEngineClientValidateSdkPin"
           BeforeTargets="CollectPackageReferences"
           DependsOnTargets="_CheatEngineClientComputeSdkPinProblem">
-    <Error Condition="'$(_CheatEngineClientSdkPinProblem)' != '' and '$(CheatEngineSdkCanary)' != 'true'"
+    <Error Condition="'$(_CheatEngineClientSdkPinProblem)' != ''"
            Code="CHEATENGINECLIENT9016"
            Text="$(_CheatEngineClientSdkPinMessage)"/>
-    <Message Condition="'$(_CheatEngineClientSdkPinProblem)' != '' and '$(CheatEngineSdkCanary)' == 'true'"
-             Importance="high"
-             Text="CHEATENGINECLIENT9016 (canary build, not enforced; packing stays refused): $(_CheatEngineClientSdkPinMessage)"/>
 
     <PropertyGroup>
       <_CheatEngineClientSdkFacingLibrary>false</_CheatEngineClientSdkFacingLibrary>
@@ -240,9 +236,9 @@
   </Target>
 
   <!--
-    A canary or otherwise unsupported SDK pin never produces a package, even when its build was allowed to run. The
-    guard runs before GenerateNuspec, which writes the .nupkg and the .snupkg: a BeforeTargets="Pack" target would run
-    only after Pack's dependencies had already written them.
+    Packing checks the SDK pin again, so an unsupported SDK pin never produces a package, even from a pack that did not
+    build first. The guard runs before GenerateNuspec, which writes the .nupkg and the .snupkg: a BeforeTargets="Pack"
+    target would run only after Pack's dependencies had already written them.
   -->
   <Target Name="CheatEngineClientRefuseUnsupportedSdkPack"
           BeforeTargets="GenerateNuspec"
@@ -251,9 +247,6 @@
     <Error Condition="'$(_CheatEngineClientSdkPinProblem)' != ''"
            Code="CHEATENGINECLIENT9016"
            Text="$(MSBuildProjectName) cannot be packed: $(_CheatEngineClientSdkPinMessage)"/>
-    <Error Condition="'$(_CheatEngineClientSdkPinProblem)' == '' and '$(CheatEngineSdkCanary)' == 'true'"
-           Code="CHEATENGINECLIENT9016"
-           Text="$(MSBuildProjectName) cannot be packed with CheatEngineSdkCanary=true: a canary build only reports what breaks against an unreleased CheatEngine.SDK."/>
   </Target>
 
   <!--

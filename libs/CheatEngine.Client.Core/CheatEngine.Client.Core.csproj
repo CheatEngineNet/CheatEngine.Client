@@ -28,9 +28,8 @@
       against the content hash.
     - SourceCommit: the repository commit that the restored package's nuspec declares, taken only when the restored
       package's .nupkg.metadata content hash equals the lock value (the restored package is the locked one).
-    The SDK-side canary build (CheatEngineSdkCanary=true) embeds nothing, so its package gate reports Unknown instead of a
-    false match. Any other build that cannot embed the identity fails with CHEATENGINECLIENT9050, so an ordinary build
-    never degrades the operational package gates to Unknown without a signal.
+    A build that cannot embed the identity fails with CHEATENGINECLIENT9050, so no build degrades the operational
+    package gates to Unknown without a signal.
     Property functions: https://learn.microsoft.com/visualstudio/msbuild/property-functions
     AssemblyMetadata items: https://learn.microsoft.com/dotnet/core/project-sdk/msbuild-props#assemblymetadata
   -->
@@ -52,7 +51,7 @@
     <_CheatEngineClientConsumedSdkProblem Condition="'$(_CheatEngineClientConsumedSdkProblem)' == '' and ('$(_CheatEngineClientRestoredSdkNuspec)' == '' or '$(_CheatEngineClientRestoredSdkMetadata)' == '')">the restored CheatEngine.SDK $(_CheatEngineClientLockedSdkVersion) package was not found under the NuGet package root '$(NuGetPackageRoot)' (restore the project first)</_CheatEngineClientConsumedSdkProblem>
     <_CheatEngineClientConsumedSdkProblem Condition="'$(_CheatEngineClientConsumedSdkProblem)' == '' and '$(_CheatEngineClientRestoredSdkContentHash)' != '$(_CheatEngineClientLockedSdkContentHash)'">the restored CheatEngine.SDK $(_CheatEngineClientLockedSdkVersion) package has content hash '$(_CheatEngineClientRestoredSdkContentHash)', not the lock value '$(_CheatEngineClientLockedSdkContentHash)'</_CheatEngineClientConsumedSdkProblem>
     <_CheatEngineClientConsumedSdkProblem Condition="'$(_CheatEngineClientConsumedSdkProblem)' == '' and '$(_CheatEngineClientRestoredSdkCommit)' == ''">the restored CheatEngine.SDK $(_CheatEngineClientLockedSdkVersion) package declares no repository commit in its nuspec</_CheatEngineClientConsumedSdkProblem>
-    <_CheatEngineClientEmbedConsumedSdk Condition="'$(CheatEngineSdkCanary)' != 'true' and '$(_CheatEngineClientConsumedSdkProblem)' == ''">true</_CheatEngineClientEmbedConsumedSdk>
+    <_CheatEngineClientEmbedConsumedSdk Condition="'$(_CheatEngineClientConsumedSdkProblem)' == ''">true</_CheatEngineClientEmbedConsumedSdk>
   </PropertyGroup>
 
   <ItemGroup Label="Consumed CheatEngine.SDK identity" Condition="'$(_CheatEngineClientEmbedConsumedSdk)' == 'true'">
@@ -62,13 +61,13 @@
   </ItemGroup>
 
   <!--
-    CHEATENGINECLIENT9050: a non-canary compilation that cannot embed the consumed CheatEngine.SDK identity fails instead
-    of producing a Core assembly whose package gates would all report Unknown. Design-time builds are exempt.
+    CHEATENGINECLIENT9050: a compilation that cannot embed the consumed CheatEngine.SDK identity fails instead of
+    producing a Core assembly whose package gates would all report Unknown. Design-time builds are exempt.
   -->
   <Target Name="CheatEngineClientRequireConsumedSdkIdentity" BeforeTargets="CoreCompile"
-          Condition="'$(CheatEngineSdkCanary)' != 'true' and '$(DesignTimeBuild)' != 'true'">
+          Condition="'$(DesignTimeBuild)' != 'true'">
     <Error Code="CHEATENGINECLIENT9050" Condition="'$(_CheatEngineClientEmbedConsumedSdk)' != 'true'"
-           Text="CheatEngine.Client.Core cannot embed the identity of the consumed CheatEngine.SDK package: $(_CheatEngineClientConsumedSdkProblem). Without it the runtime package gate of every operational capability would report Unknown. Restore with the committed lock files (dotnet restore --locked-mode) and keep eng/CheatEngineSdk.props, libs/CheatEngine.Client.Core/packages.lock.json and the restored package in agreement; only the SDK-side canary build (CheatEngineSdkCanary=true) builds without it."/>
+           Text="CheatEngine.Client.Core cannot embed the identity of the consumed CheatEngine.SDK package: $(_CheatEngineClientConsumedSdkProblem). Without it the runtime package gate of every operational capability would report Unknown. Restore with the committed lock files (dotnet restore --locked-mode) and keep eng/CheatEngineSdk.props, libs/CheatEngine.Client.Core/packages.lock.json and the restored package in agreement."/>
   </Target>
 
 </Project>

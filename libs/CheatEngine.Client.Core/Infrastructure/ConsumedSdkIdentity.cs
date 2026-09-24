@@ -17,9 +17,9 @@ namespace CheatEngine.Client.Core.Infrastructure;
 ///         commit declared by the restored package whose content hash equals the lock value. At runtime the package gate
 ///         is <see cref="ClientCapabilityEvidenceState.Satisfied" /> only when the loaded CheatEngine.SDK.Engine
 ///         informational version equals <c>{version}+{sourceCommit}</c>; a different package is
-///         <see cref="ClientCapabilityEvidenceState.Missing" />; a build without embedded identity (only the SDK-side
-///         canary: any other build that cannot embed it fails with <c>CHEATENGINECLIENT9050</c>) or an SDK assembly
-///         without an informational version is <see cref="ClientCapabilityEvidenceState.Unknown" />.
+///         <see cref="ClientCapabilityEvidenceState.Missing" />; an identity without embedded evidence (a defensive case:
+///         a build that cannot embed it fails with <c>CHEATENGINECLIENT9050</c>) or an SDK assembly without an
+///         informational version is <see cref="ClientCapabilityEvidenceState.Unknown" />.
 ///     </para>
 ///     <para>
 ///         Only assembly-level attributes are read (AOT-safe); no file, network, or Lua access happens, so the identity is
@@ -108,8 +108,8 @@ internal sealed class ConsumedSdkIdentity
 		if (!IsEmbedded)
 		{
 			return new ClientCapabilityEvidenceGate(ClientCapabilityEvidenceState.Unknown,
-				"This Client build embeds no consumed CheatEngine.SDK identity (for example an SDK canary build), so " +
-				"the runtime snapshot does not establish the identity of the consumed SDK package artifact.");
+				"This Client build embeds no consumed CheatEngine.SDK identity, so the runtime snapshot does not " +
+				"establish the identity of the consumed SDK package artifact.");
 		}
 
 		if (LoadedInformationalVersion is null)

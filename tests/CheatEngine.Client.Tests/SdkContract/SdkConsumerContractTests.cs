@@ -13,8 +13,8 @@ namespace CheatEngine.Client.Tests.SdkContract;
 ///     change that the Client did not adapt to is detected here, before publication, instead of by a plugin at runtime.
 /// </summary>
 /// <remarks>
-///     Q48 is <em>Partial</em> by decision: the Client has no next-SDK build leg. The SDK side is its ApiCompat baseline
-///     and the advisory SDK-side Client canary; the Client side is these C1 tests, the compile-only
+///     Q48 is <em>Partial</em> by decision: the Client has no next-SDK build leg, and no job builds it against an
+///     unreleased CheatEngine.SDK. Q48 is covered by the consumer-contract tests only: these C1 tests, the compile-only
 ///     <see cref="SdkApiUsage" /> map, and the CHEATENGINECLIENT9016 version-range guard.
 /// </remarks>
 public sealed class SdkConsumerContractTests
