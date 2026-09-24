@@ -47,7 +47,9 @@ public interface ILuaModule
 	///         host effect <c>NotStarted</c>), when a global is already defined (<c>OperationRejected</c>,
 	///         <c>NotApplied</c>: nothing was published), or when a protected lookup or publication failed
 	///         (<c>LuaError</c>; <c>NotApplied</c> when the SDK's rollback removed everything it published,
-	///         <c>CleanupUnconfirmed</c> otherwise).
+	///         <c>CleanupUnconfirmed</c> otherwise). Registering a module that still owns a registration releases it
+	///         first; when that release may leave one of its globals, nothing is published and the failure is
+	///         <c>CleanupUnconfirmed</c>.
 	///     </para>
 	/// </remarks>
 	public void Register();

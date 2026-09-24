@@ -60,9 +60,14 @@ returning. An `Unregister` that CheatEngine.SDK refuses with `Detached` or `Exte
 | `Unspecified`, a success without a lease, or an unknown kind | `InvalidHostResult`, `Unknown` |
 
 A registration that the module still owns from an earlier call is released first, inside the same admitted operation;
-a lease of an earlier attachment or Lua state is only forgotten. When a publication fails and the SDK compensation
-leaves a residual lease, the registrar releases that lease once more in the same operation. Any other exception is an
-SDK fault (F15): it propagates, and `ILuaClient` classifies it through its SDK boundary.
+a lease of an earlier attachment or Lua state is only forgotten. When that release may leave one of the module's own
+globals (`PartiallyReleased`, or a result outside the documented shape), `Register` publishes nothing and throws
+`LuaError` (`InvalidHostResult` for an unrecognized result) with `CleanupUnconfirmed` and the release counts, instead of
+reporting the module's leftover global as a third party's. A `Collision` after a stale earlier registration names that
+release in its message, because the global may be the module's function of an earlier attachment. When a publication
+fails and the SDK compensation leaves a residual lease, the registrar releases that lease once more in the same
+operation. Any other exception is an SDK fault (F15): it propagates, and `ILuaClient` classifies it through its SDK
+boundary.
 
 ### Release
 
@@ -173,6 +178,8 @@ generated SDK adapter; the module and the registrar run unchanged.
 | Stale registrations write nothing and require manual recovery; a partial release is never retried; a refused admission keeps the registration | `UnregisterAfterALuaStateReplacementWritesNothingAndReportsRefusedRuntimeChanged`, `UnregisterAfterAReattachWritesNothingAndLeavesTheEarlierGlobalsInPlace`, `UnregisterWithoutTheLuaUniverseConsumesTheRegistrationAsStaleWithoutLua`, `UnregisterWithoutAdmissionKeepsTheRegistrationForALaterAttempt`, `UnregisterReportsIndependentFailuresAsAPartialReleaseThatIsNeverRetried` |
 | Registration refuses before any write and classifies every failure | `RegisterRefusesAnOccupiedExportBeforeAnyWrite`, `RegisterReportsAPreflightReadFailureBeforeAnyWrite`, `RegisterRollsBackWhatItPublishedWhenPublicationFails`, `RegisterReportsARollbackCompletedByTheResidualReleaseAsNotApplied`, `RegisterReportsARollbackThatLeftAGlobalAsAnUnconfirmedCleanup`, `RegisterWithoutAdmissionIsRefusedBeforeAnyLuaCall` |
 | Each call runs in one admitted operation that it ends; the module registers with `RejectExisting` | `RegisterAndUnregisterEachRunInOneAdmittedOperationThatTheyEnd`, `AFailedPublicationEndsItsOperationAfterReleasingTheResidualLease`, `RegisterAgainReleasesTheEarlierRegistrationFirst` |
+| Registering again reports the release of the earlier registration instead of a false collision | `RegisterAgainPublishesNothingWhenTheEarlierReleaseLeftAGlobal`, `RegisterAgainAfterAReattachNamesTheStaleReleaseInTheCollision` |
+| A release outside the SDK shape is an unconfirmed cleanup, never retried | `AReleaseOutsideTheSdkShapeIsAnUnconfirmedCleanupThatIsNeverRetried` |
 | Every SDK outcome enum is mapped totally and fails closed | `GeneratedRegistrarMappingTests` |
 | The SDK surface is exact and confined to the adapter | `GeneratedLuaSurfaceRatchetTests` |
 | No legacy registration; contract, projection and emitted text compared separately; no `unsafe` code required; refused without an attached SDK runtime | `ModuleContractTests`, `ModuleSnapshots` |

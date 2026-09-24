@@ -393,6 +393,45 @@ public sealed class LuaModuleOwnershipEndToEndTests
 	}
 
 	[Fact]
+	public void RegisterAgainPublishesNothingWhenTheEarlierReleaseLeftAGlobal()
+	{
+		(ILuaModule module, FakeLuaGlobals globals) = Registered();
+		FakeLuaValue kept = globals[Ping]!;
+		globals.FailClears.Add(Ping);
+
+		CheatEngineFailure failure = RegisterFailure(module, globals);
+
+		// The module's own leftover function is not reported as a third party's global: the partial release is the failure.
+		Assert.Equal(CheatEngineFailureKind.LuaError, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.CleanupUnconfirmed, failure.HostEffect);
+		Assert.Equal("Client Lua module 'plugin' could not release its earlier registration before registering again; " +
+					 "nothing was published. The release reported PartiallyReleased (removed 2, replaced 0, remaining 1, " +
+					 "failed ping).", failure.Message);
+		Assert.Equal(0, globals.CountOf("write"));
+		Assert.Same(kept, globals[Ping]);
+		Assert.Equal(0, globals.OpenOperationCount);
+		// The earlier lease was consumed by that release: nothing is left for Unregister to retry.
+		Assert.Equal(LeaseReleaseKind.AlreadyReleased, ModuleHarness.Unregister(module, globals).Kind);
+	}
+
+	[Fact]
+	public void RegisterAgainAfterAReattachNamesTheStaleReleaseInTheCollision()
+	{
+		(ILuaModule module, FakeLuaGlobals globals) = Registered();
+		globals.Reattach();
+
+		CheatEngineFailure failure = RegisterFailure(module, globals);
+
+		// The earlier attachment's functions stay in the same Lua state: the collision is with the module's own globals.
+		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.NotApplied, failure.HostEffect);
+		Assert.Equal("Lua global 'status' is already defined and cannot be replaced by Client module 'plugin'. The " +
+					 "release of the module's earlier registration reported Stale (removed 0, replaced 0, remaining 3).",
+			failure.Message);
+		Assert.Equal(["read:status"], globals.Log);
+	}
+
+	[Fact]
 	public void ARefusedRegistrationKeepsTheRegistrationTheModuleAlreadyOwned()
 	{
 		(ILuaModule module, FakeLuaGlobals globals) = Registered();

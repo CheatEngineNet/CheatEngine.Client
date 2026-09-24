@@ -74,6 +74,7 @@ internal static class RegistrarEmitter
 				}
 
 				CheatEngineLuaPublication publication;
+				CheatEngineLuaRelease previous = default;
 				CheatEngineLuaRelease residual = default;
 				try
 				{
@@ -83,7 +84,14 @@ internal static class RegistrarEmitter
 						// Released inside this admitted operation before the same globals are published again: a current
 						// lease is released ownership-aware, a lease of an earlier attachment or Lua state is only forgotten.
 						registration = null;
-						_ = CheatEngineLuaRegistrationAdapter.Release(owned, state);
+						previous = CheatEngineLuaRegistrationAdapter.Release(owned, state);
+						if (!LeftNothingOwned(previous.Kind))
+						{
+							// A global of the earlier registration may still hold the module's own function: publishing
+							// would report it as a third party's. Nothing is published, and the release is the failure.
+							throw new global::CheatEngine.Client.Results.CheatEngineOperationException(
+								NotReleased(descriptor.Name, previous));
+						}
 					}
 
 					publication = CheatEngineLuaRegistrationAdapter.Publish(publish, state);
@@ -107,7 +115,7 @@ internal static class RegistrarEmitter
 				}
 
 				throw new global::CheatEngine.Client.Results.CheatEngineOperationException(
-					Failed(descriptor.Name, publication, residual));
+					Failed(descriptor.Name, publication, previous, residual));
 			}
 
 			/// <summary>Releases the registration lease in <paramref name="registration" /> and reports what happened.</summary>
@@ -258,8 +266,35 @@ internal static class RegistrarEmitter
 					null, global::CheatEngine.Client.Results.CheatEngineHostEffect.NotStarted);
 			}
 
+			// Whether the release of the registration a module already owned left nothing of it that a publication could meet.
+			private static bool LeftNothingOwned(global::CheatEngine.SDK.Lua.Registration.LuaRegistrationReleaseKind kind)
+			{
+				switch (kind)
+				{
+					case global::CheatEngine.SDK.Lua.Registration.LuaRegistrationReleaseKind.Released:
+					case global::CheatEngine.SDK.Lua.Registration.LuaRegistrationReleaseKind.AlreadyReleased:
+					case global::CheatEngine.SDK.Lua.Registration.LuaRegistrationReleaseKind.Stale:
+						return true;
+					default:
+						return false;
+				}
+			}
+
+			private static global::CheatEngine.Client.Results.CheatEngineFailure NotReleased(string moduleName,
+				CheatEngineLuaRelease previous)
+			{
+				return new global::CheatEngine.Client.Results.CheatEngineFailure(
+					previous.Kind == global::CheatEngine.SDK.Lua.Registration.LuaRegistrationReleaseKind.PartiallyReleased
+						? global::CheatEngine.Client.Results.CheatEngineFailureKind.LuaError
+						: global::CheatEngine.Client.Results.CheatEngineFailureKind.InvalidHostResult,
+					RegisterOperation,
+					"Client Lua module '" + moduleName + "' could not release its earlier registration before registering " +
+					"again; nothing was published. " + Describe("The release", previous),
+					null, global::CheatEngine.Client.Results.CheatEngineHostEffect.CleanupUnconfirmed);
+			}
+
 			private static global::CheatEngine.Client.Results.CheatEngineFailure Failed(string moduleName,
-				CheatEngineLuaPublication publication, CheatEngineLuaRelease residual)
+				CheatEngineLuaPublication publication, CheatEngineLuaRelease previous, CheatEngineLuaRelease residual)
 			{
 				string name = publication.FailedExport ?? "(unnamed)";
 				string status = publication.FailedStatus ?? "(unknown)";
@@ -267,9 +302,14 @@ internal static class RegistrarEmitter
 				switch (publication.Kind)
 				{
 					case global::CheatEngine.SDK.Lua.Registration.LuaRegistrationResultKind.Collision:
+						// After a stale earlier registration, the global may be the module's own function of an earlier
+						// attachment: the message says what that release reported.
 						return new global::CheatEngine.Client.Results.CheatEngineFailure(kind, RegisterOperation,
 							"Lua global '" + name + "' is already defined and cannot be replaced by Client module '" +
-							moduleName + "'.",
+							moduleName + "'." +
+							(previous.Kind == global::CheatEngine.SDK.Lua.Registration.LuaRegistrationReleaseKind.NotAttempted
+								? string.Empty
+								: " " + Describe("The release of the module's earlier registration", previous)),
 							null, global::CheatEngine.Client.Results.CheatEngineHostEffect.NotApplied);
 					case global::CheatEngine.SDK.Lua.Registration.LuaRegistrationResultKind.PreflightFailed:
 						return new global::CheatEngine.Client.Results.CheatEngineFailure(kind, RegisterOperation,
