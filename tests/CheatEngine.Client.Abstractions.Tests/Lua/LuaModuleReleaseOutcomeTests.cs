@@ -1,163 +1,133 @@
 using System.Collections.Immutable;
 
 using CheatEngine.Client.Lua;
+using CheatEngine.Client.Results;
 
 namespace CheatEngine.Client.Abstractions.Tests.Lua;
 
 /// <summary>
-///     C1 contract of the handle-free Lua module release outcome that generated modules publish (F12, Q16): the kind is
-///     computed from the export statuses and the shape of a release that cannot happen is refused.
+///     C1 contract of the handle-free Lua module release outcome (F12, Q16): the facts CheatEngine.SDK observed, in the
+///     Client lease vocabulary, and the shapes of a release that cannot happen are refused.
 /// </summary>
 [Trait("Qualification", "Q16")]
 public sealed class LuaModuleReleaseOutcomeTests
 {
 	[Fact]
-	public void KindIsReleasedWhenEveryExportWasRemovedReplacedOrAbsent()
+	public void ReleasedCarriesTheCountsTheSdkObserved()
 	{
-		LuaModuleReleaseOutcome outcome = Create(
-			("status", LuaExportReleaseStatus.Removed),
-			("ping", LuaExportReleaseStatus.Replaced),
-			("marker", LuaExportReleaseStatus.Absent));
+		LuaModuleReleaseOutcome outcome = LuaModuleReleaseOutcome.Released("plugin", 2, 0, 1);
 
 		Assert.Equal("plugin", outcome.ModuleName);
-		Assert.Equal(LuaModuleReleaseKind.Released, outcome.Kind);
+		Assert.Equal(LeaseReleaseKind.Released, outcome.Kind);
+		Assert.Equal(2, outcome.RemovedCount);
+		Assert.Equal(0, outcome.RestoredCount);
+		Assert.Equal(1, outcome.ReplacementCount);
+		Assert.Equal(0, outcome.RemainingCount);
+		Assert.Empty(outcome.FailedExports);
 		Assert.True(outcome.IsComplete);
 	}
 
 	[Fact]
-	public void AnyFailedExportMakesTheReleasePartial()
+	public void PartiallyReleasedNamesItsFailedExportsAsRemaining()
 	{
-		LuaModuleReleaseOutcome outcome = Create(
-			("status", LuaExportReleaseStatus.Removed),
-			("ping", LuaExportReleaseStatus.Failed),
-			("marker", LuaExportReleaseStatus.Replaced));
+		LuaModuleReleaseOutcome outcome =
+			LuaModuleReleaseOutcome.PartiallyReleased("plugin", 1, 0, 0, ["status", "ping"]);
 
-		Assert.Equal(LuaModuleReleaseKind.PartiallyReleased, outcome.Kind);
+		Assert.Equal(LeaseReleaseKind.PartiallyReleased, outcome.Kind);
+		Assert.Equal(["status", "ping"], outcome.FailedExports);
+		Assert.Equal(2, outcome.RemainingCount);
 		Assert.False(outcome.IsComplete);
 	}
 
 	[Fact]
-	public void AllNotAttemptedExportsMakeTheReleaseStale()
+	public void TheRemainingFactoriesReportWhatTheirKindMeans()
 	{
-		LuaModuleReleaseOutcome outcome = Create(
-			("status", LuaExportReleaseStatus.NotAttempted),
-			("ping", LuaExportReleaseStatus.NotAttempted));
+		LuaModuleReleaseOutcome alreadyReleased = LuaModuleReleaseOutcome.AlreadyReleased("plugin");
+		LuaModuleReleaseOutcome stale = LuaModuleReleaseOutcome.RefusedRuntimeChanged("plugin", 3);
+		LuaModuleReleaseOutcome unavailable = LuaModuleReleaseOutcome.CleanupUnavailable("plugin", 3);
 
-		Assert.Equal(LuaModuleReleaseKind.Stale, outcome.Kind);
-		Assert.True(outcome.IsComplete);
-		Assert.Equal(0, outcome.RemovedCount + outcome.ReplacedCount + outcome.AbsentCount + outcome.FailedCount);
+		Assert.Equal(LeaseReleaseKind.AlreadyReleased, alreadyReleased.Kind);
+		Assert.True(alreadyReleased.IsComplete);
+		Assert.Equal(LeaseReleaseKind.RefusedRuntimeChanged, stale.Kind);
+		Assert.Equal(3, stale.RemainingCount);
+		Assert.False(stale.IsComplete);
+		Assert.Equal(LeaseReleaseKind.CleanupUnavailable, unavailable.Kind);
+		Assert.Equal(3, unavailable.RemainingCount);
+		Assert.False(unavailable.IsComplete);
+	}
+
+	[Theory]
+	[InlineData(LeaseReleaseKind.Unknown)]
+	[InlineData(LeaseReleaseKind.Released)]
+	[InlineData(LeaseReleaseKind.AlreadyReleased)]
+	[InlineData(LeaseReleaseKind.Replaced)]
+	[InlineData(LeaseReleaseKind.Superseded)]
+	[InlineData(LeaseReleaseKind.ExternallyRemoved)]
+	[InlineData(LeaseReleaseKind.RefusedNoTarget)]
+	[InlineData(LeaseReleaseKind.RefusedTargetChanged)]
+	[InlineData(LeaseReleaseKind.RefusedTargetIdentityUnavailable)]
+	[InlineData(LeaseReleaseKind.RefusedRuntimeChanged)]
+	[InlineData(LeaseReleaseKind.CleanupUnconfirmed)]
+	[InlineData(LeaseReleaseKind.CleanupUnavailable)]
+	public void IsCompleteFollowsTheLeaseReleaseRuleForEveryKind(LeaseReleaseKind kind)
+	{
+		LuaModuleReleaseOutcome outcome = LuaModuleReleaseOutcome.Create("plugin", kind, 0, 0, 0, 1, default);
+
+		Assert.Equal(new LeaseReleaseOutcome(kind, CheatEngineHostEffect.Unknown).IsComplete, outcome.IsComplete);
+		Assert.Empty(outcome.FailedExports);
 	}
 
 	[Fact]
-	public void NotAttemptedMixedWithAttemptedExportsIsRejected()
+	public void FailedExportsAreRequiredExactlyForAPartialRelease()
 	{
-		Assert.Throws<ArgumentException>(() => Create(
-			("status", LuaExportReleaseStatus.NotAttempted),
-			("ping", LuaExportReleaseStatus.Removed)));
-		Assert.Throws<ArgumentException>(() => Create(
-			("status", LuaExportReleaseStatus.NotAttempted),
-			("ping", LuaExportReleaseStatus.Failed)));
-	}
-
-	[Fact]
-	public void CountsMatchTheExportStatuses()
-	{
-		LuaModuleReleaseOutcome outcome = Create(
-			("a", LuaExportReleaseStatus.Removed),
-			("b", LuaExportReleaseStatus.Removed),
-			("c", LuaExportReleaseStatus.Replaced),
-			("d", LuaExportReleaseStatus.Absent),
-			("e", LuaExportReleaseStatus.Absent),
-			("f", LuaExportReleaseStatus.Absent),
-			("g", LuaExportReleaseStatus.Failed));
-
-		Assert.Equal(2, outcome.RemovedCount);
-		Assert.Equal(1, outcome.ReplacedCount);
-		Assert.Equal(3, outcome.AbsentCount);
-		Assert.Equal(1, outcome.FailedCount);
-		Assert.Equal(7, outcome.Exports.Length);
-	}
-
-	[Fact]
-	public void UnknownStatusIsRejected()
-	{
-		Assert.Throws<ArgumentOutOfRangeException>(() =>
-			new LuaExportReleaseOutcome("status", LuaExportReleaseStatus.Unknown));
-		Assert.Throws<ArgumentOutOfRangeException>(() =>
-			new LuaExportReleaseOutcome("status", (LuaExportReleaseStatus) 6));
-		Assert.Throws<ArgumentOutOfRangeException>(() =>
-			new LuaExportReleaseOutcome("status", (LuaExportReleaseStatus) (-1)));
-		Assert.Throws<ArgumentException>(() => new LuaModuleReleaseOutcome("plugin",
-			[new LuaExportReleaseOutcome("status", LuaExportReleaseStatus.Removed), default]));
-	}
-
-	[Fact]
-	public void BlankOrDuplicateExportNamesAreRejected()
-	{
-		Assert.Throws<ArgumentException>(() => new LuaExportReleaseOutcome(" ", LuaExportReleaseStatus.Removed));
-		Assert.Throws<ArgumentNullException>(() => new LuaExportReleaseOutcome(null!, LuaExportReleaseStatus.Removed));
-		Assert.Throws<ArgumentException>(() => Create(
-			("status", LuaExportReleaseStatus.Removed),
-			("status", LuaExportReleaseStatus.Replaced)));
-		Assert.Throws<ArgumentException>(() => new LuaModuleReleaseOutcome(" ",
-			[new LuaExportReleaseOutcome("status", LuaExportReleaseStatus.Removed)]));
-	}
-
-	[Fact]
-	public void DefaultOrEmptyExportsAreRejected()
-	{
-		Assert.Throws<ArgumentException>(() => new LuaModuleReleaseOutcome("plugin", default));
 		Assert.Throws<ArgumentException>(() =>
-			new LuaModuleReleaseOutcome("plugin", ImmutableArray<LuaExportReleaseOutcome>.Empty));
+			LuaModuleReleaseOutcome.Create("plugin", LeaseReleaseKind.PartiallyReleased, 0, 0, 0, 0, []));
+		Assert.Throws<ArgumentException>(() =>
+			LuaModuleReleaseOutcome.Create("plugin", LeaseReleaseKind.Released, 0, 0, 0, 1, ["status"]));
 	}
 
 	[Fact]
-	public void ExportsAreCopiedAndImmutable()
+	public void BlankOrDuplicateFailedExportsAreRejected()
 	{
-		ImmutableArray<LuaExportReleaseOutcome>.Builder builder =
-			ImmutableArray.CreateBuilder<LuaExportReleaseOutcome>();
-		builder.Add(new LuaExportReleaseOutcome("status", LuaExportReleaseStatus.Removed));
-		builder.Add(new LuaExportReleaseOutcome("ping", LuaExportReleaseStatus.Replaced));
-		LuaModuleReleaseOutcome outcome = new("plugin", builder.ToImmutable());
+		Assert.Throws<ArgumentException>(() =>
+			LuaModuleReleaseOutcome.PartiallyReleased("plugin", 0, 0, 0, [" "]));
+		Assert.Throws<ArgumentException>(() =>
+			LuaModuleReleaseOutcome.PartiallyReleased("plugin", 0, 0, 0, ["status", "status"]));
+	}
 
-		builder[1] = new LuaExportReleaseOutcome("ping", LuaExportReleaseStatus.Failed);
-		builder.Add(new LuaExportReleaseOutcome("marker", LuaExportReleaseStatus.Absent));
+	[Fact]
+	public void BlankModuleNamesUndefinedKindsNegativeCountsAndTooFewRemainingAreRejected()
+	{
+		Assert.Throws<ArgumentException>(() => LuaModuleReleaseOutcome.AlreadyReleased(" "));
+		Assert.Throws<ArgumentOutOfRangeException>(() =>
+			LuaModuleReleaseOutcome.Create("plugin", (LeaseReleaseKind) 99, 0, 0, 0, 0, []));
+		Assert.Throws<ArgumentOutOfRangeException>(() => LuaModuleReleaseOutcome.Released("plugin", -1, 0, 0));
+		Assert.Throws<ArgumentOutOfRangeException>(() => LuaModuleReleaseOutcome.RefusedRuntimeChanged("plugin", -1));
+		Assert.Throws<ArgumentException>(() =>
+			LuaModuleReleaseOutcome.Create("plugin", LeaseReleaseKind.PartiallyReleased, 0, 0, 0, 1, ["status", "ping"]));
+	}
+
+	[Fact]
+	public void FailedExportsAreCopiedAndImmutable()
+	{
+		ImmutableArray<string>.Builder builder = ImmutableArray.CreateBuilder<string>();
+		builder.Add("status");
+		LuaModuleReleaseOutcome outcome = LuaModuleReleaseOutcome.PartiallyReleased("plugin", 0, 0, 0,
+			builder.ToImmutable());
+
+		builder.Add("ping");
+
+		Assert.Equal(["status"], outcome.FailedExports);
+	}
+
+	[Fact]
+	public void ToStringListsTheModuleKindCountsAndFailedExports()
+	{
+		LuaModuleReleaseOutcome outcome =
+			LuaModuleReleaseOutcome.PartiallyReleased("plugin", 1, 0, 2, ["status", "ping"]);
 
 		Assert.Equal(
-			[
-				new LuaExportReleaseOutcome("status", LuaExportReleaseStatus.Removed),
-				new LuaExportReleaseOutcome("ping", LuaExportReleaseStatus.Replaced)
-			],
-			outcome.Exports);
-		Assert.Equal(LuaModuleReleaseKind.Released, outcome.Kind);
-		Assert.Equal(0, outcome.FailedCount);
-	}
-
-	[Fact]
-	public void KindNumbersMatchTheSdkRegistrationReleaseKinds()
-	{
-		// CheatEngine.SDK 2.0.0 LuaRegistrationReleaseKind: Released = 1, PartiallyReleased = 2, Stale = 3. Generated
-		// modules do not use the SDK leases, so the numbers are frozen here to keep the documented correspondence.
-		Assert.Equal(1, (int) LuaModuleReleaseKind.Released);
-		Assert.Equal(2, (int) LuaModuleReleaseKind.PartiallyReleased);
-		Assert.Equal(3, (int) LuaModuleReleaseKind.Stale);
-		Assert.Equal(0, (int) LuaModuleReleaseKind.Unknown);
-		Assert.Equal(0, (int) LuaExportReleaseStatus.Unknown);
-	}
-
-	[Fact]
-	public void ToStringListsTheModuleKindAndEveryExportStatusInOrder()
-	{
-		LuaModuleReleaseOutcome outcome = Create(
-			("status", LuaExportReleaseStatus.Removed),
-			("ping", LuaExportReleaseStatus.Replaced));
-
-		Assert.Equal("Module=plugin; Kind=Released; status=Removed; ping=Replaced", outcome.ToString());
-	}
-
-	private static LuaModuleReleaseOutcome Create(params (string Name, LuaExportReleaseStatus Status)[] exports)
-	{
-		return new LuaModuleReleaseOutcome("plugin",
-			[.. exports.Select(static export => new LuaExportReleaseOutcome(export.Name, export.Status))]);
+			"Module=plugin; Kind=PartiallyReleased; Removed=1; Restored=0; Replacement=2; Remaining=2; Failed=status,ping",
+			outcome.ToString());
 	}
 }

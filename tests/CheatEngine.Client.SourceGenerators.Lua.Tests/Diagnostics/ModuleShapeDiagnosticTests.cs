@@ -72,8 +72,9 @@ public sealed class ModuleShapeDiagnosticTests
 		FileLinePositionSpan span = diagnostic.Location.GetLineSpan();
 		Assert.Equal("B.cs", span.Path);
 		Assert.Equal(LineOf(BetaFile, "[CheatEngineLuaModule("), span.StartLinePosition.Line);
-		// A duplicate owner is refused at build time; both adapters are still emitted so no cascading error hides it.
-		Assert.Equal(2, run.GeneratedSources.Length);
+		// A duplicate owner is refused at build time; both modules and the registrar are still emitted so no cascading
+		// error hides it.
+		Assert.Equal(4, run.GeneratedSources.Length);
 	}
 
 	[Fact]
@@ -98,11 +99,9 @@ public sealed class ModuleShapeDiagnosticTests
 	[InlineData("public void Register() { }", "Register")]
 	[InlineData("public void Unregister(int reason) { }", "Unregister")]
 	[InlineData("public int Descriptor => 0;", "Descriptor")]
-	[InlineData("public string LastReleaseOutcome => string.Empty;", "LastReleaseOutcome")]
 	[InlineData("private static readonly int s_descriptor = 0;", "s_descriptor")]
-	[InlineData("private int __CheatEngineLuaState;", "__CheatEngineLuaState")]
-	[InlineData("private sealed class __CheatEngineLuaHelper { }", "__CheatEngineLuaHelper")]
-	[InlineData("void ILuaModule.Unregister() { }", "ILuaModule.Unregister")]
+	[InlineData("private int _luaRegistration;", "_luaRegistration")]
+	[InlineData("CheatEngine.Client.Lua.LuaModuleReleaseOutcome ILuaModule.Unregister() => null!;", "ILuaModule.Unregister")]
 	public void ReservedMemberDeclarationReportsCECLUA1202AndGeneratesNothing(string member, string reportedName)
 	{
 		string source = BindingsPrefix +

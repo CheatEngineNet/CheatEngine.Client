@@ -122,8 +122,6 @@ CheatEngine.Client.Lua.CheatEngineLuaOperationAttribute
 CheatEngine.Client.Lua.CheatEngineLuaOperationAttribute.CheatEngineLuaOperationAttribute() -> void
 CheatEngine.Client.Lua.CheatEngineLuaOperationAttribute.CheatEngineLuaOperationAttribute(System.Type! mapperType) -> void
 CheatEngine.Client.Lua.CheatEngineLuaOperationAttribute.MapperType.get -> System.Type?
-CheatEngine.Client.Lua.IDescribedLuaModule
-CheatEngine.Client.Lua.IDescribedLuaModule.Descriptor.get -> CheatEngine.Client.Lua.LuaModuleDescriptor
 CheatEngine.Client.Lua.ILuaClient
 CheatEngine.Client.Lua.ILuaClient.Execute<TOperation, TResult>(TOperation operation, System.Threading.CancellationToken cancellationToken) -> TResult
 CheatEngine.Client.Lua.ILuaClient.Execute<TResult>(CheatEngine.Client.Lua.ILuaOperation<TResult>! operation, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> TResult
@@ -136,8 +134,9 @@ CheatEngine.Client.Lua.ILuaExecutionContext.Epoch.get -> long
 CheatEngine.Client.Lua.ILuaExecutionContext.IsActive.get -> bool
 CheatEngine.Client.Lua.ILuaExecutionContext.ThrowIfExpired() -> void
 CheatEngine.Client.Lua.ILuaModule
+CheatEngine.Client.Lua.ILuaModule.Descriptor.get -> CheatEngine.Client.Lua.LuaModuleDescriptor
 CheatEngine.Client.Lua.ILuaModule.Register() -> void
-CheatEngine.Client.Lua.ILuaModule.Unregister() -> void
+CheatEngine.Client.Lua.ILuaModule.Unregister() -> CheatEngine.Client.Lua.LuaModuleReleaseOutcome!
 CheatEngine.Client.Lua.ILuaModuleLease
 CheatEngine.Client.Lua.ILuaModuleLease.Epoch.get -> long
 CheatEngine.Client.Lua.ILuaModuleLease.IsReleased.get -> bool
@@ -145,8 +144,6 @@ CheatEngine.Client.Lua.ILuaOperation<TResult>
 CheatEngine.Client.Lua.ILuaOperation<TResult>.TryExecute(CheatEngine.Client.Lua.ILuaExecutionContext! context, out TResult result, out CheatEngine.Client.Results.CheatEngineFailure failure) -> bool
 CheatEngine.Client.Lua.ILuaResultMapper<TSource, TResult>
 CheatEngine.Client.Lua.ILuaResultMapper<TSource, TResult>.Map(TSource source) -> TResult
-CheatEngine.Client.Lua.IOwnershipAwareLuaModule
-CheatEngine.Client.Lua.IOwnershipAwareLuaModule.LastReleaseOutcome.get -> CheatEngine.Client.Lua.LuaModuleReleaseOutcome?
 CheatEngine.Client.Lua.IUnsafeLuaClient
 CheatEngine.Client.Lua.IUnsafeLuaClient.Execute(CheatEngine.Client.Lua.LuaScript script, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> void
 CheatEngine.Client.Lua.IUnsafeLuaClient.TryExecute(CheatEngine.Client.Lua.LuaScript script, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
@@ -155,40 +152,21 @@ CheatEngine.Client.Lua.LuaExportDescriptor.Equals(CheatEngine.Client.Lua.LuaExpo
 CheatEngine.Client.Lua.LuaExportDescriptor.LuaExportDescriptor() -> void
 CheatEngine.Client.Lua.LuaExportDescriptor.LuaExportDescriptor(string! name) -> void
 CheatEngine.Client.Lua.LuaExportDescriptor.Name.get -> string!
-CheatEngine.Client.Lua.LuaExportReleaseOutcome
-CheatEngine.Client.Lua.LuaExportReleaseOutcome.Equals(CheatEngine.Client.Lua.LuaExportReleaseOutcome other) -> bool
-CheatEngine.Client.Lua.LuaExportReleaseOutcome.LuaExportReleaseOutcome() -> void
-CheatEngine.Client.Lua.LuaExportReleaseOutcome.LuaExportReleaseOutcome(string! name, CheatEngine.Client.Lua.LuaExportReleaseStatus status) -> void
-CheatEngine.Client.Lua.LuaExportReleaseOutcome.Name.get -> string!
-CheatEngine.Client.Lua.LuaExportReleaseOutcome.Status.get -> CheatEngine.Client.Lua.LuaExportReleaseStatus
-CheatEngine.Client.Lua.LuaExportReleaseStatus
-CheatEngine.Client.Lua.LuaExportReleaseStatus.Absent = 3 -> CheatEngine.Client.Lua.LuaExportReleaseStatus
-CheatEngine.Client.Lua.LuaExportReleaseStatus.Failed = 4 -> CheatEngine.Client.Lua.LuaExportReleaseStatus
-CheatEngine.Client.Lua.LuaExportReleaseStatus.NotAttempted = 5 -> CheatEngine.Client.Lua.LuaExportReleaseStatus
-CheatEngine.Client.Lua.LuaExportReleaseStatus.Removed = 1 -> CheatEngine.Client.Lua.LuaExportReleaseStatus
-CheatEngine.Client.Lua.LuaExportReleaseStatus.Replaced = 2 -> CheatEngine.Client.Lua.LuaExportReleaseStatus
-CheatEngine.Client.Lua.LuaExportReleaseStatus.Unknown = 0 -> CheatEngine.Client.Lua.LuaExportReleaseStatus
 CheatEngine.Client.Lua.LuaModuleDescriptor
 CheatEngine.Client.Lua.LuaModuleDescriptor.Equals(CheatEngine.Client.Lua.LuaModuleDescriptor other) -> bool
 CheatEngine.Client.Lua.LuaModuleDescriptor.Exports.get -> System.Collections.Immutable.ImmutableArray<CheatEngine.Client.Lua.LuaExportDescriptor>
 CheatEngine.Client.Lua.LuaModuleDescriptor.LuaModuleDescriptor() -> void
 CheatEngine.Client.Lua.LuaModuleDescriptor.LuaModuleDescriptor(string! name, System.Collections.Immutable.ImmutableArray<CheatEngine.Client.Lua.LuaExportDescriptor> exports) -> void
 CheatEngine.Client.Lua.LuaModuleDescriptor.Name.get -> string!
-CheatEngine.Client.Lua.LuaModuleReleaseKind
-CheatEngine.Client.Lua.LuaModuleReleaseKind.PartiallyReleased = 2 -> CheatEngine.Client.Lua.LuaModuleReleaseKind
-CheatEngine.Client.Lua.LuaModuleReleaseKind.Released = 1 -> CheatEngine.Client.Lua.LuaModuleReleaseKind
-CheatEngine.Client.Lua.LuaModuleReleaseKind.Stale = 3 -> CheatEngine.Client.Lua.LuaModuleReleaseKind
-CheatEngine.Client.Lua.LuaModuleReleaseKind.Unknown = 0 -> CheatEngine.Client.Lua.LuaModuleReleaseKind
 CheatEngine.Client.Lua.LuaModuleReleaseOutcome
-CheatEngine.Client.Lua.LuaModuleReleaseOutcome.AbsentCount.get -> int
-CheatEngine.Client.Lua.LuaModuleReleaseOutcome.Exports.get -> System.Collections.Immutable.ImmutableArray<CheatEngine.Client.Lua.LuaExportReleaseOutcome>
-CheatEngine.Client.Lua.LuaModuleReleaseOutcome.FailedCount.get -> int
+CheatEngine.Client.Lua.LuaModuleReleaseOutcome.FailedExports.get -> System.Collections.Immutable.ImmutableArray<string!>
 CheatEngine.Client.Lua.LuaModuleReleaseOutcome.IsComplete.get -> bool
-CheatEngine.Client.Lua.LuaModuleReleaseOutcome.Kind.get -> CheatEngine.Client.Lua.LuaModuleReleaseKind
-CheatEngine.Client.Lua.LuaModuleReleaseOutcome.LuaModuleReleaseOutcome(string! moduleName, System.Collections.Immutable.ImmutableArray<CheatEngine.Client.Lua.LuaExportReleaseOutcome> exports) -> void
+CheatEngine.Client.Lua.LuaModuleReleaseOutcome.Kind.get -> CheatEngine.Client.Results.LeaseReleaseKind
 CheatEngine.Client.Lua.LuaModuleReleaseOutcome.ModuleName.get -> string!
+CheatEngine.Client.Lua.LuaModuleReleaseOutcome.RemainingCount.get -> int
 CheatEngine.Client.Lua.LuaModuleReleaseOutcome.RemovedCount.get -> int
-CheatEngine.Client.Lua.LuaModuleReleaseOutcome.ReplacedCount.get -> int
+CheatEngine.Client.Lua.LuaModuleReleaseOutcome.ReplacementCount.get -> int
+CheatEngine.Client.Lua.LuaModuleReleaseOutcome.RestoredCount.get -> int
 CheatEngine.Client.Lua.LuaScript
 CheatEngine.Client.Lua.LuaScript.ChunkName.get -> string?
 CheatEngine.Client.Lua.LuaScript.Equals(CheatEngine.Client.Lua.LuaScript other) -> bool
@@ -862,7 +840,6 @@ override CheatEngine.Client.Assembly.AutoAssemblerScript.GetHashCode() -> int
 override CheatEngine.Client.Inspection.InspectionCollectionRequest.GetHashCode() -> int
 override CheatEngine.Client.Inspection.SymbolRegistration.GetHashCode() -> int
 override CheatEngine.Client.Lua.LuaExportDescriptor.GetHashCode() -> int
-override CheatEngine.Client.Lua.LuaExportReleaseOutcome.GetHashCode() -> int
 override CheatEngine.Client.Lua.LuaModuleDescriptor.GetHashCode() -> int
 override CheatEngine.Client.Lua.LuaModuleReleaseOutcome.ToString() -> string!
 override CheatEngine.Client.Lua.LuaScript.GetHashCode() -> int
@@ -932,10 +909,14 @@ static CheatEngine.Client.Inspection.SymbolRegistration.operator !=(CheatEngine.
 static CheatEngine.Client.Inspection.SymbolRegistration.operator ==(CheatEngine.Client.Inspection.SymbolRegistration left, CheatEngine.Client.Inspection.SymbolRegistration right) -> bool
 static CheatEngine.Client.Lua.LuaExportDescriptor.operator !=(CheatEngine.Client.Lua.LuaExportDescriptor left, CheatEngine.Client.Lua.LuaExportDescriptor right) -> bool
 static CheatEngine.Client.Lua.LuaExportDescriptor.operator ==(CheatEngine.Client.Lua.LuaExportDescriptor left, CheatEngine.Client.Lua.LuaExportDescriptor right) -> bool
-static CheatEngine.Client.Lua.LuaExportReleaseOutcome.operator !=(CheatEngine.Client.Lua.LuaExportReleaseOutcome left, CheatEngine.Client.Lua.LuaExportReleaseOutcome right) -> bool
-static CheatEngine.Client.Lua.LuaExportReleaseOutcome.operator ==(CheatEngine.Client.Lua.LuaExportReleaseOutcome left, CheatEngine.Client.Lua.LuaExportReleaseOutcome right) -> bool
 static CheatEngine.Client.Lua.LuaModuleDescriptor.operator !=(CheatEngine.Client.Lua.LuaModuleDescriptor left, CheatEngine.Client.Lua.LuaModuleDescriptor right) -> bool
 static CheatEngine.Client.Lua.LuaModuleDescriptor.operator ==(CheatEngine.Client.Lua.LuaModuleDescriptor left, CheatEngine.Client.Lua.LuaModuleDescriptor right) -> bool
+static CheatEngine.Client.Lua.LuaModuleReleaseOutcome.AlreadyReleased(string! moduleName) -> CheatEngine.Client.Lua.LuaModuleReleaseOutcome!
+static CheatEngine.Client.Lua.LuaModuleReleaseOutcome.CleanupUnavailable(string! moduleName, int remainingCount) -> CheatEngine.Client.Lua.LuaModuleReleaseOutcome!
+static CheatEngine.Client.Lua.LuaModuleReleaseOutcome.Create(string! moduleName, CheatEngine.Client.Results.LeaseReleaseKind kind, int removedCount, int restoredCount, int replacementCount, int remainingCount, System.Collections.Immutable.ImmutableArray<string!> failedExports) -> CheatEngine.Client.Lua.LuaModuleReleaseOutcome!
+static CheatEngine.Client.Lua.LuaModuleReleaseOutcome.PartiallyReleased(string! moduleName, int removedCount, int restoredCount, int replacementCount, System.Collections.Immutable.ImmutableArray<string!> failedExports) -> CheatEngine.Client.Lua.LuaModuleReleaseOutcome!
+static CheatEngine.Client.Lua.LuaModuleReleaseOutcome.RefusedRuntimeChanged(string! moduleName, int remainingCount) -> CheatEngine.Client.Lua.LuaModuleReleaseOutcome!
+static CheatEngine.Client.Lua.LuaModuleReleaseOutcome.Released(string! moduleName, int removedCount, int restoredCount, int replacementCount) -> CheatEngine.Client.Lua.LuaModuleReleaseOutcome!
 static CheatEngine.Client.Lua.LuaScript.operator !=(CheatEngine.Client.Lua.LuaScript left, CheatEngine.Client.Lua.LuaScript right) -> bool
 static CheatEngine.Client.Lua.LuaScript.operator ==(CheatEngine.Client.Lua.LuaScript left, CheatEngine.Client.Lua.LuaScript right) -> bool
 static CheatEngine.Client.Memory.MemoryBytesReadRequest.operator !=(CheatEngine.Client.Memory.MemoryBytesReadRequest left, CheatEngine.Client.Memory.MemoryBytesReadRequest right) -> bool
@@ -1060,8 +1041,6 @@ static CheatEngine.Client.Tables.TrustedTableFile.operator ==(CheatEngine.Client
 ~override CheatEngine.Client.Inspection.SymbolRegistration.ToString() -> string
 ~override CheatEngine.Client.Lua.LuaExportDescriptor.Equals(object obj) -> bool
 ~override CheatEngine.Client.Lua.LuaExportDescriptor.ToString() -> string
-~override CheatEngine.Client.Lua.LuaExportReleaseOutcome.Equals(object obj) -> bool
-~override CheatEngine.Client.Lua.LuaExportReleaseOutcome.ToString() -> string
 ~override CheatEngine.Client.Lua.LuaModuleDescriptor.Equals(object obj) -> bool
 ~override CheatEngine.Client.Lua.LuaModuleDescriptor.ToString() -> string
 ~override CheatEngine.Client.Lua.LuaScript.Equals(object obj) -> bool

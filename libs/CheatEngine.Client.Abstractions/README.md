@@ -67,11 +67,10 @@ No public consumer should use `CheatEngine.Client.Abstractions` as a namespace.
 
 The documentation of every public interface says whether it is **Call-only** (the Client implements it and applications
 call it; a 1.x minor release can add members, so implement it only in a test double) or **Implementable** (applications
-implement it and the Client calls it: `ILuaModule`, `IDescribedLuaModule`, `IOwnershipAwareLuaModule`,
-`ILuaOperation<TResult>`, `ILuaResultMapper<TSource, TResult>`, `IMemoryCodec<T>` and `ICheatEngineClientModule`,
-whose members are frozen for 1.x). Public enums follow one charter for 1.0: `int` backing, explicit values, and
-`Unknown = 0` on an outcome enum (`...Kind`, `...Status`, `...State`, `...Effect`, `...Scope`); a new value can appear
-in a minor release.
+implement it and the Client calls it: `ILuaModule`, `ILuaOperation<TResult>`, `ILuaResultMapper<TSource, TResult>`,
+`IMemoryCodec<T>` and `ICheatEngineClientModule`, whose members are frozen for 1.x). Public enums follow one charter
+for 1.0: `int` backing, explicit values, and `Unknown = 0` on an outcome enum (`...Kind`, `...Status`, `...State`,
+`...Effect`, `...Scope`); a new value can appear in a minor release.
 
 ### Capability Boundary
 
@@ -393,7 +392,7 @@ dispatch and between Client-managed steps.
 | Memory batches (`IMemoryClient.ReadPrimitiveBatchDetailed`, `WritePrimitiveBatchDetailed`) | Dispatch admission: a `Cancelled` dispatch reports `MemoryBatchWriteEffectState.NotStarted` | `NotStarted` (admission, pre-dispatch cancellation, unsupported type), `Started` (a completed prefix persists), `Unknown` (SDK fault or other dispatch failure) | `EffectState` is authoritative: `Partial` with `CompletedCount`/`FailedIndex`, never rolled back; `IsSuccess` is `true` only when every operation completed |
 | Inspection and symbol leases (`IInspectionClient`) | Dispatch admission | `NotStarted` (name already reserved by this activation, name already resolves, failed collision check, Lua stack unavailable), `Started` (`registerSymbol` failed or returned an invalid result), `Completed` (the activation began stopping, or had drained its resources, before it owned the lease, and the registration was released), `CleanupUnconfirmed` (a registration CheatEngine.SDK could not hand over, or whose release was not confirmed), `Unknown` (SDK fault, unavailable `registerSymbol`) | A faulted or refused registration is not claimed and not retried by name; a replaced or superseded name is left in place; lease releases are reported as `LeaseReleaseOutcome`, never thrown |
 | Tables (`ITableClient`) | Dispatch admission; `Find` filters a copied snapshot | `NotStarted` (policy, stale record identifier, a mutation CheatEngine.SDK refused before changing the record: record or parent not found, self-parent, cycle, traversal limit, table load in progress, runtime changed; a creation, update or selection during a trusted table load; an unavailable table file function or Lua stack), `Started` (activation refused by the host or indeterminate; a delete or parent assignment that raised after it started; a table load or save that raised or returned an unexpected result), `Completed` (`Find` cancelled after the snapshot, failed `Create` whose rollback was confirmed, a completed mutation whose record could not be copied), `CleanupUnconfirmed` (record rollback not confirmed), `Unknown` (SDK fault, including a Lua admission CheatEngine.SDK refused inside an Address List command or a table file call, which is `OperationRejected` while the activation is current) | A failed `Create` deletes the partial record once and never retries; a refused activation can leave partial script effects; `loadTable` can execute table Lua |
-| Lua typed operations and modules (`ILuaClient`) | Dispatch admission | `NotStarted` (cancellation), otherwise the operation's own failure | Owned by the operation; operation exceptions are rethrown unchanged |
+| Lua typed operations and modules (`ILuaClient`) | Dispatch admission | `NotStarted` (cancellation, name already reserved by this activation, a Lua admission refused by CheatEngine.SDK), `NotApplied` (a global already defined, or a failed lookup or publication that the SDK rolled back completely), `CleanupUnconfirmed` (a publication whose rollback left a global), `Unknown` (SDK fault); otherwise the operation's own failure | A module release that fails is reported as `PartiallyReleased` with its failed globals and never retried; operation exceptions are rethrown unchanged |
 | Unsafe Lua (`IUnsafeLuaClient`) | Dispatch admission | `NotStarted` (policy, or a Lua admission refused by CheatEngine.SDK), `Unknown` (SDK fault; the script may have run partially) | The script may have run partially before a Lua error |
 | Runtime and Processes (`ICheatEngineRuntime`, `IProcessClient`) | Dispatch admission; `AttachExactName` also observes it before the local process catalog, and `GetLocalProcesses`, which never dispatches, between catalog steps (`NotStarted`) | `Completed` (CheatEngine.SDK reported a status that establishes no target: `TargetChanged`, `TargetIdentityUnavailable` for a file opened as a process, `CapabilityUnavailable`, `LuaError`, `InvalidHostResult`), `Unknown` (SDK fault, no selected target, an attach that CheatEngine.SDK refused or could not confirm) | A fact CheatEngine.SDK could not read stays `Unknown` in the snapshot instead of failing the call; `Attach` changes Cheat Engine's global selection |
 | Capability-gated domains (allocations, assembly) | Not applicable: no Cheat Engine work is dispatched | `NotStarted` (`CapabilityUnavailable` or `Cancelled`) | None |
@@ -564,13 +563,15 @@ dotnet test --solution CheatEngine.Client.slnx --configuration Release --no-buil
 
 ## Lua module release outcomes
 
-A module generated from `[CheatEngineLuaModule]` implements `IOwnershipAwareLuaModule`: at release it clears an exported
-Lua global only while the global still holds the value the module published, compared by primitive identity, and never
-overwrites a value a third party put there (audit finding F12, qualification scenario Q16). Every export is attempted;
-`LastReleaseOutcome` then reports a `LuaModuleReleaseOutcome` with one `LuaExportReleaseStatus` per export (`Removed`,
-`Replaced`, `Absent`, `Failed`, or `NotAttempted` for a registration that belongs to an earlier Lua state) and a computed
-`LuaModuleReleaseKind` (`Released`, `PartiallyReleased`, `Stale`). The outcome is published before `Unregister` throws
-for a failed export, and a second `Unregister` is a no-op. The outcome holds copied names and statuses only. The
-vocabulary follows the CheatEngine.SDK 2.0.0 registration leases (`LuaRegistrationReleaseKind` values 1 to 3 have the
-same meaning and number), which generated modules do not use: the ownership check is the generator's own. This
-behavior is covered by managed tests against a Lua-globals double (C1); it is not a host qualification.
+A module generated from `[CheatEngineLuaModule]` registers through its bindings' SDK-generated
+`TryRegisterLuaFunctions` with the `RejectExisting` collision policy and keeps the CheatEngine.SDK registration lease.
+`ILuaModule.Unregister()` releases that lease: CheatEngine.SDK writes an exported Lua global only while it still holds
+the value the module installed, compared by primitive identity, and never overwrites a value a third party put there
+(audit finding F12, qualification scenario Q16). The returned `LuaModuleReleaseOutcome` copies what the SDK observed:
+`Kind` in the Client lease vocabulary (`Released`, `PartiallyReleased`, `RefusedRuntimeChanged` for a registration of an
+earlier Lua attachment or state, `AlreadyReleased` when nothing was owned, `CleanupUnavailable` when CheatEngine.SDK
+could not admit the Lua work and the module kept its registration), `RemovedCount`, `ReplacementCount` (a replaced or
+already-`nil` global, left untouched), `RestoredCount` (always `0` for a generated module), `RemainingCount` and the
+`FailedExports` of a partial release, which is never retried. A manual `ILuaModule` reports its release with the
+`LuaModuleReleaseOutcome` factories. The outcome holds copied names and counts only. This behavior is covered by
+managed tests against a double of the SDK registration set (C1); it is not a host qualification.

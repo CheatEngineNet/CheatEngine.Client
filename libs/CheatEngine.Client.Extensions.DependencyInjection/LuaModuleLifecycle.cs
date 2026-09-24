@@ -3,7 +3,7 @@ using CheatEngine.Client.Modules;
 
 namespace CheatEngine.Client.Extensions.DependencyInjection;
 
-/// <summary>Bridges one descriptor-backed Lua module into the activation lifecycle.</summary>
+/// <summary>Bridges one Lua module into the activation lifecycle.</summary>
 /// <typeparam name="TModule">The explicitly registered Lua module type.</typeparam>
 /// <remarks>
 ///     Hosting calls modules in registration order and compensates them in reverse order. The lease is retained here,
@@ -11,7 +11,7 @@ namespace CheatEngine.Client.Extensions.DependencyInjection;
 ///     operation to application code.
 /// </remarks>
 internal sealed class LuaModuleLifecycle<TModule>(ILuaClient lua, TModule module) : ICheatEngineClientModule
-	where TModule : class, IDescribedLuaModule
+	where TModule : class, ILuaModule
 {
 	private readonly ILuaClient _lua = lua ?? throw new ArgumentNullException(nameof(lua));
 	private readonly TModule _module = module ?? throw new ArgumentNullException(nameof(module));

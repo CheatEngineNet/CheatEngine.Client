@@ -17,7 +17,10 @@ public sealed class IdentifierStabilityTests
 			[CheatEngine.SDK.Annotations.Lua.LuaFunction("alpha_status")]
 			public static string Status() => "a";
 
-			public static CheatEngine.SDK.Lua.Calls.LuaStatus RegisterLuaFunctions(CheatEngine.SDK.Lua.State.LuaState state) => default;
+			public static CheatEngine.SDK.Lua.Registration.LuaRegistrationResult TryRegisterLuaFunctions(
+				CheatEngine.SDK.Lua.State.LuaState state,
+				CheatEngine.SDK.Lua.Registration.LuaRegistrationCollisionPolicy collisionPolicy =
+					CheatEngine.SDK.Lua.Registration.LuaRegistrationCollisionPolicy.RejectExisting) => default;
 		}
 
 		internal static partial class BetaLuaBindings
@@ -25,7 +28,10 @@ public sealed class IdentifierStabilityTests
 			[CheatEngine.SDK.Annotations.Lua.LuaFunction("beta_status")]
 			public static string Status() => "b";
 
-			public static CheatEngine.SDK.Lua.Calls.LuaStatus RegisterLuaFunctions(CheatEngine.SDK.Lua.State.LuaState state) => default;
+			public static CheatEngine.SDK.Lua.Registration.LuaRegistrationResult TryRegisterLuaFunctions(
+				CheatEngine.SDK.Lua.State.LuaState state,
+				CheatEngine.SDK.Lua.Registration.LuaRegistrationCollisionPolicy collisionPolicy =
+					CheatEngine.SDK.Lua.Registration.LuaRegistrationCollisionPolicy.RejectExisting) => default;
 		}
 		""";
 
@@ -51,7 +57,10 @@ public sealed class IdentifierStabilityTests
 		Dictionary<string, string> second = Sources(betaFirst);
 
 		Assert.Equal(
-			["TestPlugin_AlphaLuaModule.CheatEngineLuaModule.g.cs", "TestPlugin_BetaLuaModule.CheatEngineLuaModule.g.cs"],
+			[
+				RegistrarEmitter.RegistrarHintName, RegistrarEmitter.AdapterHintName,
+				"TestPlugin_AlphaLuaModule.CheatEngineLuaModule.g.cs", "TestPlugin_BetaLuaModule.CheatEngineLuaModule.g.cs"
+			],
 			first.Keys.Order(StringComparer.Ordinal));
 		Assert.Equal(first.Keys.Order(StringComparer.Ordinal), second.Keys.Order(StringComparer.Ordinal));
 		foreach ((string hintName, string text) in first)
@@ -66,7 +75,7 @@ public sealed class IdentifierStabilityTests
 		GeneratorRun run = GeneratorRun.Execute(Bindings + "\n" + AlphaModule);
 
 		Assert.Empty(run.Diagnostics);
-		Assert.Equal("AlphaLuaModule.CheatEngineLuaModule.g.cs", Assert.Single(run.GeneratedSources).HintName);
+		Assert.Equal("AlphaLuaModule.CheatEngineLuaModule.g.cs", Assert.Single(ModuleSources(run)).HintName);
 		AssertCompilesWithoutWarnings(run);
 	}
 
@@ -81,11 +90,17 @@ public sealed class IdentifierStabilityTests
 												""");
 
 		Assert.Empty(run.Diagnostics);
-		GeneratedSourceResult source = Assert.Single(run.GeneratedSources);
+		GeneratedSourceResult source = Assert.Single(ModuleSources(run));
 		Assert.EndsWith(".CheatEngineLuaModule.g.cs", source.HintName, StringComparison.Ordinal);
 		Assert.Contains("internal partial class @event", source.SourceText.ToString(), StringComparison.Ordinal);
 		Assert.Contains("public @event()", source.SourceText.ToString(), StringComparison.Ordinal);
 		AssertCompilesWithoutWarnings(run);
+	}
+
+	private static IEnumerable<GeneratedSourceResult> ModuleSources(GeneratorRun run)
+	{
+		return run.GeneratedSources.Where(static source =>
+			source.HintName.EndsWith(".CheatEngineLuaModule.g.cs", StringComparison.Ordinal));
 	}
 
 	private static Dictionary<string, string> Sources(GeneratorRun run)

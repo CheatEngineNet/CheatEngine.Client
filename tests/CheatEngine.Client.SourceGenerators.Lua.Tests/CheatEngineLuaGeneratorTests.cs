@@ -58,7 +58,7 @@ public sealed class CheatEngineLuaGeneratorTests
 		"""
 		using CheatEngine.Client.Lua;
 		using CheatEngine.SDK.Annotations.Lua;
-		using CheatEngine.SDK.Lua.Calls;
+		using CheatEngine.SDK.Lua.Registration;
 		using CheatEngine.SDK.Lua.State;
 		namespace TestPlugin;
 		internal static partial class PluginLuaBindings
@@ -69,8 +69,8 @@ public sealed class CheatEngineLuaGeneratorTests
 			[LuaFunction("ping")]
 			public static int Ping() => 1;
 
-			public static LuaStatus RegisterLuaFunctions(LuaState state) => default;
-			public static LuaStatus UnregisterLuaFunctions(LuaState state) => default;
+			public static LuaRegistrationResult TryRegisterLuaFunctions(LuaState state,
+				LuaRegistrationCollisionPolicy collisionPolicy = LuaRegistrationCollisionPolicy.RejectExisting) => default;
 		}
 
 		[CheatEngineLuaModule(typeof(PluginLuaBindings), "plugin")]

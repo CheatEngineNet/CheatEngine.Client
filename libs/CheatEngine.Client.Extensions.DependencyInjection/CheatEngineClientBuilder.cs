@@ -70,19 +70,17 @@ public sealed class CheatEngineClientBuilder
 		return this;
 	}
 
-	/// <summary>Adds one descriptor-backed Lua module to every Client activation.</summary>
-	/// <typeparam name="TModule">The generated or explicitly described Lua module type.</typeparam>
+	/// <summary>Adds one Lua module to every Client activation.</summary>
+	/// <typeparam name="TModule">The generated (<see cref="CheatEngineLuaModuleAttribute" />) or manual Lua module type.</typeparam>
 	/// <remarks>
 	///     The module is created from its public constructor by the activation-scoped provider and is registered only
-	///     after the Client and Lua runtime are live. Its lease is released in reverse module order during disable. This
-	///     method intentionally accepts only described modules: manual <see cref="ILuaModule" /> implementations remain
-	///     available through <see cref="ILuaClient.RegisterModule" />, but cannot participate in the Client-wide export
-	///     collision guarantee because they do not publish an immutable descriptor.
+	///     after the Client and Lua runtime are live, after the Client reserved its descriptor's module name and exports
+	///     for the activation. Its lease is released in reverse module order during disable.
 	/// </remarks>
 	public CheatEngineClientBuilder AddLuaModule<
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
 	TModule>()
-		where TModule : class, IDescribedLuaModule
+		where TModule : class, ILuaModule
 	{
 		Services.TryAdd(ServiceDescriptor.Describe(typeof(TModule), typeof(TModule), ServiceLifetime.Scoped));
 		Services.TryAddEnumerable(ServiceDescriptor.Describe(

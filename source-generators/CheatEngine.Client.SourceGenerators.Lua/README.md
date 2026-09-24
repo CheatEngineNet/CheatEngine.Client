@@ -4,78 +4,84 @@ This Roslyn component turns explicit `CheatEngine.Client.Lua` declarations into 
 handle-free Client adapters. It is an analyzer asset consumed by plugin projects; it is not a runtime
 dependency and never discovers application code through reflection.
 
-`[CheatEngineLuaModule]` generates an `IDescribedLuaModule` and `IOwnershipAwareLuaModule` adapter around
-the SDK-generated `RegisterLuaFunctions`. It refuses, before the first write, to replace a global that is
-already defined, pins the value it published under each export, and at release clears a global only
-while it still holds that value, so a third-party replacement survives (F12, Q16). It never calls the
-legacy `UnregisterLuaFunctions`, which writes `nil` unconditionally.
+`[CheatEngineLuaModule]` generates an `ILuaModule` around the ownership-aware registration that the CheatEngine.SDK
+2.0.0 generator emits for the bindings type (`TryRegisterLuaFunctions`). The module registers with the `RejectExisting`
+collision policy, so it refuses, before the first write, to replace a global that is already defined; it keeps the SDK
+registration lease; and at release the lease writes a global only while it still holds the value the module installed,
+so a third-party replacement survives (F12, Q16). The module never calls the legacy SDK
+`RegisterLuaFunctions`/`UnregisterLuaFunctions` pair, which writes unconditionally.
 
 `[CheatEngineLuaOperation]` turns a scalar `[LuaGlobal]` declaration into a readonly value operation
 and strongly typed factory. Mapper calls use static abstract interface dispatch so the generated
 runtime path stays trim- and AOT-friendly.
 
-## Ownership-aware release (Q16)
+## What is generated for modules
 
-Audit finding F12 and qualification scenario Q16: a disabled plugin must never overwrite a global that a third party (a
-script, a table, another plugin) put under one of its names after registration. On CheatEngine.SDK 1.0.0 the generated
-adapter implements that itself; every step runs inside one admitted `LuaRuntimeOperation` on Cheat Engine's main thread.
+For each valid module, one partial part of the module class with three members and one field:
 
-`Register()`:
+- `Descriptor`: the module name and the export names, copied from the `[LuaFunction]` declarations of the bindings type,
+  in declaration order. The Client reserves them for the activation before `Register` runs.
+- `Register()`: hands `static state => Bindings.TryRegisterLuaFunctions(state, RejectExisting)` to the registrar and keeps
+  the lease it returns in the field `_luaRegistration`.
+- `Unregister()`: asks the registrar to release that lease and returns the `LuaModuleReleaseOutcome`.
 
-1. Refuses without any Lua write when the previous registration of this instance is still current in the Lua state;
-   pins left over from an earlier state or attachment are released first (that only marks them released).
-2. Preflight, unchanged: reads every export and throws
-   `InvalidOperationException("Lua global '<name>' is already defined and cannot be replaced by Client module '<module>'.")`
-   before the first write when one is not `nil`.
-3. Calls the SDK-generated `RegisterLuaFunctions` once, then pins the value published under each export
-   (`TryGetGlobal` + `CreateRef`). A published value that reads back `nil` is a registration failure.
-4. Any failure after the first write rolls back: pinned exports are released ownership-aware (below); unpinned exports
-   are cleared only when they are not `nil`, because the preflight proved them `nil` inside the same operation. The thrown
-   exception has the type of the original failure and a message that starts with its message; when rollback steps also
-   fail, `InnerException` is an `AggregateException` whose first element is the original failure. CheatEngine.SDK 1.0.0
-   has no `LuaException` constructor that takes both a status and an inner exception, so that combined `LuaException`
-   reports `Status == LuaStatus.Ok`; the original status stays on the original failure (the first inner exception).
-   Without a rollback failure the original exception is thrown itself, status included.
+Once per assembly that declares a valid module, two internal files in the namespace `CheatEngine.Client.Lua.Generated`:
 
-`Unregister()`:
+- `CheatEngineLuaModuleRegistrar` decides. It maps what CheatEngine.SDK reports to the Client vocabulary, keeps or
+  consumes the module's lease, and throws the classified refusal of a failed registration. It makes no SDK call.
+- `CheatEngineLuaRegistrationAdapter` is the only generated code that calls CheatEngine.SDK: the Lua admission
+  (`LuaRuntime.TryAcquireOperationWithOutcome`), the module's registration delegate, and
+  `LuaRegistrationLease.ReleaseWithOutcome`. It copies every result into Client-owned values. It is a file of its own
+  so that the EndToEnd tests can replace it with a managed double of the SDK registration set, because
+  `LuaRegistrationLease` has no public constructor.
 
-1. Returns without any SDK call when the instance owns no registration, so the lease retry after a failed release is a
-   no-op and `LastReleaseOutcome` keeps its value.
-2. Consumes the ownership before the first Lua call; a release is attempted once and never retried.
-3. A registration that belongs to an earlier Lua state or attachment is reported `Stale` (every export `NotAttempted`)
-   without any Lua operation.
-4. Otherwise every export is attempted, in export order: the current global is compared with the pinned value by
-   primitive identity (`RawEquals`, no `__eq`). Still the module's: set to `nil` (`Removed`). A different value, including
-   a wrapper of the module's function: left untouched (`Replaced`). Already `nil`: nothing written (`Absent`). A failed
-   read, comparison or clear: `Failed`. Every pin is released; a pin release failure is reported without changing the
-   export status.
-5. The `LuaModuleReleaseOutcome` is published through `IOwnershipAwareLuaModule.LastReleaseOutcome` before a failure is
-   thrown: one failure as is, several as an `AggregateException` (mapped by Core to `CheatEngineFailureKind.Unknown`).
+`Register` and `Unregister` run on Cheat Engine's main thread: the Client dispatches them. Everything happens inside
+one admitted Lua operation per call.
 
-The vocabulary mirrors the CheatEngine.SDK 2.0 registration leases, so the migration is a mapping, not a redesign.
+### Registration
 
-## ADR-01 registered exception
+| CheatEngine.SDK reports | `Register` throws a `CheatEngineOperationException` with |
+|---|---|
+| Admission `Detached` or `TransitionInProgress` | `ActivationExpired`, `NotStarted`; nothing ran |
+| Admission `ExternalStateReset` | `RuntimeChanged`, `NotStarted` |
+| Admission `ThreadNotAdmitted`, `NoStateForThread`, `Unknown` or an unknown status | `InvalidState`, `NotStarted` |
+| `Succeeded` with a lease | nothing: the module keeps the lease |
+| `Collision` | `OperationRejected`, `NotApplied`: `Lua global '<name>' is already defined and cannot be replaced by Client module '<module>'.` |
+| `PreflightFailed` | `LuaError`, `NotApplied`: a protected lookup failed before anything was published |
+| `PublicationFailed` | `LuaError`; `NotApplied` when the SDK rollback, or the release of the residual lease the rollback left, removed everything, `CleanupUnconfirmed` otherwise. The message carries the rollback counts. |
+| `Unspecified`, a success without a lease, or an unknown kind | `InvalidHostResult`, `Unknown` |
 
-ADR-01 makes the SDK the only native authority: Client code does not touch the Lua stack. The ownership check above is
-the single, frozen exception of generated Client code, because SDK 1.0.0 has no ownership-aware registration. Every Lua
-state access is confined to one private nested struct of each generated module (the SDK port); the algorithm itself runs
-over a private port interface, which lets the EndToEnd tests execute it against a managed double. Generated module code
-may use exactly these SDK members, frozen by `GeneratedLuaSurfaceRatchetTests`:
+A registration that the module still owns from an earlier call is released first, inside the same admitted operation;
+a lease of an earlier attachment or Lua state is only forgotten. Any other exception is an SDK fault (F15): it
+propagates, and `ILuaClient` classifies it through its SDK boundary.
 
-- in the public `Register`/`Unregister` only: `LuaRuntime.AcquireOperation()`, `LuaRuntimeOperation.State`,
-  `LuaRuntimeOperation.Dispose()`;
-- in the SDK port only: `LuaState.Top`, `SetTop`, `TryGetGlobal`, `TrySetGlobal`, `IsNil`, `PushNil`, `CreateRef`,
-  `TryPushRef`, `RawEquals`; `LuaRef.IsCurrent`, `LuaRef.Release(LuaState)` (never `LuaRef.Dispose()`, which acquires
-  an ambient state); `LuaStatus.IsOk`, `LuaError.FromStack`, `LuaException(LuaError)`;
-- in the generic registration rollback, which touches no Lua state: `LuaException(string, Exception)` and an
-  `is LuaException` type test, so a combined failure keeps the type of the original one.
+### Release
 
-Each port method records `Top` and restores it in a `finally` block, reading the error value with `LuaError.FromStack`
-before that restoration. The port is the only generated code that runs against the real Lua state, and no test in this
-repository can execute it; `SdkPortDecisionTests` pins what it decides (see Tests). Removal condition: adopting the CheatEngine.SDK 2.0 registration leases
-(`TryRegisterLuaFunctions` with `RejectExisting` and `LuaRegistrationLease.ReleaseWithOutcome`) deletes the port, the
-preflight and the reserved member prefix; the entry is tracked in `GeneratedLuaSurfaceRatchetTests`'s frozen member
-list, which shrinks to empty when that migration lands.
+`Unregister` returns `AlreadyReleased` without any Lua call when the module owns nothing. Otherwise it releases the
+lease and maps the SDK release kind:
+
+| `LuaRegistrationReleaseKind` | `LeaseReleaseKind` | Why |
+|---|---|---|
+| `Released` | `Released` | Every still-owned global was removed; replaced ones were left alone |
+| `PartiallyReleased` | `PartiallyReleased` | A protected read or write failed; the failed globals are named and never retried |
+| `Stale` | `RefusedRuntimeChanged` | The lease belongs to an earlier attachment or Lua state, so nothing was written. The SDK counts every entry as remaining: after a re-enable on the same Cheat Engine Lua state, the earlier functions stay in `_G` (they raise an error when called). The release therefore requires manual recovery; it is not `ExternallyRemoved`. |
+| `AlreadyReleased` | `AlreadyReleased` | The lease was already consumed |
+| `NotAttempted` | `CleanupUnavailable` | No release was attempted; the registration is still owned |
+| an unknown kind | `Unknown` | Fails closed |
+
+When CheatEngine.SDK refuses the admission with `Detached` or `ExternalStateReset`, the Lua universe that holds the
+registration is gone for this attachment: the lease is consumed without any Lua call and reported stale
+(`RefusedRuntimeChanged`). Any other refusal keeps the registration and returns `CleanupUnavailable`, which the Client
+lease retries.
+
+## SDK-imposed registration API
+
+The generated adapter uses exactly the members listed in `GeneratedLuaSurfaceRatchetTests`, each with its reason: the
+admission (`LuaRuntime.TryAcquireOperationWithOutcome`, `LuaRuntimeOperation.State`, `LuaRuntimeOperation.Dispose`),
+`LuaRegistrationLease.ReleaseWithOutcome` (with and without a state), and the getters of `LuaRegistrationResult`,
+`LuaRegistrationFailure`, `LuaRegistrationReleaseOutcome` and `LuaRegistrationReleaseFailure`. The state of the
+admitted operation is only passed to the SDK: generated code never reads or writes the Lua stack. The list is exact and
+may only shrink; the module part and the registrar name SDK enum values only.
 
 ## Diagnostics
 
@@ -100,48 +106,42 @@ disagree.
 | CECLUA1105 | Lua operation mapper does not match the SDK result | The mapper does not implement `ILuaResultMapper` for that SDK result. |
 | CECLUA1106 | Lua operation mapper must project a safe Client result | The mapped graph exposes an SDK lifetime, interop, callback, or opaque framework type. |
 | CECLUA1201 | Lua export is owned by more than one Lua module | Two modules of one compilation export the same Lua global; reported on the later module (file path, then position). |
-| CECLUA1202 | Lua module declares a member reserved by the generated registration | The module declares `Register`, `Unregister`, `Descriptor`, `LastReleaseOutcome`, `s_descriptor`, a member starting with `__CheatEngineLua`, or an explicit implementation of the module contract. No source is generated. |
+| CECLUA1202 | Lua module declares a member reserved by the generated registration | The module declares `Register`, `Unregister`, `Descriptor`, `s_descriptor`, `_luaRegistration`, or an explicit implementation of `ILuaModule`. No source is generated. |
 | CECLUA1203 | Lua module inherits a Lua module implementation | A base type already implements `ILuaModule` or is itself a `[CheatEngineLuaModule]`. No source is generated. |
 | CECLUA1204 | Lua module annotation is not the contract type | `[CheatEngineLuaModule]` does not come from `CheatEngine.Client.Abstractions`, or a `[LuaFunction]` on the bindings type does not come from `CheatEngine.SDK.Annotations`. Look-alike exports are never counted; no source is generated. |
 
 ## Limits
 
-- `__index`/`__newindex` metamethods on `_G` run during the preflight, the observation and the clear, exactly as they do
-  for the SDK 2.0 leases; their effects are not undone. A metamethod that publishes under the module's names during
+- `__index`/`__newindex` metamethods on `_G` run during the SDK preflight, publication and release; their effects are
+  not undone (a limit of the SDK registration set). A metamethod that publishes under the module's names during
   registration is unsupported.
-- A third party that kept a reference to the module's function can still call it after the global was removed; that is
-  the SDK's disabled-plugin callback contract (Q15), not something this generator qualifies.
-- Only Lua failures are handled: a `LuaException` or a failing `LuaStatus`. A programming or lifecycle exception from an
-  SDK call (F15) propagates as is. After a successful publication, `Register` then rolls nothing back: the published
-  globals and the pins already created stay in the Lua state (`LuaRef` has no finalizer; the slots live until the state
-  is destroyed). During `Unregister`, the remaining exports are not attempted and no outcome is published, but the
-  registration is already consumed, so the lease retry does nothing.
-- CECLUA1202 checks the members the module declares. A non-module base class that declares `Register`, `Unregister`,
-  `Descriptor` or `LastReleaseOutcome` makes the generated member hide it (compiler warning CS0108, an error under
-  `TreatWarningsAsErrors`) instead of reporting a CECLUA diagnostic.
-- Evidence level: C0 (ratchet, symbol-resolved decisions and stack discipline of the SDK port, compile) and C1 (EndToEnd
-  execution of the algorithm around the port against a managed Lua-globals double). The double compares values by
-  object identity, so how `lua_rawequal` compares strings, numbers or light C functions is not exercised. This repository
-  has no Lua 5.3 fixture, so there is no C2 evidence, and nothing here is host-qualified; the C4 observation is the Q16
-  scenario of the Coexistence protocol (tests/CheatEngine.Client.LivePlugin.Coexistence).
+- A third party that kept a reference to one of the module's functions can still call it after the global was removed
+  while the plugin stays enabled. After disable or a Lua state reset, the SDK's epoch-capturing closure makes such a
+  call raise an ordinary Lua error instead of entering managed code.
+- CECLUA1202 checks the members the module declares. A non-module base class that declares `Register`, `Unregister` or
+  `Descriptor` makes the generated member hide it (compiler warning CS0108, an error under `TreatWarningsAsErrors`)
+  instead of reporting a CECLUA diagnostic.
+- The registrar and the adapter are internal types with fixed names. Two assemblies that both declare Lua modules and
+  see each other's internals (`InternalsVisibleTo`) get the compiler warning CS0436 for them.
+- Evidence level: C0 (the exact SDK surface of the adapter and its confinement, compile) and C1 (EndToEnd execution of
+  the module and the registrar against a managed double of the SDK registration set, which compares values by object
+  identity). There is no Lua 5.3 fixture in this repository, so there is no C2 evidence, and nothing here is
+  host-qualified; the C4 observation is the Q16 scenario of the Coexistence protocol
+  (tests/CheatEngine.Client.LivePlugin.Coexistence).
 
 ## Tests
 
-`tests/CheatEngine.Client.SourceGenerators.Lua.Tests` backs each statement above. The EndToEnd tests replace the SDK
-port with a managed double: they prove the algorithm around the port, never what the port decides. The port, the only
-generated code that runs in a real plugin, is proven by the C0 checks of `SdkPort/`; a change to their expected paths is
-a change of the Q16 contract, not a formatting change.
+`tests/CheatEngine.Client.SourceGenerators.Lua.Tests` backs each statement above. The EndToEnd tests replace only the
+generated SDK adapter; the module and the registrar run unchanged.
 
 | Promise | Tests |
 |---|---|
-| The SDK port reads the global, reports `nil` before any pin push, and decides owned or replaced by `RawEquals` of the global and the pinned value; `CreateRef` is the only pin; a clear writes `nil` under the export name | `SdkPortDecisionTests` (C0: symbol-resolved paths of every port method, executed `ExportName`, and `MutatedPortsAreRejected`, which proves the check fails for identity and decision mutations) |
-| The SDK port restores the stack on every path | `SdkPortStackDisciplineTests` (C0, syntax) |
-| The algorithm never clears a replaced global and clears only owned ones | `LuaModuleOwnershipEndToEndTests.UnregisterLeavesAThirdPartyReplacementUntouched`, `UnregisterRemovesEveryExportTheModuleStillOwns`, `UnregisterRemovesAValueAThirdPartyRestoredToTheModulesOwn`; `UnregisterTreatsAWrappedFunctionAsAReplacement` and `ThirdPartyValuesOfAnyLuaTypeAreReportedAsReplaced` show that any non-owned observation is kept (identity stand-ins, not Lua type semantics) |
-| Every export is attempted; the outcome is published before the throw; ownership is consumed before Lua, so a retry is a no-op | `UnregisterAttemptsEveryExportAndAggregatesIndependentFailures`, `UnregisterConsumesOwnershipBeforeTouchingLuaSoARetryIsANoOp`, `UnregisterConsumesOwnershipEvenWhenAnSdkExceptionEscapesTheRelease`, `PublicUnregisterWithoutAnOwnedRegistrationReturnsWithoutAcquiringTheLuaRuntime` |
-| Registration refuses before any write and rolls back only what it published; the original failure is kept | `RegisterRefusesAnOccupiedExportBeforeAnyWrite`, `RegisterRollsBackOnlyTheExportsItPublishedWhenPublicationFails`, `RegisterRollsBackWhenOwnershipCannotBeCaptured`, `RollbackFailureIsReportedWithoutReplacingThePrimaryRegistrationFailure`, `ARegistrationFailureWithoutRollbackFailureKeepsItsLuaStatus`, `RollbackFailureKeepsThePrimaryLuaStatusOnTheFirstInnerException` |
-| Stale registrations write nothing | `UnregisterAfterALuaStateReplacementWritesNothingAndReportsStale`, `RegisterAfterAStaleRegistrationReleasesTheStaleTokensFirst` |
-| The SDK surface is frozen and confined to the port | `GeneratedLuaSurfaceRatchetTests` |
-| No legacy unregistration; contract, projection and emitted text compared separately; no `unsafe` code required | `ModuleContractTests`, `ModuleSnapshots` |
+| Release writes only still-owned globals and reports the SDK facts | `LuaModuleOwnershipEndToEndTests.UnregisterRemovesEveryExportTheModuleStillOwns`, `UnregisterLeavesAThirdPartyReplacementUntouched`, `UnregisterTreatsAWrappedFunctionAsAReplacement`, `UnregisterRemovesAValueAThirdPartyRestoredToTheModulesOwn`, `UnregisterCountsAnExportThatIsAlreadyAbsentAsAReplacementAndWritesNothing`, `ThirdPartyValuesOfAnyLuaTypeAreCountedAsReplacements` |
+| Stale registrations write nothing and require manual recovery; a partial release is never retried; a refused admission keeps the registration | `UnregisterAfterALuaStateReplacementWritesNothingAndReportsRefusedRuntimeChanged`, `UnregisterAfterAReattachWritesNothingAndLeavesTheEarlierGlobalsInPlace`, `UnregisterWithoutTheLuaUniverseConsumesTheRegistrationAsStaleWithoutLua`, `UnregisterWithoutAdmissionKeepsTheRegistrationForALaterAttempt`, `UnregisterReportsIndependentFailuresAsAPartialReleaseThatIsNeverRetried` |
+| Registration refuses before any write and classifies every failure | `RegisterRefusesAnOccupiedExportBeforeAnyWrite`, `RegisterReportsAPreflightReadFailureBeforeAnyWrite`, `RegisterRollsBackWhatItPublishedWhenPublicationFails`, `RegisterReportsARollbackCompletedByTheResidualReleaseAsNotApplied`, `RegisterReportsARollbackThatLeftAGlobalAsAnUnconfirmedCleanup`, `RegisterWithoutAdmissionIsRefusedBeforeAnyLuaCall` |
+| Every SDK outcome enum is mapped totally and fails closed | `GeneratedRegistrarMappingTests` |
+| The SDK surface is exact and confined to the adapter | `GeneratedLuaSurfaceRatchetTests` |
+| No legacy registration; contract, projection and emitted text compared separately; no `unsafe` code required; refused without an attached SDK runtime | `ModuleContractTests`, `ModuleSnapshots` |
 | Diagnostics are tracked, located and deterministic; models stay cached | `CheatEngineLuaDiagnosticCatalogTests`, `ModuleShapeDiagnosticTests`, `IncrementalityTests`, `IdentifierStabilityTests` |
 
-The SdkPort, EndToEnd and outcome tests carry `[Trait("Qualification", "Q16")]`.
+The EndToEnd and outcome tests carry `[Trait("Qualification", "Q16")]`.

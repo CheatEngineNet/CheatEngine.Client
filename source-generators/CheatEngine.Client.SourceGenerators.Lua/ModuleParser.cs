@@ -15,18 +15,13 @@ internal static class ModuleParser
 
 	private const string LuaModuleInterfaceMetadataName = "CheatEngine.Client.Lua.ILuaModule";
 
-	/// <summary>The names of the members the generated adapter declares; CECLUA1202 reserves them in the module.</summary>
+	/// <summary>The names of the members the generated module part declares; CECLUA1202 reserves them in the module.</summary>
 	internal static readonly ImmutableArray<string> ReservedMemberNames =
 	[
-		"Register", "Unregister", "Descriptor", "LastReleaseOutcome", "s_descriptor", "get_Descriptor",
-		"get_LastReleaseOutcome"
+		"Register", "Unregister", "Descriptor", "s_descriptor", ModuleEmitter.RegistrationField, "get_Descriptor"
 	];
 
-	private static readonly ImmutableArray<string> ModuleContractInterfaces =
-	[
-		LuaModuleInterfaceMetadataName, "CheatEngine.Client.Lua.IDescribedLuaModule",
-		"CheatEngine.Client.Lua.IOwnershipAwareLuaModule"
-	];
+	private static readonly ImmutableArray<string> ModuleContractInterfaces = [LuaModuleInterfaceMetadataName];
 
 	public static ModuleModel Parse(GeneratorAttributeSyntaxContext context)
 	{
@@ -261,10 +256,7 @@ internal static class ModuleParser
 		}
 
 		string name = member.Name;
-		return ReservedMemberNames.Contains(name) ||
-			   name.StartsWith(ModuleEmitter.ReservedPrefix, StringComparison.Ordinal)
-			? name
-			: null;
+		return ReservedMemberNames.Contains(name) ? name : null;
 	}
 
 	private static ImmutableArray<string> GetExports(INamedTypeSymbol bindings, LocationInfo? fallback,

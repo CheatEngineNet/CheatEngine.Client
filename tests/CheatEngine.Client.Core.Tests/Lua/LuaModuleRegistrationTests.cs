@@ -69,7 +69,7 @@ public sealed class LuaModuleRegistrationTests
 	}
 
 	[Fact]
-	public void TryRegisterModuleAllowsSeparateManualModulesBecauseTheyDoNotClaimGlobalNames()
+	public void TryRegisterModuleAllowsModulesWhoseDescriptorsDoNotOverlap()
 	{
 		ImmediateDispatcher dispatcher = new();
 		RecordingModule first = new("first");
@@ -584,6 +584,74 @@ public sealed class LuaModuleRegistrationTests
 		Assert.Equal(3, dispatcher.InvocationCount);
 	}
 
+	[Fact]
+	public void TryRegisterModuleReportsTheFailureAClassifiedRegistrationRefusalCarries()
+	{
+		ImmediateDispatcher dispatcher = new();
+		CheatEngineFailure refusal = new(CheatEngineFailureKind.OperationRejected, "Lua.RegisterModule",
+			"Lua global 'diagnostics_global' is already defined.", null, CheatEngineHostEffect.NotApplied);
+		RecordingModule module = new("diagnostics", new CheatEngineOperationException(refusal));
+		LuaClient client = CreateClient(dispatcher, static () => true);
+
+		bool succeeded = client.TryRegisterModule(module, out ILuaModuleLease? lease, out CheatEngineFailure failure,
+			TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Null(lease);
+		Assert.Equal(refusal, failure);
+	}
+
+	[Fact]
+	public void TryRegisterModuleRefusesAModuleWithoutADescriptorBeforeAnyDispatch()
+	{
+		ImmediateDispatcher dispatcher = new();
+		LuaClient client = CreateClient(dispatcher, static () => true);
+
+		ArgumentException exception = Assert.Throws<ArgumentException>(() =>
+			client.TryRegisterModule(new UndescribedModule(), out _, out _, TestContext.Current.CancellationToken));
+
+		Assert.Equal("luaModule", exception.ParamName);
+		Assert.Equal(0, dispatcher.InvocationCount);
+	}
+
+	[Fact]
+	public void AReleaseThatCouldNotBeginKeepsTheLeaseForTheCleanupRetry()
+	{
+		ImmediateDispatcher dispatcher = new();
+		List<ILuaModuleLease> tracked = [];
+		RecordingModule module = new("diagnostics");
+		LuaClient client = CreateClient(dispatcher, static () => true, tracked.Add, lease =>
+		{
+			tracked.Remove(lease);
+		});
+		Assert.True(client.TryRegisterModule(module, out ILuaModuleLease? lease, out _,
+			TestContext.Current.CancellationToken));
+		module.NextOutcome = LuaModuleReleaseOutcome.CleanupUnavailable("diagnostics", 1);
+
+		Assert.Throws<CheatEngineOperationException>(lease.Dispose);
+
+		Assert.False(lease.IsReleased);
+		Assert.Single(tracked, lease);
+		lease.Dispose();
+		Assert.True(lease.IsReleased);
+		Assert.Empty(tracked);
+	}
+
+	private sealed class UndescribedModule : ILuaModule
+	{
+		public LuaModuleDescriptor Descriptor => default;
+
+		public void Register()
+		{
+			throw new InvalidOperationException("A module without a descriptor must never be registered.");
+		}
+
+		public LuaModuleReleaseOutcome Unregister()
+		{
+			throw new InvalidOperationException("A module without a descriptor must never be released.");
+		}
+	}
+
 	private static LuaClient CreateClient(
 		ICheatEngineDispatcher dispatcher,
 		Func<bool> isActivationCurrent,
@@ -610,6 +678,17 @@ public sealed class LuaModuleRegistrationTests
 			get;
 		} = events ?? [];
 
+		internal LuaModuleReleaseOutcome? NextOutcome
+		{
+			get;
+			set;
+		}
+
+		public LuaModuleDescriptor Descriptor
+		{
+			get;
+		} = new(name, [new LuaExportDescriptor(name + "_global")]);
+
 		public void Register()
 		{
 			Events.Add(name + ".register");
@@ -620,17 +699,21 @@ public sealed class LuaModuleRegistrationTests
 			}
 		}
 
-		public void Unregister()
+		public LuaModuleReleaseOutcome Unregister()
 		{
 			Events.Add(name + ".unregister");
 			if (_remainingUnregisterFailures-- > 0)
 			{
 				throw new InvalidOperationException("generated unregistration failed");
 			}
+
+			LuaModuleReleaseOutcome outcome = NextOutcome ?? LuaModuleReleaseOutcome.Released(name, 1, 0, 0);
+			NextOutcome = null;
+			return outcome;
 		}
 	}
 
-	private sealed class DescribedRecordingModule : IDescribedLuaModule
+	private sealed class DescribedRecordingModule : ILuaModule
 	{
 		private readonly RecordingModule _inner;
 
@@ -658,9 +741,9 @@ public sealed class LuaModuleRegistrationTests
 			_inner.Register();
 		}
 
-		public void Unregister()
+		public LuaModuleReleaseOutcome Unregister()
 		{
-			_inner.Unregister();
+			return _inner.Unregister();
 		}
 	}
 

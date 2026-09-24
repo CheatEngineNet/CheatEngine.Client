@@ -104,9 +104,9 @@ dependency of `CheatEngine.Client.Extensions.DependencyInjection`.
   - new enum values. Public enums are `int` enums whose explicit values never change meaning. An outcome enum (a name
     ending in `Kind`, `Status`, `State`, `Effect` or `Scope`) has `Unknown = 0`: handle a value you do not recognize
     like `Unknown`. An option enum has a valid default at 0.
-- **Frozen for all of 1.x:** the *Implementable* interfaces (`ILuaModule`, `IDescribedLuaModule`,
-  `IOwnershipAwareLuaModule`, `ILuaOperation<TResult>`, `ILuaResultMapper<TSource, TResult>`, `IMemoryCodec<T>` and
-  `ICheatEngineClientModule`) never gain, lose or change a member.
+- **Frozen for all of 1.x:** the *Implementable* interfaces (`ILuaModule`, `ILuaOperation<TResult>`,
+  `ILuaResultMapper<TSource, TResult>`, `IMemoryCodec<T>` and `ICheatEngineClientModule`) never gain, lose or change a
+  member.
 - **Experimental APIs**, marked `[Experimental("CECLIENT500x")]`, can change or be removed in a minor release until
   their live qualification passes; using one is an explicit opt-in to that diagnostic.
 - **Not contractual:** the text of `CheatEngineFailure.Message` and of exception messages. Classify a failure by

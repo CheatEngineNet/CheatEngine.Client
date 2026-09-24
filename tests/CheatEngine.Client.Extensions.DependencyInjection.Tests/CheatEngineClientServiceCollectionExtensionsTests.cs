@@ -369,7 +369,7 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		}
 	}
 
-	public sealed class FirstLuaModule : IDescribedLuaModule
+	public sealed class FirstLuaModule : ILuaModule
 	{
 		public LuaModuleDescriptor Descriptor
 		{
@@ -380,12 +380,13 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		{
 		}
 
-		public void Unregister()
+		public LuaModuleReleaseOutcome Unregister()
 		{
+			return LuaModuleReleaseOutcome.Released(Descriptor.Name, 1, 0, 0);
 		}
 	}
 
-	public sealed class SecondLuaModule : IDescribedLuaModule
+	public sealed class SecondLuaModule : ILuaModule
 	{
 		public LuaModuleDescriptor Descriptor
 		{
@@ -396,8 +397,9 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		{
 		}
 
-		public void Unregister()
+		public LuaModuleReleaseOutcome Unregister()
 		{
+			return LuaModuleReleaseOutcome.Released(Descriptor.Name, 1, 0, 0);
 		}
 	}
 

@@ -1,167 +1,242 @@
 using System.Collections.Immutable;
+using System.Globalization;
 using System.Text;
+
+using CheatEngine.Client.Results;
 
 namespace CheatEngine.Client.Lua;
 
 /// <summary>Copied, handle-free result of one release of a Lua module registration.</summary>
 /// <remarks>
 ///     <para>
-///         The outcome is immutable and published as a whole, so a reader on another thread never observes a partially
-///         built result. <see cref="Kind" /> is computed from the export statuses: any <see cref="LuaExportReleaseStatus.Failed" />
-///         export makes the release <see cref="LuaModuleReleaseKind.PartiallyReleased" />; a release in which every export is
-///         <see cref="LuaExportReleaseStatus.NotAttempted" /> is <see cref="LuaModuleReleaseKind.Stale" />; a release whose
-///         exports are all <see cref="LuaExportReleaseStatus.Removed" />, <see cref="LuaExportReleaseStatus.Replaced" />, or
-///         <see cref="LuaExportReleaseStatus.Absent" /> is <see cref="LuaModuleReleaseKind.Released" />.
+///         A module generated from <see cref="CheatEngineLuaModuleAttribute" /> releases its globals through its
+///         CheatEngine.SDK 2.0.0 registration lease and copies what the SDK observed: the kind of the release, in the Client
+///         lease vocabulary, and its counts and failed global names. The SDK writes a global only while it still holds the
+///         value the registration installed (primitive identity, no <c>__eq</c> metamethod), so a global that a third party
+///         replaced, or that is already <c>nil</c>, is counted in <see cref="ReplacementCount" /> and left untouched.
 ///     </para>
 ///     <para>
-///         The counts map to the CheatEngine.SDK 2.0.0 registration lease outcome: the values 1 to 3 of
-///         <see cref="Kind" />
-///         map one to one onto <c>LuaRegistrationReleaseKind</c> (whose <c>NotAttempted</c> and <c>AlreadyReleased</c>
-///         values have no Client counterpart), and the SDK <c>ReplacementCount</c> corresponds to
-///         <see cref="ReplacedCount" /> plus <see cref="AbsentCount" />.
+///         The kinds a generated module reports are <see cref="LeaseReleaseKind.Released" />,
+///         <see cref="LeaseReleaseKind.PartiallyReleased" /> (at least one protected read or write failed; the failed
+///         globals are in <see cref="FailedExports" /> and are not retried),
+///         <see cref="LeaseReleaseKind.RefusedRuntimeChanged" /> (the registration belongs to an earlier Lua attachment or
+///         state, so nothing was written and its globals may remain as functions that raise an error),
+///         <see cref="LeaseReleaseKind.AlreadyReleased" /> (the module owned no registration) and
+///         <see cref="LeaseReleaseKind.CleanupUnavailable" /> (CheatEngine.SDK could not admit the Lua work; the module
+///         keeps its registration for a later attempt). A manual <see cref="ILuaModule" /> reports its own release with
+///         the factories of this type.
+///     </para>
+///     <para>
+///         The outcome is immutable and holds copied names and counts only: never a Lua state, reference, or native handle.
 ///     </para>
 /// </remarks>
 public sealed class LuaModuleReleaseOutcome
 {
-	/// <summary>Initializes one validated module release result.</summary>
-	/// <param name="moduleName">The stable module identity.</param>
-	/// <param name="exports">One result per exported Lua global, in the module's export order.</param>
-	/// <exception cref="ArgumentException">
-	///     <paramref name="moduleName" /> is blank; <paramref name="exports" /> is default or empty, contains an uninitialized
-	///     result or a duplicate name, or mixes <see cref="LuaExportReleaseStatus.NotAttempted" /> with other statuses.
-	/// </exception>
-	public LuaModuleReleaseOutcome(string moduleName, ImmutableArray<LuaExportReleaseOutcome> exports)
+	private LuaModuleReleaseOutcome(string moduleName, LeaseReleaseKind kind, int removedCount, int restoredCount,
+		int replacementCount, int remainingCount, ImmutableArray<string> failedExports)
 	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(moduleName);
-		if (exports.IsDefaultOrEmpty)
-		{
-			throw new ArgumentException(
-				$"The release outcome of Lua module '{moduleName}' must report at least one export.", nameof(exports));
-		}
-
-		HashSet<string> names = new(StringComparer.Ordinal);
-		int notAttempted = 0;
-		foreach (LuaExportReleaseOutcome export in exports)
-		{
-			if (export.Name is null)
-			{
-				throw new ArgumentException(
-					$"The release outcome of Lua module '{moduleName}' contains an uninitialized export result.",
-					nameof(exports));
-			}
-
-			if (!names.Add(export.Name))
-			{
-				throw new ArgumentException(
-					$"The release outcome of Lua module '{moduleName}' reports the export '{export.Name}' more than once.",
-					nameof(exports));
-			}
-
-			switch (export.Status)
-			{
-				case LuaExportReleaseStatus.Removed:
-					RemovedCount++;
-					break;
-				case LuaExportReleaseStatus.Replaced:
-					ReplacedCount++;
-					break;
-				case LuaExportReleaseStatus.Absent:
-					AbsentCount++;
-					break;
-				case LuaExportReleaseStatus.Failed:
-					FailedCount++;
-					break;
-				case LuaExportReleaseStatus.NotAttempted:
-					notAttempted++;
-					break;
-				default:
-					throw new ArgumentException(
-						$"The release outcome of Lua module '{moduleName}' reports the undefined status '{export.Status}' for export '{export.Name}'.",
-						nameof(exports));
-			}
-		}
-
-		if (notAttempted != 0 && notAttempted != exports.Length)
-		{
-			throw new ArgumentException(
-				$"The release outcome of Lua module '{moduleName}' mixes NotAttempted exports with attempted ones; a stale release attempts none.",
-				nameof(exports));
-		}
-
 		ModuleName = moduleName;
-		Exports = exports;
-		Kind = notAttempted != 0
-			? LuaModuleReleaseKind.Stale
-			: FailedCount != 0
-				? LuaModuleReleaseKind.PartiallyReleased
-				: LuaModuleReleaseKind.Released;
+		Kind = kind;
+		RemovedCount = removedCount;
+		RestoredCount = restoredCount;
+		ReplacementCount = replacementCount;
+		RemainingCount = remainingCount;
+		FailedExports = failedExports;
 	}
 
-	/// <summary>Gets the stable module identity.</summary>
+	/// <summary>Gets the stable module identity (<see cref="LuaModuleDescriptor.Name" />).</summary>
 	public string ModuleName
 	{
 		get;
 	}
 
-	/// <summary>Gets the classification computed from <see cref="Exports" />.</summary>
-	public LuaModuleReleaseKind Kind
+	/// <summary>Gets what the release did, in the Client lease vocabulary.</summary>
+	public LeaseReleaseKind Kind
 	{
 		get;
 	}
 
-	/// <summary>Gets one result per exported Lua global, in the module's export order.</summary>
-	public ImmutableArray<LuaExportReleaseOutcome> Exports
-	{
-		get;
-	}
-
-	/// <summary>Gets the number of exports that were still the module's and were set to <c>nil</c>.</summary>
+	/// <summary>Gets the number of globals that still held the module's value and were set to <c>nil</c>.</summary>
 	public int RemovedCount
 	{
 		get;
 	}
 
-	/// <summary>Gets the number of exports a third party had replaced; they were left untouched.</summary>
-	public int ReplacedCount
-	{
-		get;
-	}
-
-	/// <summary>Gets the number of exports that were already <c>nil</c>.</summary>
-	public int AbsentCount
-	{
-		get;
-	}
-
-	/// <summary>Gets the number of exports whose read, comparison, or clear failed.</summary>
-	public int FailedCount
+	/// <summary>
+	///     Gets the number of globals whose earlier value was put back. A generated module refuses to replace a defined
+	///     global, so it always reports <c>0</c>.
+	/// </summary>
+	public int RestoredCount
 	{
 		get;
 	}
 
 	/// <summary>
-	///     Gets whether no release step failed: <see cref="Kind" /> is <see cref="LuaModuleReleaseKind.Released" /> or
-	///     <see cref="LuaModuleReleaseKind.Stale" />, the same meaning as the CheatEngine.SDK 2.0.0 <c>IsComplete</c> for
-	///     these kinds.
+	///     Gets the number of globals that no longer held the module's value (a third party replaced them, even with a
+	///     wrapper of the module's function, or they were already <c>nil</c>); nothing was written to them.
 	/// </summary>
-	/// <remarks>
-	///     A <see cref="LuaModuleReleaseKind.Stale" /> release attempted no Lua operation: the registration's Lua state or
-	///     attachment is gone, so nothing of it can be examined or cleared from the current state. It does not claim that
-	///     the earlier state was cleaned up.
-	/// </remarks>
-	public bool IsComplete => Kind is LuaModuleReleaseKind.Released or LuaModuleReleaseKind.Stale;
+	public int ReplacementCount
+	{
+		get;
+	}
 
-	/// <summary>Formats the outcome as <c>Module=&lt;name&gt;; Kind=&lt;kind&gt;; &lt;export&gt;=&lt;status&gt;; ...</c>.</summary>
+	/// <summary>
+	///     Gets the number of globals whose cleanup this attempt did not confirm: the failed ones, or every global of a
+	///     registration that was not released.
+	/// </summary>
+	public int RemainingCount
+	{
+		get;
+	}
+
+	/// <summary>Gets the globals whose protected read or write failed during the release, in registration order.</summary>
+	public ImmutableArray<string> FailedExports
+	{
+		get;
+	}
+
+	/// <summary>
+	///     Gets whether the release ended and nothing the module owned is known to remain: the rule of
+	///     <see cref="LeaseReleaseOutcome.IsComplete" /> applied to <see cref="Kind" />.
+	/// </summary>
+	public bool IsComplete => new LeaseReleaseOutcome(Kind, CheatEngineHostEffect.Unknown).IsComplete;
+
+	/// <summary>Creates a validated release outcome from every fact of the release.</summary>
+	/// <param name="moduleName">The stable module identity.</param>
+	/// <param name="kind">What the release did.</param>
+	/// <param name="removedCount">The globals set to <c>nil</c> because they still held the module's value.</param>
+	/// <param name="restoredCount">The globals whose earlier value was put back.</param>
+	/// <param name="replacementCount">The globals that no longer held the module's value and were left untouched.</param>
+	/// <param name="remainingCount">The globals whose cleanup was not confirmed.</param>
+	/// <param name="failedExports">
+	///     The globals whose release failed, in registration order; <see langword="default" /> means none.
+	/// </param>
+	/// <returns>The outcome.</returns>
+	/// <exception cref="ArgumentException">
+	///     <paramref name="moduleName" /> or a failed export name is blank, a failed export is listed twice, failed exports
+	///     are named for a kind other than <see cref="LeaseReleaseKind.PartiallyReleased" /> or are missing for it, or
+	///     <paramref name="remainingCount" /> is smaller than the number of failed exports.
+	/// </exception>
+	/// <exception cref="ArgumentOutOfRangeException">
+	///     <paramref name="kind" /> is not a defined value, or a count is negative.
+	/// </exception>
+	public static LuaModuleReleaseOutcome Create(string moduleName, LeaseReleaseKind kind, int removedCount,
+		int restoredCount, int replacementCount, int remainingCount, ImmutableArray<string> failedExports)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(moduleName);
+		if (!Enum.IsDefined(kind))
+		{
+			throw new ArgumentOutOfRangeException(nameof(kind), kind, "The lease release kind must be a defined value.");
+		}
+
+		ArgumentOutOfRangeException.ThrowIfNegative(removedCount);
+		ArgumentOutOfRangeException.ThrowIfNegative(restoredCount);
+		ArgumentOutOfRangeException.ThrowIfNegative(replacementCount);
+		ArgumentOutOfRangeException.ThrowIfNegative(remainingCount);
+		ImmutableArray<string> failed = failedExports.IsDefault ? [] : failedExports;
+		HashSet<string> names = new(StringComparer.Ordinal);
+		foreach (string export in failed)
+		{
+			ArgumentException.ThrowIfNullOrWhiteSpace(export, nameof(failedExports));
+			if (!names.Add(export))
+			{
+				throw new ArgumentException(
+					$"The release outcome of Lua module '{moduleName}' names the failed export '{export}' more than once.",
+					nameof(failedExports));
+			}
+		}
+
+		bool partiallyReleased = kind == LeaseReleaseKind.PartiallyReleased;
+		if (partiallyReleased == failed.IsEmpty)
+		{
+			throw new ArgumentException(
+				$"The release outcome of Lua module '{moduleName}' must name its failed exports exactly when it is " +
+				$"{nameof(LeaseReleaseKind.PartiallyReleased)}.", nameof(failedExports));
+		}
+
+		if (remainingCount < failed.Length)
+		{
+			throw new ArgumentException(
+				$"The release outcome of Lua module '{moduleName}' cannot report fewer remaining globals than failed exports.",
+				nameof(remainingCount));
+		}
+
+		return new LuaModuleReleaseOutcome(moduleName, kind, removedCount, restoredCount, replacementCount,
+			remainingCount, failed);
+	}
+
+	/// <summary>Creates the outcome of a release in which no protected read or write failed.</summary>
+	/// <param name="moduleName">The stable module identity.</param>
+	/// <param name="removedCount">The globals set to <c>nil</c>.</param>
+	/// <param name="restoredCount">The globals whose earlier value was put back.</param>
+	/// <param name="replacementCount">The globals left untouched because they no longer held the module's value.</param>
+	/// <returns>A <see cref="LeaseReleaseKind.Released" /> outcome.</returns>
+	public static LuaModuleReleaseOutcome Released(string moduleName, int removedCount, int restoredCount,
+		int replacementCount)
+	{
+		return Create(moduleName, LeaseReleaseKind.Released, removedCount, restoredCount, replacementCount, 0, []);
+	}
+
+	/// <summary>Creates the outcome of a release in which at least one global could not be released.</summary>
+	/// <param name="moduleName">The stable module identity.</param>
+	/// <param name="removedCount">The globals set to <c>nil</c>.</param>
+	/// <param name="restoredCount">The globals whose earlier value was put back.</param>
+	/// <param name="replacementCount">The globals left untouched because they no longer held the module's value.</param>
+	/// <param name="failedExports">The globals whose release failed; at least one.</param>
+	/// <returns>
+	///     A <see cref="LeaseReleaseKind.PartiallyReleased" /> outcome whose <see cref="RemainingCount" /> is the number of
+	///     failed exports.
+	/// </returns>
+	public static LuaModuleReleaseOutcome PartiallyReleased(string moduleName, int removedCount, int restoredCount,
+		int replacementCount, ImmutableArray<string> failedExports)
+	{
+		return Create(moduleName, LeaseReleaseKind.PartiallyReleased, removedCount, restoredCount, replacementCount,
+			failedExports.IsDefault ? 0 : failedExports.Length, failedExports);
+	}
+
+	/// <summary>Creates the outcome of a release that found no registration left to release.</summary>
+	/// <param name="moduleName">The stable module identity.</param>
+	/// <returns>An <see cref="LeaseReleaseKind.AlreadyReleased" /> outcome.</returns>
+	public static LuaModuleReleaseOutcome AlreadyReleased(string moduleName)
+	{
+		return Create(moduleName, LeaseReleaseKind.AlreadyReleased, 0, 0, 0, 0, []);
+	}
+
+	/// <summary>
+	///     Creates the outcome of a release refused because the registration belongs to an earlier Lua attachment or state.
+	/// </summary>
+	/// <param name="moduleName">The stable module identity.</param>
+	/// <param name="remainingCount">The globals of the registration, none of which was examined.</param>
+	/// <returns>A <see cref="LeaseReleaseKind.RefusedRuntimeChanged" /> outcome.</returns>
+	public static LuaModuleReleaseOutcome RefusedRuntimeChanged(string moduleName, int remainingCount)
+	{
+		return Create(moduleName, LeaseReleaseKind.RefusedRuntimeChanged, 0, 0, 0, remainingCount, []);
+	}
+
+	/// <summary>Creates the outcome of a release that could not begin; the module keeps its registration.</summary>
+	/// <param name="moduleName">The stable module identity.</param>
+	/// <param name="remainingCount">The globals of the registration, none of which was examined.</param>
+	/// <returns>A retryable <see cref="LeaseReleaseKind.CleanupUnavailable" /> outcome.</returns>
+	public static LuaModuleReleaseOutcome CleanupUnavailable(string moduleName, int remainingCount)
+	{
+		return Create(moduleName, LeaseReleaseKind.CleanupUnavailable, 0, 0, 0, remainingCount, []);
+	}
+
+	/// <summary>
+	///     Formats the outcome as <c>Module=&lt;name&gt;; Kind=&lt;kind&gt;; Removed=&lt;n&gt;; Restored=&lt;n&gt;;
+	///     Replacement=&lt;n&gt;; Remaining=&lt;n&gt;; Failed=&lt;comma-separated names&gt;</c>.
+	/// </summary>
 	/// <returns>A culture-invariant, single-line description.</returns>
 	public override string ToString()
 	{
 		StringBuilder text = new();
-		text.Append("Module=").Append(ModuleName).Append("; Kind=").Append(Kind.ToString());
-		foreach (LuaExportReleaseOutcome export in Exports)
-		{
-			text.Append("; ").Append(export.Name).Append('=').Append(export.Status.ToString());
-		}
-
+		text.Append("Module=").Append(ModuleName)
+			.Append("; Kind=").Append(Kind.ToString())
+			.Append("; Removed=").Append(RemovedCount.ToString(CultureInfo.InvariantCulture))
+			.Append("; Restored=").Append(RestoredCount.ToString(CultureInfo.InvariantCulture))
+			.Append("; Replacement=").Append(ReplacementCount.ToString(CultureInfo.InvariantCulture))
+			.Append("; Remaining=").Append(RemainingCount.ToString(CultureInfo.InvariantCulture))
+			.Append("; Failed=").Append(string.Join(",", FailedExports));
 		return text.ToString();
 	}
 }

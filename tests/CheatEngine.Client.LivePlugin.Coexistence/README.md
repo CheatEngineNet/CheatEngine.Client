@@ -151,9 +151,9 @@ assert(type(cheatengine_client_coexistence_a_ping) == "function")
 print(cheatengine_client_coexistence_a_ping())
 ```
 
-This step observes only the Lua-visible effect on the exact host. It does not observe the `Replaced` status of A's
-release outcome (`IOwnershipAwareLuaModule.LastReleaseOutcome`): that status is C1 evidence of the generator EndToEnd
-tests, not host evidence.
+This step observes only the Lua-visible effect on the exact host. It does not observe the `ReplacementCount` of A's
+release outcome (`LuaModuleReleaseOutcome`): that count is C1 evidence of the generator EndToEnd tests, not host
+evidence.
 
 Disable the failed contender if the host exposes it as enabled, then disable B and finally A, recording every lifecycle
 result. Stop and retain the failure evidence if a positive plugin cannot load or enable, an expected collision does not

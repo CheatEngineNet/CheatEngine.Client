@@ -9,7 +9,8 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace CheatEngine.Client.SourceGenerators.Lua;
 
 /// <summary>
-///     Emits the Client-facing, handle-free adapters for explicitly declared SDK Lua binding types.
+///     Emits the Client-facing, handle-free adapters for explicitly declared SDK Lua binding types, and the per-assembly
+///     registrar through which generated modules use CheatEngine.SDK Lua registration leases.
 /// </summary>
 /// <remarks>
 ///     The generator is deliberately attribute-driven. It neither scans assemblies nor persists compilation state:
@@ -123,6 +124,20 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 			foreach (DiagnosticInfo diagnostic in FindDuplicateExports(models))
 			{
 				productionContext.ReportDiagnostic(diagnostic.ToDiagnostic());
+			}
+		});
+
+		// One registrar and one CheatEngine.SDK adapter per assembly that declares a valid module; constant text, so the
+		// boolean input keeps this output cached while any valid module exists.
+		IncrementalValueProvider<bool> declaresModule = modules.Collect()
+			.Select(static (models, _) => models.Any(static model => model.IsValid))
+			.WithTrackingName("CheatEngineLuaModuleRegistrar");
+		context.RegisterSourceOutput(declaresModule, static (productionContext, emit) =>
+		{
+			if (emit)
+			{
+				productionContext.AddSource(RegistrarEmitter.RegistrarHintName, RegistrarEmitter.RegistrarSource);
+				productionContext.AddSource(RegistrarEmitter.AdapterHintName, RegistrarEmitter.AdapterSource);
 			}
 		});
 

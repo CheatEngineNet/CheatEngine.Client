@@ -1,6 +1,7 @@
 using System.Reflection;
 
 using CheatEngine.Client.Lua;
+using CheatEngine.Client.Results;
 using CheatEngine.Client.SourceGenerators.Lua.Tests.Infrastructure;
 
 using Microsoft.CodeAnalysis;
@@ -20,6 +21,7 @@ public sealed class ModuleContractTests
 		using CheatEngine.Client.Lua;
 		using CheatEngine.SDK.Annotations.Lua;
 		using CheatEngine.SDK.Lua.Calls;
+		using CheatEngine.SDK.Lua.Registration;
 		using CheatEngine.SDK.Lua.State;
 		namespace TestPlugin;
 		internal static partial class PluginLuaBindings
@@ -33,7 +35,8 @@ public sealed class ModuleContractTests
 			[LuaFunction("marker")]
 			public static string Marker() => "m";
 
-			public static LuaStatus RegisterLuaFunctions(LuaState state) => default;
+			public static LuaRegistrationResult TryRegisterLuaFunctions(LuaState state,
+				LuaRegistrationCollisionPolicy collisionPolicy = LuaRegistrationCollisionPolicy.RejectExisting) => default;
 		""";
 
 	private const string ModuleDeclaration =
@@ -43,16 +46,16 @@ public sealed class ModuleContractTests
 		public sealed partial class PluginLuaModule : ILuaModule;
 		""";
 
-	private const string ModuleWithLegacyHelper =
-		BindingsPrefix + "\n\tpublic static LuaStatus UnregisterLuaFunctions(LuaState state) => default;\n}" +
-		ModuleDeclaration;
+	private const string ModuleWithLegacyHelpers =
+		BindingsPrefix + "\n\tpublic static LuaStatus RegisterLuaFunctions(LuaState state) => default;" +
+		"\n\tpublic static LuaStatus UnregisterLuaFunctions(LuaState state) => default;\n}" + ModuleDeclaration;
 
-	private const string ModuleWithoutLegacyHelper = BindingsPrefix + "\n}" + ModuleDeclaration;
+	private const string ModuleWithoutLegacyHelpers = BindingsPrefix + "\n}" + ModuleDeclaration;
 
 	[Fact]
 	public void ModuleDescriptorContractIsUnchanged()
 	{
-		IDescribedLuaModule module = (IDescribedLuaModule) Activator.CreateInstance(LoadModuleType(ModuleWithLegacyHelper))!;
+		ILuaModule module = (ILuaModule) Activator.CreateInstance(LoadModuleType(ModuleWithLegacyHelpers))!;
 
 		Assert.Equal("plugin", module.Descriptor.Name);
 		Assert.Equal(["status", "ping", "marker"], module.Descriptor.Exports.Select(static export => export.Name));
@@ -61,20 +64,15 @@ public sealed class ModuleContractTests
 	[Fact]
 	public void GeneratedModulePublicProjectionIsStable()
 	{
-		Type moduleType = LoadModuleType(ModuleWithLegacyHelper);
+		Type moduleType = LoadModuleType(ModuleWithLegacyHelpers);
 		const BindingFlags Public = BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static |
 									BindingFlags.DeclaredOnly;
 
 		Assert.Equal(
-			[
-				".ctor()", "Descriptor", "LastReleaseOutcome", "Register()", "Unregister()", "get_Descriptor()",
-				"get_LastReleaseOutcome()"
-			],
+			[".ctor()", "Descriptor", "Register()", "Unregister()", "get_Descriptor()"],
 			moduleType.GetMembers(Public).Select(Describe).Order(StringComparer.Ordinal));
-		Assert.Equal(
-			[typeof(IDescribedLuaModule), typeof(ILuaModule), typeof(IOwnershipAwareLuaModule)],
-			moduleType.GetInterfaces().OrderBy(static type => type.FullName, StringComparer.Ordinal));
-		Assert.Equal(typeof(LuaModuleReleaseOutcome), moduleType.GetProperty("LastReleaseOutcome")!.PropertyType);
+		Assert.Equal([typeof(ILuaModule)], moduleType.GetInterfaces());
+		Assert.Equal(typeof(LuaModuleReleaseOutcome), moduleType.GetMethod("Unregister")!.ReturnType);
 		foreach (MemberInfo member in moduleType.GetMembers(Public))
 		{
 			Assert.DoesNotContain(PublicSignatureTypes(member), static type =>
@@ -83,25 +81,26 @@ public sealed class ModuleContractTests
 	}
 
 	[Fact]
-	public void GeneratedModuleNeverCallsTheLegacyUnregistrationHelper()
+	public void GeneratedModuleRegistersOnlyThroughTheOwnershipAwareSdkRegistration()
 	{
-		GeneratorRun run = GeneratorRun.Execute(ModuleWithLegacyHelper);
+		GeneratorRun run = GeneratorRun.Execute(ModuleWithLegacyHelpers);
 		string generated = run.GeneratedText("PluginLuaModule.CheatEngineLuaModule.g.cs");
 		Assert.DoesNotContain("UnregisterLuaFunctions", generated, StringComparison.Ordinal);
-		Assert.Equal(1, Count(generated, "RegisterLuaFunctions("));
+		Assert.Equal(1, Count(generated, "TryRegisterLuaFunctions("));
+		Assert.Contains("LuaRegistrationCollisionPolicy.RejectExisting", generated, StringComparison.Ordinal);
 
 		string[] invokedBindings =
 		[
 			.. IlCallScanner.CalledMethodNames(Emit(run))
 				.Where(static name => name.EndsWith("LuaFunctions", StringComparison.Ordinal))
 		];
-		Assert.Equal(["RegisterLuaFunctions"], invokedBindings);
+		Assert.Equal(["TryRegisterLuaFunctions"], invokedBindings);
 	}
 
 	[Fact]
-	public void GeneratedModuleCompilesWhenTheBindingsHaveNoLegacyUnregistrationHelper()
+	public void GeneratedModuleCompilesWhenTheBindingsHaveNoLegacyHelpers()
 	{
-		GeneratorRun run = GeneratorRun.Execute(ModuleWithoutLegacyHelper);
+		GeneratorRun run = GeneratorRun.Execute(ModuleWithoutLegacyHelpers);
 
 		Assert.Empty(run.Diagnostics);
 		Diagnostic[] diagnostics =
@@ -116,13 +115,31 @@ public sealed class ModuleContractTests
 	[Fact]
 	public void GeneratedModuleCompilesInAConsumerThatDisallowsUnsafeCode()
 	{
-		GeneratorRun run = GeneratorRun.Execute(ModuleWithoutLegacyHelper);
+		GeneratorRun run = GeneratorRun.Execute(ModuleWithoutLegacyHelpers);
 		Compilation consumer = run.OutputCompilation.WithOptions(
 			((CSharpCompilationOptions) run.OutputCompilation.Options).WithAllowUnsafe(false));
 
 		Assert.Empty(run.Diagnostics);
 		Assert.Empty(consumer.GetDiagnostics(TestContext.Current.CancellationToken)
 			.Where(static diagnostic => diagnostic.Severity >= DiagnosticSeverity.Warning));
+	}
+
+	[Fact]
+	public void GeneratedModuleWithoutAnAttachedSdkRuntimeIsRefusedBeforeAnyLuaCall()
+	{
+		ILuaModule module = (ILuaModule) Activator.CreateInstance(LoadModuleType(ModuleWithoutLegacyHelpers))!;
+
+		// No CheatEngine.SDK runtime is attached in this process: the real generated adapter asks for admission, the SDK
+		// answers Detached, and the registrar refuses before any Lua call. A module that owns nothing releases nothing.
+		CheatEngineOperationException refused = Assert.Throws<CheatEngineOperationException>(module.Register);
+		LuaModuleReleaseOutcome outcome = module.Unregister();
+
+		Assert.Equal(CheatEngineFailureKind.ActivationExpired, refused.Failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, refused.Failure.HostEffect);
+		Assert.Equal("Lua.RegisterModule", refused.Failure.Operation);
+		Assert.Contains("Detached", refused.Failure.Message, StringComparison.Ordinal);
+		Assert.Equal(LeaseReleaseKind.AlreadyReleased, outcome.Kind);
+		Assert.Equal("plugin", outcome.ModuleName);
 	}
 
 	internal static Type LoadModuleType(string source)

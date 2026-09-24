@@ -2,6 +2,7 @@ using System.Runtime.ExceptionServices;
 
 using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Lua;
+using CheatEngine.Client.Results;
 
 namespace CheatEngine.Client.Core.Domains;
 
@@ -61,7 +62,20 @@ internal sealed class LuaModuleLease(
 				return;
 			}
 
-			_dispatcher.Invoke(_module.Unregister);
+			LuaModuleReleaseOutcome? outcome = null;
+			_dispatcher.Invoke(() =>
+			{
+				outcome = _module.Unregister();
+			});
+
+			// A release that could not begin leaves the registration with the module: the lease stays active so a later
+			// dispose, or the activation cleanup, tries again.
+			if (outcome is not null && new LeaseReleaseOutcome(outcome.Kind, CheatEngineHostEffect.Unknown).IsRetryable)
+			{
+				throw new CheatEngineOperationException(new CheatEngineFailure(CheatEngineFailureKind.CapabilityUnavailable,
+					"Lua.UnregisterModule", $"The Lua module release could not begin ({outcome.Kind}); it will be retried.",
+					null, CheatEngineHostEffect.NotStarted));
+			}
 
 			// Do not make any ownership transition until the application module confirmed unregistration by returning.
 			// The write occurs while holding the lock, so another disposer either observes the completed release or

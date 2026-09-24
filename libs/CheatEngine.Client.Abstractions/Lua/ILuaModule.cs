@@ -1,59 +1,72 @@
 namespace CheatEngine.Client.Lua;
 
-/// <summary>Explicitly registers one application-owned set of Lua exports for the current Client activation.</summary>
+/// <summary>Registers and releases one application-owned set of Lua globals for the current Client activation.</summary>
 /// <remarks>
 ///     <para>
 ///         <b>Implementable.</b> Applications implement this interface and the Client calls it. Its members are frozen
 ///         for the 1.x line.
 ///     </para>
 ///     <para>
-///         The Client invokes both methods synchronously on Cheat Engine's main thread and owns the resulting registration
-///         lease. No SDK Lua state, reference, or raw stack access crosses this Client contract.
+///         The Client calls <see cref="Register" /> and <see cref="Unregister" /> synchronously on Cheat Engine's main
+///         thread, through <see cref="ILuaClient.RegisterModule" /> and the returned <see cref="ILuaModuleLease" />, and
+///         owns the resulting lease. Before <see cref="Register" /> runs, the Client reserves <see cref="Descriptor" />'s
+///         module name and every export name for the activation, so two modules of one activation never claim the same
+///         Lua global. No SDK Lua state, reference, or raw stack access crosses this Client contract.
 ///     </para>
 ///     <para>
-///         A <see cref="CheatEngineLuaModuleAttribute" /> module calls its SDK-generated <c>RegisterLuaFunctions</c> method
-///         and never the legacy <c>UnregisterLuaFunctions</c> helper, which writes <c>nil</c> unconditionally; it releases
-///         its globals ownership-aware instead (<see cref="IOwnershipAwareLuaModule" />). A manual implementation may acquire
-///         the SDK state and call whatever SDK-generated methods it needs.
+///         A <see cref="CheatEngineLuaModuleAttribute" /> module generates all three members. It registers through the
+///         SDK-generated <c>TryRegisterLuaFunctions</c> of its bindings type with the <c>RejectExisting</c> collision
+///         policy, holds the CheatEngine.SDK registration lease, and releases it ownership-aware: a global is written only
+///         while it still holds the value the module installed. It never calls the legacy SDK
+///         <c>RegisterLuaFunctions</c>/<c>UnregisterLuaFunctions</c> pair, which writes unconditionally. A manual
+///         implementation declares its exports truthfully in <see cref="Descriptor" /> and reports its release with the
+///         <see cref="LuaModuleReleaseOutcome" /> factories.
 ///     </para>
 /// </remarks>
 public interface ILuaModule
 {
+	/// <summary>Gets this module's stable identity and the Lua global names it exports.</summary>
+	/// <remarks>
+	///     The descriptor is copied metadata only: no Lua state, SDK ownership, reference, callback, or native handle.
+	/// </remarks>
+	public LuaModuleDescriptor Descriptor
+	{
+		get;
+	}
+
 	/// <summary>Registers this module's exports for the current Cheat Engine activation.</summary>
 	/// <remarks>
-	///     Throw when the generated SDK registration reports a non-success status so
-	///     <see cref="ILuaClient.TryRegisterModule" /> can return the mapped failure.
 	///     <para>
-	///         A generated module refuses, before any write, to replace a global that is already defined, and refuses to
-	///         register again while its previous registration is still current. When a registration fails after the first
-	///         write, it rolls back the globals it published (ownership-aware) and throws an exception of the same type as the
-	///         original failure whose message starts with the original message; a rollback failure is attached as an
-	///         <see cref="AggregateException" /> inner exception whose first element is the original failure. On
-	///         CheatEngine.SDK 2.0.0 a combined SDK <c>LuaException</c> cannot carry both a Lua status and an inner exception,
-	///         so its <c>Status</c> is <c>Ok</c>; read the original status from that first element. Without a rollback
-	///         failure the original exception is thrown itself, status included.
+	///         Throw to refuse the registration; <see cref="ILuaClient.TryRegisterModule" /> returns the failure. A
+	///         <see cref="Results.CheatEngineOperationException" /> is reported with the failure it carries; any other
+	///         exception is classified by the Client like a CheatEngine.SDK fault.
 	///     </para>
 	///     <para>
-	///         A manual module that implements only this interface remains a compatible advanced escape hatch. Because it
-	///         does not declare its identity or exports, it cannot participate in the Client's activation-wide global
-	///         collision guarantee. Implement <see cref="IDescribedLuaModule" /> for ordinary application modules.
+	///         A generated module throws a <see cref="Results.CheatEngineOperationException" /> when CheatEngine.SDK
+	///         refuses the Lua admission (<c>ActivationExpired</c>, <c>RuntimeChanged</c> or <c>InvalidState</c>, with the
+	///         host effect <c>NotStarted</c>), when a global is already defined (<c>OperationRejected</c>,
+	///         <c>NotApplied</c>: nothing was published), or when a protected lookup or publication failed
+	///         (<c>LuaError</c>; <c>NotApplied</c> when the SDK's rollback removed everything it published,
+	///         <c>CleanupUnconfirmed</c> otherwise).
 	///     </para>
 	/// </remarks>
 	public void Register();
 
-	/// <summary>Unregisters this module's exports for the current Cheat Engine activation.</summary>
+	/// <summary>Releases this module's exports for the current Cheat Engine activation and reports what happened.</summary>
+	/// <returns>The copied release outcome; never <see langword="null" />.</returns>
 	/// <remarks>
-	///     This is called at most once by the Client, either by disposing the returned lease or during activation
-	///     cleanup. Implementations should make their own cleanup safe if an SDK operation reports a failure.
 	///     <para>
-	///         A generated module is ownership-aware: it writes <c>nil</c> only to globals that still hold the value it
-	///         published and never overwrites a global a third party replaced. It attempts every export, publishes the result
-	///         through <see cref="IOwnershipAwareLuaModule.LastReleaseOutcome" />, and throws only afterwards when at least
-	///         one export failed (one failure is thrown as is, several as an <see cref="AggregateException" />). It consumes
-	///         its registration before the first Lua call, so a second call after a completed or failed release is a no-op.
-	///         A registration that belongs to an earlier Lua state or attachment is reported as
-	///         <see cref="LuaModuleReleaseKind.Stale" /> without any Lua operation.
+	///         The Client calls it once for each successful <see cref="Register" />, and again only after an outcome that
+	///         left the registration in place (<see cref="Results.LeaseReleaseKind.CleanupUnavailable" /> or
+	///         <see cref="Results.LeaseReleaseKind.Unknown" />). Report a release that failed in the outcome rather than by
+	///         throwing: an exception is recorded as an unconfirmed cleanup and never retried.
+	///     </para>
+	///     <para>
+	///         A generated module writes only globals that still hold the value it installed and never overwrites one a
+	///         third party replaced. It returns <see cref="Results.LeaseReleaseKind.AlreadyReleased" /> without any Lua call
+	///         when it owns no registration, and <see cref="Results.LeaseReleaseKind.CleanupUnavailable" /> (keeping the
+	///         registration) when CheatEngine.SDK cannot admit the Lua work now.
 	///     </para>
 	/// </remarks>
-	public void Unregister();
+	public LuaModuleReleaseOutcome Unregister();
 }

@@ -11,6 +11,8 @@ namespace CheatEngine.Client.Core.Domains;
 
 internal sealed class LuaClient : ILuaClient
 {
+	private const string RegisterOperation = "Lua.RegisterModule";
+
 	private readonly Action<string>? _admitStatefulOperation;
 	private readonly ICoreDiagnostics _diagnostics;
 	private readonly ICheatEngineDispatcher _dispatcher;
@@ -79,24 +81,23 @@ internal sealed class LuaClient : ILuaClient
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(luaModule);
+		LuaModuleDescriptor descriptor = luaModule.Descriptor;
+		if (descriptor.Name is null)
+		{
+			throw new ArgumentException("The Lua module must declare its identity and exports in a descriptor.",
+				nameof(luaModule));
+		}
+
 		lease = null;
-		Admit("Lua.RegisterModule");
+		Admit(RegisterOperation);
 		if (cancellationToken.IsCancellationRequested)
 		{
-			failure = CoreFailureFactory.Cancelled("Lua.RegisterModule");
+			failure = CoreFailureFactory.Cancelled(RegisterOperation);
 			return false;
 		}
 
-		try
+		if (!TryReserveModule(luaModule, descriptor, out failure))
 		{
-			if (!TryReserveModule(luaModule, out failure))
-			{
-				return false;
-			}
-		}
-		catch (Exception exception)
-		{
-			failure = CoreFailureFactory.FromException("Lua.RegisterModule", exception);
 			return false;
 		}
 
@@ -109,13 +110,13 @@ internal sealed class LuaClient : ILuaClient
 		catch (Exception trackingException)
 		{
 			failure = FailAfterAbandoningUnregisteredLease(
-				CoreFailureFactory.FromException("Lua.RegisterModule", trackingException),
+				SdkBoundary.Classify(RegisterOperation, trackingException, CheatEngineHostEffect.NotStarted),
 				created);
 			return false;
 		}
 
 		bool registered = false;
-		CheatEngineFailure moduleFailure = default;
+		Exception? registrationFault = null;
 		if (!_dispatcher.TryInvoke(
 				() =>
 				{
@@ -127,7 +128,7 @@ internal sealed class LuaClient : ILuaClient
 					}
 					catch (Exception exception)
 					{
-						moduleFailure = CoreFailureFactory.FromException("Lua.RegisterModule", exception);
+						registrationFault = exception;
 					}
 				},
 				out failure,
@@ -139,7 +140,7 @@ internal sealed class LuaClient : ILuaClient
 
 		if (!registered)
 		{
-			failure = FailAfterAbandoningUnregisteredLease(moduleFailure, created);
+			failure = FailAfterAbandoningUnregisteredLease(ClassifyRegistrationFault(registrationFault), created);
 			return false;
 		}
 
@@ -148,11 +149,12 @@ internal sealed class LuaClient : ILuaClient
 			// Registration and lifetime tracking are deliberately handed off in this order. If shutdown starts while
 			// Register runs, the already-tracked lease is drained by the hosting cleanup scope rather than redispatched
 			// from this worker after ordinary dispatch admission has closed.
-			Admit("Lua.RegisterModule");
+			Admit(RegisterOperation);
 		}
 		catch (Exception exception)
 		{
-			CheatEngineFailure admissionFailure = CoreFailureFactory.FromException("Lua.RegisterModule", exception);
+			CheatEngineFailure admissionFailure =
+				SdkBoundary.Classify(RegisterOperation, exception, CheatEngineHostEffect.Unknown);
 			if (_isStopping())
 			{
 				// The Core lifetime owns the pre-tracked, registered lease. Leaving it there gives the main-thread
@@ -388,52 +390,46 @@ internal sealed class LuaClient : ILuaClient
 		return !string.IsNullOrWhiteSpace(failure.Operation) && !string.IsNullOrWhiteSpace(failure.Message);
 	}
 
-	private bool TryReserveModule(ILuaModule module, out CheatEngineFailure failure)
+	private bool TryReserveModule(ILuaModule module, LuaModuleDescriptor descriptor, out CheatEngineFailure failure)
 	{
+		// Every module declares its identity and exports, so the complete name set is reserved before any Lua work.
 		lock (_registeredModulesLock)
 		{
 			if (_registeredModules.ContainsKey(module))
 			{
-				failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidState, "Lua.RegisterModule",
-					"This client activation already owns the supplied Lua module instance.");
+				failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidState, RegisterOperation,
+					"This client activation already owns the supplied Lua module instance.", null,
+					CheatEngineHostEffect.NotStarted);
 				return false;
 			}
 
-			if (module is IDescribedLuaModule describedModule)
+			if (_reservedModuleNames.Contains(descriptor.Name))
 			{
-				LuaModuleDescriptor descriptor = describedModule.Descriptor;
-				if (_reservedModuleNames.Contains(descriptor.Name))
-				{
-					failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidState, "Lua.RegisterModule",
-						$"The Lua module identity '{descriptor.Name}' is already reserved by this client activation.");
-					return false;
-				}
-
-				foreach (LuaExportDescriptor export in descriptor.Exports)
-				{
-					if (_reservedExportNames.Contains(export.Name))
-					{
-						failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidState, "Lua.RegisterModule",
-							$"The Lua export '{export.Name}' is already reserved by this client activation.");
-						return false;
-					}
-				}
-
-				LuaModuleReservation reservation = LuaModuleReservation.Create(descriptor);
-				_registeredModules.Add(module, reservation);
-				_reservedModuleNames.Add(reservation.ModuleName!);
-				foreach (string exportName in reservation.ExportNames)
-				{
-					_reservedExportNames.Add(exportName);
-				}
-
-				failure = default;
-				return true;
+				failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidState, RegisterOperation,
+					$"The Lua module identity '{descriptor.Name}' is already reserved by this client activation.", null,
+					CheatEngineHostEffect.NotStarted);
+				return false;
 			}
 
-			// Manual ILuaModule implementations remain a supported escape hatch. They participate in instance ownership
-			// only because the Client cannot truthfully infer their global Lua names without reflection or raw Lua access.
-			_registeredModules.Add(module, LuaModuleReservation.Manual);
+			foreach (LuaExportDescriptor export in descriptor.Exports)
+			{
+				if (_reservedExportNames.Contains(export.Name))
+				{
+					failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidState, RegisterOperation,
+						$"The Lua export '{export.Name}' is already reserved by this client activation.", null,
+						CheatEngineHostEffect.NotStarted);
+					return false;
+				}
+			}
+
+			LuaModuleReservation reservation = LuaModuleReservation.Create(descriptor);
+			_registeredModules.Add(module, reservation);
+			_reservedModuleNames.Add(reservation.ModuleName);
+			foreach (string exportName in reservation.ExportNames)
+			{
+				_reservedExportNames.Add(exportName);
+			}
+
 			failure = default;
 			return true;
 		}
@@ -448,15 +444,28 @@ internal sealed class LuaClient : ILuaClient
 				return;
 			}
 
-			if (reservation.ModuleName is not null)
+			_reservedModuleNames.Remove(reservation.ModuleName);
+			foreach (string exportName in reservation.ExportNames)
 			{
-				_reservedModuleNames.Remove(reservation.ModuleName);
-				foreach (string exportName in reservation.ExportNames)
-				{
-					_reservedExportNames.Remove(exportName);
-				}
+				_reservedExportNames.Remove(exportName);
 			}
 		}
+	}
+
+	/// <summary>
+	///     Reports the exception that a module's <see cref="ILuaModule.Register" /> threw: the failure a
+	///     <see cref="CheatEngineOperationException" /> carries (a generated module classifies its own refusals), otherwise
+	///     the <see cref="SdkBoundary" /> classification with an unknown host effect.
+	/// </summary>
+	private static CheatEngineFailure ClassifyRegistrationFault(Exception? fault)
+	{
+		return fault switch
+		{
+			CheatEngineOperationException reported => reported.Failure,
+			null => new CheatEngineFailure(CheatEngineFailureKind.Unknown, RegisterOperation,
+				"The Lua module registration ended without completing or reporting a failure."),
+			_ => SdkBoundary.Classify(RegisterOperation, fault, CheatEngineHostEffect.Unknown)
+		};
 	}
 
 	private static LuaClientInitialization CreateProductionInitialization(CoreLifetime lifetime)
@@ -575,23 +584,18 @@ internal sealed class LuaClient : ILuaClient
 
 	private sealed class LuaModuleReservation
 	{
-		private LuaModuleReservation(string? moduleName, string[] exportNames)
+		private LuaModuleReservation(string moduleName, string[] exportNames)
 		{
 			ModuleName = moduleName;
 			ExportNames = exportNames;
 		}
-
-		internal static LuaModuleReservation Manual
-		{
-			get;
-		} = new(null, []);
 
 		internal string[] ExportNames
 		{
 			get;
 		}
 
-		internal string? ModuleName
+		internal string ModuleName
 		{
 			get;
 		}

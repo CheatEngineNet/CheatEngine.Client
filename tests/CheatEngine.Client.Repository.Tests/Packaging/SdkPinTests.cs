@@ -120,6 +120,7 @@ public sealed partial class SdkPinTests
 			foreach (string file in RepositoryRoot.EnumerateSourceFiles(pattern))
 			{
 				if (file.StartsWith("src/", StringComparison.Ordinal) || file.StartsWith("libs/", StringComparison.Ordinal)
+					|| file.StartsWith("source-generators/", StringComparison.Ordinal)
 					|| file.StartsWith("templates/", StringComparison.Ordinal))
 				{
 					files.Add(file);
