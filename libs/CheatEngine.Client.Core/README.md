@@ -212,7 +212,7 @@ standard `Logging:LogLevel` filters select them:
 | 1302 | Debug | `RecordActivationNotApplied`: operation, requested state, status (`RefusedByHost`, `Pending`, `Indeterminate`) | `CheatEngine.Client.Tables` |
 | 1400 | Debug | `SymbolRegistrationRejected`: operation, reason (`AlreadyResolves`, `LookupFailed`) | `CheatEngine.Client.Inspection` |
 | 1401 | Debug | `SymbolLeaseReleased`: release kind | `CheatEngine.Client.Inspection` |
-| 1500 | Debug | `PatternScanCompleted`: scope, host match and materialized counts, truncation, scan and copy milliseconds | `CheatEngine.Client.Scanning` |
+| 1500 | Debug | `PatternScanCompleted`: scope, host result and materialized counts, truncation, scan and copy milliseconds | `CheatEngine.Client.Scanning` |
 | 1600 | Debug | `LuaOperationCompleted`: operation, failure kind or `None`, milliseconds, script length (unsafe Lua only) | `CheatEngine.Client.Lua` |
 | 1700 | Warning | `CoreResourceCleanupFailed`: resource and exception type names | `CheatEngine.Client.Lifetime` |
 | 1701 | Debug | `LeaseReleased`: release operation, `LeaseReleaseKind`, host effect | `CheatEngine.Client.Lifetime` |

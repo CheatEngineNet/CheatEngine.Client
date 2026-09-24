@@ -21,11 +21,13 @@ namespace CheatEngine.Client.Scanning;
 ///         reported as ambiguous; it is never backed by a "first found" scan.
 ///     </para>
 ///     <para>
-///         On a global route a scan that finds nothing is reported as
-///         <see cref="CheatEngine.Client.Results.CheatEngineFailureKind.IndeterminateHostResult" />, not as
-///         <see langword="null" /> or <see cref="CheatEngine.Client.Results.CheatEngineFailureKind.NotFound" />; only the
-///         bounded route reports a factual zero. A cancellation token cannot interrupt a scan that Cheat Engine has
-///         started.
+///         <see langword="null" /> and <see cref="CheatEngine.Client.Results.CheatEngineFailureKind.NotFound" /> mean
+///         that the scan succeeded without a match inside the request: a factual zero of the bounded route, or a global
+///         result list without any address inside the module or range. A global scan for which Cheat Engine returns no
+///         result list is reported as
+///         <see cref="CheatEngine.Client.Results.CheatEngineFailureKind.IndeterminateHostResult" />, never as
+///         <see langword="null" /> or <see cref="CheatEngine.Client.Results.CheatEngineFailureKind.NotFound" />. A
+///         cancellation token cannot interrupt a scan that Cheat Engine has started.
 ///     </para>
 /// </remarks>
 public readonly record struct AobScanBuilder

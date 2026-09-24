@@ -150,13 +150,15 @@ Address address = client.Patterns
 client.Memory.At(address + 0x14).Write(999);
 ```
 
-`InModule(...)` and `InRange(...)` scope the scan: on a qualified local target Cheat Engine scans only the module
-intersected with the range (an exhaustive MemScan that blocks its main thread and cannot be interrupted once started);
-on a CEServer or file-as-process target it runs one global `AOBScan` and Core keeps only the addresses inside the module
-or range. `Take(n)`, `FirstOrNone()` and `RequireSingle()` bound only how many addresses Core copies; they never stop
-Cheat Engine early, and `FirstOrNone()` follows Cheat Engine's unspecified result-list order. Only the bounded route
-reports a factual zero; on a global route a scan that finds nothing is reported as `IndeterminateHostResult` (that
-route cannot tell zero matches from a host failure), never as `null` or `NotFound`.
+`InModule(...)` and `InRange(...)` scope the scan with one rule on every route (a match lies entirely inside the module
+and starts inside the range): on a qualified local target Cheat Engine scans only the module intersected with the range
+(an exhaustive MemScan that blocks its main thread and cannot be interrupted once started); on a CEServer or
+file-as-process target it runs one global `AOBScan` and Core applies the same rule while copying. `Take(n)`,
+`FirstOrNone()` and `RequireSingle()` bound only how many addresses Core copies; they never stop Cheat Engine early, and
+`FirstOrNone()` follows Cheat Engine's unspecified result-list order. `null` and `NotFound` mean that the scan succeeded
+without a match inside the request: a factual zero of the bounded route, or a global result list without any address
+inside the module or range. A global scan for which Cheat Engine returns no result list is reported as
+`IndeterminateHostResult` (that route cannot tell zero matches from a host failure), never as `null` or `NotFound`.
 
 Use the `Try...` terminal operations when absence of a process, scan result, or runtime capability is an expected
 condition. Do not make a worker wait for the Cheat Engine thread if that worker can call back into the Client.

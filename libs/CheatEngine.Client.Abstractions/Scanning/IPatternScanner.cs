@@ -76,7 +76,7 @@ namespace CheatEngine.Client.Scanning;
 ///         Client copy time.
 ///     </para>
 ///     <para>
-///         On a global route a scan that finds nothing is reported as
+///         On a global route a scan for which Cheat Engine returns no result list is reported as
 ///         <see cref="CheatEngineFailureKind.IndeterminateHostResult" />: on Cheat Engine 7.7 <c>AOBScan</c> returns
 ///         <c>nil</c> for zero matches, and a host failure can return the same shape, so that route cannot tell them
 ///         apart. It is never reported as <see cref="CheatEngineFailureKind.NotFound" />. The other host outcomes keep

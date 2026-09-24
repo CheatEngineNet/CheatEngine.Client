@@ -98,10 +98,14 @@ them; Hosting closes the activation scope and provider after module callbacks. R
 under one owning service descriptor, and use a non-disposable facade if the application needs a second service view.
 
 Before deployment, replace the illustrative AOB pattern and offset in `Modules/PluginClientModule.cs`, and choose an
-application-specific Lua global name in `Modules/PluginLuaFunctions.cs`. Keep AOB copies bounded: `InModule` filters the
-addresses after a global Cheat Engine scan, so it does not reduce the scan's cost, and `FirstOrNone` follows Cheat
-Engine's unspecified result order. A scan that finds nothing is reported as `IndeterminateHostResult` (zero matches or
-a host failure: the scan route cannot tell them apart), so the example treats it as a skipped probe.
+application-specific Lua global name in `Modules/PluginLuaFunctions.cs`. Keep AOB copies bounded: `FirstOrNone` copies
+one address, never stops Cheat Engine early, and follows Cheat Engine's unspecified result order. `InModule` keeps only
+matches that lie entirely inside the module, on every target. On a qualified local target it limits Cheat Engine's scan
+to the module: an exhaustive MemScan that blocks Cheat Engine's main thread while it runs, and whose "nothing found" is
+a factual zero (`FirstOrNone` returns `null`). On a CEServer or file-as-process target Cheat Engine scans the whole
+target and the Client applies the module while copying, so `InModule` does not reduce the scan's cost there; when
+Cheat Engine returns no result list at all, the scan fails with `IndeterminateHostResult` (zero matches or a host
+failure: that route cannot tell them apart), and the example treats it as a skipped probe.
 
 ## Diagnostics and redaction
 

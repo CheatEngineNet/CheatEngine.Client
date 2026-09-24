@@ -14,7 +14,7 @@ namespace CheatEngine.Client.Scanning;
 ///     <para>
 ///         <see cref="CheatEngineFailureKind.NotFound" /> is reported only when the scan succeeded without a match inside
 ///         the request (a factual zero of the bounded route, or a global result list without any address inside the
-///         module or range). On a global route a scan that finds nothing is reported as
+///         module or range). A global scan for which Cheat Engine returns no result list is reported as
 ///         <see cref="CheatEngineFailureKind.IndeterminateHostResult" /> (on Cheat Engine 7.7 <c>AOBScan</c> returns
 ///         <c>nil</c> for zero matches and for some host failures alike), never as
 ///         <see cref="CheatEngineFailureKind.NotFound" />.

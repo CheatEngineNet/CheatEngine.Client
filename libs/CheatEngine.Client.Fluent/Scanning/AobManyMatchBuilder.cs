@@ -10,9 +10,11 @@ namespace CheatEngine.Client.Scanning;
 ///         before treating the copy as complete.
 ///     </para>
 ///     <para>
-///         On a global route a scan that finds nothing is reported as
-///         <see cref="CheatEngineFailureKind.IndeterminateHostResult" />, not as an empty result; only the bounded route
-///         reports a factual empty result.
+///         An empty result means that the scan succeeded without a match inside the request: a factual zero of the
+///         bounded route, or a global result list without any address inside the module or range. A global scan for
+///         which Cheat Engine returns no result list is reported as
+///         <see cref="CheatEngineFailureKind.IndeterminateHostResult" />, not as an empty result. Core copies at most
+///         65,535 addresses, whatever the limit.
 ///     </para>
 /// </remarks>
 public readonly record struct AobManyMatchBuilder

@@ -24,17 +24,19 @@ Address address = client.Aob("48 8B ?? ?? ?? 89")
 client.Memory.At(address + 0x14).Write(999);
 ```
 
-`InModule(...)` and `InRange(...)` scope the scan. On a qualified local target Cheat Engine runs an exhaustive MemScan
+`InModule(...)` and `InRange(...)` scope the scan with one rule on every route: a match must lie entirely inside the
+module, and its start must lie in the range. On a qualified local target Cheat Engine runs an exhaustive MemScan
 limited to the module intersected with the range; it blocks Cheat Engine's main thread and cannot be interrupted once
 started. On a CEServer or file-as-process target, Cheat Engine runs one global `AOBScan` over the whole target and Core
-keeps only the addresses inside the module or range, which does not reduce Cheat Engine's scan time or memory.
-`Take(n)`, `FirstOrNone()` (1) and `RequireSingle()` (2) bound only how many addresses Core copies; they never stop
-Cheat Engine early. `FirstOrNone()` returns the first element in Cheat Engine's result-list order, which Cheat Engine
-does not specify (not the lowest address, not the first logical region). `RequireSingle()` copies up to two matches
-from an exhaustive scan, so a truncated copy is reported as ambiguous. Only the bounded route reports a factual zero
-(`null`, `NotFound`); on a global route a scan that finds nothing is reported as `IndeterminateHostResult` (on Cheat
-Engine 7.7 `AOBScan` returns `nil` for zero matches and for some host failures alike). A cancellation token cannot
-interrupt a scan that Cheat Engine has started.
+applies the same rule while copying, which does not reduce Cheat Engine's scan time or memory.
+`Take(n)`, `FirstOrNone()` (1) and `RequireSingle()` (2) bound only how many addresses Core copies (never more than
+65,535); they never stop Cheat Engine early. `FirstOrNone()` returns the first element in Cheat Engine's result-list
+order, which Cheat Engine does not specify (not the lowest address, not the first logical region). `RequireSingle()`
+copies up to two matches from an exhaustive scan, so a truncated copy is reported as ambiguous. `null` and `NotFound`
+mean that the scan succeeded without a match inside the request: a factual zero of the bounded route, or a global
+result list without any address inside the module or range. A global scan for which Cheat Engine returns no result
+list is reported as `IndeterminateHostResult` (on Cheat Engine 7.7 `AOBScan` returns `nil` for zero matches and for
+some host failures alike). A cancellation token cannot interrupt a scan that Cheat Engine has started.
 `IPatternScanner.ScanDetailed` reports the route, the host outcome, the host result count, the examined, filtered and
 copied counts, and the Cheat Engine scan time separately from the copy time.
 
