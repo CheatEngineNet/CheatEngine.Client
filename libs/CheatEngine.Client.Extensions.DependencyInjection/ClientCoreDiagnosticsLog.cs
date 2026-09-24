@@ -1,4 +1,5 @@
 using CheatEngine.Client.Inspection;
+using CheatEngine.Client.Results;
 using CheatEngine.Client.Runtime;
 using CheatEngine.Client.Scanning;
 using CheatEngine.SDK.Engine.Runtime;
@@ -86,4 +87,8 @@ internal static partial class ClientCoreDiagnosticsLog
 
 	[LoggerMessage(1700, LogLevel.Warning, "A Client-owned {ComponentType} failed to release with {ExceptionType}.")]
 	internal static partial void CoreResourceCleanupFailed(ILogger logger, string componentType, string exceptionType);
+
+	[LoggerMessage(1701, LogLevel.Debug, "{Operation} ended with {ReleaseKind} (host effect {HostEffect}).")]
+	internal static partial void LeaseReleased(ILogger logger, string operation, LeaseReleaseKind releaseKind,
+		CheatEngineHostEffect hostEffect);
 }

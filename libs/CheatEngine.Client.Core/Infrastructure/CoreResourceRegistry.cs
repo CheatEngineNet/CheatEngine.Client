@@ -17,9 +17,17 @@ internal sealed class CoreResourceRegistry : IDisposable
 	}
 
 	/// <summary>Releases every tracked resource and appends each failure to <paramref name="failures" /> in attempt order.</summary>
-	internal void DisposeCollecting(List<Exception> failures, Action<IDisposable, Exception>? onFailure = null)
+	/// <param name="failures">Receives every release failure, in attempt order.</param>
+	/// <param name="onFailure">Observes each failure with the resource that produced it.</param>
+	/// <param name="reportOutcomes">
+	///     <see langword="true" /> for the activation registry at deactivation: an <see cref="IOutcomeReportingResource" />
+	///     is released through <see cref="IOutcomeReportingResource.ReleaseForDeactivation" />, and an incomplete
+	///     outcome joins <paramref name="failures" /> (audit Q43).
+	/// </param>
+	internal void DisposeCollecting(List<Exception> failures, Action<IDisposable, Exception>? onFailure = null,
+		bool reportOutcomes = false)
 	{
-		DisposeDetached(DetachAll(), failures, onFailure);
+		DisposeDetached(DetachAll(), failures, onFailure, reportOutcomes);
 	}
 
 	internal T Track<T>(T resource)
@@ -118,20 +126,42 @@ internal sealed class CoreResourceRegistry : IDisposable
 	///     Disposes a snapshot in reverse order, appends each failure to <paramref name="failures" /> and reports it to
 	///     <paramref name="onFailure" /> when supplied.
 	/// </summary>
+	/// <remarks>
+	///     With <paramref name="reportOutcomes" />, an <see cref="IOutcomeReportingResource" /> is released through
+	///     <see cref="IOutcomeReportingResource.ReleaseForDeactivation" /> instead of <see cref="IDisposable.Dispose" />,
+	///     which never throws: the failure it returns for an incomplete release joins <paramref name="failures" />.
+	///     Without it (a target-selection change), such a resource is disposed like any other and keeps an incomplete
+	///     outcome for the activation's deactivation report.
+	/// </remarks>
 	internal static void DisposeDetached(IReadOnlyList<IDisposable> resources, List<Exception> failures,
-		Action<IDisposable, Exception>? onFailure = null)
+		Action<IDisposable, Exception>? onFailure = null, bool reportOutcomes = false)
 	{
 		ArgumentNullException.ThrowIfNull(failures);
 		for (int index = resources.Count - 1; index >= 0; index--)
 		{
+			IDisposable resource = resources[index];
+			Exception? failure;
 			try
 			{
-				resources[index].Dispose();
+				if (reportOutcomes && resource is IOutcomeReportingResource reporting)
+				{
+					failure = reporting.ReleaseForDeactivation();
+				}
+				else
+				{
+					resource.Dispose();
+					failure = null;
+				}
 			}
 			catch (Exception exception)
 			{
-				failures.Add(exception);
-				onFailure?.Invoke(resources[index], exception);
+				failure = exception;
+			}
+
+			if (failure is not null)
+			{
+				failures.Add(failure);
+				onFailure?.Invoke(resource, failure);
 			}
 		}
 	}

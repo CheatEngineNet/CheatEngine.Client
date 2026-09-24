@@ -164,6 +164,7 @@ standard `Logging:LogLevel` filters select them:
 | 1500 | Debug | `PatternScanCompleted`: scope, host match and materialized counts, truncation, scan and copy milliseconds | `CheatEngine.Client.Scanning` |
 | 1600 | Debug | `LuaOperationCompleted`: operation, failure kind or `None`, milliseconds, script length (unsafe Lua only) | `CheatEngine.Client.Lua` |
 | 1700 | Warning | `CoreResourceCleanupFailed`: resource and exception type names | `CheatEngine.Client.Lifetime` |
+| 1701 | Debug | `LeaseReleased`: release operation, `LeaseReleaseKind`, host effect | `CheatEngine.Client.Lifetime` |
 
 Events are emitted after the dispatched Cheat Engine work returned, never inside a dispatched
 callback. They never carry an address, a value, a symbol or module name, a path, a process
@@ -209,6 +210,27 @@ confirmed" signal it observes is an exception from that call; the scan then fail
 The AOB port calls the boolean `AobScanner.TryScan`, so a missing result list is `IndeterminateHostResult` ("zero
 matches or a host failure"), never `NotFound` or `OperationRejected`; classification uses SDK return values only, never
 Cheat Engine or Lua error text.
+
+## Leases and release outcomes
+
+Every Client lease derives from the internal `HostResourceLease`, which implements the public
+`ICheatEngineLease` contract once: the release runs on Cheat Engine's main thread through the
+activation dispatcher, attempts are serialized and idempotent, `Dispose` never throws, and each
+attempt is logged with its operation name, kind and effect only (event 1701). A lease registers
+with the activation registry and, when it is bound to the selected target, with the
+target-selection lifetime too. A complete outcome unregisters it. A retryable outcome
+(`Unknown`, `CleanupUnavailable`) keeps it registered, so the activation drain retries it once
+more before the plugin is disabled; an outcome that requires manual recovery (a refusal, a
+partial or unconfirmed cleanup) keeps it registered as well, and the drain turns every
+incomplete outcome into one `CheatEngineOperationException` of the aggregated deactivation
+failure (Q43), with the host effect `CleanupUnconfirmed`. A target change disposes a
+target-bound lease without throwing to the code that selected the new target.
+
+`SdkReleaseOutcomes` maps the CheatEngine.SDK 2.0.0 release statuses totally
+(`TargetReleaseStatus`, `SymbolRegistrationReleaseKind`, `LuaRegistrationReleaseKind`; an
+unknown value is `Unknown` with an unknown effect) and combines the parts of one lease by
+keeping the outcome that leaves the most to do. The existing symbol and Lua module leases move
+onto this base with their domains.
 
 ## SDK boundary and the Try contract
 

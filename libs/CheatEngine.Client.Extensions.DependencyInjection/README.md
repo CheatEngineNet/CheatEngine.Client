@@ -91,7 +91,7 @@ host itself owns only its `ConfigurationManager`, which it releases after the sc
 ## Diagnostics
 
 `AddCheatEngineClient` calls `AddLogging()` and gives the activation's Core lifetime a diagnostics sink over the
-provider's `ILoggerFactory`. Core emits bounded events (event ids 1000–1700; the `CheatEngine.Client.Core` README lists
+provider's `ILoggerFactory`. Core emits bounded events (event ids 1000–1701; the `CheatEngine.Client.Core` README lists
 them) under one category per domain: `CheatEngine.Client.Runtime`, `.Processes`, `.Memory`, `.Tables`, `.Inspection`,
 `.Scanning`, `.Lua`, and `.Lifetime`. Select them with the standard `Logging:LogLevel` filters, for example
 `"CheatEngine.Client.Memory": "Debug"`; no Client option controls collection. A capability refusal is logged once per

@@ -474,6 +474,11 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 			Record(nameof(CoreResourceCleanupFailed), componentType, exceptionType);
 		}
 
+		public void LeaseReleased(string operation, LeaseReleaseKind kind, CheatEngineHostEffect hostEffect)
+		{
+			Record(nameof(LeaseReleased), operation, kind, hostEffect);
+		}
+
 		internal object?[] Single(string eventName)
 		{
 			return Assert.Single(All(eventName));

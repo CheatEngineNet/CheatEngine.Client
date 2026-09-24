@@ -1,4 +1,5 @@
 using CheatEngine.Client.Inspection;
+using CheatEngine.Client.Results;
 using CheatEngine.Client.Runtime;
 using CheatEngine.Client.Scanning;
 using CheatEngine.SDK.Engine.Runtime;
@@ -63,6 +64,9 @@ internal interface ICoreDiagnostics
 
 	/// <summary>A Client-owned resource failed to release (EventId 1700).</summary>
 	public void CoreResourceCleanupFailed(string componentType, string exceptionType);
+
+	/// <summary>A Client lease release attempt ended (EventId 1701); only the kind, operation and effect are logged.</summary>
+	public void LeaseReleased(string operation, LeaseReleaseKind kind, CheatEngineHostEffect hostEffect);
 }
 
 /// <summary>The sink used when no diagnostics are configured.</summary>
@@ -129,6 +133,10 @@ internal sealed class NullCoreDiagnostics : ICoreDiagnostics
 	}
 
 	public void CoreResourceCleanupFailed(string componentType, string exceptionType)
+	{
+	}
+
+	public void LeaseReleased(string operation, LeaseReleaseKind kind, CheatEngineHostEffect hostEffect)
 	{
 	}
 }
@@ -307,6 +315,18 @@ internal sealed class GuardedCoreDiagnostics(ICoreDiagnostics inner) : ICoreDiag
 		catch (Exception)
 		{
 			// Deliberately ignored: diagnostics must never change the cleanup result.
+		}
+	}
+
+	public void LeaseReleased(string operation, LeaseReleaseKind kind, CheatEngineHostEffect hostEffect)
+	{
+		try
+		{
+			_inner.LeaseReleased(operation, kind, hostEffect);
+		}
+		catch (Exception)
+		{
+			// Deliberately ignored: diagnostics must never change the release outcome.
 		}
 	}
 }

@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text.RegularExpressions;
 
 using CheatEngine.Client.Inspection;
+using CheatEngine.Client.Results;
 using CheatEngine.Client.Runtime;
 using CheatEngine.Client.Scanning;
 using CheatEngine.SDK.Engine.Runtime;
@@ -60,7 +61,8 @@ public sealed partial class LoggerCoreDiagnosticsTests
 				new EventShape(1401, "SymbolLeaseReleased", "CheatEngine.Client.Inspection", LogLevel.Debug),
 				new EventShape(1500, "PatternScanCompleted", "CheatEngine.Client.Scanning", LogLevel.Debug),
 				new EventShape(1600, "LuaOperationCompleted", "CheatEngine.Client.Lua", LogLevel.Debug),
-				new EventShape(1700, "CoreResourceCleanupFailed", "CheatEngine.Client.Lifetime", LogLevel.Warning)
+				new EventShape(1700, "CoreResourceCleanupFailed", "CheatEngine.Client.Lifetime", LogLevel.Warning),
+				new EventShape(1701, "LeaseReleased", "CheatEngine.Client.Lifetime", LogLevel.Debug)
 			],
 			logs.Entries.Select(static entry => new EventShape(entry.EventId.Id, entry.EventId.Name, entry.Category,
 				entry.Level)));
@@ -173,7 +175,7 @@ public sealed partial class LoggerCoreDiagnosticsTests
 		}
 	}
 
-	private const int ScriptedEventCount = 13;
+	private const int ScriptedEventCount = 14;
 
 	/// <summary>
 	///     Emits one event of each kind with the closed values Core passes (see Core's CoreDiagnosticsTests scripted run).
@@ -195,6 +197,8 @@ public sealed partial class LoggerCoreDiagnosticsTests
 		diagnostics.LuaOperationCompleted("Lua.ExecuteUnsafe", "LuaError", 4, 36);
 		diagnostics.CoreResourceCleanupFailed("SymbolRegistrationLease",
 			"CheatEngine.Client.Results.CheatEngineOperationException");
+		diagnostics.LeaseReleased("Allocations.Release", LeaseReleaseKind.RefusedTargetChanged,
+			CheatEngineHostEffect.NotStarted);
 	}
 
 	private static ILoggerFactory CreateFactory(ILoggerProvider provider)

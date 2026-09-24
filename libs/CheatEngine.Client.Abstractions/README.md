@@ -51,17 +51,17 @@ CheatEngine.Client.Abstractions
 Package and assembly names are not consumer namespaces. Public code belongs to functional
 namespaces only:
 
-| Namespace                    | Responsibility                                                        |
-|------------------------------|-----------------------------------------------------------------------|
-| `CheatEngine.Client`         | `ICheatEngineClient`, the activation-scoped facade                    |
-| `.Dispatching` / `.Runtime`  | main-thread dispatch and runtime/capability observations              |
-| `.Processes` / `.Inspection` | target selection, copied process/module/region/symbol data            |
-| `.Memory`                    | bounded primitive, byte, string, codec, and pointer-chain operations  |
-| `.Scanning`                  | AOB contracts and the value-scan session contract                     |
-| `.Tables`                    | copied Address List records and explicitly trusted table I/O requests |
-| `.Lua` / `.Modules`          | typed protected Lua operations, explicit modules, and leases          |
-| `.Allocations` / `.Assembly` | selection-bound allocation and reversible patch leases                |
-| `.Results`                   | classified expected failures and lifecycle exceptions                 |
+| Namespace                    | Responsibility                                                              |
+|------------------------------|-----------------------------------------------------------------------------|
+| `CheatEngine.Client`         | `ICheatEngineClient`, the activation-scoped facade, and `ICheatEngineLease` |
+| `.Dispatching` / `.Runtime`  | main-thread dispatch and runtime/capability observations                    |
+| `.Processes` / `.Inspection` | target selection, copied process/module/region/symbol data                  |
+| `.Memory`                    | bounded primitive, byte, string, codec, and pointer-chain operations        |
+| `.Scanning`                  | AOB contracts and the value-scan session contract                           |
+| `.Tables`                    | copied Address List records and explicitly trusted table I/O requests       |
+| `.Lua` / `.Modules`          | typed protected Lua operations, explicit modules, and leases                |
+| `.Allocations` / `.Assembly` | selection-bound allocation and reversible patch leases                      |
+| `.Results`                   | classified expected failures, exceptions, and lease release outcomes        |
 
 No public consumer should use `CheatEngine.Client.Abstractions` as a namespace.
 
@@ -310,6 +310,38 @@ effects are observed by the Client itself.
 | `Completed` | 3 | The primitive ran to completion; the failure happened afterwards inside the Client | `Applied` |
 | `CleanupUnconfirmed` | 4 | A resource or change may remain because its release or rollback was not confirmed | None: observed by the Client |
 | `NotApplied` | 5 | The primitive returned its documented negative result: nothing was applied and nothing needs cleanup | `NotApplied` |
+
+### Leases and release outcomes
+
+Every Client lease implements `ICheatEngineLease` (`IDisposable`): `Release()` releases the resource on Cheat Engine's
+main thread and returns a `LeaseReleaseOutcome`; `Dispose()` performs the same release, **never throws**, and discards
+the outcome; `LastReleaseOutcome` keeps the outcome of the attempt that ended the lease, and `IsReleased` says that no
+later attempt will be made. A repeated release returns `AlreadyReleased` without a Cheat Engine call. The outcome's
+`Kind` says what happened and its `HostEffect` how far the release call got; exactly one of three flags is `true`:
+
+| `LeaseReleaseKind` | Value | Flag | Meaning |
+|---|---|---|---|
+| `Unknown` | 0 | `IsRetryable` | No outcome could be established; the lease stays active |
+| `Released` | 1 | `IsComplete` | Released and confirmed |
+| `AlreadyReleased` | 2 | `IsComplete` | An earlier attempt ended the lease; nothing was done |
+| `PartiallyReleased` | 3 | `RequiresManualRecovery` | Part released, part failed; the failed part may remain |
+| `Replaced` | 4 | `IsComplete` | A third party replaced the resource; it was left in place |
+| `Superseded` | 5 | `IsComplete` | A newer Client registration replaced the lease |
+| `ExternallyRemoved` | 6 | `IsComplete` | The resource was already gone |
+| `RefusedNoTarget` | 7 | `RequiresManualRecovery` | Refused before any call: no target is selected |
+| `RefusedTargetChanged` | 8 | `RequiresManualRecovery` | Refused before any call: another process or process incarnation is selected |
+| `RefusedTargetIdentityUnavailable` | 9 | `RequiresManualRecovery` | Refused before any call: the target identity could not be established |
+| `RefusedRuntimeChanged` | 10 | `RequiresManualRecovery` | Refused before any call: the Lua runtime that created the resource is gone |
+| `CleanupUnconfirmed` | 11 | `RequiresManualRecovery` | A release call began without a confirmed result; it is never retried |
+| `CleanupUnavailable` | 12 | `IsRetryable` | No release call could begin; the lease stays active |
+
+Only `Unknown` and `CleanupUnavailable` are retryable, as in CheatEngine.SDK: a release call that began is never
+retried. A retryable lease is retried by a later `Release()` and, at the latest, by the activation cleanup before the
+plugin is disabled. A lease that is still incomplete then (a retry that failed again, a refusal, an unconfirmed or
+partial cleanup) is reported in the aggregated deactivation failure as a `CheatEngineOperationException` whose failure
+has the host effect `CleanupUnconfirmed`; it is never thrown to the code that released or disposed the lease. A
+target-bound lease is also released when Cheat Engine selects another process. `LeaseReleaseOutcome.ToString()`
+returns only the kind and the effect.
 
 ### Diagnostics and redaction
 

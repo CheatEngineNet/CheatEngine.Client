@@ -151,7 +151,7 @@ Once per enable, before the modules start, event 20 (`ActivationIdentified`, Inf
 epoch, plugin type name, CheatEngine.Client version, the consumed CheatEngine.SDK version and NuGet content hash
 embedded at build time, the informational version of the loaded `CheatEngine.SDK.Engine`, the package evidence state,
 and the supported host profile id `ce-7.7.0.10621-x64-managed-hostfxr`. It is built from assembly metadata only: no
-path, no file read, and no Lua call. The Core diagnostic events (1000–1700) are described in the
+path, no file read, and no Lua call. The Core diagnostic events (1000–1701) are described in the
 `CheatEngine.Client.Core` README.
 
 Each failed stage is logged as event 6 with the activation epoch, the stable stage name, and the exception **type**

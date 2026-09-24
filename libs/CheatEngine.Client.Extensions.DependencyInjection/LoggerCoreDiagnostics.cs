@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 
 using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Inspection;
+using CheatEngine.Client.Results;
 using CheatEngine.Client.Runtime;
 using CheatEngine.Client.Scanning;
 using CheatEngine.SDK.Engine.Runtime;
@@ -244,6 +245,18 @@ internal sealed class LoggerCoreDiagnostics : ICoreDiagnostics
 		catch (Exception)
 		{
 			// Deliberately ignored: a logging provider fault never changes the cleanup result (A24-22).
+		}
+	}
+
+	public void LeaseReleased(string operation, LeaseReleaseKind kind, CheatEngineHostEffect hostEffect)
+	{
+		try
+		{
+			ClientCoreDiagnosticsLog.LeaseReleased(_lifetime, operation, kind, hostEffect);
+		}
+		catch (Exception)
+		{
+			// Deliberately ignored: a logging provider fault never changes the release outcome (A24-22).
 		}
 	}
 

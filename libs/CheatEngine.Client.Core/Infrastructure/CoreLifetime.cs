@@ -123,6 +123,11 @@ internal sealed class CoreLifetime : IDisposable
 	///     Releases target-selection resources, then activation resources, attempting every release and reporting every
 	///     failure: one failure is rethrown unchanged, several are aggregated in attempt order (audit Q43).
 	/// </summary>
+	/// <remarks>
+	///     Client leases (<see cref="HostResourceLease" />) never throw from <see cref="IDisposable.Dispose" />: they stay
+	///     registered with the activation while their release is retryable or incomplete, and the activation drain
+	///     retries them once more and turns every incomplete outcome into one failure of this report.
+	/// </remarks>
 	private void DisposeOwnedResources()
 	{
 		List<Exception> failures = [];
@@ -137,7 +142,7 @@ internal sealed class CoreLifetime : IDisposable
 
 		try
 		{
-			_resources.DisposeCollecting(failures, ReportCleanupFailure);
+			_resources.DisposeCollecting(failures, ReportCleanupFailure, reportOutcomes: true);
 		}
 		catch (Exception exception)
 		{
