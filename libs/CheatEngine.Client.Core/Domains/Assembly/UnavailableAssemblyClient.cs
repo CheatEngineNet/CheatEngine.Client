@@ -32,7 +32,7 @@ internal sealed class UnavailableAssemblyClient : IAssemblyClient
 	public AssemblyInstructionSnapshot Disassemble(Address address, CancellationToken cancellationToken = default)
 	{
 		_ = TryDisassemble(address, out _, out CheatEngineFailure failure, cancellationToken);
-		return UnavailableCapabilityFailure.Throw<AssemblyInstructionSnapshot>(failure);
+		return UnavailableCapabilityFailure.Throw<AssemblyInstructionSnapshot>(failure, cancellationToken);
 	}
 
 	public bool TryGetInstructionSize(Address address, out int size, out CheatEngineFailure failure,
@@ -46,7 +46,7 @@ internal sealed class UnavailableAssemblyClient : IAssemblyClient
 	public int GetInstructionSize(Address address, CancellationToken cancellationToken = default)
 	{
 		_ = TryGetInstructionSize(address, out _, out CheatEngineFailure failure, cancellationToken);
-		return UnavailableCapabilityFailure.Throw<int>(failure);
+		return UnavailableCapabilityFailure.Throw<int>(failure, cancellationToken);
 	}
 
 	public bool TryGetPreviousInstruction(Address address, out Address previousAddress, out CheatEngineFailure failure,
@@ -60,7 +60,7 @@ internal sealed class UnavailableAssemblyClient : IAssemblyClient
 	public Address GetPreviousInstruction(Address address, CancellationToken cancellationToken = default)
 	{
 		_ = TryGetPreviousInstruction(address, out _, out CheatEngineFailure failure, cancellationToken);
-		return UnavailableCapabilityFailure.Throw<Address>(failure);
+		return UnavailableCapabilityFailure.Throw<Address>(failure, cancellationToken);
 	}
 
 	public bool TryAssemble(AssemblyInstructionRequest request, out ImmutableArray<byte> bytes,
@@ -76,7 +76,7 @@ internal sealed class UnavailableAssemblyClient : IAssemblyClient
 		CancellationToken cancellationToken = default)
 	{
 		_ = TryAssemble(request, out _, out CheatEngineFailure failure, cancellationToken);
-		return UnavailableCapabilityFailure.Throw<ImmutableArray<byte>>(failure);
+		return UnavailableCapabilityFailure.Throw<ImmutableArray<byte>>(failure, cancellationToken);
 	}
 
 	public bool TryApplyPatch(AutoAssemblerScript script, [NotNullWhen(true)] out IAutoAssemblerPatchLease? lease,
@@ -91,7 +91,7 @@ internal sealed class UnavailableAssemblyClient : IAssemblyClient
 		CancellationToken cancellationToken = default)
 	{
 		_ = TryApplyPatch(script, out _, out CheatEngineFailure failure, cancellationToken);
-		return UnavailableCapabilityFailure.Throw<IAutoAssemblerPatchLease>(failure);
+		return UnavailableCapabilityFailure.Throw<IAutoAssemblerPatchLease>(failure, cancellationToken);
 	}
 
 	private CheatEngineFailure CreateFailure(string operation, CancellationToken cancellationToken)

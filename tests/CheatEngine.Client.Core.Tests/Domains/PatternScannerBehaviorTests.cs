@@ -256,6 +256,37 @@ public sealed class PatternScannerBehaviorTests
 		Assert.True(matches.IsDisposed);
 	}
 
+	/// <summary>
+	///     The throwing form raises the cancellation exception, keeps the completed host effect, and still releases the
+	///     owned list without publishing a prefix.
+	/// </summary>
+	[Fact]
+	[Trait("Qualification", "Q29")]
+	public void ScanThrowsOperationCanceledExceptionWhenCancellationIsObservedDuringCopy()
+	{
+		using CancellationTokenSource cancellation = new();
+		RecordingAobMatchList matches = new(["400000", "400001", "400002"])
+		{
+			OnTryGetItem = index =>
+			{
+				if (index == 1)
+				{
+					cancellation.Cancel();
+				}
+			}
+		};
+		PatternScanner scanner = CreateScanner(new FakeAobScanPort(matches));
+
+		CheatEngineOperationCanceledException exception = Assert.Throws<CheatEngineOperationCanceledException>(() =>
+			scanner.Scan(CreateRequest(null, null, 3), cancellation.Token));
+
+		Assert.Equal(cancellation.Token, exception.CancellationToken);
+		Assert.Equal(CheatEngineFailureKind.Cancelled, exception.Failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.Completed, exception.Failure.HostEffect);
+		Assert.Equal("Patterns.Scan", exception.Failure.Operation);
+		Assert.True(matches.IsDisposed);
+	}
+
 	[Fact]
 	[Trait("Qualification", "Q28")]
 	public void ScanDetailedReportsHostExaminedFilteredAndMaterializedCountsForAModuleFilter()

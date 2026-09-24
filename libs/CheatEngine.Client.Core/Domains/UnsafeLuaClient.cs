@@ -123,7 +123,7 @@ internal sealed class UnsafeLuaClient : IUnsafeLuaClient
 	{
 		if (!TryExecute(script, out CheatEngineFailure failure, cancellationToken))
 		{
-			failure.Throw();
+			failure.Throw(cancellationToken);
 		}
 	}
 }

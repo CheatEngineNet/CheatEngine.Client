@@ -435,6 +435,54 @@ public sealed class TryContractTests
 		Assert.Equal(0, ports.Calls);
 	}
 
+	/// <summary>
+	///     The throwing form of each family raises the cancellation exception that carries its Try form's failure and the
+	///     caller's token, never a Client operation exception (AUD-12).
+	/// </summary>
+	[Theory]
+	[InlineData("Patterns")]
+	[InlineData("Memory")]
+	[InlineData("Tables")]
+	[InlineData("Lua")]
+	[InlineData("Dispatcher")]
+	public void ThrowingFormsRaiseTheCancellationExceptionOfTheirTryForm(string family)
+	{
+		CoreLifetime lifetime = InertCoreLifetime.Create();
+		SdkMainThreadDispatcher dispatcher = new(lifetime, new InlineMainThreadInvoker());
+		ThrowingPorts ports = new(new InvalidOperationException("must not be reached"));
+		PatternScanner patterns = new(dispatcher, ports);
+		MemoryClient memory = new(dispatcher, lifetime, ports);
+		TableClient tables = new(dispatcher, CoreClientPolicy.SafeDefaults, ports, lifetime, ports);
+		LuaClient lua = new(dispatcher, lifetime);
+		CancellationToken cancelled = new(true);
+
+		(CheatEngineFailure Expected, Action ThrowingForm) scenario = family switch
+		{
+			"Patterns" => (TryFailure(() => (patterns.TryScan(Request(), out _, out CheatEngineFailure f, cancelled), f)),
+				() => _ = patterns.Scan(Request(), cancelled)),
+			"Memory" => (TryFailure(() => (memory.TryReadPrimitive(Target, out int _, out CheatEngineFailure f,
+				cancelled), f)), () => _ = memory.ReadPrimitive<int>(Target, cancelled)),
+			"Tables" => (TryFailure(() => (tables.TryGetCurrent(out _, out CheatEngineFailure f, cancelled), f)),
+				() => _ = tables.GetCurrent(cancelled)),
+			"Lua" => (TryFailure(() => (lua.TryExecute(new ConstantOperation(), out _, out CheatEngineFailure f,
+				cancelled), f)), () => _ = lua.Execute(new ConstantOperation(), cancelled)),
+			"Dispatcher" => (TryFailure(() => (dispatcher.TryInvoke(static () =>
+				{
+				}, out CheatEngineFailure f, cancelled), f)), () => dispatcher.Invoke(static () =>
+				{
+				}, cancelled)),
+			_ => throw new ArgumentOutOfRangeException(nameof(family), family, null)
+		};
+
+		CheatEngineOperationCanceledException exception =
+			Assert.Throws<CheatEngineOperationCanceledException>(scenario.ThrowingForm);
+
+		Assert.Equal(CheatEngineFailureKind.Cancelled, scenario.Expected.Kind);
+		Assert.Equal(scenario.Expected, exception.Failure);
+		Assert.Equal(cancelled, exception.CancellationToken);
+		Assert.Equal(0, ports.Calls);
+	}
+
 	[Fact]
 	[Trait("Qualification", "Q29")]
 	public void EffectStartedThenCancelledReportsCompleted()

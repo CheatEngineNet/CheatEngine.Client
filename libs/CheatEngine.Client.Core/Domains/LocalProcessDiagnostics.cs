@@ -88,7 +88,7 @@ internal sealed class LocalProcessDiagnostics(IProcessHost host) : ILocalProcess
 			return result;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return default;
 	}
 

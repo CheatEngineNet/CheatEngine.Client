@@ -442,7 +442,7 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 				return lease;
 			}
 
-			failure.Throw();
+			failure.Throw(cancellationToken);
 			throw new InvalidOperationException("A failed Lua registration must throw its mapped exception.");
 		}
 
@@ -461,7 +461,7 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		public TResult Execute<TResult>(ILuaOperation<TResult> operation, CancellationToken cancellationToken = default)
 		{
 			_ = TryExecute(operation, out TResult? result, out CheatEngineFailure failure, cancellationToken);
-			failure.Throw();
+			failure.Throw(cancellationToken);
 			return result!;
 		}
 	}

@@ -43,7 +43,8 @@ public sealed class CheatEngineFailureTests
 			"Lua returned an error.",
 			innerException);
 
-		CheatEngineOperationException exception = Assert.Throws<CheatEngineOperationException>(failure.Throw);
+		CheatEngineOperationException exception =
+			Assert.Throws<CheatEngineOperationException>(() => failure.Throw(CancellationToken.None));
 
 		Assert.Equal(failure, exception.Failure);
 		Assert.Equal(failure.Message, exception.Message);
@@ -62,7 +63,7 @@ public sealed class CheatEngineFailureTests
 			innerException);
 
 		CheatEngineActivationExpiredException exception =
-			Assert.Throws<CheatEngineActivationExpiredException>(failure.Throw);
+			Assert.Throws<CheatEngineActivationExpiredException>(() => failure.Throw(CancellationToken.None));
 
 		Assert.Equal(failure, exception.Failure);
 		Assert.Same(innerException, exception.InnerException);
@@ -80,7 +81,7 @@ public sealed class CheatEngineFailureTests
 			innerException);
 
 		CheatEngineClientLifecycleException exception =
-			Assert.Throws<CheatEngineClientLifecycleException>(failure.Throw);
+			Assert.Throws<CheatEngineClientLifecycleException>(() => failure.Throw(CancellationToken.None));
 
 		Assert.Equal(failure, exception.Failure);
 		Assert.Equal(failure.Message, exception.Message);
@@ -128,7 +129,8 @@ public sealed class CheatEngineFailureTests
 		CheatEngineFailure failure = new(CheatEngineFailureKind.IndeterminateHostResult, "Patterns.Scan",
 			"Cheat Engine returned no AOB result list.", null, CheatEngineHostEffect.Completed);
 
-		CheatEngineOperationException exception = Assert.Throws<CheatEngineOperationException>(failure.Throw);
+		CheatEngineOperationException exception =
+			Assert.Throws<CheatEngineOperationException>(() => failure.Throw(CancellationToken.None));
 
 		Assert.Equal(failure, exception.Failure);
 		Assert.Equal(16, (int) CheatEngineFailureKind.IndeterminateHostResult);
@@ -154,7 +156,8 @@ public sealed class CheatEngineFailureTests
 		CheatEngineFailure failure = new(kind, "Patterns.Scan", "The target changed during the scan.", null,
 			CheatEngineHostEffect.Completed);
 
-		CheatEngineOperationException exception = Assert.Throws<CheatEngineOperationException>(failure.Throw);
+		CheatEngineOperationException exception =
+			Assert.Throws<CheatEngineOperationException>(() => failure.Throw(CancellationToken.None));
 
 		Assert.Equal(failure, exception.Failure);
 		Assert.Equal(kind, exception.Failure.Kind);
@@ -182,10 +185,84 @@ public sealed class CheatEngineFailureTests
 		CheatEngineFailure failure = new(kind, "Patterns.Scan", "The release was not confirmed.", null,
 			CheatEngineHostEffect.CleanupUnconfirmed);
 
-		CheatEngineClientException exception = Assert.ThrowsAny<CheatEngineClientException>(failure.Throw);
+		CheatEngineClientException exception =
+			Assert.ThrowsAny<CheatEngineClientException>(() => failure.Throw(CancellationToken.None));
 
 		Assert.Equal(failure, exception.Failure);
 		Assert.Equal(CheatEngineHostEffect.CleanupUnconfirmed, exception.Failure.HostEffect);
+	}
+
+	/// <summary>
+	///     A cancelled failure throws an <see cref="OperationCanceledException" /> that keeps the failure and the token the
+	///     operation observed, whatever its host effect.
+	/// </summary>
+	[Theory]
+	[InlineData(CheatEngineHostEffect.NotStarted)]
+	[InlineData(CheatEngineHostEffect.Completed)]
+	public void ThrowRaisesAnOperationCanceledExceptionForACancelledFailure(CheatEngineHostEffect hostEffect)
+	{
+		using CancellationTokenSource source = new();
+		source.Cancel();
+		InvalidOperationException innerException = new("observed after the copy");
+		CheatEngineFailure failure = new(CheatEngineFailureKind.Cancelled, "Memory.Read",
+			"The operation was cancelled.", innerException, hostEffect);
+
+		CheatEngineOperationCanceledException exception =
+			Assert.Throws<CheatEngineOperationCanceledException>(() => failure.Throw(source.Token));
+
+		Assert.IsAssignableFrom<OperationCanceledException>(exception);
+		Assert.Equal(failure, exception.Failure);
+		Assert.Equal(hostEffect, exception.Failure.HostEffect);
+		Assert.Equal(source.Token, exception.CancellationToken);
+		Assert.Equal(failure.Message, exception.Message);
+		Assert.Same(innerException, exception.InnerException);
+	}
+
+	/// <summary>With the empty token, the cancelled failure still throws the cancellation exception.</summary>
+	[Fact]
+	public void ThrowWithTheNoneTokenStillRaisesTheCancellationException()
+	{
+		CheatEngineFailure failure = new(CheatEngineFailureKind.Cancelled, "Patterns.Scan", "The scan was cancelled.",
+			null, CheatEngineHostEffect.NotStarted);
+
+		CheatEngineOperationCanceledException exception =
+			Assert.Throws<CheatEngineOperationCanceledException>(() => failure.Throw(CancellationToken.None));
+
+		Assert.Equal(CancellationToken.None, exception.CancellationToken);
+		Assert.Equal(failure, exception.Failure);
+	}
+
+	/// <summary>Only a cancelled failure throws the cancellation exception; the token never changes the mapping.</summary>
+	[Theory]
+	[InlineData(CheatEngineFailureKind.Unknown, typeof(CheatEngineOperationException))]
+	[InlineData(CheatEngineFailureKind.Cancelled, typeof(CheatEngineOperationCanceledException))]
+	[InlineData(CheatEngineFailureKind.OperationRejected, typeof(CheatEngineOperationException))]
+	[InlineData(CheatEngineFailureKind.ActivationExpired, typeof(CheatEngineActivationExpiredException))]
+	[InlineData(CheatEngineFailureKind.InvalidState, typeof(CheatEngineClientLifecycleException))]
+	[InlineData(CheatEngineFailureKind.RuntimeChanged, typeof(CheatEngineOperationException))]
+	[InlineData((CheatEngineFailureKind) 1000, typeof(CheatEngineOperationException))]
+	public void ThrowMapsEachKindToOneExceptionType(CheatEngineFailureKind kind, Type expected)
+	{
+		using CancellationTokenSource source = new();
+		source.Cancel();
+		CheatEngineFailure failure = new(kind, "Tables.Find", "The operation failed.", null,
+			CheatEngineHostEffect.NotStarted);
+
+		Exception exception = Assert.ThrowsAny<Exception>(() => failure.Throw(source.Token));
+
+		Assert.IsType(expected, exception);
+	}
+
+	/// <summary>A default failure describes no failure: throwing it is a programming error, not an operation failure.</summary>
+	[Fact]
+	public void ThrowRejectsTheDefaultFailure()
+	{
+		CheatEngineFailure failure = default;
+
+		InvalidOperationException exception =
+			Assert.Throws<InvalidOperationException>(() => failure.Throw(CancellationToken.None));
+
+		Assert.Null(exception.InnerException);
 	}
 
 	/// <summary>Formatting the failure object, as structured loggers do, never emits user data.</summary>

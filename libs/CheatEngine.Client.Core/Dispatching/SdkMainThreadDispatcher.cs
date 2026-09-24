@@ -121,7 +121,7 @@ internal sealed class SdkMainThreadDispatcher : ICheatEngineDispatcher, IStatefu
 	{
 		if (!TryInvoke(callback, out CheatEngineFailure failure, cancellationToken))
 		{
-			_ = ThrowFailure<object?>(failure);
+			_ = ThrowFailure<object?>(failure, cancellationToken);
 		}
 	}
 
@@ -132,7 +132,7 @@ internal sealed class SdkMainThreadDispatcher : ICheatEngineDispatcher, IStatefu
 			return result;
 		}
 
-		return ThrowFailure<T>(failure);
+		return ThrowFailure<T>(failure, cancellationToken);
 	}
 
 	public bool TryInvoke<TState, TResult>(TState state, Func<TState, TResult> callback,
@@ -222,9 +222,9 @@ internal sealed class SdkMainThreadDispatcher : ICheatEngineDispatcher, IStatefu
 		return true;
 	}
 
-	private static T ThrowFailure<T>(CheatEngineFailure failure)
+	private static T ThrowFailure<T>(CheatEngineFailure failure, CancellationToken cancellationToken)
 	{
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		throw new UnreachableException();
 	}
 

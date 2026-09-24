@@ -66,7 +66,7 @@ internal sealed class ProcessClient : IProcessClient
 			return snapshot;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return default;
 	}
 
@@ -85,7 +85,7 @@ internal sealed class ProcessClient : IProcessClient
 			return snapshot;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return default;
 	}
 
@@ -153,7 +153,7 @@ internal sealed class ProcessClient : IProcessClient
 			return snapshot;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return default;
 	}
 
@@ -220,7 +220,7 @@ internal sealed class ProcessClient : IProcessClient
 			return snapshot;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return default;
 	}
 

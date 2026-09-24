@@ -30,11 +30,13 @@ public sealed class SdkMainThreadDispatcherTests
 		using CancellationTokenSource cancellation = new();
 		cancellation.Cancel();
 
-		CheatEngineOperationException exception = Assert.Throws<CheatEngineOperationException>(() =>
+		CheatEngineOperationCanceledException exception = Assert.Throws<CheatEngineOperationCanceledException>(() =>
 			dispatcher.Invoke(static () =>
 			{
 			}, cancellation.Token));
 
+		Assert.Equal(cancellation.Token, exception.CancellationToken);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, exception.Failure.HostEffect);
 		Assert.Equal(CheatEngineFailureKind.Cancelled, exception.Failure.Kind);
 		Assert.Equal("Dispatcher.Invoke", exception.Failure.Operation);
 	}

@@ -478,7 +478,7 @@ public sealed class TableClientGenerationTests : IDisposable
 		{
 			if (!TryInvoke(callback, out CheatEngineFailure failure, cancellationToken))
 			{
-				failure.Throw();
+				failure.Throw(cancellationToken);
 			}
 		}
 
@@ -489,7 +489,7 @@ public sealed class TableClientGenerationTests : IDisposable
 				return result;
 			}
 
-			failure.Throw();
+			failure.Throw(cancellationToken);
 			return default!;
 		}
 	}

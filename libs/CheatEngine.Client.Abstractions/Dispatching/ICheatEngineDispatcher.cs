@@ -100,8 +100,12 @@ public interface ICheatEngineDispatcher
 	/// <summary>Runs a callback on the captured main thread or throws when dispatch fails.</summary>
 	/// <remarks>
 	///     Cancellation is observed before dispatch admission only, never while a callback is running. Callback
-	///     exceptions are rethrown unchanged.
+	///     exceptions are rethrown unchanged. A dispatch failure is thrown through
+	///     <see cref="CheatEngineFailure.Throw(CancellationToken)" />.
 	/// </remarks>
+	/// <exception cref="CheatEngineOperationCanceledException">
+	///     <paramref name="cancellationToken" /> was observed before dispatch admission; the callback did not run.
+	/// </exception>
 	public void Invoke(Action callback, CancellationToken cancellationToken);
 
 	/// <summary>Runs a callback on the captured main thread or throws when dispatch fails.</summary>
@@ -114,7 +118,11 @@ public interface ICheatEngineDispatcher
 	/// <summary>Runs a callback on the captured main thread or throws when dispatch fails.</summary>
 	/// <remarks>
 	///     Cancellation is observed before dispatch admission only, never while a callback is running. Callback
-	///     exceptions are rethrown unchanged.
+	///     exceptions are rethrown unchanged. A dispatch failure is thrown through
+	///     <see cref="CheatEngineFailure.Throw(CancellationToken)" />.
 	/// </remarks>
+	/// <exception cref="CheatEngineOperationCanceledException">
+	///     <paramref name="cancellationToken" /> was observed before dispatch admission; the callback did not run.
+	/// </exception>
 	public T Invoke<T>(Func<T> callback, CancellationToken cancellationToken);
 }

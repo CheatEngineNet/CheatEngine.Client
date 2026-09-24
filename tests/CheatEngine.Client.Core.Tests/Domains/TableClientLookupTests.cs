@@ -151,6 +151,26 @@ public sealed class TableClientLookupTests
 		Assert.Equal(1000, lookups.LastIndex);
 	}
 
+	/// <summary>A cancelled throwing lookup raises the cancellation exception before any Address List read.</summary>
+	[Fact]
+	public void GetRecordAtThrowsOperationCanceledExceptionWhenTheDispatchIsCancelled()
+	{
+		FakeRecordLookupPort lookups = new()
+		{
+			IndexRecord = Snapshot(7, "Health")
+		};
+		TableClient client = CreateClient(lookups);
+		using CancellationTokenSource cancellation = new();
+		cancellation.Cancel();
+
+		CheatEngineOperationCanceledException exception = Assert.Throws<CheatEngineOperationCanceledException>(() =>
+			client.GetRecordAt(3, cancellation.Token));
+
+		Assert.Equal(cancellation.Token, exception.CancellationToken);
+		Assert.Equal(CheatEngineFailureKind.Cancelled, exception.Failure.Kind);
+		Assert.Equal(0, lookups.LastIndex);
+	}
+
 	private static TableClient CreateClient(FakeRecordLookupPort lookups)
 	{
 		return new TableClient(new InlineDispatcher(), CoreClientPolicy.SafeDefaults, recordLookups: lookups);
@@ -294,7 +314,7 @@ public sealed class TableClientLookupTests
 		{
 			if (!TryInvoke(callback, out CheatEngineFailure failure, cancellationToken))
 			{
-				failure.Throw();
+				failure.Throw(cancellationToken);
 			}
 		}
 
@@ -305,7 +325,7 @@ public sealed class TableClientLookupTests
 				return result;
 			}
 
-			failure.Throw();
+			failure.Throw(cancellationToken);
 			return default!;
 		}
 	}

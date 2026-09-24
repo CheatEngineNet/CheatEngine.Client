@@ -190,7 +190,7 @@ public sealed class LuaContractTests
 				return result!;
 			}
 
-			failure.Throw();
+			failure.Throw(cancellationToken);
 			throw new InvalidOperationException("A failed Lua operation must throw its mapped exception.");
 		}
 	}

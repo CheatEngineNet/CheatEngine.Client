@@ -56,7 +56,7 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 			return result;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return default;
 	}
 

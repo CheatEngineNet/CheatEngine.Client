@@ -421,6 +421,59 @@ public sealed class AobFluentBuilderTests
 		Assert.Equal(CheatEngineFailureKind.IndeterminateHostResult, thrown.Failure.Kind);
 	}
 
+	/// <summary>Every throwing terminal raises the cancellation exception with the caller's token.</summary>
+	[Theory]
+	[InlineData("FirstOrNone")]
+	[InlineData("Take")]
+	[InlineData("RequireSingle")]
+	public void ExecuteThrowsTheCancellationExceptionForACancelledScan(string terminal)
+	{
+		using CancellationTokenSource cancellation = new();
+		cancellation.Cancel();
+		CheatEngineFailure cancelled = new(CheatEngineFailureKind.Cancelled, "Patterns.Scan",
+			"The operation was cancelled before Cheat Engine work began.", null, CheatEngineHostEffect.NotStarted);
+		AobScanBuilder builder = new FakePatternScanner(cancelled).Aob("90");
+
+		CheatEngineOperationCanceledException exception = Assert.Throws<CheatEngineOperationCanceledException>(() =>
+			Execute(builder, terminal, cancellation.Token));
+
+		Assert.Equal(cancelled, exception.Failure);
+		Assert.Equal(cancellation.Token, exception.CancellationToken);
+	}
+
+	/// <summary>Every throwing terminal keeps the dedicated activation-expired exception instead of a generic one.</summary>
+	[Theory]
+	[InlineData("FirstOrNone")]
+	[InlineData("Take")]
+	[InlineData("RequireSingle")]
+	public void ExecuteThrowsTheActivationExpiredExceptionForAnExpiredScanner(string terminal)
+	{
+		CheatEngineFailure expired = new(CheatEngineFailureKind.ActivationExpired, "Patterns.Scan",
+			"The Client activation has ended.", null, CheatEngineHostEffect.NotStarted);
+		AobScanBuilder builder = new FakePatternScanner(expired).Aob("90");
+
+		CheatEngineActivationExpiredException exception = Assert.Throws<CheatEngineActivationExpiredException>(() =>
+			Execute(builder, terminal, TestContext.Current.CancellationToken));
+
+		Assert.Equal(expired, exception.Failure);
+	}
+
+	private static void Execute(AobScanBuilder builder, string terminal, CancellationToken cancellationToken)
+	{
+		switch (terminal)
+		{
+			case "FirstOrNone":
+				_ = builder.FirstOrNone().Execute(cancellationToken);
+				break;
+			case "Take":
+				_ = builder.Take(2).Execute(cancellationToken);
+				break;
+			default:
+				_ = builder.RequireSingle().Execute(cancellationToken);
+				break;
+		}
+	}
+
 	private sealed class FakePatternScanner : IPatternScanner
 	{
 		private readonly CheatEngineFailure _failure;
@@ -465,7 +518,7 @@ public sealed class AobFluentBuilderTests
 				return result;
 			}
 
-			failure.Throw();
+			failure.Throw(cancellationToken);
 			return default;
 		}
 	}

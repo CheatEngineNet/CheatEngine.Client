@@ -135,6 +135,30 @@ public sealed class MemoryClientBehaviorCoverageTests
 		Assert.Equal(0, codec.WriteCount);
 	}
 
+	/// <summary>The throwing forms raise the cancellation exception with the caller's token, never an operation failure.</summary>
+	[Fact]
+	public void CancelledThrowingReadAndWriteRaiseOperationCanceledExceptionWithTheCallersToken()
+	{
+		using CancellationTokenSource cancellation = new();
+		cancellation.Cancel();
+		CancellationToken cancellationToken = cancellation.Token;
+		CancellationAwareDispatcher dispatcher = new();
+		ProbeCodec codec = new();
+		MemoryClient client = new(dispatcher, InertCoreLifetime.Create());
+
+		CheatEngineOperationCanceledException read = Assert.Throws<CheatEngineOperationCanceledException>(() =>
+			client.Read(new MemoryReadRequest<int>(TestAddress, codec), cancellationToken));
+		CheatEngineOperationCanceledException write = Assert.Throws<CheatEngineOperationCanceledException>(() =>
+			client.Write(new MemoryWriteRequest<int>(TestAddress, 9, codec), cancellationToken));
+
+		Assert.Equal(cancellationToken, read.CancellationToken);
+		Assert.Equal(CheatEngineFailureKind.Cancelled, read.Failure.Kind);
+		Assert.Equal(cancellationToken, write.CancellationToken);
+		Assert.Equal(CheatEngineFailureKind.Cancelled, write.Failure.Kind);
+		Assert.Equal(0, codec.ReadCount);
+		Assert.Equal(0, codec.WriteCount);
+	}
+
 	[Fact]
 	public void ConstructorRejectsANullDispatcher()
 	{
@@ -263,7 +287,7 @@ public sealed class MemoryClientBehaviorCoverageTests
 		{
 			if (!TryInvoke(callback, out CheatEngineFailure failure, cancellationToken))
 			{
-				failure.Throw();
+				failure.Throw(cancellationToken);
 			}
 		}
 
@@ -274,7 +298,7 @@ public sealed class MemoryClientBehaviorCoverageTests
 				return result;
 			}
 
-			failure.Throw();
+			failure.Throw(cancellationToken);
 			return default!;
 		}
 

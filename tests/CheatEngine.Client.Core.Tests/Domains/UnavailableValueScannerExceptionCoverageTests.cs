@@ -12,10 +12,12 @@ public sealed class UnavailableValueScannerExceptionCoverageTests
 		using CancellationTokenSource cancellation = new();
 		cancellation.Cancel();
 
-		CheatEngineOperationException exception = Assert.Throws<CheatEngineOperationException>(() =>
+		CheatEngineOperationCanceledException exception = Assert.Throws<CheatEngineOperationCanceledException>(() =>
 		{
 			_ = scanner.CreateSession(cancellation.Token);
 		});
+
+		Assert.Equal(cancellation.Token, exception.CancellationToken);
 
 		Assert.Equal(CheatEngineFailureKind.Cancelled, exception.Failure.Kind);
 		Assert.Equal("Scans.CreateSession", exception.Failure.Operation);

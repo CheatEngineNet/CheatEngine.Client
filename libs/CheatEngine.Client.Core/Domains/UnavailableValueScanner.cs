@@ -50,12 +50,12 @@ internal sealed class UnavailableValueScanner : IValueScanner
 	public IValueScanSession CreateSession(CancellationToken cancellationToken = default)
 	{
 		_ = TryCreateSession(out _, out CheatEngineFailure failure, cancellationToken);
-		return ThrowFailure<IValueScanSession>(failure);
+		return ThrowFailure<IValueScanSession>(failure, cancellationToken);
 	}
 
-	private static T ThrowFailure<T>(CheatEngineFailure failure)
+	private static T ThrowFailure<T>(CheatEngineFailure failure, CancellationToken cancellationToken)
 	{
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		throw new UnreachableException();
 	}
 }

@@ -177,7 +177,7 @@ internal sealed class LuaClient : ILuaClient
 			return lease;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		throw new InvalidOperationException("Unreachable failure flow.");
 	}
 
@@ -218,7 +218,7 @@ internal sealed class LuaClient : ILuaClient
 			return result;
 		}
 
-		return ThrowFailure<TResult>(failure);
+		return ThrowFailure<TResult>(failure, cancellationToken);
 	}
 
 	public bool TryExecute<TOperation, TResult>(TOperation operation, [MaybeNullWhen(false)] out TResult result,
@@ -260,7 +260,7 @@ internal sealed class LuaClient : ILuaClient
 			return result;
 		}
 
-		return ThrowFailure<TResult>(failure);
+		return ThrowFailure<TResult>(failure, cancellationToken);
 	}
 
 	/// <summary>
@@ -273,9 +273,9 @@ internal sealed class LuaClient : ILuaClient
 			(long) Stopwatch.GetElapsedTime(started).TotalMilliseconds, 0);
 	}
 
-	private static T ThrowFailure<T>(CheatEngineFailure failure)
+	private static T ThrowFailure<T>(CheatEngineFailure failure, CancellationToken cancellationToken)
 	{
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		throw new UnreachableException();
 	}
 

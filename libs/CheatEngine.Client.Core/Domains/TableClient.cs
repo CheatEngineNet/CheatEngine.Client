@@ -80,7 +80,7 @@ internal sealed class TableClient(
 			return result;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return default;
 	}
 
@@ -119,7 +119,7 @@ internal sealed class TableClient(
 			return result;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return default;
 	}
 
@@ -164,7 +164,7 @@ internal sealed class TableClient(
 			return result;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return [];
 	}
 
@@ -196,7 +196,7 @@ internal sealed class TableClient(
 			return result;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return default;
 	}
 
@@ -207,7 +207,7 @@ internal sealed class TableClient(
 			return result;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return default;
 	}
 
@@ -225,7 +225,7 @@ internal sealed class TableClient(
 			return result;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return default;
 	}
 
@@ -267,7 +267,7 @@ internal sealed class TableClient(
 			return result;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return default;
 	}
 
@@ -310,7 +310,7 @@ internal sealed class TableClient(
 			return result;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return default;
 	}
 
@@ -350,7 +350,7 @@ internal sealed class TableClient(
 			return result;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return default;
 	}
 
@@ -384,7 +384,7 @@ internal sealed class TableClient(
 	{
 		if (!TryDelete(id, out CheatEngineFailure failure, cancellationToken))
 		{
-			failure.Throw();
+			failure.Throw(cancellationToken);
 		}
 	}
 
@@ -429,7 +429,7 @@ internal sealed class TableClient(
 			return result;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return default;
 	}
 
@@ -483,7 +483,7 @@ internal sealed class TableClient(
 			return result;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return default;
 	}
 
@@ -539,7 +539,7 @@ internal sealed class TableClient(
 			return result;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return default;
 	}
 
@@ -590,7 +590,7 @@ internal sealed class TableClient(
 	{
 		if (!TryLoadTrustedTable(request, out CheatEngineFailure failure, cancellationToken))
 		{
-			failure.Throw();
+			failure.Throw(cancellationToken);
 		}
 	}
 
@@ -612,7 +612,7 @@ internal sealed class TableClient(
 	{
 		if (!TrySaveTable(request, out CheatEngineFailure failure, cancellationToken))
 		{
-			failure.Throw();
+			failure.Throw(cancellationToken);
 		}
 	}
 

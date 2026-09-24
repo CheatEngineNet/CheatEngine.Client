@@ -62,7 +62,7 @@ internal sealed class InspectionClient(
 			return result;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return [];
 	}
 
@@ -99,7 +99,7 @@ internal sealed class InspectionClient(
 			return result;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return [];
 	}
 
@@ -136,7 +136,7 @@ internal sealed class InspectionClient(
 			return result;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return [];
 	}
 
@@ -164,7 +164,7 @@ internal sealed class InspectionClient(
 			return result;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return default;
 	}
 
@@ -192,7 +192,7 @@ internal sealed class InspectionClient(
 			return result;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return default;
 	}
 
@@ -231,7 +231,7 @@ internal sealed class InspectionClient(
 			return result;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return string.Empty;
 	}
 
@@ -323,7 +323,7 @@ internal sealed class InspectionClient(
 			return result;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		throw new InvalidOperationException("Unreachable failure flow.");
 	}
 
@@ -353,7 +353,7 @@ internal sealed class InspectionClient(
 			return result;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return default;
 	}
 

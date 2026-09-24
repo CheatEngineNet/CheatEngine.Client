@@ -181,7 +181,7 @@ public sealed class SymbolRegistrationLeaseTests
 		{
 			if (!TryInvoke(callback, out CheatEngineFailure failure, cancellationToken))
 			{
-				failure.Throw();
+				failure.Throw(cancellationToken);
 			}
 		}
 
@@ -192,7 +192,7 @@ public sealed class SymbolRegistrationLeaseTests
 				return result;
 			}
 
-			failure.Throw();
+			failure.Throw(cancellationToken);
 			return default!;
 		}
 	}

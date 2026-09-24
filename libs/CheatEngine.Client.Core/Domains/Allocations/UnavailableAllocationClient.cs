@@ -32,6 +32,6 @@ internal sealed class UnavailableAllocationClient : IAllocationClient
 	public ITargetMemoryLease Allocate(TargetAllocationRequest request, CancellationToken cancellationToken = default)
 	{
 		_ = TryAllocate(request, out _, out CheatEngineFailure failure, cancellationToken);
-		return UnavailableCapabilityFailure.Throw<ITargetMemoryLease>(failure);
+		return UnavailableCapabilityFailure.Throw<ITargetMemoryLease>(failure, cancellationToken);
 	}
 }

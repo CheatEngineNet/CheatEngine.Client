@@ -34,7 +34,17 @@ public readonly record struct AobManyMatchBuilder
 	///     The bounded copied result set; inspect <see cref="AobScanResult.IsTruncated" /> before treating it as
 	///     complete.
 	/// </returns>
-	/// <exception cref="CheatEngineOperationException">The scan operation failed or violated its materialization limit.</exception>
+	/// <exception cref="CheatEngineOperationException">
+	///     The scan operation failed or violated its materialization limit.
+	/// </exception>
+	/// <exception cref="CheatEngineOperationCanceledException">
+	///     <paramref name="cancellationToken" /> was observed before the scan started or while Core copied its result.
+	/// </exception>
+	/// <exception cref="CheatEngineActivationExpiredException">The Client activation that owns the scanner has ended.</exception>
+	/// <remarks>
+	///     Failures are thrown through <see cref="CheatEngineFailure.Throw(CancellationToken)" />, so the exception type
+	///     follows <see cref="CheatEngineFailure.Kind" />; <see cref="TryExecute" /> returns the same failure instead.
+	/// </remarks>
 	public AobScanResult Execute(CancellationToken cancellationToken = default)
 	{
 		if (TryExecute(out AobScanResult result, out CheatEngineFailure failure, cancellationToken))
@@ -42,7 +52,8 @@ public readonly record struct AobManyMatchBuilder
 			return result;
 		}
 
-		throw new CheatEngineOperationException(failure);
+		failure.Throw(cancellationToken);
+		return default;
 	}
 
 	/// <summary>Runs the scan and attempts to return its materialization-bounded copied result set.</summary>

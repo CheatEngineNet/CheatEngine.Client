@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
+
 namespace CheatEngine.Client.Results;
 
 /// <summary>An immutable description of an expected Cheat Engine operation failure.</summary>
@@ -97,26 +100,69 @@ public readonly record struct CheatEngineFailure
 		get;
 	}
 
-	/// <summary>Throws this failure as an operation exception.</summary>
+	/// <summary>Throws this failure as the exception its kind maps to.</summary>
+	/// <param name="cancellationToken">
+	///     The token the failed operation observed. It is recorded on the thrown
+	///     <see cref="CheatEngineOperationCanceledException" /> when the failure is
+	///     <see cref="CheatEngineFailureKind.Cancelled" />, so that a caller can match it with the token it passed.
+	/// </param>
 	/// <remarks>
-	///     <see cref="CheatEngineFailureKind.ActivationExpired" /> throws <see cref="CheatEngineActivationExpiredException" />,
-	///     <see cref="CheatEngineFailureKind.InvalidState" /> throws <see cref="CheatEngineClientLifecycleException" />, and
-	///     every other kind throws <see cref="CheatEngineOperationException" />. The thrown exception's
-	///     <see cref="CheatEngineClientException.Failure" /> equals this failure, including its <see cref="HostEffect" />.
+	///     <list type="bullet">
+	///         <item>
+	///             <see cref="CheatEngineFailureKind.Cancelled" /> throws <see cref="CheatEngineOperationCanceledException" />,
+	///             an <see cref="OperationCanceledException" />.
+	///         </item>
+	///         <item>
+	///             <see cref="CheatEngineFailureKind.ActivationExpired" /> throws
+	///             <see cref="CheatEngineActivationExpiredException" />.
+	///         </item>
+	///         <item>
+	///             <see cref="CheatEngineFailureKind.InvalidState" /> throws <see cref="CheatEngineClientLifecycleException" />.
+	///         </item>
+	///         <item>
+	///             Every other kind, including a kind this version does not define, throws
+	///             <see cref="CheatEngineOperationException" />.
+	///         </item>
+	///         <item>
+	///             A <see langword="default" /> failure, which no operation produces, throws
+	///             <see cref="InvalidOperationException" />: it describes no failure.
+	///         </item>
+	///     </list>
+	///     The thrown exception's <c>Failure</c> equals this failure, including its <see cref="HostEffect" />. Every
+	///     throwing convenience operation of the Client throws through this method.
 	/// </remarks>
-	public readonly void Throw()
+	/// <exception cref="CheatEngineOperationCanceledException">
+	///     The failure is <see cref="CheatEngineFailureKind.Cancelled" />.
+	/// </exception>
+	/// <exception cref="CheatEngineActivationExpiredException">
+	///     The failure is <see cref="CheatEngineFailureKind.ActivationExpired" />.
+	/// </exception>
+	/// <exception cref="CheatEngineClientLifecycleException">
+	///     The failure is <see cref="CheatEngineFailureKind.InvalidState" />.
+	/// </exception>
+	/// <exception cref="CheatEngineOperationException">The failure has any other kind.</exception>
+	/// <exception cref="InvalidOperationException">The failure is the <see langword="default" /> value.</exception>
+	[DoesNotReturn]
+	[StackTraceHidden]
+	public readonly void Throw(CancellationToken cancellationToken = default)
 	{
-		if (Kind == CheatEngineFailureKind.ActivationExpired)
+		if (Operation is null)
 		{
-			throw new CheatEngineActivationExpiredException(this);
+			throw new InvalidOperationException(
+				"A default CheatEngineFailure describes no failure and cannot be thrown.");
 		}
 
-		if (Kind == CheatEngineFailureKind.InvalidState)
+		switch (Kind)
 		{
-			throw new CheatEngineClientLifecycleException(this);
+			case CheatEngineFailureKind.Cancelled:
+				throw new CheatEngineOperationCanceledException(this, cancellationToken);
+			case CheatEngineFailureKind.ActivationExpired:
+				throw new CheatEngineActivationExpiredException(this);
+			case CheatEngineFailureKind.InvalidState:
+				throw new CheatEngineClientLifecycleException(this);
+			default:
+				throw new CheatEngineOperationException(this);
 		}
-
-		throw new CheatEngineOperationException(this);
 	}
 
 	/// <summary>Returns only the fields that are safe to log: kind, operation, and host effect.</summary>

@@ -741,7 +741,7 @@ public sealed class LuaModuleRegistrationTests
 
 			if (!TryInvoke(callback, out CheatEngineFailure failure, cancellationToken))
 			{
-				failure.Throw();
+				failure.Throw(cancellationToken);
 			}
 		}
 
@@ -752,7 +752,7 @@ public sealed class LuaModuleRegistrationTests
 				return result;
 			}
 
-			failure.Throw();
+			failure.Throw(cancellationToken);
 			return default!;
 		}
 	}
@@ -798,7 +798,7 @@ public sealed class LuaModuleRegistrationTests
 		{
 			if (!TryInvoke(callback, out CheatEngineFailure failure, cancellationToken))
 			{
-				failure.Throw();
+				failure.Throw(cancellationToken);
 			}
 		}
 
@@ -809,7 +809,7 @@ public sealed class LuaModuleRegistrationTests
 				return result;
 			}
 
-			failure.Throw();
+			failure.Throw(cancellationToken);
 			return default!;
 		}
 

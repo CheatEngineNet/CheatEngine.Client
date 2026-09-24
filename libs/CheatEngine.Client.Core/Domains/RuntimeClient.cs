@@ -139,7 +139,7 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 			return snapshot;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return default;
 	}
 
@@ -183,7 +183,7 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 			return availability;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return default;
 	}
 
@@ -227,7 +227,7 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 			return availability;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return default;
 	}
 

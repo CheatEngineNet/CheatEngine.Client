@@ -35,8 +35,9 @@ CheatEngine.Client.Abstractions
 ## How It Improves CheatEngine.Client
 
 - Makes domain behavior testable against interfaces instead of Cheat Engine statics.
-- Keeps expected failures explicit through `Try...(..., out CheatEngineFailure)` and throws
-  `CheatEngineClientException`-derived exceptions only from the convenience methods.
+- Keeps expected failures explicit through `Try...(..., out CheatEngineFailure)`; only the throwing
+  convenience methods throw, through `CheatEngineFailure.Throw(CancellationToken)`, and a cancellation
+  surfaces as an `OperationCanceledException`.
 - Keeps CE-owned objects out of the public surface: no `LuaState`, `LuaRef`, `CEObject`,
   `Owned<T>`, or raw native handle escapes this package.
 - Requires bounded copies for scans, table snapshots, strings, byte reads, finite pointer chains,
@@ -225,6 +226,23 @@ replaced it, left in place), `ExternallyRemoved` or `CleanupUnavailable` (nothin
   arguments (programming errors). An expired activation is never reported as `Cancelled` or `CapabilityUnavailable`.
 - **Consumer code:** exceptions thrown by application-supplied code (dispatcher callbacks, `IMemoryCodec<T>` codecs,
   `ILuaOperation<T>` operations) are rethrown as the same instance, never converted into a failure.
+
+Every throwing convenience form (the method without `Try`, and the Fluent `Execute` terminals) returns the value of
+its `Try` form or throws that form's failure through `CheatEngineFailure.Throw(cancellationToken)`, passing the token it
+received. The exception type depends only on `CheatEngineFailure.Kind`, and every exception keeps the complete failure,
+including its `HostEffect`:
+
+| `CheatEngineFailure.Kind` | Exception thrown | Base type |
+|---|---|---|
+| `Cancelled` | `CheatEngineOperationCanceledException`, whose `CancellationToken` is the token the operation observed | `OperationCanceledException` |
+| `ActivationExpired` | `CheatEngineActivationExpiredException` | `CheatEngineClientException` |
+| `InvalidState` | `CheatEngineClientLifecycleException` | `CheatEngineClientException` |
+| Any other kind, including a value this version does not define | `CheatEngineOperationException` | `CheatEngineClientException` |
+| None: the `default` failure, which no operation returns | `InvalidOperationException` (a programming error) | `Exception` |
+
+A cancelled throwing call is therefore handled with `catch (OperationCanceledException)`, like any other .NET
+cancellation; read `CheatEngineOperationCanceledException.Failure.HostEffect` to learn whether Cheat Engine work had
+started. The `Try` form of the same call returns the same failure instead of throwing it.
 
 `CheatEngineFailure.HostEffect` states how far the Cheat Engine primitive got: `NotStarted`, `Started` (effects may
 persist), `Completed` (the primitive returned; the failure happened while Core copied or validated), `NotApplied` (the

@@ -204,7 +204,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 			return value!;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return default!;
 	}
 
@@ -240,7 +240,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 	{
 		if (!TryWritePrimitive(address, value, out CheatEngineFailure failure, cancellationToken))
 		{
-			failure.Throw();
+			failure.Throw(cancellationToken);
 		}
 	}
 
@@ -269,7 +269,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 			return values;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return [];
 	}
 
@@ -292,7 +292,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 	{
 		if (!TryWritePrimitiveBatch(request, out CheatEngineFailure failure, cancellationToken))
 		{
-			failure.Throw();
+			failure.Throw(cancellationToken);
 		}
 	}
 
@@ -327,7 +327,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 			return value;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return default!;
 	}
 
@@ -354,7 +354,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 	{
 		if (!TryWrite(request, out CheatEngineFailure failure, cancellationToken))
 		{
-			failure.Throw();
+			failure.Throw(cancellationToken);
 		}
 	}
 
@@ -399,7 +399,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 			return bytes;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return [];
 	}
 
@@ -433,7 +433,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 	{
 		if (!TryWriteBytes(request, out CheatEngineFailure failure, cancellationToken))
 		{
-			failure.Throw();
+			failure.Throw(cancellationToken);
 		}
 	}
 
@@ -470,7 +470,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 			return value;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return string.Empty;
 	}
 
@@ -506,7 +506,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 	{
 		if (!TryWriteString(request, out CheatEngineFailure failure, cancellationToken))
 		{
-			failure.Throw();
+			failure.Throw(cancellationToken);
 		}
 	}
 
@@ -596,7 +596,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 			return address;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return default;
 	}
 

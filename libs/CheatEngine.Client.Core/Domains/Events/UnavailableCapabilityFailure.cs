@@ -37,9 +37,9 @@ internal static class UnavailableCapabilityFailure
 			"behavior to pass the required Cheat Engine 7.7 x64 live gate.", null, CheatEngineHostEffect.NotStarted);
 	}
 
-	internal static T Throw<T>(CheatEngineFailure failure)
+	internal static T Throw<T>(CheatEngineFailure failure, CancellationToken cancellationToken)
 	{
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		throw new UnreachableException();
 	}
 }

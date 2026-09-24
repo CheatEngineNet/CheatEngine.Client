@@ -39,6 +39,14 @@ public readonly record struct AobSingleMatchBuilder
 	///     The scan failed (including the indeterminate "no result list" outcome), its returned list had no
 	///     post-filtered match, or several post-filtered matches exist.
 	/// </exception>
+	/// <exception cref="CheatEngineOperationCanceledException">
+	///     <paramref name="cancellationToken" /> was observed before the scan started or while Core copied its result.
+	/// </exception>
+	/// <exception cref="CheatEngineActivationExpiredException">The Client activation that owns the scanner has ended.</exception>
+	/// <remarks>
+	///     Failures are thrown through <see cref="CheatEngineFailure.Throw(CancellationToken)" />, so the exception type
+	///     follows <see cref="CheatEngineFailure.Kind" />; <see cref="TryExecute" /> returns the same failure instead.
+	/// </remarks>
 	public Address Execute(CancellationToken cancellationToken = default)
 	{
 		if (TryExecute(out Address address, out CheatEngineFailure failure, cancellationToken))
@@ -46,7 +54,8 @@ public readonly record struct AobSingleMatchBuilder
 			return address;
 		}
 
-		throw new CheatEngineOperationException(failure);
+		failure.Throw(cancellationToken);
+		return default;
 	}
 
 	/// <summary>Runs the scan and attempts to return its sole match.</summary>
