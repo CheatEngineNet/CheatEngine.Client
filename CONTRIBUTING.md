@@ -170,6 +170,13 @@ pull request that finds it; there is no scheduled job that re-runs threading-sen
   written for an API that never shipped.
 - Core implementation types stay `internal sealed`, and every Cheat Engine interaction goes through the Client's
   dispatcher and ports; the SDK remains the only native authority.
+- `InternalsVisibleTo` grants serve the package graph and this repository only: every project grants `<Project>.Tests`
+  ([`Directory.Build.props`](Directory.Build.props)), Core grants Extensions.DependencyInjection, Hosting and
+  `CheatEngine.Client.Benchmarks`, and Extensions.DependencyInjection grants Hosting and
+  `CheatEngine.Client.Hosting.Tests`. The Client assemblies are not strong-named, so a grant names an assembly, not a
+  signing key, and any assembly with that name sees the internals. Internal members are never a contract: they change
+  in any release, and the Core and Extensions.DependencyInjection READMEs say so. Add a grant only for a Client package
+  that composes another one, or for a test or benchmark project of this repository.
 - The architecture ratchet in `tests/CheatEngine.Client.Tests/Architecture` freezes the Client's remaining ADR-01 debt:
   the Lua globals it binds itself and its direct Lua and owner usages. Shrinking a list is always allowed; growing it
   requires a registered exception, in the ratchet itself, with its reason and the CheatEngine.SDK primitive that
@@ -219,6 +226,16 @@ Dependabot opens weekly pull requests for NuGet packages, GitHub Actions (the wo
 and patch updates are grouped. Dependabot ignores `CheatEngine.SDK` majors (a Client migration), the Roslyn packages
 (they move with the Lua generator's compiler floor, `CHEATENGINECLIENT9020`), the SDK-implicit ILLink and ILCompiler
 packages (they move with `global.json`) and .NET SDK majors ([`.github/dependabot.yml`](.github/dependabot.yml)).
+
+The `Microsoft.Extensions.*` versions of [`Directory.Packages.props`](Directory.Packages.props) are published floors,
+not only build inputs: Extensions.DependencyInjection and Hosting declare the ones they reference as minimum versions
+in their nuspecs, every consumer inherits them, and the packed template takes
+`Microsoft.Extensions.Configuration.Json` from the same file (`CHEATENGINECLIENT9018`). They all follow the latest
+reviewed 10.0.x patch, the .NET major the packages target, and move together only through Dependabot: its grouped
+minor-and-patch pull request or a security update, never a hand edit in an unrelated change. A floor is never lowered,
+and a released one stays in that release's nuspecs; a consumer that needs a later patch references it directly.
+Dependabot also offers `Microsoft.Extensions` majors: take one only together with a move to that .NET major, never as a
+dependency bump.
 
 Dependabot does not regenerate every lock file. When `Lock files` fails on a Dependabot pull request, check the branch
 out, run `dotnet restore <project> --force-evaluate` for each affected project, commit `Regenerate lock files after

@@ -62,7 +62,9 @@ dependency of `CheatEngine.Client.Extensions.DependencyInjection`. The seven Cli
 version, and each depends on the Client packages it builds on at exactly that version (`[X.Y.Z]` in its nuspec): a Core
 of another version than the packages that call its internals is never a supported combination. Do not reference Core
 on its own; reference `CheatEngine.Client`, or the Client package you need, at the same version as every other Client
-package.
+package. Core also grants its internals to the repository's tests and benchmarks. The Client assemblies are not
+strong-named, so an `InternalsVisibleTo` grant names an assembly, not a signing key; internal members are not a
+contract and change in any release.
 
 The package enables neither an SDK plugin entry point nor dynamic loading on its own. The final
 plugin project must directly reference both `CheatEngine.Client` and `CheatEngine.SDK` so that the

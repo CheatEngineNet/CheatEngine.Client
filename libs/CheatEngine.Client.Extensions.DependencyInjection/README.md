@@ -8,9 +8,9 @@ Explicit, AOT-aware dependency-injection composition for the high-level Cheat En
 implementations. It registers the public domain services—`ICheatEngineClient`, memory, process, scanning, inspection,
 table, Lua, runtime, and dispatch services—without making consumers reference implementation namespaces.
 
-It depends on `Microsoft.Extensions.DependencyInjection`, `Microsoft.Extensions.Options`, and
-`Microsoft.Extensions.Configuration`. The package enables the .NET configuration-binding generator and uses generated
-options validation for `CheatEngineClientOptions`; it does not require the Generic Host.
+It builds on Microsoft.Extensions dependency injection, options, configuration and logging (the packages are listed
+under "Dependencies" below). The package enables the .NET configuration-binding generator and uses generated options
+validation for `CheatEngineClientOptions`; it does not require the Generic Host.
 
 ## Why this project exists
 
@@ -110,3 +110,17 @@ batch**, and `MaximumBatchPayloadBytes` bounds that count multiplied by the elem
 **maximum scratch allocation**: the largest managed buffer allocated for one operation. The target process gets no
 allocation. The **partial-effect state** of a batch write is not configurable: `MemoryBatchWriteEffectState` reports
 it, because a failed batch keeps its completed prefix and is never rolled back.
+
+## Dependencies
+
+The package depends on `CheatEngine.Client.Abstractions` and `CheatEngine.Client.Core` at exactly its own version (the
+Client packages ship in lockstep), and on `Microsoft.Extensions.Configuration.Abstractions`,
+`Microsoft.Extensions.DependencyInjection`, `Microsoft.Extensions.Logging`,
+`Microsoft.Extensions.Options.ConfigurationExtensions` and `Microsoft.Extensions.Options.DataAnnotations`. Each
+Microsoft.Extensions dependency is a minimum version: the latest 10.0.x patch reviewed for this release, which the
+Client moves only through reviewed dependency updates and never lowers. NuGet resolves the lowest version that satisfies
+every minimum of the graph; a plugin that needs a later 10.0.x patch references it directly.
+
+This assembly grants `InternalsVisibleTo` to `CheatEngine.Client.Hosting`, which composes it, and to the repository's
+test projects. The Client assemblies are not strong-named, so such a grant names an assembly, not a signing key. Its
+internal members are not a contract and change in any release: use the public API only.
