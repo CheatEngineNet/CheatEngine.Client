@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Xml.Linq;
 
+using CheatEngine.Client.Tests.Infrastructure;
 using CheatEngine.Client.Tests.Packaging;
 
 namespace CheatEngine.Client.Tests.LiveQualification;
@@ -30,8 +31,8 @@ internal sealed record LiveSessionResult(
 
 /// <summary>
 ///     Runs one sandboxed session end to end, in the order of the runner specification: refuse a busy workstation, verify
-///     the source installation read-only, copy it into the run's sandbox, back up the user state, build the plugin bundle
-///     from the packed packages, start the disposable target, write the authorization manifest and the autorun driver,
+///     the source installation read-only, back up the user state, copy the installation into the run's sandbox, build the
+///     plugin bundle from the packed packages, start the disposable target, write the authorization manifest and the autorun driver,
 ///     listen to debug output, start the sandboxed Cheat Engine directly and wait for it. A <c>finally</c> always stops
 ///     Cheat Engine and the target and restores the user state; the source installation is then fingerprinted again.
 /// </summary>
@@ -223,6 +224,7 @@ internal static class LiveSandboxSession
 		return new QualificationTuple(
 			[.. feed.Archives.Where(static archive => !archive.IsSymbolPackage).Select(static archive => new PackageIdentity(archive.Id, archive.Version, archive.Sha256))],
 			client.MetadataElement("repository")?.Attribute("commit")?.Value ?? "unknown",
+			QualifiedSourceDigest.Compute(RepositoryLayout.Root),
 			feed.SdkVersion, sdkCommit, sdkContentHash, bundle.BridgeSha256, profile.Profile, profile.HostFileVersion,
 			profile.HostSha256, [new TargetIdentity(CheatEngineProfile.Target64, targetSha256)],
 			ConfiguredRuntime(layout.CheatEngineDirectory),

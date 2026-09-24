@@ -74,6 +74,14 @@ read committed files: the project never builds, packs, restores or starts a proc
   YAML with YamlDotNet.
 - `Toolchain/TestProfileTests` prove that every `*.Tests` project references the Microsoft.Testing.Platform extension
   of every option the CI test command passes (a missing one fails the module with exit code 5).
+- `Qualification/QualificationEvidenceTests` keeps the evidence discipline of the live qualification:
+  `NoQualificationClaimWithoutCommittedEvidence` refuses, while
+  `tests/CheatEngine.Client.Tests/LiveQualification/Evidence/` holds no committed run summary, any README, CHANGELOG,
+  RELEASING or capability-table line that claims a host qualification (a CHANGELOG `Qualification` section, a scenario
+  id with a `Passed` or `Waived` verdict, a live run id, a sentence stating that something is qualified on the host, or
+  a Qualification cell that reports a pass). `TheClaimDetectorRecognizesEveryClaimFormAndTheCurrentWording` pins those forms, and
+  `EveryShippingSourceIsBoundByTheDigest` proves that the shipping source digest (`QualifiedSourceDigest`, compiled in
+  from the live runner of `CheatEngine.Client.Tests`) covers every shipping source file this project sees.
 - `Governance/` holds the repository governance contracts that stay meaningful without a bespoke script or a required
   check of their own (audit rows PR-CQ-08/17/23/25/37, A21-36):
   - `CodeQlWorkflowTests`, `ScorecardWorkflowTests` and `OnlineZizmorWorkflowTests` prove the advisory security

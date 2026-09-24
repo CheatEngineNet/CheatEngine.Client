@@ -70,6 +70,7 @@ public sealed class QualificationSummaryWriterTests
 		JsonElement tuple = root.GetProperty("tuple");
 		Assert.Equal(["CheatEngine.Client", "CheatEngine.Client.Core"],
 			tuple.GetProperty("clientPackages").EnumerateArray().Select(static package => package.GetProperty("id").GetString()));
+		Assert.Equal(new string('d', 64), tuple.GetProperty("qualifiedSourceDigest").GetString());
 		Assert.Equal("b008c8d8", tuple.GetProperty("sdk").GetProperty("bridgeSha256").GetString());
 		Assert.Equal("ce-7.7.0.10621-x64-managed-hostfxr", tuple.GetProperty("profile").GetString());
 		Assert.Equal("<run>\\ce\\ce.runtimeconfig.json", tuple.GetProperty("dotnetRuntime").GetString());
@@ -104,7 +105,7 @@ public sealed class QualificationSummaryWriterTests
 	{
 		return new QualificationTuple(
 			[new PackageIdentity("CheatEngine.Client.Core", "1.0.0", "cc"), new PackageIdentity("CheatEngine.Client", "1.0.0", "aa")],
-			"0123456789abcdef", "2.0.0", "325c47b", "NLEdZ", "b008c8d8", "ce-7.7.0.10621-x64-managed-hostfxr", "7.7.0.10621",
+			"0123456789abcdef", new string('d', 64), "2.0.0", "325c47b", "NLEdZ", "b008c8d8", "ce-7.7.0.10621-x64-managed-hostfxr", "7.7.0.10621",
 			"9727076D", [new TargetIdentity("gtutorial-x86_64.exe", "2DABEFFD")], runtime, "10.0.26200.0");
 	}
 

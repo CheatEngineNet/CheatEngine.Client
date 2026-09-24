@@ -31,6 +31,7 @@ internal sealed record TargetIdentity(string Name, string Sha256);
 /// <summary>Everything a qualification result is bound to.</summary>
 /// <param name="ClientPackages">The packed Client packages the plugins were built from.</param>
 /// <param name="ClientCommit">The repository commit the packages name.</param>
+/// <param name="QualifiedSourceDigest">The <see cref="LiveQualification.QualifiedSourceDigest" /> of the repository the run used.</param>
 /// <param name="SdkVersion">The CheatEngine.SDK version the plugins referenced.</param>
 /// <param name="SdkCommit">The source commit the CheatEngine.SDK package names.</param>
 /// <param name="SdkContentHash">The NuGet content hash of the CheatEngine.SDK package.</param>
@@ -44,6 +45,7 @@ internal sealed record TargetIdentity(string Name, string Sha256);
 internal sealed record QualificationTuple(
 	IReadOnlyList<PackageIdentity> ClientPackages,
 	string ClientCommit,
+	string QualifiedSourceDigest,
 	string SdkVersion,
 	string SdkCommit,
 	string SdkContentHash,
@@ -224,6 +226,7 @@ internal static class QualificationSummaryWriter
 
 		json.WriteEndArray();
 		json.WriteString("clientCommit", tuple.ClientCommit);
+		json.WriteString("qualifiedSourceDigest", tuple.QualifiedSourceDigest);
 		json.WriteStartObject("sdk");
 		json.WriteString("version", tuple.SdkVersion);
 		json.WriteString("commit", tuple.SdkCommit);

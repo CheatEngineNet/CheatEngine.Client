@@ -145,8 +145,17 @@ One session runs in this order:
 10. `TranscriptParser` decodes the transcript (Lua `%q` escapes). `ReceiptLedger` writes `receipts.jsonl`
     (`cheatengine-client-qualification-receipt/v1`): the run directory becomes `<run>`, and a receipt that still holds
     a local path, the user name or the machine name is refused. `QualificationSummaryWriter` writes `summary.json`
-    (`cheatengine-client-qualification-summary/v1`): the package, SDK, host and target tuple, one verdict per scenario and
-    capability derived from the receipts (NotExecuted unless every check passed or one failed), and `registryRestored`.
+    (`cheatengine-client-qualification-summary/v1`): the package, SDK, host and target tuple with the
+    `qualifiedSourceDigest`, one verdict per scenario and capability derived from the receipts (NotExecuted unless every
+    check passed or one failed), and `registryRestored`.
+
+`QualifiedSourceDigest` binds evidence to the shipping sources. It is the SHA-256 of a `sha256sum`-style manifest (one
+`<sha256>  <path>` line per input, ordinal order) over `libs/**`, `src/**`, `source-generators/**` and `templates/**`
+(lock files included), `Directory.Build.*`, `Directory.Packages.props`, `eng/*.props` and `global.json`, each with CRLF
+normalized to LF. It excludes `*.md`, `PublicAPI.*.txt`, `AnalyzerReleases.*.md` and `HostQualificationEvidence.cs`, and
+skips what `.gitignore` excludes (`bin`, `obj`, `artifacts` and tool folders). The same source file is compiled into
+`CheatEngine.Client.Repository.Tests`, whose evidence tests recompute it; a change to any input after a recorded run
+requires a new run.
 
 The only live fact so far is `LiveSandboxSpikeTests` (`Session=S0`), the spike: it loads the harness on
 gtutorial-x86_64, calls `status`, `runtime` and `capabilities(1)`, inspects the settings form and closes Cheat Engine,
@@ -187,7 +196,10 @@ the scratch key afterwards, and its parent `HKCU\Software\CheatEngine.Client.Tes
 `HKCU\Software\Cheat Engine`. `RegistrySnapshotTests` round-trips every value type through the backup and restore and
 proves which keys the guard accepts; `RegistryRecoveryTests` proves the neutralized session state, the verified restore,
 the restore on dispose, the crash marker recovery that fails the next run, the marker kept while a restore does not
-verify, and the removal of a `%APPDATA%` folder the session created.
+verify, and the removal of a `%APPDATA%` folder the session created. `QualifiedSourceDigestTests` proves that a CRLF and an
+LF checkout hash the same, that the input and exclusion lists are exactly the plan's, that content and path changes move
+the digest while excluded files never do, and, running `git ls-files`, that every tracked input is enumerated and no file
+git ignores is.
 
 ## Run
 

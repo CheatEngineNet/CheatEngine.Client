@@ -14,4 +14,10 @@
     <PackageReference Include="YamlDotNet"/>
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The one shipping source digest, shared with the live runner of CheatEngine.Client.Tests that records it: never copy it. -->
+    <Compile Include="../CheatEngine.Client.Tests/LiveQualification/QualifiedSourceDigest.cs"
+             Link="Qualification/QualifiedSourceDigest.cs"/>
+  </ItemGroup>
+
 </Project>
