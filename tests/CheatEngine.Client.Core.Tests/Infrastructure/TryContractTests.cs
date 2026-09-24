@@ -149,7 +149,7 @@ public sealed class TryContractTests
 			"Tables" => () => new TableClient(dispatcher, policy, ports, lifetime, ports)
 				.TryGetRecord(new MemoryRecordId(1), out _, out _, cancelled),
 			"LuaTypedOperation" => () => new LuaClient(dispatcher, lifetime)
-				.TryExecute(new ConstantOperation(), out _, out _, cancelled),
+				.TryExecute<ConstantOperation, int>(new ConstantOperation(), out _, out _, cancelled),
 			"UnsafeLua" => () => new UnsafeLuaClient(dispatcher, policy, lifetime)
 				.TryExecute(new LuaScript("return 1"), out _, cancelled),
 			"UnavailableCapability" => () => new UnavailableAllocationClient(lifetime)
@@ -470,7 +470,7 @@ public sealed class TryContractTests
 		Assert.Same(codecClientFault, Assert.Throws<CheatEngineOperationException>(() => memory.TryWrite(
 			new MemoryWriteRequest<int>(Target, 3, new ThrowingCodec(codecClientFault)), out _,
 			TestContext.Current.CancellationToken)));
-		Assert.Same(operationFault, Assert.Throws<ConsumerException>(() => lua.TryExecute(
+		Assert.Same(operationFault, Assert.Throws<ConsumerException>(() => lua.TryExecute<ThrowingOperation, int>(
 			new ThrowingOperation(operationFault), out _, out _, TestContext.Current.CancellationToken)));
 		Assert.Same(callbackFault, Assert.Throws<ConsumerException>(() => dispatcher.TryInvoke(
 			() => throw callbackFault, out _, TestContext.Current.CancellationToken)));
@@ -521,7 +521,7 @@ public sealed class TryContractTests
 				(new UnavailableAllocationClient(lifetime).TryAllocate(new TargetAllocationRequest(4096), out _,
 					out CheatEngineFailure f, token), f)),
 			"LuaPreDispatchCancellation" => TryFailure(() =>
-				(new LuaClient(dispatcher, lifetime).TryExecute(new ConstantOperation(), out _,
+				(new LuaClient(dispatcher, lifetime).TryExecute<ConstantOperation, int>(new ConstantOperation(), out _,
 					out CheatEngineFailure f, cancelled), f)),
 			"ProcessesAttachExactNameCancellation" => TryFailure(() =>
 				(new ProcessClient(dispatcher, ports, ports, ports, lifetime).TryAttachExactName("fixture.exe", out _,
@@ -571,8 +571,9 @@ public sealed class TryContractTests
 				out CheatEngineFailure f, cancelled), f)), () => _ = inspection.RegisterSymbol(registration, cancelled)),
 			"Tables" => (TryFailure(() => (tables.TryGetRecordCount(out _, out CheatEngineFailure f, cancelled), f)),
 				() => _ = tables.GetRecordCount(cancelled)),
-			"Lua" => (TryFailure(() => (lua.TryExecute(new ConstantOperation(), out _, out CheatEngineFailure f,
-				cancelled), f)), () => _ = lua.Execute(new ConstantOperation(), cancelled)),
+			"Lua" => (TryFailure(() => (lua.TryExecute<ConstantOperation, int>(new ConstantOperation(), out _,
+				out CheatEngineFailure f, cancelled), f)),
+				() => _ = lua.Execute<ConstantOperation, int>(new ConstantOperation(), cancelled)),
 			"Dispatcher" => (TryFailure(() => (dispatcher.TryInvoke(static () =>
 				{
 				}, out CheatEngineFailure f, cancelled), f)), () => dispatcher.Invoke(static () =>

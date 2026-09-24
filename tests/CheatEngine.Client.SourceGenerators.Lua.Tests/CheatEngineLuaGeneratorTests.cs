@@ -202,8 +202,45 @@ public sealed class CheatEngineLuaGeneratorTests
 			generated, StringComparison.Ordinal);
 		Assert.Contains("global::TestPlugin.Globals.ReadVersion(_address)", generated, StringComparison.Ordinal);
 		Assert.Contains("CheatEngineFailureKind.LuaError", generated, StringComparison.Ordinal);
+		Assert.Contains(
+			"public static global::System.Int32 Execute(this global::CheatEngine.Client.Lua.ILuaClient client, in ReadVersionLuaOperation operation,",
+			generated, StringComparison.Ordinal);
+		Assert.Contains("return client.Execute<ReadVersionLuaOperation, global::System.Int32>(in operation, cancellationToken);",
+			generated, StringComparison.Ordinal);
+		Assert.Contains("public static bool TryExecute(this global::CheatEngine.Client.Lua.ILuaClient client, in ReadVersionLuaOperation operation,",
+			generated, StringComparison.Ordinal);
 		Assert.DoesNotContain("LuaState", generated, StringComparison.Ordinal);
 		Assert.DoesNotContain("LuaRef", generated, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void GeneratedOperationExtensionsInferTheOperationAndResultTypes()
+	{
+		GeneratorRun run = GeneratorRun.Execute(ScalarOperationSource);
+		Assert.Empty(run.Diagnostics);
+
+		// Without the generated extensions, ILuaClient.Execute cannot infer TResult from the operation alone.
+		Compilation compilation = run.OutputCompilation.AddSyntaxTrees(CSharpSyntaxTree.ParseText(
+			"""
+			namespace TestPlugin;
+			internal static partial class Globals
+			{
+				public static partial int ReadVersion(int address) => address;
+			}
+
+			internal static class Consumer
+			{
+				internal static int Run(CheatEngine.Client.Lua.ILuaClient client)
+				{
+					Globals.ReadVersionLuaOperation operation = Globals.CreateReadVersionLuaOperation(4);
+					int value = client.Execute(operation);
+					return client.TryExecute(operation, out int second, out _) ? value + second : value;
+				}
+			}
+			""", new CSharpParseOptions(LanguageVersion.CSharp14),
+			cancellationToken: TestContext.Current.CancellationToken));
+
+		AssertNoCompilerDiagnostics(compilation);
 	}
 
 	[Fact]

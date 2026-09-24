@@ -77,14 +77,14 @@ public sealed class LuaContractTests
 			|| typeName.StartsWith("CheatEngine.SDK.Lua.References.LuaRef", StringComparison.Ordinal));
 	}
 
-	/// <summary>Infers an operation result through the Lua client interface and forwards its successful result.</summary>
+	/// <summary>Runs a class operation through the one generic pair of the Lua client interface.</summary>
 	[Fact]
-	public void InterfaceExecutionInfersTheOperationResultTypeAndForwardsSuccess()
+	public void ClassOperationsRunThroughTheGenericPair()
 	{
 		ILuaClient client = new ForwardingLuaClient();
 		ConstantIntLuaOperation operation = new(42);
 
-		int executeResult = client.Execute(operation, TestContext.Current.CancellationToken);
+		int executeResult = client.Execute<ConstantIntLuaOperation, int>(operation, TestContext.Current.CancellationToken);
 		bool tryExecuteSucceeded = client.TryExecute(
 			operation,
 			out int tryExecuteResult,
@@ -98,15 +98,15 @@ public sealed class LuaContractTests
 		Assert.Equal(2, operation.ExecutionCount);
 	}
 
-	/// <summary>Preserves the value-type operation overload for third-party Lua client implementations.</summary>
+	/// <summary>Runs a readonly value operation through the same generic pair, by reference.</summary>
 	[Fact]
-	public void DefaultValueOperationOverloadsRemainCompatibleWithExistingImplementations()
+	public void ValueOperationsRunThroughTheSameGenericPair()
 	{
 		ILuaClient client = new ForwardingLuaClient();
 		StructIntLuaOperation operation = new(17);
 
 		bool succeeded = client.TryExecute(
-			operation,
+			in operation,
 			out int result,
 			out CheatEngineFailure failure,
 			TestContext.Current.CancellationToken);
@@ -114,7 +114,26 @@ public sealed class LuaContractTests
 		Assert.True(succeeded);
 		Assert.Equal(17, result);
 		Assert.Equal(default, failure);
-		Assert.Equal(17, client.Execute<StructIntLuaOperation, int>(operation, TestContext.Current.CancellationToken));
+		Assert.Equal(17, client.Execute<StructIntLuaOperation, int>(in operation, TestContext.Current.CancellationToken));
+	}
+
+	/// <summary>The Lua client has exactly one generic execution pair, without interface-typed overloads.</summary>
+	[Fact]
+	public void TheLuaClientExposesOneGenericExecutionPair()
+	{
+		MethodInfo[] execute =
+		[
+			.. typeof(ILuaClient).GetMethods()
+				.Where(static method => method.Name is nameof(ILuaClient.Execute) or nameof(ILuaClient.TryExecute))
+		];
+
+		Assert.Equal(2, execute.Length);
+		Assert.All(execute, static method =>
+		{
+			Assert.Equal(2, method.GetGenericArguments().Length);
+			Assert.True(method.GetParameters()[0].IsIn);
+			Assert.False(method.IsVirtual && !method.IsAbstract);
+		});
 	}
 
 	/// <summary>Uses static abstract mapper dispatch without reflection or an SDK handle in the result.</summary>
@@ -168,19 +187,22 @@ public sealed class LuaContractTests
 			throw new NotSupportedException("Module registration is outside this forwarding test double.");
 		}
 
-		public bool TryExecute<TResult>(
-			ILuaOperation<TResult> operation,
+		public bool TryExecute<TOperation, TResult>(
+			in TOperation operation,
 			[MaybeNullWhen(false)] out TResult result,
 			out CheatEngineFailure failure,
 			CancellationToken cancellationToken = default)
+			where TOperation : ILuaOperation<TResult>
 		{
-			ArgumentNullException.ThrowIfNull(operation);
 			return operation.TryExecute(_context, out result, out failure);
 		}
 
-		public TResult Execute<TResult>(ILuaOperation<TResult> operation, CancellationToken cancellationToken = default)
+		public TResult Execute<TOperation, TResult>(in TOperation operation,
+			CancellationToken cancellationToken = default)
+			where TOperation : ILuaOperation<TResult>
 		{
-			if (TryExecute(operation, out TResult? result, out CheatEngineFailure failure, cancellationToken))
+			if (TryExecute<TOperation, TResult>(in operation, out TResult? result, out CheatEngineFailure failure,
+					cancellationToken))
 			{
 				return result!;
 			}

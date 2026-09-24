@@ -450,21 +450,24 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 			throw new InvalidOperationException("A failed Lua registration must throw its mapped exception.");
 		}
 
-		public bool TryExecute<TResult>(
-			ILuaOperation<TResult> operation,
+		public bool TryExecute<TOperation, TResult>(
+			in TOperation operation,
 			[MaybeNullWhen(false)] out TResult result,
 			out CheatEngineFailure failure,
 			CancellationToken cancellationToken = default)
+			where TOperation : ILuaOperation<TResult>
 		{
-			ArgumentNullException.ThrowIfNull(operation);
 			result = default;
 			failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidState, "Test.Lua", "Not used by this test.");
 			return false;
 		}
 
-		public TResult Execute<TResult>(ILuaOperation<TResult> operation, CancellationToken cancellationToken = default)
+		public TResult Execute<TOperation, TResult>(in TOperation operation,
+			CancellationToken cancellationToken = default)
+			where TOperation : ILuaOperation<TResult>
 		{
-			_ = TryExecute(operation, out TResult? result, out CheatEngineFailure failure, cancellationToken);
+			_ = TryExecute<TOperation, TResult>(in operation, out TResult? result, out CheatEngineFailure failure,
+				cancellationToken);
 			failure.Throw(cancellationToken);
 			return result!;
 		}

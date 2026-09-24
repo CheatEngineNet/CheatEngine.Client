@@ -183,10 +183,16 @@ internal sealed class LuaClient : ILuaClient
 		throw new InvalidOperationException("Unreachable failure flow.");
 	}
 
-	public bool TryExecute<TResult>(ILuaOperation<TResult> operation, [MaybeNullWhen(false)] out TResult result,
+	public bool TryExecute<TOperation, TResult>(in TOperation operation, [MaybeNullWhen(false)] out TResult result,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
+		where TOperation : ILuaOperation<TResult>
 	{
-		ArgumentNullException.ThrowIfNull(operation);
+		// A null test on an unconstrained type parameter never boxes a value operation.
+		if (operation is null)
+		{
+			throw new ArgumentNullException(nameof(operation));
+		}
+
 		Admit("Lua.Execute");
 		if (cancellationToken.IsCancellationRequested)
 		{
@@ -213,50 +219,10 @@ internal sealed class LuaClient : ILuaClient
 		return completed;
 	}
 
-	public TResult Execute<TResult>(ILuaOperation<TResult> operation, CancellationToken cancellationToken = default)
+	public TResult Execute<TOperation, TResult>(in TOperation operation, CancellationToken cancellationToken = default)
+		where TOperation : ILuaOperation<TResult>
 	{
-		if (TryExecute<TResult>(operation, out TResult? result, out CheatEngineFailure failure, cancellationToken))
-		{
-			return result;
-		}
-
-		return ThrowFailure<TResult>(failure, cancellationToken);
-	}
-
-	public bool TryExecute<TOperation, TResult>(TOperation operation, [MaybeNullWhen(false)] out TResult result,
-		out CheatEngineFailure failure, CancellationToken cancellationToken)
-		where TOperation : struct, ILuaOperation<TResult>
-	{
-		Admit("Lua.Execute");
-		if (cancellationToken.IsCancellationRequested)
-		{
-			result = default;
-			failure = CoreFailureFactory.Cancelled("Lua.Execute");
-			return false;
-		}
-
-		long epoch = _epochProvider();
-		long started = Stopwatch.GetTimestamp();
-		bool completed;
-		if (TryDispatchOperation(operation, epoch, out LuaOperationResult<TResult> operationResult, out failure,
-				cancellationToken))
-		{
-			completed = TryMaterializeOperationResult(operationResult, out result, out failure);
-		}
-		else
-		{
-			result = default;
-			completed = false;
-		}
-
-		ReportOperation(completed, failure, started);
-		return completed;
-	}
-
-	public TResult Execute<TOperation, TResult>(TOperation operation, CancellationToken cancellationToken)
-		where TOperation : struct, ILuaOperation<TResult>
-	{
-		if (TryExecute<TOperation, TResult>(operation, out TResult? result, out CheatEngineFailure failure,
+		if (TryExecute<TOperation, TResult>(in operation, out TResult? result, out CheatEngineFailure failure,
 				cancellationToken))
 		{
 			return result;
@@ -281,30 +247,15 @@ internal sealed class LuaClient : ILuaClient
 		throw new UnreachableException();
 	}
 
-	private LuaOperationResult<TResult> ExecuteOperation<TResult>(ILuaOperation<TResult> operation, long epoch)
-	{
-		LuaOperationContext context = new(epoch, _isContextCurrent);
-		try
-		{
-			context.ThrowIfExpired();
-			bool succeeded = operation.TryExecute(context, out TResult? result, out CheatEngineFailure failure);
-			return new LuaOperationResult<TResult>(succeeded, result!, failure);
-		}
-		finally
-		{
-			context.Expire();
-		}
-	}
-
 	private LuaOperationResult<TResult> ExecuteOperation<TOperation, TResult>(TOperation operation, long epoch)
-		where TOperation : struct, ILuaOperation<TResult>
+		where TOperation : ILuaOperation<TResult>
 	{
 		LuaOperationContext context = new(epoch, _isContextCurrent);
 		try
 		{
 			context.ThrowIfExpired();
-			// The constraint produces a constrained interface call for generated readonly record structs. This keeps the
-			// normal generated-operation path free of an ILuaOperation<TResult> box.
+			// The type parameter produces a constrained interface call for generated readonly record structs. This keeps
+			// the generated-operation path free of an ILuaOperation<TResult> box.
 			bool succeeded = operation.TryExecute(context, out TResult? result, out CheatEngineFailure failure);
 			return new LuaOperationResult<TResult>(succeeded, result!, failure);
 		}
@@ -312,30 +263,6 @@ internal sealed class LuaClient : ILuaClient
 		{
 			context.Expire();
 		}
-	}
-
-	private bool TryDispatchOperation<TResult>(
-		ILuaOperation<TResult> operation,
-		long epoch,
-		out LuaOperationResult<TResult> result,
-		out CheatEngineFailure failure,
-		CancellationToken cancellationToken)
-	{
-		if (_dispatcher is IStatefulCheatEngineDispatcher statefulDispatcher)
-		{
-			return statefulDispatcher.TryInvoke(
-				new LuaOperationDispatchState<TResult>(this, operation, epoch),
-				static dispatchState => dispatchState.Execute(),
-				out result,
-				out failure,
-				cancellationToken);
-		}
-
-		return _dispatcher.TryInvoke(
-			() => ExecuteOperation(operation, epoch),
-			out result,
-			out failure,
-			cancellationToken);
 	}
 
 	private bool TryDispatchOperation<TOperation, TResult>(
@@ -344,7 +271,7 @@ internal sealed class LuaClient : ILuaClient
 		out LuaOperationResult<TResult> result,
 		out CheatEngineFailure failure,
 		CancellationToken cancellationToken)
-		where TOperation : struct, ILuaOperation<TResult>
+		where TOperation : ILuaOperation<TResult>
 	{
 		if (_dispatcher is IStatefulCheatEngineDispatcher statefulDispatcher)
 		{
@@ -541,27 +468,8 @@ internal sealed class LuaClient : ILuaClient
 		Action<string> AdmitStatefulOperation,
 		ICoreDiagnostics Diagnostics);
 
-	private readonly struct LuaOperationDispatchState<TResult>
-	{
-		private readonly LuaClient _client;
-		private readonly long _epoch;
-		private readonly ILuaOperation<TResult> _operation;
-
-		internal LuaOperationDispatchState(LuaClient client, ILuaOperation<TResult> operation, long epoch)
-		{
-			_client = client;
-			_operation = operation;
-			_epoch = epoch;
-		}
-
-		internal LuaOperationResult<TResult> Execute()
-		{
-			return _client.ExecuteOperation(_operation, _epoch);
-		}
-	}
-
 	private readonly struct LuaOperationDispatchState<TOperation, TResult>
-		where TOperation : struct, ILuaOperation<TResult>
+		where TOperation : ILuaOperation<TResult>
 	{
 		private readonly LuaClient _client;
 		private readonly long _epoch;

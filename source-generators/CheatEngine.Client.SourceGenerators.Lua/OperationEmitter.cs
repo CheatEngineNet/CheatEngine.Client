@@ -2,9 +2,17 @@ using CheatEngine.Client.SourceGenerators.Lua.Model;
 
 namespace CheatEngine.Client.SourceGenerators.Lua;
 
-/// <summary>Emits the handle-free readonly value operation and factory of one <c>[CheatEngineLuaOperation]</c>.</summary>
+/// <summary>
+///     Emits the handle-free readonly value operation, its factory, and its inferable <c>ILuaClient</c> extension methods
+///     for one <c>[CheatEngineLuaOperation]</c>.
+/// </summary>
 internal static class OperationEmitter
 {
+	private const string LuaClient = "global::CheatEngine.Client.Lua.ILuaClient";
+
+	private const string CancellationTokenParameter =
+		"global::System.Threading.CancellationToken cancellationToken = default";
+
 	public static string Emit(OperationModel model)
 	{
 		SourceBuilder source = new();
@@ -21,6 +29,7 @@ internal static class OperationEmitter
 						 ");");
 		source.CloseBlock();
 		source.WriteLine();
+		EmitClientExtensions(source, model);
 		source.WriteLine("/// <summary>Generated readonly value operation for <c>" + model.MethodName +
 						 "</c>.</summary>");
 		source.WriteLine(model.OperationVisibility + " readonly record struct " + model.OperationTypeName + "(" +
@@ -94,6 +103,50 @@ internal static class OperationEmitter
 		source.CloseBlock();
 
 		return source.ToString();
+	}
+
+	// The ILuaClient pair is generic over the operation and its result; these overloads infer both from the operation
+	// type, so a call reads client.Execute(operation), passes the operation by reference and never boxes it.
+	private static void EmitClientExtensions(SourceBuilder source, OperationModel model)
+	{
+		string typeArguments = "<" + model.OperationTypeName + ", " + model.ResultType + ">";
+		source.WriteLine("/// <summary>Executes the generated <c>" + model.MethodName +
+						 "</c> operation on Cheat Engine's main thread.</summary>");
+		source.WriteLine("/// <param name=\"client\">The Lua client of the current activation.</param>");
+		source.WriteLine("/// <param name=\"operation\">The operation to execute.</param>");
+		source.WriteLine("/// <param name=\"cancellationToken\">Cancellation observed before dispatch admission.</param>");
+		source.WriteLine("/// <returns>The copied result.</returns>");
+		source.WriteLine("public static " + model.ResultType + " Execute(this " + LuaClient + " client, in " +
+						 model.OperationTypeName + " operation,");
+		source.Indent();
+		source.WriteLine(CancellationTokenParameter + ")");
+		source.Unindent();
+		source.OpenBlock();
+		source.WriteLine("global::System.ArgumentNullException.ThrowIfNull(client);");
+		source.WriteLine("return client.Execute" + typeArguments + "(in operation, cancellationToken);");
+		source.CloseBlock();
+		source.WriteLine();
+		source.WriteLine("/// <summary>Tries to execute the generated <c>" + model.MethodName +
+						 "</c> operation on Cheat Engine's main thread.</summary>");
+		source.WriteLine("/// <param name=\"client\">The Lua client of the current activation.</param>");
+		source.WriteLine("/// <param name=\"operation\">The operation to execute.</param>");
+		source.WriteLine("/// <param name=\"result\">The copied result on success.</param>");
+		source.WriteLine("/// <param name=\"failure\">The mapped Client failure on failure.</param>");
+		source.WriteLine("/// <param name=\"cancellationToken\">Cancellation observed before dispatch admission.</param>");
+		source.WriteLine("/// <returns><see langword=\"true\" /> when the operation completed successfully.</returns>");
+		source.WriteLine("public static bool TryExecute(this " + LuaClient + " client, in " + model.OperationTypeName +
+						 " operation,");
+		source.Indent();
+		source.WriteLine("[global::System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)] out " + model.ResultType +
+						 " result, out global::CheatEngine.Client.Results.CheatEngineFailure failure,");
+		source.WriteLine(CancellationTokenParameter + ")");
+		source.Unindent();
+		source.OpenBlock();
+		source.WriteLine("global::System.ArgumentNullException.ThrowIfNull(client);");
+		source.WriteLine("return client.TryExecute" + typeArguments +
+						 "(in operation, out result, out failure, cancellationToken);");
+		source.CloseBlock();
+		source.WriteLine();
 	}
 
 	private static string EmitParameterList(EquatableArray<OperationParameter> parameters)

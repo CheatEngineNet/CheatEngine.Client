@@ -19,10 +19,7 @@ public sealed partial class PublicApiFileTests
 	///     Files that still suppress RS0026 or RS0027 around an overload group. The list may only shrink: reshape the
 	///     overloads instead of suppressing the rule, then remove the file from this list.
 	/// </summary>
-	private static readonly string[] PendingOverloadSuppressions =
-	[
-		"libs/CheatEngine.Client.Abstractions/Lua/ILuaClient.cs"
-	];
+	private static readonly string[] PendingOverloadSuppressions = [];
 
 	[Fact]
 	public void EveryShippingLibraryHasBothPublicApiFiles()

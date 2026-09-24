@@ -13,7 +13,10 @@ so a third-party replacement survives (F12, Q16). The module never calls the leg
 
 `[CheatEngineLuaOperation]` turns a scalar `[LuaGlobal]` declaration into a readonly value operation
 and strongly typed factory. Mapper calls use static abstract interface dispatch so the generated
-runtime path stays trim- and AOT-friendly.
+runtime path stays trim- and AOT-friendly. Next to the factory, the containing class receives an `Execute` and a
+`TryExecute` extension method on `ILuaClient` for that operation: they infer the operation and result types that the
+`ILuaClient.Execute<TOperation, TResult>` pair takes, and pass the operation by reference, so
+`client.Execute(Globals.CreateReadVersionLuaOperation(address))` never boxes it.
 
 ## What is generated for modules
 
