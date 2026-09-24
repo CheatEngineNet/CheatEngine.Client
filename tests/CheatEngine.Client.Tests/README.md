@@ -92,7 +92,7 @@ activation-independent and run in the Debug and Release test legs.
 From the repository root:
 
 ```powershell
-dotnet test --project .\tests\CheatEngine.Client.Tests\CheatEngine.Client.Tests.csproj --configuration Release
+dotnet test --project .\tests\CheatEngine.Client.Tests\CheatEngine.Client.Tests.csproj --configuration Release --filter-not-trait "Category=LiveQualification"
 ```
 
 Without `CHEATENGINE_CLIENT_PACKAGE_SOURCE`, that run packs the repository itself. To test the exact packed files, as
@@ -102,11 +102,14 @@ the CI Release leg does:
 dotnet build CheatEngine.Client.slnx --configuration Release
 dotnet pack CheatEngine.Client.slnx --configuration Release --no-build --output ./artifacts/nuget
 $env:CHEATENGINE_CLIENT_PACKAGE_SOURCE = (Resolve-Path ./artifacts/nuget).Path
-dotnet test --project ./tests/CheatEngine.Client.Tests/CheatEngine.Client.Tests.csproj --configuration Release --no-build --fail-skips on
+dotnet test --project ./tests/CheatEngine.Client.Tests/CheatEngine.Client.Tests.csproj --configuration Release --no-build --fail-skips on --filter-not-trait "Category=LiveQualification"
 ```
 
 Without the package consumption tests (the CI Debug leg):
 
 ```powershell
-dotnet test --project ./tests/CheatEngine.Client.Tests/CheatEngine.Client.Tests.csproj --configuration Debug --no-build --fail-skips on --filter-not-trait "Category=PackageConsumption"
+dotnet test --project ./tests/CheatEngine.Client.Tests/CheatEngine.Client.Tests.csproj --configuration Debug --no-build --fail-skips on --filter-not-trait "Category=PackageConsumption" --filter-not-trait "Category=LiveQualification"
 ```
+
+Both CI legs, and every command above, exclude the live qualification tests (`Category=LiveQualification`) by trait:
+they start a sandboxed Cheat Engine and run only on a maintainer workstation that opts in.

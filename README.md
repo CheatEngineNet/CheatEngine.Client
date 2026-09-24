@@ -313,17 +313,18 @@ commits NuGet lock files. Run the Windows validation sequence from the repositor
 ```powershell
 dotnet restore CheatEngine.Client.slnx --locked-mode
 dotnet build CheatEngine.Client.slnx -c Debug --no-restore
-dotnet test --solution CheatEngine.Client.slnx -c Debug --no-build --fail-skips on --filter-not-trait "Category=PackageConsumption"
+dotnet test --solution CheatEngine.Client.slnx -c Debug --no-build --fail-skips on --filter-not-trait "Category=PackageConsumption" --filter-not-trait "Category=LiveQualification"
 dotnet build CheatEngine.Client.slnx -c Release --no-restore
 dotnet pack CheatEngine.Client.slnx -c Release --no-build -o artifacts/nuget
 $env:CHEATENGINE_CLIENT_PACKAGE_SOURCE = (Resolve-Path artifacts/nuget).Path
-dotnet test --solution CheatEngine.Client.slnx -c Release --no-build --fail-skips on
+dotnet test --solution CheatEngine.Client.slnx -c Release --no-build --fail-skips on --filter-not-trait "Category=LiveQualification"
 dotnet publish tests/CheatEngine.Client.AotProbe/CheatEngine.Client.AotProbe.csproj -c Release --no-restore -o artifacts/aot-probe
 ./artifacts/aot-probe/CheatEngine.Client.AotProbe.exe
 ```
 
 A skipped test fails the run. The Release test run installs the packages you just packed, so the package and template
-consumption tests check the files a release would publish.
+consumption tests check the files a release would publish. Both runs exclude the live qualification tests, which start a
+sandboxed Cheat Engine and run only on explicit opt-in.
 
 Pull requests and pushes to `main` run the same checks in CI ([`ci.yml`](.github/workflows/ci.yml)): the Debug and
 Release builds with one solution test run each (hang and crash dumps on failure, coverage collected in Debug), the

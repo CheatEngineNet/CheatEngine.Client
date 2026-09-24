@@ -356,13 +356,43 @@ public sealed partial class WorkflowContractTests
 		WorkflowStep test = TestStep();
 		IReadOnlyList<string> tokens = Yaml.Tokens(test.Run);
 
-		Assert.Equal("Category=PackageConsumption", TokenAfter(tokens, "--filter-not-trait"));
+		Assert.Contains("Category=PackageConsumption", TraitExclusions(tokens));
+		Assert.DoesNotContain("Category=PackageConsumption", TraitExclusions(Yaml.Tokens(SharedTestOptions(test.Run))));
 		Assert.Equal("on", TokenAfter(tokens, "--fail-skips"));
 		Assert.Equal("CheatEngine.Client.slnx", TokenAfter(tokens, "--solution"));
 		Assert.Contains("--no-build", tokens);
 		Assert.DoesNotContain("--", tokens);
 		Assert.DoesNotContain("--filter-class", tokens);
 		Assert.DoesNotContain("--filter-not-class", tokens);
+	}
+
+	/// <summary>
+	/// The live qualification tests start a sandboxed Cheat Engine: they run only on a maintainer workstation that sets the
+	/// opt-in, and fail rather than skip anywhere else. CI therefore excludes them by trait in the option array both legs
+	/// share, never through a branch, a positive filter or a skip, and no workflow ever sets the opt-in variables.
+	/// </summary>
+	[Fact]
+	public void LiveQualificationTestsNeverRunInCi()
+	{
+		WorkflowStep test = TestStep();
+		IReadOnlyList<string> shared = Yaml.Tokens(SharedTestOptions(test.Run));
+		Assert.Contains("Category=LiveQualification", TraitExclusions(shared));
+		Assert.Equal("on", TokenAfter(shared, "--fail-skips"));
+
+		foreach (WorkflowFile workflow in WorkflowFile.WorkflowsAndActions())
+		{
+			Assert.DoesNotContain("CHEATENGINE_CLIENT_LIVE_QUALIFICATION", workflow.Text, StringComparison.Ordinal);
+			foreach (WorkflowStep step in workflow.Jobs.SelectMany(static job => job.Steps).Concat(workflow.CompositeSteps)
+						 .Where(static step => Regex.IsMatch(step.Run, @"\bdotnet test\b")))
+			{
+				IReadOnlyList<string> tokens = Yaml.Tokens(step.Run);
+				Assert.True(TraitExclusions(tokens).Contains("Category=LiveQualification"),
+					$"{workflow.RelativePath} step '{step.Name}' runs dotnet test without --filter-not-trait Category=LiveQualification.");
+				Assert.DoesNotContain("--filter-trait", tokens);
+				Assert.DoesNotContain("--filter-query", tokens);
+				Assert.DoesNotContain("--filter-uid", tokens);
+			}
+		}
 	}
 
 	[Fact]
@@ -904,6 +934,30 @@ public sealed partial class WorkflowContractTests
 	{
 		return Assert.Single(WorkflowFile.Load(CiWorkflow).Job("build-test").Steps,
 			static step => Regex.IsMatch(step.Run, @"\bdotnet test\b"));
+	}
+
+	/// <summary>Every value passed to <c>--filter-not-trait</c>, in order; the option may be repeated.</summary>
+	private static List<string> TraitExclusions(IReadOnlyList<string> tokens)
+	{
+		List<string> values = [];
+		for (int index = 0; index < tokens.Count - 1; index++)
+		{
+			if (tokens[index] == "--filter-not-trait")
+			{
+				values.Add(tokens[index + 1]);
+			}
+		}
+
+		return values;
+	}
+
+	/// <summary>The literal of the <c>$options = @( ... )</c> array the Debug and Release legs both pass to dotnet test.</summary>
+	private static string SharedTestOptions(string run)
+	{
+		Match options = Regex.Match(run, @"^\s*\$options\s*=\s*@\((?<body>.*?)^\s*\)\s*$",
+			RegexOptions.Multiline | RegexOptions.Singleline, TimeSpan.FromSeconds(1));
+		Assert.True(options.Success, "The Test step no longer declares its shared option array as $options = @( ... ).");
+		return options.Groups["body"].Value;
 	}
 
 	private static string TokenAfter(IReadOnlyList<string> tokens, string option)

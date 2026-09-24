@@ -157,8 +157,9 @@ jobs:
 
       # One parallel run over every tests/**/*.Tests module. A skip fails the run (--fail-skips on). Debug collects one
       # coverage report per module and leaves the package-consumption tests to Release by trait filter, never Skip.
-      # Release hands those tests the packages the Pack step produced. The hang dump fires after 15 minutes without
-      # test activity, well below the job timeout.
+      # Release hands those tests the packages the Pack step produced. Both legs exclude the live qualification tests
+      # by trait: they start a sandboxed Cheat Engine and run only on a maintainer workstation that opts in. The hang
+      # dump fires after 15 minutes without test activity, well below the job timeout.
       - name: Test
         env:
           PACKAGE_SOURCE: ${{ steps.pack.outputs.package-source }}
@@ -167,7 +168,8 @@ jobs:
           $options = @(
             '--solution', 'CheatEngine.Client.slnx', '-c', $env:CONFIGURATION, '--no-build', '--results-directory', $env:RESULTS,
             '--fail-skips', 'on', '--report-trx', '--report-gh', '--report-gh-groups', 'off',
-            '--hangdump', '--hangdump-timeout', '15m', '--crashdump'
+            '--hangdump', '--hangdump-timeout', '15m', '--crashdump',
+            '--filter-not-trait', 'Category=LiveQualification'
           )
           if ($env:CONFIGURATION -eq 'Debug') {
             $options += '--coverage', '--coverage-output-format', 'xml', '--filter-not-trait', 'Category=PackageConsumption'

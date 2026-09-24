@@ -21,12 +21,15 @@ match its committed `packages.lock.json`.
 ```powershell
 dotnet restore CheatEngine.Client.slnx --locked-mode
 dotnet build CheatEngine.Client.slnx -c Debug --no-restore
-dotnet test --solution CheatEngine.Client.slnx -c Debug --no-build --fail-skips on
+dotnet test --solution CheatEngine.Client.slnx -c Debug --no-build --fail-skips on --filter-not-trait "Category=LiveQualification"
 dotnet build CheatEngine.Client.slnx -c Release --no-restore
-dotnet test --solution CheatEngine.Client.slnx -c Release --no-build --fail-skips on
+dotnet test --solution CheatEngine.Client.slnx -c Release --no-build --fail-skips on --filter-not-trait "Category=LiveQualification"
 ```
 
-A skipped test fails the run: an environment-dependent test is fixed or deleted, never skipped.
+A skipped test fails the run: an environment-dependent test is fixed or deleted, never skipped. The live qualification
+tests (`Category=LiveQualification`) start a sandboxed Cheat Engine, so every command here, like CI, excludes them by
+trait; run without that filter, they fail with the instructions of their opt-in (see
+[`tests/CheatEngine.Client.Tests`](tests/CheatEngine.Client.Tests/README.md)).
 
 The package consumption tests consume the exact packages you pack. Pack to `artifacts/nuget` and point them at that
 folder; without the variable they pack the repository themselves, which is slower:
@@ -34,10 +37,10 @@ folder; without the variable they pack the repository themselves, which is slowe
 ```powershell
 dotnet pack CheatEngine.Client.slnx -c Release --no-build -o artifacts/nuget
 $env:CHEATENGINE_CLIENT_PACKAGE_SOURCE = (Resolve-Path artifacts/nuget).Path
-dotnet test --project tests/CheatEngine.Client.Tests/CheatEngine.Client.Tests.csproj -c Release --no-build --fail-skips on
+dotnet test --project tests/CheatEngine.Client.Tests/CheatEngine.Client.Tests.csproj -c Release --no-build --fail-skips on --filter-not-trait "Category=LiveQualification"
 ```
 
-To run everything except those tests, add `--filter-not-trait "Category=PackageConsumption"`.
+To run everything except those tests, add `--filter-not-trait "Category=PackageConsumption"` as well.
 
 ### Lock files
 
@@ -102,8 +105,8 @@ on every push, including on drafts, but it is advisory: it never blocks a merge 
 
 | Check (`CI / ...`)             | Runner         | What it does                                                                                                                    |
 |--------------------------------|----------------|-----------------------------------------------------------------------------------------------------------------------------------|
-| `Build and test (Debug)`       | `windows-2025` | Locked restore, build, one `dotnet test --solution` run with coverage (package consumption tests excluded by trait)              |
-| `Build and test (Release)`     | `windows-2025` | Locked restore, build, pack (exact package set, embedded SBOM), benchmark discovery, one test run against the packed packages    |
+| `Build and test (Debug)`       | `windows-2025` | Locked restore, build, one `dotnet test --solution` run with coverage (package consumption and live qualification tests excluded by trait) |
+| `Build and test (Release)`     | `windows-2025` | Locked restore, build, pack (exact package set, embedded SBOM), benchmark discovery, one test run against the packed packages (live qualification tests excluded by trait) |
 | `Native AOT publication probe` | `windows-2025` | Publishes and runs `tests/CheatEngine.Client.AotProbe`: trim and Native AOT compatibility of the Client graph, not a Cheat Engine load |
 | `Sonar / Analyze`              | `windows-2025` | SonarQube Cloud CI-based analysis with the Debug coverage; waits for the quality gate except on pushes to `main`                  |
 | `Lint`                         | `ubuntu-24.04` | actionlint and the offline zizmor audits over the workflows                                                                       |

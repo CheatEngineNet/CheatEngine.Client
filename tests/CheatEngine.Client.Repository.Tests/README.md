@@ -68,7 +68,10 @@ read committed files: the project never builds, packs, restores or starts a proc
   top-level permissions; every action pinned to a full SHA with its version, one pin per action; no credential left
   by checkout; no NuGet cache on a release-reachable path; locked restores through the composite setup action; the
   Release leg packs before it tests and hands the packages to the consumption tests, which Debug excludes by trait;
-  reserved artifact names and binary logs on failure only. `Workflows/WorkflowFile` loads the YAML with YamlDotNet.
+  reserved artifact names and binary logs on failure only. `LiveQualificationTestsNeverRunInCi` proves that every
+  `dotnet test` step excludes `Category=LiveQualification` by trait (in `ci.yml`, in the option array both legs share),
+  with no positive filter and no workflow that sets the live qualification opt-in. `Workflows/WorkflowFile` loads the
+  YAML with YamlDotNet.
 - `Toolchain/TestProfileTests` prove that every `*.Tests` project references the Microsoft.Testing.Platform extension
   of every option the CI test command passes (a missing one fails the module with exit code 5).
 - `Governance/` holds the repository governance contracts that stay meaningful without a bespoke script or a required
