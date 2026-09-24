@@ -573,5 +573,9 @@ earlier Lua attachment or state, `AlreadyReleased` when nothing was owned, `Clea
 could not admit the Lua work and the module kept its registration), `RemovedCount`, `ReplacementCount` (a replaced or
 already-`nil` global, left untouched), `RestoredCount` (always `0` for a generated module), `RemainingCount` and the
 `FailedExports` of a partial release, which is never retried. A manual `ILuaModule` reports its release with the
-`LuaModuleReleaseOutcome` factories. The outcome holds copied names and counts only. This behavior is covered by
-managed tests against a double of the SDK registration set (C1); it is not a host qualification.
+`LuaModuleReleaseOutcome` factories. The outcome holds copied names and counts only. `ILuaModuleLease` is an
+`ICheatEngineLease`: its `Release()` calls `Unregister()` on Cheat Engine's main thread, keeps the reported outcome in
+`ModuleReleaseOutcome`, and returns the same kind with its host effect (`Completed` for `Released`, `Started` for
+`PartiallyReleased`, `NotStarted` for a release that wrote nothing); an exception thrown by a module is
+`CleanupUnconfirmed`. This behavior is covered by managed tests against a double of the SDK registration set (C1); it is
+not a host qualification.

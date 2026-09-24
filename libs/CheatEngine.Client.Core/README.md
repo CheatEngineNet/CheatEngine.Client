@@ -312,8 +312,9 @@ target-bound lease without throwing to the code that selected the new target.
 `SdkReleaseOutcomes` maps the CheatEngine.SDK 2.0.0 release statuses totally
 (`TargetReleaseStatus`, `SymbolRegistrationReleaseKind`, `LuaRegistrationReleaseKind`; an
 unknown value is `Unknown` with an unknown effect) and combines the parts of one lease by
-keeping the outcome that leaves the most to do. The existing symbol and Lua module leases move
-onto this base with their domains.
+keeping the outcome that leaves the most to do. The Lua module lease (`Lua.UnregisterModule`)
+is built on this base and maps the kind its module reports with `LuaModuleReleaseMapping`; the
+symbol lease (`Inspection.ReleaseSymbol`) is built on it too.
 
 ## SDK boundary and the Try contract
 

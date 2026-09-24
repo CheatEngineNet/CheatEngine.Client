@@ -1,5 +1,4 @@
-using System.Runtime.ExceptionServices;
-
+using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Lua;
 using CheatEngine.Client.Results;
@@ -7,149 +6,175 @@ using CheatEngine.Client.Results;
 namespace CheatEngine.Client.Core.Domains;
 
 /// <summary>Activation-owned release path for one explicitly registered application Lua module.</summary>
-internal sealed class LuaModuleLease(
-	ILuaModule module,
-	long epoch,
-	ICheatEngineDispatcher dispatcher,
-	Func<bool> isActivationCurrent,
-	Action<ILuaModuleLease> untrack,
-	Action<ILuaModule> releaseModule) : ILuaModuleLease
+/// <remarks>
+///     <para>
+///         The release runs on Cheat Engine's main thread through <see cref="HostResourceLease" />: it calls the module's
+///         <see cref="ILuaModule.Unregister" /> and maps the reported <see cref="LuaModuleReleaseOutcome" /> with
+///         <see cref="LuaModuleReleaseMapping" />. Dispose never throws; an exception from the module is an unconfirmed
+///         cleanup that is never retried.
+///     </para>
+///     <para>
+///         The lease is tracked through the activation delegates <see cref="LuaClient" /> supplies. It leaves them only when
+///         the outcome is complete, so a retryable outcome is retried by the activation cleanup and an outcome that requires
+///         manual recovery is reported by it (audit Q43). The module's name reservation ends with the lease: once the
+///         outcome is not retryable, the same module name and exports can be registered again.
+///     </para>
+/// </remarks>
+internal sealed class LuaModuleLease : HostResourceLease, ILuaModuleLease
 {
-	private readonly ICheatEngineDispatcher _dispatcher =
-		dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
+	private const string ReleaseOperation = "Lua.UnregisterModule";
 
-	private readonly object _disposeLock = new();
+	private readonly Lock _gate = new();
+	private readonly ILuaModule _module;
+	private readonly Action<ILuaModule> _releaseReservation;
+	private readonly Action<ILuaModuleLease> _untrack;
+	private bool _abandoned;
+	private LuaModuleReleaseOutcome? _moduleReleaseOutcome;
+	private bool _registered;
+	private bool _reservationReleased;
 
-	private readonly Func<bool> _isActivationCurrent =
-		isActivationCurrent ?? throw new ArgumentNullException(nameof(isActivationCurrent));
-
-	private readonly ILuaModule _module = module ?? throw new ArgumentNullException(nameof(module));
-
-	private readonly Action<ILuaModule> _releaseModule =
-		releaseModule ?? throw new ArgumentNullException(nameof(releaseModule));
-
-	private readonly Action<ILuaModuleLease> _untrack = untrack ?? throw new ArgumentNullException(nameof(untrack));
-	private int _registered;
-	private int _released;
+	internal LuaModuleLease(ILuaModule module, long epoch, ICheatEngineDispatcher dispatcher,
+		ICoreDiagnostics? diagnostics, Action<ILuaModuleLease> untrack, Action<ILuaModule> releaseReservation)
+		: base(ReleaseOperation, dispatcher, diagnostics)
+	{
+		_module = module ?? throw new ArgumentNullException(nameof(module));
+		Epoch = epoch;
+		_untrack = untrack ?? throw new ArgumentNullException(nameof(untrack));
+		_releaseReservation = releaseReservation ?? throw new ArgumentNullException(nameof(releaseReservation));
+	}
 
 	public long Epoch
 	{
 		get;
-	} = epoch;
+	}
 
-	public bool IsReleased => Volatile.Read(ref _released) != 0;
-
-	public void Dispose()
+	public LuaModuleReleaseOutcome? ModuleReleaseOutcome
 	{
-		lock (_disposeLock)
+		get
 		{
-			if (Volatile.Read(ref _released) != 0)
+			lock (_gate)
 			{
-				return;
+				return _moduleReleaseOutcome;
 			}
-
-			if (Volatile.Read(ref _registered) == 0)
-			{
-				CompleteRelease();
-				return;
-			}
-
-			// A detached activation has no legal SDK dispatch path left. There is nothing more that this lease can
-			// safely do, so release managed ownership without attempting to call Cheat Engine.
-			if (!_isActivationCurrent())
-			{
-				CompleteRelease();
-				return;
-			}
-
-			LuaModuleReleaseOutcome? outcome = null;
-			_dispatcher.Invoke(() =>
-			{
-				outcome = _module.Unregister();
-			});
-
-			// A release that could not begin leaves the registration with the module: the lease stays active so a later
-			// dispose, or the activation cleanup, tries again.
-			if (outcome is not null && new LeaseReleaseOutcome(outcome.Kind, CheatEngineHostEffect.Unknown).IsRetryable)
-			{
-				throw new CheatEngineOperationException(new CheatEngineFailure(CheatEngineFailureKind.CapabilityUnavailable,
-					"Lua.UnregisterModule", $"The Lua module release could not begin ({outcome.Kind}); it will be retried.",
-					null, CheatEngineHostEffect.NotStarted));
-			}
-
-			// Do not make any ownership transition until the application module confirmed unregistration by returning.
-			// The write occurs while holding the lock, so another disposer either observes the completed release or
-			// waits and retries after the original dispatch fault.
-			CompleteRelease();
 		}
 	}
 
 	/// <summary>Marks the module as registered while the registration dispatcher callback still owns the main thread.</summary>
+	/// <exception cref="InvalidOperationException">The lease was abandoned before registration completed.</exception>
 	internal void ConfirmRegistration()
 	{
-		lock (_disposeLock)
+		lock (_gate)
 		{
-			if (Volatile.Read(ref _released) != 0)
+			if (_abandoned)
 			{
-				throw new InvalidOperationException("The Lua module lease was released before registration completed.");
+				throw new InvalidOperationException("The Lua module lease was abandoned before registration completed.");
 			}
 
-			Volatile.Write(ref _registered, 1);
+			_registered = true;
 		}
 	}
 
-	/// <summary>Releases a tracked handoff that never completed <see cref="ILuaModule.Register" />.</summary>
+	/// <summary>
+	///     Ends a tracked handoff whose <see cref="ILuaModule.Register" /> never completed: nothing is released in Cheat
+	///     Engine, the lease leaves the activation and the name reservation ends.
+	/// </summary>
+	/// <exception cref="InvalidOperationException">The module was registered; only a release can end the lease.</exception>
 	internal void AbandonRegistration()
 	{
-		lock (_disposeLock)
+		lock (_gate)
 		{
-			if (Volatile.Read(ref _released) != 0)
-			{
-				return;
-			}
-
-			if (Volatile.Read(ref _registered) != 0)
+			if (_registered)
 			{
 				throw new InvalidOperationException(
 					"A registered Lua module lease cannot be abandoned without unregistration.");
 			}
 
-			CompleteRelease();
-		}
-	}
+			if (_abandoned)
+			{
+				return;
+			}
 
-	private void CompleteRelease()
-	{
-		Volatile.Write(ref _released, 1);
-		List<Exception>? failures = null;
+			_abandoned = true;
+		}
+
 		try
 		{
 			_untrack(this);
 		}
-		catch (Exception exception)
+		finally
 		{
-			(failures ??= []).Add(exception);
+			ReleaseReservation();
+		}
+	}
+
+	protected override LeaseReleaseOutcome ReleaseOnMainThread()
+	{
+		lock (_gate)
+		{
+			if (!_registered)
+			{
+				// Nothing was registered, so nothing can remain in Cheat Engine.
+				ReleaseReservation();
+				return new LeaseReleaseOutcome(LeaseReleaseKind.AlreadyReleased, CheatEngineHostEffect.NotStarted);
+			}
 		}
 
+		LuaModuleReleaseOutcome moduleOutcome;
 		try
 		{
-			_releaseModule(_module);
+			moduleOutcome = _module.Unregister() ??
+							throw new InvalidOperationException("The Lua module reported no release outcome.");
 		}
-		catch (Exception exception)
+		catch (Exception)
 		{
-			(failures ??= []).Add(exception);
+			// The base records an unconfirmed cleanup that is never retried: the lease ends here.
+			ReleaseReservation();
+			throw;
 		}
 
-		if (failures is null)
+		lock (_gate)
 		{
-			return;
+			_moduleReleaseOutcome = moduleOutcome;
 		}
 
-		if (failures.Count == 1)
+		LeaseReleaseOutcome outcome = LuaModuleReleaseMapping.ToLeaseOutcome(moduleOutcome.Kind);
+		if (!outcome.IsRetryable)
 		{
-			ExceptionDispatchInfo.Capture(failures[0]).Throw();
+			ReleaseReservation();
 		}
 
-		throw new AggregateException("Lua module lease release encountered one or more cleanup failures.", failures);
+		if (outcome.IsComplete)
+		{
+			Untrack();
+		}
+
+		return outcome;
+	}
+
+	private void Untrack()
+	{
+		try
+		{
+			_untrack(this);
+		}
+		catch (Exception)
+		{
+			// The release itself completed: an activation that still tracks the lease finds it released at its drain.
+		}
+	}
+
+	private void ReleaseReservation()
+	{
+		lock (_gate)
+		{
+			if (_reservationReleased)
+			{
+				return;
+			}
+
+			_reservationReleased = true;
+		}
+
+		_releaseReservation(_module);
 	}
 }

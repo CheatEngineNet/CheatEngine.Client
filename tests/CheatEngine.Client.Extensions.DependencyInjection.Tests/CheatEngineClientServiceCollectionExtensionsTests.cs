@@ -482,6 +482,21 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 
 		public bool IsReleased => DisposeCount != 0;
 
+		public LeaseReleaseOutcome? LastReleaseOutcome => IsReleased
+			? new LeaseReleaseOutcome(LeaseReleaseKind.Released, CheatEngineHostEffect.Completed)
+			: null;
+
+		public LuaModuleReleaseOutcome? ModuleReleaseOutcome => null;
+
+		public LeaseReleaseOutcome Release()
+		{
+			bool alreadyReleased = IsReleased;
+			Dispose();
+			return alreadyReleased
+				? new LeaseReleaseOutcome(LeaseReleaseKind.AlreadyReleased, CheatEngineHostEffect.NotStarted)
+				: LastReleaseOutcome!.Value;
+		}
+
 		public void Dispose()
 		{
 			if (DisposeCount == 0)

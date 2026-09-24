@@ -101,7 +101,7 @@ internal sealed class LuaClient : ILuaClient
 			return false;
 		}
 
-		LuaModuleLease created = new(luaModule, _epochProvider(), _dispatcher, _isContextCurrent, _untrackLease,
+		LuaModuleLease created = new(luaModule, _epochProvider(), _dispatcher, _diagnostics, _untrackLease,
 			ReleaseModule);
 		try
 		{
@@ -503,15 +503,13 @@ internal sealed class LuaClient : ILuaClient
 
 	private static CheatEngineFailure FailAfterRegisteredLease(CheatEngineFailure primaryFailure, LuaModuleLease lease)
 	{
-		try
-		{
-			lease.Dispose();
-			return primaryFailure;
-		}
-		catch (Exception cleanupException)
-		{
-			return WithSecondaryFailure(primaryFailure, cleanupException);
-		}
+		// Releasing never throws: an incomplete release stays tracked and is reported by the activation cleanup.
+		LeaseReleaseOutcome release = lease.Release();
+		return release.IsComplete
+			? primaryFailure
+			: new CheatEngineFailure(primaryFailure.Kind, primaryFailure.Operation,
+				$"{primaryFailure.Message} The registration was then released with the outcome {release}.",
+				primaryFailure.Exception, CheatEngineHostEffect.CleanupUnconfirmed);
 	}
 
 	private static CheatEngineFailure WithSecondaryFailure(CheatEngineFailure primaryFailure,
