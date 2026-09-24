@@ -57,23 +57,23 @@ public sealed class LuaModuleReleaseOutcomeTests
 	}
 
 	[Theory]
-	[InlineData(LeaseReleaseKind.Unknown)]
-	[InlineData(LeaseReleaseKind.Released)]
-	[InlineData(LeaseReleaseKind.AlreadyReleased)]
-	[InlineData(LeaseReleaseKind.Replaced)]
-	[InlineData(LeaseReleaseKind.Superseded)]
-	[InlineData(LeaseReleaseKind.ExternallyRemoved)]
-	[InlineData(LeaseReleaseKind.RefusedNoTarget)]
-	[InlineData(LeaseReleaseKind.RefusedTargetChanged)]
-	[InlineData(LeaseReleaseKind.RefusedTargetIdentityUnavailable)]
-	[InlineData(LeaseReleaseKind.RefusedRuntimeChanged)]
-	[InlineData(LeaseReleaseKind.CleanupUnconfirmed)]
-	[InlineData(LeaseReleaseKind.CleanupUnavailable)]
-	public void IsCompleteFollowsTheLeaseReleaseRuleForEveryKind(LeaseReleaseKind kind)
+	[InlineData(LeaseReleaseKind.Unknown, false)]
+	[InlineData(LeaseReleaseKind.Released, true)]
+	[InlineData(LeaseReleaseKind.AlreadyReleased, true)]
+	[InlineData(LeaseReleaseKind.Replaced, true)]
+	[InlineData(LeaseReleaseKind.Superseded, true)]
+	[InlineData(LeaseReleaseKind.ExternallyRemoved, true)]
+	[InlineData(LeaseReleaseKind.RefusedNoTarget, false)]
+	[InlineData(LeaseReleaseKind.RefusedTargetChanged, false)]
+	[InlineData(LeaseReleaseKind.RefusedTargetIdentityUnavailable, false)]
+	[InlineData(LeaseReleaseKind.RefusedRuntimeChanged, false)]
+	[InlineData(LeaseReleaseKind.CleanupUnconfirmed, false)]
+	[InlineData(LeaseReleaseKind.CleanupUnavailable, false)]
+	public void IsCompleteOnlyForAKindThatLeavesNothingBehind(LeaseReleaseKind kind, bool expected)
 	{
 		LuaModuleReleaseOutcome outcome = LuaModuleReleaseOutcome.Create("plugin", kind, 0, 0, 0, 1, default);
 
-		Assert.Equal(new LeaseReleaseOutcome(kind, CheatEngineHostEffect.Unknown).IsComplete, outcome.IsComplete);
+		Assert.Equal(expected, outcome.IsComplete);
 		Assert.Empty(outcome.FailedExports);
 	}
 

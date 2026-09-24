@@ -137,13 +137,13 @@ internal static class RegistrarEmitter
 							CheatEngineLuaRegistrationAdapter.EndOperation(ref operation);
 						}
 
-						return ToOutcome(descriptor.Name, release);
+						return ToOutcome(descriptor, release);
 					case global::CheatEngine.SDK.Lua.Runtime.LuaAdmissionStatus.Detached:
 					case global::CheatEngine.SDK.Lua.Runtime.LuaAdmissionStatus.ExternalStateReset:
 						// The Lua universe that holds the registration is no longer this attachment's: the lease is consumed
 						// without any Lua operation, and CheatEngine.SDK reports it stale.
 						registration = null;
-						return ToOutcome(descriptor.Name, CheatEngineLuaRegistrationAdapter.ReleaseStale(lease));
+						return ToOutcome(descriptor, CheatEngineLuaRegistrationAdapter.ReleaseStale(lease));
 					default:
 						// Nothing ran: the registration stays owned for a later release or the activation cleanup.
 						return global::CheatEngine.Client.Lua.LuaModuleReleaseOutcome.CleanupUnavailable(descriptor.Name,
@@ -151,7 +151,15 @@ internal static class RegistrarEmitter
 				}
 			}
 
-			/// <summary>Maps a CheatEngine.SDK registration release kind to the Client lease vocabulary; total and fail-closed.</summary>
+			/// <summary>
+			///     Maps the kind CheatEngine.SDK reports for the release of a lease the registrar consumed to the Client lease
+			///     vocabulary; total and fail-closed.
+			/// </summary>
+			/// <remarks>
+			///     The lease is consumed before the release runs, so a later attempt could only report
+			///     <c>AlreadyReleased</c>: a kind outside the documented release shape is never retryable. It is
+			///     <c>CleanupUnconfirmed</c>, which requires manual recovery and which the activation cleanup reports.
+			/// </remarks>
 			internal static global::CheatEngine.Client.Results.LeaseReleaseKind MapReleaseKind(
 				global::CheatEngine.SDK.Lua.Registration.LuaRegistrationReleaseKind kind)
 			{
@@ -167,10 +175,10 @@ internal static class RegistrarEmitter
 					case global::CheatEngine.SDK.Lua.Registration.LuaRegistrationReleaseKind.AlreadyReleased:
 						return global::CheatEngine.Client.Results.LeaseReleaseKind.AlreadyReleased;
 					case global::CheatEngine.SDK.Lua.Registration.LuaRegistrationReleaseKind.NotAttempted:
-						// No release was attempted: the registration is still owned.
-						return global::CheatEngine.Client.Results.LeaseReleaseKind.CleanupUnavailable;
+						// The SDK's value before any release, never the result of one: the lease is consumed all the same.
 					default:
-						return global::CheatEngine.Client.Results.LeaseReleaseKind.Unknown;
+						// A kind a later CheatEngine.SDK adds: the release began on a consumed lease and is not confirmed.
+						return global::CheatEngine.Client.Results.LeaseReleaseKind.CleanupUnconfirmed;
 				}
 			}
 
@@ -212,9 +220,9 @@ internal static class RegistrarEmitter
 				}
 			}
 
-			/// <summary>Copies a CheatEngine.SDK release into the Client outcome of one module.</summary>
-			internal static global::CheatEngine.Client.Lua.LuaModuleReleaseOutcome ToOutcome(string moduleName,
-				CheatEngineLuaRelease release)
+			/// <summary>Copies the CheatEngine.SDK release of a consumed lease into the Client outcome of one module.</summary>
+			internal static global::CheatEngine.Client.Lua.LuaModuleReleaseOutcome ToOutcome(
+				global::CheatEngine.Client.Lua.LuaModuleDescriptor descriptor, CheatEngineLuaRelease release)
 			{
 				global::CheatEngine.Client.Results.LeaseReleaseKind kind = MapReleaseKind(release.Kind);
 				string[] failed = release.FailedExports ?? global::System.Array.Empty<string>();
@@ -225,14 +233,21 @@ internal static class RegistrarEmitter
 				else if (failed.Length == 0)
 				{
 					// A partial release that names no failed global is outside the documented result shape.
-					kind = global::CheatEngine.Client.Results.LeaseReleaseKind.Unknown;
+					kind = global::CheatEngine.Client.Results.LeaseReleaseKind.CleanupUnconfirmed;
 				}
 
-				return global::CheatEngine.Client.Lua.LuaModuleReleaseOutcome.Create(moduleName, kind,
-					global::System.Math.Max(release.RemovedCount, 0), global::System.Math.Max(release.RestoredCount, 0),
-					global::System.Math.Max(release.ReplacementCount, 0),
-					global::System.Math.Max(release.RemainingCount, failed.Length),
-					global::System.Collections.Immutable.ImmutableArray.Create(failed));
+				int removed = global::System.Math.Max(release.RemovedCount, 0);
+				int restored = global::System.Math.Max(release.RestoredCount, 0);
+				int replaced = global::System.Math.Max(release.ReplacementCount, 0);
+				int remaining = global::System.Math.Max(release.RemainingCount, failed.Length);
+				if (kind == global::CheatEngine.Client.Results.LeaseReleaseKind.CleanupUnconfirmed)
+				{
+					// Every global the release did not report as handled may remain.
+					remaining = global::System.Math.Max(remaining, descriptor.Exports.Length - removed - restored - replaced);
+				}
+
+				return global::CheatEngine.Client.Lua.LuaModuleReleaseOutcome.Create(descriptor.Name, kind, removed, restored,
+					replaced, remaining, global::System.Collections.Immutable.ImmutableArray.Create(failed));
 			}
 
 			private static global::CheatEngine.Client.Results.CheatEngineFailure Refused(

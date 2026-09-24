@@ -20,11 +20,14 @@ namespace CheatEngine.Client.Lua;
 ///         <see cref="LeaseReleaseKind.PartiallyReleased" /> (at least one protected read or write failed; the failed
 ///         globals are in <see cref="FailedExports" /> and are not retried),
 ///         <see cref="LeaseReleaseKind.RefusedRuntimeChanged" /> (the registration belongs to an earlier Lua attachment or
-///         state, so nothing was written and its globals may remain as functions that raise an error),
-///         <see cref="LeaseReleaseKind.AlreadyReleased" /> (the module owned no registration) and
-///         <see cref="LeaseReleaseKind.CleanupUnavailable" /> (CheatEngine.SDK could not admit the Lua work; the module
-///         keeps its registration for a later attempt). A manual <see cref="ILuaModule" /> reports its own release with
-///         the factories of this type.
+///         state, or CheatEngine.SDK refused the Lua admission with <c>Detached</c> or <c>ExternalStateReset</c>: the
+///         registration is consumed, nothing was written, and its globals may remain as functions that raise an error),
+///         <see cref="LeaseReleaseKind.AlreadyReleased" /> (the module owned no registration),
+///         <see cref="LeaseReleaseKind.CleanupUnavailable" /> (CheatEngine.SDK refused the Lua admission for any other
+///         reason; the module keeps its registration for a later attempt) and
+///         <see cref="LeaseReleaseKind.CleanupUnconfirmed" /> (CheatEngine.SDK consumed the registration but reported a
+///         release outside its documented shape; it is never retried). A manual <see cref="ILuaModule" /> reports its own
+///         release with the factories of this type.
 ///     </para>
 ///     <para>
 ///         The outcome is immutable and holds copied names and counts only: never a Lua state, reference, or native handle.

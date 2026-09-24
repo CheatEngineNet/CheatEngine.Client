@@ -66,17 +66,19 @@ SDK fault (F15): it propagates, and `ILuaClient` classifies it through its SDK b
 
 ### Release
 
-`Unregister` returns `AlreadyReleased` without any Lua call when the module owns nothing. Otherwise it releases the
-lease and maps the SDK release kind:
+`Unregister` returns `AlreadyReleased` without any Lua call when the module owns nothing. Otherwise it consumes the
+lease, releases it, and maps the SDK release kind. Because the lease is consumed before the release runs, a later
+attempt could only report `AlreadyReleased`: no kind below is retryable, and a result outside the documented shape is
+`CleanupUnconfirmed`, which requires manual recovery and which the Client lease leaves to the activation cleanup report.
 
 | `LuaRegistrationReleaseKind` | `LeaseReleaseKind` | Why |
 |---|---|---|
 | `Released` | `Released` | Every still-owned global was removed; replaced ones were left alone |
-| `PartiallyReleased` | `PartiallyReleased` | A protected read or write failed; the failed globals are named and never retried |
+| `PartiallyReleased` | `PartiallyReleased` | A protected read or write failed; the failed globals are named and never retried. A partial release that names no global is `CleanupUnconfirmed`. |
 | `Stale` | `RefusedRuntimeChanged` | The lease belongs to an earlier attachment or Lua state, so nothing was written. The SDK counts every entry as remaining: after a re-enable on the same Cheat Engine Lua state, the earlier functions stay in `_G` (they raise an error when called). The release therefore requires manual recovery; it is not `ExternallyRemoved`. |
 | `AlreadyReleased` | `AlreadyReleased` | The lease was already consumed |
-| `NotAttempted` | `CleanupUnavailable` | No release was attempted; the registration is still owned |
-| an unknown kind | `Unknown` | Fails closed |
+| `NotAttempted` | `CleanupUnconfirmed` | The SDK's value before any release, never the result of one (CheatEngine.SDK 2.0.0 does not return it from a release); the lease is consumed all the same |
+| an unknown kind | `CleanupUnconfirmed` | Fails closed: a release began on a consumed lease and its result is not understood |
 
 When CheatEngine.SDK refuses the admission with `Detached` or `ExternalStateReset`, the Lua universe that holds the
 registration is gone for this attachment: the lease is consumed without any Lua call and reported stale

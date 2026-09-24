@@ -215,6 +215,30 @@ public sealed class LuaModuleOwnershipEndToEndTests
 		Assert.Empty(globals.Log);
 	}
 
+	[Theory]
+	[InlineData(LuaRegistrationReleaseKind.NotAttempted)]
+	[InlineData(LuaRegistrationReleaseKind.PartiallyReleased)]
+	[InlineData((LuaRegistrationReleaseKind) 99)]
+	public void AReleaseOutsideTheSdkShapeIsAnUnconfirmedCleanupThatIsNeverRetried(LuaRegistrationReleaseKind reported)
+	{
+		(ILuaModule module, FakeLuaGlobals globals) = Registered();
+		// A kind a later CheatEngine.SDK adds, the SDK's pre-release value, or a partial release that names no global.
+		globals.NextRelease = new FakeRelease(reported, 1, 0, 0, 0, []);
+
+		LuaModuleReleaseOutcome outcome = ModuleHarness.Unregister(module, globals);
+		LuaModuleReleaseOutcome retry = ModuleHarness.Unregister(module, globals);
+
+		// The lease was consumed before the release ran: the outcome requires manual recovery and is never retryable, so
+		// the Client lease ends and the activation cleanup reports it instead of reading the retry as a clean release.
+		AssertOutcome(outcome, LeaseReleaseKind.CleanupUnconfirmed, 1, 0, 2);
+		Assert.False(outcome.IsComplete);
+		LeaseReleaseOutcome lease = new(outcome.Kind, CheatEngineHostEffect.Started);
+		Assert.True(lease.RequiresManualRecovery);
+		Assert.False(lease.IsRetryable);
+		Assert.Equal(LeaseReleaseKind.AlreadyReleased, retry.Kind);
+		Assert.Equal(2, globals.AdmittedOperationCount);
+	}
+
 	[Fact]
 	public void UnregisterWithoutARegistrationReportsAlreadyReleasedWithoutLua()
 	{

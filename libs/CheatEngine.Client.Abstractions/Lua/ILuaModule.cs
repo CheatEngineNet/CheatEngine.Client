@@ -64,8 +64,13 @@ public interface ILuaModule
 	///     <para>
 	///         A generated module writes only globals that still hold the value it installed and never overwrites one a
 	///         third party replaced. It returns <see cref="Results.LeaseReleaseKind.AlreadyReleased" /> without any Lua call
-	///         when it owns no registration, and <see cref="Results.LeaseReleaseKind.CleanupUnavailable" /> (keeping the
-	///         registration) when CheatEngine.SDK cannot admit the Lua work now.
+	///         when it owns no registration. When CheatEngine.SDK refuses the Lua admission because the Lua universe that
+	///         holds the registration is gone (<c>Detached</c> or <c>ExternalStateReset</c>), it consumes the registration
+	///         without any Lua call and returns <see cref="Results.LeaseReleaseKind.RefusedRuntimeChanged" />; any other
+	///         refused admission keeps the registration and returns
+	///         <see cref="Results.LeaseReleaseKind.CleanupUnavailable" />. Once it has consumed the registration it never
+	///         returns a retryable kind: a release that CheatEngine.SDK reports outside its documented shape is
+	///         <see cref="Results.LeaseReleaseKind.CleanupUnconfirmed" />.
 	///     </para>
 	/// </remarks>
 	public LuaModuleReleaseOutcome Unregister();

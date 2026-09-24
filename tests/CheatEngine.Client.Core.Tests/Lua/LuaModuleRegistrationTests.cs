@@ -609,6 +609,45 @@ public sealed class LuaModuleRegistrationTests
 	}
 
 	[Fact]
+	public void AnUnconfirmedModuleReleaseEndsTheLeaseAndTheActivationCleanupReportsIt()
+	{
+		using ControlledCoreLifetimeContext context = new();
+		using CoreLifetime lifetime = new(context);
+		SdkMainThreadDispatcher dispatcher = new(lifetime, new RecordingMainThreadInvoker());
+		RecordingModule module = new("diagnostics");
+		LuaClient client = new(dispatcher, lifetime);
+		Assert.True(client.TryRegisterModule(module, out ILuaModuleLease? lease, out _,
+			TestContext.Current.CancellationToken));
+		// What a generated module reports when CheatEngine.SDK consumed its registration lease but returned a release
+		// outside the documented shape.
+		LuaModuleReleaseOutcome unconfirmed =
+			LuaModuleReleaseOutcome.Create("diagnostics", LeaseReleaseKind.CleanupUnconfirmed, 0, 0, 0, 1, []);
+		module.NextOutcome = unconfirmed;
+
+		LeaseReleaseOutcome outcome = lease.Release();
+		LeaseReleaseOutcome retry = lease.Release();
+
+		Assert.Equal(new LeaseReleaseOutcome(LeaseReleaseKind.CleanupUnconfirmed, CheatEngineHostEffect.Started), outcome);
+		Assert.False(outcome.IsRetryable);
+		Assert.True(lease.IsReleased);
+		Assert.Same(unconfirmed, lease.ModuleReleaseOutcome);
+		Assert.Equal(LeaseReleaseKind.AlreadyReleased, retry.Kind);
+		context.Stop();
+		using (lifetime.EnterCleanupScope())
+		{
+			// The lease stayed with the activation, so the drain reports the incomplete release instead of retrying it.
+			CheatEngineOperationException report = Assert.Throws<CheatEngineOperationException>(
+				lifetime.DrainOwnedResourcesForDisable);
+			Assert.Equal(CheatEngineFailureKind.IndeterminateHostResult, report.Failure.Kind);
+			Assert.Equal("Lua.UnregisterModule", report.Failure.Operation);
+			Assert.Equal(CheatEngineHostEffect.CleanupUnconfirmed, report.Failure.HostEffect);
+			Assert.Contains(nameof(LeaseReleaseKind.CleanupUnconfirmed), report.Failure.Message, StringComparison.Ordinal);
+		}
+
+		Assert.Equal(["diagnostics.register", "diagnostics.unregister"], module.Events);
+	}
+
+	[Fact]
 	public void TheLeaseIsAClientLeaseThatReportsWhatTheModuleObserved()
 	{
 		ImmediateDispatcher dispatcher = new();

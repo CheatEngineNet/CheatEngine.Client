@@ -14,9 +14,11 @@ namespace CheatEngine.Client.SourceGenerators.Lua.Tests.EndToEnd;
 /// </summary>
 public sealed class GeneratedRegistrarMappingTests
 {
+	// The registrar maps only the release of a lease it has consumed, so no kind may be retryable.
 	private static readonly Dictionary<LuaRegistrationReleaseKind, LeaseReleaseKind> ReleaseKinds = new()
 	{
-		[LuaRegistrationReleaseKind.NotAttempted] = LeaseReleaseKind.CleanupUnavailable,
+		// The SDK's value before any release: outside the result of one, and the lease is consumed all the same.
+		[LuaRegistrationReleaseKind.NotAttempted] = LeaseReleaseKind.CleanupUnconfirmed,
 		[LuaRegistrationReleaseKind.Released] = LeaseReleaseKind.Released,
 		[LuaRegistrationReleaseKind.PartiallyReleased] = LeaseReleaseKind.PartiallyReleased,
 		// The SDK counts Stale as complete (no cleanup call failed), but it reports every entry as remaining: a release
@@ -50,9 +52,13 @@ public sealed class GeneratedRegistrarMappingTests
 	[Fact]
 	public void EveryLuaRegistrationReleaseKindIsMappedAndAnUnknownKindFailsClosed()
 	{
-		AssertTotal(ReleaseKinds, "MapReleaseKind", LeaseReleaseKind.Unknown);
+		AssertTotal(ReleaseKinds, "MapReleaseKind", LeaseReleaseKind.CleanupUnconfirmed);
 		Assert.True(new LeaseReleaseOutcome(LeaseReleaseKind.RefusedRuntimeChanged, CheatEngineHostEffect.NotStarted)
 			.RequiresManualRecovery);
+		Assert.True(new LeaseReleaseOutcome(LeaseReleaseKind.CleanupUnconfirmed, CheatEngineHostEffect.Started)
+			.RequiresManualRecovery);
+		Assert.DoesNotContain(ReleaseKinds.Values, static kind => kind is LeaseReleaseKind.Unknown
+			or LeaseReleaseKind.CleanupUnavailable);
 	}
 
 	[Fact]

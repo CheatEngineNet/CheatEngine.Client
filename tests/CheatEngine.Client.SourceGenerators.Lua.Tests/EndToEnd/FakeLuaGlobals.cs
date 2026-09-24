@@ -188,6 +188,16 @@ public sealed class FakeLuaGlobals
 		get;
 	} = new(StringComparer.Ordinal);
 
+	/// <summary>
+	///     Gets or sets what the next release with a state reports instead of releasing: it consumes the lease, writes
+	///     nothing, and returns this value once (a result outside the documented shape, or a kind a later SDK adds).
+	/// </summary>
+	public FakeRelease? NextRelease
+	{
+		get;
+		set;
+	}
+
 	/// <summary>Gets the current value of a global, or <see langword="null" /> for <c>nil</c>.</summary>
 	public FakeLuaValue? this[string name] => _globals.GetValueOrDefault(name);
 
@@ -319,6 +329,12 @@ public sealed class FakeLuaGlobals
 		}
 
 		lease.IsConsumed = true;
+		if (NextRelease is { } scripted)
+		{
+			NextRelease = null;
+			return scripted;
+		}
+
 		if (lease.Identity != Identity)
 		{
 			return new FakeRelease(LuaRegistrationReleaseKind.Stale, 0, 0, 0, lease.Entries.Count, []);

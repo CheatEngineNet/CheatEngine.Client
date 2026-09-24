@@ -569,13 +569,15 @@ A module generated from `[CheatEngineLuaModule]` registers through its bindings'
 the value the module installed, compared by primitive identity, and never overwrites a value a third party put there
 (audit finding F12, qualification scenario Q16). The returned `LuaModuleReleaseOutcome` copies what the SDK observed:
 `Kind` in the Client lease vocabulary (`Released`, `PartiallyReleased`, `RefusedRuntimeChanged` for a registration of an
-earlier Lua attachment or state, `AlreadyReleased` when nothing was owned, `CleanupUnavailable` when CheatEngine.SDK
-could not admit the Lua work and the module kept its registration), `RemovedCount`, `ReplacementCount` (a replaced or
+earlier Lua attachment or state or an admission refused with `Detached` or `ExternalStateReset`, which consumes it,
+`AlreadyReleased` when nothing was owned, `CleanupUnavailable` when CheatEngine.SDK refused the Lua admission for another
+reason and the module kept its registration, `CleanupUnconfirmed` when CheatEngine.SDK consumed the registration but
+reported a release outside its documented shape), `RemovedCount`, `ReplacementCount` (a replaced or
 already-`nil` global, left untouched), `RestoredCount` (always `0` for a generated module), `RemainingCount` and the
 `FailedExports` of a partial release, which is never retried. A manual `ILuaModule` reports its release with the
 `LuaModuleReleaseOutcome` factories. The outcome holds copied names and counts only. `ILuaModuleLease` is an
 `ICheatEngineLease`: its `Release()` calls `Unregister()` on Cheat Engine's main thread, keeps the reported outcome in
 `ModuleReleaseOutcome`, and returns the same kind with its host effect (`Completed` for `Released`, `Started` for
-`PartiallyReleased`, `NotStarted` for a release that wrote nothing); an exception thrown by a module is
-`CleanupUnconfirmed`. This behavior is covered by managed tests against a double of the SDK registration set (C1); it is
+`PartiallyReleased` and `CleanupUnconfirmed`, `NotStarted` for a release that wrote nothing); an exception thrown by a
+module is `CleanupUnconfirmed`. Only `CleanupUnavailable` and `Unknown` keep the lease active for a retry. This behavior is covered by managed tests against a double of the SDK registration set (C1); it is
 not a host qualification.
