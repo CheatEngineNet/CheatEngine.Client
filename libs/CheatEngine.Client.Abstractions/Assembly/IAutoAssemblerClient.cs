@@ -21,9 +21,15 @@ namespace CheatEngine.Client.Assembly;
 ///         <see cref="TryApplyPatch" /> applies the script once through Cheat Engine's <c>autoAssemble</c> and returns
 ///         the only owner of the disable information Cheat Engine returned. Releasing the lease runs the script's
 ///         <c>[DISABLE]</c> section once with that information, on the target the patch was applied to; the Client never
-///         rebuilds a <c>[DISABLE]</c> section and never retries a disable that began. The lease is bound to the target
-///         selection: selecting another process releases it, and a release refused on another target leaves the patch in
-///         place (<see cref="IAutoAssemblerPatchLease.RequiresManualRecovery" />).
+///         rebuilds a <c>[DISABLE]</c> section and never retries a disable that began.
+///     </para>
+///     <para>
+///         <b>Release every patch lease before selecting another process.</b> The lease is bound to the target
+///         selection, and the Client observes a selection change only after Cheat Engine already targets the new
+///         process. It then ends the lease with <see cref="LeaseReleaseKind.RefusedTargetChanged" />: CheatEngine.SDK
+///         refuses the disable on the new target but consumes the disable information, so the patch stays in the
+///         previous process, <see cref="IAutoAssemblerPatchLease.RequiresManualRecovery" /> is <see langword="true" />,
+///         and selecting the previous process again cannot disable it.
 ///     </para>
 ///     <para>
 ///         A cancellation token is observed only before the work is dispatched to Cheat Engine's main thread

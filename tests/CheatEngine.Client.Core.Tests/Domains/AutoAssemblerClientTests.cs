@@ -314,11 +314,13 @@ public sealed class AutoAssemblerClientTests : IDisposable
 
 	[Fact]
 	[Trait("Qualification", "Q35")]
-	public void SelectingAnotherTargetReleasesTheLeaseAndARefusalRequiresManualRecovery()
+	public void SelectingAnotherTargetEndsTheLeaseWithoutDisablingThePatch()
 	{
 		AutoAssemblerClient client = CreateClient();
 		IAutoAssemblerPatchLease lease =
 			client.ApplyPatch(new AutoAssemblerScript(Script), TestContext.Current.CancellationToken);
+		// The Client observes the change after Cheat Engine already targets the new process, so CheatEngine.SDK refuses
+		// the disable there and consumes the disable information: the patch stays in the previous process.
 		_port.Owner!.ReleaseStatus = TargetReleaseStatus.RefusedTargetChanged;
 
 		_ = _lifetime.TargetSelection.Advance("Processes.Attach");

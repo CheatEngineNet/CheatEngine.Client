@@ -22,6 +22,12 @@ namespace CheatEngine.Client.Assembly;
 ///         <see langword="true" />: no later release can disable it.
 ///     </para>
 ///     <para>
+///         <b>Release the lease before selecting another process.</b> The Client observes a selection change only after
+///         Cheat Engine already targets the new process, and then ends the lease with
+///         <see cref="LeaseReleaseKind.RefusedTargetChanged" />: the disable information is consumed, the patch
+///         stays in the previous process, and selecting that process again cannot disable it.
+///     </para>
+///     <para>
 ///         The Client never rebuilds a <c>[DISABLE]</c> section, and it does not expose Cheat Engine's disable
 ///         information (allocations, registered symbols): that table stays the only disable authority.
 ///     </para>
