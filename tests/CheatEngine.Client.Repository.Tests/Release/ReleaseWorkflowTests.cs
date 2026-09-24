@@ -346,6 +346,31 @@ public sealed partial class ReleaseWorkflowTests
 		}
 	}
 
+	/// <summary>
+	/// A re-run deletes every draft already on the tag with gh release delete, which resolves a draft by its tag and
+	/// keeps the git tag, before it creates the draft again. The id that gh release view reports is a GraphQL node id the
+	/// REST API rejects, so no release id reaches a REST call (PKG-07).
+	/// </summary>
+	[Fact]
+	public void DraftRerunDeletesTheDraftWithGhReleaseDelete()
+	{
+		string script = Run(Assert.Single(Steps("draft-release"), static step => Run(step).Contains("gh release create", StringComparison.Ordinal)));
+		int list = script.IndexOf("gh release list", StringComparison.Ordinal);
+		Match delete = Regex.Match(script, @"(?m)^\s*gh release delete \$env:TAG --yes\s*$");
+		int create = script.IndexOf("gh release create", StringComparison.Ordinal);
+
+		Assert.True(list >= 0 && delete.Success && list < delete.Index && delete.Index < create,
+			"draft-release must list the releases of the tag, delete its drafts with 'gh release delete $env:TAG --yes', then create the draft.");
+		Assert.Contains("isDraft", script, StringComparison.Ordinal);
+		Assert.Contains("throw", script[..delete.Index], StringComparison.Ordinal);
+		Assert.DoesNotContain("--cleanup-tag", script, StringComparison.Ordinal);
+		Assert.DoesNotMatch(@"--json\s+(\S+,)?(id|databaseId)(,|\s|$)", script);
+
+		string text = File.ReadAllText(Path.Combine(RepositoryRoot.Path, WorkflowPath));
+		Assert.DoesNotMatch(@"\bgh api\b[^\n]*(--method|-X)\s*DELETE", text);
+		Assert.DoesNotMatch(@"\bgh api\b[^\n]*releases/", text);
+	}
+
 	private static YamlMappingNode LoadWorkflow()
 	{
 		YamlStream stream = new();
