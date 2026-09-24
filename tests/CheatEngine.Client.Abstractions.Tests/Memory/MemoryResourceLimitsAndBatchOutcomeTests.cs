@@ -84,4 +84,34 @@ public sealed class MemoryResourceLimitsAndBatchOutcomeTests
 		Assert.Null(unknown.FailedIndex);
 		Assert.False(partial.Succeeded);
 	}
+
+	[Fact]
+	public void ByteReadOutcomeSeparatesAConfirmedPrefixFromACompleteRead()
+	{
+		CheatEngineFailure failure = new(CheatEngineFailureKind.MemoryReadFailed, "Memory.ReadBytes", "Partial.");
+
+		MemoryBytesReadOutcome partial = new(4, [0x01, 0x02], failure);
+		MemoryBytesReadOutcome complete = new(2, [0x0A, 0x0B], null);
+		MemoryBytesReadOutcome refused = new(4, default, failure);
+
+		Assert.Equal((4, 2, false, false), (partial.RequestedLength, partial.ConfirmedLength, partial.IsComplete,
+			partial.IsSuccess));
+		Assert.Equal([0x01, 0x02], partial.Bytes);
+		Assert.Equal(failure, partial.Failure);
+		Assert.Equal((2, true, true), (complete.ConfirmedLength, complete.IsComplete, complete.IsSuccess));
+		Assert.Null(complete.Failure);
+		Assert.True(refused.Bytes.IsEmpty);
+		Assert.Equal(0, refused.ConfirmedLength);
+	}
+
+	[Fact]
+	public void ByteReadOutcomeRejectsAnInconsistentPrefixOrFailure()
+	{
+		CheatEngineFailure failure = new(CheatEngineFailureKind.MemoryReadFailed, "Memory.ReadBytes", "Partial.");
+
+		Assert.Throws<ArgumentOutOfRangeException>(() => new MemoryBytesReadOutcome(0, [], failure));
+		Assert.Throws<ArgumentOutOfRangeException>(() => new MemoryBytesReadOutcome(1, [0x01, 0x02], failure));
+		Assert.Throws<ArgumentException>(() => new MemoryBytesReadOutcome(2, [0x01], null));
+		Assert.Throws<ArgumentException>(() => new MemoryBytesReadOutcome(1, [0x01], failure));
+	}
 }

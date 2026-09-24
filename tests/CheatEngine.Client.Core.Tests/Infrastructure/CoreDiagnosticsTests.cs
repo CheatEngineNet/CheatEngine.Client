@@ -546,9 +546,11 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 			return [];
 		}
 
-		public bool TryReadBytes(Address address, Span<byte> destination, out MemoryAccessFailure failure)
+		public bool TryReadBytes(Address address, Span<byte> destination, out int written,
+			out MemoryAccessFailure failure)
 		{
 			destination.Clear();
+			written = destination.Length;
 			failure = MemoryAccessFailure.None;
 			return true;
 		}

@@ -376,34 +376,18 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 	public bool TryReadBytes(MemoryBytesReadRequest request, out ImmutableArray<byte> bytes,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
-		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(request.Length);
-		if (!TryAdmitPayload(request.Length, _limits.MaximumReadBytes, false, "Memory.ReadBytes", "byte read",
-				out failure))
+		MemoryBytesReadOutcome outcome = ReadBytesDetailed(request, cancellationToken);
+		if (outcome.Failure is { } readFailure)
 		{
+			// The Try form publishes all or nothing; ReadBytesDetailed keeps the confirmed prefix.
 			bytes = [];
+			failure = readFailure;
 			return false;
 		}
 
-		ImmutableArray<byte> captured = ImmutableArray<byte>.Empty;
-		HostCall call = default;
-		if (!_dispatcher.TryInvoke(() =>
-			{
-				byte[] buffer = new byte[request.Length];
-				call = HostCall.Run(_codecContextPort, buffer, request.Address,
-					static (port, destination, address, out hostFailure) =>
-						port.TryReadBytes(address, destination, out hostFailure));
-				if (call.Succeeded)
-				{
-					captured = ImmutableCollectionsMarshal.AsImmutableArray(buffer);
-				}
-			}, out failure, cancellationToken))
-		{
-			bytes = [];
-			return false;
-		}
-
-		bytes = call.Succeeded ? captured : [];
-		return TryMapMemoryFailure(call, false, "Memory.ReadBytes", out failure);
+		bytes = outcome.Bytes;
+		failure = default;
+		return true;
 	}
 
 	public ImmutableArray<byte> ReadBytes(MemoryBytesReadRequest request,
@@ -416,6 +400,53 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 
 		failure.Throw(cancellationToken);
 		return [];
+	}
+
+	/// <summary>
+	///     Reads through CheatEngine.SDK's counted <c>TargetMemory.TryReadBytes</c>: every byte it verified before a
+	///     shorter or malformed result is kept as the confirmed prefix, and a <c>PartialRead</c> names its length.
+	/// </summary>
+	public MemoryBytesReadOutcome ReadBytesDetailed(MemoryBytesReadRequest request,
+		CancellationToken cancellationToken = default)
+	{
+		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(request.Length);
+		if (!TryAdmitPayload(request.Length, _limits.MaximumReadBytes, false, "Memory.ReadBytes", "byte read",
+				out CheatEngineFailure failure))
+		{
+			return new MemoryBytesReadOutcome(request.Length, [], failure);
+		}
+
+		byte[] buffer = [];
+		int written = 0;
+		HostCall call = default;
+		if (!_dispatcher.TryInvoke(() =>
+			{
+				buffer = new byte[request.Length];
+				call = HostCall.Run(_codecContextPort, buffer, request.Address,
+					(port, destination, address, out hostFailure) =>
+						port.TryReadBytes(address, destination, out written, out hostFailure));
+			}, out failure, cancellationToken))
+		{
+			return new MemoryBytesReadOutcome(request.Length, [], failure);
+		}
+
+		if (call.Succeeded)
+		{
+			return new MemoryBytesReadOutcome(request.Length, ImmutableCollectionsMarshal.AsImmutableArray(buffer),
+				null);
+		}
+
+		if (call.Fault is { } fault)
+		{
+			return new MemoryBytesReadOutcome(request.Length, [],
+				SdkBoundary.Translate("Memory.ReadBytes", fault, CheatEngineHostEffect.Unknown, _lifetime));
+		}
+
+		// A count outside [0, Length) cannot be a verified prefix of a failed read: publish none of it.
+		int confirmed = written > 0 && written < request.Length ? written : 0;
+		return new MemoryBytesReadOutcome(request.Length, ImmutableArray.Create(buffer, 0, confirmed),
+			MemoryAccessFailureMapping.ToByteReadFailure("Memory.ReadBytes", call.HostFailure, confirmed,
+				request.Length));
 	}
 
 	public bool TryWriteBytes(MemoryBytesWriteRequest request, out CheatEngineFailure failure,
@@ -1362,13 +1393,22 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 
 			try
 			{
-				if (_port.TryReadBytes(address, destination, out MemoryAccessFailure failure))
+				if (_port.TryReadBytes(address, destination, out int written, out MemoryAccessFailure failure))
 				{
 					ClearFailure();
 					return true;
 				}
 
+				// The codec asked for the exact buffer: a confirmed prefix is reported in the failure, never left behind
+				// as if it were data.
+				destination.Clear();
 				SetAccessFailure(failure, false);
+				if (failure == MemoryAccessFailure.PartialRead)
+				{
+					Failure = MemoryAccessFailureMapping.ToByteReadFailure(Operation, failure,
+						Math.Clamp(written, 0, destination.Length), destination.Length).Message;
+				}
+
 				return false;
 			}
 			catch (Exception exception) when (SdkBoundary.IsSdkFault(exception))

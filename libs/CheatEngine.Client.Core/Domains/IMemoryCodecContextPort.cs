@@ -18,7 +18,12 @@ namespace CheatEngine.Client.Core.Domains;
 /// </remarks>
 internal interface IMemoryCodecContextPort : ITargetObservationPort
 {
-	public bool TryReadBytes(Address address, Span<byte> destination, out MemoryAccessFailure failure);
+	/// <summary>
+	///     Tries to fill <paramref name="destination" /> and reports how many bytes CheatEngine.SDK verified and copied
+	///     (<c>TargetMemory.TryReadBytes</c> with a copied count): the confirmed contiguous prefix on
+	///     <see cref="MemoryAccessFailure.PartialRead" />, every byte on success.
+	/// </summary>
+	public bool TryReadBytes(Address address, Span<byte> destination, out int written, out MemoryAccessFailure failure);
 
 	public bool TryWriteBytes(Address address, ReadOnlySpan<byte> source, out MemoryAccessFailure failure);
 
@@ -251,9 +256,10 @@ internal sealed class SdkMemoryCodecContextPort : IMemoryCodecContextPort
 		return SdkRuntimeObservationPort.Instance.TryGetConfiguredPointerSize(out rawBytes, out pointerSize);
 	}
 
-	public bool TryReadBytes(Address address, Span<byte> destination, out MemoryAccessFailure failure)
+	public bool TryReadBytes(Address address, Span<byte> destination, out int written,
+		out MemoryAccessFailure failure)
 	{
-		return TargetMemory.TryReadBytes(address, destination, out failure);
+		return TargetMemory.TryReadBytes(address, destination, out written, out failure);
 	}
 
 	public bool TryWriteBytes(Address address, ReadOnlySpan<byte> source, out MemoryAccessFailure failure)

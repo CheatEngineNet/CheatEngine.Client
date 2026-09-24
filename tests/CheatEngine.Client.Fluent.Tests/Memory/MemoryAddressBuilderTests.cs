@@ -407,6 +407,13 @@ public sealed class MemoryAddressBuilderTests
 			return bytes;
 		}
 
+		public MemoryBytesReadOutcome ReadBytesDetailed(MemoryBytesReadRequest request,
+			CancellationToken cancellationToken = default)
+		{
+			_ = TryReadBytes(request, out ImmutableArray<byte> bytes, out _, cancellationToken);
+			return new MemoryBytesReadOutcome(bytes.Length, bytes, null);
+		}
+
 		public bool TryWriteBytes(MemoryBytesWriteRequest request, out CheatEngineFailure failure,
 			CancellationToken cancellationToken = default)
 		{

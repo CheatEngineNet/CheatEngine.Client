@@ -357,10 +357,12 @@ public sealed class MemoryClientResourceLimitsAndBatchOutcomeTests
 			private set;
 		}
 
-		public bool TryReadBytes(Address address, Span<byte> destination, out MemoryAccessFailure failure)
+		public bool TryReadBytes(Address address, Span<byte> destination, out int written,
+			out MemoryAccessFailure failure)
 		{
 			RawReadInvocationCount++;
 			destination.Clear();
+			written = destination.Length;
 			failure = MemoryAccessFailure.None;
 			return true;
 		}

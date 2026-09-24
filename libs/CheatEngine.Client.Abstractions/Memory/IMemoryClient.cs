@@ -51,6 +51,18 @@ public interface IMemoryClient
 	public ImmutableArray<byte> ReadBytes(MemoryBytesReadRequest request,
 		CancellationToken cancellationToken = default);
 
+	/// <summary>
+	///     Copies a caller-bounded byte range and reports the contiguous prefix Cheat Engine confirmed when it returned fewer
+	///     bytes than requested.
+	/// </summary>
+	/// <remarks>
+	///     Like a <c>Try</c> method, it reports an expected host failure, a budget refusal and a cancellation before dispatch
+	///     through <see cref="MemoryBytesReadOutcome.Failure" /> instead of throwing them; <see cref="TryReadBytes" />
+	///     reports the same read without its prefix.
+	/// </remarks>
+	public MemoryBytesReadOutcome ReadBytesDetailed(MemoryBytesReadRequest request,
+		CancellationToken cancellationToken = default);
+
 	/// <summary>Tries to write an immutable byte request.</summary>
 	public bool TryWriteBytes(MemoryBytesWriteRequest request, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);

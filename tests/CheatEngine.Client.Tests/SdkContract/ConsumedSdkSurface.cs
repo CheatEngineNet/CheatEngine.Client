@@ -98,7 +98,7 @@ internal static class ConsumedSdkSurface
 		"CheatEngine.Client.Core M CheatEngine.SDK.Engine.Inspection.TargetProcessId::get_Value()->int32",
 		"CheatEngine.Client.Core M CheatEngine.SDK.Engine.Inspection.TargetProcessId::op_Equality(CheatEngine.SDK.Engine.Inspection.TargetProcessId,CheatEngine.SDK.Engine.Inspection.TargetProcessId)->boolean",
 		"CheatEngine.Client.Core M CheatEngine.SDK.Engine.Inspection.TargetProcessId::op_Inequality(CheatEngine.SDK.Engine.Inspection.TargetProcessId,CheatEngine.SDK.Engine.Inspection.TargetProcessId)->boolean",
-		"CheatEngine.Client.Core M CheatEngine.SDK.Engine.Memory.TargetMemory::TryReadBytes(CheatEngine.SDK.Engine.Values.Address,System.Span`1<byte>,CheatEngine.SDK.Engine.Memory.MemoryAccessFailure&)->boolean",
+		"CheatEngine.Client.Core M CheatEngine.SDK.Engine.Memory.TargetMemory::TryReadBytes(CheatEngine.SDK.Engine.Values.Address,System.Span`1<byte>,int32&,CheatEngine.SDK.Engine.Memory.MemoryAccessFailure&)->boolean",
 		"CheatEngine.Client.Core M CheatEngine.SDK.Engine.Memory.TargetMemory::TryReadDouble(CheatEngine.SDK.Engine.Values.Address,double&,CheatEngine.SDK.Engine.Memory.MemoryAccessFailure&)->boolean",
 		"CheatEngine.Client.Core M CheatEngine.SDK.Engine.Memory.TargetMemory::TryReadInt16(CheatEngine.SDK.Engine.Values.Address,int16&,CheatEngine.SDK.Engine.Memory.MemoryAccessFailure&)->boolean",
 		"CheatEngine.Client.Core M CheatEngine.SDK.Engine.Memory.TargetMemory::TryReadInt32(CheatEngine.SDK.Engine.Values.Address,int32&,CheatEngine.SDK.Engine.Memory.MemoryAccessFailure&)->boolean",

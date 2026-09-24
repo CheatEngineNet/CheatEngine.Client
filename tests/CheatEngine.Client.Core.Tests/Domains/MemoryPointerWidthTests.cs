@@ -734,10 +734,12 @@ public sealed class MemoryPointerWidthTests
 			private set;
 		}
 
-		public bool TryReadBytes(Address address, Span<byte> destination, out MemoryAccessFailure failure)
+		public bool TryReadBytes(Address address, Span<byte> destination, out int written,
+			out MemoryAccessFailure failure)
 		{
 			ByteReads++;
 			Bytes.AsSpan(0, destination.Length).CopyTo(destination);
+			written = destination.Length;
 			failure = MemoryAccessFailure.None;
 			return true;
 		}

@@ -210,8 +210,14 @@ public sealed class SdkMappingContractTests
 				out CheatEngineFailure readFailure, TestContext.Current.CancellationToken));
 			Assert.False(client.TryWriteBytes(new MemoryBytesWriteRequest(0x1000, [1]),
 				out CheatEngineFailure writeFailure, TestContext.Current.CancellationToken));
+			MemoryBytesReadOutcome detailed = client.ReadBytesDetailed(new MemoryBytesReadRequest(0x1000, 4),
+				TestContext.Current.CancellationToken);
 
 			Assert.True(bytes.IsEmpty);
+			Assert.False(detailed.IsSuccess);
+			Assert.Equal(expected.Kind, detailed.Failure!.Value.Kind);
+			// RefusingPort confirms half of the requested bytes on PartialRead only.
+			Assert.Equal(access == MemoryAccessFailure.PartialRead ? 2 : 0, detailed.ConfirmedLength);
 			Assert.Equal((expected.Kind, expected.ReadEffect, "Memory.ReadBytes"),
 				(readFailure.Kind, readFailure.HostEffect, readFailure.Operation));
 			Assert.Equal((expected.Kind, expected.WriteEffect, "Memory.WriteBytes"),
@@ -241,8 +247,10 @@ public sealed class SdkMappingContractTests
 	/// <summary>Reports every access as refused with one SDK failure, as <c>SdkMemoryCodecContextPort</c> passes it on.</summary>
 	private sealed class RefusingPort(MemoryAccessFailure failure) : TargetObservationDouble, IMemoryCodecContextPort
 	{
-		public bool TryReadBytes(Address address, Span<byte> destination, out MemoryAccessFailure hostFailure)
+		public bool TryReadBytes(Address address, Span<byte> destination, out int written,
+			out MemoryAccessFailure hostFailure)
 		{
+			written = failure == MemoryAccessFailure.PartialRead ? destination.Length / 2 : 0;
 			hostFailure = failure;
 			return false;
 		}

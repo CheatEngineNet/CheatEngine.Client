@@ -49,6 +49,7 @@ public sealed class TryContractTests
 		"Patterns",
 		"MemoryPrimitive",
 		"MemoryBatchDetailed",
+		"MemoryBytesDetailed",
 		"Inspection",
 		"Tables",
 		"LuaTypedOperation",
@@ -125,6 +126,8 @@ public sealed class TryContractTests
 				.TryReadPrimitive(Target, out int _, out _, cancelled),
 			"MemoryBatchDetailed" => () => new MemoryClient(dispatcher, lifetime, ports).WritePrimitiveBatchDetailed(
 				new MemoryPrimitiveBatchWriteRequest<int>([new MemoryAddressValue<int>(Target, 1)]), cancelled),
+			"MemoryBytesDetailed" => () => new MemoryClient(dispatcher, lifetime, ports)
+				.ReadBytesDetailed(new MemoryBytesReadRequest(Target, 4), cancelled),
 			"Inspection" => () => new InspectionClient(dispatcher, lifetime, ports)
 				.TryGetSymbol(new SymbolExpression("game.exe+10"), out _, out _, cancelled),
 			"Tables" => () => new TableClient(dispatcher, policy, ports, lifetime, ports)
@@ -279,12 +282,16 @@ public sealed class TryContractTests
 				out ISymbolRegistrationLease? lease, out CheatEngineFailure registerFailure, token));
 			Assert.False(memory.TryReadBytes(new MemoryBytesReadRequest(Target, 8), out ImmutableArray<byte> bytes,
 				out CheatEngineFailure readFailure, token));
+			// The counted TargetMemory.TryReadBytes overload behind the prefix-reporting read.
+			MemoryBytesReadOutcome detailed = memory.ReadBytesDetailed(new MemoryBytesReadRequest(Target, 8), token);
 			Assert.False(patterns.TryScan(Request(), out _, out CheatEngineFailure scanFailure, token));
 			Assert.False(unsafeLua.TryExecute(new LuaScript("return 1"), out CheatEngineFailure luaFailure, token));
 
 			Assert.Null(lease);
 			Assert.True(bytes.IsEmpty);
-			CheatEngineFailure[] failures = [loadFailure, registerFailure, readFailure, scanFailure];
+			Assert.Equal(0, detailed.ConfirmedLength);
+			CheatEngineFailure[] failures =
+				[loadFailure, registerFailure, readFailure, detailed.Failure!.Value, scanFailure];
 			Assert.All(
 				failures,
 				static failure =>
@@ -420,6 +427,7 @@ public sealed class TryContractTests
 	[InlineData("PatternsInvalidRequest")]
 	[InlineData("MemoryBudget")]
 	[InlineData("MemoryBatchPreDispatchCancellation")]
+	[InlineData("MemoryBytesDetailedBudget")]
 	[InlineData("TablesPolicy")]
 	[InlineData("UnsafeLuaPolicy")]
 	[InlineData("UnavailableCapability")]
@@ -446,6 +454,9 @@ public sealed class TryContractTests
 				.WritePrimitiveBatchDetailed(
 					new MemoryPrimitiveBatchWriteRequest<int>([new MemoryAddressValue<int>(Target, 1)]), cancelled)
 				.Cause!.Value,
+			"MemoryBytesDetailedBudget" => new MemoryClient(dispatcher, lifetime, ports,
+					new MemoryResourceLimits(1, 1, 1, 64, 2))
+				.ReadBytesDetailed(new MemoryBytesReadRequest(Target, 2), token).Failure!.Value,
 			"TablesPolicy" => TryFailure(() => (new TableClient(dispatcher, new CoreClientPolicy([], false), ports,
 					lifetime, ports).TryLoadTrustedTable(new TableLoadRequest(new TrustedTableFile(
 					Path.Combine(Path.GetTempPath(), "untrusted.ct"))), out CheatEngineFailure f, token), f)),
@@ -871,7 +882,8 @@ public sealed class TryContractTests
 			throw Fault();
 		}
 
-		public bool TryReadBytes(Address address, Span<byte> destination, out MemoryAccessFailure failure)
+		public bool TryReadBytes(Address address, Span<byte> destination, out int written,
+			out MemoryAccessFailure failure)
 		{
 			throw Fault();
 		}

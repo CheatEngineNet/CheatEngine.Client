@@ -294,7 +294,7 @@ dispatch and between Client-managed steps.
 |---|---|---|---|
 | Dispatcher (`ICheatEngineDispatcher`) | Dispatch admission: a `Cancelled` result proves the callback did not run | `NotStarted` (cancelled), `Unknown` (infrastructure failure) | Whatever the callback did; callback exceptions are rethrown unchanged |
 | Patterns / AOB (`IPatternScanner`, `IPatternScanOutcomeClient`, Fluent `Aob`) | The start of the global `AOBScan`; later cancellation discards the copy | `NotStarted` (validation, module lookup, cancellation before the scan), `Completed` (cancellation or invalid data after the scan, `IndeterminateHostResult` when no result list is returned), `CleanupUnconfirmed` (result-list release not confirmed), `Unknown` (SDK fault during the scan call) | None published: a failed scan never returns a prefix |
-| Memory primitives, codecs, bytes, strings, pointer chains (`IMemoryClient`) | Dispatch admission; one call is one Cheat Engine operation | `NotStarted` (budget, unsupported type, unknown or mismatched pointer width, unavailable memory global, a pointer value above a 32-bit target on a write, a pointer chain base address above it), `Completed` (a pointer value or computed chain address above a 32-bit target after the reads returned), `Unknown` (SDK fault, host refusal, a failed codec) | A codec may perform several reads or writes; a failed write codec can leave earlier writes in place |
+| Memory primitives, codecs, bytes, strings, pointer chains (`IMemoryClient`) | Dispatch admission; one call is one Cheat Engine operation | `NotStarted` (budget, unsupported type, unknown or mismatched pointer width, unavailable memory global, a pointer value above a 32-bit target on a write, a pointer chain base address above it), `Completed` (a pointer value or computed chain address above a 32-bit target after the reads returned), `Unknown` (SDK fault, host refusal, a failed codec) | `ReadBytesDetailed` reports the confirmed prefix of a partial byte read; a codec may perform several reads or writes, and a failed write codec can leave earlier writes in place |
 | Memory batches (`IMemoryBatchClient`) | Dispatch admission: a `Cancelled` dispatch reports `MemoryBatchWriteEffectState.NotStarted` | `NotStarted` (admission, pre-dispatch cancellation, unsupported type), `Started` (a completed prefix persists), `Unknown` (SDK fault or other dispatch failure) | `EffectState` is authoritative: `Partial` with `CompletedCount`/`FailedIndex`, never rolled back |
 | Inspection and symbol leases (`IInspectionClient`) | Dispatch admission | `NotStarted` (name already reserved by this activation, name already resolves, failed collision check), `CleanupUnconfirmed` (lease release not confirmed), `Unknown` (SDK fault) | A faulted `registerSymbol` is not claimed and not retried; a replaced name is left in place |
 | Tables (`ITableClient`) | Dispatch admission; `Find` filters a copied snapshot | `NotStarted` (policy, invalid relationship, stale record identifier, activation of a record that was not found), `Started` (activation refused by the host or pending), `Completed` (`Find` cancelled after the snapshot, failed `Create` whose rollback was confirmed), `CleanupUnconfirmed` (record rollback not confirmed), `Unknown` (SDK fault, `loadTable` fault, indeterminate activation) | A failed `Create` destroys the partial record once and never retries; a refused activation can leave partial script effects; `loadTable` can execute table Lua |
@@ -353,13 +353,20 @@ category, never an address or a value.
 | `GlobalUnavailable` | `CapabilityUnavailable` | `NotStarted` |
 | `LuaError` | `LuaError` | `Unknown` |
 | `ReadFailed` | `MemoryReadFailed` | `Unknown` |
-| `PartialRead` | `MemoryReadFailed` | `Unknown` |
+| `PartialRead` | `MemoryReadFailed`; `ReadBytesDetailed` keeps the confirmed prefix | `Unknown` |
 | `DestinationTooSmall` | `ResultLimitExceeded` | `Unknown` |
 | `PointerWidthUnknown` | `InvalidState` | `NotStarted` |
 | `PointerValueExceedsTargetWidth` | `OperationRejected`; a pointer chain names the hop | `NotStarted` for a write, `Completed` for a read |
 | `WriteFailed` | `MemoryWriteFailed` | `Unknown` |
 | `InvalidResult` | `InvalidHostResult` | `Unknown` |
 | A failure without a recognized cause | `IndeterminateHostResult` | `Unknown` |
+
+`IMemoryClient.ReadBytesDetailed` reads through CheatEngine.SDK's counted byte read and returns a
+`MemoryBytesReadOutcome`: `Bytes` is the contiguous prefix CheatEngine.SDK verified (`ConfirmedLength` of
+`RequestedLength`), `IsComplete` and `IsSuccess` say whether every byte arrived, and `Failure` says why not. A partial copy
+is therefore never confused with a host failure that copied nothing. `TryReadBytes` and `ReadBytes` report the same
+failure and publish all or nothing; a codec context read that does not fill its buffer returns `false` and leaves the
+buffer cleared.
 
 ### Leases and release outcomes
 

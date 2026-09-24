@@ -109,7 +109,7 @@ internal static class SdkApiUsage
 	internal static void MemorySurface(Address address)
 	{
 		Span<byte> bytes = stackalloc byte[1];
-		_ = TargetMemory.TryReadBytes(address, bytes, out MemoryAccessFailure _);
+		_ = TargetMemory.TryReadBytes(address, bytes, out int _, out MemoryAccessFailure _);
 		_ = TargetMemory.TryReadDouble(address, out _, out _);
 		_ = TargetMemory.TryReadInt16(address, out _, out _);
 		_ = TargetMemory.TryReadInt32(address, out _, out _);

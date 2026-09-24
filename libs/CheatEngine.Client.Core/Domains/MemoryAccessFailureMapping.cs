@@ -102,6 +102,26 @@ internal static class MemoryAccessFailureMapping
 			ToHostEffect(failure, isWrite));
 	}
 
+	/// <summary>
+	///     Creates the failure of a byte read that did not complete. A <see cref="MemoryAccessFailure.PartialRead" /> names
+	///     the confirmed prefix length; any other failure keeps its own mapping.
+	/// </summary>
+	/// <param name="operation">The public Client operation name.</param>
+	/// <param name="failure">The SDK failure.</param>
+	/// <param name="confirmedLength">The number of bytes CheatEngine.SDK verified and copied.</param>
+	/// <param name="requestedLength">The number of bytes requested.</param>
+	/// <returns>The classified failure; its message names counts only.</returns>
+	internal static CheatEngineFailure ToByteReadFailure(string operation, MemoryAccessFailure failure,
+		int confirmedLength, int requestedLength)
+	{
+		CheatEngineFailure mapped = ToFailure(operation, failure, false);
+		return failure == MemoryAccessFailure.PartialRead
+			? new CheatEngineFailure(mapped.Kind, operation,
+				$"Cheat Engine returned only the first {confirmedLength} of the {requestedLength} requested target bytes.",
+				null, mapped.HostEffect)
+			: mapped;
+	}
+
 	/// <summary>Describes a failed SDK memory access without naming an address or a value.</summary>
 	/// <param name="failure">The SDK failure.</param>
 	/// <param name="isWrite">Whether the access was a write.</param>
