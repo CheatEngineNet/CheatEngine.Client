@@ -250,8 +250,48 @@ public sealed partial class ReleaseWorkflowTests
 		Assert.Equal(PushOrder, pushed);
 		Assert.Contains("--skip-duplicate", script, StringComparison.Ordinal);
 		Assert.Contains("https://api.nuget.org/v3/index.json", script, StringComparison.Ordinal);
-		Assert.DoesNotContain("--no-symbols", script, StringComparison.Ordinal);
+		Assert.Contains("--no-symbols", script, StringComparison.Ordinal);
 		Assert.Contains("$LASTEXITCODE", script, StringComparison.Ordinal);
+	}
+
+	/// <summary>
+	/// attest writes SHA256SUMS next to the bundles, and publish checks every .nupkg and .snupkg against it before the
+	/// NuGet login, then pushes the seven packages without their symbols and only then the symbol packages, so a failed
+	/// symbol push never leaves a package unpublished and a re-run of the job completes it (PKG-08).
+	/// </summary>
+	[Fact]
+	public void PublishChecksEveryPackageAgainstSha256SumsBeforePushing()
+	{
+		List<YamlMappingNode> attest = Steps("attest");
+		int sums = attest.FindIndex(static step => Run(step).Contains("SHA256SUMS", StringComparison.Ordinal) && Run(step).Contains("WriteAllText", StringComparison.Ordinal));
+		int upload = attest.FindIndex(static step => Uses(step).StartsWith("actions/upload-artifact@", StringComparison.Ordinal)
+													 && Scalar(Mapping(step, "with"), "name") == "attestation-bundles");
+		Assert.True(sums >= 0 && upload > sums, "attest must write SHA256SUMS before it uploads the attestation-bundles artifact.");
+		Assert.DoesNotContain(Steps("draft-release"), static step => Run(step).Contains("WriteAllText", StringComparison.Ordinal));
+
+		List<YamlMappingNode> publish = Steps("publish");
+		int download = publish.FindIndex(static step => Uses(step).StartsWith("actions/download-artifact@", StringComparison.Ordinal)
+														&& Scalar(Mapping(step, "with"), "name") == "attestation-bundles");
+		int check = publish.FindIndex(static step => Run(step).Contains("SHA256SUMS", StringComparison.Ordinal) && Run(step).Contains("Get-FileHash", StringComparison.Ordinal));
+		int login = publish.FindIndex(static step => Uses(step).StartsWith("NuGet/login@", StringComparison.Ordinal));
+		int packages = publish.FindIndex(static step => Run(step).Contains("dotnet nuget push", StringComparison.Ordinal));
+		int symbols = publish.FindLastIndex(static step => Run(step).Contains("dotnet nuget push", StringComparison.Ordinal));
+		Assert.True(download >= 0 && check > download && login > check && packages > login && symbols > packages,
+			"publish must download SHA256SUMS, check the packages against it, log in, push the packages, then push the symbol packages.");
+
+		string checkScript = Run(publish[check]);
+		string[] required = [".nupkg", ".snupkg", "throw", "Get-ChildItem artifacts/nuget"];
+		foreach (string value in required)
+		{
+			Assert.Contains(value, checkScript, StringComparison.Ordinal);
+		}
+
+		Assert.Null(Yaml.Get(publish[check], "env"));
+		Assert.Contains("--no-symbols", Run(publish[packages]), StringComparison.Ordinal);
+		string symbolScript = Run(publish[symbols]);
+		Assert.Contains("*.snupkg", symbolScript, StringComparison.Ordinal);
+		Assert.Contains("--skip-duplicate", symbolScript, StringComparison.Ordinal);
+		Assert.DoesNotContain("--no-symbols", symbolScript, StringComparison.Ordinal);
 	}
 
 	/// <summary>
@@ -472,6 +512,12 @@ public sealed partial class ReleaseWorkflowTests
 	private static string? StepId(YamlMappingNode step)
 	{
 		return step.Children.TryGetValue(new YamlScalarNode("id"), out YamlNode? id) ? Text(id) : null;
+	}
+
+	/// <summary>The action reference of a step; empty for a script step.</summary>
+	private static string Uses(YamlMappingNode step)
+	{
+		return step.Children.TryGetValue(new YamlScalarNode("uses"), out YamlNode? uses) ? Text(uses) : string.Empty;
 	}
 
 	[GeneratedRegex(@"'(?<id>CheatEngine\.Client(?:\.[A-Za-z.]+)?)'", RegexOptions.CultureInvariant, 1000)]
