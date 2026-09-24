@@ -85,7 +85,8 @@ public interface ITableClient
 	/// <summary>Selects one record by its identifier and returns its copied snapshot.</summary>
 	/// <remarks>
 	///     This changes Cheat Engine's GUI selection, which the user and other plugins see: it is a host-visible mutation,
-	///     not a cache operation.
+	///     not a cache operation. It is refused during a trusted table load, like every mutation (see
+	///     <see cref="TryDelete" />).
 	/// </remarks>
 	public bool TrySelectRecord(MemoryRecordId id, out MemoryRecordSnapshot record, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
@@ -94,6 +95,7 @@ public interface ITableClient
 	public MemoryRecordSnapshot SelectRecord(MemoryRecordId id, CancellationToken cancellationToken = default);
 
 	/// <summary>Creates a memory record, assigns its defined fields, and returns a copied snapshot.</summary>
+	/// <remarks>Refused during a trusted table load, like every mutation (see <see cref="TryDelete" />).</remarks>
 	public bool TryCreate(MemoryRecordDefinition definition, out MemoryRecordSnapshot record,
 		out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
@@ -103,6 +105,7 @@ public interface ITableClient
 		CancellationToken cancellationToken = default);
 
 	/// <summary>Applies a partial update and returns a copied snapshot of the changed record.</summary>
+	/// <remarks>Refused during a trusted table load, like every mutation (see <see cref="TryDelete" />).</remarks>
 	public bool TryUpdate(MemoryRecordUpdate update, out MemoryRecordSnapshot record,
 		out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
@@ -115,11 +118,13 @@ public interface ITableClient
 	///     CheatEngine.SDK resolves the identifier in the current list and deletes the record once: a second delete of the
 	///     same identifier is <see cref="CheatEngineFailureKind.NotFound" />. A delete that raised after it started is
 	///     <see cref="CheatEngineFailureKind.LuaError" /> with <see cref="CheatEngineHostEffect.Started" /> and is never
-	///     retried. Delete, <see cref="TrySetParent" /> and <see cref="TrySetActive" /> are refused without changing the
-	///     record with <see cref="CheatEngineFailureKind.InvalidState" /> while a table file loads on Cheat Engine's main
-	///     thread (a script of that table calling the Client), and with
-	///     <see cref="CheatEngineFailureKind.RuntimeChanged" /> when Cheat Engine's Lua runtime changed before the change
-	///     was attempted; both report <see cref="CheatEngineHostEffect.NotStarted" />.
+	///     retried. Every mutation (<see cref="TryCreate" />, <see cref="TryUpdate" />, <see cref="TrySelectRecord" />,
+	///     delete, <see cref="TrySetParent" /> and <see cref="TrySetActive" />) is refused without changing the Address
+	///     List with <see cref="CheatEngineFailureKind.InvalidState" /> while a trusted table load runs on Cheat Engine's
+	///     main thread (a script of that table calling the Client). Delete, <see cref="TrySetParent" /> and
+	///     <see cref="TrySetActive" /> are also refused with <see cref="CheatEngineFailureKind.RuntimeChanged" /> when
+	///     Cheat Engine's Lua runtime changed before the change was attempted; both refusals report
+	///     <see cref="CheatEngineHostEffect.NotStarted" />.
 	/// </remarks>
 	public bool TryDelete(MemoryRecordId id, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);

@@ -48,8 +48,24 @@ internal sealed class TableClient(
 	private readonly ITableRecordMutationPort _recordMutations = recordMutations ?? new SdkTableRecordMutationPort();
 	private readonly ITableFilePort _tableFiles = tableFiles ?? SdkTableFilePort.Instance;
 
+	// Depth of the trusted table loads in progress. Read and written only inside dispatched callbacks, on Cheat Engine's
+	// main thread, where every load runs: a callback that observes a non-zero depth runs inside a load, like a script of
+	// the table being loaded calling the Client.
+	private int _trustedLoadDepth;
+
 	/// <summary>Gets the number of trusted table loads of this activation that reached Cheat Engine.</summary>
 	internal long TableGeneration => _generation.Generation;
+
+	/// <summary>
+	///     Gets the refusal of a creation, update or selection issued while a trusted table load runs: CheatEngine.SDK
+	///     refuses its own Address List commands then (the identifiers they resolve are being replaced), and has no
+	///     command for these three, so the Client refuses them the same way before any Cheat Engine call.
+	/// </summary>
+	private static TableRecordMutationOutcome LoadInProgress =>
+		TableRecordMutationOutcome.NotAttempted(MemoryRecordMutationProblem.TableLoadInProgress);
+
+	/// <summary>Gets whether a trusted table load is running; read only inside a dispatched callback.</summary>
+	private bool IsTrustedLoadInProgress => _trustedLoadDepth != 0;
 
 	public bool TryGetRecordCount(out int recordCount, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
@@ -247,7 +263,8 @@ internal sealed class TableClient(
 		// Changing Cheat Engine's GUI selection is a host-visible mutation, so it goes through the mutation port.
 		MemoryRecordSnapshot captured = default;
 		TableRecordMutationOutcome outcome = default;
-		if (!TryDispatch("Tables.SelectRecord", id, null, () => outcome = _recordMutations.TrySelect(id, out captured),
+		if (!TryDispatch("Tables.SelectRecord", id, null,
+				() => outcome = IsTrustedLoadInProgress ? LoadInProgress : _recordMutations.TrySelect(id, out captured),
 				out long observedGeneration, out failure, cancellationToken))
 		{
 			record = default;
@@ -289,7 +306,9 @@ internal sealed class TableClient(
 		MemoryRecordSnapshot captured = default;
 		TableRecordCreation creation = default;
 		if (!TryDispatch("Tables.Create", definition.ParentId, null,
-				() => creation = _recordMutations.TryCreate(definition, out captured),
+				() => creation = IsTrustedLoadInProgress
+					? new TableRecordCreation(LoadInProgress, TableRecordRollback.NotRequired)
+					: _recordMutations.TryCreate(definition, out captured),
 				out long observedGeneration, out failure, cancellationToken))
 		{
 			record = default;
@@ -331,10 +350,22 @@ internal sealed class TableClient(
 
 		MemoryRecordSnapshot captured = default;
 		bool succeeded = false;
-		if (!TryDispatch("Tables.Update", update.Id, null, () => succeeded = TryUpdateRecord(update, out captured),
+		bool refused = false;
+		if (!TryDispatch("Tables.Update", update.Id, null, () =>
+				{
+					refused = IsTrustedLoadInProgress;
+					succeeded = !refused && TryUpdateRecord(update, out captured);
+				},
 				out long observedGeneration, out failure, cancellationToken))
 		{
 			record = default;
+			return false;
+		}
+
+		if (refused)
+		{
+			record = default;
+			failure = TableMapping.MutationFailure("Tables.Update", LoadInProgress);
 			return false;
 		}
 
@@ -575,12 +606,14 @@ internal sealed class TableClient(
 					() =>
 					{
 						reachedCheatEngine = true;
+						_trustedLoadDepth++;
 						try
 						{
 							status = _tableFiles.TryLoad(request.File.FullPath, request.Merge);
 						}
 						finally
 						{
+							_trustedLoadDepth--;
 							advancedGeneration = _generation.Advance();
 						}
 					},

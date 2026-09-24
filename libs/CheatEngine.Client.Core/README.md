@@ -193,7 +193,9 @@ CheatEngine.SDK's `CheatTableFiles`, only after the `AllowedTableRoots` policy a
 itself. Delete, parent assignment and
 activation are CheatEngine.SDK `AddressListMutations` commands (`Delete`, `SetParent` with the Client's explicit
 traversal limit of 4096 records, `SetActive`), classified value by value by `TableMapping`; the record is copied again
-after a completed command and a failed copy is never merged with the command's result. `SetActive` reads the record's
+after a completed command and a failed copy is never merged with the command's result. While a trusted load runs,
+CheatEngine.SDK refuses those commands issued from the main thread (`TableLoadInProgress`), and the Client refuses
+creation, update and selection, which have no SDK command, the same way before any Cheat Engine call. `SetActive` reads the record's
 state before and after one setter call and reports applied, unchanged, refused by the host, pending or indeterminate; it
 never retries, and a pending activation succeeds with a snapshot whose `IsAsyncProcessing` is `true`. Snapshots read the
 record through CheatEngine.SDK's typed `MemoryRecord` getters (`TryGetActive`, `TryGetAsync`, `TryGetAsyncProcessing`,

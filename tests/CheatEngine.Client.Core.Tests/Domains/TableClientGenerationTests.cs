@@ -36,6 +36,14 @@ public sealed class TableClientGenerationTests : IDisposable
 		"CreateUnderParent"
 	};
 
+	public static TheoryData<string> MutationsWithoutAnSdkCommand => new()
+	{
+		"Create",
+		"CreateUnderParent",
+		"Update",
+		"Select"
+	};
+
 	public void Dispose()
 	{
 		Directory.Delete(_root, recursive: true);
@@ -280,6 +288,62 @@ public sealed class TableClientGenerationTests : IDisposable
 		Assert.True(fixture.Client.TrySetActive(HandedOut, true, out _, out _, TestContext.Current.CancellationToken));
 	}
 
+	[Theory]
+	[MemberData(nameof(MutationsWithoutAnSdkCommand))]
+	public void AMutationWithoutAnSdkCommandIsRefusedWhileATrustedLoadRuns(string operation)
+	{
+		// CheatEngine.SDK refuses its own Address List commands while CheatTableFiles.TryLoad runs on the calling thread
+		// (a script of the table being loaded calling the Client); creation, update and selection have no SDK command,
+		// so the Client refuses them the same way. An identifier handed out before the load is not stale yet: the
+		// generation advances when the load returns.
+		Fixture fixture = CreateFixture();
+		Assert.True(fixture.Client.TryGetRecordAt(0, out _, out _, TestContext.Current.CancellationToken));
+		(bool Succeeded, CheatEngineFailure Failure) duringLoad = default;
+		fixture.Files.OnLoad = () => duringLoad = InvokeMutationWithoutAnSdkCommand(fixture, operation);
+
+		Assert.True(fixture.Client.TryLoadTrustedTable(new TableLoadRequest(fixture.TableFile), out _,
+			TestContext.Current.CancellationToken));
+
+		Assert.False(duringLoad.Succeeded);
+		Assert.Equal(CheatEngineFailureKind.InvalidState, duringLoad.Failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, duringLoad.Failure.HostEffect);
+		Assert.Equal(operation switch
+		{
+			"Update" => "Tables.Update",
+			"Select" => "Tables.SelectRecord",
+			_ => "Tables.Create"
+		}, duringLoad.Failure.Operation);
+		Assert.StartsWith("A table file is loading on Cheat Engine's main thread", duringLoad.Failure.Message,
+			StringComparison.Ordinal);
+		Assert.Null(duringLoad.Failure.Exception);
+		Assert.Equal(0, fixture.Mutations.Calls);
+		Assert.True(fixture.Client.TryCreate(
+				new MemoryRecordDefinition("added", "game.exe+30", "1", VariableType.Dword), out _, out _,
+				TestContext.Current.CancellationToken),
+			"The refusal ends with the load.");
+		Assert.Equal(1, fixture.Mutations.Calls);
+	}
+
+	[Fact]
+	public void TheTrustedLoadRefusalEndsWhenTheLoadFaults()
+	{
+		Fixture fixture = CreateFixture(fileFault: new InvalidOperationException("detached runtime"));
+		(bool Succeeded, CheatEngineFailure Failure) duringLoad = default;
+		fixture.Files.OnLoad = () => duringLoad = InvokeMutationWithoutAnSdkCommand(fixture, "Create");
+
+		Assert.False(fixture.Client.TryLoadTrustedTable(new TableLoadRequest(fixture.TableFile), out _,
+			TestContext.Current.CancellationToken));
+		bool afterLoad = fixture.Client.TryCreate(
+			new MemoryRecordDefinition("added", "game.exe+30", "1", VariableType.Dword), out _,
+			out CheatEngineFailure afterFailure, TestContext.Current.CancellationToken);
+
+		Assert.False(duringLoad.Succeeded);
+		Assert.Equal(CheatEngineFailureKind.InvalidState, duringLoad.Failure.Kind);
+		Assert.True(afterLoad);
+		Assert.Equal(default, afterFailure);
+		Assert.Equal(1, fixture.Mutations.Calls);
+	}
+
 	[Fact]
 	public void AnIdentifierThatWasNeverHandedOutIsNotJudged()
 	{
@@ -328,6 +392,25 @@ public sealed class TableClientGenerationTests : IDisposable
 			"CreateUnderParent" => (fixture.Client.TryCreate(
 				new MemoryRecordDefinition("child", "game.exe+30", "1", VariableType.Dword, HandedOut), out _,
 				out CheatEngineFailure f, token), f),
+			_ => throw new ArgumentOutOfRangeException(nameof(operation), operation, null)
+		};
+	}
+
+	private static (bool Succeeded, CheatEngineFailure Failure) InvokeMutationWithoutAnSdkCommand(Fixture fixture,
+		string operation)
+	{
+		CancellationToken token = TestContext.Current.CancellationToken;
+		return operation switch
+		{
+			"Create" => (fixture.Client.TryCreate(
+				new MemoryRecordDefinition("added", "game.exe+30", "1", VariableType.Dword), out _,
+				out CheatEngineFailure f, token), f),
+			"CreateUnderParent" => (fixture.Client.TryCreate(
+				new MemoryRecordDefinition("child", "game.exe+30", "1", VariableType.Dword, HandedOut), out _,
+				out CheatEngineFailure f, token), f),
+			"Update" => (fixture.Client.TryUpdate(new MemoryRecordUpdate(HandedOut, "renamed"), out _,
+				out CheatEngineFailure f, token), f),
+			"Select" => (fixture.Client.TrySelectRecord(HandedOut, out _, out CheatEngineFailure f, token), f),
 			_ => throw new ArgumentOutOfRangeException(nameof(operation), operation, null)
 		};
 	}
@@ -451,9 +534,17 @@ public sealed class TableClientGenerationTests : IDisposable
 			private set;
 		}
 
+		/// <summary>Runs inside the load, like a script of the table being loaded calling the Client.</summary>
+		internal Action? OnLoad
+		{
+			get;
+			set;
+		}
+
 		public LuaOperationStatus TryLoad(string path, bool merge)
 		{
 			Loads.Add((path, merge));
+			OnLoad?.Invoke();
 			if (fault is not null)
 			{
 				throw fault;

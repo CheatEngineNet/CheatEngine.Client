@@ -379,7 +379,7 @@ internal static class TableMapping
 			MemoryRecordMutationProblem.InvalidResult => InvalidContractMessage,
 			MemoryRecordMutationProblem.TableLoadInProgress =>
 				"A table file is loading on Cheat Engine's main thread (a script of that table called the Client); " +
-				"the memory record was not changed.",
+				"the Address List was not changed.",
 			MemoryRecordMutationProblem.RuntimeIdentityChanged =>
 				"Cheat Engine's Lua runtime changed before the change was attempted; the memory record was not changed.",
 			_ => "CheatEngine.SDK reported no recognized Address List mutation outcome."
