@@ -413,7 +413,7 @@ internal static class QualificationScenarios
 
 			return observation.Boolean("ok", true)
 				.Number("recordId", record.Id.Value)
-				.String("description", record.Description)
+				.String("description", record.Content.Description)
 				.Complete();
 		});
 	}
@@ -444,7 +444,8 @@ internal static class QualificationScenarios
 
 			bool found = active.Client.Tables.TryGetRecord(new MemoryRecordId(id), out MemoryRecordSnapshot record,
 				out CheatEngineFailure failure);
-			bool sameRecord = found && string.Equals(record.Description, RecordDescription, StringComparison.Ordinal);
+			bool sameRecord = found &&
+							  string.Equals(record.Content.Description, RecordDescription, StringComparison.Ordinal);
 			observation.Boolean("ok", true).Number("recordId", id).Boolean("found", found).Boolean("sameRecord", sameRecord);
 			if (!found)
 			{

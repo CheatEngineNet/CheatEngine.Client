@@ -721,7 +721,6 @@ CheatEngine.Client.Scanning.ValueScanSessionState.Scanning = 1 -> CheatEngine.Cl
 CheatEngine.Client.Tables.AddressTableSnapshot
 CheatEngine.Client.Tables.AddressTableSnapshot.AddressTableSnapshot() -> void
 CheatEngine.Client.Tables.AddressTableSnapshot.AddressTableSnapshot(System.Collections.Immutable.ImmutableArray<CheatEngine.Client.Tables.MemoryRecordSnapshot> records) -> void
-CheatEngine.Client.Tables.AddressTableSnapshot.AddressTableSnapshot(int recordCount) -> void
 CheatEngine.Client.Tables.AddressTableSnapshot.Equals(CheatEngine.Client.Tables.AddressTableSnapshot other) -> bool
 CheatEngine.Client.Tables.AddressTableSnapshot.RecordCount.get -> int
 CheatEngine.Client.Tables.AddressTableSnapshot.Records.get -> System.Collections.Immutable.ImmutableArray<CheatEngine.Client.Tables.MemoryRecordSnapshot>
@@ -729,10 +728,10 @@ CheatEngine.Client.Tables.ITableClient
 CheatEngine.Client.Tables.ITableClient.Create(CheatEngine.Client.Tables.MemoryRecordDefinition definition, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Tables.MemoryRecordSnapshot
 CheatEngine.Client.Tables.ITableClient.Delete(CheatEngine.SDK.Engine.AddressList.MemoryRecordId id, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> void
 CheatEngine.Client.Tables.ITableClient.Find(CheatEngine.Client.Tables.MemoryRecordSearch search, CheatEngine.Client.Tables.MemoryRecordCollectionRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Immutable.ImmutableArray<CheatEngine.Client.Tables.MemoryRecordSnapshot>
-CheatEngine.Client.Tables.ITableClient.GetCurrent(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Tables.AddressTableSnapshot
 CheatEngine.Client.Tables.ITableClient.GetHierarchy(CheatEngine.SDK.Engine.AddressList.MemoryRecordId rootId, CheatEngine.Client.Tables.MemoryRecordHierarchyRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Tables.MemoryRecordHierarchySnapshot
 CheatEngine.Client.Tables.ITableClient.GetRecord(CheatEngine.SDK.Engine.AddressList.MemoryRecordId id, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Tables.MemoryRecordSnapshot
 CheatEngine.Client.Tables.ITableClient.GetRecordAt(int index, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Tables.MemoryRecordSnapshot
+CheatEngine.Client.Tables.ITableClient.GetRecordCount(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> int
 CheatEngine.Client.Tables.ITableClient.GetSelected(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Tables.MemoryRecordSnapshot
 CheatEngine.Client.Tables.ITableClient.GetSnapshot(CheatEngine.Client.Tables.MemoryRecordCollectionRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.Client.Tables.AddressTableSnapshot
 CheatEngine.Client.Tables.ITableClient.LoadTrustedTable(CheatEngine.Client.Tables.TableLoadRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> void
@@ -743,15 +742,15 @@ CheatEngine.Client.Tables.ITableClient.SetParent(CheatEngine.SDK.Engine.AddressL
 CheatEngine.Client.Tables.ITableClient.TryCreate(CheatEngine.Client.Tables.MemoryRecordDefinition definition, out CheatEngine.Client.Tables.MemoryRecordSnapshot record, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
 CheatEngine.Client.Tables.ITableClient.TryDelete(CheatEngine.SDK.Engine.AddressList.MemoryRecordId id, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
 CheatEngine.Client.Tables.ITableClient.TryFind(CheatEngine.Client.Tables.MemoryRecordSearch search, CheatEngine.Client.Tables.MemoryRecordCollectionRequest request, out System.Collections.Immutable.ImmutableArray<CheatEngine.Client.Tables.MemoryRecordSnapshot> records, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
-CheatEngine.Client.Tables.ITableClient.TryGetCurrent(out CheatEngine.Client.Tables.AddressTableSnapshot table, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
 CheatEngine.Client.Tables.ITableClient.TryGetHierarchy(CheatEngine.SDK.Engine.AddressList.MemoryRecordId rootId, CheatEngine.Client.Tables.MemoryRecordHierarchyRequest request, out CheatEngine.Client.Tables.MemoryRecordHierarchySnapshot hierarchy, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
 CheatEngine.Client.Tables.ITableClient.TryGetRecord(CheatEngine.SDK.Engine.AddressList.MemoryRecordId id, out CheatEngine.Client.Tables.MemoryRecordSnapshot record, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
 CheatEngine.Client.Tables.ITableClient.TryGetRecordAt(int index, out CheatEngine.Client.Tables.MemoryRecordSnapshot record, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
+CheatEngine.Client.Tables.ITableClient.TryGetRecordCount(out int recordCount, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
 CheatEngine.Client.Tables.ITableClient.TryGetSelected(out CheatEngine.Client.Tables.MemoryRecordSnapshot record, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
 CheatEngine.Client.Tables.ITableClient.TryGetSnapshot(CheatEngine.Client.Tables.MemoryRecordCollectionRequest request, out CheatEngine.Client.Tables.AddressTableSnapshot table, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
 CheatEngine.Client.Tables.ITableClient.TryLoadTrustedTable(CheatEngine.Client.Tables.TableLoadRequest request, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
 CheatEngine.Client.Tables.ITableClient.TrySaveTable(CheatEngine.Client.Tables.TableSaveRequest request, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
-CheatEngine.Client.Tables.ITableClient.TrySelect(CheatEngine.SDK.Engine.AddressList.MemoryRecordId id, out CheatEngine.Client.Tables.MemoryRecordSnapshot record, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
+CheatEngine.Client.Tables.ITableClient.TrySelectRecord(CheatEngine.SDK.Engine.AddressList.MemoryRecordId id, out CheatEngine.Client.Tables.MemoryRecordSnapshot record, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
 CheatEngine.Client.Tables.ITableClient.TrySetActive(CheatEngine.SDK.Engine.AddressList.MemoryRecordId id, bool isActive, out CheatEngine.Client.Tables.MemoryRecordSnapshot record, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
 CheatEngine.Client.Tables.ITableClient.TrySetParent(CheatEngine.SDK.Engine.AddressList.MemoryRecordId childId, CheatEngine.SDK.Engine.AddressList.MemoryRecordId? parentId, out CheatEngine.Client.Tables.MemoryRecordSnapshot record, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
 CheatEngine.Client.Tables.ITableClient.TryUpdate(CheatEngine.Client.Tables.MemoryRecordUpdate update, out CheatEngine.Client.Tables.MemoryRecordSnapshot record, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
@@ -766,7 +765,9 @@ CheatEngine.Client.Tables.MemoryRecordContentSnapshot.AddressExpression.get -> s
 CheatEngine.Client.Tables.MemoryRecordContentSnapshot.Description.get -> string!
 CheatEngine.Client.Tables.MemoryRecordContentSnapshot.Equals(CheatEngine.Client.Tables.MemoryRecordContentSnapshot other) -> bool
 CheatEngine.Client.Tables.MemoryRecordContentSnapshot.MemoryRecordContentSnapshot() -> void
-CheatEngine.Client.Tables.MemoryRecordContentSnapshot.MemoryRecordContentSnapshot(string! description, string! addressExpression, string! value, CheatEngine.SDK.Engine.Enums.VariableType variableType) -> void
+CheatEngine.Client.Tables.MemoryRecordContentSnapshot.MemoryRecordContentSnapshot(string! description, string! addressExpression, string! value, CheatEngine.SDK.Engine.Enums.VariableType variableType, string? script = null, int offsetCount = 0) -> void
+CheatEngine.Client.Tables.MemoryRecordContentSnapshot.OffsetCount.get -> int
+CheatEngine.Client.Tables.MemoryRecordContentSnapshot.Script.get -> string?
 CheatEngine.Client.Tables.MemoryRecordContentSnapshot.Value.get -> string!
 CheatEngine.Client.Tables.MemoryRecordContentSnapshot.VariableType.get -> CheatEngine.SDK.Engine.Enums.VariableType
 CheatEngine.Client.Tables.MemoryRecordDefinition
@@ -802,27 +803,22 @@ CheatEngine.Client.Tables.MemoryRecordSearch.MemoryRecordSearch() -> void
 CheatEngine.Client.Tables.MemoryRecordSearch.MemoryRecordSearch(string? descriptionContains = null, string? addressExpression = null, CheatEngine.SDK.Engine.Enums.VariableType? variableType = null, bool? isActive = null) -> void
 CheatEngine.Client.Tables.MemoryRecordSearch.VariableType.get -> CheatEngine.SDK.Engine.Enums.VariableType?
 CheatEngine.Client.Tables.MemoryRecordSnapshot
-CheatEngine.Client.Tables.MemoryRecordSnapshot.AddressExpression.get -> string!
-CheatEngine.Client.Tables.MemoryRecordSnapshot.ChildCount.get -> int
 CheatEngine.Client.Tables.MemoryRecordSnapshot.Content.get -> CheatEngine.Client.Tables.MemoryRecordContentSnapshot
-CheatEngine.Client.Tables.MemoryRecordSnapshot.CurrentAddress.get -> CheatEngine.SDK.Engine.Values.Address?
-CheatEngine.Client.Tables.MemoryRecordSnapshot.Description.get -> string!
 CheatEngine.Client.Tables.MemoryRecordSnapshot.Equals(CheatEngine.Client.Tables.MemoryRecordSnapshot other) -> bool
 CheatEngine.Client.Tables.MemoryRecordSnapshot.Id.get -> CheatEngine.SDK.Engine.AddressList.MemoryRecordId
 CheatEngine.Client.Tables.MemoryRecordSnapshot.Index.get -> int
-CheatEngine.Client.Tables.MemoryRecordSnapshot.IsActive.get -> bool
 CheatEngine.Client.Tables.MemoryRecordSnapshot.MemoryRecordSnapshot() -> void
 CheatEngine.Client.Tables.MemoryRecordSnapshot.MemoryRecordSnapshot(CheatEngine.SDK.Engine.AddressList.MemoryRecordId id, int index, CheatEngine.Client.Tables.MemoryRecordContentSnapshot content, CheatEngine.Client.Tables.MemoryRecordStateSnapshot state) -> void
 CheatEngine.Client.Tables.MemoryRecordSnapshot.State.get -> CheatEngine.Client.Tables.MemoryRecordStateSnapshot
-CheatEngine.Client.Tables.MemoryRecordSnapshot.Value.get -> string!
-CheatEngine.Client.Tables.MemoryRecordSnapshot.VariableType.get -> CheatEngine.SDK.Engine.Enums.VariableType
 CheatEngine.Client.Tables.MemoryRecordStateSnapshot
 CheatEngine.Client.Tables.MemoryRecordStateSnapshot.ChildCount.get -> int
 CheatEngine.Client.Tables.MemoryRecordStateSnapshot.CurrentAddress.get -> CheatEngine.SDK.Engine.Values.Address?
 CheatEngine.Client.Tables.MemoryRecordStateSnapshot.Equals(CheatEngine.Client.Tables.MemoryRecordStateSnapshot other) -> bool
 CheatEngine.Client.Tables.MemoryRecordStateSnapshot.IsActive.get -> bool
+CheatEngine.Client.Tables.MemoryRecordStateSnapshot.IsAsync.get -> bool
+CheatEngine.Client.Tables.MemoryRecordStateSnapshot.IsAsyncProcessing.get -> bool
 CheatEngine.Client.Tables.MemoryRecordStateSnapshot.MemoryRecordStateSnapshot() -> void
-CheatEngine.Client.Tables.MemoryRecordStateSnapshot.MemoryRecordStateSnapshot(CheatEngine.SDK.Engine.Values.Address? currentAddress, bool isActive = false, int childCount = 0) -> void
+CheatEngine.Client.Tables.MemoryRecordStateSnapshot.MemoryRecordStateSnapshot(CheatEngine.SDK.Engine.Values.Address? currentAddress, bool isActive = false, int childCount = 0, bool isAsync = false, bool isAsyncProcessing = false) -> void
 CheatEngine.Client.Tables.MemoryRecordUpdate
 CheatEngine.Client.Tables.MemoryRecordUpdate.AddressExpression.get -> string?
 CheatEngine.Client.Tables.MemoryRecordUpdate.Description.get -> string?

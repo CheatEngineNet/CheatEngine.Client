@@ -579,8 +579,8 @@ public sealed class TryContractTests
 				cancelled), f)), () => _ = memory.ReadPrimitive<int>(Target, cancelled)),
 			"Inspection" => (TryFailure(() => (inspection.TryRegisterSymbol(registration, out _,
 				out CheatEngineFailure f, cancelled), f)), () => _ = inspection.RegisterSymbol(registration, cancelled)),
-			"Tables" => (TryFailure(() => (tables.TryGetCurrent(out _, out CheatEngineFailure f, cancelled), f)),
-				() => _ = tables.GetCurrent(cancelled)),
+			"Tables" => (TryFailure(() => (tables.TryGetRecordCount(out _, out CheatEngineFailure f, cancelled), f)),
+				() => _ = tables.GetRecordCount(cancelled)),
 			"Lua" => (TryFailure(() => (lua.TryExecute(new ConstantOperation(), out _, out CheatEngineFailure f,
 				cancelled), f)), () => _ = lua.Execute(new ConstantOperation(), cancelled)),
 			"Dispatcher" => (TryFailure(() => (dispatcher.TryInvoke(static () =>

@@ -104,10 +104,10 @@ public sealed class TableClientCoverageTests
 		TableClient client = CreateClient(dispatcher);
 		MemoryRecordId id = new(42);
 
-		Assert.False(client.TryGetCurrent(out AddressTableSnapshot current, out CheatEngineFailure currentFailure,
+		Assert.False(client.TryGetRecordCount(out int count, out CheatEngineFailure countFailure,
 			TestContext.Current.CancellationToken));
-		Assert.Equal(default, current);
-		Assert.Equal(expected, currentFailure);
+		Assert.Equal(0, count);
+		Assert.Equal(expected, countFailure);
 		Assert.False(client.TryGetSnapshot(new MemoryRecordCollectionRequest(8), out AddressTableSnapshot snapshot,
 			out CheatEngineFailure snapshotFailure, TestContext.Current.CancellationToken));
 		Assert.Equal(default, snapshot);

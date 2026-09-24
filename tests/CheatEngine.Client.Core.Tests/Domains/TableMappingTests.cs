@@ -46,8 +46,7 @@ public sealed class TableMappingTests
 			[MemoryRecordActivationOutcomeKind.Unchanged] = null,
 			[MemoryRecordActivationOutcomeKind.RefusedByHost] =
 				(CheatEngineFailureKind.OperationRejected, CheatEngineHostEffect.Started),
-			[MemoryRecordActivationOutcomeKind.Pending] =
-				(CheatEngineFailureKind.IndeterminateHostResult, CheatEngineHostEffect.Started),
+			[MemoryRecordActivationOutcomeKind.Pending] = null,
 			[MemoryRecordActivationOutcomeKind.Indeterminate] =
 				(CheatEngineFailureKind.IndeterminateHostResult, CheatEngineHostEffect.Started),
 			// Refused before the setter: the problem decides the kind (here RecordNotFound).

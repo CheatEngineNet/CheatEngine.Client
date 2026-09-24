@@ -35,12 +35,13 @@ namespace CheatEngine.Client.Tables;
 /// </remarks>
 public interface ITableClient
 {
-	/// <summary>Tries to get a snapshot of the current address list.</summary>
-	public bool TryGetCurrent(out AddressTableSnapshot table, out CheatEngineFailure failure,
+	/// <summary>Tries to count the top-level records of the current address list without copying them.</summary>
+	/// <remarks>Use <see cref="TryGetSnapshot" /> to copy the records under an explicit materialization limit.</remarks>
+	public bool TryGetRecordCount(out int recordCount, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
-	/// <summary>Gets the current table or throws when it is unavailable.</summary>
-	public AddressTableSnapshot GetCurrent(CancellationToken cancellationToken = default);
+	/// <summary>Counts the top-level records of the current address list or throws when it is unavailable.</summary>
+	public int GetRecordCount(CancellationToken cancellationToken = default);
 
 	/// <summary>Copies every top-level record only when the caller supplies a materialization limit.</summary>
 	public bool TryGetSnapshot(MemoryRecordCollectionRequest request, out AddressTableSnapshot table,
@@ -86,7 +87,7 @@ public interface ITableClient
 	///     This changes Cheat Engine's GUI selection, which the user and other plugins see: it is a host-visible mutation,
 	///     not a cache operation.
 	/// </remarks>
-	public bool TrySelect(MemoryRecordId id, out MemoryRecordSnapshot record, out CheatEngineFailure failure,
+	public bool TrySelectRecord(MemoryRecordId id, out MemoryRecordSnapshot record, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
 	/// <summary>Selects one record or throws when the record is unavailable.</summary>
@@ -139,9 +140,10 @@ public interface ITableClient
 	///         refused the change), the result is <see langword="false" /> with
 	///         <see cref="CheatEngineFailureKind.OperationRejected" />, <see cref="CheatEngineHostEffect.Started" /> and
 	///         <paramref name="record" /> set to the copied post-change snapshot; partial script effects may persist. When
-	///         the record is still processing asynchronously, the result is
-	///         <see cref="CheatEngineFailureKind.IndeterminateHostResult" /> with <see cref="CheatEngineHostEffect.Started" />
-	///         and the snapshot. When the setter raised or the post-change state cannot be read, the result is
+	///         the record activates asynchronously and is still processing, the result is <see langword="true" /> and the
+	///         snapshot's <see cref="MemoryRecordStateSnapshot.IsAsyncProcessing" /> is <see langword="true" />: its
+	///         <see cref="MemoryRecordStateSnapshot.IsActive" /> is not yet the final state, which a later snapshot
+	///         observes. When the setter raised or the post-change state cannot be read, the result is
 	///         <see cref="CheatEngineFailureKind.IndeterminateHostResult" /> with <see cref="CheatEngineHostEffect.Started" />
 	///         and a default <paramref name="record" />. A record that is not found, and the refusals described under
 	///         <see cref="TryDelete" />, report <see cref="CheatEngineHostEffect.NotStarted" />.
@@ -172,6 +174,12 @@ public interface ITableClient
 		CancellationToken cancellationToken = default);
 
 	/// <summary>Copies a bounded hierarchy rooted at one memory record.</summary>
+	/// <remarks>
+	///     Each record's children are read by position, for every position below its
+	///     <see cref="MemoryRecordStateSnapshot.ChildCount" />. A child that Cheat Engine does not return at a position
+	///     below that count is <see cref="CheatEngineFailureKind.InvalidHostResult" />, and the message names the record
+	///     identifier and the position.
+	/// </remarks>
 	public bool TryGetHierarchy(MemoryRecordId rootId, MemoryRecordHierarchyRequest request,
 		out MemoryRecordHierarchySnapshot hierarchy, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);

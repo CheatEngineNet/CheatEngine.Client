@@ -59,8 +59,8 @@ namespace CheatEngine.Client.Core.Domains;
 ///         <item>
 ///             <term><c>Pending</c></term>
 ///             <description>
-///                 <c>IndeterminateHostResult</c>, <c>Started</c>: the record activates asynchronously and its final state
-///                 is not observable in the call
+///                 Success, with the record copied after the command: the record activates asynchronously and its
+///                 snapshot reports <c>IsAsyncProcessing</c>
 ///             </description>
 ///         </item>
 ///         <item>
@@ -196,8 +196,9 @@ internal static class TableMapping
 	/// <param name="kind">The activation outcome CheatEngine.SDK reported.</param>
 	/// <param name="problem">The problem CheatEngine.SDK reported with it.</param>
 	/// <returns>
-	///     <see langword="null" /> for <see cref="MemoryRecordActivationOutcomeKind.Applied" /> and
-	///     <see cref="MemoryRecordActivationOutcomeKind.Unchanged" />; otherwise the failure kind and host effect, and
+	///     <see langword="null" /> for <see cref="MemoryRecordActivationOutcomeKind.Applied" />,
+	///     <see cref="MemoryRecordActivationOutcomeKind.Unchanged" /> and
+	///     <see cref="MemoryRecordActivationOutcomeKind.Pending" />; otherwise the failure kind and host effect, and
 	///     <see cref="CheatEngineFailureKind.IndeterminateHostResult" /> with <see cref="CheatEngineHostEffect.Unknown" />
 	///     for an unrecognized kind.
 	/// </returns>
@@ -208,8 +209,7 @@ internal static class TableMapping
 		{
 			MemoryRecordActivationOutcomeKind.Applied => null,
 			MemoryRecordActivationOutcomeKind.Unchanged => null,
-			MemoryRecordActivationOutcomeKind.Pending =>
-				(CheatEngineFailureKind.IndeterminateHostResult, CheatEngineHostEffect.Started),
+			MemoryRecordActivationOutcomeKind.Pending => null,
 			MemoryRecordActivationOutcomeKind.RefusedByHost =>
 				(CheatEngineFailureKind.OperationRejected, CheatEngineHostEffect.Started),
 			MemoryRecordActivationOutcomeKind.Indeterminate =>
@@ -239,8 +239,9 @@ internal static class TableMapping
 	/// <param name="observation">The copied command facts and record.</param>
 	/// <param name="failure">The failure when the activation is not a success.</param>
 	/// <returns>
-	///     <see langword="true" /> for an applied or unchanged activation whose record was copied; a success whose record
-	///     could not be copied is <see cref="CheatEngineFailureKind.InvalidHostResult" />, never merged with the command.
+	///     <see langword="true" /> for an applied, unchanged or pending activation whose record was copied; a success
+	///     whose record could not be copied is <see cref="CheatEngineFailureKind.InvalidHostResult" />, never merged with
+	///     the command.
 	/// </returns>
 	internal static bool TryClassifyActivation(string operation, bool requested, TableActivationObservation observation,
 		out CheatEngineFailure failure)
@@ -253,13 +254,20 @@ internal static class TableMapping
 				return true;
 			}
 
-			failure = observation.Kind == MemoryRecordActivationOutcomeKind.Unchanged
-				? new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult, operation,
+			failure = observation.Kind switch
+			{
+				MemoryRecordActivationOutcomeKind.Unchanged => new CheatEngineFailure(
+					CheatEngineFailureKind.InvalidHostResult, operation,
 					"The memory record already had the requested state, but its snapshot could not be copied.", null,
-					CheatEngineHostEffect.NotStarted)
-				: new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult, operation,
+					CheatEngineHostEffect.NotStarted),
+				MemoryRecordActivationOutcomeKind.Pending => new CheatEngineFailure(
+					CheatEngineFailureKind.InvalidHostResult, operation,
+					"Cheat Engine started the asynchronous activation, but the record snapshot could not be copied.",
+					null, CheatEngineHostEffect.Started),
+				_ => new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult, operation,
 					"Cheat Engine applied the requested state, but the record snapshot could not be copied.", null,
-					CheatEngineHostEffect.Completed);
+					CheatEngineHostEffect.Completed)
+			};
 			return false;
 		}
 
@@ -268,8 +276,6 @@ internal static class TableMapping
 			MemoryRecordActivationOutcomeKind.RefusedByHost =>
 				$"Cheat Engine left the memory record {(requested ? "inactive" : "active")}; an activation callback, " +
 				"script or record type refused the change; partial script effects may persist.",
-			MemoryRecordActivationOutcomeKind.Pending =>
-				"The record activates asynchronously; its final state is not observable in this call.",
 			MemoryRecordActivationOutcomeKind.Indeterminate =>
 				"Cheat Engine ran the activation setter, but the record's state after it could not be established; " +
 				"its effect is unknown.",

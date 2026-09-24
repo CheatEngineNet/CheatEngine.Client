@@ -51,38 +51,43 @@ internal sealed class TableClient(
 	/// <summary>Gets the number of trusted table loads of this activation that reached Cheat Engine.</summary>
 	internal long TableGeneration => _generation.Generation;
 
-	public bool TryGetCurrent(out AddressTableSnapshot table, out CheatEngineFailure failure,
+	public bool TryGetRecordCount(out int recordCount, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
-		AddressTableSnapshot captured = default;
-		bool succeeded = false;
-		if (!SdkBoundary.TryInvoke(_dispatcher, "Tables.GetCurrent", () =>
-				succeeded = AddressListAccess.TryGetCurrent(out AddressList list) && list.TryGetCount(out int count) &&
-							CaptureTable(count, out captured), CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
+		const string Operation = "Tables.GetRecordCount";
+		int count = 0;
+		bool available = false;
+		bool counted = false;
+		if (!SdkBoundary.TryInvoke(_dispatcher, Operation, () =>
+				{
+					available = AddressListAccess.TryGetCurrent(out AddressList list);
+					counted = available && list.TryGetCount(out count) && count >= 0;
+				}, CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
 		{
-			table = default;
+			recordCount = 0;
 			return false;
 		}
 
-		table = captured;
-		if (succeeded)
+		recordCount = counted ? count : 0;
+		if (counted)
 		{
 			return true;
 		}
 
-		failure = HostFailure("Tables.GetCurrent");
+		failure = LookupFailure(Operation,
+			available ? RecordLookupStatus.InvalidRecord : RecordLookupStatus.AddressListUnavailable);
 		return false;
 	}
 
-	public AddressTableSnapshot GetCurrent(CancellationToken cancellationToken = default)
+	public int GetRecordCount(CancellationToken cancellationToken = default)
 	{
-		if (TryGetCurrent(out AddressTableSnapshot result, out CheatEngineFailure failure, cancellationToken))
+		if (TryGetRecordCount(out int result, out CheatEngineFailure failure, cancellationToken))
 		{
 			return result;
 		}
 
 		failure.Throw(cancellationToken);
-		return default;
+		return 0;
 	}
 
 	public bool TryGetSnapshot(MemoryRecordCollectionRequest request, out AddressTableSnapshot table,
@@ -230,10 +235,10 @@ internal sealed class TableClient(
 		return default;
 	}
 
-	public bool TrySelect(MemoryRecordId id, out MemoryRecordSnapshot record, out CheatEngineFailure failure,
+	public bool TrySelectRecord(MemoryRecordId id, out MemoryRecordSnapshot record, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
-		if (IsStale("Tables.Select", id, out failure))
+		if (IsStale("Tables.SelectRecord", id, out failure))
 		{
 			record = default;
 			return false;
@@ -242,7 +247,7 @@ internal sealed class TableClient(
 		// Changing Cheat Engine's GUI selection is a host-visible mutation, so it goes through the mutation port.
 		MemoryRecordSnapshot captured = default;
 		TableRecordMutationOutcome outcome = default;
-		if (!TryDispatch("Tables.Select", id, null, () => outcome = _recordMutations.TrySelect(id, out captured),
+		if (!TryDispatch("Tables.SelectRecord", id, null, () => outcome = _recordMutations.TrySelect(id, out captured),
 				out long observedGeneration, out failure, cancellationToken))
 		{
 			record = default;
@@ -257,13 +262,13 @@ internal sealed class TableClient(
 		}
 
 		record = default;
-		failure = TableMapping.MutationFailure("Tables.Select", outcome);
+		failure = TableMapping.MutationFailure("Tables.SelectRecord", outcome);
 		return false;
 	}
 
 	public MemoryRecordSnapshot SelectRecord(MemoryRecordId id, CancellationToken cancellationToken = default)
 	{
-		if (TrySelect(id, out MemoryRecordSnapshot result, out CheatEngineFailure failure, cancellationToken))
+		if (TrySelectRecord(id, out MemoryRecordSnapshot result, out CheatEngineFailure failure, cancellationToken))
 		{
 			return result;
 		}
@@ -503,7 +508,7 @@ internal sealed class TableClient(
 		MemoryRecordHierarchySnapshot captured = default;
 		bool found = false;
 		bool succeeded = false;
-		HierarchyBuildProblem problem = HierarchyBuildProblem.None;
+		HierarchyProblem problem = default;
 		if (!TryDispatch(GetHierarchyOperation, rootId, null, () =>
 			{
 				if (!AddressListAccess.TryGetCurrent(out AddressList list) ||
@@ -799,75 +804,100 @@ internal sealed class TableClient(
 		return false;
 	}
 
+	/// <summary>Copies one record through CheatEngine.SDK's typed <see cref="MemoryRecord" /> getters.</summary>
+	/// <remarks>
+	///     Every field is required except the current address, which Cheat Engine cannot always resolve, and the script,
+	///     which only an Auto Assembler record has: <see cref="MemoryRecord.TryGetScript" /> reports no script text for
+	///     any other record.
+	/// </remarks>
 	internal static bool TrySnapshot(MemoryRecord value, out MemoryRecordSnapshot snapshot)
 	{
 		if (!value.TryGetId(out MemoryRecordId id) || !value.TryGetIndex(out int index) ||
 			!value.TryGetDescription(out string? description) ||
 			!value.TryGetAddressExpression(out string? expression) ||
 			!value.TryGetValue(out string? text) || !value.TryGetVariableType(out VariableType variableType) ||
-			!value.Handle.TryGetProperty<BooleanMarshaller, bool>("Active"u8, out bool isActive) ||
-			!value.Handle.TryGetProperty<Int32Marshaller, int>("Count"u8, out int childCount) || childCount < 0)
+			!value.TryGetOffsetCount(out int offsetCount) || offsetCount < 0 ||
+			!value.TryGetActive(out bool isActive) || !value.TryGetAsync(out bool isAsync) ||
+			!value.TryGetAsyncProcessing(out bool isAsyncProcessing) || !TryGetChildCount(value, out int childCount))
 		{
 			snapshot = default;
 			return false;
 		}
 
+		string? script = value.TryGetScript(out string? scriptText) ? scriptText : null;
 		Address? currentAddress = value.TryGetCurrentAddress(out Address address) ? address : null;
 		snapshot = new MemoryRecordSnapshot(
 			id,
 			index,
-			new MemoryRecordContentSnapshot(description, expression, text, variableType),
-			new MemoryRecordStateSnapshot(currentAddress, isActive, childCount));
+			new MemoryRecordContentSnapshot(description, expression, text, variableType, script, offsetCount),
+			new MemoryRecordStateSnapshot(currentAddress, isActive, childCount, isAsync, isAsyncProcessing));
 		return true;
+	}
+
+	/// <summary>Reads Cheat Engine's <c>Count</c> property of a record: the number of its immediate children.</summary>
+	/// <remarks>
+	///     CheatEngine.SDK 2.0.0 has no child-count getter, and <see cref="MemoryRecord.TryGetChild" /> reports an index
+	///     past the last child and a failed read alike, so <see cref="MemoryRecordStateSnapshot.ChildCount" /> keeps this
+	///     read for its precision (ADR-08). It is the one registered raw property read of the Tables domain in the ADR-01
+	///     ratchet, until the SDK offers the getter.
+	/// </remarks>
+	private static bool TryGetChildCount(MemoryRecord value, out int childCount)
+	{
+		return value.Handle.TryGetProperty<Int32Marshaller, int>("Count"u8, out childCount) && childCount >= 0;
 	}
 
 
 	private static bool TryBuildHierarchy(MemoryRecord value, MemoryRecordHierarchyRequest request, int depth,
 		HashSet<MemoryRecordId> visited, ref int materialized, out MemoryRecordHierarchySnapshot hierarchy,
-		out HierarchyBuildProblem problem)
+		out HierarchyProblem problem)
 	{
 		hierarchy = default;
 		if (materialized >= request.MaximumItems)
 		{
-			problem = HierarchyBuildProblem.ItemLimit;
+			problem = new HierarchyProblem(HierarchyBuildProblem.ItemLimit);
 			return false;
 		}
 
 		if (!TrySnapshot(value, out MemoryRecordSnapshot snapshot) || !visited.Add(snapshot.Id))
 		{
-			problem = HierarchyBuildProblem.InvalidShape;
+			problem = new HierarchyProblem(HierarchyBuildProblem.InvalidShape);
 			return false;
 		}
 
 		materialized++;
-		if (snapshot.ChildCount == 0)
+		int childCount = snapshot.State.ChildCount;
+		if (childCount == 0)
 		{
 			hierarchy = new MemoryRecordHierarchySnapshot(snapshot, []);
-			problem = HierarchyBuildProblem.None;
+			problem = default;
 			return true;
 		}
 
 		if (depth >= request.MaximumDepth)
 		{
-			problem = HierarchyBuildProblem.DepthLimit;
+			problem = new HierarchyProblem(HierarchyBuildProblem.DepthLimit);
 			return false;
 		}
 
-		if (snapshot.ChildCount > request.MaximumItems - materialized)
+		if (childCount > request.MaximumItems - materialized)
 		{
-			problem = HierarchyBuildProblem.ItemLimit;
+			problem = new HierarchyProblem(HierarchyBuildProblem.ItemLimit);
 			return false;
 		}
 
 		ImmutableArray<MemoryRecordHierarchySnapshot>.Builder children =
-			ImmutableArray.CreateBuilder<MemoryRecordHierarchySnapshot>(snapshot.ChildCount);
-		for (int index = 0; index < snapshot.ChildCount; index++)
+			ImmutableArray.CreateBuilder<MemoryRecordHierarchySnapshot>(childCount);
+		for (int index = 0; index < childCount; index++)
 		{
-			problem = HierarchyBuildProblem.InvalidShape;
-			if (!value.TryGetChild(index, out MemoryRecord child) ||
-				!TryBuildHierarchy(child, request, depth + 1, visited, ref materialized,
-					out MemoryRecordHierarchySnapshot childSnapshot,
-					out problem))
+			// Every position below the reported count must hold a child: Cheat Engine refusing one is reported at it.
+			if (!value.TryGetChild(index, out MemoryRecord child))
+			{
+				problem = new HierarchyProblem(HierarchyBuildProblem.ChildUnavailable, snapshot.Id, index, childCount);
+				return false;
+			}
+
+			if (!TryBuildHierarchy(child, request, depth + 1, visited, ref materialized,
+					out MemoryRecordHierarchySnapshot childSnapshot, out problem))
 			{
 				return false;
 			}
@@ -876,30 +906,24 @@ internal sealed class TableClient(
 		}
 
 		hierarchy = new MemoryRecordHierarchySnapshot(snapshot, children.MoveToImmutable());
-		problem = HierarchyBuildProblem.None;
+		problem = default;
 		return true;
 	}
 
 	private static bool Matches(MemoryRecordSearch search, MemoryRecordSnapshot record)
 	{
-		return (search.DescriptionContains is null || record.Description.Contains(search.DescriptionContains,
+		return (search.DescriptionContains is null || record.Content.Description.Contains(search.DescriptionContains,
 				   StringComparison.OrdinalIgnoreCase)) &&
-			   (search.AddressExpression is null || string.Equals(record.AddressExpression, search.AddressExpression,
-				   StringComparison.OrdinalIgnoreCase)) &&
-			   (!search.VariableType.HasValue || record.VariableType == search.VariableType.Value) &&
-			   (!search.IsActive.HasValue || record.IsActive == search.IsActive.Value);
+			   (search.AddressExpression is null || string.Equals(record.Content.AddressExpression,
+				   search.AddressExpression, StringComparison.OrdinalIgnoreCase)) &&
+			   (!search.VariableType.HasValue || record.Content.VariableType == search.VariableType.Value) &&
+			   (!search.IsActive.HasValue || record.State.IsActive == search.IsActive.Value);
 	}
 
 	private static bool HasPredicate(MemoryRecordSearch search)
 	{
 		return search.DescriptionContains is not null || search.AddressExpression is not null ||
 			   search.VariableType.HasValue || search.IsActive.HasValue;
-	}
-
-	private static bool CaptureTable(int count, out AddressTableSnapshot table)
-	{
-		table = new AddressTableSnapshot(count);
-		return true;
 	}
 
 	private static CheatEngineFailure HostFailure(string operation)
@@ -927,15 +951,28 @@ internal sealed class TableClient(
 			$"The operation requires more records than the explicit limit of {maximumItems}.");
 	}
 
-	private static CheatEngineFailure GetHierarchyFailure(HierarchyBuildProblem problem, bool found,
+	/// <summary>
+	///     Creates the failure of a hierarchy copy that stopped because Cheat Engine did not return a child at a position
+	///     below the record's reported child count. Internal for the hierarchy tests.
+	/// </summary>
+	internal static CheatEngineFailure ChildUnavailableFailure(MemoryRecordId recordId, int childIndex, int childCount)
+	{
+		return new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult, GetHierarchyOperation,
+			$"Cheat Engine did not return child {childIndex} of memory record {recordId.Value}, which reports " +
+			$"{childCount} children.");
+	}
+
+	private static CheatEngineFailure GetHierarchyFailure(HierarchyProblem problem, bool found,
 		MemoryRecordHierarchyRequest request)
 	{
-		return problem switch
+		return problem.Kind switch
 		{
 			HierarchyBuildProblem.ItemLimit => ResultLimitFailure(GetHierarchyOperation, request.MaximumItems),
 			HierarchyBuildProblem.DepthLimit => new CheatEngineFailure(CheatEngineFailureKind.ResultLimitExceeded,
 				GetHierarchyOperation,
 				$"The operation requires a hierarchy depth greater than the explicit limit of {request.MaximumDepth}."),
+			HierarchyBuildProblem.ChildUnavailable =>
+				ChildUnavailableFailure(problem.RecordId, problem.ChildIndex, problem.ChildCount),
 			HierarchyBuildProblem.InvalidShape => HostFailure(GetHierarchyOperation),
 			_ when !found => new CheatEngineFailure(CheatEngineFailureKind.NotFound, GetHierarchyOperation,
 				TableMapping.RecordNotFoundMessage),
@@ -948,8 +985,18 @@ internal sealed class TableClient(
 		None,
 		ItemLimit,
 		DepthLimit,
-		InvalidShape
+		InvalidShape,
+
+		/// <summary>Cheat Engine did not return a child at a position below the record's reported child count.</summary>
+		ChildUnavailable
 	}
+
+	/// <summary>Why a hierarchy copy stopped, and for a missing child, where.</summary>
+	private readonly record struct HierarchyProblem(
+		HierarchyBuildProblem Kind,
+		MemoryRecordId RecordId = default,
+		int ChildIndex = 0,
+		int ChildCount = 0);
 
 	private delegate RecordLookupStatus RecordLookup(out MemoryRecordSnapshot record);
 }

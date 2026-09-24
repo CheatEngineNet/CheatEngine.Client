@@ -65,8 +65,8 @@ public sealed partial class ArchitectureRatchetTests
 		new(TableClientType,
 			"CheatEngine.SDK.Engine.Objects.CEObject::TryGetProperty``2(System.ReadOnlySpan`1<byte>,!!1&)->boolean",
 			"Record snapshots read Count, which ChildCount keeps for ADR-08 precision (A3): CheatEngine.SDK 2.0.0 only " +
-			"offers MemoryRecord.TryGetChild(int), which conflates out-of-range with failure; the Active read of the " +
-			"same member moves to MemoryRecord.TryGetActive in L13",
+			"offers MemoryRecord.TryGetChild(int), which conflates out-of-range with failure; every other field is " +
+			"read through the typed MemoryRecord getters",
 			new LuaDebtKind.AwaitingSdkPrimitive("no MemoryRecord child-count getter in CheatEngine.SDK 2.0.0")),
 		new(UnsafeLuaClientType,
 			"CheatEngine.SDK.Lua.Calls.LuaError::FromStack(CheatEngine.SDK.Lua.State.LuaState,CheatEngine.SDK.Lua.Calls.LuaStatus)->CheatEngine.SDK.Lua.Calls.LuaError",

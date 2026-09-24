@@ -314,7 +314,7 @@ public sealed class TableClientGenerationTests : IDisposable
 		return operation switch
 		{
 			"GetRecord" => (fixture.Client.TryGetRecord(HandedOut, out _, out CheatEngineFailure f, token), f),
-			"Select" => (fixture.Client.TrySelect(HandedOut, out _, out CheatEngineFailure f, token), f),
+			"Select" => (fixture.Client.TrySelectRecord(HandedOut, out _, out CheatEngineFailure f, token), f),
 			"Update" => (fixture.Client.TryUpdate(new MemoryRecordUpdate(HandedOut, "renamed"), out _,
 				out CheatEngineFailure f, token), f),
 			"Delete" => (fixture.Client.TryDelete(HandedOut, out CheatEngineFailure f, token), f),

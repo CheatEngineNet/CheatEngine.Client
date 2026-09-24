@@ -195,7 +195,10 @@ activation are CheatEngine.SDK `AddressListMutations` commands (`Delete`, `SetPa
 traversal limit of 4096 records, `SetActive`), classified value by value by `TableMapping`; the record is copied again
 after a completed command and a failed copy is never merged with the command's result. `SetActive` reads the record's
 state before and after one setter call and reports applied, unchanged, refused by the host, pending or indeterminate; it
-never retries. A failed `Create` is rolled back once through `AddressListMutations.Delete`.
+never retries, and a pending activation succeeds with a snapshot whose `IsAsyncProcessing` is `true`. Snapshots read the
+record through CheatEngine.SDK's typed `MemoryRecord` getters (`TryGetActive`, `TryGetAsync`, `TryGetAsyncProcessing`,
+`TryGetScript`, `TryGetOffsetCount`); the child count alone is still Cheat Engine's `Count` property, because the SDK has
+no child-count getter and `TryGetChild` cannot tell a missing child from a failed read. A failed `Create` is rolled back once through `AddressListMutations.Delete`.
 Symbol registration refuses a name that already resolves (`EngineInspection.ResolveAddress`), then
 registers through CheatEngine.SDK's ownership coordinator (`SymbolRegistry.TryRegisterOwned`) and
 registers the lease with the activation in the same main-thread callback. The lease release

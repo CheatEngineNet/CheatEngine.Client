@@ -332,7 +332,7 @@ public sealed class TableClientMutationTests
 		Assert.Contains(expectedMessage, failure.Message, StringComparison.Ordinal);
 		Assert.Contains("partial script effects may persist", failure.Message, StringComparison.Ordinal);
 		Assert.Equal(new MemoryRecordId(41), record.Id);
-		Assert.Equal(!requested, record.IsActive);
+		Assert.Equal(!requested, record.State.IsActive);
 		Assert.Equal([requested], mutations.RequestedStates);
 	}
 
@@ -354,13 +354,14 @@ public sealed class TableClientMutationTests
 
 		Assert.True(succeeded);
 		Assert.Equal(default, failure);
-		Assert.True(record.IsActive);
+		Assert.True(record.State.IsActive);
 		Assert.Equal(1, mutations.SetActiveCallCount);
 	}
 
 	[Theory]
 	[InlineData(MemoryRecordActivationOutcomeKind.Applied, CheatEngineHostEffect.Completed)]
 	[InlineData(MemoryRecordActivationOutcomeKind.Unchanged, CheatEngineHostEffect.NotStarted)]
+	[InlineData(MemoryRecordActivationOutcomeKind.Pending, CheatEngineHostEffect.Started)]
 	public void TrySetActiveKeepsASuccessfulCommandApartFromAFailedCopyOfTheRecord(
 		MemoryRecordActivationOutcomeKind kind, CheatEngineHostEffect expectedEffect)
 	{
@@ -380,22 +381,26 @@ public sealed class TableClientMutationTests
 
 	[Fact]
 	[Trait("Qualification", "Q35")]
-	public void TrySetActiveReportsPendingForAnAsynchronousRecordStillProcessing()
+	public void TrySetActiveSucceedsForAnAsynchronousRecordStillProcessingWithItsSnapshotSayingSo()
 	{
+		// Pending: the setter ran and the asynchronous activation is still processing; the snapshot copied after the
+		// command reports it, and a later snapshot observes the final state.
+		MemoryRecordSnapshot processing = new(new MemoryRecordId(41), 0,
+			new MemoryRecordContentSnapshot("Script", string.Empty, string.Empty, VariableType.Dword, "[ENABLE]"),
+			new MemoryRecordStateSnapshot(null, isActive: false, isAsync: true, isAsyncProcessing: true));
 		TableClient client = CreateClient(new FakeRecordMutationPort
 		{
 			Activation = new TableActivationObservation(MemoryRecordActivationOutcomeKind.Pending,
-				MemoryRecordMutationProblem.None, Snapshot(41, "Health"))
+				MemoryRecordMutationProblem.None, processing)
 		});
 
 		bool succeeded = client.TrySetActive(new MemoryRecordId(41), true, out MemoryRecordSnapshot record,
 			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
 
-		Assert.False(succeeded);
-		Assert.Equal(CheatEngineFailureKind.IndeterminateHostResult, failure.Kind);
-		Assert.Equal(CheatEngineHostEffect.Started, failure.HostEffect);
-		Assert.Contains("asynchronously", failure.Message, StringComparison.Ordinal);
-		Assert.Equal(new MemoryRecordId(41), record.Id);
+		Assert.True(succeeded);
+		Assert.Equal(default, failure);
+		Assert.Equal(processing, record);
+		Assert.True(record.State.IsAsyncProcessing);
 	}
 
 	[Fact]
@@ -494,7 +499,7 @@ public sealed class TableClientMutationTests
 		};
 		TableClient client = CreateClient(mutations);
 
-		bool succeeded = client.TrySelect(new MemoryRecordId(41), out MemoryRecordSnapshot record,
+		bool succeeded = client.TrySelectRecord(new MemoryRecordId(41), out MemoryRecordSnapshot record,
 			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
 
 		Assert.True(succeeded);
@@ -522,7 +527,8 @@ public sealed class TableClientMutationTests
 		TableClient client = CreateClient(mutations);
 		CancellationToken token = TestContext.Current.CancellationToken;
 
-		bool selected = client.TrySelect(new MemoryRecordId(41), out _, out CheatEngineFailure selectFailure, token);
+		bool selected = client.TrySelectRecord(new MemoryRecordId(41), out _, out CheatEngineFailure selectFailure,
+			token);
 		bool deleted = client.TryDelete(new MemoryRecordId(41), out CheatEngineFailure deleteFailure, token);
 		bool reparented = client.TrySetParent(new MemoryRecordId(41), new MemoryRecordId(7), out _,
 			out CheatEngineFailure parentFailure, token);

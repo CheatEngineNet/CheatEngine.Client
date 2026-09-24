@@ -5,7 +5,6 @@ using CheatEngine.Client.Modules;
 using CheatEngine.Client.Processes;
 using CheatEngine.Client.Results;
 using CheatEngine.Client.Scanning;
-using CheatEngine.Client.Tables;
 using CheatEngine.SDK.Engine.Values;
 
 using Microsoft.Extensions.Logging;
@@ -14,8 +13,8 @@ using Microsoft.Extensions.Options;
 namespace CheatEngine.Plugin.Modules;
 
 /// <summary>
-///     Demonstrates DI, options, materialization-bounded AOB and typed memory access, Address List snapshots, and
-///     generated Lua exports.
+///     Demonstrates DI, options, materialization-bounded AOB and typed memory access, the Address List record count,
+///     and generated Lua exports.
 /// </summary>
 internal sealed partial class PluginClientModule(
 	IMemoryCodec<int> int32Codec,
@@ -32,9 +31,9 @@ internal sealed partial class PluginClientModule(
 		int allowedTableRootCount = _options.AllowedTableRoots?.Length ?? 0;
 		LogEnabled(logger, client.Epoch, allowedTableRootCount);
 
-		if (client.Tables.TryGetCurrent(out AddressTableSnapshot table, out CheatEngineFailure tableFailure))
+		if (client.Tables.TryGetRecordCount(out int recordCount, out CheatEngineFailure tableFailure))
 		{
-			LogAddressList(logger, table.RecordCount);
+			LogAddressList(logger, recordCount);
 		}
 		else
 		{
@@ -111,7 +110,7 @@ internal sealed partial class PluginClientModule(
 				  "configured trusted table-file root count is {AllowedTableRootCount}.")]
 	private static partial void LogEnabled(ILogger logger, long epoch, int allowedTableRootCount);
 
-	/// <summary>Logs the number of records in the current Address List snapshot.</summary>
+	/// <summary>Logs the number of top-level records in the current Address List.</summary>
 	[LoggerMessage(Level = LogLevel.Information, Message = "Current Address List contains {RecordCount} record(s).")]
 	private static partial void LogAddressList(ILogger logger, int recordCount);
 

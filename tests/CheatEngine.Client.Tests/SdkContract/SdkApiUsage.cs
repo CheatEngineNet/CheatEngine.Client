@@ -52,12 +52,17 @@ internal static class SdkApiUsage
 		_ = list.TryGetSelectedRecord(out _);
 		_ = list.TrySetSelectedRecord(created);
 		_ = AddressListAccess.TryGetCurrent(out _);
+		_ = record.TryGetActive(out _);
 		_ = record.TryGetAddressExpression(out _);
+		_ = record.TryGetAsync(out _);
+		_ = record.TryGetAsyncProcessing(out _);
 		_ = record.TryGetChild(0, out _);
 		_ = record.TryGetCurrentAddress(out _);
 		_ = record.TryGetDescription(out _);
 		_ = record.TryGetId(out _);
 		_ = record.TryGetIndex(out _);
+		_ = record.TryGetOffsetCount(out _);
+		_ = record.TryGetScript(out _);
 		_ = record.TryGetValue(out _);
 		_ = record.TryGetVariableType(out _);
 		_ = record.TrySetAddressExpression("expression");
@@ -66,6 +71,7 @@ internal static class SdkApiUsage
 		_ = record.TrySetVariableType(VariableType.Dword);
 		_ = record.Handle;
 		_ = id == otherId;
+		_ = id.Value;
 	}
 
 	internal static void AddressListMutationSurface(MemoryRecordId id, MemoryRecordId? parentId)
@@ -88,7 +94,7 @@ internal static class SdkApiUsage
 
 	internal static void ObjectSurface(CEObject handle, Owned<StringList> owner, StringList list)
 	{
-		_ = handle.TryGetProperty<BooleanMarshaller, bool>("Active"u8, out _);
+		_ = handle.TryGetProperty<Int32Marshaller, int>("Count"u8, out _);
 		_ = owner.Value;
 		TargetReleaseOutcome released = owner.ReleaseWithOutcome();
 		_ = released.Status;

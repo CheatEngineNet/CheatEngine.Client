@@ -171,6 +171,24 @@ public sealed class TableClientLookupTests
 		Assert.Equal(0, lookups.LastIndex);
 	}
 
+	/// <summary>
+	///     A hierarchy copy reads every child position below the reported count; a child Cheat Engine refuses is reported
+	///     at its position, apart from a malformed record.
+	/// </summary>
+	[Fact]
+	[Trait("Qualification", "Q34")]
+	public void AChildRefusedBelowTheReportedCountIsReportedAtItsPosition()
+	{
+		CheatEngineFailure failure = TableClient.ChildUnavailableFailure(new MemoryRecordId(12), 2, 5);
+
+		Assert.Equal(CheatEngineFailureKind.InvalidHostResult, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.Unknown, failure.HostEffect);
+		Assert.Equal("Tables.GetHierarchy", failure.Operation);
+		Assert.Equal("Cheat Engine did not return child 2 of memory record 12, which reports 5 children.",
+			failure.Message);
+		Assert.NotEqual(TableMapping.InvalidContractMessage, failure.Message);
+	}
+
 	private static TableClient CreateClient(FakeRecordLookupPort lookups)
 	{
 		return new TableClient(new InlineDispatcher(), CoreClientPolicy.SafeDefaults, recordLookups: lookups);
