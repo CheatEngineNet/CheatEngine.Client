@@ -30,6 +30,9 @@
     <Error Condition="'$(EnablePackageValidation)' != 'true'"
            Code="CHEATENGINECLIENT9007"
            Text="Shipping projects must enable package validation."/>
+    <Error Condition="'$(VerifyReferenceTrimCompatibility)' != 'true'"
+           Code="CHEATENGINECLIENT9008"
+           Text="Shipping projects must verify trim compatibility of their references."/>
   </Target>
 
   <Target Name="CheatEngineClientValidatePublishedDependencyGraph"

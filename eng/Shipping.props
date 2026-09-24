@@ -3,8 +3,25 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <!--
+      Trim and AOT posture, aligned with CheatEngine.SDK's shipping profile. IsAotCompatible already implies IsTrimmable,
+      EnableTrimAnalyzer, EnableAotAnalyzer and EnableSingleFileAnalyzer; they are restated so the guarantee survives a
+      change to what IsAotCompatible implies, and restating them changes nothing today. VerifyReferenceTrimCompatibility
+      is the one property here that changes behavior: it is a distinct opt-in from VerifyReferenceAotCompatibility
+      (IL3058) that reports IL2125 for a referenced assembly not marked trimmable (IsTrimmable assembly metadata). The
+      shipping projects build without IL2125: the Client projects, the pinned CheatEngine.SDK and the Microsoft.Extensions
+      packages of Directory.Packages.props all declare it. Never silence IL2125 globally: a new non-trimmable reference is
+      removed or documented where it is referenced. CHEATENGINECLIENT9004, 9005 and 9008 (Directory.Build.targets) refuse
+      a pack that turns off IsAotCompatible or either reference verification.
+      https://learn.microsoft.com/dotnet/core/deploying/trimming/prepare-libraries-for-trimming
+    -->
     <IsAotCompatible>true</IsAotCompatible>
+    <IsTrimmable>true</IsTrimmable>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+    <EnableSingleFileAnalyzer>true</EnableSingleFileAnalyzer>
     <VerifyReferenceAotCompatibility>true</VerifyReferenceAotCompatibility>
+    <VerifyReferenceTrimCompatibility>true</VerifyReferenceTrimCompatibility>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>

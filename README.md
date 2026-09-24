@@ -301,8 +301,8 @@ dependency of `CheatEngine.Client.Extensions.DependencyInjection`.
 ## AOT, trimming, and deployment
 
 Shipping Client projects target `net10.0`, enable nullable analysis, warnings as errors, trim/AOT compatibility
-analysis, reference-AOT verification, deterministic builds, XML documentation, Source Link, symbol packages, and
-package/API validation. `CheatEngine.Client.AotProbe` publishes the complete Client graph as Native AOT for `win-x64`
+analysis, trim and AOT compatibility verification of every referenced assembly, deterministic builds, XML documentation,
+Source Link, symbol packages, and package/API validation. `CheatEngine.Client.AotProbe` publishes the complete Client graph as Native AOT for `win-x64`
 to validate those library constraints.
 
 That is **not** a claim that Cheat Engine can load a Native AOT plugin DLL. The supported deployment remains the

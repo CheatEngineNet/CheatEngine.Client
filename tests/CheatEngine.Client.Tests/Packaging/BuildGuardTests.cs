@@ -17,6 +17,7 @@ public sealed class BuildGuardTests
 	private const string PackableLibrary = "libs/CheatEngine.Client.Fluent/CheatEngine.Client.Fluent.csproj";
 	private const string LockstepGuard = "CheatEngineClientValidateLockstepVersion";
 	private const string SbomGuard = "CheatEngineClientRequireSbom";
+	private const string ShippingSettingsGuard = "CheatEngineClientValidateShippingPackageSettings";
 
 	[Fact]
 	public async Task CommittedPinPassesTheSdkGuardAsync()
@@ -95,6 +96,19 @@ public sealed class BuildGuardTests
 		Assert.True(committed.ExitCode == 0, committed.ToString());
 		Assert.True(disabled.ExitCode != 0, disabled.ToString());
 		Assert.Contains("error CHEATENGINECLIENT9021", disabled.StandardOutput, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public async Task ShippingProjectWithoutTrimReferenceVerificationFailsWithCHEATENGINECLIENT9008Async()
+	{
+		DotNetProcessResult committed = await RunGuardAsync(PackableLibrary, ShippingSettingsGuard);
+		DotNetProcessResult disabled = await RunGuardAsync(PackableLibrary, ShippingSettingsGuard,
+			"-p:VerifyReferenceTrimCompatibility=false");
+
+		Assert.True(committed.ExitCode == 0, committed.ToString());
+		Assert.DoesNotContain("CHEATENGINECLIENT", committed.StandardOutput, StringComparison.Ordinal);
+		Assert.True(disabled.ExitCode != 0, disabled.ToString());
+		Assert.Contains("error CHEATENGINECLIENT9008", disabled.StandardOutput, StringComparison.Ordinal);
 	}
 
 	private static Task<DotNetProcessResult> RunGuardAsync(string project, string target, params string[] properties)

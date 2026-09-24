@@ -75,7 +75,10 @@ the next major or to a prerelease package, and that such a pin never produces a 
 with `CHEATENGINECLIENT9016` too). `RoslynPinDriftFailsWithCHEATENGINECLIENT9020Async` proves that the Roslyn pin of the
 packed Lua generator cannot drift from its declared floor, and `LockstepGuardAcceptsMinVerAndRefusesEveryOtherVersionSourceAsync`
 that a package version comes from MinVer only (`CHEATENGINECLIENT9019`). `SbomGuardRefusesAPackWithoutTheSbomAsync` proves
-that a package cannot be packed without its SPDX SBOM (`CHEATENGINECLIENT9021`).
+that a package cannot be packed without its SPDX SBOM (`CHEATENGINECLIENT9021`), and
+`ShippingProjectWithoutTrimReferenceVerificationFailsWithCHEATENGINECLIENT9008Async` that a shipping project cannot be
+packed with the trim-compatibility verification of its references (`VerifyReferenceTrimCompatibility`, IL2125) turned
+off.
 
 The SDK versions that these guard cases, the `CHEATENGINECLIENT9050` pin-drift case of
 `ConsumedSdkIdentityEmbeddingTests` and the two re-versioned SDK facts above probe are derived from
