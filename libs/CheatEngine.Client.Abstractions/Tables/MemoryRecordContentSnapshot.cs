@@ -60,7 +60,10 @@ public readonly record struct MemoryRecordContentSnapshot
 	/// <summary>Gets the Auto Assembler script of the record (Cheat Engine's <c>Script</c> property).</summary>
 	/// <remarks>
 	///     <see langword="null" /> when Cheat Engine returned no script text, which is the case of a record that is not an
-	///     Auto Assembler script.
+	///     Auto Assembler script, or when the script could not be read: CheatEngine.SDK reports a failed read of
+	///     <c>Script</c> the same way as a record without one. <see langword="null" /> therefore does not prove that an
+	///     Auto Assembler record has no script, and unlike the other fields a failed <c>Script</c> read does not fail the
+	///     snapshot.
 	/// </remarks>
 	public string? Script
 	{

@@ -841,7 +841,9 @@ internal sealed class TableClient(
 	/// <remarks>
 	///     Every field is required except the current address, which Cheat Engine cannot always resolve, and the script,
 	///     which only an Auto Assembler record has: <see cref="MemoryRecord.TryGetScript" /> reports no script text for
-	///     any other record.
+	///     any other record. It reports a failed read the same way (a Lua error or a non-string result), so a missing
+	///     script is copied as <see langword="null" /> and never fails the snapshot, which the snapshot documents. Telling
+	///     the two apart needs a CheatEngine.SDK getter that distinguishes them, like the child count below.
 	/// </remarks>
 	internal static bool TrySnapshot(MemoryRecord value, out MemoryRecordSnapshot snapshot)
 	{
