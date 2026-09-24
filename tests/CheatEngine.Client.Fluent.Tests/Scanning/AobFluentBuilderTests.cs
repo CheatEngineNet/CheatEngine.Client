@@ -529,6 +529,11 @@ public sealed class AobFluentBuilderTests
 			failure.Throw(cancellationToken);
 			return default;
 		}
+
+		public PatternScanOutcome ScanDetailed(AobScanRequest request, CancellationToken cancellationToken = default)
+		{
+			throw new NotSupportedException("Fluent terminals use TryScan only.");
+		}
 	}
 
 	private sealed class FakeCheatEngineClient(IPatternScanner patterns) : ICheatEngineClient

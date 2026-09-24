@@ -443,7 +443,7 @@ public sealed class HostResourceLeaseTests : IDisposable
 		{
 		}
 
-		public void PatternScanCompleted(PatternScanScope scope, int hostMatchCount, int materializedCount,
+		public void PatternScanCompleted(PatternScanScope scope, long hostResultCount, int materializedCount,
 			bool truncated, long hostScanMilliseconds, long copyMilliseconds)
 		{
 		}

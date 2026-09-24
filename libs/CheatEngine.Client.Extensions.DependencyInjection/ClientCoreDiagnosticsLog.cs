@@ -75,9 +75,9 @@ internal static partial class ClientCoreDiagnosticsLog
 	internal static partial void SymbolLeaseReleased(ILogger logger, SymbolLeaseReleaseKind releaseKind);
 
 	[LoggerMessage(1500, LogLevel.Debug,
-		"Pattern scan ({Scope}): {HostMatchCount} host match(es), {MaterializedCount} materialized, truncated " +
+		"Pattern scan ({Scope}): {HostResultCount} host result(s), {MaterializedCount} materialized, truncated " +
 		"{Truncated}; host scan {HostScanMilliseconds} ms, copy {CopyMilliseconds} ms.")]
-	internal static partial void PatternScanCompleted(ILogger logger, PatternScanScope scope, int hostMatchCount,
+	internal static partial void PatternScanCompleted(ILogger logger, PatternScanScope scope, long hostResultCount,
 		int materializedCount, bool truncated, long hostScanMilliseconds, long copyMilliseconds);
 
 	[LoggerMessage(1600, LogLevel.Debug,

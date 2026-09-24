@@ -193,7 +193,7 @@ public sealed partial class LoggerCoreDiagnosticsTests
 		diagnostics.RecordActivationNotApplied("Tables.SetActive", true, "RefusedByHost");
 		diagnostics.SymbolRegistrationRejected("Inspection.RegisterSymbol", "AlreadyResolves");
 		diagnostics.SymbolLeaseReleased(SymbolLeaseReleaseKind.Replaced);
-		diagnostics.PatternScanCompleted(PatternScanScope.GlobalHostScanWithManagedFilter, 40, 10, true, 250, 3);
+		diagnostics.PatternScanCompleted(PatternScanScope.GlobalHostScanWithManagedFilter, 40L, 10, true, 250, 3);
 		diagnostics.LuaOperationCompleted("Lua.ExecuteUnsafe", "LuaError", 4, 36);
 		diagnostics.CoreResourceCleanupFailed("SymbolRegistrationLease",
 			"CheatEngine.Client.Results.CheatEngineOperationException");

@@ -8,78 +8,86 @@ namespace CheatEngine.Client.Abstractions.Tests.Scanning;
 
 public sealed class PatternScanOutcomeTests
 {
+	private const PatternScanScope Scope = PatternScanScope.GlobalHostScanWithManagedFilter;
+
 	private static readonly TimeSpan Elapsed = TimeSpan.FromMilliseconds(3);
 
-	[Theory]
-	[InlineData(-1, 0, 0, 0)]
-	[InlineData(0, -1, 0, 0)]
-	[InlineData(0, 0, -1, 0)]
-	[InlineData(0, 0, 0, -1)]
-	public void MetricsConstructorRejectsNegativeCounts(int host, int examined, int filteredOut, int materialized)
-	{
-		Assert.Throws<ArgumentOutOfRangeException>(() => new PatternScanMetrics(host, examined, filteredOut,
-			materialized, PatternScanScope.GlobalHostScanWithManagedFilter, Elapsed, Elapsed));
-	}
-
-	[Theory]
-	[InlineData(2, 3, 0, 0)]
-	[InlineData(5, 3, 2, 2)]
-	[InlineData(5, 3, 0, 4)]
-	[InlineData(int.MaxValue, int.MaxValue, int.MaxValue, int.MaxValue)]
-	public void MetricsConstructorRejectsInconsistentCounts(int host, int examined, int filteredOut, int materialized)
-	{
-		Assert.Throws<ArgumentException>(() => new PatternScanMetrics(host, examined, filteredOut, materialized,
-			PatternScanScope.GlobalHostScanWithManagedFilter, Elapsed, Elapsed));
-	}
-
 	[Fact]
-	public void MetricsConstructorRejectsNegativeDurationsAndUndefinedScopes()
+	public void MetricsConstructorRejectsANegativeMaterializedCountNegativeDurationsAndUndefinedScopes()
 	{
-		Assert.Throws<ArgumentOutOfRangeException>(() => new PatternScanMetrics(1, 1, 0, 1,
-			PatternScanScope.GlobalHostScanWithManagedFilter, TimeSpan.FromTicks(-1), Elapsed));
-		Assert.Throws<ArgumentOutOfRangeException>(() => new PatternScanMetrics(1, 1, 0, 1,
-			PatternScanScope.GlobalHostScanWithManagedFilter, Elapsed, TimeSpan.FromTicks(-1)));
-		Assert.Throws<ArgumentOutOfRangeException>(() => new PatternScanMetrics(1, 1, 0, 1,
-			(PatternScanScope) 42, Elapsed, Elapsed));
+		Assert.Throws<ArgumentOutOfRangeException>(() => new PatternScanMetrics(Scope, 1, 1, 0, -1, 0, 0, 0, true,
+			Elapsed, Elapsed));
+		Assert.Throws<ArgumentOutOfRangeException>(() => new PatternScanMetrics(Scope, 1, 1, 0, 1, 0, 0, 0, true,
+			TimeSpan.FromTicks(-1), Elapsed));
+		Assert.Throws<ArgumentOutOfRangeException>(() => new PatternScanMetrics(Scope, 1, 1, 0, 1, 0, 0, 0, true,
+			Elapsed, TimeSpan.FromTicks(-1)));
+		Assert.Throws<ArgumentOutOfRangeException>(() => new PatternScanMetrics((PatternScanScope) 42, 1, 1, 0, 1, 0,
+			0, 0, true, Elapsed, Elapsed));
+	}
+
+	/// <summary>Every documented invariant between the counts is enforced.</summary>
+	[Theory]
+	[InlineData(2UL, 3UL, 0UL, 0, 0UL, 0UL, 0UL, false)]
+	[InlineData(5UL, 3UL, 0UL, 0, 0UL, 0UL, 1UL, false)]
+	[InlineData(5UL, 3UL, 4UL, 0, 0UL, 0UL, 2UL, false)]
+	[InlineData(5UL, 3UL, 2UL, 2, 0UL, 0UL, 2UL, false)]
+	[InlineData(5UL, 5UL, 2UL, 1, 2UL, 1UL, 0UL, true)]
+	[InlineData(5UL, 3UL, 1UL, 1, 0UL, 0UL, 2UL, true)]
+	[InlineData(ulong.MaxValue, ulong.MaxValue, ulong.MaxValue, 1, 0UL, 0UL, 0UL, false)]
+	public void MetricsConstructorRejectsInconsistentCounts(ulong host, ulong examined, ulong filteredOut,
+		int materialized, ulong belowStart, ulong atOrAfterStop, ulong unread, bool exact)
+	{
+		Assert.Throws<ArgumentException>(() => new PatternScanMetrics(Scope, host, examined, filteredOut, materialized,
+			belowStart, atOrAfterStop, unread, exact, Elapsed, Elapsed));
 	}
 
 	[Fact]
 	public void MetricsConstructorKeepsTheValidatedValues()
 	{
-		PatternScanMetrics metrics = new(10, 6, 3, 2, PatternScanScope.GlobalHostScanWithManagedFilter,
+		PatternScanMetrics metrics = new(PatternScanScope.HostBoundedRange, 10, 6, 3, 2, 1, 1, 4, false,
 			TimeSpan.FromMilliseconds(70), TimeSpan.FromMilliseconds(8));
 
-		Assert.Equal(10, metrics.HostMatchCount);
-		Assert.Equal(6, metrics.ExaminedCount);
-		Assert.Equal(3, metrics.FilteredOutCount);
+		Assert.Equal(PatternScanScope.HostBoundedRange, metrics.Scope);
+		Assert.Equal(10UL, metrics.HostResultCount);
+		Assert.Equal(6UL, metrics.ExaminedCount);
+		Assert.Equal(3UL, metrics.FilteredOutCount);
 		Assert.Equal(2, metrics.MaterializedCount);
-		Assert.Equal(PatternScanScope.GlobalHostScanWithManagedFilter, metrics.Scope);
+		Assert.Equal(1UL, metrics.BelowStartSkipped);
+		Assert.Equal(1UL, metrics.AtOrAfterStopSkipped);
+		Assert.Equal(4UL, metrics.UnreadHostRows);
+		Assert.False(metrics.InBoundsCountIsExact);
 		Assert.Equal(TimeSpan.FromMilliseconds(70), metrics.HostScanElapsed);
 		Assert.Equal(TimeSpan.FromMilliseconds(8), metrics.MaterializationElapsed);
 		Assert.Equal(PatternScanScope.Unknown, default(PatternScanMetrics).Scope);
 	}
 
 	[Fact]
-	public void OutcomeRequiresExactlyOneOfResultOrCause()
+	public void OutcomeRequiresExactlyOneOfResultOrFailure()
 	{
 		AobScanResult result = new(ImmutableArray.Create<Address>(0x401000), false);
 		CheatEngineFailure failure = new(CheatEngineFailureKind.IndeterminateHostResult, "Patterns.Scan",
 			"no list", null, CheatEngineHostEffect.Completed);
 		PatternScanMetrics metrics = Metrics(materialized: 1);
 
-		Assert.Throws<ArgumentException>(() => new PatternScanOutcome(null, null, null));
-		Assert.Throws<ArgumentException>(() => new PatternScanOutcome(result, failure, metrics));
-		Assert.Throws<ArgumentException>(() => new PatternScanOutcome(null, default(CheatEngineFailure), null));
+		Assert.Throws<ArgumentException>(() => Outcome(null, null, null));
+		Assert.Throws<ArgumentException>(() => Outcome(result, failure, metrics));
+		Assert.Throws<ArgumentException>(() => Outcome(null, default(CheatEngineFailure), null));
 
-		PatternScanOutcome success = new(result, null, metrics);
-		PatternScanOutcome noList = new(null, failure, null);
+		PatternScanOutcome success = new(result, null, metrics, PatternScanHostOutcome.Matches,
+			PatternScanRouteReason.TargetIdentityNotQualified, false);
+		PatternScanOutcome noList = new(null, failure, null, PatternScanHostOutcome.NoResult,
+			PatternScanRouteReason.UnscopedRequest, false);
 
-		Assert.True(success.Succeeded);
+		Assert.True(success.IsSuccess);
 		Assert.Equal(result, success.Result);
 		Assert.Equal(metrics, success.Metrics);
-		Assert.False(noList.Succeeded);
-		Assert.Equal(failure, noList.Cause);
+		Assert.Equal(PatternScanHostOutcome.Matches, success.HostOutcome);
+		Assert.Equal(PatternScanRouteReason.TargetIdentityNotQualified, success.RouteReason);
+		Assert.False(success.TargetIdentityVerified);
+		Assert.False(noList.IsSuccess);
+		Assert.Equal(failure, noList.Failure);
 		Assert.Null(noList.Metrics);
+		Assert.Equal(PatternScanHostOutcome.NoResult, noList.HostOutcome);
 	}
 
 	[Fact]
@@ -87,14 +95,55 @@ public sealed class PatternScanOutcomeTests
 	{
 		AobScanResult result = new(ImmutableArray.Create<Address>(0x401000, 0x401010), false);
 
-		Assert.Throws<ArgumentException>(() => new PatternScanOutcome(result, null, null));
-		Assert.Throws<ArgumentException>(() => new PatternScanOutcome(result, null, Metrics(materialized: 1)));
-		Assert.True(new PatternScanOutcome(result, null, Metrics(materialized: 2)).Succeeded);
+		Assert.Throws<ArgumentException>(() => Outcome(result, null, null));
+		Assert.Throws<ArgumentException>(() => Outcome(result, null, Metrics(materialized: 1)));
+		Assert.True(Outcome(result, null, Metrics(materialized: 2)).IsSuccess);
+	}
+
+	[Theory]
+	[InlineData(PatternScanHostOutcome.NoResult, PatternScanRouteReason.UnscopedRequest)]
+	[InlineData(PatternScanHostOutcome.Unknown, PatternScanRouteReason.UnscopedRequest)]
+	[InlineData(PatternScanHostOutcome.Matches, PatternScanRouteReason.Unknown)]
+	public void ASuccessReportsAMatchesOrNoMatchesHostOutcomeAndItsRoute(PatternScanHostOutcome hostOutcome,
+		PatternScanRouteReason routeReason)
+	{
+		AobScanResult result = new(ImmutableArray.Create<Address>(0x401000), false);
+
+		Assert.Throws<ArgumentException>(() =>
+			new PatternScanOutcome(result, null, Metrics(materialized: 1), hostOutcome, routeReason, false));
+	}
+
+	[Fact]
+	public void AFailureNeverReportsAVerifiedTarget()
+	{
+		CheatEngineFailure failure = new(CheatEngineFailureKind.TargetChanged, "Patterns.Scan", "changed", null,
+			CheatEngineHostEffect.Completed);
+
+		Assert.Throws<ArgumentException>(() => new PatternScanOutcome(null, failure, null,
+			PatternScanHostOutcome.Matches, PatternScanRouteReason.UnscopedRequest, true));
+	}
+
+	[Fact]
+	public void OutcomeRejectsUndefinedHostOutcomesAndRouteReasons()
+	{
+		CheatEngineFailure failure = new(CheatEngineFailureKind.InvalidHostResult, "Patterns.Scan", "bad", null,
+			CheatEngineHostEffect.Completed);
+
+		Assert.Throws<ArgumentOutOfRangeException>(() => new PatternScanOutcome(null, failure, null,
+			(PatternScanHostOutcome) 99, PatternScanRouteReason.Unknown, false));
+		Assert.Throws<ArgumentOutOfRangeException>(() => new PatternScanOutcome(null, failure, null,
+			PatternScanHostOutcome.Unknown, (PatternScanRouteReason) 99, false));
+	}
+
+	private static PatternScanOutcome Outcome(AobScanResult? result, CheatEngineFailure? failure,
+		PatternScanMetrics? metrics)
+	{
+		return new PatternScanOutcome(result, failure, metrics, PatternScanHostOutcome.Matches,
+			PatternScanRouteReason.UnscopedRequest, false);
 	}
 
 	private static PatternScanMetrics Metrics(int materialized)
 	{
-		return new PatternScanMetrics(5, 4, 1, materialized, PatternScanScope.GlobalHostScanWithManagedFilter,
-			Elapsed, Elapsed);
+		return new PatternScanMetrics(Scope, 5, 4, 1, materialized, 0, 0, 1, false, Elapsed, Elapsed);
 	}
 }

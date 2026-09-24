@@ -5,98 +5,157 @@ namespace CheatEngine.Client.Scanning;
 ///     <para>
 ///         The four scan limits are distinct notions (audit ch.24): the <em>Cheat Engine work limit</em> (the bounds on
 ///         <see cref="PatternScanScope.HostBoundedRange" />, none on the global routes), the <em>available results</em>
-///         (<see cref="HostMatchCount" />), the <em>materialization limit</em>
+///         (<see cref="HostResultCount" />), the <em>materialization limit</em>
 ///         (<see cref="AobScanRequest.MaximumResults" />, which bounds <see cref="MaterializedCount" />), and the
 ///         <em>call deadline</em> (none: cancellation is observed only between Cheat Engine calls and Client-managed steps
 ///         and never interrupts a started Cheat Engine scan).
 ///     </para>
 ///     <para>
 ///         Counts and durations are safe to log; they never contain addresses or values. The invariants
-///         <c>MaterializedCount + FilteredOutCount &lt;= ExaminedCount &lt;= HostMatchCount</c> always hold. When a failure
-///         stops the copy, the counts describe the work done before the failure.
+///         <c>ExaminedCount + UnreadHostRows == HostResultCount</c>,
+///         <c>MaterializedCount + FilteredOutCount &lt;= ExaminedCount</c> and
+///         <c>BelowStartSkipped + AtOrAfterStopSkipped &lt;= FilteredOutCount</c> always hold. When a failure stops the
+///         copy, the counts describe the work done before the failure.
 ///     </para>
 /// </remarks>
 public readonly record struct PatternScanMetrics
 {
 	/// <summary>Creates validated scan metrics.</summary>
-	/// <param name="hostMatchCount">The number of entries in Cheat Engine's result list.</param>
-	/// <param name="examinedCount">The number of entries Core read and parsed.</param>
-	/// <param name="filteredOutCount">The number of examined entries removed by the module or range post-filters.</param>
-	/// <param name="materializedCount">The number of examined entries Core copied into the result.</param>
 	/// <param name="scope">The part of the target that Cheat Engine scanned.</param>
+	/// <param name="hostResultCount">The number of rows Cheat Engine returned, including rows outside the request.</param>
+	/// <param name="examinedCount">The number of rows Core or CheatEngine.SDK read.</param>
+	/// <param name="filteredOutCount">The number of examined rows outside the module or range.</param>
+	/// <param name="materializedCount">The number of examined rows Core copied into the result.</param>
+	/// <param name="belowStartSkipped">The rows the bounded route dropped below its start bound.</param>
+	/// <param name="atOrAfterStopSkipped">The rows the bounded route dropped at or after its stop bound.</param>
+	/// <param name="unreadHostRows">The rows that were not read, because the copy stopped first.</param>
+	/// <param name="inBoundsCountIsExact">
+	///     Whether every row was read, so the number of in-request matches is exactly
+	///     <c>ExaminedCount - FilteredOutCount</c>.
+	/// </param>
 	/// <param name="hostScanElapsed">The elapsed time of the Cheat Engine scan call only.</param>
 	/// <param name="materializationElapsed">The elapsed time of the count read, copy, parse, and filter steps.</param>
-	/// <exception cref="ArgumentOutOfRangeException">A count or duration is negative, or the scope is undefined.</exception>
+	/// <exception cref="ArgumentOutOfRangeException">
+	///     A count or duration is negative, or the scope is undefined.
+	/// </exception>
 	/// <exception cref="ArgumentException">The counts violate the documented invariants.</exception>
-	public PatternScanMetrics(int hostMatchCount, int examinedCount, int filteredOutCount, int materializedCount,
-		PatternScanScope scope, TimeSpan hostScanElapsed, TimeSpan materializationElapsed)
+	public PatternScanMetrics(PatternScanScope scope, ulong hostResultCount, ulong examinedCount,
+		ulong filteredOutCount, int materializedCount, ulong belowStartSkipped, ulong atOrAfterStopSkipped,
+		ulong unreadHostRows, bool inBoundsCountIsExact, TimeSpan hostScanElapsed, TimeSpan materializationElapsed)
 	{
-		ArgumentOutOfRangeException.ThrowIfNegative(hostMatchCount);
-		ArgumentOutOfRangeException.ThrowIfNegative(examinedCount);
-		ArgumentOutOfRangeException.ThrowIfNegative(filteredOutCount);
-		ArgumentOutOfRangeException.ThrowIfNegative(materializedCount);
-		ArgumentOutOfRangeException.ThrowIfLessThan(hostScanElapsed, TimeSpan.Zero);
-		ArgumentOutOfRangeException.ThrowIfLessThan(materializationElapsed, TimeSpan.Zero);
 		if (!Enum.IsDefined(scope))
 		{
 			throw new ArgumentOutOfRangeException(nameof(scope), scope, "The pattern scan scope must be defined.");
 		}
 
-		if (examinedCount > hostMatchCount)
-		{
-			throw new ArgumentException("Core cannot examine more entries than Cheat Engine returned.",
-				nameof(examinedCount));
-		}
-
-		if ((long) materializedCount + filteredOutCount > examinedCount)
+		ArgumentOutOfRangeException.ThrowIfNegative(materializedCount);
+		ArgumentOutOfRangeException.ThrowIfLessThan(hostScanElapsed, TimeSpan.Zero);
+		ArgumentOutOfRangeException.ThrowIfLessThan(materializationElapsed, TimeSpan.Zero);
+		if (examinedCount > hostResultCount || unreadHostRows != hostResultCount - examinedCount)
 		{
 			throw new ArgumentException(
-				"Materialized and filtered-out entries cannot exceed the number of examined entries.",
+				"The examined and unread rows must add up to the rows Cheat Engine returned.", nameof(unreadHostRows));
+		}
+
+		if (filteredOutCount > examinedCount || (ulong) materializedCount > examinedCount - filteredOutCount)
+		{
+			throw new ArgumentException(
+				"Materialized and filtered-out rows cannot exceed the number of examined rows.",
 				nameof(materializedCount));
 		}
 
-		HostMatchCount = hostMatchCount;
+		if (belowStartSkipped > filteredOutCount || atOrAfterStopSkipped > filteredOutCount - belowStartSkipped)
+		{
+			throw new ArgumentException("The bounded route's skipped rows are part of the filtered-out rows.",
+				nameof(filteredOutCount));
+		}
+
+		if (inBoundsCountIsExact && unreadHostRows != 0)
+		{
+			throw new ArgumentException("An exact in-request count requires every row to be read.",
+				nameof(inBoundsCountIsExact));
+		}
+
+		Scope = scope;
+		HostResultCount = hostResultCount;
 		ExaminedCount = examinedCount;
 		FilteredOutCount = filteredOutCount;
 		MaterializedCount = materializedCount;
-		Scope = scope;
+		BelowStartSkipped = belowStartSkipped;
+		AtOrAfterStopSkipped = atOrAfterStopSkipped;
+		UnreadHostRows = unreadHostRows;
+		InBoundsCountIsExact = inBoundsCountIsExact;
 		HostScanElapsed = hostScanElapsed;
 		MaterializationElapsed = materializationElapsed;
 	}
 
+	/// <summary>Gets the part of the target that Cheat Engine scanned.</summary>
+	public PatternScanScope Scope
+	{
+		get;
+	}
+
 	/// <summary>
-	///     Gets the number of entries Cheat Engine returned (the available results), saturated at
-	///     <see cref="int.MaxValue" />; on the bounded route it includes rows outside the bounds.
+	///     Gets the number of rows Cheat Engine returned (the available results); on the bounded route it includes rows
+	///     outside the bounds.
 	/// </summary>
-	public int HostMatchCount
+	public ulong HostResultCount
 	{
 		get;
 	}
 
-	/// <summary>Gets the number of entries Core read and parsed before it stopped copying.</summary>
-	/// <remarks>Lower than <see cref="HostMatchCount" /> when the materialization limit or a failure stopped the copy.</remarks>
-	public int ExaminedCount
+	/// <summary>Gets the number of rows Core or CheatEngine.SDK read before the copy stopped.</summary>
+	/// <remarks>Lower than <see cref="HostResultCount" /> when the materialization limit or a failure stopped the copy.</remarks>
+	public ulong ExaminedCount
 	{
 		get;
 	}
 
 	/// <summary>
-	///     Gets the number of examined entries outside the request: removed by the managed module or range filters, or by
+	///     Gets the number of examined rows outside the request: removed by the managed module or range filters, or by
 	///     the bounded route's own start and stop checks.
 	/// </summary>
-	public int FilteredOutCount
+	public ulong FilteredOutCount
 	{
 		get;
 	}
 
-	/// <summary>Gets the number of examined entries Core copied into the result.</summary>
+	/// <summary>Gets the number of examined rows Core copied into the result.</summary>
 	public int MaterializedCount
 	{
 		get;
 	}
 
-	/// <summary>Gets the part of the target that Cheat Engine scanned.</summary>
-	public PatternScanScope Scope
+	/// <summary>
+	///     Gets the rows the bounded route dropped because they began below its start: Cheat Engine's start bound is not
+	///     byte-exact. Zero on the global routes.
+	/// </summary>
+	public ulong BelowStartSkipped
+	{
+		get;
+	}
+
+	/// <summary>
+	///     Gets the rows the bounded route dropped at or after its stop bound; expected to be zero because Cheat Engine
+	///     honors it. Zero on the global routes.
+	/// </summary>
+	public ulong AtOrAfterStopSkipped
+	{
+		get;
+	}
+
+	/// <summary>Gets the rows that were not read because the copy stopped first.</summary>
+	public ulong UnreadHostRows
+	{
+		get;
+	}
+
+	/// <summary>
+	///     Gets whether every row was read, so the number of in-request matches is exactly
+	///     <c>ExaminedCount - FilteredOutCount</c>. Uniqueness needs an exact count or a second match, never a first-found
+	///     scan.
+	/// </summary>
+	public bool InBoundsCountIsExact
 	{
 		get;
 	}
@@ -107,7 +166,7 @@ public readonly record struct PatternScanMetrics
 		get;
 	}
 
-	/// <summary>Gets the elapsed time Core spent reading the count, copying, parsing, and filtering the result list.</summary>
+	/// <summary>Gets the elapsed time spent reading the count, copying, parsing, and filtering the result.</summary>
 	public TimeSpan MaterializationElapsed
 	{
 		get;

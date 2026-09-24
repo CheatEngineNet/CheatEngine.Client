@@ -78,7 +78,7 @@ internal static class QualificationSession
 	}
 
 	/// <summary>Publishes the Client of the activation that just enabled.</summary>
-	internal static void Attach(ICheatEngineClient client, IPatternScanOutcomeClient scans, IMemoryClient batches)
+	internal static void Attach(ICheatEngineClient client, IPatternScanner scans, IMemoryClient batches)
 	{
 		lock (Gate)
 		{
@@ -142,6 +142,6 @@ internal static class QualificationSession
 	/// <summary>The Client services of one activation.</summary>
 	internal sealed record ActiveClient(
 		ICheatEngineClient Client,
-		IPatternScanOutcomeClient Scans,
+		IPatternScanner Scans,
 		IMemoryClient Batches);
 }

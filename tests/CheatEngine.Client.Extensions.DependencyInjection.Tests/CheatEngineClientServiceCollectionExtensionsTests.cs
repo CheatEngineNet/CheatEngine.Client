@@ -36,7 +36,7 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IProcessClient));
 		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IMemoryCodec<int>));
 		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IMemoryClient));
-		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IPatternScanOutcomeClient));
+		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IPatternScanner));
 		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IAllocationClient));
 		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IAssemblyClient));
 		Assert.Contains(services,
@@ -52,26 +52,28 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		Assert.NotNull(provider);
 	}
 
+	/// <summary>
+	///     The detailed scan is a member of <see cref="IPatternScanner" />: DI registers the scanner once, as the Core
+	///     singleton, and no companion service for its outcomes.
+	/// </summary>
 	[Fact]
-	public void AddCheatEngineClientResolvesThePatternScanOutcomeClientToThePatternScannerSingleton()
+	public void AddCheatEngineClientRegistersThePatternScannerOnceAndNoOutcomeCompanion()
 	{
 		ServiceCollection services = new();
 		services.AddCheatEngineClient();
 		ServiceDescriptor scanner =
 			Assert.Single(services, static descriptor => descriptor.ServiceType == typeof(IPatternScanner));
-		ServiceDescriptor outcomes =
-			Assert.Single(services, static descriptor => descriptor.ServiceType == typeof(IPatternScanOutcomeClient));
 		AliasRecordingServiceProvider provider = new();
 
 		object viaScanner = scanner.ImplementationFactory!(provider);
-		object viaOutcomes = outcomes.ImplementationFactory!(provider);
 
-		Assert.Equal(ServiceLifetime.Singleton, outcomes.Lifetime);
-		Assert.Same(viaScanner, viaOutcomes);
-		Assert.IsAssignableFrom<IPatternScanner>(viaOutcomes);
-		Assert.IsAssignableFrom<IPatternScanOutcomeClient>(viaScanner);
+		Assert.Equal(ServiceLifetime.Singleton, scanner.Lifetime);
+		Assert.IsAssignableFrom<IPatternScanner>(viaScanner);
 		Type requested = Assert.Single(provider.RequestedTypes);
 		Assert.Equal("CheatEngine.Client.Core.Domains.PatternScanner", requested.FullName);
+		Assert.DoesNotContain(services, static descriptor =>
+			descriptor.ServiceType.Namespace == "CheatEngine.Client.Scanning" &&
+			descriptor.ServiceType.Name.Contains("Outcome", StringComparison.Ordinal));
 	}
 
 	[Fact]

@@ -56,7 +56,7 @@ internal interface ICoreDiagnostics
 	public void SymbolLeaseReleased(SymbolLeaseReleaseKind kind);
 
 	/// <summary>A pattern scan ended with metrics (EventId 1500).</summary>
-	public void PatternScanCompleted(PatternScanScope scope, int hostMatchCount, int materializedCount, bool truncated,
+	public void PatternScanCompleted(PatternScanScope scope, long hostResultCount, int materializedCount, bool truncated,
 		long hostScanMilliseconds, long copyMilliseconds);
 
 	/// <summary>A Lua operation ended (EventId 1600); the script length is non-zero for unsafe Lua only.</summary>
@@ -123,7 +123,7 @@ internal sealed class NullCoreDiagnostics : ICoreDiagnostics
 	{
 	}
 
-	public void PatternScanCompleted(PatternScanScope scope, int hostMatchCount, int materializedCount, bool truncated,
+	public void PatternScanCompleted(PatternScanScope scope, long hostResultCount, int materializedCount, bool truncated,
 		long hostScanMilliseconds, long copyMilliseconds)
 	{
 	}
@@ -280,12 +280,12 @@ internal sealed class GuardedCoreDiagnostics(ICoreDiagnostics inner) : ICoreDiag
 		}
 	}
 
-	public void PatternScanCompleted(PatternScanScope scope, int hostMatchCount, int materializedCount, bool truncated,
+	public void PatternScanCompleted(PatternScanScope scope, long hostResultCount, int materializedCount, bool truncated,
 		long hostScanMilliseconds, long copyMilliseconds)
 	{
 		try
 		{
-			_inner.PatternScanCompleted(scope, hostMatchCount, materializedCount, truncated, hostScanMilliseconds,
+			_inner.PatternScanCompleted(scope, hostResultCount, materializedCount, truncated, hostScanMilliseconds,
 				copyMilliseconds);
 		}
 		catch (Exception)

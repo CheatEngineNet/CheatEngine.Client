@@ -48,6 +48,12 @@ public static partial class BenchmarkSuiteMetadata
 					false,
 					"Client copy/parse/filter cost over a fake port; excludes CE scan time."),
 				new BenchmarkWorkloadDescriptor(
+					"aob-route-comparison",
+					1,
+					false,
+					"Client cost of a module request on the global post-filter route and on the bounded route over a " +
+					"fake port; excludes CE scan time."),
+				new BenchmarkWorkloadDescriptor(
 					"memory-batch",
 					1,
 					false,

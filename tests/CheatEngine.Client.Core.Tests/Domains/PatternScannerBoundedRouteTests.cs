@@ -39,7 +39,7 @@ public sealed class PatternScannerBoundedRouteTests
 		PatternScanOutcome outcome = scanner.ScanDetailed(Request(new ModuleName("game.exe"), null, 10),
 			TestContext.Current.CancellationToken);
 
-		Assert.True(outcome.Succeeded);
+		Assert.True(outcome.IsSuccess);
 		Assert.Equal([0x4010, 0x4020], outcome.Result!.Value.Matches);
 		Assert.False(outcome.Result.Value.IsTruncated);
 		Assert.Equal(new Address(ModuleBase), port.LastBounds!.Value.Start);
@@ -48,7 +48,7 @@ public sealed class PatternScannerBoundedRouteTests
 		Assert.Equal(0, port.ScanCalls);
 		PatternScanMetrics metrics = Assert.NotNull(outcome.Metrics);
 		Assert.Equal(PatternScanScope.HostBoundedRange, metrics.Scope);
-		Assert.Equal(2, metrics.HostMatchCount);
+		Assert.Equal(2UL, metrics.HostResultCount);
 		Assert.Equal(2, metrics.MaterializedCount);
 	}
 
@@ -80,9 +80,9 @@ public sealed class PatternScannerBoundedRouteTests
 		PatternScanOutcome outcome = scanner.ScanDetailed(Request(new ModuleName("game.exe"), null, 1),
 			TestContext.Current.CancellationToken);
 
-		Assert.False(outcome.Succeeded);
-		Assert.Equal(CheatEngineFailureKind.IndeterminateHostResult, outcome.Cause!.Value.Kind);
-		Assert.Equal(CheatEngineHostEffect.Completed, outcome.Cause.Value.HostEffect);
+		Assert.False(outcome.IsSuccess);
+		Assert.Equal(CheatEngineFailureKind.IndeterminateHostResult, outcome.Failure!.Value.Kind);
+		Assert.Equal(CheatEngineHostEffect.Completed, outcome.Failure.Value.HostEffect);
 		Assert.Equal(PatternScanScope.HostBoundedRange, Assert.NotNull(outcome.Metrics).Scope);
 	}
 
@@ -216,9 +216,9 @@ public sealed class PatternScannerBoundedRouteTests
 		PatternScanOutcome outcome = scanner.ScanDetailed(Request(new ModuleName("game.exe"), null, 5),
 			TestContext.Current.CancellationToken);
 
-		Assert.True(outcome.Succeeded);
+		Assert.True(outcome.IsSuccess);
 		Assert.Equal([0x4010, 0x4020], outcome.Result!.Value.Matches);
-		Assert.Equal(1, Assert.NotNull(outcome.Metrics).FilteredOutCount);
+		Assert.Equal(1UL, Assert.NotNull(outcome.Metrics).FilteredOutCount);
 	}
 
 	[Fact]
@@ -257,9 +257,9 @@ public sealed class PatternScannerBoundedRouteTests
 			TestContext.Current.CancellationToken);
 
 		PatternScanMetrics metrics = Assert.NotNull(outcome.Metrics);
-		Assert.Equal(4, metrics.HostMatchCount);
-		Assert.Equal(4, metrics.ExaminedCount);
-		Assert.Equal(3, metrics.FilteredOutCount);
+		Assert.Equal(4UL, metrics.HostResultCount);
+		Assert.Equal(4UL, metrics.ExaminedCount);
+		Assert.Equal(3UL, metrics.FilteredOutCount);
 		Assert.Equal(1, metrics.MaterializedCount);
 	}
 
@@ -312,7 +312,7 @@ public sealed class PatternScannerBoundedRouteTests
 		PatternScanOutcome outcome = scanner.ScanDetailed(Request(new ModuleName("game.exe"), null, 5),
 			TestContext.Current.CancellationToken);
 
-		Assert.True(outcome.Succeeded, outcome.Cause?.Message);
+		Assert.True(outcome.IsSuccess, outcome.Failure?.Message);
 		Assert.Equal([0x4010], outcome.Result!.Value.Matches);
 		Assert.Equal(PatternScanScope.GlobalHostScanWithManagedFilter, Assert.NotNull(outcome.Metrics).Scope);
 		Assert.Equal(1, port.ScanCalls);

@@ -35,8 +35,8 @@ from an exhaustive scan, so a truncated copy is reported as ambiguous. Only the 
 (`null`, `NotFound`); on a global route a scan that finds nothing is reported as `IndeterminateHostResult` (on Cheat
 Engine 7.7 `AOBScan` returns `nil` for zero matches and for some host failures alike). A cancellation token cannot
 interrupt a scan that Cheat Engine has started.
-`IPatternScanOutcomeClient.ScanDetailed` reports the host match count, the examined/filtered/copied counts, and the
-Cheat Engine scan time separately from the copy time.
+`IPatternScanner.ScanDetailed` reports the route, the host outcome, the host result count, the examined, filtered and
+copied counts, and the Cheat Engine scan time separately from the copy time.
 
 ## Why This Project Exists
 

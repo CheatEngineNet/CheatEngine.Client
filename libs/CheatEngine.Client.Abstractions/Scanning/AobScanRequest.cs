@@ -48,7 +48,7 @@ public readonly record struct AobScanRequest
 	/// <remarks>
 	///     This is the materialization limit: it bounds how many addresses Core copies from Cheat Engine's result. It does
 	///     not bound or terminate the Cheat Engine scan, and it is not the number of available results (see
-	///     <see cref="PatternScanMetrics.HostMatchCount" />). The bounded route copies at most 65,535 addresses, whatever
+	///     <see cref="PatternScanMetrics.HostResultCount" />). The bounded route copies at most 65,535 addresses, whatever
 	///     this limit.
 	/// </remarks>
 	public int MaximumResults

@@ -132,7 +132,7 @@ internal sealed class QualificationFaultModule(FaultDecision fault, Qualificatio
 }
 
 /// <summary>Publishes the activation's Client to the Lua functions and withdraws it before the activation ends.</summary>
-internal sealed class QualificationScenarioModule(IPatternScanOutcomeClient scans, IMemoryClient batches)
+internal sealed class QualificationScenarioModule(IPatternScanner scans, IMemoryClient batches)
 	: ICheatEngineClientModule
 {
 	/// <inheritdoc />

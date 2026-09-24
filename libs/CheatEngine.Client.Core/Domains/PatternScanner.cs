@@ -42,7 +42,7 @@ namespace CheatEngine.Client.Core.Domains;
 ///     </para>
 /// </remarks>
 internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobScanPort? scanPort = null)
-	: IPatternScanner, IPatternScanOutcomeClient
+	: IPatternScanner
 {
 	private const int MaximumModuleSnapshot = 4096;
 	private const string InModuleOperation = "Patterns.InModule";
@@ -79,8 +79,10 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 	{
 		ScanOutcome outcome = Execute(request, cancellationToken);
 		return outcome.Succeeded
-			? new PatternScanOutcome(outcome.Result, null, outcome.Metrics)
-			: new PatternScanOutcome(null, outcome.Failure, outcome.Metrics);
+			? new PatternScanOutcome(outcome.Result, null, outcome.Metrics, outcome.HostOutcome, outcome.RouteReason,
+				outcome.TargetIdentityVerified)
+			: new PatternScanOutcome(null, outcome.Failure, outcome.Metrics, outcome.HostOutcome, outcome.RouteReason,
+				false);
 	}
 
 	internal static bool TryValidateRequest(AobScanRequest request, out CheatEngineFailure failure)
@@ -239,7 +241,8 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		if (outcome.Metrics is { } metrics)
 		{
 			// Counts and durations only, after the dispatched callback returned (A24-17).
-			_dispatcher.Lifetime.Diagnostics.PatternScanCompleted(metrics.Scope, metrics.HostMatchCount,
+			_dispatcher.Lifetime.Diagnostics.PatternScanCompleted(metrics.Scope,
+				(long) Math.Min(metrics.HostResultCount, long.MaxValue),
 				metrics.MaterializedCount, outcome.Succeeded && outcome.Result.IsTruncated,
 				(long) metrics.HostScanElapsed.TotalMilliseconds, (long) metrics.MaterializationElapsed.TotalMilliseconds);
 		}
@@ -258,7 +261,12 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 
 		if (!request.Module.HasValue && !request.Range.HasValue)
 		{
-			return ScanGlobal(request, ModuleRange.None, PatternScanScope.GlobalHostScan, cancellationToken);
+			ScanOutcome global = ScanGlobal(request, ModuleRange.None, PatternScanScope.GlobalHostScan,
+				cancellationToken);
+			return global with
+			{
+				RouteReason = PatternScanRouteReason.UnscopedRequest
+			};
 		}
 
 		ModuleInfo? module = null;
@@ -305,7 +313,18 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 			: ModuleRange.None;
 		return selection.IsQualified
 			? ScanWithinBounds(request, bounds, moduleRange, cancellationToken)
-			: ScanGlobal(request, moduleRange, PatternScanScope.GlobalHostScanWithManagedFilter, cancellationToken);
+			: FallBack(request, moduleRange, cancellationToken);
+	}
+
+	/// <summary>Runs the global route for a module or range request whose bounded route cannot run.</summary>
+	private ScanOutcome FallBack(AobScanRequest request, ModuleRange moduleRange, CancellationToken cancellationToken)
+	{
+		ScanOutcome global =
+			ScanGlobal(request, moduleRange, PatternScanScope.GlobalHostScanWithManagedFilter, cancellationToken);
+		return global with
+		{
+			RouteReason = PatternScanRouteReason.TargetIdentityNotQualified
+		};
 	}
 
 	/// <summary>Runs the bounded route and falls back to the global route when the SDK says it cannot run.</summary>
@@ -322,9 +341,12 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		catch (Exception scanFault) when (SdkBoundary.IsSdkFault(scanFault))
 		{
 			// The SDK releases its session on every exit before a fault propagates; the scan may or may not have run.
-			return ScanOutcome.Failed(
-				SdkBoundary.Translate(ScanOperation, scanFault, CheatEngineHostEffect.Unknown, _dispatcher.Lifetime),
-				null);
+			CheatEngineFailure translated =
+				SdkBoundary.Translate(ScanOperation, scanFault, CheatEngineHostEffect.Unknown, _dispatcher.Lifetime);
+			return ScanOutcome.Failed(translated, null) with
+			{
+				RouteReason = PatternScanRouteReason.ScopedRequestOnQualifiedTarget
+			};
 		}
 
 		AobBoundedDisposition disposition =
@@ -334,25 +356,36 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		{
 			if (cancellationToken.IsCancellationRequested)
 			{
-				return ScanOutcome.Failed(
-					bounded.HostScanElapsed > TimeSpan.Zero ? CancelledAfterScan() : CancelledBeforeScan(), null);
+				CheatEngineFailure cancelled =
+					bounded.HostScanElapsed > TimeSpan.Zero ? CancelledAfterScan() : CancelledBeforeScan();
+				return ScanOutcome.Failed(cancelled, null) with
+				{
+					RouteReason = PatternScanRouteReason.TargetIdentityNotQualified
+				};
 			}
 
-			return ScanGlobal(request, moduleRange, PatternScanScope.GlobalHostScanWithManagedFilter,
-				cancellationToken);
+			return FallBack(request, moduleRange, cancellationToken);
 		}
 
 		// A failure after the SDK read the host count keeps the metrics of the work that happened.
 		PatternScanMetrics? failureMetrics = AobScanMapping.HasReadCount(bounded)
-			? BoundedMetrics(bounded, 0, 0, bounded.CopyElapsed)
+			? BoundedMetrics(bounded, 0, 0, bounded.CopyElapsed, false)
 			: null;
 		ScanOutcome outcome = disposition == AobBoundedDisposition.Publish
 			? Publish(bounded, destination, request, moduleRange, cancellationToken)
 			: ScanOutcome.Failed(failure, failureMetrics);
-		return released
+		ScanOutcome final = released
 			? outcome
 			: ScanOutcome.Failed(CreateReleaseFailure(outcome.Succeeded ? null : outcome.Failure, SessionSubject,
 				releaseKind, null), outcome.Metrics);
+
+		// The SDK checks the session's target incarnation throughout: a published result is attributed to it.
+		return final with
+		{
+			HostOutcome = AobScanMapping.ToHostOutcome(bounded.Kind),
+			RouteReason = PatternScanRouteReason.ScopedRequestOnQualifiedTarget,
+			TargetIdentityVerified = final.Succeeded
+		};
 	}
 
 	/// <summary>Publishes the in-bounds addresses the SDK copied, after the Client's own range and module check.</summary>
@@ -398,7 +431,7 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		}
 
 		TimeSpan materializationElapsed = bounded.CopyElapsed + Stopwatch.GetElapsedTime(filterStarted);
-		if (BoundedMetrics(bounded, dropped, copied.Count, materializationElapsed) is not { } metrics)
+		if (BoundedMetrics(bounded, dropped, copied.Count, materializationElapsed, true) is not { } metrics)
 		{
 			return ScanOutcome.Failed(new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult, ScanOperation,
 				"The bounded AOB scan reported inconsistent counts.", null, CheatEngineHostEffect.Completed), null);
@@ -426,21 +459,26 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 	}
 
 	/// <summary>Builds the metrics of a bounded scan, or <see langword="null" /> when its counts contradict each other.</summary>
+	/// <remarks>
+	///     The SDK's skipped rows and the rows the Client's own checks dropped are the filtered-out rows. The in-request
+	///     count is exact only for a published result whose rows were all read.
+	/// </remarks>
 	private static PatternScanMetrics? BoundedMetrics(AobBoundedHostResult bounded, int dropped, int materialized,
-		TimeSpan materializationElapsed)
+		TimeSpan materializationElapsed, bool published)
 	{
-		ulong filtered = bounded.BelowStartSkipped + bounded.AtOrAfterStopSkipped + (ulong) dropped;
-		if (bounded.RowsRead > bounded.HostResultCount || bounded.RowsRead > int.MaxValue ||
-			filtered + (ulong) materialized > bounded.RowsRead || bounded.HostScanElapsed < TimeSpan.Zero ||
+		ulong skipped = bounded.BelowStartSkipped + bounded.AtOrAfterStopSkipped;
+		ulong filtered = skipped + (ulong) dropped;
+		if (skipped < bounded.BelowStartSkipped || filtered < skipped || bounded.RowsRead > bounded.HostResultCount ||
+			bounded.UnreadHostRows != bounded.HostResultCount - bounded.RowsRead || filtered > bounded.RowsRead ||
+			(ulong) materialized > bounded.RowsRead - filtered || bounded.HostScanElapsed < TimeSpan.Zero ||
 			materializationElapsed < TimeSpan.Zero)
 		{
 			return null;
 		}
 
-		// The host count is saturated at int.MaxValue; the rows the SDK reads never exceed it.
-		int hostResults = (int) Math.Min(bounded.HostResultCount, int.MaxValue);
-		return new PatternScanMetrics(hostResults, (int) bounded.RowsRead, (int) filtered, materialized,
-			PatternScanScope.HostBoundedRange, bounded.HostScanElapsed, materializationElapsed);
+		return new PatternScanMetrics(PatternScanScope.HostBoundedRange, bounded.HostResultCount, bounded.RowsRead,
+			filtered, materialized, bounded.BelowStartSkipped, bounded.AtOrAfterStopSkipped, bounded.UnreadHostRows,
+			published && bounded.UnreadHostRows == 0, bounded.HostScanElapsed, materializationElapsed);
 	}
 
 	/// <summary>Runs one global <c>AOBScan</c> and copies its post-filtered addresses.</summary>
@@ -467,7 +505,7 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		TimeSpan hostScanElapsed = Stopwatch.GetElapsedTime(hostScanStarted);
 		if (matchList is null)
 		{
-			return ScanOutcome.Failed(ClassifyWithoutList(host), null);
+			return Attribute(ScanOutcome.Failed(ClassifyWithoutList(host), null), host);
 		}
 
 		// From here on this method is the single release authority for the owned list: every path below releases it
@@ -486,7 +524,7 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 				SdkBoundary.Classify(ScanOperation, copyFault, CheatEngineHostEffect.Completed), null);
 			ScanOutcome released = Release(matchList, outcome);
 			SdkBoundary.ThrowIfActivationEnded(ScanOperation, copyFault, _dispatcher.Lifetime);
-			return released;
+			return Attribute(released, host);
 		}
 		catch (Exception)
 		{
@@ -495,7 +533,20 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 			throw;
 		}
 
-		return Release(matchList, outcome);
+		return Attribute(Release(matchList, outcome), host);
+	}
+
+	/// <summary>
+	///     Records the host's own outcome of a global scan, and whether its addresses are attributed to one qualified
+	///     incarnation: only a success whose selection was the same qualified incarnation before and after the call.
+	/// </summary>
+	private static ScanOutcome Attribute(ScanOutcome outcome, AobHostOutcome host)
+	{
+		return outcome with
+		{
+			HostOutcome = AobScanMapping.ToHostOutcome(host.Kind),
+			TargetIdentityVerified = outcome.Succeeded && host.IsSameQualifiedIncarnation
+		};
 	}
 
 	/// <summary>Classifies an outcome that handed out no result list, by SDK outcome only (never by error text).</summary>
@@ -560,7 +611,7 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		// Do not preallocate to a caller-controlled materialization limit. The limit remains strict below, while
 		// storage grows only for addresses that survived every managed filter.
 		ImmutableArray<Address>.Builder materialized = ImmutableArray.CreateBuilder<Address>();
-		for (int index = 0; index < progress.HostMatchCount; index++)
+		for (int index = 0; index < progress.HostResultCount; index++)
 		{
 			if (cancellationToken.IsCancellationRequested)
 			{
@@ -783,6 +834,27 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		CheatEngineFailure Failure,
 		PatternScanMetrics? Metrics)
 	{
+		/// <summary>Gets what the host reported for the scan that ran; unknown when none ran.</summary>
+		internal PatternScanHostOutcome HostOutcome
+		{
+			get;
+			init;
+		}
+
+		/// <summary>Gets why the scan ran on its route; unknown when none ran.</summary>
+		internal PatternScanRouteReason RouteReason
+		{
+			get;
+			init;
+		}
+
+		/// <summary>Gets whether a published result is attributed to one qualified target incarnation.</summary>
+		internal bool TargetIdentityVerified
+		{
+			get;
+			init;
+		}
+
 		internal static ScanOutcome Success(AobScanResult result)
 		{
 			return new ScanOutcome(true, result, default, null);
@@ -795,9 +867,9 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 	}
 
 	/// <summary>Allocation-free counters of the copy loop.</summary>
-	private struct MaterializationProgress(int hostMatchCount)
+	private struct MaterializationProgress(int hostResultCount)
 	{
-		internal readonly int HostMatchCount = hostMatchCount;
+		internal readonly int HostResultCount = hostResultCount;
 		internal int Examined;
 		internal int FilteredOut;
 		internal int Materialized;
@@ -805,7 +877,9 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		internal readonly PatternScanMetrics ToMetrics(PatternScanScope scope, TimeSpan hostScanElapsed,
 			TimeSpan materializationElapsed)
 		{
-			return new PatternScanMetrics(HostMatchCount, Examined, FilteredOut, Materialized, scope, hostScanElapsed,
+			// The global route reads every row it examines; the in-request count is exact once all rows were read.
+			return new PatternScanMetrics(scope, (ulong) HostResultCount, (ulong) Examined, (ulong) FilteredOut,
+				Materialized, 0, 0, (ulong) (HostResultCount - Examined), Examined == HostResultCount, hostScanElapsed,
 				materializationElapsed);
 		}
 	}

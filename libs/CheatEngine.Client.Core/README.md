@@ -252,7 +252,9 @@ qualifies the target, runs the stable `AobScanner.TryScanWithinBounds` overload 
 target, or a session the SDK could not create or attach to one target, falls back to the global scan with the module and
 range applied while copying. `MaximumResults` bounds only the copy, and a cancellation token cannot interrupt a started
 scan: a cancellation observed after the scan returns `Cancelled` with `CheatEngineHostEffect.Completed`. `ScanDetailed` measures the Cheat
-Engine scan call and the Client copy separately (`PatternScanMetrics`), and
+Engine scan call and the Client copy separately (`PatternScanMetrics`) and reports the host outcome, the route reason and
+whether the target identity was verified; `tests/CheatEngine.Client.Benchmarks/AobRouteComparisonBenchmarks.cs`
+compares the Client cost of the two routes over a fake port, and
 `tests/CheatEngine.Client.Benchmarks/PatternScannerMaterializationBenchmarks.cs` measures the copy cost alone over a fake
 port; the Cheat Engine scan cost is a live-host measurement.
 

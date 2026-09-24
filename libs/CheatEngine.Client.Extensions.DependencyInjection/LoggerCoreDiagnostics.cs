@@ -210,13 +210,13 @@ internal sealed class LoggerCoreDiagnostics : ICoreDiagnostics
 		}
 	}
 
-	public void PatternScanCompleted(PatternScanScope scope, int hostMatchCount, int materializedCount, bool truncated,
-		long hostScanMilliseconds, long copyMilliseconds)
+	public void PatternScanCompleted(PatternScanScope scope, long hostResultCount, int materializedCount,
+		bool truncated, long hostScanMilliseconds, long copyMilliseconds)
 	{
 		try
 		{
-			ClientCoreDiagnosticsLog.PatternScanCompleted(_scanning, scope, hostMatchCount, materializedCount, truncated,
-				hostScanMilliseconds, copyMilliseconds);
+			ClientCoreDiagnosticsLog.PatternScanCompleted(_scanning, scope, hostResultCount, materializedCount,
+				truncated, hostScanMilliseconds, copyMilliseconds);
 		}
 		catch (Exception)
 		{

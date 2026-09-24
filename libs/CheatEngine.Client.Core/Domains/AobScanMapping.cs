@@ -321,6 +321,53 @@ internal static class AobScanMapping
 		};
 	}
 
+	/// <summary>Returns the public host outcome of a global scan.</summary>
+	/// <param name="kind">The SDK outcome.</param>
+	/// <returns>The same category; <see cref="PatternScanHostOutcome.Unknown" /> for an undefined value.</returns>
+	internal static PatternScanHostOutcome ToHostOutcome(AobScanOutcomeKind kind)
+	{
+		return kind switch
+		{
+			AobScanOutcomeKind.Unknown => PatternScanHostOutcome.Unknown,
+			AobScanOutcomeKind.Matches => PatternScanHostOutcome.Matches,
+			AobScanOutcomeKind.NoMatches => PatternScanHostOutcome.NoMatches,
+			AobScanOutcomeKind.GlobalUnavailable => PatternScanHostOutcome.GlobalUnavailable,
+			AobScanOutcomeKind.ProtectedLuaFailure => PatternScanHostOutcome.ProtectedLuaFailure,
+			AobScanOutcomeKind.NoResult => PatternScanHostOutcome.NoResult,
+			AobScanOutcomeKind.InvalidResult => PatternScanHostOutcome.InvalidResult,
+			AobScanOutcomeKind.ResultListCountUnavailable => PatternScanHostOutcome.ResultListCountUnavailable,
+			_ => PatternScanHostOutcome.Unknown
+		};
+	}
+
+	/// <summary>Returns the public host outcome of a bounded scan.</summary>
+	/// <param name="kind">The SDK outcome.</param>
+	/// <returns>
+	///     The same category. <c>InvalidBounds</c> (refused before any Cheat Engine call), <c>SessionCreationFailed</c>
+	///     (no scan ran; the request falls back) and <c>WaitTimedOut</c> (a deadline this Client never sets) have no host
+	///     outcome and are <see cref="PatternScanHostOutcome.Unknown" />, like an undefined value.
+	/// </returns>
+	internal static PatternScanHostOutcome ToHostOutcome(AobBoundedScanOutcomeKind kind)
+	{
+		return kind switch
+		{
+			AobBoundedScanOutcomeKind.Unknown => PatternScanHostOutcome.Unknown,
+			AobBoundedScanOutcomeKind.Matches => PatternScanHostOutcome.Matches,
+			AobBoundedScanOutcomeKind.NoMatches => PatternScanHostOutcome.NoMatches,
+			AobBoundedScanOutcomeKind.InvalidBounds => PatternScanHostOutcome.Unknown,
+			AobBoundedScanOutcomeKind.SessionCreationFailed => PatternScanHostOutcome.Unknown,
+			AobBoundedScanOutcomeKind.ScanFailed => PatternScanHostOutcome.ScanFailed,
+			AobBoundedScanOutcomeKind.WaitTimedOut => PatternScanHostOutcome.Unknown,
+			AobBoundedScanOutcomeKind.HostReportedError => PatternScanHostOutcome.HostReportedError,
+			AobBoundedScanOutcomeKind.InvalidResult => PatternScanHostOutcome.InvalidResult,
+			AobBoundedScanOutcomeKind.TargetChanged => PatternScanHostOutcome.TargetChanged,
+			AobBoundedScanOutcomeKind.TargetIdentityUnavailable => PatternScanHostOutcome.TargetIdentityUnavailable,
+			AobBoundedScanOutcomeKind.RuntimeInvalidated => PatternScanHostOutcome.RuntimeInvalidated,
+			AobBoundedScanOutcomeKind.Cancelled => PatternScanHostOutcome.Cancelled,
+			_ => PatternScanHostOutcome.Unknown
+		};
+	}
+
 	/// <summary>Gets whether the SDK read the host result count of a bounded scan, so its metrics are meaningful.</summary>
 	internal static bool HasReadCount(in AobBoundedHostResult result)
 	{

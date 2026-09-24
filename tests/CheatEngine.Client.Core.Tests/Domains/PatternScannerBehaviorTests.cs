@@ -300,13 +300,13 @@ public sealed class PatternScannerBehaviorTests
 		PatternScanOutcome outcome = scanner.ScanDetailed(CreateRequest(new ModuleName("game.exe"), null, 10),
 			TestContext.Current.CancellationToken);
 
-		Assert.True(outcome.Succeeded);
-		Assert.Null(outcome.Cause);
+		Assert.True(outcome.IsSuccess);
+		Assert.Null(outcome.Failure);
 		Assert.Equal([0x4000, 0x4010], outcome.Result!.Value.Matches);
 		PatternScanMetrics metrics = Assert.NotNull(outcome.Metrics);
-		Assert.Equal(5, metrics.HostMatchCount);
-		Assert.Equal(5, metrics.ExaminedCount);
-		Assert.Equal(3, metrics.FilteredOutCount);
+		Assert.Equal(5UL, metrics.HostResultCount);
+		Assert.Equal(5UL, metrics.ExaminedCount);
+		Assert.Equal(3UL, metrics.FilteredOutCount);
 		Assert.Equal(2, metrics.MaterializedCount);
 		Assert.Equal(PatternScanScope.GlobalHostScanWithManagedFilter, metrics.Scope);
 		Assert.True(metrics.HostScanElapsed >= TimeSpan.Zero);
@@ -324,14 +324,14 @@ public sealed class PatternScannerBehaviorTests
 		PatternScanOutcome outcome = scanner.ScanDetailed(CreateRequest(null, null, 1),
 			TestContext.Current.CancellationToken);
 
-		Assert.True(outcome.Succeeded);
+		Assert.True(outcome.IsSuccess);
 		Assert.True(outcome.Result!.Value.IsTruncated);
 		Assert.Equal([0x400000], outcome.Result.Value.Matches);
 		PatternScanMetrics metrics = Assert.NotNull(outcome.Metrics);
-		Assert.Equal(5, metrics.HostMatchCount);
-		Assert.Equal(2, metrics.ExaminedCount);
-		Assert.True(metrics.ExaminedCount < metrics.HostMatchCount);
-		Assert.Equal(0, metrics.FilteredOutCount);
+		Assert.Equal(5UL, metrics.HostResultCount);
+		Assert.Equal(2UL, metrics.ExaminedCount);
+		Assert.True(metrics.ExaminedCount < metrics.HostResultCount);
+		Assert.Equal(0UL, metrics.FilteredOutCount);
 		Assert.Equal(1, metrics.MaterializedCount);
 		Assert.Equal(2, matches.ItemCalls);
 		Assert.Equal(1, matches.ReleaseCount);
@@ -356,13 +356,13 @@ public sealed class PatternScannerBehaviorTests
 
 		PatternScanOutcome outcome = scanner.ScanDetailed(CreateRequest(null, null, 3), cancellation.Token);
 
-		Assert.False(outcome.Succeeded);
+		Assert.False(outcome.IsSuccess);
 		Assert.Null(outcome.Result);
-		Assert.Equal(CheatEngineFailureKind.Cancelled, outcome.Cause!.Value.Kind);
-		Assert.Equal(CheatEngineHostEffect.Completed, outcome.Cause.Value.HostEffect);
+		Assert.Equal(CheatEngineFailureKind.Cancelled, outcome.Failure!.Value.Kind);
+		Assert.Equal(CheatEngineHostEffect.Completed, outcome.Failure.Value.HostEffect);
 		PatternScanMetrics metrics = Assert.NotNull(outcome.Metrics);
-		Assert.Equal(3, metrics.HostMatchCount);
-		Assert.Equal(2, metrics.ExaminedCount);
+		Assert.Equal(3UL, metrics.HostResultCount);
+		Assert.Equal(2UL, metrics.ExaminedCount);
 		Assert.Equal(1, matches.ReleaseCount);
 	}
 
@@ -388,7 +388,7 @@ public sealed class PatternScannerBehaviorTests
 			PatternScanOutcome outcome = detailedScanner.ScanDetailed(CreateRequest(null, null, 2),
 				detailedCancellation.Token);
 
-			Assert.Equal(succeeded, outcome.Succeeded);
+			Assert.Equal(succeeded, outcome.IsSuccess);
 			Assert.Equal(path == ClassificationPath.Success, succeeded);
 			if (succeeded)
 			{
@@ -398,7 +398,7 @@ public sealed class PatternScannerBehaviorTests
 			}
 			else
 			{
-				CheatEngineFailure detailed = Assert.NotNull(outcome.Cause);
+				CheatEngineFailure detailed = Assert.NotNull(outcome.Failure);
 				Assert.Equal(failure.Kind, detailed.Kind);
 				Assert.Equal(failure.Operation, detailed.Operation);
 				Assert.Equal(failure.Message, detailed.Message);

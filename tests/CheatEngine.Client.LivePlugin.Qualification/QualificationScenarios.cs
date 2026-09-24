@@ -243,14 +243,14 @@ internal static class QualificationScenarios
 
 			List<ulong> matches = outcome.Result is { } result ? [.. result.Matches.Select(static match => match.Value)] : [];
 			bool truncated = outcome.Result?.IsTruncated ?? false;
-			observation.Boolean("ok", outcome.Succeeded)
+			observation.Boolean("ok", outcome.IsSuccess)
 				.BeginObject("request")
 				.Number("patternLength", aobPattern.ByteLength)
 				.Boolean("moduleFilter", module is not null)
 				.Number("limit", limit)
 				.Number("cancelAfterMs", cancelAfterMs)
 				.EndObject();
-			if (outcome.Cause is { } cause)
+			if (outcome.Failure is { } cause)
 			{
 				observation.Failure("failure", cause);
 			}
@@ -262,16 +262,16 @@ internal static class QualificationScenarios
 				.Number("managedAllocatedBytes", allocated);
 			WriteMetrics(observation, outcome.Metrics);
 
-			bool cancelled = outcome.Cause is { Kind: CheatEngineFailureKind.Cancelled };
+			bool cancelled = outcome.Failure is { Kind: CheatEngineFailureKind.Cancelled };
 			observation.BeginObject("checks")
-				.Boolean("truncationExplicit", outcome.Succeeded && truncated && matches.Count == limit)
-				.Boolean("cancellationHonest", (cancelled && outcome.Result is null) || (outcome.Succeeded && !truncated))
-				.Boolean("noPrefixPublished", outcome.Succeeded || outcome.Result is null)
-				.Boolean("notFoundReported", outcome.Cause is { Kind: CheatEngineFailureKind.NotFound })
-				.Boolean("indeterminateReported", outcome.Cause is { Kind: CheatEngineFailureKind.IndeterminateHostResult })
+				.Boolean("truncationExplicit", outcome.IsSuccess && truncated && matches.Count == limit)
+				.Boolean("cancellationHonest", (cancelled && outcome.Result is null) || (outcome.IsSuccess && !truncated))
+				.Boolean("noPrefixPublished", outcome.IsSuccess || outcome.Result is null)
+				.Boolean("notFoundReported", outcome.Failure is { Kind: CheatEngineFailureKind.NotFound })
+				.Boolean("indeterminateReported", outcome.Failure is { Kind: CheatEngineFailureKind.IndeterminateHostResult })
 				.EndObject();
 
-			if (module is { } moduleFilter && outcome.Succeeded && !truncated)
+			if (module is { } moduleFilter && outcome.IsSuccess && !truncated)
 			{
 				WriteModuleExactness(observation, active, aobPattern, moduleFilter, limit, matches);
 			}
@@ -962,14 +962,19 @@ internal static class QualificationScenarios
 
 		observation.Boolean("metricsReported", true)
 			.BeginObject("metrics")
-			.Number("hostMatchCount", value.HostMatchCount)
-			.Number("examinedCount", value.ExaminedCount)
-			.Number("filteredOutCount", value.FilteredOutCount)
+			.Number("hostResultCount", Saturate(value.HostResultCount))
+			.Number("examinedCount", Saturate(value.ExaminedCount))
+			.Number("filteredOutCount", Saturate(value.FilteredOutCount))
 			.Number("materializedCount", value.MaterializedCount)
 			.String("scope", value.Scope.ToString())
 			.Number("hostScanMicroseconds", Microseconds(value.HostScanElapsed))
 			.Number("materializationMicroseconds", Microseconds(value.MaterializationElapsed))
 			.EndObject();
+	}
+
+	private static long Saturate(ulong count)
+	{
+		return (long) Math.Min(count, long.MaxValue);
 	}
 
 	private static void WriteModuleExactness(QualificationObservation observation,
@@ -1007,7 +1012,7 @@ internal static class QualificationScenarios
 			? [.. result.Matches.Select(static address => address.Value)]
 			: [];
 		int insideCount = globalMatches.Count(address => address >= start && address < end);
-		bool globalComplete = global.Succeeded && global.Result is { IsTruncated: false };
+		bool globalComplete = global.IsSuccess && global.Result is { IsTruncated: false };
 		observation.Boolean("moduleFound", true)
 			.BeginObject("moduleCheck")
 			.Address("base", start)

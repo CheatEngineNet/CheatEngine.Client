@@ -103,7 +103,7 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 		Assert.Equal(Fields(SymbolLeaseReleaseKind.Released),
 			diagnostics.Single(nameof(ICoreDiagnostics.SymbolLeaseReleased)));
 		object?[] scan = diagnostics.Single(nameof(ICoreDiagnostics.PatternScanCompleted));
-		Assert.Equal(Fields(PatternScanScope.GlobalHostScan, 1, 1, false), scan[..4]);
+		Assert.Equal(Fields(PatternScanScope.GlobalHostScan, 1L, 1, false), scan[..4]);
 		object?[] lua = diagnostics.Single(nameof(ICoreDiagnostics.LuaOperationCompleted));
 		Assert.Equal(Fields("Lua.Execute", "None", 0), Fields(lua[0], lua[1], lua[3]));
 		Assert.Equal(
@@ -460,10 +460,10 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 			Record(nameof(SymbolLeaseReleased), kind);
 		}
 
-		public void PatternScanCompleted(PatternScanScope scope, int hostMatchCount, int materializedCount,
+		public void PatternScanCompleted(PatternScanScope scope, long hostResultCount, int materializedCount,
 			bool truncated, long hostScanMilliseconds, long copyMilliseconds)
 		{
-			Record(nameof(PatternScanCompleted), scope, hostMatchCount, materializedCount, truncated,
+			Record(nameof(PatternScanCompleted), scope, hostResultCount, materializedCount, truncated,
 				hostScanMilliseconds, copyMilliseconds);
 		}
 
