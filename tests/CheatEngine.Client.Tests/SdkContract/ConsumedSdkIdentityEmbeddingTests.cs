@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Reflection;
 using System.Text.Json;
 
@@ -9,8 +10,9 @@ namespace CheatEngine.Client.Tests.SdkContract;
 /// <summary>
 ///     The consumed CheatEngine.SDK identity that Client.Core embeds for its runtime package gate (audit ADR-09, ADR-10,
 ///     A21-35) is the locked and restored package: the version and content hash of the resolved lock-file entry, the pin
-///     of <c>eng/CheatEngineSdk.props</c>, and the source commit of the CheatEngine.SDK.Engine assembly actually loaded.
-///     A build that cannot embed it fails with <c>CHEATENGINECLIENT9050</c>.
+///     of <c>eng/CheatEngineSdk.props</c>, the source commit of the CheatEngine.SDK.Engine assembly actually loaded, and
+///     the supported major of <c>eng/CheatEngineSdk.props</c>. A build that cannot embed it fails with
+///     <c>CHEATENGINECLIENT9050</c>.
 /// </summary>
 /// <remarks>
 ///     The guard cases run only the evaluation and the guard target of <c>CheatEngine.Client.Core.csproj</c> (nothing is
@@ -40,7 +42,8 @@ public sealed class ConsumedSdkIdentityEmbeddingTests
 			{
 				[MetadataPrefix + "Version"] = lockedSdk.GetProperty("resolved").GetString()!,
 				[MetadataPrefix + "SourceCommit"] = loaded[(loaded.IndexOf('+', StringComparison.Ordinal) + 1)..],
-				[MetadataPrefix + "ContentHashSha512"] = lockedSdk.GetProperty("contentHash").GetString()!
+				[MetadataPrefix + "ContentHashSha512"] = lockedSdk.GetProperty("contentHash").GetString()!,
+				[MetadataPrefix + "SupportedMajor"] = SdkPin.SupportedMajor.ToString(CultureInfo.InvariantCulture)
 			},
 			embedded);
 		Assert.Equal(SdkPin.Version, embedded[MetadataPrefix + "Version"]);

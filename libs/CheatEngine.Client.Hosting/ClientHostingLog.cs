@@ -43,14 +43,16 @@ internal static partial class ClientHostingLog
 
 	/// <summary>
 	///     Identifies the Client build, the consumed and loaded CheatEngine.SDK and the supported host profile once per
-	///     enable (audit A24-12). Built from assembly metadata only: no path, no file read and no Lua call.
+	///     enable (audit A24-12). Built from assembly metadata only: no path, no file read and no Lua call. The identity
+	///     label says whether the loaded SDK is the reviewed package, another release the package gate accepts, or one
+	///     it does not accept.
 	/// </summary>
 	[LoggerMessage(20, LogLevel.Information,
 		"Cheat Engine Client activation {Epoch} enables {PluginType} with CheatEngine.Client {ClientVersion}; consumed " +
 		"CheatEngine.SDK {ConsumedSdkVersion} (NuGet content hash {ConsumedSdkContentHash}), loaded " +
-		"CheatEngine.SDK.Engine {LoadedSdkVersion}, package evidence {PackageEvidence}; supported host profile " +
-		"{SupportedHost}.")]
+		"CheatEngine.SDK.Engine {LoadedSdkVersion} ({LoadedSdkIdentity}), package evidence {PackageEvidence}; " +
+		"supported host profile {SupportedHost}.")]
 	internal static partial void ActivationIdentified(ILogger logger, long epoch, string pluginType,
 		string clientVersion, string consumedSdkVersion, string consumedSdkContentHash, string loadedSdkVersion,
-		ClientCapabilityEvidenceState packageEvidence, string supportedHost);
+		string loadedSdkIdentity, ClientCapabilityEvidenceState packageEvidence, string supportedHost);
 }

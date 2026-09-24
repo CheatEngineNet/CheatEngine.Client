@@ -31,8 +31,11 @@ The runtime and target suites pin the observed-fact model: `Domains/TargetArchit
 fact alone (Q31, Q32), `Domains/ProcessClientTests` keeps the selection identity and the observed width,
 `Domains/MemoryPointerWidthTests` refuses pointer-typed paths on a configured/process width mismatch and keeps the codec
 width at the process width, and `RuntimeClientTests` also locks the package, qualification and read-only probe gates
-(Q44, Q45). `Domains/TableClientGenerationTests` and `Domains/TableClientMutationTests` refuse record identifiers
-captured before a trusted table load and report factual activation outcomes (Q34, Q35);
+(Q44, Q45). `Infrastructure/ConsumedSdkIdentityTests` pins the package gate's version rule: a loaded CheatEngine.SDK of
+the supported major at or above the pin, by SemVer precedence, is `Satisfied`, exact or not; another major or an older
+version is `Missing`; a missing or malformed version is `Unknown`. `Domains/TableClientGenerationTests` and
+`Domains/TableClientMutationTests` refuse record identifiers captured before a trusted table load and report factual
+activation outcomes (Q34, Q35);
 `Domains/InspectionClientBehaviorTests` and `Domains/SymbolRegistrationLeaseTests` check the symbol collision preflight
 and the ownership-checked release. `Infrastructure/CoreDiagnosticsTests` runs one operation of every emitting domain and
 proves that diagnostic events are never emitted inside a dispatched callback, carry only closed names, counts and

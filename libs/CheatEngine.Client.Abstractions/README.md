@@ -90,26 +90,29 @@ deterministic priority. The reason text remains available for display and diagno
 
 The table below is what this Client build reports through `ICheatEngineRuntime.TryGetClientCapability`. No Client
 capability is host-qualified yet: the qualification gate stays `Unknown` until a Client qualification receipt exists,
-so no capability reports `Available`. The package gate of every capability is evidence, not a version name: it is
-`Satisfied` only when the loaded `CheatEngine.SDK.Engine` declares the informational version of the CheatEngine.SDK
-2.0.0 package this build consumed, `Missing` for any other package, and `Unknown` for a build that embeds no identity.
-A contract-only capability is refused by its implementation gate, whatever its package gate reports. Probes are
-read-only: taking a snapshot never loads a driver, runs remote code, changes the target or allocates target memory.
-Each capability's qualification gate requires receipts for the live scenarios named in its row.
+so no capability reports `Available`. The package gate of every capability is evidence, not a version name: it
+compares the informational version of the loaded `CheatEngine.SDK.Engine` with the CheatEngine.SDK 2.0.0 package this
+build consumed, and follows the range the packages declare. It is `Satisfied` for a release of the same major at or
+above that version, by SemVer precedence (a prerelease of the consumed version is below it), and its reason says
+whether the loaded assembly is exactly the reviewed package or another 2.x release; it is `Missing` for another major or
+an older version, and `Unknown` when the loaded assembly declares no semantic informational version or the build embeds
+no identity. A contract-only capability is refused by its implementation gate, whatever its package gate reports.
+Probes are read-only: taking a snapshot never loads a driver, runs remote code, changes the target or allocates target
+memory. Each capability's qualification gate requires receipts for the live scenarios named in its row.
 
 <!-- capability-table:start -->
 | Capability id | Implementation | Package | Host | Qualification | Status reported at runtime |
 |---|---|---|---|---|---|
-| `Client.ProcessSelection` | Operational adapter | Evidence from the consumed CheatEngine.SDK 2.0.0 identity | Read-only opened-process probe | Unknown until Client receipts for Q30.a, Q31 and Q32 exist | `Unknown`; `Unavailable` when the package or host gate is `Missing` |
-| `Client.TypedMemory` | Operational adapter | Evidence from the consumed CheatEngine.SDK 2.0.0 identity | Not probed by the snapshot (`Unknown`) | Unknown until Client receipts for Q20, Q21 and Q33 exist | `Unknown`; `Unavailable` when the package gate is `Missing` |
-| `Client.PatternScanning` | Operational adapter | Evidence from the consumed CheatEngine.SDK 2.0.0 identity | Not probed by the snapshot (`Unknown`) | Unknown until Client receipts for Q27, Q28 and Q29 exist | `Unknown`; `Unavailable` when the package gate is `Missing` |
-| `Client.ValueScanning` | Contract-only (Unavailable) | Evidence from the consumed CheatEngine.SDK 2.0.0 identity | Not probed by the snapshot (`Unknown`) | Unknown until Client receipts for Q25 and Q26 exist | `Unavailable` |
-| `Client.Inspection` | Operational adapter | Evidence from the consumed CheatEngine.SDK 2.0.0 identity | Not probed by the snapshot (`Unknown`) | Unknown until Client receipts for Q16.b and Q28 exist | `Unknown`; `Unavailable` when the package gate is `Missing` |
-| `Client.Tables` | Operational adapter | Evidence from the consumed CheatEngine.SDK 2.0.0 identity | Not probed by the snapshot (`Unknown`) | Unknown until Client receipts for Q34 exist | `Unknown`; `Unavailable` when the package gate is `Missing` |
-| `Client.ProtectedLua` | Operational adapter | Evidence from the consumed CheatEngine.SDK 2.0.0 identity | Not probed by the snapshot (`Unknown`) | Unknown until Client receipts for Q05, Q16 and Q19 exist | `Unknown`; `Unavailable` when the package gate is `Missing` |
-| `Client.UnsafeLuaExecution` | Operational, policy opt-in | Evidence from the consumed CheatEngine.SDK 2.0.0 identity | Not probed by the snapshot (`Unknown`) | Stays `Unknown`: no scenario covers arbitrary Lua | `Unavailable` without `EnableUnsafeLuaExecution()`; otherwise `Unknown` |
-| `Client.Allocations` | Contract-only (Unavailable) | Evidence from the consumed CheatEngine.SDK 2.0.0 identity | Not probed by the snapshot (`Unknown`) | Unknown until Client receipts for Q30.a exist | `Unavailable` |
-| `Client.Assembly` | Contract-only (Unavailable) | Evidence from the consumed CheatEngine.SDK 2.0.0 identity | Not probed by the snapshot (`Unknown`) | Unknown until Client receipts for Q32 exist | `Unavailable` |
+| `Client.ProcessSelection` | Operational adapter | Loaded CheatEngine.SDK 2.x at or above the consumed 2.0.0 | Read-only opened-process probe | Unknown until Client receipts for Q30.a, Q31 and Q32 exist | `Unknown`; `Unavailable` when the package or host gate is `Missing` |
+| `Client.TypedMemory` | Operational adapter | Loaded CheatEngine.SDK 2.x at or above the consumed 2.0.0 | Not probed by the snapshot (`Unknown`) | Unknown until Client receipts for Q20, Q21 and Q33 exist | `Unknown`; `Unavailable` when the package gate is `Missing` |
+| `Client.PatternScanning` | Operational adapter | Loaded CheatEngine.SDK 2.x at or above the consumed 2.0.0 | Not probed by the snapshot (`Unknown`) | Unknown until Client receipts for Q27, Q28 and Q29 exist | `Unknown`; `Unavailable` when the package gate is `Missing` |
+| `Client.ValueScanning` | Contract-only (Unavailable) | Loaded CheatEngine.SDK 2.x at or above the consumed 2.0.0 | Not probed by the snapshot (`Unknown`) | Unknown until Client receipts for Q25 and Q26 exist | `Unavailable` |
+| `Client.Inspection` | Operational adapter | Loaded CheatEngine.SDK 2.x at or above the consumed 2.0.0 | Not probed by the snapshot (`Unknown`) | Unknown until Client receipts for Q16.b and Q28 exist | `Unknown`; `Unavailable` when the package gate is `Missing` |
+| `Client.Tables` | Operational adapter | Loaded CheatEngine.SDK 2.x at or above the consumed 2.0.0 | Not probed by the snapshot (`Unknown`) | Unknown until Client receipts for Q34 exist | `Unknown`; `Unavailable` when the package gate is `Missing` |
+| `Client.ProtectedLua` | Operational adapter | Loaded CheatEngine.SDK 2.x at or above the consumed 2.0.0 | Not probed by the snapshot (`Unknown`) | Unknown until Client receipts for Q05, Q16 and Q19 exist | `Unknown`; `Unavailable` when the package gate is `Missing` |
+| `Client.UnsafeLuaExecution` | Operational, policy opt-in | Loaded CheatEngine.SDK 2.x at or above the consumed 2.0.0 | Not probed by the snapshot (`Unknown`) | Stays `Unknown`: no scenario covers arbitrary Lua | `Unavailable` without `EnableUnsafeLuaExecution()`; otherwise `Unknown` |
+| `Client.Allocations` | Contract-only (Unavailable) | Loaded CheatEngine.SDK 2.x at or above the consumed 2.0.0 | Not probed by the snapshot (`Unknown`) | Unknown until Client receipts for Q30.a exist | `Unavailable` |
+| `Client.Assembly` | Contract-only (Unavailable) | Loaded CheatEngine.SDK 2.x at or above the consumed 2.0.0 | Not probed by the snapshot (`Unknown`) | Unknown until Client receipts for Q32 exist | `Unavailable` |
 <!-- capability-table:end -->
 
 Every row also carries the lifetime gate (`Missing` once the activation has ended). A contract-only capability refuses

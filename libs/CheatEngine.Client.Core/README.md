@@ -102,9 +102,13 @@ capability tables of the READMEs in step with it. The per-capability evidence (i
 package, host, qualification, policy and lifetime gates) is in the capability table of the
 `CheatEngine.Client.Abstractions` README. The package gate
 compares the CheatEngine.SDK identity embedded in this assembly at build time (version, source
-commit and NuGet content hash, as `AssemblyMetadata`, taken from the locked and restored package)
-with the informational version of the `CheatEngine.SDK.Engine` assembly actually loaded; it reads
-assembly attributes only. A build that cannot embed that identity fails with
+commit and NuGet content hash, as `AssemblyMetadata`, taken from the locked and restored package,
+and the supported major of `eng/CheatEngineSdk.props`) with the informational version of the
+`CheatEngine.SDK.Engine` assembly actually loaded; it reads assembly attributes only. It is
+`Satisfied` for a release of the supported major at or above the consumed version, by SemVer
+precedence, which is the range the packages declare; its reason says whether the loaded assembly is
+exactly the reviewed package, a distinction the qualification gate needs (a receipt covers only the
+tuple it was produced with). A build that cannot embed that identity fails with
 `CHEATENGINECLIENT9050`. UI/forms, structures, Mono/IL2CPP, and ABI hooks are outside this layer.
 
 ## Runtime facts, target selection and pointer width

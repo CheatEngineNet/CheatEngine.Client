@@ -28,6 +28,9 @@
       against the content hash.
     - SourceCommit: the repository commit that the restored package's nuspec declares, taken only when the restored
       package's .nupkg.metadata content hash equals the lock value (the restored package is the locked one).
+    - SupportedMajor: _CheatEngineClientSupportedSdkMajor of eng/CheatEngineSdk.props. The package gate accepts a loaded
+      CheatEngine.SDK.Engine of that major at or above Version (the pin), the range the packages declare; the source
+      holds no version literal.
     A build that cannot embed the identity fails with CHEATENGINECLIENT9050, so no build degrades the operational
     package gates to Unknown without a signal.
     Property functions: https://learn.microsoft.com/visualstudio/msbuild/property-functions
@@ -58,6 +61,7 @@
     <AssemblyMetadata Include="CheatEngine.Client.ConsumedSdk.Version" Value="$(_CheatEngineClientLockedSdkVersion)"/>
     <AssemblyMetadata Include="CheatEngine.Client.ConsumedSdk.SourceCommit" Value="$(_CheatEngineClientRestoredSdkCommit)"/>
     <AssemblyMetadata Include="CheatEngine.Client.ConsumedSdk.ContentHashSha512" Value="$(_CheatEngineClientLockedSdkContentHash)"/>
+    <AssemblyMetadata Include="CheatEngine.Client.ConsumedSdk.SupportedMajor" Value="$(_CheatEngineClientSupportedSdkMajor)"/>
   </ItemGroup>
 
   <!--

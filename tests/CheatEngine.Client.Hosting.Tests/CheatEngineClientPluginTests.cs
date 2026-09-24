@@ -458,6 +458,11 @@ public sealed class CheatEngineClientPluginTests
 		Assert.Contains("CheatEngine.SDK " + GetConsumedSdkMetadata("Version"), message, StringComparison.Ordinal);
 		Assert.Contains("NuGet content hash " + GetConsumedSdkMetadata("ContentHashSha512"), message,
 			StringComparison.Ordinal);
+		// The test process loads the reviewed package itself, so the identity label, built from versions only, says so.
+		string loaded = typeof(CheatEngine.SDK.Engine.Runtime.RuntimeInfo).Assembly
+			.GetCustomAttribute<AssemblyInformationalVersionAttribute>()!.InformationalVersion;
+		Assert.Contains($"loaded CheatEngine.SDK.Engine {loaded} (the reviewed package), package evidence Satisfied;",
+			message, StringComparison.Ordinal);
 		Assert.Contains("supported host profile ce-7.7.0.10621-x64-managed-hostfxr.", message, StringComparison.Ordinal);
 		Assert.DoesNotMatch(@"[A-Za-z]:\\", message);
 		Assert.DoesNotContain("\\", message, StringComparison.Ordinal);

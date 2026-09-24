@@ -237,7 +237,8 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 
 	/// <summary>
 	///     Logs the identity of this activation once per enable (EventId 20): the Client version, the consumed and loaded
-	///     CheatEngine.SDK identity and the supported host profile. Assembly metadata only, never a path or a Lua call.
+	///     CheatEngine.SDK identity, how the loaded one relates to the consumed one, and the supported host profile.
+	///     Assembly metadata only, never a path or a Lua call.
 	/// </summary>
 	private static void LogIdentification(Activation activation, Type pluginType)
 	{
@@ -249,8 +250,8 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 				.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? NotDeclared;
 			ClientHostingLog.ActivationIdentified(logger, state.Epoch, state.PluginType.FullName ?? state.PluginType.Name,
 				clientVersion, identity.Version ?? NotDeclared, identity.ContentHashSha512 ?? NotDeclared,
-				identity.LoadedInformationalVersion ?? NotDeclared, identity.PackageGate.State,
-				ConsumedSdkIdentity.SupportedHostProfileId);
+				identity.LoadedInformationalVersion ?? NotDeclared, identity.IdentityLabel,
+				identity.PackageGate.State, ConsumedSdkIdentity.SupportedHostProfileId);
 		});
 	}
 

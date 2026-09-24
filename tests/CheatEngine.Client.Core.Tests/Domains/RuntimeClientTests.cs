@@ -17,6 +17,8 @@ public sealed class RuntimeClientTests
 	private const string SdkContentHash =
 		"NLEdZYJ9LKW3EFNB4X5snKCQf7ZS86GkCQ+El7o+S1XQcxHQGjS45Q1ap8lfjQuIwm004mQ3TPxo+ph1yvRrlQ==";
 
+	private const string SdkSupportedMajor = "2";
+
 	// Another CheatEngine.SDK build loaded next to this Client: a prerelease of the next major.
 	private const string OtherSdkInformationalVersion = "3.0.0-alpha.0.1+0123456789abcdef0123456789abcdef01234567";
 
@@ -697,58 +699,74 @@ public sealed class RuntimeClientTests
 		Assert.Same(detached, failure.Exception);
 	}
 
-	[Fact]
-	public void PackageGateIsSatisfiedWhenTheLoadedSdkMatchesTheEmbeddedIdentity()
+	[Theory]
+	[InlineData(SdkVersion + "+" + SdkCommit, ClientCapabilityEvidenceState.Satisfied, true)]
+	[InlineData("2.0.1", ClientCapabilityEvidenceState.Satisfied, false)]
+	[InlineData("2.1.0-beta.1", ClientCapabilityEvidenceState.Satisfied, false)]
+	[InlineData("2.0.0-rc.1", ClientCapabilityEvidenceState.Missing, false)]
+	[InlineData("1.0.0", ClientCapabilityEvidenceState.Missing, false)]
+	[InlineData("3.0.0", ClientCapabilityEvidenceState.Missing, false)]
+	[InlineData(OtherSdkInformationalVersion, ClientCapabilityEvidenceState.Missing, false)]
+	[InlineData(null, ClientCapabilityEvidenceState.Unknown, false)]
+	public void PackageGateAcceptsEveryReleaseOfTheSupportedMajorAtOrAboveThePin(string? loaded,
+		ClientCapabilityEvidenceState expected, bool exact)
 	{
-		ConsumedSdkIdentity identity = new(SdkVersion, SdkCommit, SdkContentHash, $"{SdkVersion}+{SdkCommit}");
+		// The gate follows the declared dependency range: same major as the pin and at least the pin by SemVer
+		// precedence (a prerelease of the pin is below it); the reason says whether it is the reviewed package itself.
+		ConsumedSdkIdentity identity = new(SdkVersion, SdkCommit, SdkContentHash, SdkSupportedMajor, loaded);
 
 		ClientCapabilityAvailability typedMemory = GetClientCapability(identity, ClientCapabilityId.TypedMemory);
+		string reason = typedMemory.Evidence.Package.Reason;
 
-		Assert.Equal(ClientCapabilityEvidenceState.Satisfied, typedMemory.Evidence.Package.State);
-		Assert.Contains($"{SdkVersion}+{SdkCommit}", typedMemory.Evidence.Package.Reason, StringComparison.Ordinal);
-		Assert.Contains(SdkContentHash, typedMemory.Evidence.Package.Reason, StringComparison.Ordinal);
+		Assert.Equal(expected, typedMemory.Evidence.Package.State);
+		Assert.Equal(exact, identity.ExactReviewedIdentity);
+		Assert.Equal(expected == ClientCapabilityEvidenceState.Missing
+			? ClientCapabilityAvailabilityState.Unavailable
+			: ClientCapabilityAvailabilityState.Unknown, typedMemory.State);
+		Assert.DoesNotContain("refuse", reason, StringComparison.OrdinalIgnoreCase);
+		if (loaded is not null)
+		{
+			Assert.Contains(loaded, reason, StringComparison.Ordinal);
+		}
+
+		if (exact)
+		{
+			Assert.Contains("exactly the reviewed package", reason, StringComparison.Ordinal);
+			Assert.Contains(SdkContentHash, reason, StringComparison.Ordinal);
+		}
+		else if (expected == ClientCapabilityEvidenceState.Satisfied)
+		{
+			Assert.Contains("is a release of the supported CheatEngine.SDK 2.x at or above 2.0.0", reason,
+				StringComparison.Ordinal);
+			Assert.Contains($"another release than the reviewed package this Client build consumed ({SdkVersion}+{SdkCommit})",
+				reason, StringComparison.Ordinal);
+		}
+		else if (expected == ClientCapabilityEvidenceState.Missing)
+		{
+			Assert.Contains("is not a release of the supported CheatEngine.SDK 2.x at or above 2.0.0", reason,
+				StringComparison.Ordinal);
+		}
+		else
+		{
+			Assert.Contains("declares no informational version", reason, StringComparison.Ordinal);
+		}
+
 		foreach (ClientCapabilityId operational in OperationalCapabilities)
 		{
-			Assert.Equal(ClientCapabilityEvidenceState.Satisfied,
-				GetClientCapability(identity, operational).Evidence.Package.State);
+			Assert.Equal(identity.PackageGate, GetClientCapability(identity, operational).Evidence.Package);
 		}
-	}
-
-	[Fact]
-	public void PackageGateIsMissingWhenTheLoadedSdkDiffersFromTheEmbeddedIdentity()
-	{
-		ConsumedSdkIdentity identity = new(SdkVersion, SdkCommit, SdkContentHash, OtherSdkInformationalVersion);
-
-		ClientCapabilityAvailability typedMemory = GetClientCapability(identity, ClientCapabilityId.TypedMemory);
-
-		Assert.Equal(ClientCapabilityEvidenceState.Missing, typedMemory.Evidence.Package.State);
-		Assert.Equal(ClientCapabilityAvailabilityState.Unavailable, typedMemory.State);
-		Assert.Contains(OtherSdkInformationalVersion, typedMemory.Evidence.Package.Reason, StringComparison.Ordinal);
-		Assert.Contains("refuses to treat it as its SDK", typedMemory.Evidence.Package.Reason, StringComparison.Ordinal);
 	}
 
 	[Fact]
 	public void PackageGateIsUnknownWithoutEmbeddedIdentity()
 	{
-		ConsumedSdkIdentity identity = new(null, null, null, $"{SdkVersion}+{SdkCommit}");
+		ConsumedSdkIdentity identity = new(null, null, null, null, $"{SdkVersion}+{SdkCommit}");
 
 		ClientCapabilityAvailability typedMemory = GetClientCapability(identity, ClientCapabilityId.TypedMemory);
 
 		Assert.False(identity.IsEmbedded);
 		Assert.Equal(ClientCapabilityEvidenceState.Unknown, typedMemory.Evidence.Package.State);
 		Assert.Contains("embeds no consumed CheatEngine.SDK identity", typedMemory.Evidence.Package.Reason,
-			StringComparison.Ordinal);
-	}
-
-	[Fact]
-	public void PackageGateIsUnknownWhenTheLoadedSdkDeclaresNoInformationalVersion()
-	{
-		ConsumedSdkIdentity identity = new(SdkVersion, SdkCommit, SdkContentHash, null);
-
-		ClientCapabilityAvailability typedMemory = GetClientCapability(identity, ClientCapabilityId.TypedMemory);
-
-		Assert.Equal(ClientCapabilityEvidenceState.Unknown, typedMemory.Evidence.Package.State);
-		Assert.Contains("declares no informational version", typedMemory.Evidence.Package.Reason,
 			StringComparison.Ordinal);
 	}
 
@@ -762,6 +780,8 @@ public sealed class RuntimeClientTests
 
 		Assert.True(current.IsEmbedded, "The Core assembly under test embeds no consumed CheatEngine.SDK identity.");
 		Assert.Equal(ClientCapabilityEvidenceState.Satisfied, current.PackageGate.State);
+		Assert.True(current.ExactReviewedIdentity);
+		Assert.Equal("the reviewed package", current.IdentityLabel);
 		Assert.Equal(typeof(RuntimeInfo).Assembly
 				.GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
 				.Cast<System.Reflection.AssemblyInformationalVersionAttribute>().Single().InformationalVersion,
@@ -778,7 +798,8 @@ public sealed class RuntimeClientTests
 		// ADR-10: the package gate states what the evidence shows about the consumed package, never a claim about what
 		// an SDK version provides; the contract-only implementation gate alone keeps the capability unavailable.
 		ClientCapabilityId capability = ContractOnlyCapability(name);
-		ConsumedSdkIdentity differentPackage = new(SdkVersion, SdkCommit, SdkContentHash, OtherSdkInformationalVersion);
+		ConsumedSdkIdentity differentPackage = new(SdkVersion, SdkCommit, SdkContentHash, SdkSupportedMajor,
+			OtherSdkInformationalVersion);
 
 		ClientCapabilityAvailability matching = GetClientCapability(MatchingIdentity(), capability);
 		ClientCapabilityAvailability different = GetClientCapability(differentPackage, capability);
@@ -907,7 +928,8 @@ public sealed class RuntimeClientTests
 
 	private static ConsumedSdkIdentity MatchingIdentity()
 	{
-		return new ConsumedSdkIdentity(SdkVersion, SdkCommit, SdkContentHash, $"{SdkVersion}+{SdkCommit}");
+		return new ConsumedSdkIdentity(SdkVersion, SdkCommit, SdkContentHash, SdkSupportedMajor,
+			$"{SdkVersion}+{SdkCommit}");
 	}
 
 	private static ClientCapabilityAvailability GetClientCapability(ConsumedSdkIdentity identity,

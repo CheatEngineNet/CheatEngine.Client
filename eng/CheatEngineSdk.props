@@ -35,7 +35,8 @@
     - the CheatEngine.SDK default of the template content project and its "Keep CheatEngine.SDK on N.x" comment
       (templates/CheatEngine.Client.Templates/content/CheatEngine.Plugin/CheatEngine.Plugin.csproj);
     - the identity literals of PackagedClientFeedFixture.PinnedSdkIdentity and LockFileTests, and the sample identity
-      of tests/CheatEngine.Client.Core.Tests/Domains/RuntimeClientTests.cs; the retired literals join
+      and version matrix of tests/CheatEngine.Client.Core.Tests/Domains/RuntimeClientTests.cs and
+      tests/CheatEngine.Client.Core.Tests/Infrastructure/ConsumedSdkIdentityTests.cs; the retired literals join
       SdkPinTests.RetiredSdkIdentityLiteralsAppearNowhere;
     - the NuGet content hash, bridge SHA-256 and source commit lines of the three install guides;
     - the CheatEngine.SDK major ignored by .github/dependabot.yml (DependabotConfigurationTests) and the Client, SDK and
