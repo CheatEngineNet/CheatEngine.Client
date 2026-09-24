@@ -217,7 +217,9 @@ replaced it, left in place), `ExternallyRemoved` or `CleanupUnavailable` (nothin
 
 - **Returned as `CheatEngineFailure`:** request refusals, policy refusals, budget refusals, pre-admission cancellation,
   Cheat Engine results that are false, absent, indeterminate, or malformed, and every CheatEngine.SDK exception raised by
-  Client-internal SDK work (mapped by exception type, never by message text). No SDK exception type crosses a `Try*`.
+  Client-internal SDK work (mapped by exception type and the SDK's own failure category, never by message text). No
+  SDK exception type crosses a `Try*`. A Lua admission that CheatEngine.SDK refuses is `ActivationExpired`,
+  `RuntimeChanged` or `InvalidState` with `NotStarted`, never `OperationRejected`.
 - **Thrown:** `CheatEngineActivationExpiredException` when the activation has ended, `CheatEngineClientLifecycleException`
   when it is stopping, and `ArgumentException`/`ArgumentNullException`/`ArgumentOutOfRangeException` for invalid
   arguments (programming errors). An expired activation is never reported as `Cancelled` or `CapabilityUnavailable`.
@@ -240,7 +242,7 @@ dispatch and between Client-managed steps.
 | Inspection and symbol leases (`IInspectionClient`) | Dispatch admission | `NotStarted` (name already reserved by this activation, name already resolves, failed collision check), `CleanupUnconfirmed` (lease release not confirmed), `Unknown` (SDK fault) | A faulted `registerSymbol` is not claimed and not retried; a replaced name is left in place |
 | Tables (`ITableClient`) | Dispatch admission; `Find` filters a copied snapshot | `NotStarted` (policy, invalid relationship, stale record identifier, activation of a record that was not found), `Started` (activation refused by the host or pending), `Completed` (`Find` cancelled after the snapshot, failed `Create` whose rollback was confirmed), `CleanupUnconfirmed` (record rollback not confirmed), `Unknown` (SDK fault, `loadTable` fault, indeterminate activation) | A failed `Create` destroys the partial record once and never retries; a refused activation can leave partial script effects; `loadTable` can execute table Lua |
 | Lua typed operations and modules (`ILuaClient`) | Dispatch admission | `NotStarted` (cancellation), otherwise the operation's own failure | Owned by the operation; operation exceptions are rethrown unchanged |
-| Unsafe Lua (`IUnsafeLuaClient`) | Dispatch admission | `NotStarted` (policy), `Unknown` (SDK fault; the script may have run partially) | The script may have run partially before a Lua error |
+| Unsafe Lua (`IUnsafeLuaClient`) | Dispatch admission | `NotStarted` (policy, or a Lua admission refused by CheatEngine.SDK), `Unknown` (SDK fault; the script may have run partially) | The script may have run partially before a Lua error |
 | Runtime and Processes (`ICheatEngineRuntime`, `IProcessClient`) | Dispatch admission | `Completed` (the selected target changed during the observation: `IndeterminateHostResult`), `Unknown` (SDK fault, no selected target) | A fact probe that fails leaves that fact `Unknown` in the snapshot or capability evidence instead of failing the call; `Attach` changes Cheat Engine's global selection |
 | Capability-gated domains (allocations, assembly) | Not applicable: no Cheat Engine work is dispatched | `NotStarted` (`CapabilityUnavailable` or `Cancelled`) | None |
 | Value scans (`IValueScanner`) | Not applicable: no Cheat Engine work is dispatched | Not yet reported (`Unknown`) | None; the refusal is the same `CapabilityUnavailable` or `Cancelled`, and reporting `NotStarted` here is scheduled with the other value-scan changes |

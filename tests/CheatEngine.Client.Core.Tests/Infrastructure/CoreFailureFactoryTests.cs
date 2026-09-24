@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Runtime.CompilerServices;
 
 using CheatEngine.Client.Core.Infrastructure;
@@ -5,6 +6,7 @@ using CheatEngine.Client.Results;
 using CheatEngine.SDK.Engine.Errors;
 using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Engine.Scanning.Values;
+using CheatEngine.SDK.Engine.Targets;
 using CheatEngine.SDK.Lua.Calls;
 
 namespace CheatEngine.Client.Core.Tests.Infrastructure;
@@ -73,12 +75,15 @@ public sealed class CoreFailureFactoryTests
 	}
 
 	[Theory]
-	[InlineData("target-identity", CheatEngineFailureKind.InvalidState, CheatEngineHostEffect.Unknown)]
-	[InlineData("resource-handoff", CheatEngineFailureKind.OperationRejected, CheatEngineHostEffect.CleanupUnconfirmed)]
-	[InlineData("symbol-handoff", CheatEngineFailureKind.OperationRejected, CheatEngineHostEffect.CleanupUnconfirmed)]
-	[InlineData("symbol-list-handoff", CheatEngineFailureKind.OperationRejected, CheatEngineHostEffect.CleanupUnconfirmed)]
+	[InlineData("target-changed", CheatEngineFailureKind.TargetChanged, CheatEngineHostEffect.Unknown)]
+	[InlineData("target-process-reused", CheatEngineFailureKind.TargetChanged, CheatEngineHostEffect.Unknown)]
+	[InlineData("target-unqualified", CheatEngineFailureKind.TargetIdentityUnavailable, CheatEngineHostEffect.Unknown)]
+	[InlineData("target-unspecified", CheatEngineFailureKind.TargetIdentityUnavailable, CheatEngineHostEffect.Unknown)]
+	[InlineData("resource-handoff", CheatEngineFailureKind.BindingError, CheatEngineHostEffect.CleanupUnconfirmed)]
+	[InlineData("symbol-handoff", CheatEngineFailureKind.BindingError, CheatEngineHostEffect.CleanupUnconfirmed)]
+	[InlineData("symbol-list-handoff", CheatEngineFailureKind.BindingError, CheatEngineHostEffect.CleanupUnconfirmed)]
 	[InlineData("memory-scan-state", CheatEngineFailureKind.InvalidState, CheatEngineHostEffect.Unknown)]
-	public void FromExceptionMapsTheInterimSdkTwoExceptionTypes(string scenario, CheatEngineFailureKind expectedKind,
+	public void FromExceptionClassifiesTheSdkTwoExceptionTypes(string scenario, CheatEngineFailureKind expectedKind,
 		CheatEngineHostEffect expectedHostEffect)
 	{
 		Exception exception = CreateSdkTwoException(scenario);
@@ -100,26 +105,91 @@ public sealed class CoreFailureFactoryTests
 		CheatEngineFailure failure = CoreFailureFactory.FromException("Client.MapFailure", CreateSdkTwoException(scenario),
 			CheatEngineHostEffect.Started);
 
-		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
+		Assert.Equal(CheatEngineFailureKind.BindingError, failure.Kind);
 		Assert.Equal(CheatEngineHostEffect.Started, failure.HostEffect);
 	}
 
 	[Fact]
-	public void MemoryScanStateExceptionIsClassifiedBeforeTheInvalidOperationArm()
+	public void MemoryScanExceptionsAreClassifiedBeforeTheInvalidOperationArm()
 	{
-		Exception exception = CreateSdkTwoException("memory-scan-state");
+		Exception state = CreateSdkTwoException("memory-scan-state");
+		MemoryScanException scan = CreateMemoryScanException(MemoryScanFailureKind.RuntimeInvalidated);
 
-		Assert.IsAssignableFrom<InvalidOperationException>(exception);
-		Assert.Equal(CheatEngineFailureKind.InvalidState, CoreFailureFactory.GetKind(exception));
+		Assert.IsAssignableFrom<InvalidOperationException>(state);
+		Assert.IsAssignableFrom<InvalidOperationException>(scan);
+		Assert.Equal(CheatEngineFailureKind.InvalidState, CoreFailureFactory.GetKind(state));
+		Assert.Equal(CheatEngineFailureKind.RuntimeChanged, CoreFailureFactory.GetKind(scan));
 		Assert.Equal(CheatEngineFailureKind.OperationRejected,
 			CoreFailureFactory.GetKind(new InvalidOperationException("Invalid state.")));
+	}
+
+	[Theory]
+	[InlineData(MemoryScanFailureKind.MissingCapability, CheatEngineFailureKind.CapabilityUnavailable)]
+	[InlineData(MemoryScanFailureKind.LuaError, CheatEngineFailureKind.LuaError)]
+	[InlineData(MemoryScanFailureKind.UnexpectedResult, CheatEngineFailureKind.InvalidHostResult)]
+	[InlineData(MemoryScanFailureKind.RuntimeInvalidated, CheatEngineFailureKind.RuntimeChanged)]
+	[InlineData(MemoryScanFailureKind.TargetIdentityUnavailable, CheatEngineFailureKind.TargetIdentityUnavailable)]
+	[InlineData(MemoryScanFailureKind.TargetIdentityMismatch, CheatEngineFailureKind.TargetChanged)]
+	[InlineData((MemoryScanFailureKind) 99, CheatEngineFailureKind.Unknown)]
+	public void MemoryScanExceptionIsClassifiedByItsFailureKind(MemoryScanFailureKind scanKind,
+		CheatEngineFailureKind expectedKind)
+	{
+		MemoryScanException exception = CreateMemoryScanException(scanKind);
+
+		Assert.Equal(expectedKind, CoreFailureFactory.FromException("Scans.Next", exception).Kind);
+		Assert.Equal(expectedKind, CoreFailureFactory.FromMemoryScanFailureKind(scanKind));
+	}
+
+	[Theory]
+	[InlineData(EngineFailureKind.ExpectedOperationFailure, CheatEngineFailureKind.OperationRejected)]
+	[InlineData(EngineFailureKind.GlobalUnavailable, CheatEngineFailureKind.CapabilityUnavailable)]
+	[InlineData(EngineFailureKind.CapabilityUnavailable, CheatEngineFailureKind.CapabilityUnavailable)]
+	[InlineData(EngineFailureKind.ProtectedLuaFailure, CheatEngineFailureKind.LuaError)]
+	[InlineData(EngineFailureKind.BindingFailure, CheatEngineFailureKind.BindingError)]
+	[InlineData(EngineFailureKind.MarshallingFailure, CheatEngineFailureKind.InvalidHostResult)]
+	[InlineData(EngineFailureKind.TargetIdentityUnavailable, CheatEngineFailureKind.TargetIdentityUnavailable)]
+	[InlineData(EngineFailureKind.TargetIdentityMismatch, CheatEngineFailureKind.TargetChanged)]
+	[InlineData((EngineFailureKind) 99, CheatEngineFailureKind.Unknown)]
+	public void EngineFailureKindMapsToItsClientKind(EngineFailureKind engineKind, CheatEngineFailureKind expectedKind)
+	{
+		Assert.Equal(expectedKind, CoreFailureFactory.FromEngineFailureKind(engineKind));
+	}
+
+	[Theory]
+	[InlineData(CheatEngineFailureKind.ActivationExpired)]
+	[InlineData(CheatEngineFailureKind.InvalidState)]
+	[InlineData(CheatEngineFailureKind.RuntimeChanged)]
+	public void ARefusedLuaAdmissionKeepsItsClassifiedKind(CheatEngineFailureKind kind)
+	{
+		LuaAdmissionRefusedException exception = new(new CheatEngineFailure(kind, "Tables.ReadParent",
+			"The Lua operation was refused.", null, CheatEngineHostEffect.NotStarted));
+
+		CheatEngineFailure failure = CoreFailureFactory.FromException("Tables.SetParent", exception);
+
+		Assert.Equal(kind, failure.Kind);
+		Assert.Equal("Tables.SetParent", failure.Operation);
+		Assert.Equal("The Lua operation was refused.", failure.Message);
+		Assert.Same(exception, failure.Exception);
+	}
+
+	[Fact]
+	public void CancelledIsTheBeforeNativeCallCancellation()
+	{
+		Assert.Equal(CancellationMapping.BeforeNativeCall("Dispatcher.Invoke"),
+			CoreFailureFactory.Cancelled("Dispatcher.Invoke"));
 	}
 
 	private static Exception CreateSdkTwoException(string scenario)
 	{
 		return scenario switch
 		{
-			"target-identity" => new EngineTargetIdentityException("Client.Test", default),
+			"target-changed" => new EngineTargetIdentityException("Client.Test",
+				CreateCheck(TargetIdentityCheckKind.TargetChanged)),
+			"target-process-reused" => new EngineTargetIdentityException("Client.Test",
+				CreateCheck(TargetIdentityCheckKind.ProcessReused)),
+			"target-unqualified" => new EngineTargetIdentityException("Client.Test",
+				CreateCheck(TargetIdentityCheckKind.CurrentTargetUnqualified)),
+			"target-unspecified" => new EngineTargetIdentityException("Client.Test", default),
 			"resource-handoff" => new EngineResourceHandoffException("Client.Test", default, null),
 			"symbol-handoff" => new SymbolRegistrationHandoffException(default, null),
 			"symbol-list-handoff" => new SymbolListRegistrationHandoffException(default, null),
@@ -127,5 +197,27 @@ public sealed class CoreFailureFactoryTests
 			"memory-scan-state" => (Exception) RuntimeHelpers.GetUninitializedObject(typeof(MemoryScanStateException)),
 			_ => throw new ArgumentOutOfRangeException(nameof(scenario), scenario, null)
 		};
+	}
+
+	/// <summary>Builds the SDK's target validation result, whose constructor is internal to CheatEngine.SDK.</summary>
+	private static TargetIdentityCheck CreateCheck(TargetIdentityCheckKind kind)
+	{
+		ConstructorInfo constructor = typeof(TargetIdentityCheck).GetConstructor(
+				BindingFlags.Instance | BindingFlags.NonPublic,
+				[typeof(TargetIdentityCheckKind), typeof(TargetSelectionObservation)])
+			?? throw new InvalidOperationException("TargetIdentityCheck has no (kind, observed) constructor.");
+		return (TargetIdentityCheck) constructor.Invoke([kind, default(TargetSelectionObservation)]);
+	}
+
+	/// <summary>Builds a memory-scan failure; CheatEngine.SDK constructs it internally only.</summary>
+	private static MemoryScanException CreateMemoryScanException(MemoryScanFailureKind kind)
+	{
+		MemoryScanException exception =
+			(MemoryScanException) RuntimeHelpers.GetUninitializedObject(typeof(MemoryScanException));
+		FieldInfo field = typeof(MemoryScanException).GetField("<FailureKind>k__BackingField",
+				BindingFlags.Instance | BindingFlags.NonPublic)
+			?? throw new InvalidOperationException("MemoryScanException.FailureKind is no longer an auto-property.");
+		field.SetValue(exception, kind);
+		return exception;
 	}
 }

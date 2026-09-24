@@ -353,15 +353,14 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 
 	private static CheatEngineFailure CancelledBeforeScan()
 	{
-		return new CheatEngineFailure(CheatEngineFailureKind.Cancelled, ScanOperation,
-			"The AOB scan was cancelled before Cheat Engine started it.", null, CheatEngineHostEffect.NotStarted);
+		return CancellationMapping.BeforeNativeCall(ScanOperation,
+			"The AOB scan was cancelled before Cheat Engine started it.");
 	}
 
 	private static CheatEngineFailure CancelledAfterScan()
 	{
-		return new CheatEngineFailure(CheatEngineFailureKind.Cancelled, ScanOperation,
-			"The AOB scan was cancelled after Cheat Engine completed it; no copied result was published.", null,
-			CheatEngineHostEffect.Completed);
+		return CancellationMapping.AfterNativeCall(ScanOperation,
+			"The AOB scan was cancelled after Cheat Engine completed it; no copied result was published.");
 	}
 
 	private bool TryGetModuleRange(ModuleName requested, out ModuleRange range, out CheatEngineFailure failure)

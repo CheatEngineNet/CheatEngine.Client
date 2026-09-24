@@ -145,9 +145,8 @@ internal sealed class TableClient(
 		{
 			// The read-only snapshot has already been copied: the host call completed and left nothing behind.
 			records = [];
-			failure = new CheatEngineFailure(CheatEngineFailureKind.Cancelled, "Tables.Find",
-				"The search was cancelled after the Address List snapshot was copied; no result was published.", null,
-				CheatEngineHostEffect.Completed);
+			failure = CancellationMapping.AfterNativeCall("Tables.Find",
+				"The search was cancelled after the Address List snapshot was copied; no result was published.");
 			return false;
 		}
 

@@ -15,6 +15,8 @@ namespace CheatEngine.Client.Core.Domains;
 
 internal sealed class UnsafeLuaClient : IUnsafeLuaClient
 {
+	private const string Operation = "Lua.ExecuteUnsafe";
+
 	private readonly ICheatEngineDispatcher _dispatcher;
 	private readonly CoreLifetime? _lifetime;
 	private readonly CoreClientPolicy _policy;
@@ -42,13 +44,13 @@ internal sealed class UnsafeLuaClient : IUnsafeLuaClient
 			throw new ArgumentException("A Lua chunk name must be null or non-empty.", nameof(script));
 		}
 
-		_lifetime?.ThrowIfInactive("Lua.ExecuteUnsafe");
+		_lifetime?.ThrowIfInactive(Operation);
 
 		if (!_policy.EnableUnsafeLuaExecution)
 		{
-			_lifetime?.Diagnostics.CapabilityRefused(ClientCapabilityId.UnsafeLuaExecution.Value, "Lua.ExecuteUnsafe",
+			_lifetime?.Diagnostics.CapabilityRefused(ClientCapabilityId.UnsafeLuaExecution.Value, Operation,
 				ClientCapabilityEvidenceReasonCode.Policy, ClientCapabilityEvidenceState.Missing);
-			failure = new CheatEngineFailure(CheatEngineFailureKind.CapabilityUnavailable, "Lua.ExecuteUnsafe",
+			failure = new CheatEngineFailure(CheatEngineFailureKind.CapabilityUnavailable, Operation,
 				"Arbitrary Lua execution was not enabled for this activation.", null, CheatEngineHostEffect.NotStarted);
 			return false;
 		}
@@ -56,7 +58,7 @@ internal sealed class UnsafeLuaClient : IUnsafeLuaClient
 		long started = Stopwatch.GetTimestamp();
 		bool completed = TryExecuteCore(script, out failure, cancellationToken);
 		// Size and duration only: the script body and the Lua error text are never logged (A24-14).
-		_lifetime?.Diagnostics.LuaOperationCompleted("Lua.ExecuteUnsafe",
+		_lifetime?.Diagnostics.LuaOperationCompleted(Operation,
 			completed ? "None" : failure.Kind.ToString(), (long) Stopwatch.GetElapsedTime(started).TotalMilliseconds,
 			script.Source.Length);
 		return completed;
@@ -67,11 +69,20 @@ internal sealed class UnsafeLuaClient : IUnsafeLuaClient
 		string luaStatus = "unknown";
 		string? luaMessage = null;
 		bool succeeded = false;
-		// A protected Lua failure is a returned status; only SDK faults (for example a detached runtime) are translated,
-		// with an unknown effect because the script may have run partially.
-		if (!SdkBoundary.TryInvoke(_dispatcher, "Lua.ExecuteUnsafe", () =>
+		bool admitted = false;
+		CheatEngineFailure admissionFailure = default;
+		// A refused Lua admission is classified from the SDK's admission status (NotStarted). A protected Lua failure is a
+		// returned status; only SDK faults are translated, with an unknown effect because the script may have run
+		// partially.
+		if (!SdkBoundary.TryInvoke(_dispatcher, Operation, () =>
 			{
-				using LuaRuntimeOperation operation = LuaRuntime.AcquireOperation();
+				if (!LuaAdmission.TryAcquire(Operation, out LuaRuntimeOperation acquired, out admissionFailure))
+				{
+					return;
+				}
+
+				admitted = true;
+				using LuaRuntimeOperation operation = acquired;
 				LuaState state = operation.State;
 				using LuaFrame frame = new(state);
 				byte[] source = Encoding.UTF8.GetBytes(script.Source);
@@ -90,12 +101,18 @@ internal sealed class UnsafeLuaClient : IUnsafeLuaClient
 			return false;
 		}
 
+		if (!admitted)
+		{
+			failure = admissionFailure;
+			return false;
+		}
+
 		if (succeeded)
 		{
 			return true;
 		}
 
-		failure = new CheatEngineFailure(CheatEngineFailureKind.LuaError, "Lua.ExecuteUnsafe",
+		failure = new CheatEngineFailure(CheatEngineFailureKind.LuaError, Operation,
 			luaMessage is { Length: > 0 }
 				? $"The protected Lua call failed with status '{luaStatus}': {luaMessage}"
 				: $"The protected Lua call failed with status '{luaStatus}'.");

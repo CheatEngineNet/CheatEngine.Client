@@ -65,7 +65,6 @@ public sealed class ArchitectureRatchetTests
 		"CheatEngine.Client.Core.Domains.SdkTableRecordMutationPort -> CheatEngine.SDK.Engine.Objects.CEObject::TryGetProperty(CheatEngine.SDK.Lua.State.LuaState,System.ReadOnlySpan`1<byte>)->CheatEngine.SDK.Lua.Calls.LuaStatus",
 		"CheatEngine.Client.Core.Domains.SdkTableRecordMutationPort -> CheatEngine.SDK.Engine.Objects.CEObject::TryGetProperty``2(System.ReadOnlySpan`1<byte>,!!1&)->boolean",
 		"CheatEngine.Client.Core.Domains.SdkTableRecordMutationPort -> CheatEngine.SDK.Engine.Objects.CEObject::TrySetProperty``2(System.ReadOnlySpan`1<byte>,!!1)->boolean",
-		"CheatEngine.Client.Core.Domains.SdkTableRecordMutationPort -> CheatEngine.SDK.Lua.Runtime.LuaRuntime::AcquireOperation()->CheatEngine.SDK.Lua.Runtime.LuaRuntimeOperation",
 		"CheatEngine.Client.Core.Domains.SdkTableRecordMutationPort -> CheatEngine.SDK.Lua.Runtime.LuaRuntimeOperation::Dispose()->void",
 		"CheatEngine.Client.Core.Domains.SdkTableRecordMutationPort -> CheatEngine.SDK.Lua.Runtime.LuaRuntimeOperation::get_State()->CheatEngine.SDK.Lua.State.LuaState",
 		"CheatEngine.Client.Core.Domains.SdkTableRecordMutationPort -> CheatEngine.SDK.Lua.State.LuaFrame::.ctor(CheatEngine.SDK.Lua.State.LuaState)->void",
@@ -74,7 +73,6 @@ public sealed class ArchitectureRatchetTests
 		"CheatEngine.Client.Core.Domains.TableClient -> CheatEngine.SDK.Engine.Objects.CEObject::TryGetProperty``2(System.ReadOnlySpan`1<byte>,!!1&)->boolean",
 		"CheatEngine.Client.Core.Domains.UnsafeLuaClient -> CheatEngine.SDK.Lua.Calls.LuaError::FromStack(CheatEngine.SDK.Lua.State.LuaState,CheatEngine.SDK.Lua.Calls.LuaStatus)->CheatEngine.SDK.Lua.Calls.LuaError",
 		"CheatEngine.Client.Core.Domains.UnsafeLuaClient -> CheatEngine.SDK.Lua.Calls.LuaError::get_Message()->string",
-		"CheatEngine.Client.Core.Domains.UnsafeLuaClient -> CheatEngine.SDK.Lua.Runtime.LuaRuntime::AcquireOperation()->CheatEngine.SDK.Lua.Runtime.LuaRuntimeOperation",
 		"CheatEngine.Client.Core.Domains.UnsafeLuaClient -> CheatEngine.SDK.Lua.Runtime.LuaRuntimeOperation::Dispose()->void",
 		"CheatEngine.Client.Core.Domains.UnsafeLuaClient -> CheatEngine.SDK.Lua.Runtime.LuaRuntimeOperation::get_State()->CheatEngine.SDK.Lua.State.LuaState",
 		"CheatEngine.Client.Core.Domains.UnsafeLuaClient -> CheatEngine.SDK.Lua.State.LuaFrame::.ctor(CheatEngine.SDK.Lua.State.LuaState)->void",
@@ -100,7 +98,9 @@ public sealed class ArchitectureRatchetTests
 		"CheatEngine.Client.Core.Infrastructure.ClientLuaGlobals -> CheatEngine.SDK.Lua.Runtime.LuaRuntimeOperation::get_State()->CheatEngine.SDK.Lua.State.LuaState",
 		"CheatEngine.Client.Core.Infrastructure.ClientLuaGlobals -> CheatEngine.SDK.Lua.State.LuaState::SetTop(int32)->void",
 		"CheatEngine.Client.Core.Infrastructure.ClientLuaGlobals -> CheatEngine.SDK.Lua.State.LuaState::TryCall(int32,int32)->CheatEngine.SDK.Lua.Calls.LuaStatus",
-		"CheatEngine.Client.Core.Infrastructure.ClientLuaGlobals -> CheatEngine.SDK.Lua.State.LuaState::get_Top()->int32"
+		"CheatEngine.Client.Core.Infrastructure.ClientLuaGlobals -> CheatEngine.SDK.Lua.State.LuaState::get_Top()->int32",
+		"CheatEngine.Client.Core.Infrastructure.LuaAdmission -> CheatEngine.SDK.Lua.Runtime.LuaRuntime::TryAcquireOperationWithOutcome(CheatEngine.SDK.Lua.Runtime.LuaRuntimeOperation&)->CheatEngine.SDK.Lua.Runtime.LuaAdmissionStatus",
+		"CheatEngine.Client.Core.Infrastructure.SdkBoundary -> CheatEngine.SDK.Lua.Runtime.LuaRuntime::get_ExternalStateResetDetected()->boolean"
 	];
 
 	private static readonly Dictionary<string, string[]> AllowedSdkAssemblyReferences = new(StringComparer.Ordinal)

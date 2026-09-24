@@ -10,6 +10,9 @@ namespace CheatEngine.Client.Core.Domains;
 /// <summary>Protected SDK implementation of record creation, destruction, selection, activation and parent reassignment.</summary>
 internal sealed class SdkTableRecordMutationPort : ITableRecordMutationPort
 {
+	/// <summary>Names the Lua admission of the parent-chain read; the Tables client reports its own operation.</summary>
+	private const string ParentReadOperation = "Tables.ReadParent";
+
 	/// <inheritdoc />
 	/// <remarks>
 	///     When initialization, snapshotting or the parent assignment fails, the record created by this call is destroyed
@@ -227,9 +230,19 @@ internal sealed class SdkTableRecordMutationPort : ITableRecordMutationPort
 		return ParentChainStep.Parent(nextId);
 	}
 
-	private static ParentReadStatus TryReadParent(MemoryRecord current, out MemoryRecord parent)
+	/// <summary>Reads the parent of one record in the chain walk of <see cref="TrySetParent" />.</summary>
+	/// <remarks>
+	///     The Lua admission comes from <see cref="LuaAdmission" />: a refusal throws
+	///     <see cref="LuaAdmissionRefusedException" />, which the Tables client reports as the classified refusal
+	///     (<see cref="CheatEngine.Client.Results.CheatEngineFailureKind.ActivationExpired" />,
+	///     <see cref="CheatEngine.Client.Results.CheatEngineFailureKind.InvalidState" /> or
+	///     <see cref="CheatEngine.Client.Results.CheatEngineFailureKind.RuntimeChanged" />) before any record is read.
+	///     Internal for the admission tests.
+	/// </remarks>
+	/// <exception cref="LuaAdmissionRefusedException">CheatEngine.SDK refused the Lua operation.</exception>
+	internal static ParentReadStatus TryReadParent(MemoryRecord current, out MemoryRecord parent)
 	{
-		using LuaRuntimeOperation operation = LuaRuntime.AcquireOperation();
+		using LuaRuntimeOperation operation = LuaAdmission.Acquire(ParentReadOperation);
 		LuaState state = operation.State;
 		using LuaFrame frame = new(state);
 		if (!current.Handle.TryGetProperty(state, "Parent"u8).IsOk)
@@ -270,7 +283,7 @@ internal sealed class SdkTableRecordMutationPort : ITableRecordMutationPort
 			: Math.Max(1, topLevelCount) + traversalSlack;
 	}
 
-	private enum ParentReadStatus
+	internal enum ParentReadStatus
 	{
 		Root,
 		Parent,

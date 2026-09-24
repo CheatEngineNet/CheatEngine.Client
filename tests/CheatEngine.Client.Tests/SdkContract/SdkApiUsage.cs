@@ -7,6 +7,7 @@ using CheatEngine.SDK.Engine.Memory;
 using CheatEngine.SDK.Engine.Objects;
 using CheatEngine.SDK.Engine.Runtime;
 using CheatEngine.SDK.Engine.Scanning.Aob;
+using CheatEngine.SDK.Engine.Scanning.Values;
 using CheatEngine.SDK.Engine.Values;
 using CheatEngine.SDK.Hosting.Bootstrap;
 using CheatEngine.SDK.Hosting.Context;
@@ -205,6 +206,8 @@ internal static class SdkApiUsage
 		_ = StringMarshaller.TryRead(state, -1, out _);
 		using LuaRef reference = new();
 		using LuaRuntimeOperation operation = LuaRuntime.AcquireOperation();
+		_ = LuaRuntime.TryAcquireOperationWithOutcome(out _);
+		_ = LuaRuntime.ExternalStateResetDetected;
 		_ = operation.State;
 		using LuaFrame frame = new(state);
 		_ = state.IsNil(-1);
@@ -213,6 +216,12 @@ internal static class SdkApiUsage
 		_ = state.TryExecute(ReadOnlySpan<byte>.Empty, 0, ReadOnlySpan<byte>.Empty);
 		_ = new EngineMarshallingException("operation", EngineMarshallingDirection.Result, "expected", "actual");
 		_ = new LuaGlobalAttribute("global");
+	}
+
+	internal static void FailureSurface(EngineException engineFailure, MemoryScanException scanFailure)
+	{
+		_ = engineFailure.Kind;
+		_ = scanFailure.FailureKind;
 	}
 
 	private sealed class CompileOnlyPlugin : CheatEnginePlugin

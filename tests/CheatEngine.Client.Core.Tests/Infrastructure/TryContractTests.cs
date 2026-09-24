@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 
 using CheatEngine.Client.Allocations;
 using CheatEngine.Client.Core.Dispatching;
@@ -17,8 +18,10 @@ using CheatEngine.SDK.Engine.AddressList;
 using CheatEngine.SDK.Engine.Errors;
 using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Engine.Scanning.Aob;
+using CheatEngine.SDK.Engine.Scanning.Values;
 using CheatEngine.SDK.Engine.Values;
 using CheatEngine.SDK.Lua.Calls;
+using CheatEngine.SDK.Lua.Runtime;
 
 namespace CheatEngine.Client.Core.Tests.Infrastructure;
 
@@ -239,7 +242,8 @@ public sealed class TryContractTests
 			UnsafeLuaClient unsafeLua = new(dispatcher, new CoreClientPolicy([], true), lifetime);
 			CancellationToken token = TestContext.Current.CancellationToken;
 
-			// No Lua runtime is attached in unit tests: every SDK static below throws InvalidOperationException.
+			// No Lua runtime is attached in unit tests: every SDK static below throws InvalidOperationException, and the
+			// SDK's own admission reports Detached.
 			Assert.False(tables.TryLoadTrustedTable(new TableLoadRequest(new TrustedTableFile(tablePath)),
 				out CheatEngineFailure loadFailure, token));
 			Assert.False(inspection.TryRegisterSymbol(new SymbolRegistration("contractSymbol", Target),
@@ -251,7 +255,7 @@ public sealed class TryContractTests
 
 			Assert.Null(lease);
 			Assert.True(bytes.IsEmpty);
-			CheatEngineFailure[] failures = [loadFailure, registerFailure, readFailure, scanFailure, luaFailure];
+			CheatEngineFailure[] failures = [loadFailure, registerFailure, readFailure, scanFailure];
 			Assert.All(
 				failures,
 				static failure =>
@@ -260,10 +264,83 @@ public sealed class TryContractTests
 					Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
 					Assert.Equal(CheatEngineHostEffect.Unknown, failure.HostEffect);
 				});
+			// Unsafe Lua asks for its admission through LuaAdmission: a detached runtime is an expired activation that
+			// never reached Cheat Engine, not a rejection.
+			Assert.Null(luaFailure.Exception);
+			Assert.Equal(CheatEngineFailureKind.ActivationExpired, luaFailure.Kind);
+			Assert.Equal(CheatEngineHostEffect.NotStarted, luaFailure.HostEffect);
+			Assert.Equal("Lua.ExecuteUnsafe", luaFailure.Operation);
 		}
 		finally
 		{
 			Directory.Delete(root, recursive: true);
+		}
+	}
+
+	[Theory]
+	[InlineData(LuaAdmissionStatus.Detached, CheatEngineFailureKind.ActivationExpired)]
+	[InlineData(LuaAdmissionStatus.TransitionInProgress, CheatEngineFailureKind.ActivationExpired)]
+	[InlineData(LuaAdmissionStatus.ExternalStateReset, CheatEngineFailureKind.RuntimeChanged)]
+	[InlineData(LuaAdmissionStatus.ThreadNotAdmitted, CheatEngineFailureKind.InvalidState)]
+	[InlineData(LuaAdmissionStatus.NoStateForThread, CheatEngineFailureKind.InvalidState)]
+	[InlineData(LuaAdmissionStatus.Unknown, CheatEngineFailureKind.InvalidState)]
+	[InlineData((LuaAdmissionStatus) 99, CheatEngineFailureKind.InvalidState)]
+	public void ARefusedLuaAdmissionInsidePortWorkIsNeverReportedAsARejection(LuaAdmissionStatus status,
+		CheatEngineFailureKind expectedKind)
+	{
+		Assert.False(LuaAdmission.TryClassify(status, "Tables.ReadParent", out CheatEngineFailure refusal));
+		LuaAdmissionRefusedException fault = new(refusal);
+		ThrowingPorts ports = new(fault);
+		CoreLifetime lifetime = InertCoreLifetime.Create();
+		TableClient tables = new(new SdkMainThreadDispatcher(lifetime, new InlineMainThreadInvoker()),
+			new CoreClientPolicy([], false), ports, lifetime, ports);
+
+		bool succeeded = tables.TrySetParent(new MemoryRecordId(7), new MemoryRecordId(8), out _,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+		CheatEngineClientException thrown = Assert.ThrowsAny<CheatEngineClientException>(() =>
+			tables.SetParent(new MemoryRecordId(7), new MemoryRecordId(8), TestContext.Current.CancellationToken));
+
+		Assert.False(succeeded);
+		Assert.Equal(expectedKind, failure.Kind);
+		Assert.True(failure.Kind is CheatEngineFailureKind.ActivationExpired or CheatEngineFailureKind.InvalidState
+			or CheatEngineFailureKind.RuntimeChanged);
+		Assert.Equal("Tables.SetParent", failure.Operation);
+		Assert.Same(fault, failure.Exception);
+		Assert.Equal(expectedKind, thrown.Failure.Kind);
+	}
+
+	[Fact]
+	public void InvalidOperationExceptionAfterAnExternalResetIsReportedAsRuntimeChanged()
+	{
+		InvalidOperationException fault = new("The host replaced its Lua state outside this SDK's controlled reset path.");
+
+		CheatEngineFailure afterReset = SdkBoundary.Classify("Memory.ReadBytes", fault, CheatEngineHostEffect.Unknown,
+			externalStateResetDetected: true);
+		CheatEngineFailure withoutReset = SdkBoundary.Classify("Memory.ReadBytes", fault, CheatEngineHostEffect.Unknown,
+			externalStateResetDetected: false);
+
+		Assert.Equal(CheatEngineFailureKind.RuntimeChanged, afterReset.Kind);
+		Assert.Equal(CheatEngineHostEffect.Unknown, afterReset.HostEffect);
+		Assert.Equal("Memory.ReadBytes", afterReset.Operation);
+		Assert.Same(fault, afterReset.Exception);
+		Assert.Equal(CheatEngineFailureKind.OperationRejected, withoutReset.Kind);
+	}
+
+	[Fact]
+	public void SdkFaultsWithTheirOwnCategoryKeepItAfterAnExternalReset()
+	{
+		Exception[] faults =
+		[
+			new ObjectDisposedException("contract.disposed"),
+			(Exception) RuntimeHelpers.GetUninitializedObject(typeof(MemoryScanStateException)),
+			new EngineGlobalUnavailableException("contract.global", "global fault"),
+			new ArgumentException("contract argument")
+		];
+
+		foreach (Exception fault in faults)
+		{
+			Assert.Equal(CoreFailureFactory.GetKind(fault),
+				SdkBoundary.Classify("Memory.ReadBytes", fault, CheatEngineHostEffect.Unknown, true).Kind);
 		}
 	}
 

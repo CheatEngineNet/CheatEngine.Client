@@ -1,5 +1,6 @@
 using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Results;
+using CheatEngine.SDK.Lua.Runtime;
 
 namespace CheatEngine.Client.Core.Infrastructure;
 
@@ -11,7 +12,7 @@ namespace CheatEngine.Client.Core.Infrastructure;
 ///         <see cref="InvalidOperationException" />, ...) may cross a Client <c>Try*</c> method. Core wraps every
 ///         Client-internal SDK call (ports, generated <c>ClientLuaGlobals</c> bindings, <c>TargetMemory</c>,
 ///         <c>EngineInspection</c>, <c>AobScanner</c>, Address List access, protected Lua execution) and maps a fault
-///         through <see cref="CoreFailureFactory" />, by exception type only.
+///         through <see cref="CoreFailureFactory" />, by exception type and SDK failure category, never by message text.
 ///     </para>
 ///     <para>
 ///         Two kinds of exception are never translated. Client lifecycle exceptions
@@ -24,6 +25,13 @@ namespace CheatEngine.Client.Core.Infrastructure;
 ///         When the activation is no longer current, an SDK fault is reported as
 ///         <see cref="CheatEngineActivationExpiredException" /> rather than as an ordinary failure, so an expired activation
 ///         is never reclassified as a rejection, a cancellation, or an unavailable capability (A10-21).
+///     </para>
+///     <para>
+///         When CheatEngine.SDK has detected that Cheat Engine replaced its Lua state outside the plugin's control
+///         (<see cref="LuaRuntime.ExternalStateResetDetected" />, sticky until the next attach), every admission path
+///         of the SDK refuses with a plain <see cref="InvalidOperationException" />. Such a fault is reported as
+///         <see cref="CheatEngineFailureKind.RuntimeChanged" />, never as a rejection. SDK exceptions that carry their
+///         own category keep it.
 ///     </para>
 /// </remarks>
 internal static class SdkBoundary
@@ -46,7 +54,31 @@ internal static class SdkBoundary
 	{
 		ArgumentNullException.ThrowIfNull(exception);
 		ThrowIfActivationEnded(operation, exception, lifetime);
-		return CoreFailureFactory.FromException(operation, exception, hostEffect);
+		return Classify(operation, exception, hostEffect, LuaRuntime.ExternalStateResetDetected);
+	}
+
+	/// <summary>Classifies an SDK fault given the SDK's external Lua state reset fact.</summary>
+	/// <param name="operation">The public Client operation name.</param>
+	/// <param name="exception">The SDK fault.</param>
+	/// <param name="hostEffect">What is known about the Cheat Engine side effect when the fault was observed.</param>
+	/// <param name="externalStateResetDetected">
+	///     The value of <see cref="LuaRuntime.ExternalStateResetDetected" /> when the fault was observed; a parameter so
+	///     the rule is testable without a host.
+	/// </param>
+	/// <returns>
+	///     <see cref="CheatEngineFailureKind.RuntimeChanged" /> for an otherwise unclassified
+	///     <see cref="InvalidOperationException" /> observed after an external reset; otherwise the
+	///     <see cref="CoreFailureFactory" /> classification.
+	/// </returns>
+	internal static CheatEngineFailure Classify(string operation, Exception exception, CheatEngineHostEffect hostEffect,
+		bool externalStateResetDetected)
+	{
+		CheatEngineFailure failure = CoreFailureFactory.FromException(operation, exception, hostEffect);
+		return externalStateResetDetected && exception is InvalidOperationException &&
+			   failure.Kind == CheatEngineFailureKind.OperationRejected
+			? new CheatEngineFailure(CheatEngineFailureKind.RuntimeChanged, failure.Operation, failure.Message,
+				exception, failure.HostEffect)
+			: failure;
 	}
 
 	/// <summary>Dispatches Client-internal SDK work and returns an SDK fault as a failure instead of rethrowing it.</summary>

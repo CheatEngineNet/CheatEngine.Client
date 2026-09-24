@@ -6,11 +6,16 @@ using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Core.Tests.TestSupport;
 using CheatEngine.Client.Memory;
 using CheatEngine.Client.Results;
+using CheatEngine.SDK.Annotations.Lua;
 using CheatEngine.SDK.Engine.Errors;
 using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Engine.Memory;
+using CheatEngine.SDK.Engine.Objects;
+using CheatEngine.SDK.Engine.Scanning.Values;
 using CheatEngine.SDK.Engine.Values;
+using CheatEngine.SDK.Hosting.Plugin;
 using CheatEngine.SDK.Lua.Calls;
+using CheatEngine.SDK.Lua.Runtime;
 
 namespace CheatEngine.Client.Core.Tests.SdkContract;
 
@@ -20,16 +25,25 @@ namespace CheatEngine.Client.Core.Tests.SdkContract;
 /// </summary>
 public sealed class SdkMappingContractTests
 {
+	/// <summary>The public exception types of the consumed CheatEngine.SDK: every EngineException subclass, the
+	///     memory-scan exceptions and the Lua call exception.</summary>
+	private static Type[] SdkExceptionTypes =>
+	[
+		.. new[]
+			{
+				typeof(EngineException).Assembly, typeof(LuaException).Assembly, typeof(CheatEnginePlugin).Assembly,
+				typeof(LuaGlobalAttribute).Assembly
+			}
+			.SelectMany(static assembly => assembly.GetExportedTypes())
+			.Where(static type => typeof(Exception).IsAssignableFrom(type) && !type.IsAbstract)
+			.OrderBy(static type => type.FullName, StringComparer.Ordinal)
+	];
+
 	[Fact]
 	[Trait("Qualification", "Q48")]
-	public void EveryPublicEngineExceptionTypeMapsToAKnownFailureKind()
+	public void EveryPublicSdkExceptionTypeMapsToAKnownFailureKind()
 	{
-		Type[] exceptionTypes =
-		[
-			.. typeof(EngineException).Assembly.GetExportedTypes()
-				.Where(static type => typeof(EngineException).IsAssignableFrom(type) && !type.IsAbstract),
-			typeof(LuaException)
-		];
+		Type[] exceptionTypes = SdkExceptionTypes;
 		List<string> unmapped = [];
 		foreach (Type exceptionType in exceptionTypes)
 		{
@@ -40,9 +54,72 @@ public sealed class SdkMappingContractTests
 			}
 		}
 
-		Assert.True(exceptionTypes.Length >= 7, "The SDK exception inventory unexpectedly shrank.");
+		Assert.True(exceptionTypes.Length >= 13, "The SDK exception inventory unexpectedly shrank.");
+		Assert.Contains(typeof(MemoryScanException), exceptionTypes);
+		Assert.Contains(typeof(MemoryScanStateException), exceptionTypes);
+		Assert.Contains(typeof(EngineTargetIdentityException), exceptionTypes);
 		Assert.True(unmapped.Count == 0,
 			"These SDK exception types map to CheatEngineFailureKind.Unknown: " + string.Join(", ", unmapped));
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q48")]
+	public void EveryEngineExceptionSubclassIsClassifiedByItsOwnFailureCategory()
+	{
+		Type[] engineExceptions =
+			[.. SdkExceptionTypes.Where(static type => typeof(EngineException).IsAssignableFrom(type))];
+		List<string> mismatched = [];
+		foreach (Type exceptionType in engineExceptions)
+		{
+			EngineException instance = (EngineException) RuntimeHelpers.GetUninitializedObject(exceptionType);
+			if (CoreFailureFactory.GetKind(instance) != CoreFailureFactory.FromEngineFailureKind(instance.Kind))
+			{
+				mismatched.Add(exceptionType.FullName!);
+			}
+		}
+
+		Assert.True(engineExceptions.Length >= 10, "The SDK EngineException inventory unexpectedly shrank.");
+		Assert.True(mismatched.Count == 0,
+			"These EngineException types are not classified by EngineException.Kind: " + string.Join(", ", mismatched));
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q48")]
+	public void EveryEngineFailureKindMapsToAKnownFailureKind()
+	{
+		MappingTotality.AssertTotal<EngineFailureKind>(
+			static kind => CoreFailureFactory.FromEngineFailureKind(kind) != CheatEngineFailureKind.Unknown,
+			static kind => CoreFailureFactory.FromEngineFailureKind(kind) == CheatEngineFailureKind.Unknown);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q48")]
+	public void EveryMemoryScanFailureKindMapsToAKnownFailureKind()
+	{
+		MappingTotality.AssertTotal<MemoryScanFailureKind>(
+			static kind => CoreFailureFactory.FromMemoryScanFailureKind(kind) != CheatEngineFailureKind.Unknown,
+			static kind => CoreFailureFactory.FromMemoryScanFailureKind(kind) == CheatEngineFailureKind.Unknown);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q48")]
+	public void EveryLuaAdmissionStatusIsClassifiedAndOnlyAdmittedSucceeds()
+	{
+		MappingTotality.AssertTotal<LuaAdmissionStatus>(IsClassifiedAdmission, static status =>
+			!LuaAdmission.TryClassify(status, "Lua.Contract", out CheatEngineFailure failure) &&
+			failure.Kind == CheatEngineFailureKind.InvalidState &&
+			failure.HostEffect == CheatEngineHostEffect.NotStarted);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q48")]
+	public void EveryEngineEffectStateMapsToItsHostEffect()
+	{
+		MappingTotality.AssertTotal<EngineEffectState>(
+			static state => state == EngineEffectState.Unknown
+				? HostEffectMapping.FromSdk(state) == CheatEngineHostEffect.Unknown
+				: HostEffectMapping.FromSdk(state) != CheatEngineHostEffect.Unknown,
+			static state => HostEffectMapping.FromSdk(state) == CheatEngineHostEffect.Unknown);
 	}
 
 	[Fact]
@@ -88,6 +165,25 @@ public sealed class SdkMappingContractTests
 			Assert.Equal(CheatEngineFailureKind.MemoryWriteFailed, writeFailure.Kind);
 			Assert.Equal(access.ToString(), readFailure.Message);
 		}
+	}
+
+	/// <summary>
+	///     Admitted is the only success; every refusal is NotStarted and one of the three admission kinds, never a
+	///     rejection.
+	/// </summary>
+	private static bool IsClassifiedAdmission(LuaAdmissionStatus status)
+	{
+		bool admitted = LuaAdmission.TryClassify(status, "Lua.Contract", out CheatEngineFailure failure);
+		if (status == LuaAdmissionStatus.Admitted)
+		{
+			return admitted && failure == default;
+		}
+
+		return !admitted &&
+			   failure.Kind is CheatEngineFailureKind.ActivationExpired or CheatEngineFailureKind.InvalidState
+				   or CheatEngineFailureKind.RuntimeChanged &&
+			   failure.HostEffect == CheatEngineHostEffect.NotStarted &&
+			   failure.Operation == "Lua.Contract";
 	}
 
 	/// <summary>Reports every access as refused with the SDK's own failure name, as <c>SdkMemoryCodecContextPort</c> does.</summary>
