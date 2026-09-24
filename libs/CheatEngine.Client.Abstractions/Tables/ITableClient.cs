@@ -8,6 +8,10 @@ namespace CheatEngine.Client.Tables;
 /// <summary>Reads and changes the current Cheat Engine address list through copied record snapshots.</summary>
 /// <remarks>
 ///     <para>
+///         <b>Call-only.</b> The Client implements this interface and applications call it. A minor release can add
+///         members to it, so implement it only in a test double.
+///     </para>
+///     <para>
 ///         Memory records are live Cheat Engine objects; a snapshot copies them and does not freeze them. A
 ///         <see cref="MemoryRecordId" /> is valid only for the table load and the activation in which this client handed it
 ///         out: after a trusted table load that reached Cheat Engine (merge or replace, even a failed one), every

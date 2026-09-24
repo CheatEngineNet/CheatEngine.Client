@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Results;
@@ -283,34 +285,25 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 			"The Client composes an operational adapter for this capability.");
 		ClientCapabilityEvidenceGate contractOnly = Missing(ContractOnlyReason);
 
-		ClientCapabilityAvailability[] capabilities =
-		[
-			Describe(ClientCapabilityId.ProcessSelection, implemented, package, openedProcess.Evidence,
-				qualificationUnknown, policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.TypedMemory, implemented, package, unprobedHost, qualificationUnknown,
-				policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.PatternScanning, implemented, package, unprobedHost, qualificationUnknown,
-				policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.ValueScanning, contractOnly, package, unprobedHost, qualificationUnknown,
-				policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.Inspection, implemented, package, unprobedHost, qualificationUnknown,
-				policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.Tables, implemented, package, unprobedHost, qualificationUnknown,
-				policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.ProtectedLua, implemented, package, unprobedHost, qualificationUnknown,
-				policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.UnsafeLuaExecution, implemented, package, unprobedHost,
+		ClientCapabilityEvidenceGate unsafeLuaPolicy = _policy.EnableUnsafeLuaExecution
+			? Satisfied("Unsafe Lua execution was explicitly enabled for this activation.")
+			: Missing("Unsafe Lua execution requires explicit EnableUnsafeLuaExecution opt-in for this activation.");
+
+		// Every capability is composed from its one catalog row; only the implementation, policy and host gates vary.
+		ImmutableArray<ClientCapabilityDescriptor> catalog = ClientCapabilityCatalog.Entries;
+		ClientCapabilityAvailability[] capabilities = new ClientCapabilityAvailability[catalog.Length];
+		for (int index = 0; index < catalog.Length; index++)
+		{
+			ClientCapabilityDescriptor entry = catalog[index];
+			capabilities[index] = Describe(
+				entry.Id,
+				entry.Implementation == CapabilityImplementation.Operational ? implemented : contractOnly,
+				package,
+				entry.Host == CapabilityHostSource.OpenedProcess ? openedProcess.Evidence : unprobedHost,
 				qualificationUnknown,
-				_policy.EnableUnsafeLuaExecution
-					? Satisfied("Unsafe Lua execution was explicitly enabled for this activation.")
-					: Missing(
-						"Unsafe Lua execution requires explicit EnableUnsafeLuaExecution opt-in for this activation."),
-				lifetime),
-			Describe(ClientCapabilityId.Allocations, contractOnly, package, unprobedHost, qualificationUnknown,
-				policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.Assembly, contractOnly, package, unprobedHost, qualificationUnknown,
-				policyNotRequired, lifetime)
-		];
+				entry.Policy == CapabilityPolicySource.UnsafeLuaExecutionOptIn ? unsafeLuaPolicy : policyNotRequired,
+				lifetime);
+		}
 
 		return ClientCapabilities.Create(capabilities);
 	}

@@ -5,8 +5,8 @@ namespace CheatEngine.Client;
 /// <summary>Owns one Cheat Engine resource that the Client created for the current activation.</summary>
 /// <remarks>
 ///     <para>
-///         <b>Call-only.</b> The Client creates and implements leases; do not implement this interface. Members can be
-///         added in a minor release.
+///         <b>Call-only.</b> The Client implements this interface and applications call it. A minor release can add
+///         members to it, so implement it only in a test double.
 ///     </para>
 ///     <para>
 ///         <see cref="Release" /> releases the resource on Cheat Engine's main thread and returns what happened as a

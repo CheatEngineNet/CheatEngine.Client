@@ -5,6 +5,10 @@ namespace CheatEngine.Client.Inspection;
 /// <summary>Owns one Client-created Cheat Engine symbol registration for the current activation epoch.</summary>
 /// <remarks>
 ///     <para>
+///         <b>Call-only.</b> The Client implements this interface and applications call it. A minor release can add
+///         members to it, so implement it only in a test double.
+///     </para>
+///     <para>
 ///         Disposing the lease removes only the symbol registered through this lease, and only while the name still
 ///         resolves to <see cref="Address" />: a name that a third party replaced is left in place, and a name removed
 ///         outside the lease is not touched. The check and the unregistration are best effort, not atomic: a third party

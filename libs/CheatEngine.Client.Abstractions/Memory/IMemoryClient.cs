@@ -7,6 +7,10 @@ using CheatEngine.SDK.Engine.Values;
 namespace CheatEngine.Client.Memory;
 
 /// <summary>Executes typed target-memory reads and writes without exposing a Lua state.</summary>
+/// <remarks>
+///     <b>Call-only.</b> The Client implements this interface and applications call it. A minor release can add members
+///     to it, so implement it only in a test double.
+/// </remarks>
 public interface IMemoryClient
 {
 	/// <summary>Tries to read a built-in scalar or pointer type without requiring a custom codec.</summary>

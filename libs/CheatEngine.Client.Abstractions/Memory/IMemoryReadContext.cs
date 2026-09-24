@@ -5,6 +5,10 @@ namespace CheatEngine.Client.Memory;
 /// <summary>Provides the bounded raw-memory operations available to an application read codec.</summary>
 /// <remarks>
 ///     <para>
+///         <b>Call-only.</b> The Client implements this interface and applications call it. A minor release can add
+///         members to it, so implement it only in a test double.
+///     </para>
+///     <para>
 ///         The Client invalidates this context immediately when the codec invocation returns or throws. Codecs must not
 ///         retain the context; a later member access throws
 ///         <see cref="CheatEngine.Client.Results.CheatEngineActivationExpiredException" />.

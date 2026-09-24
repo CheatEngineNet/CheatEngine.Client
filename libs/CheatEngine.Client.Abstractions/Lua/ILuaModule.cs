@@ -3,6 +3,10 @@ namespace CheatEngine.Client.Lua;
 /// <summary>Explicitly registers one application-owned set of Lua exports for the current Client activation.</summary>
 /// <remarks>
 ///     <para>
+///         <b>Implementable.</b> Applications implement this interface and the Client calls it. Its members are frozen
+///         for the 1.x line.
+///     </para>
+///     <para>
 ///         The Client invokes both methods synchronously on Cheat Engine's main thread and owns the resulting registration
 ///         lease. No SDK Lua state, reference, or raw stack access crosses this Client contract.
 ///     </para>

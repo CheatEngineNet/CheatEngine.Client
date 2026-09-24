@@ -7,8 +7,15 @@ namespace CheatEngine.Client.Memory;
 /// <summary>Maps one managed value type to bounded target-memory operations.</summary>
 /// <typeparam name="T">The managed value type.</typeparam>
 /// <remarks>
-///     Implementations must be deterministic, allocation-conscious, AOT-safe, and independent of Lua or CE object
-///     handles. A codec is invoked synchronously on Cheat Engine's dispatch boundary and must not retain its context.
+///     <para>
+///         <b>Implementable.</b> Applications implement this interface and the Client calls it. Its members are frozen
+///         for the 1.x line.
+///     </para>
+///     <para>
+///         Implementations must be deterministic, allocation-conscious, AOT-safe, and independent of Lua or CE object
+///         handles. A codec is invoked synchronously on Cheat Engine's dispatch boundary and must not retain its
+///         context.
+///     </para>
 /// </remarks>
 public interface IMemoryCodec<T>
 {

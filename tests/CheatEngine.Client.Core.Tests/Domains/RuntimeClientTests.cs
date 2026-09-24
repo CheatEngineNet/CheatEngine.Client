@@ -173,6 +173,36 @@ public sealed class RuntimeClientTests
 		}
 	}
 
+	/// <summary>
+	///     The snapshot reports the catalog's capabilities in catalog order, each with the implementation gate of its row
+	///     (the operational set is the one the other facts of this class use).
+	/// </summary>
+	[Fact]
+	public void SnapshotComposesEveryCapabilityFromItsCatalogRow()
+	{
+		RuntimeClient runtime = new(new InlineDispatcher(), new FakeRuntimeProbe { OpenedProcessId = 42 },
+			static () => 1);
+
+		CheatEngineRuntimeSnapshot snapshot = runtime.GetSnapshot(TestContext.Current.CancellationToken);
+
+		Assert.Equal(ClientCapabilityCatalog.Entries.Select(static entry => entry.Id),
+			snapshot.ClientCapabilities.Entries.ToArray().Select(static availability => availability.Capability));
+		foreach (ClientCapabilityDescriptor entry in ClientCapabilityCatalog.Entries)
+		{
+			Assert.True(snapshot.ClientCapabilities.TryGet(entry.Id, out ClientCapabilityAvailability availability));
+			Assert.Equal(entry.Implementation == CapabilityImplementation.Operational
+				? ClientCapabilityEvidenceState.Satisfied
+				: ClientCapabilityEvidenceState.Missing, availability.Evidence.Implementation.State);
+			Assert.Equal(entry.Host == CapabilityHostSource.OpenedProcess
+				? ClientCapabilityEvidenceState.Satisfied
+				: ClientCapabilityEvidenceState.Unknown, availability.Evidence.Host.State);
+		}
+
+		Assert.Equal(OperationalCapabilities, ClientCapabilityCatalog.Entries
+			.Where(static entry => entry.Implementation == CapabilityImplementation.Operational)
+			.Select(static entry => entry.Id));
+	}
+
 	[Fact]
 	public void SnapshotReportsUnsafeLuaPolicyWithoutTreatingItAsHostEvidence()
 	{

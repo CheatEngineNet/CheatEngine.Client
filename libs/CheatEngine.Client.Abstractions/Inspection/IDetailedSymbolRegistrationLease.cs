@@ -5,8 +5,14 @@ namespace CheatEngine.Client.Inspection;
 ///     or unconfirmed cleanup.
 /// </summary>
 /// <remarks>
-///     The Client's symbol leases implement this interface; test for it with a type check
-///     (<c>lease is IDetailedSymbolRegistrationLease detailed</c>).
+///     <para>
+///         <b>Call-only.</b> The Client implements this interface and applications call it. A minor release can add
+///         members to it, so implement it only in a test double.
+///     </para>
+///     <para>
+///         The Client's symbol leases implement this interface; test for it with a type check
+///         (<c>lease is IDetailedSymbolRegistrationLease detailed</c>).
+///     </para>
 /// </remarks>
 public interface IDetailedSymbolRegistrationLease : ISymbolRegistrationLease
 {

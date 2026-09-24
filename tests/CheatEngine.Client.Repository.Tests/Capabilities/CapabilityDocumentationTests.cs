@@ -8,7 +8,8 @@ namespace CheatEngine.Client.Repository.Tests.Capabilities;
 /// <summary>
 ///     The documentation states what the Client build reports (audit CLI-DOC-1, A00-04, A10-05, A21-13, A21-21, A21-30):
 ///     every capability table lists each <c>ClientCapabilityId</c> once with the implementation gate that
-///     <c>RuntimeClient</c> composes, and the install guides state the supported host profile with its identities.
+///     <c>ClientCapabilityCatalog</c> declares and <c>RuntimeClient</c> composes, and with the live scenarios its
+///     qualification gate requires; the install guides state the supported host profile with its identities.
 /// </summary>
 /// <remarks>
 ///     Source scans only: this project has no project reference. A capability table is the Markdown table between
@@ -22,9 +23,10 @@ public sealed partial class CapabilityDocumentationTests
 	private const string AbstractionsReadme = "libs/CheatEngine.Client.Abstractions/README.md";
 	private const string CapabilityIdSource = "libs/CheatEngine.Client.Abstractions/Runtime/ClientCapabilityId.cs";
 	private const string CapabilityIdDeclarationPrefix = "public static ClientCapabilityId ";
-	private const string RuntimeClientSource = "libs/CheatEngine.Client.Core/Domains/RuntimeClient.cs";
+	private const string CatalogSource = "libs/CheatEngine.Client.Core/Domains/ClientCapabilityCatalog.cs";
 	private const string CoreLockFile = "libs/CheatEngine.Client.Core/packages.lock.json";
 	private const string ContractOnly = "Contract-only (Unavailable)";
+	private const string QualificationColumn = "Qualification";
 	private const string ProfileId = "ce-7.7.0.10621-x64-managed-hostfxr";
 	private const string HostExecutableSha256 = "9727076da50924e4a097b49a02155e4b34759269c3017ff31375364b8826eb4d";
 	private const string RuntimeConfigurationSha256 = "68f5d81c0a17cc5bdac40bb3d5d88a624f4d31b414f7195ad847d57b0126ac2b";
@@ -60,16 +62,16 @@ public sealed partial class CapabilityDocumentationTests
 	}
 
 	[Fact]
-	public void CapabilityTablesMatchTheRuntimeClientImplementationGates()
+	public void CapabilityTablesMatchTheCatalogImplementationGates()
 	{
 		Dictionary<string, string> ids = ReadCapabilityIds();
 		Dictionary<string, bool> implemented = new(StringComparer.Ordinal);
-		string runtimeClient = Read(RuntimeClientSource);
-		foreach (Match match in ImplementationGate().Matches(runtimeClient))
+		string catalog = Read(CatalogSource);
+		foreach (Match match in ImplementationGate().Matches(catalog))
 		{
 			string id = ids[match.Groups["name"].Value];
-			Assert.True(implemented.TryAdd(id, match.Groups["gate"].Value == "implemented"),
-				$"{RuntimeClientSource} describes {id} more than once.");
+			Assert.True(implemented.TryAdd(id, match.Groups["gate"].Value == "Operational"),
+				$"{CatalogSource} describes {id} more than once.");
 		}
 
 		Assert.Equal(ids.Count, implemented.Count);
@@ -90,8 +92,37 @@ public sealed partial class CapabilityDocumentationTests
 		}
 
 		Assert.True(offenders.Count == 0,
-			"The Implementation column must follow RuntimeClient's implementation gate ('implemented' → " +
-			$"{string.Join(" or ", OperationalImplementations)}; 'contractOnly' → {ContractOnly}):" +
+			"The Implementation column must follow the catalog's implementation gate ('Operational' → " +
+			$"{string.Join(" or ", OperationalImplementations)}; 'ContractOnly' → {ContractOnly}):" +
+			Environment.NewLine + string.Join(Environment.NewLine, offenders));
+	}
+
+	[Fact]
+	public void CapabilityTablesNameTheScenariosTheCatalogRequires()
+	{
+		Dictionary<string, string> ids = ReadCapabilityIds();
+		Dictionary<string, string[]> required = new(StringComparer.Ordinal);
+		foreach (Match match in CatalogEntry().Matches(Read(CatalogSource)))
+		{
+			required.Add(ids[match.Groups["name"].Value], Scenarios(match.Groups["arguments"].Value));
+		}
+
+		Assert.Equal(ids.Count, required.Count);
+		List<string> offenders = [];
+		foreach (CapabilityTable table in ReadCapabilityTables())
+		{
+			foreach (CapabilityRow row in table.Rows)
+			{
+				string[] documented = Scenarios(row.Qualification);
+				if (!required.TryGetValue(row.Id, out string[]? expected) || !documented.SequenceEqual(expected))
+				{
+					offenders.Add($"{table.Path}:{row.Line} → {row.Id} names [{string.Join(", ", documented)}]");
+				}
+			}
+		}
+
+		Assert.True(offenders.Count == 0,
+			"The Qualification column must name exactly the scenarios that the catalog requires:" +
 			Environment.NewLine + string.Join(Environment.NewLine, offenders));
 	}
 
@@ -147,14 +178,19 @@ public sealed partial class CapabilityDocumentationTests
 
 			int end = Array.FindIndex(lines, start + 1, static line => line.Trim() == EndMarker);
 			Assert.True(end > start, $"{path} opens a capability table without closing it.");
+			string header = Array.Find(lines[(start + 1)..end], static line => line.StartsWith('|')) ?? string.Empty;
+			int qualification = Array.FindIndex(header.Split('|'),
+				static column => column.Trim() == QualificationColumn);
+			Assert.True(qualification > 0, $"{path} has a capability table without a '{QualificationColumn}' column.");
 			List<CapabilityRow> rows = [];
 			for (int index = start + 1; index < end; index++)
 			{
 				Match row = CapabilityRowPattern().Match(lines[index]);
 				if (row.Success)
 				{
+					string[] columns = lines[index].Split('|');
 					rows.Add(new CapabilityRow(row.Groups["id"].Value, row.Groups["implementation"].Value.Trim(),
-						index + 1));
+						qualification < columns.Length ? columns[qualification].Trim() : string.Empty, index + 1));
 				}
 			}
 
@@ -162,6 +198,15 @@ public sealed partial class CapabilityDocumentationTests
 		}
 
 		return tables;
+	}
+
+	private static string[] Scenarios(string text)
+	{
+		return
+		[
+			.. ScenarioId().Matches(text).Select(static match => match.Value).Distinct(StringComparer.Ordinal)
+				.Order(StringComparer.Ordinal)
+		];
 	}
 
 	private static string Read(string relativePath)
@@ -173,9 +218,17 @@ public sealed partial class CapabilityDocumentationTests
 		RegexOptions.CultureInvariant, RegexTimeoutMilliseconds)]
 	private static partial Regex CapabilityIdDeclaration();
 
-	[GeneratedRegex(@"Describe\(ClientCapabilityId\.(?<name>\w+),\s*(?<gate>implemented|contractOnly)\b",
+	[GeneratedRegex(
+		@"Entry\(ClientCapabilityId\.(?<name>\w+),\s*CapabilityImplementation\.(?<gate>Operational|ContractOnly)\b",
 		RegexOptions.CultureInvariant, RegexTimeoutMilliseconds)]
 	private static partial Regex ImplementationGate();
+
+	[GeneratedRegex(@"Entry\(ClientCapabilityId\.(?<name>\w+),(?<arguments>[^)]*)\)", RegexOptions.CultureInvariant,
+		RegexTimeoutMilliseconds)]
+	private static partial Regex CatalogEntry();
+
+	[GeneratedRegex(@"Q\d{2}(?:\.[a-z])?", RegexOptions.CultureInvariant, RegexTimeoutMilliseconds)]
+	private static partial Regex ScenarioId();
 
 	[GeneratedRegex(@"^\|\s*`(?<id>Client\.[A-Za-z]+)`\s*\|(?<implementation>[^|]+)\|",
 		RegexOptions.CultureInvariant, RegexTimeoutMilliseconds)]
@@ -183,5 +236,5 @@ public sealed partial class CapabilityDocumentationTests
 
 	private sealed record CapabilityTable(string Path, IReadOnlyList<CapabilityRow> Rows);
 
-	private sealed record CapabilityRow(string Id, string Implementation, int Line);
+	private sealed record CapabilityRow(string Id, string Implementation, string Qualification, int Line);
 }

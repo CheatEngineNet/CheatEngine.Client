@@ -5,10 +5,15 @@ namespace CheatEngine.Client.Scanning;
 
 /// <summary>A main-thread-bound, explicitly disposable high-level value-scan session.</summary>
 /// <remarks>
-///     The session exposes a Client-managed <see cref="ValueScanSessionState" /> rather than the SDK's raw scan state. Its
-///     operations complete Cheat Engine's required wait-and-initialize sequence before publishing copied results, and
-///     never
-///     expose MemScan, FoundList, Lua, or ownership wrappers.
+///     <para>
+///         <b>Call-only.</b> The Client implements this interface and applications call it. A minor release can add
+///         members to it, so implement it only in a test double.
+///     </para>
+///     <para>
+///         The session exposes a Client-managed <see cref="ValueScanSessionState" /> rather than the SDK's raw scan
+///         state. Its operations complete Cheat Engine's required wait-and-initialize sequence before publishing copied
+///         results, and never expose MemScan, FoundList, Lua, or ownership wrappers.
+///     </para>
 /// </remarks>
 public interface IValueScanSession : IDisposable
 {

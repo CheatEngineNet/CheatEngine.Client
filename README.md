@@ -197,8 +197,12 @@ Services that touch Cheat Engine must preserve this activation-lifecycle contrac
 Cheat Engine results that are false, absent, indeterminate or malformed; no CheatEngine.SDK exception type crosses a
 `Try...` method. They still throw `CheatEngineActivationExpiredException`, `CheatEngineClientLifecycleException` and
 argument exceptions, and they rethrow exceptions from your own callbacks, codecs and Lua operations unchanged.
+The throwing form of the same operation throws the same failure through `CheatEngineFailure.Throw(cancellationToken)`:
+a cancellation surfaces as `CheatEngineOperationCanceledException`, an `OperationCanceledException`, and every other
+failure as a `CheatEngineClientException`. Releasing a lease never throws: `ICheatEngineLease.Release()` returns a
+`LeaseReleaseOutcome`, and `Dispose()` discards it.
 `CheatEngineFailure.HostEffect` states how far the Cheat Engine primitive got: `NotStarted`, `Started`, `Completed`,
-`CleanupUnconfirmed` or `Unknown`. The per-family table is in the
+`NotApplied`, `CleanupUnconfirmed` or `Unknown`. The per-family table is in the
 [Abstractions README](libs/CheatEngine.Client.Abstractions/README.md#failure-exception-and-cancellation-contract).
 
 ## Packages and direct SDK reference
@@ -259,6 +263,32 @@ debugger and breakpoints; the speed hack; target-memory and file hashing; DBVM; 
 pausing, resuming or creating a process, and attaching to the foreground process; assembly comments; and detaching from
 a process. No CheatEngine.SDK primitive backs these yet; they may arrive in a 1.x minor release once the SDK provides
 an owner.
+
+## Versioning and compatibility
+
+CheatEngine.Client follows [Semantic Versioning 2.0.0](https://semver.org/) from 1.0.0. Every Client package is
+released with the same version; use one version for all of them.
+
+- **Patch releases (1.0.x)** fix behavior and documentation without changing the public API.
+- **Minor releases (1.x)** add API without breaking code compiled against an earlier 1.x:
+  - new types, members, overloads and namespaces;
+  - new members on a **call-only** interface. The documentation of every public interface says whether it is
+    *Call-only* (the Client implements it and applications call it, for example `ICheatEngineClient`, `IMemoryClient`
+    or `ICheatEngineLease`) or *Implementable* (applications implement it and the Client calls it). Implement a
+    call-only interface only in a test double, and expect to update the double in a minor release;
+  - new enum values. Public enums are `int` enums whose explicit values never change meaning. An outcome enum (a name
+    ending in `Kind`, `Status`, `State`, `Effect` or `Scope`) has `Unknown = 0`: handle a value you do not recognize
+    like `Unknown`. An option enum has a valid default at 0.
+- **Frozen for all of 1.x:** the *Implementable* interfaces (`ILuaModule`, `IDescribedLuaModule`,
+  `IOwnershipAwareLuaModule`, `ILuaOperation<TResult>`, `ILuaResultMapper<TSource, TResult>`, `IMemoryCodec<T>` and
+  `ICheatEngineClientModule`) never gain, lose or change a member.
+- **Experimental APIs**, marked `[Experimental("CECLIENT500x")]`, can change or be removed in a minor release until
+  their live qualification passes; using one is an explicit opt-in to that diagnostic.
+- **Not contractual:** the text of `CheatEngineFailure.Message` and of exception messages. Classify a failure by
+  `CheatEngineFailure.Kind` and `HostEffect`, never by text.
+- **CheatEngine.SDK:** Client 1.x depends on CheatEngine.SDK `[2.0.0, 3.0.0)`. A new CheatEngine.SDK major version
+  means a new Client major version, never a Client minor release.
+- Removing or changing a stable public member, or changing the meaning of a value, happens only in a new major version.
 
 ## AOT, trimming, and deployment
 

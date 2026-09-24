@@ -87,8 +87,12 @@ Core composes nothing for the domains that no CheatEngine.SDK primitive backs (t
 the speed hack, hashing, DBVM and remote execution): the Client has no contract for them, as the
 `CheatEngine.Client.Abstractions` README states under "Not offered in 1.0".
 
-The per-capability evidence (implementation, package, host, qualification, policy and lifetime
-gates) is in the capability table of the `CheatEngine.Client.Abstractions` README. The package gate
+Every capability is described once, in the internal `ClientCapabilityCatalog`: its implementation
+gate, where its policy and host gates come from, and the live scenarios its qualification gate
+requires. `RuntimeClient` composes the snapshot from that catalog, and a repository test keeps the
+capability tables of the READMEs in step with it. The per-capability evidence (implementation,
+package, host, qualification, policy and lifetime gates) is in the capability table of the
+`CheatEngine.Client.Abstractions` README. The package gate
 compares the CheatEngine.SDK identity embedded in this assembly at build time (version, source
 commit and NuGet content hash, as `AssemblyMetadata`, taken from the locked and restored package)
 with the informational version of the `CheatEngine.SDK.Engine` assembly actually loaded; it reads

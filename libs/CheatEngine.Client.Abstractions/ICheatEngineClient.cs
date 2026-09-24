@@ -5,6 +5,7 @@ using CheatEngine.Client.Inspection;
 using CheatEngine.Client.Lua;
 using CheatEngine.Client.Memory;
 using CheatEngine.Client.Processes;
+using CheatEngine.Client.Results;
 using CheatEngine.Client.Runtime;
 using CheatEngine.Client.Scanning;
 using CheatEngine.Client.Tables;
@@ -13,9 +14,53 @@ namespace CheatEngine.Client;
 
 /// <summary>A scoped, high-level client for the active Cheat Engine plugin lifecycle.</summary>
 /// <remarks>
-///     The client never exposes Lua states, CE object handles, or SDK ownership wrappers. Its members are synchronous
-///     because
-///     an attached Cheat Engine Lua runtime cannot safely be retained across an <c>await</c> boundary.
+///     <para>
+///         <b>Call-only.</b> The Client implements this interface and applications call it. A minor release can add
+///         members to it, so implement it only in a test double.
+///     </para>
+///     <para>
+///         <b>Handle-free surface.</b> No member of this client, and no service, value or lease it returns, exposes a Lua
+///         state, a Lua reference, a CE object handle or an SDK ownership wrapper. A plugin that derives from
+///         <c>CheatEngineClientPlugin</c> (CheatEngine.Client.Hosting) also inherits CheatEngine.SDK's
+///         <c>CheatEnginePlugin.Context</c>, the raw SDK plugin context: it is an SDK escape hatch outside every guarantee
+///         of this client (activation epochs, main-thread dispatch, failure classification, resource ownership and
+///         release, redaction). Code that uses it follows the CheatEngine.SDK contract instead.
+///     </para>
+///     <para>
+///         <b>Try and throwing forms.</b> An operation that can fail for an expected reason has a <c>TryX</c> form, which
+///         returns <see langword="false" /> with a classified <see cref="CheatEngineFailure" />, and a throwing <c>X</c>
+///         form, which returns the same value or throws that same failure through
+///         <see cref="CheatEngineFailure.Throw(CancellationToken)" />. Use the <c>Try</c> form when the failure is an
+///         expected condition. <c>Try</c> does not mean "never throws": both forms throw for an expired or stopping
+///         activation and for an invalid argument (a programming error), and both rethrow, unchanged, an exception thrown
+///         by application code that the client calls (a dispatcher callback, a memory codec, a Lua operation). No
+///         CheatEngine.SDK exception type crosses a <c>Try</c> form.
+///     </para>
+///     <para>
+///         <b>Exceptions.</b> The exception type depends only on <see cref="CheatEngineFailure.Kind" />:
+///         <see cref="CheatEngineFailureKind.Cancelled" /> throws <see cref="CheatEngineOperationCanceledException" />, an
+///         <see cref="OperationCanceledException" />; <see cref="CheatEngineFailureKind.ActivationExpired" /> throws
+///         <see cref="CheatEngineActivationExpiredException" />; <see cref="CheatEngineFailureKind.InvalidState" /> throws
+///         <see cref="CheatEngineClientLifecycleException" />; every other kind throws
+///         <see cref="CheatEngineOperationException" />. Each exception keeps the complete failure. Classify a failure by
+///         its <see cref="CheatEngineFailure.Kind" /> and <see cref="CheatEngineFailure.HostEffect" />, never by
+///         <see cref="CheatEngineFailure.Message" /> or exception text, which are not contractual and may contain user
+///         data. Releasing a lease never throws: <see cref="ICheatEngineLease.Release" /> returns an outcome.
+///     </para>
+///     <para>
+///         <b>Cancellation.</b> A <see cref="CancellationToken" /> is observed before Cheat Engine work is dispatched and
+///         between Client-managed steps. It never interrupts a Cheat Engine call that has started and never removes an
+///         effect that such a call produced: <see cref="CheatEngineFailure.HostEffect" /> says whether the work started.
+///         <see cref="Stopping" /> is cancelled when the plugin begins to disable; the client then admits no new work.
+///     </para>
+///     <para>
+///         <b>Threading.</b> Every member is synchronous, because an attached Cheat Engine Lua runtime cannot safely be
+///         retained across an <c>await</c> boundary. Members can be called from any thread while the activation is
+///         active: Cheat Engine work always runs on Cheat Engine's main thread through <see cref="Dispatcher" />, and the
+///         calling thread waits for it. Do not make a worker wait for the main thread if that worker can call back into
+///         the client. Returned values are copies that stay valid after the activation ends; leases and sessions belong
+///         to the activation (<see cref="Epoch" />) and, when bound to the selected target, to that target.
+///     </para>
 /// </remarks>
 public interface ICheatEngineClient
 {

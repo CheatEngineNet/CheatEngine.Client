@@ -6,6 +6,10 @@ namespace CheatEngine.Client.Processes;
 /// <summary>Reads and changes the process selected by the active Cheat Engine session.</summary>
 /// <remarks>
 ///     <para>
+///         <b>Call-only.</b> The Client implements this interface and applications call it. A minor release can add
+///         members to it, so implement it only in a test double.
+///     </para>
+///     <para>
 ///         Cheat Engine's selected target is ambient: a session that holds a process identifier does not stop the user,
 ///         another plugin or a script from selecting another process. The checks of this client (PID-bracketed
 ///         observation, selection epoch) reduce that risk; they are not transactions.

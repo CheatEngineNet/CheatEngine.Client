@@ -2,10 +2,16 @@ namespace CheatEngine.Client.Scanning;
 
 /// <summary>Runs AOB scans and returns their detailed outcome, including host and copy metrics.</summary>
 /// <remarks>
-///     This companion contract is intentionally separate from <see cref="IPatternScanner" /> so existing implementations
-///     remain source-compatible. It exposes what the boolean <see cref="IPatternScanner.TryScan" /> cannot: how many
-///     entries Cheat Engine returned, how many Core examined, filtered out and copied, which part of the target Cheat
-///     Engine scanned, and the Cheat Engine scan time separately from the Client copy time.
+///     <para>
+///         <b>Call-only.</b> The Client implements this interface and applications call it. A minor release can add
+///         members to it, so implement it only in a test double.
+///     </para>
+///     <para>
+///         This companion contract is intentionally separate from <see cref="IPatternScanner" /> so existing
+///         implementations remain source-compatible. It exposes what the boolean <see cref="IPatternScanner.TryScan" />
+///         cannot: how many entries Cheat Engine returned, how many Core examined, filtered out and copied, which part
+///         of the target Cheat Engine scanned, and the Cheat Engine scan time separately from the Client copy time.
+///     </para>
 /// </remarks>
 public interface IPatternScanOutcomeClient
 {

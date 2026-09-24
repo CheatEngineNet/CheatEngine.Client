@@ -6,6 +6,10 @@ namespace CheatEngine.Client.Lua;
 
 /// <summary>A typed, handle-free Lua operation implemented with SDK-generated bindings.</summary>
 /// <typeparam name="TResult">The copied managed result type.</typeparam>
+/// <remarks>
+///     <b>Implementable.</b> Applications implement this interface and the Client calls it. Its members are frozen for
+///     the 1.x line.
+/// </remarks>
 public interface ILuaOperation<TResult>
 {
 	/// <summary>Executes while the Client holds a valid activation and main-thread boundary.</summary>

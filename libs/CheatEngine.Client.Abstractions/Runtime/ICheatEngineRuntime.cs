@@ -4,6 +4,10 @@ using CheatEngine.SDK.Engine.Runtime;
 namespace CheatEngine.Client.Runtime;
 
 /// <summary>Reads immutable runtime facts and capability observations for the active Cheat Engine activation.</summary>
+/// <remarks>
+///     <b>Call-only.</b> The Client implements this interface and applications call it. A minor release can add members
+///     to it, so implement it only in a test double.
+/// </remarks>
 public interface ICheatEngineRuntime
 {
 	/// <summary>Gets the activation epoch for which this runtime service is valid.</summary>

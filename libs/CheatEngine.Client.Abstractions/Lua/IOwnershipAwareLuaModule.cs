@@ -6,6 +6,10 @@ namespace CheatEngine.Client.Lua;
 /// </summary>
 /// <remarks>
 ///     <para>
+///         <b>Implementable.</b> Applications implement this interface and the Client calls it. Its members are frozen
+///         for the 1.x line.
+///     </para>
+///     <para>
 ///         Every <see cref="CheatEngineLuaModuleAttribute" /> module implements this contract. After registration the
 ///         generated module pins the value it published under each export; at release it compares the current global with
 ///         that value by primitive identity and writes <c>nil</c> only when the global is still the module's. A third-party

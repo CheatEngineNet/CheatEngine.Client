@@ -4,8 +4,14 @@ namespace CheatEngine.Client.Allocations;
 
 /// <summary>Owns one Client-created allocation in the selected target process.</summary>
 /// <remarks>
-///     The activation owner releases forgotten leases before disable. A selection-epoch change also invalidates and
-///     releases an allocation; implementations must not cache or pool target allocations.
+///     <para>
+///         <b>Call-only.</b> The Client implements this interface and applications call it. A minor release can add
+///         members to it, so implement it only in a test double.
+///     </para>
+///     <para>
+///         The activation owner releases forgotten leases before disable. A selection-epoch change also invalidates and
+///         releases an allocation; implementations must not cache or pool target allocations.
+///     </para>
 /// </remarks>
 public interface ITargetMemoryLease : IDisposable
 {

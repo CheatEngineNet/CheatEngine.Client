@@ -1,0 +1,107 @@
+using System.Collections.Immutable;
+
+using CheatEngine.Client.Runtime;
+
+namespace CheatEngine.Client.Core.Domains;
+
+/// <summary>Whether this build composes an operational adapter for a capability.</summary>
+internal enum CapabilityImplementation
+{
+	/// <summary>The Client composes an operational adapter: the implementation gate is satisfied.</summary>
+	Operational,
+
+	/// <summary>
+	///     The public contract exists but its adapter refuses every operation: the implementation gate is missing.
+	/// </summary>
+	ContractOnly
+}
+
+/// <summary>Where the policy gate of a capability comes from.</summary>
+internal enum CapabilityPolicySource
+{
+	/// <summary>The capability needs no activation opt-in: the policy gate is satisfied.</summary>
+	NotRequired,
+
+	/// <summary>The policy gate follows the activation's <c>EnableUnsafeLuaExecution</c> opt-in.</summary>
+	UnsafeLuaExecutionOptIn
+}
+
+/// <summary>Where the host gate of a capability comes from.</summary>
+internal enum CapabilityHostSource
+{
+	/// <summary>
+	///     The runtime snapshot does not probe every host primitive the capability needs: the gate stays unknown.
+	/// </summary>
+	NotProbed,
+
+	/// <summary>The host gate is the evidence of the opened-process probe of the snapshot.</summary>
+	OpenedProcess
+}
+
+/// <summary>One row of <see cref="ClientCapabilityCatalog" />.</summary>
+/// <param name="Id">The Client capability.</param>
+/// <param name="Implementation">Whether this build composes an operational adapter.</param>
+/// <param name="Policy">Where the policy gate comes from.</param>
+/// <param name="Host">Where the host gate comes from.</param>
+/// <param name="RequiredScenarios">
+///     The live qualification scenarios whose receipts the qualification gate requires; empty when the capability can
+///     never be qualified, so its qualification gate stays unknown.
+/// </param>
+internal sealed record ClientCapabilityDescriptor(
+	ClientCapabilityId Id,
+	CapabilityImplementation Implementation,
+	CapabilityPolicySource Policy,
+	CapabilityHostSource Host,
+	ImmutableArray<string> RequiredScenarios);
+
+/// <summary>The one description of every Client capability, in the order the runtime snapshot reports them.</summary>
+/// <remarks>
+///     <para>
+///         <see cref="RuntimeClient" /> composes the evidence of each capability from its row: the implementation gate,
+///         the source of the policy gate and of the host gate. The package, lifetime and live-qualification gates are the
+///         same for every capability. The required scenarios are the live qualification scenarios that the
+///         qualification gate will require; that gate stays unknown until committed Client receipts exist.
+///     </para>
+///     <para>
+///         Each capability has one row, and a lot changes only its own row. The capability tables of the READMEs follow
+///         the implementation column (<c>CapabilityDocumentationTests</c>), and <c>ClientCapabilityCatalogTests</c>
+///         proves that every <see cref="ClientCapabilityId" /> appears exactly once.
+///     </para>
+/// </remarks>
+internal static class ClientCapabilityCatalog
+{
+	/// <summary>Gets every capability row, in snapshot order.</summary>
+	internal static ImmutableArray<ClientCapabilityDescriptor> Entries
+	{
+		get;
+	} =
+	[
+		Entry(ClientCapabilityId.ProcessSelection, CapabilityImplementation.Operational,
+			CapabilityPolicySource.NotRequired, CapabilityHostSource.OpenedProcess, "Q30.a", "Q31", "Q32"),
+		Entry(ClientCapabilityId.TypedMemory, CapabilityImplementation.Operational,
+			CapabilityPolicySource.NotRequired, CapabilityHostSource.NotProbed, "Q20", "Q21", "Q33"),
+		Entry(ClientCapabilityId.PatternScanning, CapabilityImplementation.Operational,
+			CapabilityPolicySource.NotRequired, CapabilityHostSource.NotProbed, "Q27", "Q28", "Q29"),
+		Entry(ClientCapabilityId.ValueScanning, CapabilityImplementation.ContractOnly,
+			CapabilityPolicySource.NotRequired, CapabilityHostSource.NotProbed, "Q25", "Q26"),
+		Entry(ClientCapabilityId.Inspection, CapabilityImplementation.Operational,
+			CapabilityPolicySource.NotRequired, CapabilityHostSource.NotProbed, "Q16.b", "Q28"),
+		Entry(ClientCapabilityId.Tables, CapabilityImplementation.Operational,
+			CapabilityPolicySource.NotRequired, CapabilityHostSource.NotProbed, "Q34"),
+		Entry(ClientCapabilityId.ProtectedLua, CapabilityImplementation.Operational,
+			CapabilityPolicySource.NotRequired, CapabilityHostSource.NotProbed, "Q05", "Q16", "Q19"),
+		// Arbitrary Lua is never qualified: no scenario, so its qualification gate stays unknown.
+		Entry(ClientCapabilityId.UnsafeLuaExecution, CapabilityImplementation.Operational,
+			CapabilityPolicySource.UnsafeLuaExecutionOptIn, CapabilityHostSource.NotProbed),
+		Entry(ClientCapabilityId.Allocations, CapabilityImplementation.ContractOnly,
+			CapabilityPolicySource.NotRequired, CapabilityHostSource.NotProbed, "Q30.a"),
+		Entry(ClientCapabilityId.Assembly, CapabilityImplementation.ContractOnly,
+			CapabilityPolicySource.NotRequired, CapabilityHostSource.NotProbed, "Q32")
+	];
+
+	private static ClientCapabilityDescriptor Entry(ClientCapabilityId id, CapabilityImplementation implementation,
+		CapabilityPolicySource policy, CapabilityHostSource host, params string[] requiredScenarios)
+	{
+		return new ClientCapabilityDescriptor(id, implementation, policy, host, [.. requiredScenarios]);
+	}
+}

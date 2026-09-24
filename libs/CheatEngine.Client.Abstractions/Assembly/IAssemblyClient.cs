@@ -7,6 +7,10 @@ using CheatEngine.SDK.Engine.Values;
 namespace CheatEngine.Client.Assembly;
 
 /// <summary>Disassembles, assembles, and applies Client-owned Auto Assembler patches.</summary>
+/// <remarks>
+///     <b>Call-only.</b> The Client implements this interface and applications call it. A minor release can add members
+///     to it, so implement it only in a test double.
+/// </remarks>
 public interface IAssemblyClient
 {
 	/// <summary>Tries to copy one instruction from the target.</summary>

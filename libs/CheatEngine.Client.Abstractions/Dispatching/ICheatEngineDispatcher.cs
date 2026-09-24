@@ -7,6 +7,10 @@ namespace CheatEngine.Client.Dispatching;
 /// <summary>Synchronously dispatches managed work to Cheat Engine's captured main thread.</summary>
 /// <remarks>
 ///     <para>
+///         <b>Call-only.</b> The Client implements this interface and applications call it. A minor release can add
+///         members to it, so implement it only in a test double.
+///     </para>
+///     <para>
 ///         Every operation has a form without a cancellation token and a form with one, like
 ///         <see cref="Task.Run(Action)" /> and <see cref="Task.Run(Action, CancellationToken)" />. The forms without a
 ///         token are default interface members that pass <see cref="CancellationToken.None" />; an implementation provides

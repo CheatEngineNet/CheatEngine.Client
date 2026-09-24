@@ -4,9 +4,15 @@ namespace CheatEngine.Client.Lua;
 ///     Describes the short-lived, handle-free scope in which a typed Lua operation executes.
 /// </summary>
 /// <remarks>
-///     A context is valid only while the typed operation invocation that received it is running. It deliberately exposes
-///     neither <c>LuaState</c>, <c>LuaRef</c>, CE objects nor raw Lua stack access.
-///     Operations should use their SDK-generated <c>[LuaGlobal]</c> bindings while this context is active.
+///     <para>
+///         <b>Call-only.</b> The Client implements this interface and applications call it. A minor release can add
+///         members to it, so implement it only in a test double.
+///     </para>
+///     <para>
+///         A context is valid only while the typed operation invocation that received it is running. It deliberately
+///         exposes neither <c>LuaState</c>, <c>LuaRef</c>, CE objects nor raw Lua stack access. Operations should use
+///         their SDK-generated <c>[LuaGlobal]</c> bindings while this context is active.
+///     </para>
 /// </remarks>
 public interface ILuaExecutionContext
 {

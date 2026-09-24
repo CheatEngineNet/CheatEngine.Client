@@ -5,6 +5,10 @@ namespace CheatEngine.Client.Scanning;
 /// <summary>Runs global AOB scans, then copies post-filtered addresses before releasing SDK-owned objects.</summary>
 /// <remarks>
 ///     <para>
+///         <b>Call-only.</b> The Client implements this interface and applications call it. A minor release can add
+///         members to it, so implement it only in a test double.
+///     </para>
+///     <para>
 ///         <see cref="AobScanRequest.Module" /> and <see cref="AobScanRequest.Range" /> are managed post-filters. Core
 ///         resolves the module first, then Cheat Engine runs one global <c>AOBScan</c> over the whole target, and Core
 ///         copies only the addresses inside the module or range. They do not reduce Cheat Engine's scan time or memory.

@@ -8,6 +8,10 @@ using CheatEngine.SDK.Engine.Values;
 namespace CheatEngine.Client.Inspection;
 
 /// <summary>Reads copied modules, sections, symbols, and memory regions from the selected Cheat Engine target.</summary>
+/// <remarks>
+///     <b>Call-only.</b> The Client implements this interface and applications call it. A minor release can add members
+///     to it, so implement it only in a test double.
+/// </remarks>
 public interface IInspectionClient
 {
 	/// <summary>Tries to copy the target modules, optionally for an explicit process identifier.</summary>

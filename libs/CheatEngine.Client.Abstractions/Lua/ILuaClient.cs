@@ -5,6 +5,10 @@ using CheatEngine.Client.Results;
 namespace CheatEngine.Client.Lua;
 
 /// <summary>Executes typed Lua operations without exposing a Lua state or CE object handle.</summary>
+/// <remarks>
+///     <b>Call-only.</b> The Client implements this interface and applications call it. A minor release can add members
+///     to it, so implement it only in a test double.
+/// </remarks>
 public interface ILuaClient
 {
 	/// <summary>Tries to register one explicitly supplied application Lua module on Cheat Engine's main thread.</summary>
