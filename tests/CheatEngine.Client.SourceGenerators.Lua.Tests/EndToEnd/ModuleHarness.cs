@@ -11,15 +11,16 @@ namespace CheatEngine.Client.SourceGenerators.Lua.Tests.EndToEnd;
 
 /// <summary>
 ///     Compiles a real generated module and the real generated registrar, replaces only the generated CheatEngine.SDK
-///     adapter (<c>CheatEngineLuaRegistrationAdapter</c>) with one that drives <see cref="FakeLuaGlobals" />, then loads
-///     the result and calls the module's public <c>Register</c> and <c>Unregister</c> (C1: every generated decision runs,
-///     only the SDK registration set is a double).
+///     adapter (<c>CheatEngineLuaRegistrationAdapter</c>) with one that forwards each of its SDK calls to
+///     <see cref="FakeLuaGlobals" />, then loads the result and calls the module's public <c>Register</c> and
+///     <c>Unregister</c> (C1: every generated decision runs, only the SDK calls are doubles).
 /// </summary>
 /// <remarks>
-///     The adapter is replaceable because it is emitted as a file of its own and holds every SDK call: the SDK
-///     <c>LuaRegistrationLease</c> has no public constructor, so no test can hand the real adapter a lease. What the real
-///     adapter itself does is pinned by <c>GeneratedLuaSurfaceRatchetTests</c> (C0) and exercised by the composition test
-///     with the real SDK generator; the host behaviour is the Q16 scenario.
+///     The adapter is replaceable because it is emitted as a file of its own and holds every SDK call, one call per
+///     member and no decision: the SDK <c>LuaRegistrationLease</c> has no public constructor, so no test can hand the real
+///     adapter a lease. The replacement keeps that shape and adds no logic, so the tests observe the registrar itself.
+///     What the real adapter calls is pinned by <c>GeneratedLuaSurfaceRatchetTests</c> (C0) and compiled against the
+///     real SDK generator by the composition test; the host behaviour is the Q16 scenario.
 /// </remarks>
 internal sealed class ModuleHarness
 {
@@ -31,6 +32,7 @@ internal sealed class ModuleHarness
 	internal const string ModuleSource =
 		"""
 		using CheatEngine.Client.Lua;
+		using CheatEngine.Client.SourceGenerators.Lua.Tests.EndToEnd;
 		using CheatEngine.SDK.Annotations.Lua;
 		using CheatEngine.SDK.Lua.Registration;
 		using CheatEngine.SDK.Lua.State;
@@ -46,16 +48,22 @@ internal sealed class ModuleHarness
 			[LuaFunction("marker")]
 			public static string Marker() => "marker";
 
-			// Stands for the SDK LuaBindings output, which the Client generator cannot see in a test compilation.
+			// Stands for the SDK LuaBindings output, which the Client generator cannot see in a test compilation: it records
+			// the call, and the double's registration set supplies the result.
 			public static LuaRegistrationResult TryRegisterLuaFunctions(LuaState state,
-				LuaRegistrationCollisionPolicy collisionPolicy = LuaRegistrationCollisionPolicy.RejectExisting) => default;
+				LuaRegistrationCollisionPolicy collisionPolicy = LuaRegistrationCollisionPolicy.RejectExisting)
+			{
+				FakeLuaGlobals.Current.RecordBindingsRegistration(collisionPolicy);
+				return default;
+			}
 		}
 
 		[CheatEngineLuaModule(typeof(PluginLuaBindings), "plugin")]
 		internal sealed partial class PluginLuaModule : ILuaModule;
 		""";
 
-	// The replacement adapter: the same members as the generated one, over FakeLuaGlobals instead of CheatEngine.SDK.
+	// The replacement adapter: the members of the generated one, each forwarding its one SDK call to FakeLuaGlobals and
+	// copying the result exactly as the generated adapter copies the SDK's. It holds no decision of its own.
 	private const string FakeAdapterSource =
 		"""
 		#nullable enable
@@ -67,48 +75,35 @@ internal sealed class ModuleHarness
 
 		internal static class CheatEngineLuaRegistrationAdapter
 		{
-			internal static LuaAdmissionStatus TryPublish(object? previous,
-				System.Func<LuaState, LuaRegistrationResult> publish, out CheatEngineLuaPublication publication)
+			internal static LuaAdmissionStatus TryAdmit(out LuaRuntimeOperation operation, out LuaState state)
 			{
-				System.ArgumentNullException.ThrowIfNull(publish);
-				FakeLuaGlobals globals = FakeLuaGlobals.Current;
-				publication = default;
-				if (globals.Admission != LuaAdmissionStatus.Admitted)
-				{
-					return globals.Admission;
-				}
-
-				FakePublication fake = globals.Publish((FakeLease?) previous);
-				FakeLease? lease = fake.Lease;
-				CheatEngineLuaRelease residual = default;
-				if (lease is not null && fake.Kind != LuaRegistrationResultKind.Succeeded)
-				{
-					// As the generated adapter does: release the residual owner once more inside the admitted operation.
-					residual = Copy(globals.Release(lease));
-					lease = null;
-				}
-
-				publication = new CheatEngineLuaPublication(fake.Kind, lease, fake.FailedExport, fake.FailedStatus,
-					Copy(fake.Rollback), residual);
-				return LuaAdmissionStatus.Admitted;
+				operation = default;
+				state = default;
+				return FakeLuaGlobals.Current.Admit();
 			}
 
-			internal static LuaAdmissionStatus TryRelease(object registration, out CheatEngineLuaRelease release)
+			internal static void EndOperation(ref LuaRuntimeOperation operation)
 			{
-				FakeLuaGlobals globals = FakeLuaGlobals.Current;
-				release = default;
-				if (globals.Admission != LuaAdmissionStatus.Admitted)
-				{
-					return globals.Admission;
-				}
-
-				release = Copy(globals.Release((FakeLease) registration));
-				return LuaAdmissionStatus.Admitted;
+				FakeLuaGlobals.Current.EndOperation();
 			}
 
-			internal static CheatEngineLuaRelease ReleaseStale(object registration)
+			internal static CheatEngineLuaPublication Publish(System.Func<LuaState, LuaRegistrationResult> publish,
+				LuaState state)
 			{
-				return Copy(FakeLuaGlobals.Current.ReleaseStale((FakeLease) registration));
+				_ = publish(state);
+				FakePublication fake = FakeLuaGlobals.Current.Publish();
+				return new CheatEngineLuaPublication(fake.Kind, fake.Lease, fake.FailedExport, fake.FailedStatus,
+					Copy(fake.Rollback));
+			}
+
+			internal static CheatEngineLuaRelease Release(object lease, LuaState state)
+			{
+				return Copy(FakeLuaGlobals.Current.Release((FakeLease) lease));
+			}
+
+			internal static CheatEngineLuaRelease ReleaseStale(object lease)
+			{
+				return Copy(FakeLuaGlobals.Current.ReleaseStale((FakeLease) lease));
 			}
 
 			private static CheatEngineLuaRelease Copy(FakeRelease release)

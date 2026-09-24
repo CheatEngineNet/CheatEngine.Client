@@ -6,17 +6,20 @@ namespace CheatEngine.Client.SourceGenerators.Lua;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         The registrar (<see cref="RegistrarSource" />) decides: it maps the Lua admission, the registration result and
-///         the release outcome that CheatEngine.SDK reports to the Client vocabulary, keeps or consumes the module's
-///         registration lease, and throws the classified refusal of a failed registration. It makes no SDK call.
+///         The registrar (<see cref="RegistrarSource" />) takes every decision: when to admit a Lua operation and end it,
+///         which lease to release (an earlier registration of the module, the residual lease a failed publication left),
+///         when to consume the module's lease, how to map the admission, the registration result and the release that
+///         CheatEngine.SDK reports to the Client vocabulary, and which classified refusal to throw. It makes no SDK call.
 ///     </para>
 ///     <para>
-///         The adapter (<see cref="AdapterSource" />) is the only generated code that calls CheatEngine.SDK:
-///         <c>LuaRuntime.TryAcquireOperationWithOutcome</c>, the module's <c>TryRegisterLuaFunctions</c> delegate, and
-///         <c>LuaRegistrationLease.ReleaseWithOutcome</c>, whose results it copies into Client-owned values. It is emitted
-///         as its own file so that a test compilation can replace it with a managed double of the SDK registration set
-///         (<c>LuaRegistrationLease</c> has no public constructor), while the registrar and the modules run unchanged. The
-///         SDK members it may use are the exact allowlist of <c>GeneratedLuaSurfaceRatchetTests</c>.
+///         The adapter (<see cref="AdapterSource" />) is the only generated code that calls CheatEngine.SDK, and it takes no
+///         decision: each of its members is one SDK call (<c>LuaRuntime.TryAcquireOperationWithOutcome</c>, the end of
+///         the admitted operation, the module's <c>TryRegisterLuaFunctions</c> delegate, and
+///         <c>LuaRegistrationLease.ReleaseWithOutcome</c> with or without a state) whose result it copies into Client-owned
+///         values. It is emitted as its own file so that a test compilation can replace it with a managed double of the
+///         SDK registration set (<c>LuaRegistrationLease</c> has no public constructor), while the registrar and the
+///         modules run unchanged. The SDK members it may use are the exact allowlist of
+///         <c>GeneratedLuaSurfaceRatchetTests</c>.
 ///     </para>
 /// </remarks>
 internal static class RegistrarEmitter
@@ -47,8 +50,8 @@ internal static class RegistrarEmitter
 		/// <summary>
 		///     Registers and releases this assembly's <c>[CheatEngineLuaModule]</c> modules through CheatEngine.SDK Lua
 		///     registration leases and reports what CheatEngine.SDK observed in the Client vocabulary. It runs inside a
-		///     module's <c>Register</c> and <c>Unregister</c>, on Cheat Engine's main thread, and makes no SDK call itself:
-		///     <see cref="CheatEngineLuaRegistrationAdapter" /> does.
+		///     module's <c>Register</c> and <c>Unregister</c>, on Cheat Engine's main thread, and takes every decision; each
+		///     CheatEngine.SDK call goes through one member of <see cref="CheatEngineLuaRegistrationAdapter" />.
 		/// </summary>
 		internal static class CheatEngineLuaModuleRegistrar
 		{
@@ -61,16 +64,41 @@ internal static class RegistrarEmitter
 			internal static void Register(global::CheatEngine.Client.Lua.LuaModuleDescriptor descriptor, ref object? registration,
 				global::System.Func<global::CheatEngine.SDK.Lua.State.LuaState, global::CheatEngine.SDK.Lua.Registration.LuaRegistrationResult> publish)
 			{
-				global::CheatEngine.SDK.Lua.Runtime.LuaAdmissionStatus admission =
-					CheatEngineLuaRegistrationAdapter.TryPublish(registration, publish, out CheatEngineLuaPublication publication);
+				global::CheatEngine.SDK.Lua.Runtime.LuaAdmissionStatus admission = CheatEngineLuaRegistrationAdapter.TryAdmit(
+					out global::CheatEngine.SDK.Lua.Runtime.LuaRuntimeOperation operation,
+					out global::CheatEngine.SDK.Lua.State.LuaState state);
 				if (admission != global::CheatEngine.SDK.Lua.Runtime.LuaAdmissionStatus.Admitted)
 				{
 					// Nothing ran: a registration the module already owned is still owned.
 					throw new global::CheatEngine.Client.Results.CheatEngineOperationException(Refused(admission));
 				}
 
-				// The adapter released any earlier registration inside the admitted operation, before the publication.
-				registration = null;
+				CheatEngineLuaPublication publication;
+				CheatEngineLuaRelease residual = default;
+				try
+				{
+					object? owned = registration;
+					if (owned is not null)
+					{
+						// Released inside this admitted operation before the same globals are published again: a current
+						// lease is released ownership-aware, a lease of an earlier attachment or Lua state is only forgotten.
+						registration = null;
+						_ = CheatEngineLuaRegistrationAdapter.Release(owned, state);
+					}
+
+					publication = CheatEngineLuaRegistrationAdapter.Publish(publish, state);
+					if (publication.Lease is not null &&
+						publication.Kind != global::CheatEngine.SDK.Lua.Registration.LuaRegistrationResultKind.Succeeded)
+					{
+						// The SDK compensation left a residual owner: release it once more inside this admitted operation.
+						residual = CheatEngineLuaRegistrationAdapter.Release(publication.Lease, state);
+					}
+				}
+				finally
+				{
+					CheatEngineLuaRegistrationAdapter.EndOperation(ref operation);
+				}
+
 				if (publication.Kind == global::CheatEngine.SDK.Lua.Registration.LuaRegistrationResultKind.Succeeded &&
 					publication.Lease is not null)
 				{
@@ -78,7 +106,8 @@ internal static class RegistrarEmitter
 					return;
 				}
 
-				throw new global::CheatEngine.Client.Results.CheatEngineOperationException(Failed(descriptor.Name, publication));
+				throw new global::CheatEngine.Client.Results.CheatEngineOperationException(
+					Failed(descriptor.Name, publication, residual));
 			}
 
 			/// <summary>Releases the registration lease in <paramref name="registration" /> and reports what happened.</summary>
@@ -91,12 +120,23 @@ internal static class RegistrarEmitter
 					return global::CheatEngine.Client.Lua.LuaModuleReleaseOutcome.AlreadyReleased(descriptor.Name);
 				}
 
-				global::CheatEngine.SDK.Lua.Runtime.LuaAdmissionStatus admission =
-					CheatEngineLuaRegistrationAdapter.TryRelease(lease, out CheatEngineLuaRelease release);
+				global::CheatEngine.SDK.Lua.Runtime.LuaAdmissionStatus admission = CheatEngineLuaRegistrationAdapter.TryAdmit(
+					out global::CheatEngine.SDK.Lua.Runtime.LuaRuntimeOperation operation,
+					out global::CheatEngine.SDK.Lua.State.LuaState state);
+				CheatEngineLuaRelease release;
 				switch (admission)
 				{
 					case global::CheatEngine.SDK.Lua.Runtime.LuaAdmissionStatus.Admitted:
 						registration = null;
+						try
+						{
+							release = CheatEngineLuaRegistrationAdapter.Release(lease, state);
+						}
+						finally
+						{
+							CheatEngineLuaRegistrationAdapter.EndOperation(ref operation);
+						}
+
 						return ToOutcome(descriptor.Name, release);
 					case global::CheatEngine.SDK.Lua.Runtime.LuaAdmissionStatus.Detached:
 					case global::CheatEngine.SDK.Lua.Runtime.LuaAdmissionStatus.ExternalStateReset:
@@ -204,7 +244,7 @@ internal static class RegistrarEmitter
 			}
 
 			private static global::CheatEngine.Client.Results.CheatEngineFailure Failed(string moduleName,
-				CheatEngineLuaPublication publication)
+				CheatEngineLuaPublication publication, CheatEngineLuaRelease residual)
 			{
 				string name = publication.FailedExport ?? "(unnamed)";
 				string status = publication.FailedStatus ?? "(unknown)";
@@ -225,10 +265,10 @@ internal static class RegistrarEmitter
 						return new global::CheatEngine.Client.Results.CheatEngineFailure(kind, RegisterOperation,
 							"Client Lua module '" + moduleName + "' could not publish Lua global '" + name + "' (" + status +
 							"). " + Describe("The rollback", publication.Rollback) +
-							(publication.Residual.Kind == global::CheatEngine.SDK.Lua.Registration.LuaRegistrationReleaseKind.NotAttempted
+							(residual.Kind == global::CheatEngine.SDK.Lua.Registration.LuaRegistrationReleaseKind.NotAttempted
 								? string.Empty
-								: " " + Describe("The release of what the rollback left", publication.Residual)),
-							null, IsCleanedUp(publication)
+								: " " + Describe("The release of what the rollback left", residual)),
+							null, IsCleanedUp(publication.Rollback, residual)
 								? global::CheatEngine.Client.Results.CheatEngineHostEffect.NotApplied
 								: global::CheatEngine.Client.Results.CheatEngineHostEffect.CleanupUnconfirmed);
 					default:
@@ -240,11 +280,11 @@ internal static class RegistrarEmitter
 			}
 
 			// Nothing the failed publication installed remains: the rollback, or the release of what it left, removed it all.
-			private static bool IsCleanedUp(CheatEngineLuaPublication publication)
+			private static bool IsCleanedUp(CheatEngineLuaRelease rollback, CheatEngineLuaRelease residual)
 			{
-				return publication.Residual.Kind == global::CheatEngine.SDK.Lua.Registration.LuaRegistrationReleaseKind.NotAttempted
-					? publication.Rollback.Kind == global::CheatEngine.SDK.Lua.Registration.LuaRegistrationReleaseKind.Released
-					: publication.Residual.Kind == global::CheatEngine.SDK.Lua.Registration.LuaRegistrationReleaseKind.Released;
+				return residual.Kind == global::CheatEngine.SDK.Lua.Registration.LuaRegistrationReleaseKind.NotAttempted
+					? rollback.Kind == global::CheatEngine.SDK.Lua.Registration.LuaRegistrationReleaseKind.Released
+					: residual.Kind == global::CheatEngine.SDK.Lua.Registration.LuaRegistrationReleaseKind.Released;
 			}
 
 			private static string Describe(string step, CheatEngineLuaRelease release)
@@ -288,18 +328,15 @@ internal static class RegistrarEmitter
 			internal readonly string? FailedExport;
 			internal readonly string? FailedStatus;
 			internal readonly CheatEngineLuaRelease Rollback;
-			internal readonly CheatEngineLuaRelease Residual;
 
 			internal CheatEngineLuaPublication(global::CheatEngine.SDK.Lua.Registration.LuaRegistrationResultKind kind,
-				object? lease, string? failedExport, string? failedStatus, CheatEngineLuaRelease rollback,
-				CheatEngineLuaRelease residual)
+				object? lease, string? failedExport, string? failedStatus, CheatEngineLuaRelease rollback)
 			{
 				Kind = kind;
 				Lease = lease;
 				FailedExport = failedExport;
 				FailedStatus = failedStatus;
 				Rollback = rollback;
-				Residual = residual;
 			}
 		}
 
@@ -314,92 +351,59 @@ internal static class RegistrarEmitter
 		namespace CheatEngine.Client.Lua.Generated;
 
 		/// <summary>
-		///     The only generated code that calls CheatEngine.SDK: the Lua admission, the SDK-generated registration of a
-		///     module, and the release of its registration lease. It copies every result into Client-owned values and makes no
-		///     decision; <see cref="CheatEngineLuaModuleRegistrar" /> does.
+		///     The only generated code that calls CheatEngine.SDK. Each member is one SDK call: the Lua admission and the end
+		///     of the admitted operation, the SDK-generated registration of a module, and the release of a registration
+		///     lease. It copies every result into Client-owned values and takes no decision;
+		///     <see cref="CheatEngineLuaModuleRegistrar" /> does.
 		/// </summary>
 		internal static class CheatEngineLuaRegistrationAdapter
 		{
 			/// <summary>
-			///     Admits one Lua operation, releases <paramref name="previous" /> when it is a lease, and publishes; on a failed
-			///     publication it releases the residual lease the SDK compensation may have left.
+			///     Asks CheatEngine.SDK to admit one Lua operation on this thread. When it is admitted,
+			///     <paramref name="operation" /> holds it until <see cref="EndOperation" /> and <paramref name="state" /> is its
+			///     state; otherwise nothing is held.
 			/// </summary>
-			internal static global::CheatEngine.SDK.Lua.Runtime.LuaAdmissionStatus TryPublish(object? previous,
+			internal static global::CheatEngine.SDK.Lua.Runtime.LuaAdmissionStatus TryAdmit(
+				out global::CheatEngine.SDK.Lua.Runtime.LuaRuntimeOperation operation,
+				out global::CheatEngine.SDK.Lua.State.LuaState state)
+			{
+				global::CheatEngine.SDK.Lua.Runtime.LuaAdmissionStatus admission =
+					global::CheatEngine.SDK.Lua.Runtime.LuaRuntime.TryAcquireOperationWithOutcome(out operation);
+				state = admission == global::CheatEngine.SDK.Lua.Runtime.LuaAdmissionStatus.Admitted
+					? operation.State
+					: default;
+				return admission;
+			}
+
+			/// <summary>Ends an admitted operation before control returns to Cheat Engine.</summary>
+			internal static void EndOperation(ref global::CheatEngine.SDK.Lua.Runtime.LuaRuntimeOperation operation)
+			{
+				operation.Dispose();
+			}
+
+			/// <summary>Runs the module's SDK-generated registration with the state of an admitted operation.</summary>
+			internal static CheatEngineLuaPublication Publish(
 				global::System.Func<global::CheatEngine.SDK.Lua.State.LuaState, global::CheatEngine.SDK.Lua.Registration.LuaRegistrationResult> publish,
-				out CheatEngineLuaPublication publication)
+				global::CheatEngine.SDK.Lua.State.LuaState state)
 			{
-				publication = default;
-				global::CheatEngine.SDK.Lua.Runtime.LuaAdmissionStatus admission =
-					global::CheatEngine.SDK.Lua.Runtime.LuaRuntime.TryAcquireOperationWithOutcome(
-						out global::CheatEngine.SDK.Lua.Runtime.LuaRuntimeOperation operation);
-				if (admission != global::CheatEngine.SDK.Lua.Runtime.LuaAdmissionStatus.Admitted)
-				{
-					return admission;
-				}
-
-				try
-				{
-					global::CheatEngine.SDK.Lua.State.LuaState state = operation.State;
-					if (previous is global::CheatEngine.SDK.Lua.Registration.LuaRegistrationLease owned)
-					{
-						// A lease of an earlier attachment or Lua state is only forgotten; a current one is released
-						// ownership-aware before the same globals are published again.
-						_ = owned.ReleaseWithOutcome(state);
-					}
-
-					global::CheatEngine.SDK.Lua.Registration.LuaRegistrationResult result = publish(state);
-					global::CheatEngine.SDK.Lua.Registration.LuaRegistrationLease? lease = result.Lease;
-					CheatEngineLuaRelease residual = default;
-					if (lease is not null &&
-						result.Kind != global::CheatEngine.SDK.Lua.Registration.LuaRegistrationResultKind.Succeeded)
-					{
-						// The SDK compensation left a residual owner: release it once more inside this admitted operation.
-						residual = Copy(lease.ReleaseWithOutcome(state));
-						lease = null;
-					}
-
-					global::CheatEngine.SDK.Lua.Registration.LuaRegistrationFailure? failure = result.Failure;
-					publication = new CheatEngineLuaPublication(result.Kind, lease,
-						failure.HasValue ? failure.GetValueOrDefault().Name : null,
-						failure.HasValue ? failure.GetValueOrDefault().LuaStatus.ToString() : null,
-						Copy(result.Rollback), residual);
-					return admission;
-				}
-				finally
-				{
-					operation.Dispose();
-				}
+				global::CheatEngine.SDK.Lua.Registration.LuaRegistrationResult result = publish(state);
+				global::CheatEngine.SDK.Lua.Registration.LuaRegistrationFailure? failure = result.Failure;
+				return new CheatEngineLuaPublication(result.Kind, result.Lease,
+					failure.HasValue ? failure.GetValueOrDefault().Name : null,
+					failure.HasValue ? failure.GetValueOrDefault().LuaStatus.ToString() : null,
+					Copy(result.Rollback));
 			}
 
-			/// <summary>Admits one Lua operation and releases <paramref name="registration" /> with its state.</summary>
-			internal static global::CheatEngine.SDK.Lua.Runtime.LuaAdmissionStatus TryRelease(object registration,
-				out CheatEngineLuaRelease release)
+			/// <summary>Releases a registration lease with the state of an admitted operation.</summary>
+			internal static CheatEngineLuaRelease Release(object lease, global::CheatEngine.SDK.Lua.State.LuaState state)
 			{
-				release = default;
-				global::CheatEngine.SDK.Lua.Runtime.LuaAdmissionStatus admission =
-					global::CheatEngine.SDK.Lua.Runtime.LuaRuntime.TryAcquireOperationWithOutcome(
-						out global::CheatEngine.SDK.Lua.Runtime.LuaRuntimeOperation operation);
-				if (admission != global::CheatEngine.SDK.Lua.Runtime.LuaAdmissionStatus.Admitted)
-				{
-					return admission;
-				}
-
-				try
-				{
-					release = Copy(((global::CheatEngine.SDK.Lua.Registration.LuaRegistrationLease) registration)
-						.ReleaseWithOutcome(operation.State));
-					return admission;
-				}
-				finally
-				{
-					operation.Dispose();
-				}
+				return Copy(((global::CheatEngine.SDK.Lua.Registration.LuaRegistrationLease) lease).ReleaseWithOutcome(state));
 			}
 
-			/// <summary>Consumes <paramref name="registration" /> without a Lua state; CheatEngine.SDK reports it stale.</summary>
-			internal static CheatEngineLuaRelease ReleaseStale(object registration)
+			/// <summary>Consumes a registration lease without a Lua state; CheatEngine.SDK reports it stale.</summary>
+			internal static CheatEngineLuaRelease ReleaseStale(object lease)
 			{
-				return Copy(((global::CheatEngine.SDK.Lua.Registration.LuaRegistrationLease) registration).ReleaseWithOutcome());
+				return Copy(((global::CheatEngine.SDK.Lua.Registration.LuaRegistrationLease) lease).ReleaseWithOutcome());
 			}
 
 			private static CheatEngineLuaRelease Copy(global::CheatEngine.SDK.Lua.Registration.LuaRegistrationReleaseOutcome outcome)

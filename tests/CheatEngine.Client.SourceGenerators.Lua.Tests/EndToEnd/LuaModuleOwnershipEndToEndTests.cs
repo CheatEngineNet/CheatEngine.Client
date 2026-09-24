@@ -1,6 +1,5 @@
 using CheatEngine.Client.Lua;
 using CheatEngine.Client.Results;
-using CheatEngine.SDK.Lua.Calls;
 using CheatEngine.SDK.Lua.Registration;
 using CheatEngine.SDK.Lua.Runtime;
 
@@ -9,9 +8,14 @@ namespace CheatEngine.Client.SourceGenerators.Lua.Tests.EndToEnd;
 /// <summary>
 ///     C1 execution of the generated module and registrar around the CheatEngine.SDK registration leases (F12, Q16): the
 ///     module's public <c>Register</c>/<c>Unregister</c> and the generated registrar run unchanged; only the generated SDK
-///     adapter is replaced by one that drives a managed double of the SDK registration set. This is not a Lua fixture (C2)
-///     and not a host observation (C3/C4).
+///     adapter is replaced by one that forwards each SDK call to a managed double of the SDK registration set. This is not
+///     a Lua fixture (C2) and not a host observation (C3/C4).
 /// </summary>
+/// <remarks>
+///     A function a script kept after disable is not tested here: that CheatEngine.SDK 2.0.0 closure (CRIT-07) runs
+///     inside the SDK registration set, which these tests replace. Its evidence is the composition test (the module
+///     publishes through <c>LuaRegistrationSet.Register</c>) and the Q16 host scenario.
+/// </remarks>
 [Trait("Qualification", "Q16")]
 public sealed class LuaModuleOwnershipEndToEndTests
 {
@@ -293,7 +297,7 @@ public sealed class LuaModuleOwnershipEndToEndTests
 
 		CheatEngineFailure failure = RegisterFailure(module, globals);
 
-		// The SDK compensation could not clear ping and kept it in a residual lease; the generated adapter released that
+		// The SDK compensation could not clear ping and kept it in a residual lease; the generated registrar released that
 		// residual lease once more, inside the same admitted operation, and it succeeded.
 		Assert.Equal(CheatEngineFailureKind.LuaError, failure.Kind);
 		Assert.Equal(CheatEngineHostEffect.NotApplied, failure.HostEffect);
@@ -378,20 +382,36 @@ public sealed class LuaModuleOwnershipEndToEndTests
 	}
 
 	[Fact]
-	public void AFunctionKeptAfterDisableRaisesALuaErrorInsteadOfEnteringTheModule()
+	public void RegisterAndUnregisterEachRunInOneAdmittedOperationThatTheyEnd()
 	{
 		(ILuaModule module, FakeLuaGlobals globals) = Registered();
-		FakeLuaValue kept = globals[Ping]!;
-		Assert.Null(globals.Call(kept));
 
-		ModuleHarness.Unregister(module, globals);
-		globals.Reattach();
-		LuaException? stale = globals.Call(kept);
+		LuaModuleReleaseOutcome outcome = ModuleHarness.Unregister(module, globals);
+		globals.Admission = LuaAdmissionStatus.Detached;
+		_ = RegisterFailure(Harness.CreateModule(), globals);
 
-		// CRIT-07: every function the SDK publishes captures the attachment and Lua state identity; a script that kept it
-		// after disable gets an ordinary Lua error, never a call into an ended activation.
-		Assert.NotNull(stale);
-		Assert.Equal(LuaStatus.RuntimeError, stale.Status);
+		Assert.Equal(LeaseReleaseKind.Released, outcome.Kind);
+		// The registration, then the release; the refused registration held no operation.
+		Assert.Equal(2, globals.AdmittedOperationCount);
+		Assert.Equal(0, globals.OpenOperationCount);
+		// The module handed the registrar its bindings' registration with the RejectExisting policy, once.
+		Assert.Equal([LuaRegistrationCollisionPolicy.RejectExisting], globals.BindingsRegistrations);
+	}
+
+	[Fact]
+	public void AFailedPublicationEndsItsOperationAfterReleasingTheResidualLease()
+	{
+		ILuaModule module = Harness.CreateModule();
+		FakeLuaGlobals globals = ModuleHarness.CreateGlobals();
+		globals.FailPublications.Add(Marker);
+		globals.FailClearsOnce.Add(Ping);
+
+		_ = RegisterFailure(module, globals);
+
+		// The rollback, the residual release and the publication share one admitted operation, ended before the throw.
+		Assert.Equal(1, globals.AdmittedOperationCount);
+		Assert.Equal(0, globals.OpenOperationCount);
+		Assert.Equal(["read:ping", "clear:ping"], globals.Log.TakeLast(2));
 	}
 
 	private static (ILuaModule Module, FakeLuaGlobals Globals) Registered()
@@ -402,6 +422,7 @@ public sealed class LuaModuleOwnershipEndToEndTests
 		Assert.Equal(
 			["read:status", "read:ping", "read:marker", "write:status", "write:ping", "write:marker"],
 			globals.Log);
+		Assert.Equal(0, globals.OpenOperationCount);
 		globals.ClearLog();
 		return (module, globals);
 	}

@@ -1,4 +1,3 @@
-using CheatEngine.SDK.Lua.Calls;
 using CheatEngine.SDK.Lua.Registration;
 using CheatEngine.SDK.Lua.Runtime;
 
@@ -16,7 +15,7 @@ public enum FakeLuaType
 }
 
 /// <summary>A Lua value stand-in whose identity is its object reference (the double's <c>lua_rawequal</c>).</summary>
-public sealed class FakeLuaValue(string label, FakeLuaType type = FakeLuaType.FunctionValue, int identity = 0)
+public sealed class FakeLuaValue(string label, FakeLuaType type = FakeLuaType.FunctionValue)
 {
 	public string Label
 	{
@@ -27,12 +26,6 @@ public sealed class FakeLuaValue(string label, FakeLuaType type = FakeLuaType.Fu
 	{
 		get;
 	} = type;
-
-	/// <summary>Gets the Lua identity a published function captured (0 for a third-party value).</summary>
-	public int Identity
-	{
-		get;
-	} = identity;
 
 	public override string ToString()
 	{
@@ -86,25 +79,27 @@ public sealed record FakePublication(
 	FakeRelease Rollback);
 
 /// <summary>
-///     Managed double of the CheatEngine.SDK 2.0.0 Lua registration set (<c>LuaRegistrationSet</c> and
-///     <c>LuaRegistrationLease</c>) over a Lua global table, driven by the replacement adapter of <see cref="ModuleHarness" />.
-///     It follows the SDK source step by step: a <c>RejectExisting</c> preflight that reads every global, a publication
-///     that installs one function per export, a compensation that releases what a failed publication installed, and an
-///     ownership-aware release that compares each global with the installed value by identity and writes only while
-///     it is still the installed one. Failures are injected per global name; every read and write is logged.
+///     Managed double of the CheatEngine.SDK 2.0.0 Lua admission and registration set (<c>LuaRuntime</c>,
+///     <c>LuaRegistrationSet</c> and <c>LuaRegistrationLease</c>) over a Lua global table, called one SDK call at a time by
+///     the replacement adapter of <see cref="ModuleHarness" />. It follows the SDK source step by step: a
+///     <c>RejectExisting</c> preflight that reads every global, a publication that installs one function per export, a
+///     compensation that releases what a failed publication installed, and an ownership-aware release that compares each
+///     global with the installed value by identity and writes only while it is still the installed one. Failures are
+///     injected per global name; every read and write is logged.
 /// </summary>
 /// <remarks>
 ///     Log entries are <c>read:&lt;name&gt;</c>, <c>write:&lt;name&gt;</c> (a publication), <c>clear:&lt;name&gt;</c> (a
 ///     release that wrote <c>nil</c>), and the failed variants <c>read-failed</c>, <c>write-failed</c> and
-///     <c>clear-failed</c>. A stale or
-///     already-consumed lease makes no Lua operation and logs nothing. Third-party assignments made by a test are not
-///     logged. This is C1 evidence of the Client code around the adapter, never of the SDK itself.
+///     <c>clear-failed</c>. A stale or already-consumed lease makes no Lua operation and logs nothing. Third-party
+///     assignments made by a test are not logged. Admitted operations are counted apart from the log. This is C1
+///     evidence of the Client code around the adapter, never of the SDK itself.
 /// </remarks>
 public sealed class FakeLuaGlobals
 {
 	[ThreadStatic]
 	private static FakeLuaGlobals? t_current;
 
+	private readonly List<LuaRegistrationCollisionPolicy> _bindingsRegistrations = [];
 	private readonly Dictionary<string, FakeLuaValue> _globals = new(StringComparer.Ordinal);
 	private readonly List<string> _log = [];
 
@@ -129,7 +124,7 @@ public sealed class FakeLuaGlobals
 		get;
 	}
 
-	/// <summary>Gets the attachment and Lua state identity; a lease or function captured under another one is stale.</summary>
+	/// <summary>Gets the attachment and Lua state identity; a lease captured under another one is stale.</summary>
 	public int Identity
 	{
 		get;
@@ -144,6 +139,23 @@ public sealed class FakeLuaGlobals
 	} = LuaAdmissionStatus.Admitted;
 
 	public IReadOnlyList<string> Log => _log;
+
+	/// <summary>Gets how many Lua operations CheatEngine.SDK admitted.</summary>
+	public int AdmittedOperationCount
+	{
+		get;
+		private set;
+	}
+
+	/// <summary>Gets how many admitted Lua operations have not been ended.</summary>
+	public int OpenOperationCount
+	{
+		get;
+		private set;
+	}
+
+	/// <summary>Gets the collision policy of every call the module made to its bindings' registration.</summary>
+	public IReadOnlyList<LuaRegistrationCollisionPolicy> BindingsRegistrations => _bindingsRegistrations;
 
 	/// <summary>Gets how many leases were consumed without a Lua state (the parameterless SDK release).</summary>
 	public int StaleReleaseCount
@@ -200,7 +212,7 @@ public sealed class FakeLuaGlobals
 		}
 	}
 
-	/// <summary>Replaces the Lua state: every global is gone and every lease and published function becomes stale.</summary>
+	/// <summary>Replaces the Lua state: every global is gone and every lease becomes stale.</summary>
 	public void ReplaceLuaState()
 	{
 		_globals.Clear();
@@ -208,8 +220,8 @@ public sealed class FakeLuaGlobals
 	}
 
 	/// <summary>
-	///     Disables and re-enables the plugin on the same Cheat Engine Lua state: the globals stay, but every lease and
-	///     published function belongs to the earlier attachment.
+	///     Disables and re-enables the plugin on the same Cheat Engine Lua state: the globals stay, but every lease belongs
+	///     to the earlier attachment.
 	/// </summary>
 	public void Reattach()
 	{
@@ -226,31 +238,38 @@ public sealed class FakeLuaGlobals
 		return _log.Count(entry => entry.StartsWith(prefix, StringComparison.Ordinal));
 	}
 
-	/// <summary>
-	///     Calls a function value the way a Lua script would. A function published by an earlier attachment or Lua state
-	///     raises an ordinary Lua error instead of entering managed code: the epoch-capturing closure the SDK wraps around
-	///     every generated thunk.
-	/// </summary>
-	/// <returns><see langword="null" /> when the call entered the function; otherwise the raised Lua error.</returns>
-	public LuaException? Call(FakeLuaValue function)
+	/// <summary>Records a call of the harness module's bindings registration (the stand-in for the SDK-generated one).</summary>
+	public void RecordBindingsRegistration(LuaRegistrationCollisionPolicy collisionPolicy)
 	{
-		ArgumentNullException.ThrowIfNull(function);
-		return function.Identity != 0 && function.Identity != Identity
-			? new LuaException(new LuaError(LuaStatus.RuntimeError,
-				"the function '" + function.Label + "' belongs to an earlier plugin attachment or Lua state"))
-			: null;
+		RequireOpenOperation();
+		_bindingsRegistrations.Add(collisionPolicy);
 	}
 
-	// ----- SDK operations: called only through the replacement adapter, inside an admitted operation. -----
+	// ----- SDK calls: made only by the replacement adapter, one adapter member each. -----
 
-	/// <summary><c>TryRegisterLuaFunctions(state, RejectExisting)</c>, after releasing an earlier lease.</summary>
-	public FakePublication Publish(FakeLease? previous)
+	/// <summary><c>LuaRuntime.TryAcquireOperationWithOutcome</c>: grants <see cref="Admission" />.</summary>
+	public LuaAdmissionStatus Admit()
 	{
-		if (previous is not null)
+		if (Admission == LuaAdmissionStatus.Admitted)
 		{
-			_ = Release(previous);
+			AdmittedOperationCount++;
+			OpenOperationCount++;
 		}
 
+		return Admission;
+	}
+
+	/// <summary><c>LuaRuntimeOperation.Dispose</c> of an admitted operation.</summary>
+	public void EndOperation()
+	{
+		RequireOpenOperation();
+		OpenOperationCount--;
+	}
+
+	/// <summary>The result of <c>TryRegisterLuaFunctions(state, RejectExisting)</c> in an admitted operation.</summary>
+	public FakePublication Publish()
+	{
+		RequireOpenOperation();
 		for (int index = 0; index < Exports.Count; index++)
 		{
 			string name = Exports[index];
@@ -269,7 +288,7 @@ public sealed class FakeLuaGlobals
 		List<(string Name, FakeLuaValue Installed)> installed = [];
 		foreach (string name in Exports)
 		{
-			FakeLuaValue function = new(ModuleName + ":" + name, FakeLuaType.FunctionValue, Identity);
+			FakeLuaValue function = new(ModuleName + ":" + name);
 			// The SDK creates the installed reference before the protected assignment, so a failed write is compensated too.
 			installed.Add((name, function));
 			if (FailPublications.Contains(name))
@@ -289,10 +308,11 @@ public sealed class FakeLuaGlobals
 			NotAttempted());
 	}
 
-	/// <summary><c>LuaRegistrationLease.ReleaseWithOutcome(state)</c>.</summary>
+	/// <summary><c>LuaRegistrationLease.ReleaseWithOutcome(state)</c> in an admitted operation.</summary>
 	public FakeRelease Release(FakeLease lease)
 	{
 		ArgumentNullException.ThrowIfNull(lease);
+		RequireOpenOperation();
 		if (lease.IsConsumed)
 		{
 			return new FakeRelease(LuaRegistrationReleaseKind.AlreadyReleased, 0, 0, 0, 0, []);
@@ -324,6 +344,14 @@ public sealed class FakeLuaGlobals
 	private static FakeRelease NotAttempted()
 	{
 		return new FakeRelease(LuaRegistrationReleaseKind.NotAttempted, 0, 0, 0, 0, []);
+	}
+
+	private void RequireOpenOperation()
+	{
+		if (OpenOperationCount == 0)
+		{
+			throw new InvalidOperationException("CheatEngine.SDK Lua work requires an admitted operation.");
+		}
 	}
 
 	private (FakeRelease Outcome, List<(string Name, FakeLuaValue Installed)> Residual) ReleaseEntries(

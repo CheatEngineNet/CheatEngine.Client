@@ -30,16 +30,21 @@ For each valid module, one partial part of the module class with three members a
 
 Once per assembly that declares a valid module, two internal files in the namespace `CheatEngine.Client.Lua.Generated`:
 
-- `CheatEngineLuaModuleRegistrar` decides. It maps what CheatEngine.SDK reports to the Client vocabulary, keeps or
-  consumes the module's lease, and throws the classified refusal of a failed registration. It makes no SDK call.
-- `CheatEngineLuaRegistrationAdapter` is the only generated code that calls CheatEngine.SDK: the Lua admission
-  (`LuaRuntime.TryAcquireOperationWithOutcome`), the module's registration delegate, and
-  `LuaRegistrationLease.ReleaseWithOutcome`. It copies every result into Client-owned values. It is a file of its own
-  so that the EndToEnd tests can replace it with a managed double of the SDK registration set, because
+- `CheatEngineLuaModuleRegistrar` takes every decision. It admits and ends the Lua operation, chooses which lease to
+  release (an earlier registration of the module, the residual lease of a failed publication), keeps or consumes the
+  module's lease, maps what CheatEngine.SDK reports to the Client vocabulary, and throws the classified refusal of a
+  failed registration. It makes no SDK call.
+- `CheatEngineLuaRegistrationAdapter` is the only generated code that calls CheatEngine.SDK, one SDK call per member
+  and no decision: the Lua admission (`LuaRuntime.TryAcquireOperationWithOutcome`) and the end of the admitted
+  operation, the module's registration delegate, and `LuaRegistrationLease.ReleaseWithOutcome` with or without a state.
+  It copies every result into Client-owned values. It is a file of its own so that the EndToEnd tests can replace it
+  with a double that forwards each call to a managed double of the SDK registration set, because
   `LuaRegistrationLease` has no public constructor.
 
-`Register` and `Unregister` run on Cheat Engine's main thread: the Client dispatches them. Everything happens inside
-one admitted Lua operation per call.
+`Register` and `Unregister` run on Cheat Engine's main thread: the Client dispatches them. `Register`, and an
+`Unregister` that CheatEngine.SDK admits, do all their Lua work inside one admitted Lua operation, which they end before
+returning. An `Unregister` that CheatEngine.SDK refuses with `Detached` or `ExternalStateReset` makes no Lua operation
+(see Release below).
 
 ### Registration
 
@@ -55,8 +60,9 @@ one admitted Lua operation per call.
 | `Unspecified`, a success without a lease, or an unknown kind | `InvalidHostResult`, `Unknown` |
 
 A registration that the module still owns from an earlier call is released first, inside the same admitted operation;
-a lease of an earlier attachment or Lua state is only forgotten. Any other exception is an SDK fault (F15): it
-propagates, and `ILuaClient` classifies it through its SDK boundary.
+a lease of an earlier attachment or Lua state is only forgotten. When a publication fails and the SDK compensation
+leaves a residual lease, the registrar releases that lease once more in the same operation. Any other exception is an
+SDK fault (F15): it propagates, and `ILuaClient` classifies it through its SDK boundary.
 
 ### Release
 
@@ -84,7 +90,7 @@ admission (`LuaRuntime.TryAcquireOperationWithOutcome`, `LuaRuntimeOperation.Sta
 `LuaRegistrationLease.ReleaseWithOutcome` (with and without a state), and the getters of `LuaRegistrationResult`,
 `LuaRegistrationFailure`, `LuaRegistrationReleaseOutcome` and `LuaRegistrationReleaseFailure`. The state of the
 admitted operation is only passed to the SDK: generated code never reads or writes the Lua stack. The list is exact and
-may only shrink; the module part and the registrar name SDK enum values only.
+may only shrink; the module part and the registrar call no SDK member (they name SDK types and enum values only).
 
 ## With the CheatEngine.SDK generator
 
@@ -150,7 +156,9 @@ disagree.
   the module and the registrar against a managed double of the SDK registration set, which compares values by object
   identity). There is no Lua 5.3 fixture in this repository, so there is no C2 evidence, and nothing here is
   host-qualified; the C4 observation is the Q16 scenario of the Coexistence protocol
-  (tests/CheatEngine.Client.LivePlugin.Coexistence).
+  (tests/CheatEngine.Client.LivePlugin.Coexistence). The epoch-capturing closure of a kept function runs inside the
+  SDK registration set, so its only evidence here is that the module publishes through `LuaRegistrationSet` (the
+  composition test); the host behaviour is Q16.
 
 ## Tests
 
@@ -162,12 +170,12 @@ generated SDK adapter; the module and the registrar run unchanged.
 | Release writes only still-owned globals and reports the SDK facts | `LuaModuleOwnershipEndToEndTests.UnregisterRemovesEveryExportTheModuleStillOwns`, `UnregisterLeavesAThirdPartyReplacementUntouched`, `UnregisterTreatsAWrappedFunctionAsAReplacement`, `UnregisterRemovesAValueAThirdPartyRestoredToTheModulesOwn`, `UnregisterCountsAnExportThatIsAlreadyAbsentAsAReplacementAndWritesNothing`, `ThirdPartyValuesOfAnyLuaTypeAreCountedAsReplacements` |
 | Stale registrations write nothing and require manual recovery; a partial release is never retried; a refused admission keeps the registration | `UnregisterAfterALuaStateReplacementWritesNothingAndReportsRefusedRuntimeChanged`, `UnregisterAfterAReattachWritesNothingAndLeavesTheEarlierGlobalsInPlace`, `UnregisterWithoutTheLuaUniverseConsumesTheRegistrationAsStaleWithoutLua`, `UnregisterWithoutAdmissionKeepsTheRegistrationForALaterAttempt`, `UnregisterReportsIndependentFailuresAsAPartialReleaseThatIsNeverRetried` |
 | Registration refuses before any write and classifies every failure | `RegisterRefusesAnOccupiedExportBeforeAnyWrite`, `RegisterReportsAPreflightReadFailureBeforeAnyWrite`, `RegisterRollsBackWhatItPublishedWhenPublicationFails`, `RegisterReportsARollbackCompletedByTheResidualReleaseAsNotApplied`, `RegisterReportsARollbackThatLeftAGlobalAsAnUnconfirmedCleanup`, `RegisterWithoutAdmissionIsRefusedBeforeAnyLuaCall` |
+| Each call runs in one admitted operation that it ends; the module registers with `RejectExisting` | `RegisterAndUnregisterEachRunInOneAdmittedOperationThatTheyEnd`, `AFailedPublicationEndsItsOperationAfterReleasingTheResidualLease`, `RegisterAgainReleasesTheEarlierRegistrationFirst` |
 | Every SDK outcome enum is mapped totally and fails closed | `GeneratedRegistrarMappingTests` |
 | The SDK surface is exact and confined to the adapter | `GeneratedLuaSurfaceRatchetTests` |
 | No legacy registration; contract, projection and emitted text compared separately; no `unsafe` code required; refused without an attached SDK runtime | `ModuleContractTests`, `ModuleSnapshots` |
 | The Client and SDK generators compile together; the module publishes through `LuaRegistrationSet`; integer results use the refusing marshallers | `RealSdkGeneratorCompositionTests` |
 | A refused integer result is a `LuaError` failure and never an exception out of `TryExecute` | `OperationRefusalEndToEndTests` |
-| A function kept after disable raises a Lua error (modelled by the double) | `LuaModuleOwnershipEndToEndTests.AFunctionKeptAfterDisableRaisesALuaErrorInsteadOfEnteringTheModule` |
 | Diagnostics are tracked, located and deterministic; models stay cached | `CheatEngineLuaDiagnosticCatalogTests`, `ModuleShapeDiagnosticTests`, `IncrementalityTests`, `IdentifierStabilityTests` |
 
 The EndToEnd and outcome tests carry `[Trait("Qualification", "Q16")]`.
