@@ -19,7 +19,7 @@ public sealed class BuildGuardTests
 	private const string SbomGuard = "CheatEngineClientRequireSbom";
 
 	[Fact]
-	public async Task CommittedPinPassesTheSdkGuard()
+	public async Task CommittedPinPassesTheSdkGuardAsync()
 	{
 		DotNetProcessResult result = await RunGuardAsync(SdkFacingLibrary, SdkPinGuard);
 
@@ -28,7 +28,7 @@ public sealed class BuildGuardTests
 	}
 
 	[Fact]
-	public async Task SdkMajorTwoPinFailsWithCHEATENGINECLIENT9016()
+	public async Task SdkMajorTwoPinFailsWithCHEATENGINECLIENT9016Async()
 	{
 		DotNetProcessResult result = await RunGuardAsync(SdkFacingLibrary, SdkPinGuard,
 			"-p:CheatEngineSdkVersion=2.0.0", "-p:CheatEngineSdkUpperBound=3.0.0");
@@ -39,7 +39,7 @@ public sealed class BuildGuardTests
 	}
 
 	[Fact]
-	public async Task PrereleaseSdkPinFailsWithCHEATENGINECLIENT9016()
+	public async Task PrereleaseSdkPinFailsWithCHEATENGINECLIENT9016Async()
 	{
 		DotNetProcessResult result = await RunGuardAsync(SdkFacingLibrary, SdkPinGuard,
 			"-p:CheatEngineSdkVersion=1.1.0-beta.1");
@@ -50,7 +50,7 @@ public sealed class BuildGuardTests
 	}
 
 	[Fact]
-	public async Task CanarySwitchKeepsTheBuildRunningButStillBlocksPack()
+	public async Task CanarySwitchKeepsTheBuildRunningButStillBlocksPackAsync()
 	{
 		string[] canary =
 		[
@@ -68,7 +68,7 @@ public sealed class BuildGuardTests
 	}
 
 	[Fact]
-	public async Task RoslynPinDriftFailsWithCHEATENGINECLIENT9020()
+	public async Task RoslynPinDriftFailsWithCHEATENGINECLIENT9020Async()
 	{
 		// A -p: switch cannot change a PackageVersion item, so the drift is simulated from the other side: the floor.
 		DotNetProcessResult committed = await RunGuardAsync(GeneratorProject, RoslynPinGuard);
@@ -81,7 +81,7 @@ public sealed class BuildGuardTests
 	}
 
 	[Fact]
-	public async Task LockstepGuardAcceptsMinVerAndRefusesEveryOtherVersionSource()
+	public async Task LockstepGuardAcceptsMinVerAndRefusesEveryOtherVersionSourceAsync()
 	{
 		string minVerThenGuard = $"MinVer;{LockstepGuard}";
 
@@ -97,7 +97,7 @@ public sealed class BuildGuardTests
 	}
 
 	[Fact]
-	public async Task SbomGuardRefusesAPackWithoutTheSbom()
+	public async Task SbomGuardRefusesAPackWithoutTheSbomAsync()
 	{
 		DotNetProcessResult committed = await RunGuardAsync(PackableLibrary, SbomGuard);
 		DotNetProcessResult disabled = await RunGuardAsync(PackableLibrary, SbomGuard, "-p:GenerateSBOM=false");

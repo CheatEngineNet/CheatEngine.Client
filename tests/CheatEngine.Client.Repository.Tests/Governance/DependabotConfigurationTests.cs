@@ -17,7 +17,7 @@ public sealed class DependabotConfigurationTests
 	private const string ConfigurationPath = ".github/dependabot.yml";
 	private const int MinimumCooldownDays = 7;
 
-	private static readonly YamlMappingNode _configuration = GovernanceFile.LoadYaml(ConfigurationPath);
+	private static readonly YamlMappingNode Configuration = GovernanceFile.LoadYaml(ConfigurationPath);
 
 	[Fact]
 	public void EveryEcosystemWaitsAtLeastSevenDays()
@@ -41,7 +41,7 @@ public sealed class DependabotConfigurationTests
 	[Fact]
 	public void DependabotCoversNuGetActionsAndTheDotNetSdk()
 	{
-		Assert.Equal("2", GovernanceFile.Scalar(_configuration, "version"));
+		Assert.Equal("2", GovernanceFile.Scalar(Configuration, "version"));
 		Assert.Equal(["dotnet-sdk", "github-actions", "nuget"], Updates().Select(Ecosystem).Order(StringComparer.Ordinal));
 		Assert.Equal("/", GovernanceFile.Scalar(Update("nuget"), "directory"));
 		Assert.Equal("/", GovernanceFile.Scalar(Update("dotnet-sdk"), "directory"));
@@ -106,7 +106,7 @@ public sealed class DependabotConfigurationTests
 		string configuration = GovernanceFile.ReadText(ConfigurationPath);
 
 		Assert.DoesNotContain("insecure-external-code-execution", configuration, StringComparison.Ordinal);
-		Assert.False(GovernanceFile.Has(_configuration, "registries"));
+		Assert.False(GovernanceFile.Has(Configuration, "registries"));
 	}
 
 	[Fact]
@@ -123,7 +123,7 @@ public sealed class DependabotConfigurationTests
 
 	private static IReadOnlyList<YamlMappingNode> Updates()
 	{
-		return [.. (GovernanceFile.Sequence(_configuration, "updates")?.Children ?? []).Cast<YamlMappingNode>()];
+		return [.. (GovernanceFile.Sequence(Configuration, "updates")?.Children ?? []).Cast<YamlMappingNode>()];
 	}
 
 	private static YamlMappingNode Update(string ecosystem)

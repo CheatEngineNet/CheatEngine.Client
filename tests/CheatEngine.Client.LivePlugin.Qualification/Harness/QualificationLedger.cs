@@ -10,8 +10,8 @@ internal static class QualificationLedger
 {
 	internal const int Capacity = 128;
 
-	private static readonly Lock _gate = new();
-	private static readonly List<string> _entries = [];
+	private static readonly Lock Gate = new();
+	private static readonly List<string> RecordedEntries = [];
 	private static int _enableAttempts;
 	private static int _activations;
 	private static long _lastEpoch;
@@ -24,7 +24,7 @@ internal static class QualificationLedger
 	{
 		get
 		{
-			lock (_gate)
+			lock (Gate)
 			{
 				return _enableAttempts;
 			}
@@ -36,7 +36,7 @@ internal static class QualificationLedger
 	{
 		get
 		{
-			lock (_gate)
+			lock (Gate)
 			{
 				return _activations;
 			}
@@ -48,7 +48,7 @@ internal static class QualificationLedger
 	{
 		get
 		{
-			lock (_gate)
+			lock (Gate)
 			{
 				return _lastEpoch;
 			}
@@ -60,7 +60,7 @@ internal static class QualificationLedger
 	{
 		get
 		{
-			lock (_gate)
+			lock (Gate)
 			{
 				return _previousEpoch;
 			}
@@ -72,7 +72,7 @@ internal static class QualificationLedger
 	{
 		get
 		{
-			lock (_gate)
+			lock (Gate)
 			{
 				return _dropped;
 			}
@@ -84,7 +84,7 @@ internal static class QualificationLedger
 	{
 		get
 		{
-			lock (_gate)
+			lock (Gate)
 			{
 				return _lastFault;
 			}
@@ -95,7 +95,7 @@ internal static class QualificationLedger
 	internal static void BeginEnable(FaultDecision fault)
 	{
 		ArgumentNullException.ThrowIfNull(fault);
-		lock (_gate)
+		lock (Gate)
 		{
 			_enableAttempts++;
 			_lastFault = fault;
@@ -106,7 +106,7 @@ internal static class QualificationLedger
 	/// <summary>Records a completed enable with its Client epoch.</summary>
 	internal static void RecordActivated(long epoch)
 	{
-		lock (_gate)
+		lock (Gate)
 		{
 			_activations++;
 			_previousEpoch = _lastEpoch;
@@ -118,7 +118,7 @@ internal static class QualificationLedger
 	/// <summary>Records one stage, with the type name of the exception it threw when it failed.</summary>
 	internal static void Record(string stage, Exception? failure = null)
 	{
-		lock (_gate)
+		lock (Gate)
 		{
 			AddLocked(failure is null ? stage : stage + " " + failure.GetType().Name);
 		}
@@ -127,20 +127,20 @@ internal static class QualificationLedger
 	/// <summary>Copies the entries, oldest first.</summary>
 	internal static IReadOnlyList<string> Entries()
 	{
-		lock (_gate)
+		lock (Gate)
 		{
-			return [.. _entries];
+			return [.. RecordedEntries];
 		}
 	}
 
 	private static void AddLocked(string entry)
 	{
-		if (_entries.Count == Capacity)
+		if (RecordedEntries.Count == Capacity)
 		{
-			_entries.RemoveAt(0);
+			RecordedEntries.RemoveAt(0);
 			_dropped++;
 		}
 
-		_entries.Add("#" + _enableAttempts.ToString(System.Globalization.CultureInfo.InvariantCulture) + " " + entry);
+		RecordedEntries.Add("#" + _enableAttempts.ToString(System.Globalization.CultureInfo.InvariantCulture) + " " + entry);
 	}
 }

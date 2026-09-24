@@ -63,7 +63,7 @@ internal static class QualificationScenarios
 	private const int AddressOffset = 640;
 	private const int BatchOffset = 1024;
 
-	private static readonly Lock _recordGate = new();
+	private static readonly Lock RecordGate = new();
 	private static int? _lastRecordId;
 
 	/// <summary>Plugin identity, gate, fault switch, activation history and bridge hash (Q05, Q06, Q40, Q43).</summary>
@@ -409,7 +409,7 @@ internal static class QualificationScenarios
 				return observation.Boolean("ok", false).Failure("failure", failure).Complete();
 			}
 
-			lock (_recordGate)
+			lock (RecordGate)
 			{
 				_lastRecordId = record.Id.Value;
 			}
@@ -435,7 +435,7 @@ internal static class QualificationScenarios
 			}
 
 			int? recordId;
-			lock (_recordGate)
+			lock (RecordGate)
 			{
 				recordId = _lastRecordId;
 			}

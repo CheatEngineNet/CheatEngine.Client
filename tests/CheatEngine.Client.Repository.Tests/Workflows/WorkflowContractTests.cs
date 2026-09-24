@@ -26,19 +26,19 @@ public sealed partial class WorkflowContractTests
 	private const string SetupActionReference = "./.github/actions/setup-dotnet";
 	private const string ZizmorConfig = ".github/zizmor.yml";
 
-	private static readonly string[] _pinnedRunners = ["windows-2025", "ubuntu-24.04"];
+	private static readonly string[] PinnedRunners = ["windows-2025", "ubuntu-24.04"];
 
 	/// <summary>The four workflows of the CI pipeline itself; other workflows (for example Scorecard) may omit defaults.</summary>
-	private static readonly string[] _pipelineWorkflows = [CiWorkflow, SonarWorkflow, MainCiWorkflow, PullRequestCiWorkflow];
+	private static readonly string[] PipelineWorkflows = [CiWorkflow, SonarWorkflow, MainCiWorkflow, PullRequestCiWorkflow];
 
 	/// <summary>Workflows every job of which a release run, Sonar or CodeQL can reach: none may use a NuGet package cache.</summary>
-	private static readonly string[] _releaseReachableWorkflows =
+	private static readonly string[] ReleaseReachableWorkflows =
 	[
 		CiWorkflow, SonarWorkflow, ".github/workflows/codeql.yml", ReleaseWorkflow
 	];
 
 	/// <summary>The frozen job ids and names of ci.yml (a check is named "CI / &lt;name&gt;").</summary>
-	private static readonly Dictionary<string, string> _ciJobs = new(StringComparer.Ordinal)
+	private static readonly Dictionary<string, string> CiJobs = new(StringComparer.Ordinal)
 	{
 		["build-test"] = "Build and test (${{ matrix.configuration }})",
 		["aot"] = "Native AOT publication probe",
@@ -51,16 +51,16 @@ public sealed partial class WorkflowContractTests
 	};
 
 	/// <summary>Advisory ci.yml jobs outside the Gate (continue-on-error). The Client has none; keep the mechanism.</summary>
-	private static readonly HashSet<string> _advisoryJobs = new(StringComparer.Ordinal);
+	private static readonly HashSet<string> AdvisoryJobs = new(StringComparer.Ordinal);
 
 	/// <summary>Job ids the Client pipeline retired; they must not come back.</summary>
-	private static readonly string[] _retiredJobs = ["validate", "lint-workflows"];
+	private static readonly string[] RetiredJobs = ["validate", "lint-workflows"];
 
 	/// <summary>
 	/// Every artifact name a workflow may upload. Names are reserved so producers and consumers cannot drift and an
 	/// upload never collides; adding one is a reviewed change of this list.
 	/// </summary>
-	private static readonly HashSet<string> _reservedArtifacts = new(StringComparer.Ordinal)
+	private static readonly HashSet<string> ReservedArtifacts = new(StringComparer.Ordinal)
 	{
 		"nuget-packages",
 		"coverage",
@@ -75,13 +75,13 @@ public sealed partial class WorkflowContractTests
 	};
 
 	/// <summary>Binary logs: binlogs-&lt;job&gt; or binlogs-&lt;job&gt;-&lt;configuration&gt;.</summary>
-	private static readonly Regex _binlogArtifact = new("^binlogs-[a-z0-9-]+?(-(Debug|Release))?$");
+	private static readonly Regex BinlogArtifact = new("^binlogs-[a-z0-9-]+?(-(Debug|Release))?$");
 
 	/// <summary>Names the old pipeline used; reusing one would silently feed an obsolete consumer.</summary>
-	private static readonly string[] _retiredArtifacts = ["test-results", "sonar-coverage", "native-aot-probe"];
+	private static readonly string[] RetiredArtifacts = ["test-results", "sonar-coverage", "native-aot-probe"];
 
 	/// <summary>The canonical pin of each action used by either repository (owner/repository, commit SHA, release tag).</summary>
-	private static readonly Dictionary<string, (string Sha, string Version)> _canonicalPins = new(StringComparer.Ordinal)
+	private static readonly Dictionary<string, (string Sha, string Version)> CanonicalPins = new(StringComparer.Ordinal)
 	{
 		["actions/checkout"] = ("3d3c42e5aac5ba805825da76410c181273ba90b1", "v7.0.1"),
 		["actions/upload-artifact"] = ("043fb46d1a93c77aae656e7c1c64a875d1fc6a0a", "v7.0.1"),
@@ -198,13 +198,13 @@ public sealed partial class WorkflowContractTests
 		WorkflowFile ci = WorkflowFile.Load(CiWorkflow);
 		Dictionary<string, string?> jobs = ci.Jobs.ToDictionary(static job => job.Id, static job => job.Name, StringComparer.Ordinal);
 
-		Assert.Equal(_ciJobs.Keys.Order(StringComparer.Ordinal), jobs.Keys.Order(StringComparer.Ordinal));
-		foreach ((string id, string name) in _ciJobs)
+		Assert.Equal(CiJobs.Keys.Order(StringComparer.Ordinal), jobs.Keys.Order(StringComparer.Ordinal));
+		foreach ((string id, string name) in CiJobs)
 		{
 			Assert.True(jobs[id] == name, $"ci.yml job '{id}' is named '{jobs[id]}'; the contract name is '{name}'.");
 		}
 
-		foreach (string retired in _retiredJobs)
+		foreach (string retired in RetiredJobs)
 		{
 			Assert.False(jobs.ContainsKey(retired), $"ci.yml brings back the retired job '{retired}'.");
 		}
@@ -237,7 +237,7 @@ public sealed partial class WorkflowContractTests
 	{
 		WorkflowFile ci = WorkflowFile.Load(CiWorkflow);
 		string[] expected = ci.Jobs.Select(static job => job.Id)
-			.Where(static id => id != "gate" && !_advisoryJobs.Contains(id))
+			.Where(static id => id != "gate" && !AdvisoryJobs.Contains(id))
 			.Order(StringComparer.Ordinal)
 			.ToArray();
 		string[] needs = ci.Job("gate").Needs.Order(StringComparer.Ordinal).ToArray();
@@ -245,7 +245,7 @@ public sealed partial class WorkflowContractTests
 		Assert.True(expected.SequenceEqual(needs),
 			$"gate.needs = [{string.Join(", ", needs)}] but must list every other ci.yml job: [{string.Join(", ", expected)}]. A job missing from the Gate can fail without failing 'CI / Gate'.");
 
-		foreach (string advisory in _advisoryJobs)
+		foreach (string advisory in AdvisoryJobs)
 		{
 			Assert.Equal("true", Yaml.Scalar(ci.Job(advisory).Node, "continue-on-error"));
 		}
@@ -621,7 +621,7 @@ public sealed partial class WorkflowContractTests
 	[Fact]
 	public void ReleaseReachableWorkflowsNeverEnableAPackageCache()
 	{
-		foreach (string path in _releaseReachableWorkflows.Where(WorkflowFile.Exists))
+		foreach (string path in ReleaseReachableWorkflows.Where(WorkflowFile.Exists))
 		{
 			WorkflowFile workflow = WorkflowFile.Load(path);
 			foreach (WorkflowJob job in workflow.Jobs)
@@ -692,8 +692,8 @@ public sealed partial class WorkflowContractTests
 					continue;
 				}
 
-				Assert.True(job.RunsOn is not null && _pinnedRunners.Contains(job.RunsOn),
-					$"{workflow.RelativePath} job '{job.Id}' runs on '{job.RunsOn}'; use one of {string.Join(", ", _pinnedRunners)} (never -latest, which moves without a commit).");
+				Assert.True(job.RunsOn is not null && PinnedRunners.Contains(job.RunsOn),
+					$"{workflow.RelativePath} job '{job.Id}' runs on '{job.RunsOn}'; use one of {string.Join(", ", PinnedRunners)} (never -latest, which moves without a commit).");
 				Assert.True(int.TryParse(job.TimeoutMinutes, out int minutes) && minutes > 0,
 					$"{workflow.RelativePath} job '{job.Id}' has no timeout-minutes.");
 			}
@@ -723,7 +723,7 @@ public sealed partial class WorkflowContractTests
 			}
 		}
 
-		foreach (string path in _pipelineWorkflows)
+		foreach (string path in PipelineWorkflows)
 		{
 			YamlMappingNode permissions = Assert.IsType<YamlMappingNode>(Yaml.Get(WorkflowFile.Load(path).Root, "permissions"));
 			Assert.Equal("read", Yaml.Scalar(permissions, "contents"));
@@ -742,7 +742,7 @@ public sealed partial class WorkflowContractTests
 	[Fact]
 	public void DefaultShellIsPwshInTheCiWorkflows()
 	{
-		foreach (string path in _pipelineWorkflows)
+		foreach (string path in PipelineWorkflows)
 		{
 			YamlMappingNode? run = Yaml.Mapping(Yaml.Mapping(WorkflowFile.Load(path).Root, "defaults"), "run");
 			Assert.True(Yaml.Scalar(run, "shell") == "pwsh", $"{path} must set defaults.run.shell: pwsh.");
@@ -784,7 +784,7 @@ public sealed partial class WorkflowContractTests
 				string action = pinned.Groups["action"].Value;
 				string sha = pinned.Groups["sha"].Value;
 				string where = $"{workflow.RelativePath}:{line}";
-				if (_canonicalPins.TryGetValue(action, out (string Sha, string Version) canonical))
+				if (CanonicalPins.TryGetValue(action, out (string Sha, string Version) canonical))
 				{
 					Assert.True(sha == canonical.Sha && version == canonical.Version,
 						$"{where} pins {action} to {sha} {version}; the canonical pin shared with CheatEngine.SDK is {canonical.Sha} # {canonical.Version}.");
@@ -861,8 +861,8 @@ public sealed partial class WorkflowContractTests
 					Assert.True(name is not null, $"{workflow.RelativePath} job '{job.Id}' uploads an artifact without a name.");
 					foreach (string expanded in job.ExpandMatrix(name!))
 					{
-						Assert.DoesNotContain(expanded, _retiredArtifacts);
-						Assert.True(_reservedArtifacts.Contains(expanded) || _binlogArtifact.IsMatch(expanded),
+						Assert.DoesNotContain(expanded, RetiredArtifacts);
+						Assert.True(ReservedArtifacts.Contains(expanded) || BinlogArtifact.IsMatch(expanded),
 							$"{workflow.RelativePath} job '{job.Id}' uploads '{expanded}', which is not a reserved artifact name.");
 						Assert.True(names.Add(expanded), $"{workflow.RelativePath} uploads '{expanded}' twice in one run.");
 					}

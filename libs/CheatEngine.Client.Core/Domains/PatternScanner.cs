@@ -31,9 +31,9 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 	internal const string NoResultListMessage =
 		"Cheat Engine returned no AOB result list: zero matches or a host failure (indistinguishable with CheatEngine.SDK 1.0.0).";
 
-	private const int _maximumModuleSnapshot = 4096;
-	private const string _inModuleOperation = "Patterns.InModule";
-	private const string _scanOperation = "Patterns.Scan";
+	private const int MaximumModuleSnapshot = 4096;
+	private const string InModuleOperation = "Patterns.InModule";
+	private const string ScanOperation = "Patterns.Scan";
 
 	private readonly SdkMainThreadDispatcher _dispatcher =
 		dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
@@ -159,7 +159,7 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 			// The SDK call may or may not have run CE's scan. OwnershipHandoff already released a list that was acquired
 			// before the fault, so nothing is left for this method to release.
 			return ScanOutcome.Failed(
-				SdkBoundary.Translate(_scanOperation, scanFault, CheatEngineHostEffect.Unknown, _dispatcher.Lifetime),
+				SdkBoundary.Translate(ScanOperation, scanFault, CheatEngineHostEffect.Unknown, _dispatcher.Lifetime),
 				null);
 		}
 
@@ -180,9 +180,9 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		{
 			// A fault while reading the SDK-owned list: CE's scan had returned, so no scan work is outstanding.
 			outcome = ScanOutcome.Failed(
-				CoreFailureFactory.FromException(_scanOperation, copyFault, CheatEngineHostEffect.Completed), null);
+				CoreFailureFactory.FromException(ScanOperation, copyFault, CheatEngineHostEffect.Completed), null);
 			ScanOutcome released = Release(matchList, outcome);
-			SdkBoundary.ThrowIfActivationEnded(_scanOperation, copyFault, _dispatcher.Lifetime);
+			SdkBoundary.ThrowIfActivationEnded(ScanOperation, copyFault, _dispatcher.Lifetime);
 			return released;
 		}
 		catch (Exception lifecycleFault)
@@ -203,7 +203,7 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 	private static CheatEngineFailure CreateMissingListFailure(AobScanHostStatus status)
 	{
 		return status == AobScanHostStatus.NoResultList
-			? new CheatEngineFailure(CheatEngineFailureKind.IndeterminateHostResult, _scanOperation,
+			? new CheatEngineFailure(CheatEngineFailureKind.IndeterminateHostResult, ScanOperation,
 				NoResultListMessage, null, CheatEngineHostEffect.Completed)
 			: InvalidList();
 	}
@@ -224,7 +224,7 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		long materializationStarted = Stopwatch.GetTimestamp();
 		if (!matchList.TryGetCount(out int count) || count < 0)
 		{
-			return ScanOutcome.Failed(new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult, _scanOperation,
+			return ScanOutcome.Failed(new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult, ScanOperation,
 				"Cheat Engine returned an invalid AOB result count.", null, CheatEngineHostEffect.Completed), null);
 		}
 
@@ -254,7 +254,7 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 			if (!matches.TryGetItem(index, out string? text) || !Address.TryParse(text, out Address address))
 			{
 				return ScanOutcome.Failed(new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult,
-					_scanOperation, $"AOB result {index} was not a hexadecimal address.", null,
+					ScanOperation, $"AOB result {index} was not a hexadecimal address.", null,
 					CheatEngineHostEffect.Completed), null);
 			}
 
@@ -310,13 +310,13 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 	{
 		if (primaryFailure is not { } primary)
 		{
-			return new CheatEngineFailure(CheatEngineFailureKind.InvalidState, _scanOperation,
+			return new CheatEngineFailure(CheatEngineFailureKind.InvalidState, ScanOperation,
 				"The AOB result list release was not confirmed; copied results were discarded.", releaseFailure,
 				CheatEngineHostEffect.CleanupUnconfirmed);
 		}
 
 		Exception primaryException = primary.Exception ?? new CheatEngineOperationException(primary);
-		return new CheatEngineFailure(CheatEngineFailureKind.InvalidState, _scanOperation,
+		return new CheatEngineFailure(CheatEngineFailureKind.InvalidState, ScanOperation,
 			$"The AOB result list release was not confirmed after the scan had already failed ({primary.Kind}).",
 			new AggregateException(primaryException, releaseFailure),
 			CheatEngineHostEffect.CleanupUnconfirmed);
@@ -340,32 +340,32 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 
 	private static CheatEngineFailure Rejected(string message)
 	{
-		return new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, _scanOperation, message, null,
+		return new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, ScanOperation, message, null,
 			CheatEngineHostEffect.NotStarted);
 	}
 
 	private static CheatEngineFailure InvalidList()
 	{
-		return new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult, _scanOperation,
+		return new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult, ScanOperation,
 			"Cheat Engine returned an invalid AOB result list.", null, CheatEngineHostEffect.Completed);
 	}
 
 	private static CheatEngineFailure CancelledBeforeScan()
 	{
-		return new CheatEngineFailure(CheatEngineFailureKind.Cancelled, _scanOperation,
+		return new CheatEngineFailure(CheatEngineFailureKind.Cancelled, ScanOperation,
 			"The AOB scan was cancelled before Cheat Engine started it.", null, CheatEngineHostEffect.NotStarted);
 	}
 
 	private static CheatEngineFailure CancelledAfterScan()
 	{
-		return new CheatEngineFailure(CheatEngineFailureKind.Cancelled, _scanOperation,
+		return new CheatEngineFailure(CheatEngineFailureKind.Cancelled, ScanOperation,
 			"The AOB scan was cancelled after Cheat Engine completed it; no copied result was published.", null,
 			CheatEngineHostEffect.Completed);
 	}
 
 	private bool TryGetModuleRange(ModuleName requested, out ModuleRange range, out CheatEngineFailure failure)
 	{
-		ModuleInfo[] modules = new ModuleInfo[_maximumModuleSnapshot];
+		ModuleInfo[] modules = new ModuleInfo[MaximumModuleSnapshot];
 		range = ModuleRange.None;
 		InspectionStatus status;
 		int written;
@@ -376,7 +376,7 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		catch (Exception inspectionFault) when (SdkBoundary.IsSdkFault(inspectionFault))
 		{
 			// Module inspection failed before the AOB scan was started.
-			failure = SdkBoundary.Translate(_inModuleOperation, inspectionFault, CheatEngineHostEffect.NotStarted,
+			failure = SdkBoundary.Translate(InModuleOperation, inspectionFault, CheatEngineHostEffect.NotStarted,
 				_dispatcher.Lifetime);
 			return false;
 		}
@@ -446,7 +446,7 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 	/// <summary>A module-resolution failure: the AOB scan itself never started.</summary>
 	private static CheatEngineFailure ModuleFailure(CheatEngineFailureKind kind, string message)
 	{
-		return new CheatEngineFailure(kind, _inModuleOperation, message, null, CheatEngineHostEffect.NotStarted);
+		return new CheatEngineFailure(kind, InModuleOperation, message, null, CheatEngineHostEffect.NotStarted);
 	}
 
 	private readonly record struct ScanInput(

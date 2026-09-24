@@ -18,7 +18,7 @@ namespace CheatEngine.Client.Core.Tests.Domains;
 /// </summary>
 public sealed class MemoryPointerWidthTests
 {
-	private static readonly Address _address = new(0x405000);
+	private static readonly Address TestAddress = new(0x405000);
 
 	[Fact]
 	[Trait("Qualification", "Q31")]
@@ -30,7 +30,7 @@ public sealed class MemoryPointerWidthTests
 		};
 		FactCodec codec = new();
 
-		Assert.True(CreateClient(port).TryRead(new MemoryReadRequest<int>(_address, codec), out _, out _,
+		Assert.True(CreateClient(port).TryRead(new MemoryReadRequest<int>(TestAddress, codec), out _, out _,
 			TestContext.Current.CancellationToken));
 
 		Assert.Equal(sizeof(ulong), codec.PointerSize);
@@ -53,7 +53,7 @@ public sealed class MemoryPointerWidthTests
 		};
 		FactCodec codec = new();
 
-		Assert.True(CreateClient(port).TryRead(new MemoryReadRequest<int>(_address, codec), out _, out _,
+		Assert.True(CreateClient(port).TryRead(new MemoryReadRequest<int>(TestAddress, codec), out _, out _,
 			TestContext.Current.CancellationToken));
 
 		Assert.Equal(sizeof(uint), codec.PointerSize);
@@ -71,7 +71,7 @@ public sealed class MemoryPointerWidthTests
 		};
 		FactCodec codec = new();
 
-		bool succeeded = CreateClient(port).TryRead(new MemoryReadRequest<int>(_address, codec), out _,
+		bool succeeded = CreateClient(port).TryRead(new MemoryReadRequest<int>(TestAddress, codec), out _,
 			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
 
 		Assert.False(succeeded);
@@ -106,7 +106,7 @@ public sealed class MemoryPointerWidthTests
 			}
 		};
 
-		bool succeeded = CreateClient(port).TryRead(new MemoryReadRequest<int>(_address, new FactCodec()), out _,
+		bool succeeded = CreateClient(port).TryRead(new MemoryReadRequest<int>(TestAddress, new FactCodec()), out _,
 			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
 
 		Assert.False(succeeded);
@@ -132,7 +132,7 @@ public sealed class MemoryPointerWidthTests
 			ReadBytes = true
 		};
 
-		bool succeeded = CreateClient(port).TryRead(new MemoryReadRequest<int>(_address, codec), out int value,
+		bool succeeded = CreateClient(port).TryRead(new MemoryReadRequest<int>(TestAddress, codec), out int value,
 			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
 
 		Assert.True(succeeded);
@@ -154,9 +154,9 @@ public sealed class MemoryPointerWidthTests
 		};
 		PolicyCodec codec = new();
 
-		bool readSucceeded = CreateClient(port).TryRead(new MemoryReadRequest<Address>(_address, codec), out _,
+		bool readSucceeded = CreateClient(port).TryRead(new MemoryReadRequest<Address>(TestAddress, codec), out _,
 			out CheatEngineFailure readFailure, TestContext.Current.CancellationToken);
-		bool writeSucceeded = CreateClient(port).TryWrite(new MemoryWriteRequest<Address>(_address, _address, codec),
+		bool writeSucceeded = CreateClient(port).TryWrite(new MemoryWriteRequest<Address>(TestAddress, TestAddress, codec),
 			out CheatEngineFailure writeFailure, TestContext.Current.CancellationToken);
 
 		Assert.False(readSucceeded);
@@ -183,11 +183,11 @@ public sealed class MemoryPointerWidthTests
 		};
 		MemoryClient client = CreateClient(port);
 
-		bool readSucceeded = client.TryReadPrimitive(_address, out Address read, out CheatEngineFailure readFailure,
+		bool readSucceeded = client.TryReadPrimitive(TestAddress, out Address read, out CheatEngineFailure readFailure,
 			TestContext.Current.CancellationToken);
-		bool writeSucceeded = client.TryWritePrimitive(_address, _address, out CheatEngineFailure writeFailure,
+		bool writeSucceeded = client.TryWritePrimitive(TestAddress, TestAddress, out CheatEngineFailure writeFailure,
 			TestContext.Current.CancellationToken);
-		bool intSucceeded = client.TryReadPrimitive(_address, out int _, out _, TestContext.Current.CancellationToken);
+		bool intSucceeded = client.TryReadPrimitive(TestAddress, out int _, out _, TestContext.Current.CancellationToken);
 
 		Assert.False(readSucceeded);
 		Assert.Equal(default, read);
@@ -216,10 +216,10 @@ public sealed class MemoryPointerWidthTests
 
 		MemoryPrimitiveBatchWriteOutcome write = client.WritePrimitiveBatchDetailed(
 			new MemoryPrimitiveBatchWriteRequest<Address>([
-				new MemoryAddressValue<Address>(_address, _address), new MemoryAddressValue<Address>(_address + 8, 0)
+				new MemoryAddressValue<Address>(TestAddress, TestAddress), new MemoryAddressValue<Address>(TestAddress + 8, 0)
 			]), TestContext.Current.CancellationToken);
 		MemoryPrimitiveBatchReadOutcome<Address> read = client.ReadPrimitiveBatchDetailed(
-			new MemoryPrimitiveBatchReadRequest<Address>([_address, _address + 8]),
+			new MemoryPrimitiveBatchReadRequest<Address>([TestAddress, TestAddress + 8]),
 			TestContext.Current.CancellationToken);
 
 		Assert.False(write.Succeeded);
@@ -246,7 +246,7 @@ public sealed class MemoryPointerWidthTests
 			ConfiguredPointerSize = 4
 		};
 
-		bool succeeded = CreateClient(port).TryResolvePointerChain(new PointerChainRequest(_address, [0x10L, 0x20L]),
+		bool succeeded = CreateClient(port).TryResolvePointerChain(new PointerChainRequest(TestAddress, [0x10L, 0x20L]),
 			out Address resolved, out CheatEngineFailure failure, TestContext.Current.CancellationToken);
 
 		Assert.False(succeeded);
@@ -266,10 +266,10 @@ public sealed class MemoryPointerWidthTests
 		{
 			Is64Bit = false,
 			ConfiguredPointerSize = 4,
-			Pointers = { [_address] = new Address(0xFFFFFFF0) }
+			Pointers = { [TestAddress] = new Address(0xFFFFFFF0) }
 		};
 
-		bool succeeded = CreateClient(port).TryResolvePointerChain(new PointerChainRequest(_address, [0x20L, 0x8L]),
+		bool succeeded = CreateClient(port).TryResolvePointerChain(new PointerChainRequest(TestAddress, [0x20L, 0x8L]),
 			out Address resolved, out CheatEngineFailure failure, TestContext.Current.CancellationToken);
 
 		Assert.False(succeeded);
@@ -288,13 +288,13 @@ public sealed class MemoryPointerWidthTests
 		PointerWidthPort port = new()
 		{
 			ConfiguredPointerSizeException = new LuaException("getPointerSize failed"),
-			Pointers = { [_address] = new Address(0x500000) }
+			Pointers = { [TestAddress] = new Address(0x500000) }
 		};
 		MemoryClient client = CreateClient(port);
 
-		bool readSucceeded = client.TryReadPrimitive(_address, out Address read, out _,
+		bool readSucceeded = client.TryReadPrimitive(TestAddress, out Address read, out _,
 			TestContext.Current.CancellationToken);
-		bool chainSucceeded = client.TryResolvePointerChain(new PointerChainRequest(_address, [0x10L]),
+		bool chainSucceeded = client.TryResolvePointerChain(new PointerChainRequest(TestAddress, [0x10L]),
 			out Address resolved, out _, TestContext.Current.CancellationToken);
 
 		Assert.True(readSucceeded);
@@ -315,11 +315,11 @@ public sealed class MemoryPointerWidthTests
 		CheatEngineOperationException applicationFault = new(new CheatEngineFailure(
 			CheatEngineFailureKind.TargetNotAttached, "Memory.CodecContext", "application-owned"));
 
-		bool succeeded = CreateClient(noTarget).TryRead(new MemoryReadRequest<int>(_address, new FactCodec()), out _,
+		bool succeeded = CreateClient(noTarget).TryRead(new MemoryReadRequest<int>(TestAddress, new FactCodec()), out _,
 			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
 		CheatEngineOperationException rethrown = Assert.Throws<CheatEngineOperationException>(() =>
 			CreateClient(new PointerWidthPort()).TryRead(
-				new MemoryReadRequest<int>(_address, new FactCodec { Throw = applicationFault }), out _, out _,
+				new MemoryReadRequest<int>(TestAddress, new FactCodec { Throw = applicationFault }), out _, out _,
 				TestContext.Current.CancellationToken));
 
 		Assert.False(succeeded);

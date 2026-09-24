@@ -11,7 +11,7 @@ namespace CheatEngine.Client.Repository.Tests.Toolchain;
 public sealed class TestProfileTests
 {
 	/// <summary>The options of the CI test command and the Microsoft.Testing.Platform extension that owns each.</summary>
-	private static readonly Dictionary<string, string> _optionOwners = new(StringComparer.Ordinal)
+	private static readonly Dictionary<string, string> OptionOwners = new(StringComparer.Ordinal)
 	{
 		["--report-trx"] = "Microsoft.Testing.Extensions.TrxReport",
 		["--coverage"] = "Microsoft.Testing.Extensions.CodeCoverage",
@@ -40,7 +40,7 @@ public sealed class TestProfileTests
 			.Select(static version => (string?) version.Attribute("Include") ?? string.Empty)
 			.ToHashSet(StringComparer.Ordinal);
 
-		foreach ((string option, string package) in _optionOwners)
+		foreach ((string option, string package) in OptionOwners)
 		{
 			Assert.True(tokens.Contains(option),
 				$"The CI test command no longer passes {option}; remove it from this table (and {package} from eng/Tests.props if nothing else needs it).");
@@ -54,7 +54,7 @@ public sealed class TestProfileTests
 															  token.StartsWith("--crash", StringComparison.Ordinal) ||
 															  token.StartsWith("--coverage", StringComparison.Ordinal)))
 		{
-			Assert.True(_optionOwners.Keys.Any(option => token == option || token.StartsWith(option + "-", StringComparison.Ordinal)),
+			Assert.True(OptionOwners.Keys.Any(option => token == option || token.StartsWith(option + "-", StringComparison.Ordinal)),
 				$"The CI test command passes {token}; add its owning extension to this table and to eng/Tests.props.");
 		}
 	}

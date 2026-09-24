@@ -11,7 +11,7 @@ namespace CheatEngine.Client.LivePlugin.Qualification.Tests;
 /// </summary>
 public sealed class QualificationPluginSourceComplianceTests
 {
-	private static readonly string[] s_forbiddenTokens =
+	private static readonly string[] ForbiddenTokens =
 	[
 		"LuaState", "LuaFrame", "AcquireOperation", "LuaRuntime", "[LuaGlobal", "DllImport", "LibraryImport",
 		"CheatEngine.SDK.Lua"
@@ -24,7 +24,7 @@ public sealed class QualificationPluginSourceComplianceTests
 		foreach (string file in PluginSourceFiles())
 		{
 			string text = File.ReadAllText(file);
-			foreach (string token in s_forbiddenTokens)
+			foreach (string token in ForbiddenTokens)
 			{
 				if (text.Contains(token, StringComparison.Ordinal))
 				{

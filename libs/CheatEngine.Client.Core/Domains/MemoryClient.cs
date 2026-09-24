@@ -17,7 +17,7 @@ namespace CheatEngine.Client.Core.Domains;
 internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 {
 	/// <summary>The effect state reported for a read batch, which never changes the target.</summary>
-	private const string _readBatchEffectState = "ReadOnly";
+	private const string ReadBatchEffectState = "ReadOnly";
 
 	private readonly IMemoryCodecContextPort _codecContextPort;
 	private readonly ICheatEngineDispatcher _dispatcher;
@@ -61,7 +61,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		MemoryPrimitiveBatchReadOutcome<T> outcome = ReadPrimitiveBatchCore(request, cancellationToken);
 		// Counts only, never an address or a value (A24-17); a read batch has no target effect.
 		_lifetime.Diagnostics.MemoryBatchCompleted("Memory.ReadPrimitiveBatch", outcome.AttemptedCount,
-			outcome.CompletedCount, _readBatchEffectState);
+			outcome.CompletedCount, ReadBatchEffectState);
 		return outcome;
 	}
 
@@ -1112,7 +1112,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 	private sealed class TargetMemoryCodecContext
 		: IMemoryReadContext, IMemoryWriteContext, IMemoryPointerWidthContext, ICorePointerCodecPolicy
 	{
-		private const string _operation = "Memory.CodecContext";
+		private const string Operation = "Memory.CodecContext";
 
 		private readonly long _activationEpoch;
 		private readonly ICheatEngineDispatcher _dispatcher;
@@ -1378,7 +1378,7 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 		private CheatEngineOperationException CreateContextFault(CheatEngineFailureKind kind, string message,
 			Exception? exception)
 		{
-			_contextFault = new CheatEngineOperationException(new CheatEngineFailure(kind, _operation, message,
+			_contextFault = new CheatEngineOperationException(new CheatEngineFailure(kind, Operation, message,
 				exception, CheatEngineHostEffect.NotStarted));
 			return _contextFault;
 		}
@@ -1430,11 +1430,11 @@ internal sealed class MemoryClient : IMemoryClient, IMemoryBatchClient
 				!_dispatcher.IsMainThread)
 			{
 				throw new CheatEngineActivationExpiredException(
-					_operation,
+					Operation,
 					"The memory codec context is no longer valid for the current Cheat Engine invocation.");
 			}
 
-			_lifetime.ThrowIfInactive(_operation);
+			_lifetime.ThrowIfInactive(Operation);
 		}
 
 		private bool TryAdmitCodecBytes(int requestedBytes, int limit, ref int admittedBytes, string direction)

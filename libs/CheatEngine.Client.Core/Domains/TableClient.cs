@@ -33,7 +33,7 @@ internal sealed class TableClient(
 		"The memory record identifier was captured before the last trusted table load of this activation; read the " +
 		"record again.";
 
-	private const string _getHierarchyOperation = "Tables.GetHierarchy";
+	private const string GetHierarchyOperation = "Tables.GetHierarchy";
 
 	private readonly ICheatEngineDispatcher _dispatcher =
 		dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
@@ -492,7 +492,7 @@ internal sealed class TableClient(
 		out MemoryRecordHierarchySnapshot hierarchy, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
-		if (IsStale(_getHierarchyOperation, rootId, out failure))
+		if (IsStale(GetHierarchyOperation, rootId, out failure))
 		{
 			hierarchy = default;
 			return false;
@@ -502,7 +502,7 @@ internal sealed class TableClient(
 		bool found = false;
 		bool succeeded = false;
 		HierarchyBuildProblem problem = HierarchyBuildProblem.None;
-		if (!TryDispatch(_getHierarchyOperation, rootId, null, () =>
+		if (!TryDispatch(GetHierarchyOperation, rootId, null, () =>
 			{
 				if (!AddressListAccess.TryGetCurrent(out AddressList list) ||
 					!list.TryGetMemoryRecordById(rootId, out MemoryRecord root))
@@ -976,14 +976,14 @@ internal sealed class TableClient(
 	{
 		return problem switch
 		{
-			HierarchyBuildProblem.ItemLimit => ResultLimitFailure(_getHierarchyOperation, request.MaximumItems),
+			HierarchyBuildProblem.ItemLimit => ResultLimitFailure(GetHierarchyOperation, request.MaximumItems),
 			HierarchyBuildProblem.DepthLimit => new CheatEngineFailure(CheatEngineFailureKind.ResultLimitExceeded,
-				_getHierarchyOperation,
+				GetHierarchyOperation,
 				$"The operation requires a hierarchy depth greater than the explicit limit of {request.MaximumDepth}."),
-			HierarchyBuildProblem.InvalidShape => HostFailure(_getHierarchyOperation),
-			_ when !found => new CheatEngineFailure(CheatEngineFailureKind.NotFound, _getHierarchyOperation,
+			HierarchyBuildProblem.InvalidShape => HostFailure(GetHierarchyOperation),
+			_ when !found => new CheatEngineFailure(CheatEngineFailureKind.NotFound, GetHierarchyOperation,
 				"The requested Cheat Engine memory record was not found."),
-			_ => HostFailure(_getHierarchyOperation)
+			_ => HostFailure(GetHierarchyOperation)
 		};
 	}
 

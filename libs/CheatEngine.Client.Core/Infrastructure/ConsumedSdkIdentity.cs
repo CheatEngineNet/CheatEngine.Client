@@ -44,7 +44,7 @@ internal sealed class ConsumedSdkIdentity
 	/// </summary>
 	internal const string SupportedHostProfileId = "ce-7.7.0.10621-x64-managed-hostfxr";
 
-	private static readonly Lazy<ConsumedSdkIdentity> _current =
+	private static readonly Lazy<ConsumedSdkIdentity> LazyCurrent =
 		new(ReadCurrent, LazyThreadSafetyMode.ExecutionAndPublication);
 
 	/// <summary>Creates an identity from explicit values; tests use it to supply expected and loaded identities.</summary>
@@ -59,7 +59,7 @@ internal sealed class ConsumedSdkIdentity
 	}
 
 	/// <summary>Gets the identity of this build compared with the CheatEngine.SDK.Engine assembly loaded in the process.</summary>
-	internal static ConsumedSdkIdentity Current => _current.Value;
+	internal static ConsumedSdkIdentity Current => LazyCurrent.Value;
 
 	/// <summary>Gets an identity without embedded evidence and without a loaded version.</summary>
 	internal static ConsumedSdkIdentity NotEmbedded

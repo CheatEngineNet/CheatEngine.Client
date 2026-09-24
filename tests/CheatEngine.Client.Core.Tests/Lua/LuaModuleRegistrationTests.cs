@@ -191,7 +191,7 @@ public sealed class LuaModuleRegistrationTests
 	}
 
 	[Fact]
-	public async Task ConcurrentDescribedRegistrationRejectsTheSecondModuleBeforeEitherOfItsLuaExportsMutate()
+	public async Task ConcurrentDescribedRegistrationRejectsTheSecondModuleBeforeEitherOfItsLuaExportsMutateAsync()
 	{
 		using BlockingDispatcher dispatcher = new();
 		DescribedRecordingModule first = new("first", "one", ["diagnostics"]);

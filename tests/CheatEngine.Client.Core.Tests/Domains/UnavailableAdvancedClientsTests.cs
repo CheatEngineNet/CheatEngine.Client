@@ -24,7 +24,7 @@ namespace CheatEngine.Client.Core.Tests.Domains;
 
 public sealed class UnavailableAdvancedClientsTests
 {
-	private static readonly Address _address = new(0x401000);
+	private static readonly Address TestAddress = new(0x401000);
 
 	[Fact]
 	[Trait("Qualification", "Q44")]
@@ -62,29 +62,29 @@ public sealed class UnavailableAdvancedClientsTests
 	{
 		UnavailableAssemblyClient client = new();
 
-		Assert.False(client.TryDisassemble(_address, out AssemblyInstructionSnapshot instruction,
+		Assert.False(client.TryDisassemble(TestAddress, out AssemblyInstructionSnapshot instruction,
 			out CheatEngineFailure disassemble,
 			TestContext.Current.CancellationToken));
 		Assert.Equal(default, instruction);
 		Assert.Equal("Assembly.Disassemble", disassemble.Operation);
 
-		Assert.False(client.TryGetInstructionSize(_address, out int size, out CheatEngineFailure sizeFailure,
+		Assert.False(client.TryGetInstructionSize(TestAddress, out int size, out CheatEngineFailure sizeFailure,
 			TestContext.Current.CancellationToken));
 		Assert.Equal(0, size);
 		Assert.Equal("Assembly.GetInstructionSize", sizeFailure.Operation);
 
-		Assert.False(client.TryGetPreviousInstruction(_address, out Address previous,
+		Assert.False(client.TryGetPreviousInstruction(TestAddress, out Address previous,
 			out CheatEngineFailure previousFailure,
 			TestContext.Current.CancellationToken));
 		Assert.Equal(default, previous);
 		Assert.Equal("Assembly.GetPreviousInstruction", previousFailure.Operation);
 
-		Assert.False(client.TryGetComment(_address, out string? comment, out CheatEngineFailure commentFailure,
+		Assert.False(client.TryGetComment(TestAddress, out string? comment, out CheatEngineFailure commentFailure,
 			TestContext.Current.CancellationToken));
 		Assert.Null(comment);
 		Assert.Equal("Assembly.GetComment", commentFailure.Operation);
 
-		Assert.False(client.TryAssemble(new AssemblyInstructionRequest(_address, "nop"), out _,
+		Assert.False(client.TryAssemble(new AssemblyInstructionRequest(TestAddress, "nop"), out _,
 			out CheatEngineFailure assemble,
 			TestContext.Current.CancellationToken));
 		Assert.Equal("Assembly.Assemble", assemble.Operation);
@@ -104,7 +104,7 @@ public sealed class UnavailableAdvancedClientsTests
 
 		CheatEngineOperationException exception = Assert.Throws<CheatEngineOperationException>(() =>
 		{
-			_ = client.Disassemble(_address, TestContext.Current.CancellationToken);
+			_ = client.Disassemble(TestAddress, TestContext.Current.CancellationToken);
 		});
 
 		Assert.Equal(CheatEngineFailureKind.CapabilityUnavailable, exception.Failure.Kind);
@@ -116,7 +116,7 @@ public sealed class UnavailableAdvancedClientsTests
 	{
 		UnavailableRemoteExecutionClient client = new();
 		RemoteDllInjectionRequest injection = new(Path.GetFullPath("fixture.dll"));
-		RemoteCallRequest call = new(_address, [1, 2, 3], TimeSpan.FromMilliseconds(1));
+		RemoteCallRequest call = new(TestAddress, [1, 2, 3], TimeSpan.FromMilliseconds(1));
 
 		Assert.False(client.TryInjectLibrary(injection, out CheatEngineFailure injectFailure,
 			TestContext.Current.CancellationToken));
@@ -178,7 +178,7 @@ public sealed class UnavailableAdvancedClientsTests
 	public void HashingKeepsMemoryAndFileFailuresAsSeparateOperations()
 	{
 		UnavailableHashingClient client = new();
-		MemoryHashRequest memory = new(_address, 4);
+		MemoryHashRequest memory = new(TestAddress, 4);
 		FileHashRequest file = new(Path.GetFullPath("fixture.bin"));
 
 		Assert.False(client.TryHashMemory(memory, out HashDigest memoryDigest, out CheatEngineFailure memoryFailure,
@@ -200,7 +200,7 @@ public sealed class UnavailableAdvancedClientsTests
 		using CancellationTokenSource cancellation = new();
 		cancellation.Cancel();
 
-		bool succeeded = client.TryHashMemory(new MemoryHashRequest(_address, 1), out _, out CheatEngineFailure failure,
+		bool succeeded = client.TryHashMemory(new MemoryHashRequest(TestAddress, 1), out _, out CheatEngineFailure failure,
 			cancellation.Token);
 
 		Assert.False(succeeded);
@@ -214,7 +214,7 @@ public sealed class UnavailableAdvancedClientsTests
 	{
 		UnavailableDebuggerClient client = new();
 
-		bool succeeded = client.TryRegisterBreakpoint(new BreakpointRequest(_address),
+		bool succeeded = client.TryRegisterBreakpoint(new BreakpointRequest(TestAddress),
 			static _ => BreakpointDisposition.Continue,
 			new EventStreamOptions(1), out IBreakpointLease? lease, out CheatEngineFailure failure,
 			TestContext.Current.CancellationToken);
@@ -233,7 +233,7 @@ public sealed class UnavailableAdvancedClientsTests
 
 		CheatEngineOperationException exception = Assert.Throws<CheatEngineOperationException>(() =>
 		{
-			_ = client.RegisterBreakpoint(new BreakpointRequest(_address), static _ => BreakpointDisposition.Continue,
+			_ = client.RegisterBreakpoint(new BreakpointRequest(TestAddress), static _ => BreakpointDisposition.Continue,
 				new EventStreamOptions(1), TestContext.Current.CancellationToken);
 		});
 
@@ -245,7 +245,7 @@ public sealed class UnavailableAdvancedClientsTests
 	public void DebuggerRegistrationRejectsDefaultStreamOptionsAndNullHandlerBeforeCapabilityGate()
 	{
 		UnavailableDebuggerClient client = new();
-		BreakpointRequest request = new(_address);
+		BreakpointRequest request = new(TestAddress);
 
 		Assert.Throws<ArgumentOutOfRangeException>(() => client.TryRegisterBreakpoint(request,
 			static _ => BreakpointDisposition.Continue, default, out _, out _, TestContext.Current.CancellationToken));
@@ -370,7 +370,7 @@ public sealed class UnavailableAdvancedClientsTests
 		Assert.Equal(default, initialized);
 		Assert.Equal("Dbvm.Initialize", initializeFailure.Operation);
 
-		Assert.False(client.TryRegisterWatch(new DbvmWatchRequest(_address, 1), static _ =>
+		Assert.False(client.TryRegisterWatch(new DbvmWatchRequest(TestAddress, 1), static _ =>
 			{
 			}, new EventStreamOptions(1),
 			out IDbvmWatchLease? lease, out CheatEngineFailure watchFailure, TestContext.Current.CancellationToken));
@@ -397,7 +397,7 @@ public sealed class UnavailableAdvancedClientsTests
 	public void DbvmWatchRegistrationRejectsDefaultStreamOptionsAndNullHandlerBeforeCapabilityGate()
 	{
 		UnavailableDbvmClient client = new();
-		DbvmWatchRequest request = new(_address, 1);
+		DbvmWatchRequest request = new(TestAddress, 1);
 
 		Assert.Throws<ArgumentOutOfRangeException>(() => client.TryRegisterWatch(request, static _ =>
 			{
@@ -415,7 +415,7 @@ public sealed class UnavailableAdvancedClientsTests
 
 		CheatEngineOperationException exception = Assert.Throws<CheatEngineOperationException>(() =>
 		{
-			_ = client.RegisterWatch(new DbvmWatchRequest(_address, 1), static _ =>
+			_ = client.RegisterWatch(new DbvmWatchRequest(TestAddress, 1), static _ =>
 				{
 				}, new EventStreamOptions(1),
 				TestContext.Current.CancellationToken);

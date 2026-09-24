@@ -5,10 +5,10 @@ internal static class RepositoryLayout
 {
 	private const string SolutionFileName = "CheatEngine.Client.slnx";
 
-	private static readonly Lazy<string> _root = new(FindRoot, LazyThreadSafetyMode.ExecutionAndPublication);
+	private static readonly Lazy<string> LazyRoot = new(FindRoot, LazyThreadSafetyMode.ExecutionAndPublication);
 
 	/// <summary>The directory that contains <c>CheatEngine.Client.slnx</c>.</summary>
-	internal static string Root => _root.Value;
+	internal static string Root => LazyRoot.Value;
 
 	/// <summary>An absolute path below the repository root, from a forward-slash relative path.</summary>
 	internal static string Combine(string relativePath)

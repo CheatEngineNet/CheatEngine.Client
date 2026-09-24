@@ -6,7 +6,7 @@ namespace CheatEngine.Client.Core.Tests.Domains.Events;
 public sealed class EventStreamLeaseTests
 {
 	[Fact]
-	public async Task DisposeStopsAdmissionBeforeNeutralizingThenCompletesAndReleasesInOrder()
+	public async Task DisposeStopsAdmissionBeforeNeutralizingThenCompletesAndReleasesInOrderAsync()
 	{
 		List<string> calls = [];
 		BoundedEventStream<int> stream = new(new EventStreamOptions(1));
@@ -31,7 +31,7 @@ public sealed class EventStreamLeaseTests
 	}
 
 	[Fact]
-	public async Task DisposeCompletesAWaitingReaderAndClosesAdmissionBeforeReleasingTheHostRegistration()
+	public async Task DisposeCompletesAWaitingReaderAndClosesAdmissionBeforeReleasingTheHostRegistrationAsync()
 	{
 		BoundedEventStream<int> stream = new(new EventStreamOptions(1));
 		await using IAsyncEnumerator<int> enumerator =
@@ -64,7 +64,7 @@ public sealed class EventStreamLeaseTests
 	}
 
 	[Fact(Timeout = 10_000)]
-	public async Task DisposeDoesNotHoldItsGateWhileExternalTeardownWaitsForReentrantCallbacks()
+	public async Task DisposeDoesNotHoldItsGateWhileExternalTeardownWaitsForReentrantCallbacksAsync()
 	{
 		CancellationToken cancellationToken = TestContext.Current.CancellationToken;
 		TaskCompletionSource neutralizationStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -111,7 +111,7 @@ public sealed class EventStreamLeaseTests
 	}
 
 	[Fact(Timeout = 10_000)]
-	public async Task ConcurrentDisposalsRunOnlyOneCleanupSequence()
+	public async Task ConcurrentDisposalsRunOnlyOneCleanupSequenceAsync()
 	{
 		CancellationToken cancellationToken = TestContext.Current.CancellationToken;
 		using ManualResetEventSlim allowNeutralizationToFinish = new(false);
@@ -154,7 +154,7 @@ public sealed class EventStreamLeaseTests
 	}
 
 	[Fact]
-	public async Task DisposeCompletesTheStreamAndReleasesTheHostEvenWhenNeutralizationFails()
+	public async Task DisposeCompletesTheStreamAndReleasesTheHostEvenWhenNeutralizationFailsAsync()
 	{
 		BoundedEventStream<int> stream = new(new EventStreamOptions(1));
 		int released = 0;
@@ -174,7 +174,7 @@ public sealed class EventStreamLeaseTests
 	}
 
 	[Fact]
-	public async Task LeaseExposesTheStreamLossCounterWithoutWaitingForConsumers()
+	public async Task LeaseExposesTheStreamLossCounterWithoutWaitingForConsumersAsync()
 	{
 		BoundedEventStream<int> stream = new(new EventStreamOptions(1));
 		using EventStreamLease<int> lease = new(stream, static () =>

@@ -27,7 +27,7 @@ internal sealed class SymbolRegistrationLease(
 	Action<string> releaseName,
 	ICoreDiagnostics? diagnostics = null) : IDetailedSymbolRegistrationLease
 {
-	private const string _releaseOperation = "Inspection.ReleaseSymbol";
+	private const string ReleaseOperation = "Inspection.ReleaseSymbol";
 
 	private readonly ICoreDiagnostics _diagnostics = GuardedCoreDiagnostics.Wrap(diagnostics);
 
@@ -78,7 +78,7 @@ internal sealed class SymbolRegistrationLease(
 
 		throw new CheatEngineOperationException(new CheatEngineFailure(
 			CheatEngineFailureKind.IndeterminateHostResult,
-			_releaseOperation,
+			ReleaseOperation,
 			"Cheat Engine did not confirm that the symbol registration is still owned by this lease, so it was not " +
 			"removed; the lease stays active for a later cleanup attempt.",
 			outcome.Fault,

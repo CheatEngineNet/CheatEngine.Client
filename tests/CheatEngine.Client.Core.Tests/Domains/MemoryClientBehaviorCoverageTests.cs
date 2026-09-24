@@ -11,7 +11,7 @@ namespace CheatEngine.Client.Core.Tests.Domains;
 
 public sealed class MemoryClientBehaviorCoverageTests
 {
-	private static readonly Address _address = new(0x405000);
+	private static readonly Address TestAddress = new(0x405000);
 
 	[Fact]
 	public void TypedReadForwardsCancellationAndReturnsTheCodecValue()
@@ -24,7 +24,7 @@ public sealed class MemoryClientBehaviorCoverageTests
 		};
 		MemoryClient client = new(dispatcher, InertCoreLifetime.Create());
 
-		bool succeeded = client.TryRead(new MemoryReadRequest<int>(_address, codec), out int value,
+		bool succeeded = client.TryRead(new MemoryReadRequest<int>(TestAddress, codec), out int value,
 			out CheatEngineFailure failure, cancellationToken);
 
 		Assert.True(succeeded);
@@ -33,7 +33,7 @@ public sealed class MemoryClientBehaviorCoverageTests
 		Assert.Equal(1, dispatcher.ActionInvocationCount);
 		Assert.Equal(cancellationToken, dispatcher.LastCancellationToken);
 		Assert.Equal(1, codec.ReadCount);
-		Assert.Equal(_address, codec.LastReadAddress);
+		Assert.Equal(TestAddress, codec.LastReadAddress);
 		Assert.NotNull(codec.LastReadContext);
 	}
 
@@ -45,7 +45,7 @@ public sealed class MemoryClientBehaviorCoverageTests
 		ProbeCodec codec = new();
 		MemoryClient client = new(dispatcher, InertCoreLifetime.Create());
 
-		bool succeeded = client.TryWrite(new MemoryWriteRequest<int>(_address, 42, codec),
+		bool succeeded = client.TryWrite(new MemoryWriteRequest<int>(TestAddress, 42, codec),
 			out CheatEngineFailure failure, cancellationToken);
 
 		Assert.True(succeeded);
@@ -53,7 +53,7 @@ public sealed class MemoryClientBehaviorCoverageTests
 		Assert.Equal(1, dispatcher.ActionInvocationCount);
 		Assert.Equal(cancellationToken, dispatcher.LastCancellationToken);
 		Assert.Equal(1, codec.WriteCount);
-		Assert.Equal(_address, codec.LastWriteAddress);
+		Assert.Equal(TestAddress, codec.LastWriteAddress);
 		Assert.Equal(42, codec.LastWrittenValue);
 		Assert.NotNull(codec.LastWriteContext);
 	}
@@ -66,7 +66,7 @@ public sealed class MemoryClientBehaviorCoverageTests
 			ReadSucceeds = false
 		};
 		MemoryClient client = new(new RecordingDispatcher(), InertCoreLifetime.Create());
-		MemoryReadRequest<int> request = new(_address, codec);
+		MemoryReadRequest<int> request = new(TestAddress, codec);
 
 		bool succeeded = client.TryRead(request, out int value, out CheatEngineFailure failure,
 			TestContext.Current.CancellationToken);
@@ -90,7 +90,7 @@ public sealed class MemoryClientBehaviorCoverageTests
 			WriteSucceeds = false
 		};
 		MemoryClient client = new(new RecordingDispatcher(), InertCoreLifetime.Create());
-		MemoryWriteRequest<int> request = new(_address, 77, codec);
+		MemoryWriteRequest<int> request = new(TestAddress, 77, codec);
 
 		bool succeeded = client.TryWrite(request, out CheatEngineFailure failure,
 			TestContext.Current.CancellationToken);
@@ -115,8 +115,8 @@ public sealed class MemoryClientBehaviorCoverageTests
 		CancellationAwareDispatcher dispatcher = new();
 		ProbeCodec codec = new();
 		MemoryClient client = new(dispatcher, InertCoreLifetime.Create());
-		MemoryReadRequest<int> readRequest = new(_address, codec);
-		MemoryWriteRequest<int> writeRequest = new(_address, 9, codec);
+		MemoryReadRequest<int> readRequest = new(TestAddress, codec);
+		MemoryWriteRequest<int> writeRequest = new(TestAddress, 9, codec);
 
 		bool readSucceeded = client.TryRead(readRequest, out int value, out CheatEngineFailure readFailure,
 			cancellationToken);

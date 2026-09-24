@@ -6,7 +6,7 @@ namespace CheatEngine.Client.Tests.Packaging;
 /// </summary>
 public sealed class PackageSourceResolutionTests
 {
-	private static readonly string _existing = Path.GetFullPath(Path.GetTempPath());
+	private static readonly string Existing = Path.GetFullPath(Path.GetTempPath());
 
 	[Fact]
 	public void MissingPackageSourceFailsInContinuousIntegration()
@@ -34,8 +34,8 @@ public sealed class PackageSourceResolutionTests
 	{
 		PackageSourceDecision empty = PackageSourceResolution.Resolve(" ", false, static _ => true);
 		PackageSourceDecision relative = PackageSourceResolution.Resolve("artifacts/nuget", true, static _ => true);
-		PackageSourceDecision missing = PackageSourceResolution.Resolve(_existing, true, static _ => false);
-		PackageSourceDecision configured = PackageSourceResolution.Resolve(_existing, true, static _ => true);
+		PackageSourceDecision missing = PackageSourceResolution.Resolve(Existing, true, static _ => false);
+		PackageSourceDecision configured = PackageSourceResolution.Resolve(Existing, true, static _ => true);
 
 		Assert.Equal(PackageSourceKind.Invalid, empty.Kind);
 		Assert.Contains("empty", empty.Error, StringComparison.Ordinal);
@@ -44,6 +44,6 @@ public sealed class PackageSourceResolutionTests
 		Assert.Equal(PackageSourceKind.Invalid, missing.Kind);
 		Assert.Contains("missing directory", missing.Error, StringComparison.Ordinal);
 		Assert.Equal(PackageSourceKind.ConfiguredDirectory, configured.Kind);
-		Assert.Equal(_existing, configured.Directory);
+		Assert.Equal(Existing, configured.Directory);
 	}
 }

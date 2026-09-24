@@ -12,7 +12,7 @@ namespace CheatEngine.Client.Core.Dispatching;
 /// <summary>Adapts the SDK's synchronous main-thread dispatcher without retaining Lua state.</summary>
 internal sealed class SdkMainThreadDispatcher : ICheatEngineDispatcher, IStatefulCheatEngineDispatcher
 {
-	private const string _invokeOperation = "Dispatcher.Invoke";
+	private const string InvokeOperation = "Dispatcher.Invoke";
 
 	private readonly CoreLifetime _lifetime;
 	private readonly IMainThreadInvoker _mainThread;
@@ -37,10 +37,10 @@ internal sealed class SdkMainThreadDispatcher : ICheatEngineDispatcher, IStatefu
 		CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(callback);
-		_lifetime.ThrowIfDispatchAllowed(_invokeOperation);
+		_lifetime.ThrowIfDispatchAllowed(InvokeOperation);
 		if (cancellationToken.IsCancellationRequested)
 		{
-			failure = CoreFailureFactory.Cancelled(_invokeOperation);
+			failure = CoreFailureFactory.Cancelled(InvokeOperation);
 			return false;
 		}
 
@@ -55,12 +55,12 @@ internal sealed class SdkMainThreadDispatcher : ICheatEngineDispatcher, IStatefu
 		}
 		catch (Exception exception) when (!_lifetime.IsActivationCurrent)
 		{
-			throw new CheatEngineActivationExpiredException(_invokeOperation,
+			throw new CheatEngineActivationExpiredException(InvokeOperation,
 				"The Cheat Engine plugin lifecycle changed while dispatching work.", exception);
 		}
 		catch (Exception exception)
 		{
-			failure = CoreFailureFactory.FromException(_invokeOperation, exception);
+			failure = CoreFailureFactory.FromException(InvokeOperation, exception);
 			return false;
 		}
 
@@ -77,11 +77,11 @@ internal sealed class SdkMainThreadDispatcher : ICheatEngineDispatcher, IStatefu
 		CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(callback);
-		_lifetime.ThrowIfDispatchAllowed(_invokeOperation);
+		_lifetime.ThrowIfDispatchAllowed(InvokeOperation);
 		if (cancellationToken.IsCancellationRequested)
 		{
 			result = default;
-			failure = CoreFailureFactory.Cancelled(_invokeOperation);
+			failure = CoreFailureFactory.Cancelled(InvokeOperation);
 			return false;
 		}
 
@@ -97,13 +97,13 @@ internal sealed class SdkMainThreadDispatcher : ICheatEngineDispatcher, IStatefu
 		catch (Exception exception) when (!_lifetime.IsActivationCurrent)
 		{
 			result = default;
-			throw new CheatEngineActivationExpiredException(_invokeOperation,
+			throw new CheatEngineActivationExpiredException(InvokeOperation,
 				"The Cheat Engine plugin lifecycle changed while dispatching work.", exception);
 		}
 		catch (Exception exception)
 		{
 			result = default;
-			failure = CoreFailureFactory.FromException(_invokeOperation, exception);
+			failure = CoreFailureFactory.FromException(InvokeOperation, exception);
 			return false;
 		}
 
@@ -140,11 +140,11 @@ internal sealed class SdkMainThreadDispatcher : ICheatEngineDispatcher, IStatefu
 		CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(callback);
-		_lifetime.ThrowIfDispatchAllowed(_invokeOperation);
+		_lifetime.ThrowIfDispatchAllowed(InvokeOperation);
 		if (cancellationToken.IsCancellationRequested)
 		{
 			result = default;
-			failure = CoreFailureFactory.Cancelled(_invokeOperation);
+			failure = CoreFailureFactory.Cancelled(InvokeOperation);
 			return false;
 		}
 
@@ -161,13 +161,13 @@ internal sealed class SdkMainThreadDispatcher : ICheatEngineDispatcher, IStatefu
 		catch (Exception exception) when (!_lifetime.IsActivationCurrent)
 		{
 			result = default;
-			throw new CheatEngineActivationExpiredException(_invokeOperation,
+			throw new CheatEngineActivationExpiredException(InvokeOperation,
 				"The Cheat Engine plugin lifecycle changed while dispatching work.", exception);
 		}
 		catch (Exception exception)
 		{
 			result = default;
-			failure = CoreFailureFactory.FromException(_invokeOperation, exception);
+			failure = CoreFailureFactory.FromException(InvokeOperation, exception);
 			return false;
 		}
 
@@ -186,10 +186,10 @@ internal sealed class SdkMainThreadDispatcher : ICheatEngineDispatcher, IStatefu
 		CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(callback);
-		_lifetime.ThrowIfDispatchAllowed(_invokeOperation);
+		_lifetime.ThrowIfDispatchAllowed(InvokeOperation);
 		if (cancellationToken.IsCancellationRequested)
 		{
-			failure = CoreFailureFactory.Cancelled(_invokeOperation);
+			failure = CoreFailureFactory.Cancelled(InvokeOperation);
 			return false;
 		}
 
@@ -204,12 +204,12 @@ internal sealed class SdkMainThreadDispatcher : ICheatEngineDispatcher, IStatefu
 		}
 		catch (Exception exception) when (!_lifetime.IsActivationCurrent)
 		{
-			throw new CheatEngineActivationExpiredException(_invokeOperation,
+			throw new CheatEngineActivationExpiredException(InvokeOperation,
 				"The Cheat Engine plugin lifecycle changed while dispatching work.", exception);
 		}
 		catch (Exception exception)
 		{
-			failure = CoreFailureFactory.FromException(_invokeOperation, exception);
+			failure = CoreFailureFactory.FromException(InvokeOperation, exception);
 			return false;
 		}
 

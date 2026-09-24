@@ -18,8 +18,8 @@ namespace LivePlugin.Qualification;
 /// </summary>
 internal static class QualificationSession
 {
-	private static readonly Lock _gate = new();
-	private static readonly Dictionary<string, ISymbolRegistrationLease> _symbolLeases = new(StringComparer.Ordinal);
+	private static readonly Lock Gate = new();
+	private static readonly Dictionary<string, ISymbolRegistrationLease> SymbolLeases = new(StringComparer.Ordinal);
 	private static ActiveClient? _active;
 	private static AuthorizationDecision _authorization = AuthorizationDecision.Denied(AuthorizationDenial.ManifestMissing);
 	private static TargetDeclaration? _declaration;
@@ -36,7 +36,7 @@ internal static class QualificationSession
 	{
 		get
 		{
-			lock (_gate)
+			lock (Gate)
 			{
 				return _authorization;
 			}
@@ -48,7 +48,7 @@ internal static class QualificationSession
 	{
 		get
 		{
-			lock (_gate)
+			lock (Gate)
 			{
 				return _declaration;
 			}
@@ -60,7 +60,7 @@ internal static class QualificationSession
 	{
 		get
 		{
-			lock (_gate)
+			lock (Gate)
 			{
 				return _pluginId;
 			}
@@ -70,7 +70,7 @@ internal static class QualificationSession
 	/// <summary>Records the facts of a new enable, before any activation exists.</summary>
 	internal static void BeginEnable(uint pluginId, AuthorizationDecision authorization)
 	{
-		lock (_gate)
+		lock (Gate)
 		{
 			_pluginId = pluginId;
 			_authorization = authorization;
@@ -80,7 +80,7 @@ internal static class QualificationSession
 	/// <summary>Publishes the Client of the activation that just enabled.</summary>
 	internal static void Attach(ICheatEngineClient client, IPatternScanOutcomeClient scans, IMemoryBatchClient batches)
 	{
-		lock (_gate)
+		lock (Gate)
 		{
 			_active = new ActiveClient(client, scans, batches);
 		}
@@ -89,7 +89,7 @@ internal static class QualificationSession
 	/// <summary>Withdraws the Client of the activation that is being disabled.</summary>
 	internal static void Detach()
 	{
-		lock (_gate)
+		lock (Gate)
 		{
 			_active = null;
 		}
@@ -98,7 +98,7 @@ internal static class QualificationSession
 	/// <summary>The Client of the current activation, if one is enabled.</summary>
 	internal static bool TryGetActive([NotNullWhen(true)] out ActiveClient? active)
 	{
-		lock (_gate)
+		lock (Gate)
 		{
 			active = _active;
 			return active is not null;
@@ -108,7 +108,7 @@ internal static class QualificationSession
 	/// <summary>Stores the writable regions declared for the authorized target.</summary>
 	internal static void Declare(TargetDeclaration declaration)
 	{
-		lock (_gate)
+		lock (Gate)
 		{
 			_declaration = declaration;
 		}
@@ -118,10 +118,10 @@ internal static class QualificationSession
 	internal static void KeepSymbolLease(ISymbolRegistrationLease lease)
 	{
 		ISymbolRegistrationLease? previous;
-		lock (_gate)
+		lock (Gate)
 		{
-			_symbolLeases.TryGetValue(lease.Name, out previous);
-			_symbolLeases[lease.Name] = lease;
+			SymbolLeases.TryGetValue(lease.Name, out previous);
+			SymbolLeases[lease.Name] = lease;
 		}
 
 		if (previous is not null && !ReferenceEquals(previous, lease))
@@ -133,9 +133,9 @@ internal static class QualificationSession
 	/// <summary>The symbol lease the harness created for a name, released or not.</summary>
 	internal static bool TryGetSymbolLease(string name, [NotNullWhen(true)] out ISymbolRegistrationLease? lease)
 	{
-		lock (_gate)
+		lock (Gate)
 		{
-			return _symbolLeases.TryGetValue(name, out lease);
+			return SymbolLeases.TryGetValue(name, out lease);
 		}
 	}
 

@@ -16,9 +16,9 @@ public sealed partial class ReleaseWorkflowTests
 {
 	private const string WorkflowPath = ".github/workflows/release.yml";
 
-	private static readonly string[] _jobOrder = ["verify", "ci", "attest", "draft-release", "publish", "verify-publication", "finalize-release"];
+	private static readonly string[] JobOrder = ["verify", "ci", "attest", "draft-release", "publish", "verify-publication", "finalize-release"];
 
-	private static readonly Dictionary<string, string[]> _needs = new(StringComparer.Ordinal)
+	private static readonly Dictionary<string, string[]> ExpectedNeeds = new(StringComparer.Ordinal)
 	{
 		["verify"] = [],
 		["ci"] = ["verify"],
@@ -30,23 +30,23 @@ public sealed partial class ReleaseWorkflowTests
 	};
 
 	/// <summary>Every package after the Client packages it depends on.</summary>
-	private static readonly string[] _pushOrder =
+	private static readonly string[] PushOrder =
 	[
 		"CheatEngine.Client.Abstractions", "CheatEngine.Client.Fluent", "CheatEngine.Client.Core",
 		"CheatEngine.Client.Extensions.DependencyInjection", "CheatEngine.Client.Hosting", "CheatEngine.Client",
 		"CheatEngine.Client.Templates"
 	];
 
-	private static readonly Lazy<YamlMappingNode> _workflow = new(LoadWorkflow);
+	private static readonly Lazy<YamlMappingNode> Workflow = new(LoadWorkflow);
 
 	[Fact]
 	public void ReleaseJobsFollowTheContractOrder()
 	{
-		YamlMappingNode jobs = Mapping(_workflow.Value, "jobs");
-		YamlMappingNode on = Mapping(_workflow.Value, "on");
+		YamlMappingNode jobs = Mapping(Workflow.Value, "jobs");
+		YamlMappingNode on = Mapping(Workflow.Value, "on");
 
-		Assert.Equal(_jobOrder, jobs.Children.Keys.Select(static key => ((YamlScalarNode) key).Value));
-		foreach ((string job, string[] needs) in _needs)
+		Assert.Equal(JobOrder, jobs.Children.Keys.Select(static key => ((YamlScalarNode) key).Value));
+		foreach ((string job, string[] needs) in ExpectedNeeds)
 		{
 			Assert.Equal(needs, Needs(Mapping(jobs, job)));
 		}
@@ -55,9 +55,9 @@ public sealed partial class ReleaseWorkflowTests
 		string[] tags = ["v*.*.*"];
 		Assert.Equal(triggers, on.Children.Keys.Select(static key => ((YamlScalarNode) key).Value));
 		Assert.Equal(tags, Sequence(Mapping(on, "push"), "tags"));
-		Assert.Equal("false", Scalar(Mapping(_workflow.Value, "concurrency"), "cancel-in-progress"));
-		Assert.Equal("${{ github.workflow }}-${{ github.ref }}", Scalar(Mapping(_workflow.Value, "concurrency"), "group"));
-		YamlMappingNode permissions = Mapping(_workflow.Value, "permissions");
+		Assert.Equal("false", Scalar(Mapping(Workflow.Value, "concurrency"), "cancel-in-progress"));
+		Assert.Equal("${{ github.workflow }}-${{ github.ref }}", Scalar(Mapping(Workflow.Value, "concurrency"), "group"));
+		YamlMappingNode permissions = Mapping(Workflow.Value, "permissions");
 		Assert.Equal("read", Text(Assert.Single(permissions.Children, static entry => ((YamlScalarNode) entry.Key).Value == "contents").Value));
 		Assert.Single(permissions.Children);
 	}
@@ -65,7 +65,7 @@ public sealed partial class ReleaseWorkflowTests
 	[Fact]
 	public void ReleaseCallsCiWithThePackageVersionAndNinetyDayRetentionButNoSonar()
 	{
-		YamlMappingNode ci = Mapping(Mapping(_workflow.Value, "jobs"), "ci");
+		YamlMappingNode ci = Mapping(Mapping(Workflow.Value, "jobs"), "ci");
 		YamlMappingNode with = Mapping(ci, "with");
 
 		Assert.Equal("CI", Scalar(ci, "name"));
@@ -79,7 +79,7 @@ public sealed partial class ReleaseWorkflowTests
 	[Fact]
 	public void OnlyThePublishJobUsesTheNugetEnvironment()
 	{
-		YamlMappingNode jobs = Mapping(_workflow.Value, "jobs");
+		YamlMappingNode jobs = Mapping(Workflow.Value, "jobs");
 		foreach ((YamlNode key, YamlNode value) in jobs.Children)
 		{
 			string job = ((YamlScalarNode) key).Value!;
@@ -107,7 +107,7 @@ public sealed partial class ReleaseWorkflowTests
 	[Fact]
 	public void DraftAndPublishRunOnlyForTagPushesOfThisRepository()
 	{
-		YamlMappingNode jobs = Mapping(_workflow.Value, "jobs");
+		YamlMappingNode jobs = Mapping(Workflow.Value, "jobs");
 		string[] clauses =
 		[
 			"github.event_name == 'push'", "github.ref_type == 'tag'",
@@ -150,7 +150,7 @@ public sealed partial class ReleaseWorkflowTests
 
 		string text = File.ReadAllText(Path.Combine(RepositoryRoot.Path, WorkflowPath));
 		Assert.DoesNotContain("gh release upload", text, StringComparison.Ordinal);
-		Assert.DoesNotContain(Mapping(_workflow.Value, "on").Children.Keys, static key => ((YamlScalarNode) key).Value!.StartsWith("pull_request", StringComparison.Ordinal));
+		Assert.DoesNotContain(Mapping(Workflow.Value, "on").Children.Keys, static key => ((YamlScalarNode) key).Value!.StartsWith("pull_request", StringComparison.Ordinal));
 	}
 
 	/// <summary>
@@ -161,7 +161,7 @@ public sealed partial class ReleaseWorkflowTests
 	public void TheWriteTokenReachesOnlyTheStepsThatCallGitHub()
 	{
 		List<string> offenders = [];
-		foreach ((YamlNode key, YamlNode value) in Mapping(_workflow.Value, "jobs").Children)
+		foreach ((YamlNode key, YamlNode value) in Mapping(Workflow.Value, "jobs").Children)
 		{
 			string job = ((YamlScalarNode) key).Value!;
 			YamlMappingNode definition = (YamlMappingNode) value;
@@ -196,7 +196,7 @@ public sealed partial class ReleaseWorkflowTests
 	public void NoReleaseJobCachesPackages()
 	{
 		List<string> offenders = [];
-		foreach ((YamlNode key, YamlNode value) in Mapping(_workflow.Value, "jobs").Children)
+		foreach ((YamlNode key, YamlNode value) in Mapping(Workflow.Value, "jobs").Children)
 		{
 			string job = ((YamlScalarNode) key).Value!;
 			if (!((YamlMappingNode) value).Children.TryGetValue(new YamlScalarNode("steps"), out YamlNode? steps))
@@ -233,7 +233,7 @@ public sealed partial class ReleaseWorkflowTests
 	[Fact]
 	public void PublishPushesTheSevenPackagesInDependencyOrder()
 	{
-		YamlSequenceNode steps = (YamlSequenceNode) Mapping(Mapping(_workflow.Value, "jobs"), "publish").Children[new YamlScalarNode("steps")];
+		YamlSequenceNode steps = (YamlSequenceNode) Mapping(Mapping(Workflow.Value, "jobs"), "publish").Children[new YamlScalarNode("steps")];
 		List<YamlMappingNode> stepList = steps.Children.Cast<YamlMappingNode>().ToList();
 		int login = stepList.FindIndex(static step => step.Children.TryGetValue(new YamlScalarNode("uses"), out YamlNode? uses)
 													 && Text(uses).StartsWith("NuGet/login@", StringComparison.Ordinal));
@@ -244,7 +244,7 @@ public sealed partial class ReleaseWorkflowTests
 
 		string script = Text(stepList[push].Children[new YamlScalarNode("run")]);
 		string[] pushed = QuotedPackageId().Matches(script).Select(static match => match.Groups["id"].Value).ToArray();
-		Assert.Equal(_pushOrder, pushed);
+		Assert.Equal(PushOrder, pushed);
 		Assert.Contains("--skip-duplicate", script, StringComparison.Ordinal);
 		Assert.Contains("https://api.nuget.org/v3/index.json", script, StringComparison.Ordinal);
 		Assert.DoesNotContain("--no-symbols", script, StringComparison.Ordinal);
@@ -269,7 +269,7 @@ public sealed partial class ReleaseWorkflowTests
 	private static string JobText(string job)
 	{
 		List<string> scalars = [];
-		Stack<YamlNode> pending = new([Mapping(Mapping(_workflow.Value, "jobs"), job)]);
+		Stack<YamlNode> pending = new([Mapping(Mapping(Workflow.Value, "jobs"), job)]);
 		while (pending.Count > 0)
 		{
 			switch (pending.Pop())

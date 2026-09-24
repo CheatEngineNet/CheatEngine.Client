@@ -14,15 +14,15 @@ public sealed class ToolchainPinTests
 {
 	private const string SupplyChainTargetName = "CheatEngineClientValidateSupplyChainSettings";
 
-	private static readonly JsonDocumentOptions _jsonOptions = new()
+	private static readonly JsonDocumentOptions JsonOptions = new()
 	{
 		CommentHandling = JsonCommentHandling.Skip,
 		AllowTrailingCommas = true
 	};
 
-	private static readonly string[] _blockingAuditCodes = ["NU1903", "NU1904"];
+	private static readonly string[] BlockingAuditCodes = ["NU1903", "NU1904"];
 
-	private static readonly string[] _auditCodes = ["NU1900", "NU1901", "NU1902", "NU1903", "NU1904", "NU1905"];
+	private static readonly string[] AuditCodes = ["NU1900", "NU1901", "NU1902", "NU1903", "NU1904", "NU1905"];
 
 	[Fact]
 	public void GlobalJsonRequiresTheExactSdkWithRollForwardDisabled()
@@ -81,7 +81,7 @@ public sealed class ToolchainPinTests
 				StringComparison.Ordinal));
 		string auditCodes = SingleUnconditionalProperty(props, "_CheatEngineClientNuGetAuditCodes");
 		Assert.Contains("$(_CheatEngineClientNuGetAuditCodes)", auditPipeline.Value, StringComparison.Ordinal);
-		Assert.Equal(_auditCodes, SplitCodes(auditCodes));
+		Assert.Equal(AuditCodes, SplitCodes(auditCodes));
 
 		List<string> violations = [];
 		foreach (string file in EnumerateMsBuildFiles())
@@ -96,7 +96,7 @@ public sealed class ToolchainPinTests
 
 				foreach (string code in SplitCodes(element.Value))
 				{
-					if (_blockingAuditCodes.Contains(code, StringComparer.OrdinalIgnoreCase))
+					if (BlockingAuditCodes.Contains(code, StringComparer.OrdinalIgnoreCase))
 					{
 						violations.Add($"{file}: <{element.Name.LocalName}> lists {code}");
 					}
@@ -140,7 +140,7 @@ public sealed class ToolchainPinTests
 
 	private static JsonDocument ReadGlobalJson()
 	{
-		return JsonDocument.Parse(File.ReadAllText(Path.Combine(RepositoryRoot.Path, "global.json")), _jsonOptions);
+		return JsonDocument.Parse(File.ReadAllText(Path.Combine(RepositoryRoot.Path, "global.json")), JsonOptions);
 	}
 
 	private static XDocument LoadXml(string relativePath)

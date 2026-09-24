@@ -34,7 +34,7 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 	private const string SensitiveScript = "return readInteger('player_health')";
 	private const ulong SensitiveAddress = 0x7FF6_1234_5678;
 
-	private static readonly MemoryRecordId _handedOut = new(41);
+	private static readonly MemoryRecordId HandedOut = new(41);
 
 	private readonly string _root = Directory.CreateTempSubdirectory("ce-client-diagnostics-").FullName;
 
@@ -235,11 +235,11 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 			tables.TryLoadTrustedTable(new TableLoadRequest(new TrustedTableFile(tablePath)), out failure,
 				cancellationToken), failure));
 		outcomes.Add(Describe("Tables.Stale",
-			tables.TrySetActive(_handedOut, true, out _, out failure, cancellationToken), failure));
+			tables.TrySetActive(HandedOut, true, out _, out failure, cancellationToken), failure));
 		outcomes.Add(Describe("Tables.Reobserve", tables.TryGetRecord(0, out _, out failure, cancellationToken),
 			failure));
 		outcomes.Add(Describe("Tables.Refused",
-			tables.TrySetActive(_handedOut, true, out _, out failure, cancellationToken), failure));
+			tables.TrySetActive(HandedOut, true, out _, out failure, cancellationToken), failure));
 
 		InspectionClient inspection = new(mainThreadDispatcher, lifetime, new SymbolPort());
 		outcomes.Add(Describe("Inspection.Collision",
@@ -602,7 +602,7 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 	{
 		public RecordLookupStatus TryGetRecord(int index, out MemoryRecordSnapshot record)
 		{
-			record = Snapshot(_handedOut);
+			record = Snapshot(HandedOut);
 			return RecordLookupStatus.Success;
 		}
 
@@ -614,13 +614,13 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 
 		public RecordLookupStatus TryGetSelected(out MemoryRecordSnapshot record)
 		{
-			record = Snapshot(_handedOut);
+			record = Snapshot(HandedOut);
 			return RecordLookupStatus.Success;
 		}
 
 		public RecordLookupStatus TryGetTable(int maximumItems, out AddressTableSnapshot table)
 		{
-			table = new AddressTableSnapshot([Snapshot(_handedOut)]);
+			table = new AddressTableSnapshot([Snapshot(HandedOut)]);
 			return RecordLookupStatus.Success;
 		}
 	}

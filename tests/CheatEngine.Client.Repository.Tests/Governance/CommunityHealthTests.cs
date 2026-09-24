@@ -15,18 +15,18 @@ public sealed class CommunityHealthTests
 	private const string SdkAdvisories = "https://github.com/CheatEngineNet/CheatEngine.SDK/security/advisories/new";
 	private const string CodeOwnersPath = ".github/CODEOWNERS";
 
-	private static readonly Regex _localPath = new(
+	private static readonly Regex LocalPath = new(
 		@"[A-Za-z]:\\|\\Users\\|/Users/|file://",
 		RegexOptions.CultureInvariant,
 		TimeSpan.FromSeconds(1));
 
-	private static readonly Regex _emailAddress = new(
+	private static readonly Regex EmailAddress = new(
 		@"[\w.+-]+@[\w-]+\.[\w.]+",
 		RegexOptions.None,
 		TimeSpan.FromSeconds(1));
 
 	/// <summary>Owners allowed in CODEOWNERS. Co-owners are a maintainer decision (orchestrator decision O5).</summary>
-	private static readonly HashSet<string> _knownOwners = new(StringComparer.Ordinal) { "@AriusII" };
+	private static readonly HashSet<string> KnownOwners = new(StringComparer.Ordinal) { "@AriusII" };
 
 	[Fact]
 	public void SecurityPolicyPointsToPrivateVulnerabilityReporting()
@@ -49,7 +49,7 @@ public sealed class CommunityHealthTests
 		List<string> offending = [];
 		foreach (string file in GovernanceDocuments())
 		{
-			offending.AddRange(_localPath.Matches(GovernanceFile.ReadText(file)).Select(match => $"{file}: '{match.Value}'"));
+			offending.AddRange(LocalPath.Matches(GovernanceFile.ReadText(file)).Select(match => $"{file}: '{match.Value}'"));
 		}
 
 		Assert.True(offending.Count == 0,
@@ -65,7 +65,7 @@ public sealed class CommunityHealthTests
 		Assert.Contains("version 2.1", conduct, StringComparison.Ordinal);
 		Assert.DoesNotContain("[INSERT CONTACT METHOD]", conduct, StringComparison.Ordinal);
 		Assert.Contains(ClientAdvisories, conduct, StringComparison.Ordinal);
-		Assert.DoesNotMatch(_emailAddress, conduct);
+		Assert.DoesNotMatch(EmailAddress, conduct);
 	}
 
 	[Fact]
@@ -87,7 +87,7 @@ public sealed class CommunityHealthTests
 			bool supported = pattern.IndexOfAny(['!', '[', ']']) < 0 && !pattern.Contains(@"\#", StringComparison.Ordinal);
 			Assert.True(supported, $"CODEOWNERS pattern '{pattern}' uses syntax GitHub does not support (!, [ ], \\#).");
 			Assert.NotEmpty(owners);
-			Assert.All(owners, owner => Assert.Contains(owner, _knownOwners));
+			Assert.All(owners, owner => Assert.Contains(owner, KnownOwners));
 		}
 	}
 

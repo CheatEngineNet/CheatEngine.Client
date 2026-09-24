@@ -28,7 +28,7 @@ public sealed class LockFileTests
 	/// Lock files whose committed text ends with a newline. NuGet writes none; the committed lock files keep whatever
 	/// was committed so a regeneration of an unchanged graph produces no diff.
 	/// </summary>
-	private static readonly HashSet<string> _lockFilesEndingWithNewline = new(StringComparer.Ordinal)
+	private static readonly HashSet<string> LockFilesEndingWithNewline = new(StringComparer.Ordinal)
 	{
 		"libs/CheatEngine.Client.Abstractions/packages.lock.json",
 		"libs/CheatEngine.Client.Core/packages.lock.json",
@@ -226,7 +226,7 @@ public sealed class LockFileTests
 	public void LockFilesKeepTheirCommittedTrailingNewlineState()
 	{
 		List<string> lockFiles = [.. RepositoryRoot.EnumerateSourceFiles(LockFileName)];
-		foreach (string expected in _lockFilesEndingWithNewline)
+		foreach (string expected in LockFilesEndingWithNewline)
 		{
 			Assert.Contains(expected, lockFiles);
 		}
@@ -235,7 +235,7 @@ public sealed class LockFileTests
 		{
 			string text = File.ReadAllText(Path.Combine(RepositoryRoot.Path, lockFile));
 			bool endsWithNewline = text.EndsWith('\n');
-			bool expectedNewline = _lockFilesEndingWithNewline.Contains(lockFile);
+			bool expectedNewline = LockFilesEndingWithNewline.Contains(lockFile);
 			Assert.True(endsWithNewline == expectedNewline,
 				expectedNewline
 					? $"{lockFile} lost its committed final newline; regenerate it with 'dotnet restore <project> --force-evaluate' instead of a plain restore."

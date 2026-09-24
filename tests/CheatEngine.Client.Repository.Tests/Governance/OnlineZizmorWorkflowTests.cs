@@ -11,7 +11,7 @@ public sealed class OnlineZizmorWorkflowTests
 	private const string WorkflowPath = ".github/workflows/zizmor-online.yml";
 	private const string ZizmorAction = "zizmorcore/zizmor-action";
 
-	private static readonly YamlMappingNode _workflow = GovernanceFile.LoadYaml(WorkflowPath);
+	private static readonly YamlMappingNode Workflow = GovernanceFile.LoadYaml(WorkflowPath);
 
 	[Fact]
 	public void OnlineZizmorPinsTheSameVersionAsTheGate()
@@ -33,7 +33,7 @@ public sealed class OnlineZizmorWorkflowTests
 	public void OnlineZizmorRunsOnlineAuditsWithSarif()
 	{
 		YamlMappingNode step = ZizmorStep();
-		YamlMappingNode job = Assert.Single(GovernanceFile.Jobs(_workflow)).Value;
+		YamlMappingNode job = Assert.Single(GovernanceFile.Jobs(Workflow)).Value;
 
 		Assert.Equal("true", GovernanceFile.With(step, "online-audits"));
 		Assert.Equal("true", GovernanceFile.With(step, "advanced-security"));
@@ -45,17 +45,17 @@ public sealed class OnlineZizmorWorkflowTests
 	[Fact]
 	public void OnlineZizmorNeverUploadsFromForks()
 	{
-		YamlMappingNode job = Assert.Single(GovernanceFile.Jobs(_workflow)).Value;
+		YamlMappingNode job = Assert.Single(GovernanceFile.Jobs(Workflow)).Value;
 
 		Assert.Equal(
 			"github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository",
 			GovernanceFile.Condition(job));
-		Assert.False(GovernanceFile.Has(GovernanceFile.Triggers(_workflow), "pull_request_target"));
+		Assert.False(GovernanceFile.Has(GovernanceFile.Triggers(Workflow), "pull_request_target"));
 	}
 
 	private static YamlMappingNode ZizmorStep()
 	{
-		YamlMappingNode job = Assert.Single(GovernanceFile.Jobs(_workflow)).Value;
+		YamlMappingNode job = Assert.Single(GovernanceFile.Jobs(Workflow)).Value;
 		return Assert.Single(GovernanceFile.Steps(job), step => GovernanceFile.ActionName(step) == ZizmorAction);
 	}
 }

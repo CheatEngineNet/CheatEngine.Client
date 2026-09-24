@@ -6,7 +6,7 @@ namespace CheatEngine.Client.Repository.Tests.Packaging;
 public sealed class PackageMetadataTests
 {
 	/// <summary>The seven packable projects, one per shipped package id.</summary>
-	private static readonly string[] _packableProjects =
+	private static readonly string[] PackableProjects =
 	[
 		"libs/CheatEngine.Client.Abstractions/CheatEngine.Client.Abstractions.csproj",
 		"libs/CheatEngine.Client.Core/CheatEngine.Client.Core.csproj",
@@ -22,7 +22,7 @@ public sealed class PackageMetadataTests
 	{
 		Dictionary<string, string> descriptions = new(StringComparer.Ordinal);
 		List<string> offenders = [];
-		foreach (string project in _packableProjects)
+		foreach (string project in PackableProjects)
 		{
 			XElement[] declared = PackageVersioningTests.LoadXml(project).Descendants("Description").ToArray();
 			if (declared.Length != 1 || declared[0].Value.Trim().Length < 40)

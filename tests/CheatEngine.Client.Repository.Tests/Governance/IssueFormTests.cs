@@ -23,7 +23,7 @@ public sealed class IssueFormTests
 	/// options and the load profile) and the Client tuple of shared-contracts §2.5, plus where the problem was observed
 	/// (ch.20 levels C0-C4) and the target.
 	/// </summary>
-	private static readonly string[] _requiredTuple =
+	private static readonly string[] RequiredTuple =
 	[
 		"client-version",
 		"sdk-version",
@@ -43,7 +43,7 @@ public sealed class IssueFormTests
 		"os"
 	];
 
-	private static readonly HashSet<string> _elementTypes = new(StringComparer.Ordinal)
+	private static readonly HashSet<string> ElementTypes = new(StringComparer.Ordinal)
 	{
 		"markdown",
 		"textarea",
@@ -52,10 +52,10 @@ public sealed class IssueFormTests
 		"checkboxes"
 	};
 
-	private static readonly Regex _elementId = new("^[A-Za-z0-9_-]+$", RegexOptions.None, TimeSpan.FromSeconds(1));
+	private static readonly Regex ElementId = new("^[A-Za-z0-9_-]+$", RegexOptions.None, TimeSpan.FromSeconds(1));
 
 	/// <summary>"qualified profile/build/route…", "(qualified", "is/are/was qualified", "host-qualified" (negations pass).</summary>
-	private static readonly Regex _qualifiedClaim = new(
+	private static readonly Regex QualifiedClaim = new(
 		@"\bqualified\s+(profile|build|route|setup|configuration)\b|\(\s*qualified\b|\b(is|are|was)\s+(host-)?qualified\b|(?<!never\s)\bhost-qualified\b",
 		RegexOptions.IgnoreCase,
 		TimeSpan.FromSeconds(1));
@@ -65,7 +65,7 @@ public sealed class IssueFormTests
 	{
 		Dictionary<string, YamlMappingNode> elements = ElementsById(GovernanceFile.LoadYaml(CompatibilityForm));
 		List<string> problems = [];
-		foreach (string id in _requiredTuple)
+		foreach (string id in RequiredTuple)
 		{
 			if (!elements.TryGetValue(id, out YamlMappingNode? element))
 			{
@@ -143,7 +143,7 @@ public sealed class IssueFormTests
 		// profile is only qualifiable until host receipts exist, so a form may target it but never call it qualified.
 		foreach (string form in Directory.EnumerateFiles(GovernanceFile.FullPath(TemplateFolder), "*.yml").Select(RepositoryRoot.ToRelative))
 		{
-			Match claim = _qualifiedClaim.Match(GovernanceFile.ReadText(form));
+			Match claim = QualifiedClaim.Match(GovernanceFile.ReadText(form));
 			Assert.False(claim.Success, $"{form} presents something as qualified ('{claim.Value}'); say 'targeted for qualification'.");
 		}
 	}
@@ -173,7 +173,7 @@ public sealed class IssueFormTests
 		string type = GovernanceFile.Scalar(element, "type") ?? string.Empty;
 		string? id = GovernanceFile.Scalar(element, "id");
 		YamlMappingNode? attributes = GovernanceFile.Mapping(element, "attributes");
-		if (!_elementTypes.Contains(type))
+		if (!ElementTypes.Contains(type))
 		{
 			yield return $"{form}: unknown element type '{type}'";
 		}
@@ -194,7 +194,7 @@ public sealed class IssueFormTests
 			yield break;
 		}
 
-		if (id is null || !_elementId.IsMatch(id) || !ids.Add(id))
+		if (id is null || !ElementId.IsMatch(id) || !ids.Add(id))
 		{
 			yield return $"{form}: element id '{id}' is missing, invalid or duplicated";
 		}

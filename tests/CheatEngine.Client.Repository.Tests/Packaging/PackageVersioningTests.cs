@@ -14,7 +14,7 @@ public sealed partial class PackageVersioningTests
 	private const string TemplateManifest =
 		"templates/CheatEngine.Client.Templates/content/CheatEngine.Plugin/.template.config/template.json";
 
-	private static readonly string[] _roslynPackages = ["Microsoft.CodeAnalysis.CSharp", "Microsoft.CodeAnalysis.Analyzers"];
+	private static readonly string[] RoslynPackages = ["Microsoft.CodeAnalysis.CSharp", "Microsoft.CodeAnalysis.Analyzers"];
 
 	[Fact]
 	public void RoslynPinsEqualTheDeclaredComponentFloor()
@@ -22,7 +22,7 @@ public sealed partial class PackageVersioningTests
 		string floor = BuildProperty("CheatEngineClientRoslynComponentFloor");
 		XDocument generator = LoadXml(GeneratorProject);
 		List<string> offenders = [];
-		foreach (string package in _roslynPackages)
+		foreach (string package in RoslynPackages)
 		{
 			string? pinned = CentralVersion(package);
 			if (pinned != floor)

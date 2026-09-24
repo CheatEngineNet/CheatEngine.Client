@@ -11,7 +11,7 @@
     - the SDK version stamped into the packed ceplugin template;
     - the CHEATENGINECLIENT9016/9017 guards in Directory.Build.targets.
     The reviewed identity of the pinned package (content hash, signed-file hashes, bridge) is hardcoded next to its
-    consumers: tests/CheatEngine.Client.Tests/Packaging/PackagedClientFeedFixture.cs (_pinnedSdkIdentity) and
+    consumers: tests/CheatEngine.Client.Tests/Packaging/PackagedClientFeedFixture.cs (PinnedSdkIdentity) and
     tests/CheatEngine.Client.Repository.Tests/LockFiles/LockFileTests.cs (ConsumedSdkContentHash). Tests keep this
     file, those literals, the lock files and the documentation in agreement.
 

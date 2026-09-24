@@ -14,7 +14,7 @@ public sealed partial class SdkPinTests
 	private const int RegexTimeoutMilliseconds = 1000;
 
 	/// <summary>The only values a CheatEngine.SDK version attribute may take outside the pin file.</summary>
-	private static readonly HashSet<string> _derivedVersionExpressions = new(StringComparer.Ordinal)
+	private static readonly HashSet<string> DerivedVersionExpressions = new(StringComparer.Ordinal)
 	{
 		"$(CheatEngineSdkVersion)",
 		"$(CheatEngineSdkVersionRange)",
@@ -22,14 +22,14 @@ public sealed partial class SdkPinTests
 	};
 
 	/// <summary>Properties that only <c>eng/CheatEngineSdk.props</c> may assign.</summary>
-	private static readonly string[] _pinProperties =
+	private static readonly string[] PinProperties =
 		["CheatEngineSdkVersion", "CheatEngineSdkUpperBound", "CheatEngineSdkVersionRange", "_CheatEngineClientSupportedSdkMajor"];
 
 	/// <summary>
 	/// Files that name the consumed SDK version in prose or in a sample. Each must name it at least once, and only as the
 	/// pin: "CheatEngine.SDK 1.0.0" stays true exactly as long as the pin is 1.0.0.
 	/// </summary>
-	private static readonly string[] _proseLocations =
+	private static readonly string[] ProseLocations =
 	[
 		"README.md",
 		"libs/CheatEngine.Client.Core/Domains/RuntimeClient.cs",
@@ -56,7 +56,7 @@ public sealed partial class SdkPinTests
 			foreach (XElement element in document.Descendants())
 			{
 				string name = element.Name.LocalName;
-				if (Array.IndexOf(_pinProperties, name) >= 0 && element.Parent?.Name.LocalName == "PropertyGroup")
+				if (Array.IndexOf(PinProperties, name) >= 0 && element.Parent?.Name.LocalName == "PropertyGroup")
 				{
 					offenders.Add($"{file}:{LineOf(element)} → assigns {name} (only {SdkPin.PropsPath} may)");
 				}
@@ -76,7 +76,7 @@ public sealed partial class SdkPinTests
 				foreach (string metadata in (string[]) ["Version", "VersionOverride"])
 				{
 					string? value = (string?) element.Attribute(metadata) ?? element.Element(metadata)?.Value;
-					if (value is not null && !_derivedVersionExpressions.Contains(value.Trim()))
+					if (value is not null && !DerivedVersionExpressions.Contains(value.Trim()))
 					{
 						offenders.Add($"{file}:{LineOf(element)} → {metadata}=\"{value}\"");
 					}
@@ -101,7 +101,7 @@ public sealed partial class SdkPinTests
 	public void ProseMentionsOfTheConsumedSdkEqualThePin()
 	{
 		string pin = SdkPin.Version;
-		HashSet<string> files = new(_proseLocations, StringComparer.Ordinal);
+		HashSet<string> files = new(ProseLocations, StringComparer.Ordinal);
 		foreach (string pattern in (string[]) ["*.md", "*.cs"])
 		{
 			foreach (string file in RepositoryRoot.EnumerateSourceFiles(pattern))
@@ -132,9 +132,9 @@ public sealed partial class SdkPinTests
 				}
 			}
 
-			if (mentions == 0 && Array.IndexOf(_proseLocations, file) >= 0)
+			if (mentions == 0 && Array.IndexOf(ProseLocations, file) >= 0)
 			{
-				offenders.Add($"{file} → no longer names the consumed SDK version; remove it from {nameof(_proseLocations)}");
+				offenders.Add($"{file} → no longer names the consumed SDK version; remove it from {nameof(ProseLocations)}");
 			}
 		}
 

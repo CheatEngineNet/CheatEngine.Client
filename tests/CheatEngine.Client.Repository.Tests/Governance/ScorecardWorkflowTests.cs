@@ -16,7 +16,7 @@ public sealed class ScorecardWorkflowTests
 	private const string WorkflowPath = ".github/workflows/scorecard.yml";
 
 	/// <summary>The verifier's action allowlist minus step-security/harden-runner (excluded by decision).</summary>
-	private static readonly HashSet<string> _approvedActions = new(StringComparer.Ordinal)
+	private static readonly HashSet<string> ApprovedActions = new(StringComparer.Ordinal)
 	{
 		"actions/checkout",
 		"actions/create-github-app-token",
@@ -25,14 +25,14 @@ public sealed class ScorecardWorkflowTests
 		"ossf/scorecard-action"
 	};
 
-	private static readonly YamlMappingNode _workflow = GovernanceFile.LoadYaml(WorkflowPath);
+	private static readonly YamlMappingNode Workflow = GovernanceFile.LoadYaml(WorkflowPath);
 
 	[Fact]
 	public void ScorecardHasNoDefaultsOrEnvironmentAtAnyLevel()
 	{
-		Assert.False(GovernanceFile.Has(_workflow, "env"));
-		Assert.False(GovernanceFile.Has(_workflow, "defaults"));
-		foreach (YamlMappingNode job in GovernanceFile.Jobs(_workflow).Values)
+		Assert.False(GovernanceFile.Has(Workflow, "env"));
+		Assert.False(GovernanceFile.Has(Workflow, "defaults"));
+		foreach (YamlMappingNode job in GovernanceFile.Jobs(Workflow).Values)
 		{
 			foreach (string key in new[] { "env", "defaults", "container", "services" })
 			{
@@ -44,14 +44,14 @@ public sealed class ScorecardWorkflowTests
 	[Fact]
 	public void ScorecardStepsOnlyUseApprovedActions()
 	{
-		YamlMappingNode job = Assert.Single(GovernanceFile.Jobs(_workflow)).Value;
+		YamlMappingNode job = Assert.Single(GovernanceFile.Jobs(Workflow)).Value;
 		IReadOnlyList<YamlMappingNode> steps = GovernanceFile.Steps(job);
 
 		Assert.NotEmpty(steps);
 		Assert.All(steps, step =>
 		{
 			Assert.False(GovernanceFile.Has(step, "run"), "The Scorecard verifier rejects run: steps.");
-			Assert.Contains(GovernanceFile.ActionName(step) ?? string.Empty, _approvedActions);
+			Assert.Contains(GovernanceFile.ActionName(step) ?? string.Empty, ApprovedActions);
 		});
 		YamlMappingNode scorecard = GovernanceFile.StepUsing(steps, "ossf/scorecard-action");
 		Assert.Equal("true", GovernanceFile.With(scorecard, "publish_results"));
@@ -60,7 +60,7 @@ public sealed class ScorecardWorkflowTests
 	[Fact]
 	public void ScorecardRunsOnOneSupportedUbuntuLabel()
 	{
-		YamlMappingNode job = Assert.Single(GovernanceFile.Jobs(_workflow)).Value;
+		YamlMappingNode job = Assert.Single(GovernanceFile.Jobs(Workflow)).Value;
 		string label = GovernanceFile.Scalar(job, "runs-on") ?? string.Empty;
 
 		Regex verifierLabel = new(@"^ubuntu-(latest|\d{2}\.\d{2})(-arm)?$", RegexOptions.None, TimeSpan.FromSeconds(1));
@@ -72,17 +72,17 @@ public sealed class ScorecardWorkflowTests
 	[Fact]
 	public void OnlyTheScorecardJobRequestsAnIdToken()
 	{
-		KeyValuePair<string, YamlMappingNode> job = Assert.Single(GovernanceFile.Jobs(_workflow));
+		KeyValuePair<string, YamlMappingNode> job = Assert.Single(GovernanceFile.Jobs(Workflow));
 
 		Assert.Equal("analysis", job.Key);
 		Assert.Equal("write", GovernanceFile.Permissions(job.Value)["id-token"]);
-		Assert.False(GovernanceFile.Permissions(_workflow).ContainsKey("id-token"));
+		Assert.False(GovernanceFile.Permissions(Workflow).ContainsKey("id-token"));
 	}
 
 	[Fact]
 	public void ScorecardHasNoWorkflowLevelWritePermission()
 	{
-		IReadOnlyDictionary<string, string> permissions = GovernanceFile.Permissions(_workflow);
+		IReadOnlyDictionary<string, string> permissions = GovernanceFile.Permissions(Workflow);
 
 		Assert.NotEmpty(permissions);
 		Assert.All(permissions.Values, level => Assert.Equal("read", level));

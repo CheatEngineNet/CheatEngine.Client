@@ -142,7 +142,7 @@ dotnet restore CheatEngine.Client.slnx --locked-mode
 ### Runner labels
 
 Jobs run on `windows-2025` and `ubuntu-24.04`, never on a moving `-latest` label, and Dependabot does not update
-`runs-on`. To move to a new runner image, change the label in every workflow and in `_pinnedRunners` of
+`runs-on`. To move to a new runner image, change the label in every workflow and in `PinnedRunners` of
 `WorkflowContractTests`, in one pull request.
 
 ### Flaky tests

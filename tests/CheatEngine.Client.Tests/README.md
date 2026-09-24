@@ -40,7 +40,7 @@ TRX report keeps. The facts prove that:
 - `SymbolPackagesCarrySourceLinkToTheRepositoryCommit` and `EveryPackageEmbedsAnSpdxSbomDescribingItsOwnIdentity`;
 - `PackedTemplateReferencesTheCoPackedClientAndThePinnedSdk`,
   `PackedTemplateProjectDiffersFromTheRepositoryTemplateOnlyByStampedVersions` and
-  `TemplatePackageInstallsListsAndUninstalls`;
+  `TemplatePackageInstallsListsAndUninstallsAsync`;
 - `IsolatedConsumerResolvesClientPackagesOnlyFromTheLocalFeed`: the Client packages come from the tested directory and
   `CheatEngine.SDK` from nuget.org with the content hash of the reviewed SDK identity hardcoded in
   `PackagedClientFeedFixture` (shared-contracts.md §2.4);
@@ -51,8 +51,8 @@ TRX report keeps. The facts prove that:
 - `IsolatedConsumerDepsJsonRecordsPackagesWithoutWorkspacePaths`: `.deps.json` records the packages, with the SDK
   library carrying the NuGet content hash of the lock (measured, audit A21-02), and no workspace path;
 - `InstantiatedTemplateReferencesTheSdkDirectly` (audit A04-10) and
-  `PackagedClientPluginWithoutDirectSdkReferenceReportsCECLIENT001`;
-- `PluginReferencingSdkTwoReportsCECLIENT017`: a plugin that references a re-versioned `CheatEngine.SDK` 2.x package
+  `PackagedClientPluginWithoutDirectSdkReferenceReportsCECLIENT001Async`;
+- `PluginReferencingSdkTwoReportsCECLIENT017Async`: a plugin that references a re-versioned `CheatEngine.SDK` 2.x package
   directly next to the packed Client fails its build with `CECLIENT017` (and NuGet reports NU1608).
 
 These are package-level results (fixture level C2); a Cheat Engine host run of Q40 is a separate qualification.
@@ -63,19 +63,19 @@ These are package-level results (fixture level C2); a Cheat Engine host run of Q
 `origin` remote of the checkout that packs. CI checks out this repository, so it holds there; a local run in a clone
 whose `origin` is a fork or a local path produces other URLs or none, and fails that fact.
 
-`SdkCanaryRecipeTests.CanaryRecipeBuildsAgainstACandidateSdkButNeverPacks` shares the same fixture and category. It
+`SdkCanaryRecipeTests.CanaryRecipeBuildsAgainstACandidateSdkButNeverPacksAsync` shares the same fixture and category. It
 runs the canary recipe of `eng/CheatEngineSdk.props` (the SDK-side client-canary job, audit Q48) on a throw-away copy of
 `CheatEngine.Client.Abstractions`, against the pinned SDK re-versioned as `2.0.0-alpha.0.42`: the restore rewrites the
 copy's lock file instead of failing (NU1005), `CHEATENGINECLIENT9016` reports without failing the build, and the pack
 is still refused.
 
 `BuildGuardTests` run the repository's MSBuild guard targets against real projects with overridden global properties,
-without restoring or building: `CommittedPinPassesTheSdkGuard`, `SdkMajorTwoPinFailsWithCHEATENGINECLIENT9016`,
-`PrereleaseSdkPinFailsWithCHEATENGINECLIENT9016` and `CanarySwitchKeepsTheBuildRunningButStillBlocksPack` prove that the
+without restoring or building: `CommittedPinPassesTheSdkGuardAsync`, `SdkMajorTwoPinFailsWithCHEATENGINECLIENT9016Async`,
+`PrereleaseSdkPinFailsWithCHEATENGINECLIENT9016Async` and `CanarySwitchKeepsTheBuildRunningButStillBlocksPackAsync` prove that the
 consumed `CheatEngine.SDK` pin cannot move to a 2.x or prerelease package, and that the SDK-side canary build can report
-breakage but never produce a package. `RoslynPinDriftFailsWithCHEATENGINECLIENT9020` proves that the Roslyn pin of the
-packed Lua generator cannot drift from its declared floor, and `LockstepGuardAcceptsMinVerAndRefusesEveryOtherVersionSource`
-that a package version comes from MinVer only (`CHEATENGINECLIENT9019`). `SbomGuardRefusesAPackWithoutTheSbom` proves
+breakage but never produce a package. `RoslynPinDriftFailsWithCHEATENGINECLIENT9020Async` proves that the Roslyn pin of the
+packed Lua generator cannot drift from its declared floor, and `LockstepGuardAcceptsMinVerAndRefusesEveryOtherVersionSourceAsync`
+that a package version comes from MinVer only (`CHEATENGINECLIENT9019`). `SbomGuardRefusesAPackWithoutTheSbomAsync` proves
 that a package cannot be packed without its SPDX SBOM (`CHEATENGINECLIENT9021`).
 
 Two metadata suites read the built Client assemblies with `System.Reflection.Metadata`. `Architecture/` is the

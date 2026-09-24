@@ -17,7 +17,7 @@ internal sealed class UnavailableValueScanner : IValueScanner
 	// only through MemoryScanSession.Adopt(Owned<MemScan>, Owned<FoundList>), while Owned<T> has an internal
 	// constructor and the Lua-global generator cannot marshal CEObject results.  Bypassing that with reflection or a
 	// hand-rolled destroy owner would make an unverified CE ownership assumption part of the Client contract.
-	private const string _ownershipGateMessage =
+	private const string OwnershipGateMessage =
 		"Value scans are disabled: CheatEngine.SDK 1.0.0 has no public ownership factory for createMemScan or " +
 		"createFoundList, and its generated Lua globals cannot return CEObject handles. Enablement requires the " +
 		"Cheat Engine 7.7 ownership and reactivation live gate.";
@@ -44,7 +44,7 @@ internal sealed class UnavailableValueScanner : IValueScanner
 		_lifetime?.Diagnostics.CapabilityRefused(ClientCapabilityId.ValueScanning.Value, "Scans.CreateSession",
 			ClientCapabilityEvidenceReasonCode.Implementation, ClientCapabilityEvidenceState.Missing);
 		failure = new CheatEngineFailure(CheatEngineFailureKind.CapabilityUnavailable, "Scans.CreateSession",
-			_ownershipGateMessage);
+			OwnershipGateMessage);
 		return false;
 	}
 

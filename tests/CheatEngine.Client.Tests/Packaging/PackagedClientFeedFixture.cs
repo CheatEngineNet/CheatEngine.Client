@@ -106,7 +106,7 @@ public sealed class PackagedClientFeedFixture : IAsyncLifetime
 	/// that used to keep such a file current was removed, and the Client's SDK pin (eng/CheatEngineSdk.props) does not
 	/// move without updating these literals in the same change.
 	/// </summary>
-	private static readonly JsonDocument _pinnedSdkIdentity = JsonDocument.Parse("""
+	private static readonly JsonDocument PinnedSdkIdentity = JsonDocument.Parse("""
 		{
 		  "version": "1.0.0",
 		  "contentHashSha512": "n7nHqZ8vzo7Vf20jF0fkh/jUtR3yo1TwRGpXE7ERxZeJ4C5S/Nsft4lqOg7zGwfsD5Nh9tTVgdw4PrybJRF0gA==",
@@ -243,7 +243,7 @@ public sealed class PackagedClientFeedFixture : IAsyncLifetime
 		get
 		{
 			Assert.True(_hasConsumedSdkIdentity, "The reviewed SDK identity applies only when the consumers use the pinned SDK.");
-			return _pinnedSdkIdentity.RootElement;
+			return PinnedSdkIdentity.RootElement;
 		}
 	}
 
@@ -509,7 +509,7 @@ public sealed class PackagedClientFeedFixture : IAsyncLifetime
 
 		XDocument pin = XDocument.Load(RepositoryLayout.Combine("eng/CheatEngineSdk.props"));
 		SdkVersion = Assert.Single(pin.Descendants("CheatEngineSdkVersion")).Value.Trim();
-		Assert.Equal(_pinnedSdkIdentity.RootElement.GetProperty("version").GetString(), SdkVersion);
+		Assert.Equal(PinnedSdkIdentity.RootElement.GetProperty("version").GetString(), SdkVersion);
 		_hasConsumedSdkIdentity = true;
 		return null;
 	}

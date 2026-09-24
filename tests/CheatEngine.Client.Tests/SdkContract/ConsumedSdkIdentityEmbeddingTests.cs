@@ -54,7 +54,7 @@ public sealed partial class ConsumedSdkIdentityEmbeddingTests
 
 	[Fact]
 	[Trait("Qualification", "Q48")]
-	public async Task CommittedLockAndRestoredPackagePassTheConsumedSdkIdentityGuard()
+	public async Task CommittedLockAndRestoredPackagePassTheConsumedSdkIdentityGuardAsync()
 	{
 		DotNetProcessResult result = await RunGuardAsync();
 
@@ -64,7 +64,7 @@ public sealed partial class ConsumedSdkIdentityEmbeddingTests
 
 	[Fact]
 	[Trait("Qualification", "Q48")]
-	public async Task BuildThatCannotEmbedTheConsumedSdkIdentityFailsWithCHEATENGINECLIENT9050()
+	public async Task BuildThatCannotEmbedTheConsumedSdkIdentityFailsWithCHEATENGINECLIENT9050Async()
 	{
 		using TemporaryDirectory emptyPackageRoot = new("empty-package-root");
 
@@ -83,7 +83,7 @@ public sealed partial class ConsumedSdkIdentityEmbeddingTests
 
 	[Fact]
 	[Trait("Qualification", "Q48")]
-	public async Task CanaryBuildEmbedsNoConsumedSdkIdentityAndIsNotRefused()
+	public async Task CanaryBuildEmbedsNoConsumedSdkIdentityAndIsNotRefusedAsync()
 	{
 		using TemporaryDirectory emptyPackageRoot = new("empty-package-root");
 

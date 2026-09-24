@@ -17,12 +17,12 @@ public sealed class CodeQlWorkflowTests
 	private const string AnalyzeAction = "github/codeql-action/analyze";
 	private const string SetupAction = "./.github/actions/setup-dotnet";
 
-	private static readonly YamlMappingNode _workflow = GovernanceFile.LoadYaml(WorkflowPath);
+	private static readonly YamlMappingNode Workflow = GovernanceFile.LoadYaml(WorkflowPath);
 
 	[Fact]
 	public void CSharpIsAnalysedWithAManualBuildOfTheShippedProductGraph()
 	{
-		YamlMappingNode job = GovernanceFile.Jobs(_workflow)["csharp"];
+		YamlMappingNode job = GovernanceFile.Jobs(Workflow)["csharp"];
 		IReadOnlyList<YamlMappingNode> steps = GovernanceFile.Steps(job);
 		int init = GovernanceFile.IndexOfAction(steps, InitAction);
 		int build = GovernanceFile.IndexOfRun(steps, "dotnet build");
@@ -76,12 +76,12 @@ public sealed class CodeQlWorkflowTests
 	[Fact]
 	public void CodeQlNeverUsesADependencyCache()
 	{
-		IReadOnlyList<YamlMappingNode> steps = GovernanceFile.Steps(GovernanceFile.Jobs(_workflow)["csharp"]);
+		IReadOnlyList<YamlMappingNode> steps = GovernanceFile.Steps(GovernanceFile.Jobs(Workflow)["csharp"]);
 		YamlMappingNode init = GovernanceFile.StepUsing(steps, InitAction);
 
 		Assert.Equal("false", GovernanceFile.With(init, "dependency-caching"));
 		Assert.Equal("false", GovernanceFile.With(init, "trap-caching"));
-		foreach (YamlMappingNode step in GovernanceFile.Jobs(_workflow).Values.SelectMany(GovernanceFile.Steps))
+		foreach (YamlMappingNode step in GovernanceFile.Jobs(Workflow).Values.SelectMany(GovernanceFile.Steps))
 		{
 			string action = GovernanceFile.ActionName(step) ?? "";
 			Assert.False(action.StartsWith("actions/cache", StringComparison.Ordinal), "CodeQL must not use actions/cache.");
@@ -92,7 +92,7 @@ public sealed class CodeQlWorkflowTests
 	[Fact]
 	public void CodeQlAnalysesExactlyCSharpAndActions()
 	{
-		IReadOnlyDictionary<string, YamlMappingNode> jobs = GovernanceFile.Jobs(_workflow);
+		IReadOnlyDictionary<string, YamlMappingNode> jobs = GovernanceFile.Jobs(Workflow);
 		List<string> languages = [];
 		List<string> categories = [];
 		foreach (YamlMappingNode job in jobs.Values)
@@ -108,18 +108,18 @@ public sealed class CodeQlWorkflowTests
 		Assert.Equal(["actions", "csharp"], languages.Order(StringComparer.Ordinal));
 		Assert.Equal(["/language:actions", "/language:csharp"], categories.Order(StringComparer.Ordinal));
 		Assert.Equal("none", GovernanceFile.With(actionsInit, "build-mode"));
-		Assert.Equal(new Dictionary<string, string> { ["contents"] = "read" }, GovernanceFile.Permissions(_workflow));
+		Assert.Equal(new Dictionary<string, string> { ["contents"] = "read" }, GovernanceFile.Permissions(Workflow));
 	}
 
 	[Fact]
 	public void CodeQlHasNoMergeGroupTrigger()
 	{
-		YamlMappingNode triggers = GovernanceFile.Triggers(_workflow);
+		YamlMappingNode triggers = GovernanceFile.Triggers(Workflow);
 
 		Assert.False(GovernanceFile.Has(triggers, "merge_group"));
 		Assert.False(GovernanceFile.Has(triggers, "pull_request_target"));
 		Assert.True(GovernanceFile.Has(triggers, "pull_request"));
-		Assert.Equal(["main"], GovernanceFile.PushBranches(_workflow));
+		Assert.Equal(["main"], GovernanceFile.PushBranches(Workflow));
 		Assert.NotNull(GovernanceFile.Sequence(triggers, "schedule"));
 	}
 

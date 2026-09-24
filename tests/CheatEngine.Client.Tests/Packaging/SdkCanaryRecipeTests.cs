@@ -20,7 +20,7 @@ public sealed class SdkCanaryRecipeTests(PackagedClientFeedFixture fixture)
 	private const string LockFile = LibraryFolder + "/packages.lock.json";
 
 	[Fact]
-	public async Task CanaryRecipeBuildsAgainstACandidateSdkButNeverPacks()
+	public async Task CanaryRecipeBuildsAgainstACandidateSdkButNeverPacksAsync()
 	{
 		string feed = fixture.CreateDirectory("canary-sdk-feed");
 		fixture.CreateReversionedSdkPackage(feed, CandidateVersion);
@@ -50,7 +50,7 @@ public sealed class SdkCanaryRecipeTests(PackagedClientFeedFixture fixture)
 		Assert.True(pack.ExitCode != 0, pack.ToString());
 		Assert.Contains("error CHEATENGINECLIENT9016", pack.StandardOutput, StringComparison.Ordinal);
 		Assert.Empty(Directory.GetFiles(checkout, "*.nupkg", SearchOption.AllDirectories));
-		PackagedClientFeedFixture.Evidence(nameof(CanaryRecipeBuildsAgainstACandidateSdkButNeverPacks),
+		PackagedClientFeedFixture.Evidence(nameof(CanaryRecipeBuildsAgainstACandidateSdkButNeverPacksAsync),
 			$"candidate={CandidateVersion} project={LibraryProject} build=0 (9016 reported, copy's lock rewritten) pack=refused (9016)");
 	}
 

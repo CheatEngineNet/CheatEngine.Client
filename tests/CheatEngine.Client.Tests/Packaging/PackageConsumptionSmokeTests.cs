@@ -26,10 +26,10 @@ public sealed partial class PackageConsumptionSmokeTests(PackagedClientFeedFixtu
 	private const string TemplateProjectEntry = "content/CheatEngine.Plugin/CheatEngine.Plugin.csproj";
 	private const string GeneratorEntry = "analyzers/dotnet/cs/CheatEngine.Client.SourceGenerators.Lua.dll";
 	private const int RegexTimeoutMilliseconds = 1000;
-	private static readonly Guid _sourceLinkKind = new("CC110556-A091-4D38-9FEC-25AB9A351A6A");
+	private static readonly Guid SourceLinkKind = new("CC110556-A091-4D38-9FEC-25AB9A351A6A");
 
 	/// <summary>The observed <c>exclude</c> attribute of each direct CheatEngine.SDK dependency, frozen.</summary>
-	private static readonly Dictionary<string, string> _sdkDependencyExclude = new(StringComparer.Ordinal)
+	private static readonly Dictionary<string, string> SdkDependencyExclude = new(StringComparer.Ordinal)
 	{
 		["CheatEngine.Client.Abstractions"] = "Build,Native,Analyzers,BuildTransitive",
 		["CheatEngine.Client.Core"] = "Build,Analyzers",
@@ -83,7 +83,7 @@ public sealed partial class PackageConsumptionSmokeTests(PackagedClientFeedFixtu
 		foreach (string id in PackagedClientFeedFixture.PackageIds)
 		{
 			PackageDependency[] sdk = fixture.Package(id).Dependencies.Where(static dependency => dependency.Id == PackagedClientFeedFixture.SdkPackageId).ToArray();
-			if (!_sdkDependencyExclude.TryGetValue(id, out string? exclude))
+			if (!SdkDependencyExclude.TryGetValue(id, out string? exclude))
 			{
 				Assert.True(sdk.Length == 0, $"{id} must not depend on {PackagedClientFeedFixture.SdkPackageId} directly.");
 				continue;
@@ -219,7 +219,7 @@ public sealed partial class PackageConsumptionSmokeTests(PackagedClientFeedFixtu
 				foreach (CustomDebugInformationHandle handle in reader.GetCustomDebugInformation(EntityHandle.ModuleDefinition))
 				{
 					CustomDebugInformation information = reader.GetCustomDebugInformation(handle);
-					if (reader.GetGuid(information.Kind) == _sourceLinkKind)
+					if (reader.GetGuid(information.Kind) == SourceLinkKind)
 					{
 						sourceLink = Encoding.UTF8.GetString(reader.GetBlobBytes(information.Value));
 					}
@@ -293,7 +293,7 @@ public sealed partial class PackageConsumptionSmokeTests(PackagedClientFeedFixtu
 	}
 
 	[Fact]
-	public async Task TemplatePackageInstallsListsAndUninstalls()
+	public async Task TemplatePackageInstallsListsAndUninstallsAsync()
 	{
 		fixture.RequirePackages();
 		string home = fixture.CreateDirectory("template-lifecycle");
@@ -451,7 +451,7 @@ public sealed partial class PackageConsumptionSmokeTests(PackagedClientFeedFixtu
 	}
 
 	[Fact]
-	public async Task PackagedClientAndTemplateCanBeInstalledInstantiatedAndBuiltInIsolatedDirectories()
+	public async Task PackagedClientAndTemplateCanBeInstalledInstantiatedAndBuiltInIsolatedDirectoriesAsync()
 	{
 		fixture.RequireConsumer();
 		fixture.RequireTemplate();
@@ -463,12 +463,12 @@ public sealed partial class PackageConsumptionSmokeTests(PackagedClientFeedFixtu
 		string text = await File.ReadAllTextAsync(generatedEntryPoint, TestContext.Current.CancellationToken);
 		Assert.Contains("namespace CESDK", text, StringComparison.Ordinal);
 		Assert.Contains("CEPluginInitialize", text, StringComparison.Ordinal);
-		PackagedClientFeedFixture.Evidence(nameof(PackagedClientAndTemplateCanBeInstalledInstantiatedAndBuiltInIsolatedDirectories),
+		PackagedClientFeedFixture.Evidence(nameof(PackagedClientAndTemplateCanBeInstalledInstantiatedAndBuiltInIsolatedDirectoriesAsync),
 			$"source={fixture.SourceKind} client={fixture.ClientVersion} sdk={fixture.SdkVersion}");
 	}
 
 	[Fact]
-	public async Task PackagedClientPluginWithoutDirectSdkReferenceReportsCECLIENT001()
+	public async Task PackagedClientPluginWithoutDirectSdkReferenceReportsCECLIENT001Async()
 	{
 		fixture.RequirePackages();
 		string consumer = fixture.CreateDirectory("missing-sdk-package-consumer");
@@ -487,7 +487,7 @@ public sealed partial class PackageConsumptionSmokeTests(PackagedClientFeedFixtu
 	}
 
 	[Fact]
-	public async Task PluginReferencingSdkTwoReportsCECLIENT017()
+	public async Task PluginReferencingSdkTwoReportsCECLIENT017Async()
 	{
 		fixture.RequireConsumer();
 		Assert.True(fixture.UsesPinnedSdk, $"This fact re-versions the pinned SDK; unset {PackagedClientFeedFixture.SdkPackageSourceVariable}.");
@@ -520,7 +520,7 @@ public sealed partial class PackageConsumptionSmokeTests(PackagedClientFeedFixtu
 			Assert.Contains("error CECLIENT017", refused.StandardOutput, StringComparison.Ordinal);
 			Assert.True(allowed.ExitCode == 0, allowed.ToString());
 			Assert.Contains("warning CECLIENT017", allowed.StandardOutput, StringComparison.Ordinal);
-			PackagedClientFeedFixture.Evidence(nameof(PluginReferencingSdkTwoReportsCECLIENT017),
+			PackagedClientFeedFixture.Evidence(nameof(PluginReferencingSdkTwoReportsCECLIENT017Async),
 				$"sdk={version} nu1608={nuGetWarns} build=CECLIENT017 error; opt-out=CECLIENT017 warning");
 		}
 	}

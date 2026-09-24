@@ -13,7 +13,7 @@ internal static class SdkPin
 	/// <summary>The SDK package id.</summary>
 	internal const string PackageId = "CheatEngine.SDK";
 
-	private static readonly Lazy<XDocument> _props = new(() => XDocument.Load(Path.Combine(RepositoryRoot.Path, PropsPath)));
+	private static readonly Lazy<XDocument> Props = new(() => XDocument.Load(Path.Combine(RepositoryRoot.Path, PropsPath)));
 
 	/// <summary><c>CheatEngineSdkVersion</c>.</summary>
 	internal static string Version => Property("CheatEngineSdkVersion");
@@ -35,7 +35,7 @@ internal static class SdkPin
 
 	private static string Property(string name)
 	{
-		XElement[] elements = _props.Value.Descendants(name).ToArray();
+		XElement[] elements = Props.Value.Descendants(name).ToArray();
 		Assert.True(elements.Length == 1, $"{PropsPath} must define {name} exactly once, but defines it {elements.Length} times.");
 		return elements[0].Value.Trim();
 	}

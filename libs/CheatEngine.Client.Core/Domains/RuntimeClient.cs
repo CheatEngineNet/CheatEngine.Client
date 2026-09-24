@@ -27,7 +27,7 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 	internal const string ValueScanningPackageReason =
 		"CheatEngine.SDK 1.0.0 does not provide the public MemScan and FoundList ownership factory required by Client.";
 
-	private const string _snapshotOperation = "Runtime.GetSnapshot";
+	private const string SnapshotOperation = "Runtime.GetSnapshot";
 
 	private readonly Version _clientAssemblyVersion;
 	private readonly ICoreDiagnostics _diagnostics;
@@ -106,7 +106,7 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 		// Runtime probes are read-only (Q45). ProbeClassifier turns every SDK Engine or Lua exception into evidence; any
 		// other SDK fault (for example a detached runtime) is returned as a failure, never thrown across this Try method.
 		CheatEngineRuntimeSnapshot captured = default;
-		if (!SdkBoundary.TryInvoke(_dispatcher, _snapshotOperation, () => captured = Capture(),
+		if (!SdkBoundary.TryInvoke(_dispatcher, SnapshotOperation, () => captured = Capture(),
 				CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
 		{
 			snapshot = default;

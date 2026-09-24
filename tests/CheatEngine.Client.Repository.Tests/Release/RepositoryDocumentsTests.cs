@@ -5,7 +5,7 @@ namespace CheatEngine.Client.Repository.Tests.Release;
 /// <summary>The files a published repository needs exist and agree with the package metadata.</summary>
 public sealed class RepositoryDocumentsTests
 {
-	private static readonly string[] _releaseCategories = ["Added", "Changed", "Security", "Deployment"];
+	private static readonly string[] ReleaseCategories = ["Added", "Changed", "Security", "Deployment"];
 
 	[Fact]
 	public void LicenseIsMitAndMatchesThePackageLicenseExpression()
@@ -36,8 +36,8 @@ public sealed class RepositoryDocumentsTests
 			}
 		}
 
-		Assert.True(categories.SequenceEqual(_releaseCategories),
-			$"The [Unreleased] section must list exactly {string.Join(", ", _releaseCategories)} in that order (audit A21-17), but lists: {string.Join(", ", categories)}.");
+		Assert.True(categories.SequenceEqual(ReleaseCategories),
+			$"The [Unreleased] section must list exactly {string.Join(", ", ReleaseCategories)} in that order (audit A21-17), but lists: {string.Join(", ", categories)}.");
 	}
 
 	[Fact]

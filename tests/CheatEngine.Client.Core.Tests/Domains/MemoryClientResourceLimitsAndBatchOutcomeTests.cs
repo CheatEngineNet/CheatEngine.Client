@@ -17,7 +17,7 @@ namespace CheatEngine.Client.Core.Tests.Domains;
 /// </summary>
 public sealed class MemoryClientResourceLimitsAndBatchOutcomeTests
 {
-	private static readonly Address _address = new(0x700000);
+	private static readonly Address TestAddress = new(0x700000);
 
 	[Fact]
 	public void EveryDirectBudgetRejectsWorkBeforeDispatcherAdmission()
@@ -25,28 +25,28 @@ public sealed class MemoryClientResourceLimitsAndBatchOutcomeTests
 		CountingDispatcher dispatcher = new();
 		MemoryClient byteClient = CreateClient(dispatcher, new MemoryResourceLimits(1, 1, 1, 64, 2));
 
-		Assert.False(byteClient.TryReadBytes(new MemoryBytesReadRequest(_address, 2), out ImmutableArray<byte> bytes,
+		Assert.False(byteClient.TryReadBytes(new MemoryBytesReadRequest(TestAddress, 2), out ImmutableArray<byte> bytes,
 			out CheatEngineFailure readFailure, TestContext.Current.CancellationToken));
 		Assert.Empty(bytes);
 		Assert.Equal(CheatEngineFailureKind.OperationRejected, readFailure.Kind);
-		Assert.False(byteClient.TryWriteBytes(new MemoryBytesWriteRequest(_address, [1, 2]),
+		Assert.False(byteClient.TryWriteBytes(new MemoryBytesWriteRequest(TestAddress, [1, 2]),
 			out CheatEngineFailure writeFailure, TestContext.Current.CancellationToken));
 		Assert.Equal(CheatEngineFailureKind.OperationRejected, writeFailure.Kind);
-		Assert.False(byteClient.TryReadString(new MemoryStringReadRequest(_address, 1, true), out string? text,
+		Assert.False(byteClient.TryReadString(new MemoryStringReadRequest(TestAddress, 1, true), out string? text,
 			out CheatEngineFailure stringReadFailure, TestContext.Current.CancellationToken));
 		Assert.Null(text);
 		Assert.Equal(CheatEngineFailureKind.OperationRejected, stringReadFailure.Kind);
-		Assert.False(byteClient.TryWriteString(new MemoryStringWriteRequest(_address, "A", true),
+		Assert.False(byteClient.TryWriteString(new MemoryStringWriteRequest(TestAddress, "A", true),
 			out CheatEngineFailure stringWriteFailure, TestContext.Current.CancellationToken));
 		Assert.Equal(CheatEngineFailureKind.OperationRejected, stringWriteFailure.Kind);
 		Assert.Equal(0, dispatcher.InvocationCount);
 
 		MemoryClient countClient = CreateClient(dispatcher, new MemoryResourceLimits(4, 4, 4, 64, 1));
 		MemoryPrimitiveBatchReadOutcome<int> countOutcome = countClient.ReadPrimitiveBatchDetailed(
-			new MemoryPrimitiveBatchReadRequest<int>([_address, _address + 4]), TestContext.Current.CancellationToken);
+			new MemoryPrimitiveBatchReadRequest<int>([TestAddress, TestAddress + 4]), TestContext.Current.CancellationToken);
 		Assert.Equal(MemoryBatchWriteEffectState.NotStarted, countClient.WritePrimitiveBatchDetailed(
 			new MemoryPrimitiveBatchWriteRequest<int>([
-				new MemoryAddressValue<int>(_address, 1), new MemoryAddressValue<int>(_address + 4, 2)
+				new MemoryAddressValue<int>(TestAddress, 1), new MemoryAddressValue<int>(TestAddress + 4, 2)
 			]),
 			TestContext.Current.CancellationToken).EffectState);
 		Assert.Equal(0, countOutcome.CompletedCount);
@@ -56,10 +56,10 @@ public sealed class MemoryClientResourceLimitsAndBatchOutcomeTests
 
 		MemoryClient payloadClient = CreateClient(dispatcher, new MemoryResourceLimits(8, 8, 8, sizeof(int), 2));
 		MemoryPrimitiveBatchReadOutcome<int> payloadOutcome = payloadClient.ReadPrimitiveBatchDetailed(
-			new MemoryPrimitiveBatchReadRequest<int>([_address, _address + 4]), TestContext.Current.CancellationToken);
+			new MemoryPrimitiveBatchReadRequest<int>([TestAddress, TestAddress + 4]), TestContext.Current.CancellationToken);
 		MemoryPrimitiveBatchWriteOutcome payloadWriteOutcome = payloadClient.WritePrimitiveBatchDetailed(
 			new MemoryPrimitiveBatchWriteRequest<int>([
-				new MemoryAddressValue<int>(_address, 1), new MemoryAddressValue<int>(_address + 4, 2)
+				new MemoryAddressValue<int>(TestAddress, 1), new MemoryAddressValue<int>(TestAddress + 4, 2)
 			]),
 			TestContext.Current.CancellationToken);
 		Assert.Equal(0, payloadOutcome.CompletedCount);
@@ -76,9 +76,9 @@ public sealed class MemoryClientResourceLimitsAndBatchOutcomeTests
 		RejectingDispatcher dispatcher = new(dispatchFailure);
 		MemoryClient client = CreateClient(dispatcher, new MemoryResourceLimits(2, 1, 32, 32, 2));
 
-		Assert.False(client.TryReadBytes(new MemoryBytesReadRequest(_address, 2), out _,
+		Assert.False(client.TryReadBytes(new MemoryBytesReadRequest(TestAddress, 2), out _,
 			out CheatEngineFailure readFailure, TestContext.Current.CancellationToken));
-		Assert.False(client.TryWriteBytes(new MemoryBytesWriteRequest(_address, [1, 2]),
+		Assert.False(client.TryWriteBytes(new MemoryBytesWriteRequest(TestAddress, [1, 2]),
 			out CheatEngineFailure writeFailure, TestContext.Current.CancellationToken));
 
 		Assert.Equal(dispatchFailure, readFailure);
@@ -95,7 +95,7 @@ public sealed class MemoryClientResourceLimitsAndBatchOutcomeTests
 		MemoryClient client = CreateClient(dispatcher, new MemoryResourceLimits(32, 32, 32, 4, 2));
 
 		MemoryPrimitiveBatchWriteOutcome outcome = client.WritePrimitiveBatchDetailed(
-			new MemoryPrimitiveBatchWriteRequest<long>([new MemoryAddressValue<long>(_address, 10L)]),
+			new MemoryPrimitiveBatchWriteRequest<long>([new MemoryAddressValue<long>(TestAddress, 10L)]),
 			TestContext.Current.CancellationToken);
 
 		Assert.False(outcome.Succeeded);
@@ -111,20 +111,20 @@ public sealed class MemoryClientResourceLimitsAndBatchOutcomeTests
 	{
 		CheatEngineFailure expected = new(CheatEngineFailureKind.InvalidState, "Test.Dispatcher", "Rejected.");
 		MemoryClient client = CreateClient(new RejectingDispatcher(expected), new MemoryResourceLimits(2, 2, 2, 8, 2));
-		MemoryPrimitiveBatchReadRequest<int> reads = new([_address, _address + 4]);
+		MemoryPrimitiveBatchReadRequest<int> reads = new([TestAddress, TestAddress + 4]);
 		MemoryPrimitiveBatchWriteRequest<int> writes = new([
-			new MemoryAddressValue<int>(_address, 1), new MemoryAddressValue<int>(_address + 4, 2)
+			new MemoryAddressValue<int>(TestAddress, 1), new MemoryAddressValue<int>(TestAddress + 4, 2)
 		]);
 
-		Assert.False(client.TryReadBytes(new MemoryBytesReadRequest(_address, 2), out _,
+		Assert.False(client.TryReadBytes(new MemoryBytesReadRequest(TestAddress, 2), out _,
 			out CheatEngineFailure byteReadFailure,
 			TestContext.Current.CancellationToken));
-		Assert.False(client.TryWriteBytes(new MemoryBytesWriteRequest(_address, [1, 2]),
+		Assert.False(client.TryWriteBytes(new MemoryBytesWriteRequest(TestAddress, [1, 2]),
 			out CheatEngineFailure byteWriteFailure,
 			TestContext.Current.CancellationToken));
-		Assert.False(client.TryReadString(new MemoryStringReadRequest(_address, 1, true), out _,
+		Assert.False(client.TryReadString(new MemoryStringReadRequest(TestAddress, 1, true), out _,
 			out CheatEngineFailure stringReadFailure, TestContext.Current.CancellationToken));
-		Assert.False(client.TryWriteString(new MemoryStringWriteRequest(_address, "A", true),
+		Assert.False(client.TryWriteString(new MemoryStringWriteRequest(TestAddress, "A", true),
 			out CheatEngineFailure stringWriteFailure, TestContext.Current.CancellationToken));
 
 		Assert.Equal(expected, byteReadFailure);
@@ -148,7 +148,7 @@ public sealed class MemoryClientResourceLimitsAndBatchOutcomeTests
 		};
 		MemoryClient client = CreateClient(new CountingDispatcher(), new MemoryResourceLimits(32, 32, 32, 32, 3), port);
 		MemoryPrimitiveBatchReadOutcome<int> outcome = client.ReadPrimitiveBatchDetailed(
-			new MemoryPrimitiveBatchReadRequest<int>([_address, _address + 4, _address + 8]),
+			new MemoryPrimitiveBatchReadRequest<int>([TestAddress, TestAddress + 4, TestAddress + 8]),
 			TestContext.Current.CancellationToken);
 
 		Assert.False(outcome.Succeeded);
@@ -175,8 +175,8 @@ public sealed class MemoryClientResourceLimitsAndBatchOutcomeTests
 		MemoryClient client = CreateClient(new CountingDispatcher(), new MemoryResourceLimits(32, 32, 32, 32, 3), port);
 		MemoryPrimitiveBatchWriteOutcome outcome = client.WritePrimitiveBatchDetailed(
 			new MemoryPrimitiveBatchWriteRequest<int>([
-				new MemoryAddressValue<int>(_address, 10), new MemoryAddressValue<int>(_address + 4, 20),
-				new MemoryAddressValue<int>(_address + 8, 30)
+				new MemoryAddressValue<int>(TestAddress, 10), new MemoryAddressValue<int>(TestAddress + 4, 20),
+				new MemoryAddressValue<int>(TestAddress + 8, 30)
 			]),
 			TestContext.Current.CancellationToken);
 
@@ -200,7 +200,7 @@ public sealed class MemoryClientResourceLimitsAndBatchOutcomeTests
 			successfulPort);
 		MemoryPrimitiveBatchWriteOutcome success = successfulClient.WritePrimitiveBatchDetailed(
 			new MemoryPrimitiveBatchWriteRequest<int>([
-				new MemoryAddressValue<int>(_address, 10), new MemoryAddressValue<int>(_address + 4, 20)
+				new MemoryAddressValue<int>(TestAddress, 10), new MemoryAddressValue<int>(TestAddress + 4, 20)
 			]),
 			TestContext.Current.CancellationToken);
 
@@ -219,9 +219,9 @@ public sealed class MemoryClientResourceLimitsAndBatchOutcomeTests
 		};
 		MemoryClient failedClient = CreateClient(new CountingDispatcher(), new MemoryResourceLimits(32, 32, 32, 32, 3),
 			failedPort);
-		MemoryPrimitiveBatchReadRequest<int> reads = new([_address, _address + 4]);
+		MemoryPrimitiveBatchReadRequest<int> reads = new([TestAddress, TestAddress + 4]);
 		MemoryPrimitiveBatchWriteRequest<int> writes = new([
-			new MemoryAddressValue<int>(_address, 10), new MemoryAddressValue<int>(_address + 4, 20)
+			new MemoryAddressValue<int>(TestAddress, 10), new MemoryAddressValue<int>(TestAddress + 4, 20)
 		]);
 
 		Assert.False(failedClient.TryReadPrimitiveBatch(reads, out ImmutableArray<int> values,
@@ -242,7 +242,7 @@ public sealed class MemoryClientResourceLimitsAndBatchOutcomeTests
 			CreateClient(new RejectingDispatcher(expected), new MemoryResourceLimits(32, 32, 32, 32, 3));
 
 		MemoryPrimitiveBatchWriteOutcome outcome = client.WritePrimitiveBatchDetailed(
-			new MemoryPrimitiveBatchWriteRequest<int>([new MemoryAddressValue<int>(_address, 10)]),
+			new MemoryPrimitiveBatchWriteRequest<int>([new MemoryAddressValue<int>(TestAddress, 10)]),
 			TestContext.Current.CancellationToken);
 
 		Assert.False(outcome.Succeeded);
@@ -261,11 +261,11 @@ public sealed class MemoryClientResourceLimitsAndBatchOutcomeTests
 		configured.MaximumBatchOperationCount = 1;
 
 		MemoryPrimitiveBatchReadOutcome<int> outcome = client.ReadPrimitiveBatchDetailed(
-			new MemoryPrimitiveBatchReadRequest<int>([_address, _address + 4]), TestContext.Current.CancellationToken);
+			new MemoryPrimitiveBatchReadRequest<int>([TestAddress, TestAddress + 4]), TestContext.Current.CancellationToken);
 		Assert.True(outcome.Succeeded);
 		Assert.Equal(2, outcome.CompletedCount);
 		Assert.Throws<InvalidOperationException>(() => client.TryRead(
-			new MemoryReadRequest<int>(_address, new ThrowingCodec()),
+			new MemoryReadRequest<int>(TestAddress, new ThrowingCodec()),
 			out _, out _, TestContext.Current.CancellationToken));
 	}
 
@@ -275,7 +275,7 @@ public sealed class MemoryClientResourceLimitsAndBatchOutcomeTests
 		BatchPort defaultPort = new();
 		MemoryClient defaultClient = CreateClient(new CountingDispatcher(), new MemoryResourceLimits(), defaultPort);
 		MemoryPrimitiveBatchReadOutcome<int> defaultOutcome = defaultClient.ReadPrimitiveBatchDetailed(
-			new MemoryPrimitiveBatchReadRequest<int>([_address, _address + 4]), TestContext.Current.CancellationToken);
+			new MemoryPrimitiveBatchReadRequest<int>([TestAddress, TestAddress + 4]), TestContext.Current.CancellationToken);
 
 		Assert.True(defaultOutcome.Succeeded);
 		Assert.Equal([100, 101], defaultOutcome.ReadPrefix);
@@ -284,7 +284,7 @@ public sealed class MemoryClientResourceLimitsAndBatchOutcomeTests
 		MemoryClient constrainedClient = CreateClient(new CountingDispatcher(),
 			new MemoryResourceLimits(1, 1, 32, 32, 2),
 			constrainedPort);
-		bool succeeded = constrainedClient.TryRead(new MemoryReadRequest<int>(_address, new OversizedReadCodec()),
+		bool succeeded = constrainedClient.TryRead(new MemoryReadRequest<int>(TestAddress, new OversizedReadCodec()),
 			out _, out CheatEngineFailure failure, TestContext.Current.CancellationToken);
 
 		Assert.False(succeeded);
@@ -298,7 +298,7 @@ public sealed class MemoryClientResourceLimitsAndBatchOutcomeTests
 		BatchPort port = new();
 		MemoryClient client = CreateClient(new CountingDispatcher(), new MemoryResourceLimits(2, 1, 32, 32, 2), port);
 
-		bool succeeded = client.TryWrite(new MemoryWriteRequest<int>(_address, 42, new OversizedWriteCodec()),
+		bool succeeded = client.TryWrite(new MemoryWriteRequest<int>(TestAddress, 42, new OversizedWriteCodec()),
 			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
 
 		Assert.False(succeeded);

@@ -19,7 +19,7 @@ namespace CheatEngine.Client.Core.Tests.Domains;
 /// </summary>
 public sealed class TableClientGenerationTests : IDisposable
 {
-	private static readonly MemoryRecordId _handedOut = new(41);
+	private static readonly MemoryRecordId HandedOut = new(41);
 
 	private readonly string _root = Directory.CreateTempSubdirectory("ce-client-table-generation-").FullName;
 
@@ -49,7 +49,7 @@ public sealed class TableClientGenerationTests : IDisposable
 		HandOutAndLoad(fixture);
 		int dispatchedBefore = fixture.Dispatcher.InvocationCount;
 
-		bool succeeded = fixture.Client.TrySetActive(_handedOut, true, out MemoryRecordSnapshot record,
+		bool succeeded = fixture.Client.TrySetActive(HandedOut, true, out MemoryRecordSnapshot record,
 			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
 
 		Assert.False(succeeded);
@@ -61,7 +61,7 @@ public sealed class TableClientGenerationTests : IDisposable
 		Assert.Equal(dispatchedBefore, fixture.Dispatcher.InvocationCount);
 		Assert.Equal(0, fixture.Mutations.Calls);
 		Assert.Throws<CheatEngineClientLifecycleException>(() =>
-			fixture.Client.SetActive(_handedOut, true, TestContext.Current.CancellationToken));
+			fixture.Client.SetActive(HandedOut, true, TestContext.Current.CancellationToken));
 	}
 
 	[Fact]
@@ -73,10 +73,10 @@ public sealed class TableClientGenerationTests : IDisposable
 
 		Assert.True(fixture.Client.TryGetRecord(0, out MemoryRecordSnapshot reobserved, out _,
 			TestContext.Current.CancellationToken));
-		bool succeeded = fixture.Client.TrySetActive(_handedOut, true, out _, out CheatEngineFailure failure,
+		bool succeeded = fixture.Client.TrySetActive(HandedOut, true, out _, out CheatEngineFailure failure,
 			TestContext.Current.CancellationToken);
 
-		Assert.Equal(_handedOut, reobserved.Id);
+		Assert.Equal(HandedOut, reobserved.Id);
 		Assert.True(succeeded);
 		Assert.Equal(default, failure);
 		Assert.Equal(1, fixture.Mutations.Calls);
@@ -118,7 +118,7 @@ public sealed class TableClientGenerationTests : IDisposable
 		bool succeeded = fixture.Client.TrySetActive(copiedBeforeLoad.Id, true, out _, out CheatEngineFailure failure,
 			TestContext.Current.CancellationToken);
 
-		Assert.Equal(_handedOut, copiedBeforeLoad.Id);
+		Assert.Equal(HandedOut, copiedBeforeLoad.Id);
 		Assert.Equal(1, fixture.Client.TableGeneration);
 		Assert.Single(fixture.Files.Loads);
 		Assert.False(succeeded);
@@ -147,7 +147,7 @@ public sealed class TableClientGenerationTests : IDisposable
 		bool succeeded = fixture.Client.TrySetActive(copiedAfterLoad.Id, true, out _, out CheatEngineFailure failure,
 			TestContext.Current.CancellationToken);
 
-		Assert.Equal(_handedOut, copiedAfterLoad.Id);
+		Assert.Equal(HandedOut, copiedAfterLoad.Id);
 		Assert.Equal(1, fixture.Client.TableGeneration);
 		Assert.True(succeeded);
 		Assert.Equal(default, failure);
@@ -195,7 +195,7 @@ public sealed class TableClientGenerationTests : IDisposable
 		Assert.Same(fault, failure.Exception);
 		Assert.Equal(1, fixture.Client.TableGeneration);
 		Assert.Equal([(fixture.TableFile.FullPath, true)], fixture.Files.Loads);
-		Assert.False(fixture.Client.TryDelete(_handedOut, out CheatEngineFailure staleFailure,
+		Assert.False(fixture.Client.TryDelete(HandedOut, out CheatEngineFailure staleFailure,
 			TestContext.Current.CancellationToken));
 		Assert.Equal(CheatEngineFailureKind.InvalidState, staleFailure.Kind);
 	}
@@ -220,7 +220,7 @@ public sealed class TableClientGenerationTests : IDisposable
 		Assert.Empty(fixture.Files.Loads);
 		Assert.Equal(0, fixture.Files.Saves);
 		Assert.Equal(dispatchedBefore, fixture.Dispatcher.InvocationCount);
-		Assert.True(fixture.Client.TrySetActive(_handedOut, true, out _, out _, TestContext.Current.CancellationToken));
+		Assert.True(fixture.Client.TrySetActive(HandedOut, true, out _, out _, TestContext.Current.CancellationToken));
 	}
 
 	[Fact]
@@ -256,20 +256,20 @@ public sealed class TableClientGenerationTests : IDisposable
 		CancellationToken token = TestContext.Current.CancellationToken;
 		return operation switch
 		{
-			"GetRecord" => (fixture.Client.TryGetRecord(_handedOut, out _, out CheatEngineFailure f, token), f),
-			"Select" => (fixture.Client.TrySelect(_handedOut, out _, out CheatEngineFailure f, token), f),
-			"Update" => (fixture.Client.TryUpdate(new MemoryRecordUpdate(_handedOut, "renamed"), out _,
+			"GetRecord" => (fixture.Client.TryGetRecord(HandedOut, out _, out CheatEngineFailure f, token), f),
+			"Select" => (fixture.Client.TrySelect(HandedOut, out _, out CheatEngineFailure f, token), f),
+			"Update" => (fixture.Client.TryUpdate(new MemoryRecordUpdate(HandedOut, "renamed"), out _,
 				out CheatEngineFailure f, token), f),
-			"Delete" => (fixture.Client.TryDelete(_handedOut, out CheatEngineFailure f, token), f),
-			"SetActive" => (fixture.Client.TrySetActive(_handedOut, false, out _, out CheatEngineFailure f, token), f),
-			"SetParentChild" => (fixture.Client.TrySetParent(_handedOut, other, out _, out CheatEngineFailure f, token),
+			"Delete" => (fixture.Client.TryDelete(HandedOut, out CheatEngineFailure f, token), f),
+			"SetActive" => (fixture.Client.TrySetActive(HandedOut, false, out _, out CheatEngineFailure f, token), f),
+			"SetParentChild" => (fixture.Client.TrySetParent(HandedOut, other, out _, out CheatEngineFailure f, token),
 				f),
-			"SetParentParent" => (fixture.Client.TrySetParent(other, _handedOut, out _, out CheatEngineFailure f,
+			"SetParentParent" => (fixture.Client.TrySetParent(other, HandedOut, out _, out CheatEngineFailure f,
 				token), f),
-			"GetHierarchy" => (fixture.Client.TryGetHierarchy(_handedOut, new MemoryRecordHierarchyRequest(4, 16),
+			"GetHierarchy" => (fixture.Client.TryGetHierarchy(HandedOut, new MemoryRecordHierarchyRequest(4, 16),
 				out _, out CheatEngineFailure f, token), f),
 			"CreateUnderParent" => (fixture.Client.TryCreate(
-				new MemoryRecordDefinition("child", "game.exe+30", "1", VariableType.Dword, _handedOut), out _,
+				new MemoryRecordDefinition("child", "game.exe+30", "1", VariableType.Dword, HandedOut), out _,
 				out CheatEngineFailure f, token), f),
 			_ => throw new ArgumentOutOfRangeException(nameof(operation), operation, null)
 		};
@@ -279,7 +279,7 @@ public sealed class TableClientGenerationTests : IDisposable
 	{
 		Assert.True(fixture.Client.TryGetRecord(0, out MemoryRecordSnapshot handedOut, out _,
 			TestContext.Current.CancellationToken));
-		Assert.Equal(_handedOut, handedOut.Id);
+		Assert.Equal(HandedOut, handedOut.Id);
 		Assert.True(fixture.Client.TryLoadTrustedTable(new TableLoadRequest(fixture.TableFile), out _,
 			TestContext.Current.CancellationToken));
 		Assert.Equal(1, fixture.Client.TableGeneration);
@@ -311,7 +311,7 @@ public sealed class TableClientGenerationTests : IDisposable
 		public RecordLookupStatus TryGetRecord(int index, out MemoryRecordSnapshot record)
 		{
 			Calls++;
-			record = Snapshot(_handedOut);
+			record = Snapshot(HandedOut);
 			return RecordLookupStatus.Success;
 		}
 
@@ -325,14 +325,14 @@ public sealed class TableClientGenerationTests : IDisposable
 		public RecordLookupStatus TryGetSelected(out MemoryRecordSnapshot record)
 		{
 			Calls++;
-			record = Snapshot(_handedOut);
+			record = Snapshot(HandedOut);
 			return RecordLookupStatus.Success;
 		}
 
 		public RecordLookupStatus TryGetTable(int maximumItems, out AddressTableSnapshot table)
 		{
 			Calls++;
-			table = new AddressTableSnapshot([Snapshot(_handedOut)]);
+			table = new AddressTableSnapshot([Snapshot(HandedOut)]);
 			return RecordLookupStatus.Success;
 		}
 	}

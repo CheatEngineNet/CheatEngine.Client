@@ -6,7 +6,7 @@ namespace CheatEngine.Client.Repository.Tests.Solution;
 public sealed class SolutionInventoryTests
 {
 	/// <summary>Projects deliberately kept out of the solution, with the reason. Adding one is a review decision.</summary>
-	private static readonly Dictionary<string, string> _outOfSolution = new(StringComparer.Ordinal)
+	private static readonly Dictionary<string, string> OutOfSolution = new(StringComparer.Ordinal)
 	{
 		["templates/CheatEngine.Client.Templates/content/CheatEngine.Plugin/CheatEngine.Plugin.csproj"] =
 			"Template content: it is packed as text and built only after 'dotnet new' instantiates it in the package smoke test."
@@ -19,14 +19,14 @@ public sealed class SolutionInventoryTests
 		List<string> missing = [];
 		foreach (string project in RepositoryRoot.EnumerateSourceFiles("*.csproj"))
 		{
-			if (!listed.Contains(project) && !_outOfSolution.ContainsKey(project))
+			if (!listed.Contains(project) && !OutOfSolution.ContainsKey(project))
 			{
 				missing.Add(project);
 			}
 		}
 
 		Assert.True(missing.Count == 0,
-			$"Add these projects to CheatEngine.Client.slnx (dotnet sln add) or justify them in {nameof(_outOfSolution)}: {string.Join(", ", missing)}");
+			$"Add these projects to CheatEngine.Client.slnx (dotnet sln add) or justify them in {nameof(OutOfSolution)}: {string.Join(", ", missing)}");
 	}
 
 	[Fact]
@@ -39,12 +39,12 @@ public sealed class SolutionInventoryTests
 				$"CheatEngine.Client.slnx lists '{project}', which does not exist.");
 		}
 
-		foreach (string excluded in _outOfSolution.Keys)
+		foreach (string excluded in OutOfSolution.Keys)
 		{
 			Assert.True(File.Exists(Path.Combine(RepositoryRoot.Path, excluded)),
 				$"The exclusion '{excluded}' names a project that no longer exists.");
 			Assert.False(listed.Contains(excluded),
-				$"'{excluded}' is in the solution now; remove it from {nameof(_outOfSolution)}.");
+				$"'{excluded}' is in the solution now; remove it from {nameof(OutOfSolution)}.");
 		}
 	}
 

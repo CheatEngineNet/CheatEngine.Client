@@ -22,7 +22,7 @@ internal sealed partial class QualificationObservation : IDisposable
 	internal const string RedactedPath = "<redacted-path>";
 	internal const int AddressListEdge = 8;
 
-	private static readonly JsonWriterOptions _options = new()
+	private static readonly JsonWriterOptions Options = new()
 	{
 		Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
 	};
@@ -34,7 +34,7 @@ internal sealed partial class QualificationObservation : IDisposable
 	/// <summary>Starts the observation of one harness function.</summary>
 	internal QualificationObservation(string function)
 	{
-		_writer = new Utf8JsonWriter(_stream, _options);
+		_writer = new Utf8JsonWriter(_stream, Options);
 		_writer.WriteStartObject();
 		_writer.WriteString("schema", Schema);
 		_writer.WriteString("function", function);

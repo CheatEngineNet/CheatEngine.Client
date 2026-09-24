@@ -26,7 +26,7 @@ public sealed class BoundedEventStreamTests
 	}
 
 	[Fact]
-	public async Task DropOldestEvictsTheOldestCopiedEventAndRecordsTheLoss()
+	public async Task DropOldestEvictsTheOldestCopiedEventAndRecordsTheLossAsync()
 	{
 		using BoundedEventStream<int> stream = new(new EventStreamOptions(2));
 
@@ -45,7 +45,7 @@ public sealed class BoundedEventStreamTests
 	}
 
 	[Fact]
-	public async Task DropNewestPreservesTheBufferedEventsAndRecordsTheLoss()
+	public async Task DropNewestPreservesTheBufferedEventsAndRecordsTheLossAsync()
 	{
 		using BoundedEventStream<int> stream = new(new EventStreamOptions(2, EventStreamOverflowPolicy.DropNewest));
 
@@ -64,7 +64,7 @@ public sealed class BoundedEventStreamTests
 	}
 
 	[Fact]
-	public async Task FailSubscriptionClosesTheStreamWithAnErrorAndRejectsFutureAdmission()
+	public async Task FailSubscriptionClosesTheStreamWithAnErrorAndRejectsFutureAdmissionAsync()
 	{
 		using BoundedEventStream<int> stream =
 			new(new EventStreamOptions(1, EventStreamOverflowPolicy.FailSubscription));
@@ -86,7 +86,7 @@ public sealed class BoundedEventStreamTests
 	}
 
 	[Fact]
-	public async Task PendingReaderReceivesPublishedValueWithoutBlockingTheCallbackAdmissionPath()
+	public async Task PendingReaderReceivesPublishedValueWithoutBlockingTheCallbackAdmissionPathAsync()
 	{
 		using BoundedEventStream<string> stream = new(new EventStreamOptions(1));
 		await using IAsyncEnumerator<string> enumerator =
@@ -101,7 +101,7 @@ public sealed class BoundedEventStreamTests
 	}
 
 	[Fact]
-	public async Task ConcurrentReadersAreRejectedUntilTheActiveReaderIsDisposed()
+	public async Task ConcurrentReadersAreRejectedUntilTheActiveReaderIsDisposedAsync()
 	{
 		using BoundedEventStream<int> stream = new(new EventStreamOptions(1));
 		IAsyncEnumerator<int> first = stream.GetAsyncEnumerator(TestContext.Current.CancellationToken);
@@ -123,7 +123,7 @@ public sealed class BoundedEventStreamTests
 	}
 
 	[Fact]
-	public async Task CompletionClosesAdmissionAndCompletesAWaitingReader()
+	public async Task CompletionClosesAdmissionAndCompletesAWaitingReaderAsync()
 	{
 		using BoundedEventStream<int> stream = new(new EventStreamOptions(1));
 		await using IAsyncEnumerator<int> enumerator = stream.GetAsyncEnumerator(TestContext.Current.CancellationToken);
@@ -140,7 +140,7 @@ public sealed class BoundedEventStreamTests
 	}
 
 	[Fact]
-	public async Task CancellationRemovesTheWaitingReaderWithoutDiscardingTheNextPublishedEvent()
+	public async Task CancellationRemovesTheWaitingReaderWithoutDiscardingTheNextPublishedEventAsync()
 	{
 		using BoundedEventStream<int> stream = new(new EventStreamOptions(1));
 		using CancellationTokenSource cancellation = new();
@@ -162,7 +162,7 @@ public sealed class BoundedEventStreamTests
 	}
 
 	[Fact]
-	public async Task DisposingAWaitingEnumeratorCompletesItsReadAndFreesTheReaderSlot()
+	public async Task DisposingAWaitingEnumeratorCompletesItsReadAndFreesTheReaderSlotAsync()
 	{
 		using BoundedEventStream<int> stream = new(new EventStreamOptions(1));
 		IAsyncEnumerator<int> disposedEnumerator = stream.GetAsyncEnumerator(TestContext.Current.CancellationToken);
@@ -179,7 +179,7 @@ public sealed class BoundedEventStreamTests
 	}
 
 	[Fact]
-	public async Task DisposeClosesAdmissionDiscardsBufferedValuesAndCompletesReaders()
+	public async Task DisposeClosesAdmissionDiscardsBufferedValuesAndCompletesReadersAsync()
 	{
 		BoundedEventStream<int> stream = new(new EventStreamOptions(1));
 		Assert.True(stream.TryPublish(1));
@@ -196,7 +196,7 @@ public sealed class BoundedEventStreamTests
 	}
 
 	[Fact]
-	public async Task DisposeCompletesAWaitingReaderWithoutRetainingIt()
+	public async Task DisposeCompletesAWaitingReaderWithoutRetainingItAsync()
 	{
 		BoundedEventStream<int> stream = new(new EventStreamOptions(1));
 		await using IAsyncEnumerator<int> enumerator = stream.GetAsyncEnumerator(TestContext.Current.CancellationToken);
@@ -209,7 +209,7 @@ public sealed class BoundedEventStreamTests
 	}
 
 	[Fact]
-	public async Task CloseAdmissionRejectsNewObservationsAndLetsAcceptedObservationsDrain()
+	public async Task CloseAdmissionRejectsNewObservationsAndLetsAcceptedObservationsDrainAsync()
 	{
 		using BoundedEventStream<int> stream = new(new EventStreamOptions(1));
 		Assert.True(stream.TryPublish(1));
@@ -225,7 +225,7 @@ public sealed class BoundedEventStreamTests
 	}
 
 	[Fact]
-	public async Task FaultedCompletionDiscardsBufferedEventsReportsLossAndFailsReaders()
+	public async Task FaultedCompletionDiscardsBufferedEventsReportsLossAndFailsReadersAsync()
 	{
 		using BoundedEventStream<int> stream = new(new EventStreamOptions(2));
 		InvalidOperationException expected = new("callback failure");
@@ -244,7 +244,7 @@ public sealed class BoundedEventStreamTests
 	}
 
 	[Fact]
-	public async Task PublicationDoesNotWaitForASlowConsumerContinuation()
+	public async Task PublicationDoesNotWaitForASlowConsumerContinuationAsync()
 	{
 		CancellationToken cancellationToken = TestContext.Current.CancellationToken;
 		using BoundedEventStream<int> stream = new(new EventStreamOptions(1));
@@ -268,7 +268,7 @@ public sealed class BoundedEventStreamTests
 	}
 
 	[Fact]
-	public async Task OneEnumeratorRejectsOverlappingMoveNextCalls()
+	public async Task OneEnumeratorRejectsOverlappingMoveNextCallsAsync()
 	{
 		using BoundedEventStream<int> stream = new(new EventStreamOptions(1));
 		await using IAsyncEnumerator<int> enumerator = stream.GetAsyncEnumerator(TestContext.Current.CancellationToken);
