@@ -3,7 +3,7 @@ using CheatEngine.SDK.Engine.Scanning.Aob;
 
 namespace CheatEngine.Client.Scanning;
 
-/// <summary>An immutable AOB scan request with an explicit managed, post-filter materialization limit.</summary>
+/// <summary>An immutable AOB scan request with an explicit materialization limit and an optional module and range scope.</summary>
 public readonly record struct AobScanRequest
 {
 	/// <summary>Creates an AOB scan request.</summary>
@@ -42,18 +42,21 @@ public readonly record struct AobScanRequest
 
 	/// <summary>Gets the maximum number of copied addresses that may survive managed post-filters.</summary>
 	/// <remarks>
-	///     This is the materialization limit: it bounds how many filtered addresses Core copies from Cheat Engine's result
-	///     list. It does not bound or terminate the global Cheat Engine scan, and it is not the number of available
-	///     results (see <see cref="PatternScanMetrics.HostMatchCount" />).
+	///     This is the materialization limit: it bounds how many addresses Core copies from Cheat Engine's result. It does
+	///     not bound or terminate the Cheat Engine scan, and it is not the number of available results (see
+	///     <see cref="PatternScanMetrics.HostMatchCount" />). The bounded route copies at most 65,535 addresses, whatever
+	///     this limit.
 	/// </remarks>
 	public int MaximumResults
 	{
 		get;
 	}
 
-	/// <summary>Gets the optional module Core resolves before the global scan and applies as a copied-address post-filter.</summary>
+	/// <summary>Gets the optional module that scopes the scan; Core resolves it before any scan.</summary>
 	/// <remarks>
-	///     Cheat Engine still scans the whole target: the module does not reduce Cheat Engine's scan time or memory
+	///     On a qualified local target Cheat Engine scans only the module (intersected with <see cref="Range" />,
+	///     <see cref="PatternScanScope.HostBoundedRange" />), and a match must lie entirely inside it. Otherwise Cheat Engine
+	///     scans the whole target and Core keeps the addresses that start inside the module
 	///     (<see cref="PatternScanScope.GlobalHostScanWithManagedFilter" />).
 	/// </remarks>
 	public ModuleName? Module
@@ -61,8 +64,13 @@ public readonly record struct AobScanRequest
 		get;
 	}
 
-	/// <summary>Gets the optional inclusive copied-address post-filter.</summary>
-	/// <remarks>The range is applied while copying; it does not reduce Cheat Engine's scan time or memory.</remarks>
+	/// <summary>Gets the optional inclusive range of match start addresses that scopes the scan.</summary>
+	/// <remarks>
+	///     On a qualified local target Cheat Engine scans only <c>[Start, End + pattern length)</c>, intersected with
+	///     <see cref="Module" /> (<see cref="PatternScanScope.HostBoundedRange" />); otherwise the range is applied while
+	///     copying and does not reduce Cheat Engine's scan time or memory
+	///     (<see cref="PatternScanScope.GlobalHostScanWithManagedFilter" />).
+	/// </remarks>
 	public AobScanRange? Range
 	{
 		get;

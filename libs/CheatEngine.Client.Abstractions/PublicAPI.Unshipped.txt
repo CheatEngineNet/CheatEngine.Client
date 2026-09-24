@@ -646,7 +646,9 @@ CheatEngine.Client.Scanning.PatternScanOutcome.PatternScanOutcome(CheatEngine.Cl
 CheatEngine.Client.Scanning.PatternScanOutcome.Result.get -> CheatEngine.Client.Scanning.AobScanResult?
 CheatEngine.Client.Scanning.PatternScanOutcome.Succeeded.get -> bool
 CheatEngine.Client.Scanning.PatternScanScope
-CheatEngine.Client.Scanning.PatternScanScope.GlobalHostScanWithManagedFilter = 1 -> CheatEngine.Client.Scanning.PatternScanScope
+CheatEngine.Client.Scanning.PatternScanScope.GlobalHostScan = 1 -> CheatEngine.Client.Scanning.PatternScanScope
+CheatEngine.Client.Scanning.PatternScanScope.GlobalHostScanWithManagedFilter = 3 -> CheatEngine.Client.Scanning.PatternScanScope
+CheatEngine.Client.Scanning.PatternScanScope.HostBoundedRange = 2 -> CheatEngine.Client.Scanning.PatternScanScope
 CheatEngine.Client.Scanning.PatternScanScope.Unknown = 0 -> CheatEngine.Client.Scanning.PatternScanScope
 CheatEngine.Client.Scanning.ValueScanMatch
 CheatEngine.Client.Scanning.ValueScanMatch.Address.get -> CheatEngine.SDK.Engine.Values.Address

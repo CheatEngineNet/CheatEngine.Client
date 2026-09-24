@@ -12,24 +12,31 @@ using CheatEngine.SDK.Engine.Values;
 
 namespace CheatEngine.Client.Core.Domains;
 
-/// <summary>Runs one global Cheat Engine AOB scan and copies post-filtered addresses from its owned result list.</summary>
+/// <summary>Runs one Cheat Engine AOB scan on the route its scope allows and copies the matching addresses.</summary>
 /// <remarks>
 ///     <para>
-///         <b>Truthful cost (audit F07).</b> Core resolves the optional module first, then Cheat Engine runs one global
-///         <c>AOBScan</c> over the whole target, and Core copies only the addresses inside the module or range. Module and
-///         range are managed post-filters; <see cref="AobScanRequest.MaximumResults" /> bounds only the copy. None of them
-///         reduces Cheat Engine's scan time or memory, and a cancellation token cannot interrupt a started scan.
-///         <see cref="ScanDetailed" /> reports the Cheat Engine scan time separately from the copy time.
+///         <b>Routes and truthful cost (audit F07).</b> A request without a module or range runs one global
+///         <c>AOBScan</c> over the whole target (<see cref="PatternScanScope.GlobalHostScan" />);
+///         <see cref="AobScanRequest.MaximumResults" /> bounds only the copy. A request with a module and/or a range, on a
+///         target that <c>TargetSelection.ObserveCurrent</c> qualifies, runs the SDK's bounded, exhaustive MemScan route
+///         over the module intersected with the range (<see cref="PatternScanScope.HostBoundedRange" />): Cheat Engine's
+///         work is limited to those bounds, and the call blocks Cheat Engine's main thread for the scan, the copy and the
+///         session release. When the target is not qualified, or the SDK cannot create the session or qualify the target,
+///         the request falls back to the global scan with the module and range as managed post-filters
+///         (<see cref="PatternScanScope.GlobalHostScanWithManagedFilter" />). A cancellation token never interrupts a
+///         Cheat Engine call that has started. <see cref="ScanDetailed" /> reports the Cheat Engine scan time separately
+///         from the copy time.
 ///     </para>
 ///     <para>
-///         <b>Host outcomes (audit F06).</b> The port calls <c>AobScanner.TryScanOutcome</c> with its target context, and
-///         <see cref="AobScanMapping" /> classifies each outcome: <c>NoResult</c> stays
-///         <see cref="CheatEngineFailureKind.IndeterminateHostResult" />, because on Cheat Engine 7.7 zero matches and
-///         host failures share that shape. A target that changed during the scan discards its addresses.
+///         <b>Host outcomes (audit F06).</b> <see cref="AobScanMapping" /> classifies each outcome of both routes. On the
+///         global route <c>NoResult</c> stays <see cref="CheatEngineFailureKind.IndeterminateHostResult" />, because on
+///         Cheat Engine 7.7 zero matches and host failures share that shape; only the bounded route reports a factual zero,
+///         and only when Cheat Engine's error text was readable. A target that changed during a scan discards its answer.
 ///     </para>
 ///     <para>
-///         <b>Single release authority (audit F13).</b> The owned result list is released exactly once on every path,
-///         inside the dispatched callback, through the SDK's never-throwing <c>ReleaseWithOutcome</c>. Any release
+///         <b>Single release authority (audit F13).</b> The owned result list of the global route is released exactly
+///         once on every path, inside the dispatched callback, through the SDK's never-throwing
+///         <c>ReleaseWithOutcome</c>; the SDK releases the bounded route's session itself and reports it. Any release
 ///         status but <c>Released</c> is <see cref="CheatEngineHostEffect.CleanupUnconfirmed" />: a release that was not
 ///         confirmed is never hidden behind a success.
 ///     </para>
@@ -40,6 +47,8 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 	private const int MaximumModuleSnapshot = 4096;
 	private const string InModuleOperation = "Patterns.InModule";
 	private const string ScanOperation = "Patterns.Scan";
+	private const string ListSubject = "AOB result list";
+	private const string SessionSubject = "bounded AOB scan session";
 
 	private readonly SdkMainThreadDispatcher _dispatcher =
 		dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
@@ -104,6 +113,89 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		return true;
 	}
 
+	/// <summary>
+	///     Builds the Cheat Engine work limit of the bounded route: the module's <c>[BaseAddress, BaseAddress +
+	///     ImageSize)</c> intersected with the range's <c>[Start, End + pattern length)</c>.
+	/// </summary>
+	/// <param name="module">The resolved module, when the request names one.</param>
+	/// <param name="range">The requested inclusive range of match starts, when the request has one.</param>
+	/// <param name="patternLength">The number of byte positions of the pattern.</param>
+	/// <param name="bounds">The half-open bounds when the method returns <see langword="true" />.</param>
+	/// <param name="failure">The refusal otherwise; nothing was started.</param>
+	/// <returns><see langword="false" /> when the bounds are empty or the module does not fit the address space.</returns>
+	/// <remarks>
+	///     Both routes use these bounds as a precondition, so a range that does not overlap the module is refused before
+	///     any scan instead of costing a global scan that can only return nothing.
+	/// </remarks>
+	internal static bool TryCreateBounds(ModuleInfo? module, AobScanRange? range, int patternLength,
+		out AobScanBounds bounds, out CheatEngineFailure failure)
+	{
+		Address start = Address.Zero;
+		Address stop = new(ulong.MaxValue);
+		if (module is { } resolved)
+		{
+			if (!AobScanBounds.TryFromModule(in resolved, out AobScanBounds moduleBounds))
+			{
+				bounds = default;
+				failure = ModuleFailure(CheatEngineFailureKind.InvalidHostResult,
+					"Cheat Engine reported a module that does not fit in the 64-bit address space.");
+				return false;
+			}
+
+			start = moduleBounds.Start;
+			stop = moduleBounds.Stop;
+		}
+
+		if (range is { } requested)
+		{
+			Address rangeStop = ToStop(requested.End, patternLength);
+			if (start < requested.Start)
+			{
+				start = requested.Start;
+			}
+
+			if (rangeStop < stop)
+			{
+				stop = rangeStop;
+			}
+		}
+
+		if (AobScanBounds.TryCreate(start, stop, out bounds))
+		{
+			failure = default;
+			return true;
+		}
+
+		failure = Rejected(module.HasValue && range.HasValue
+			? "The AOB range does not overlap the requested module."
+			: "The AOB range leaves no room for a match below the top of the 64-bit address space.");
+		return false;
+	}
+
+	/// <summary>
+	///     Converts the inclusive end of a range of match starts into the exclusive stop Cheat Engine needs: a match
+	///     starting at <paramref name="end" /> ends before <c>end + patternLength</c>.
+	/// </summary>
+	/// <param name="end">The last allowed match start.</param>
+	/// <param name="patternLength">The number of byte positions of the pattern (at least one).</param>
+	/// <returns>
+	///     <c>end + patternLength</c>, checked and saturated at the last address: at the top of the address space a match
+	///     whose last byte is the last address cannot be expressed and is not reported by the bounded route.
+	/// </returns>
+	internal static Address ToStop(Address end, int patternLength)
+	{
+		ulong length = (ulong) Math.Max(patternLength, 1);
+		return end.Value > ulong.MaxValue - length ? new Address(ulong.MaxValue) : new Address(end.Value + length);
+	}
+
+	/// <summary>Returns the bounded route's destination length: one more than the limit, capped by the Client.</summary>
+	/// <param name="maximumResults">The requested materialization limit.</param>
+	/// <returns><c>min(maximumResults + 1, ScanResourceLimits.MaximumPatternMatches)</c>.</returns>
+	internal static int GetBoundedDestinationLength(int maximumResults)
+	{
+		return (int) Math.Min(maximumResults + 1L, ScanResourceLimits.MaximumPatternMatches);
+	}
+
 	/// <summary>Validates, dispatches, and classifies one scan identically for every public entry point.</summary>
 	private ScanOutcome Execute(AobScanRequest request, CancellationToken cancellationToken)
 	{
@@ -139,20 +231,197 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 			return ScanOutcome.Failed(CancelledBeforeScan(), null);
 		}
 
-		ModuleRange moduleRange = ModuleRange.None;
-		if (request.Module.HasValue &&
-			!TryGetModuleRange(request.Module.Value, out moduleRange, out CheatEngineFailure moduleFailure))
+		if (!request.Module.HasValue && !request.Range.HasValue)
 		{
-			return ScanOutcome.Failed(moduleFailure, null);
+			return ScanGlobal(request, ModuleRange.None, PatternScanScope.GlobalHostScan, cancellationToken);
 		}
 
-		// Module resolution is deliberately completed before the global CE AOB scan. The range still acts as a managed
-		// post-filter because the SDK AOB binding does not accept a module constraint.
+		ModuleInfo? module = null;
+		if (request.Module.HasValue)
+		{
+			if (!TryGetModule(request.Module.Value, out ModuleInfo resolved, out CheatEngineFailure moduleFailure))
+			{
+				return ScanOutcome.Failed(moduleFailure, null);
+			}
+
+			module = resolved;
+		}
+
+		if (!TryCreateBounds(module, request.Range, request.Pattern.ByteLength, out AobScanBounds bounds,
+				out CheatEngineFailure boundsFailure))
+		{
+			return ScanOutcome.Failed(boundsFailure, null);
+		}
+
+		// Module resolution is deliberately completed before any scan, whichever route runs.
 		if (cancellationToken.IsCancellationRequested)
 		{
 			return ScanOutcome.Failed(CancelledBeforeScan(), null);
 		}
 
+		TargetSelectionFacts selection;
+		try
+		{
+			selection = _scanPort.ObserveSelection();
+		}
+		catch (Exception observationFault) when (SdkBoundary.IsSdkFault(observationFault))
+		{
+			return ScanOutcome.Failed(SdkBoundary.Translate(ScanOperation, observationFault,
+				CheatEngineHostEffect.NotStarted, _dispatcher.Lifetime), null);
+		}
+
+		if (cancellationToken.IsCancellationRequested)
+		{
+			return ScanOutcome.Failed(CancelledBeforeScan(), null);
+		}
+
+		ModuleRange moduleRange = module is { ImageSize: { } size } found
+			? new ModuleRange(found.BaseAddress.Value, size.Value)
+			: ModuleRange.None;
+		return selection.IsQualified
+			? ScanWithinBounds(request, bounds, moduleRange, cancellationToken)
+			: ScanGlobal(request, moduleRange, PatternScanScope.GlobalHostScanWithManagedFilter, cancellationToken);
+	}
+
+	/// <summary>Runs the bounded route and falls back to the global route when the SDK says it cannot run.</summary>
+	private ScanOutcome ScanWithinBounds(AobScanRequest request, AobScanBounds bounds, ModuleRange moduleRange,
+		CancellationToken cancellationToken)
+	{
+		Address[] destination = new Address[GetBoundedDestinationLength(request.MaximumResults)];
+		AobBoundedHostResult bounded;
+		try
+		{
+			bounded = _scanPort.TryScanWithinBounds(request.Pattern.Value, bounds, request.Options, destination,
+				cancellationToken);
+		}
+		catch (Exception scanFault) when (SdkBoundary.IsSdkFault(scanFault))
+		{
+			// The SDK releases its session on every exit before a fault propagates; the scan may or may not have run.
+			return ScanOutcome.Failed(
+				SdkBoundary.Translate(ScanOperation, scanFault, CheatEngineHostEffect.Unknown, _dispatcher.Lifetime),
+				null);
+		}
+
+		AobBoundedDisposition disposition =
+			AobScanMapping.ClassifyBounded(ScanOperation, bounded, out CheatEngineFailure failure);
+		bool released = AobScanMapping.IsSessionReleaseConfirmed(bounded, out LeaseReleaseKind releaseKind);
+		if (disposition == AobBoundedDisposition.FallBack && released)
+		{
+			if (cancellationToken.IsCancellationRequested)
+			{
+				return ScanOutcome.Failed(
+					bounded.HostScanElapsed > TimeSpan.Zero ? CancelledAfterScan() : CancelledBeforeScan(), null);
+			}
+
+			return ScanGlobal(request, moduleRange, PatternScanScope.GlobalHostScanWithManagedFilter,
+				cancellationToken);
+		}
+
+		// A failure after the SDK read the host count keeps the metrics of the work that happened.
+		PatternScanMetrics? failureMetrics = AobScanMapping.HasReadCount(bounded)
+			? BoundedMetrics(bounded, 0, 0, bounded.CopyElapsed)
+			: null;
+		ScanOutcome outcome = disposition == AobBoundedDisposition.Publish
+			? Publish(bounded, destination, request, moduleRange, cancellationToken)
+			: ScanOutcome.Failed(failure, failureMetrics);
+		return released
+			? outcome
+			: ScanOutcome.Failed(CreateReleaseFailure(outcome.Succeeded ? null : outcome.Failure, SessionSubject,
+				releaseKind, null), outcome.Metrics);
+	}
+
+	/// <summary>Publishes the in-bounds addresses the SDK copied, after the Client's own range and module check.</summary>
+	/// <remarks>
+	///     The SDK already dropped every address below the start or at or after the stop. The Client keeps its inclusive
+	///     range and module post-filters as a defensive check; an address they drop is counted as filtered out. The
+	///     destination holds one more address than the limit, so a full destination proves truncation.
+	/// </remarks>
+	private static ScanOutcome Publish(AobBoundedHostResult bounded, Address[] destination, AobScanRequest request,
+		ModuleRange moduleRange, CancellationToken cancellationToken)
+	{
+		if (cancellationToken.IsCancellationRequested)
+		{
+			return ScanOutcome.Failed(CancelledAfterScan(), null);
+		}
+
+		if ((uint) bounded.Written > (uint) destination.Length)
+		{
+			return ScanOutcome.Failed(new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult, ScanOperation,
+				"The bounded AOB scan reported more addresses than its destination holds.", null,
+				CheatEngineHostEffect.Completed), null);
+		}
+
+		long filterStarted = Stopwatch.GetTimestamp();
+		int limit = destination.Length - 1;
+		ImmutableArray<Address>.Builder copied = ImmutableArray.CreateBuilder<Address>(Math.Min(bounded.Written, limit));
+		int survivors = 0;
+		int dropped = 0;
+		for (int index = 0; index < bounded.Written; index++)
+		{
+			Address address = destination[index];
+			if (!moduleRange.Contains(address) || (request.Range.HasValue && !request.Range.Value.Contains(address)))
+			{
+				dropped++;
+				continue;
+			}
+
+			survivors++;
+			if (copied.Count < limit)
+			{
+				copied.Add(address);
+			}
+		}
+
+		TimeSpan materializationElapsed = bounded.CopyElapsed + Stopwatch.GetElapsedTime(filterStarted);
+		if (BoundedMetrics(bounded, dropped, copied.Count, materializationElapsed) is not { } metrics)
+		{
+			return ScanOutcome.Failed(new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult, ScanOperation,
+				"The bounded AOB scan reported inconsistent counts.", null, CheatEngineHostEffect.Completed), null);
+		}
+
+		bool truncated = survivors > limit;
+		if (!truncated && bounded.IsMaterializationLimitReached && dropped > 0)
+		{
+			// A full destination whose addresses the Client dropped leaves unread rows unknown.
+			if (survivors == 0)
+			{
+				return ScanOutcome.Failed(new CheatEngineFailure(CheatEngineFailureKind.IndeterminateHostResult,
+					ScanOperation, "The bounded AOB scan filled its destination with addresses outside the request, " +
+								   "so whether an in-range match exists is unknown.", null,
+					CheatEngineHostEffect.Completed), metrics);
+			}
+
+			truncated = true;
+		}
+
+		return ScanOutcome.Success(new AobScanResult(copied.ToImmutable(), truncated)) with
+		{
+			Metrics = metrics
+		};
+	}
+
+	/// <summary>Builds the metrics of a bounded scan, or <see langword="null" /> when its counts contradict each other.</summary>
+	private static PatternScanMetrics? BoundedMetrics(AobBoundedHostResult bounded, int dropped, int materialized,
+		TimeSpan materializationElapsed)
+	{
+		ulong filtered = bounded.BelowStartSkipped + bounded.AtOrAfterStopSkipped + (ulong) dropped;
+		if (bounded.RowsRead > bounded.HostResultCount || bounded.RowsRead > int.MaxValue ||
+			filtered + (ulong) materialized > bounded.RowsRead || bounded.HostScanElapsed < TimeSpan.Zero ||
+			materializationElapsed < TimeSpan.Zero)
+		{
+			return null;
+		}
+
+		// The host count is saturated at int.MaxValue; the rows the SDK reads never exceed it.
+		int hostResults = (int) Math.Min(bounded.HostResultCount, int.MaxValue);
+		return new PatternScanMetrics(hostResults, (int) bounded.RowsRead, (int) filtered, materialized,
+			PatternScanScope.HostBoundedRange, bounded.HostScanElapsed, materializationElapsed);
+	}
+
+	/// <summary>Runs one global <c>AOBScan</c> and copies its post-filtered addresses.</summary>
+	private ScanOutcome ScanGlobal(AobScanRequest request, ModuleRange moduleRange, PatternScanScope scope,
+		CancellationToken cancellationToken)
+	{
 		long hostScanStarted = Stopwatch.GetTimestamp();
 		AobHostOutcome host;
 		IAobMatchList? matchList;
@@ -180,7 +449,8 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		ScanOutcome outcome;
 		try
 		{
-			outcome = Consume(matchList, host, request, moduleRange, hostScanElapsed, cancellationToken);
+			outcome = Consume(matchList, host, request, new GlobalCopy(moduleRange, scope, hostScanElapsed),
+				cancellationToken);
 		}
 		catch (Exception copyFault) when (SdkBoundary.IsSdkFault(copyFault))
 		{
@@ -222,7 +492,7 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 	}
 
 	private static ScanOutcome Consume(IAobMatchList matchList, AobHostOutcome host, AobScanRequest request,
-		ModuleRange moduleRange, TimeSpan hostScanElapsed, CancellationToken cancellationToken)
+		GlobalCopy copy, CancellationToken cancellationToken)
 	{
 		if (cancellationToken.IsCancellationRequested)
 		{
@@ -249,8 +519,8 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		}
 
 		MaterializationProgress progress = new(count);
-		ScanOutcome outcome = Materialize(matchList, request, moduleRange, cancellationToken, ref progress);
-		PatternScanMetrics metrics = progress.ToMetrics(hostScanElapsed,
+		ScanOutcome outcome = Materialize(matchList, request, copy.ModuleRange, cancellationToken, ref progress);
+		PatternScanMetrics metrics = progress.ToMetrics(copy.Scope, copy.HostScanElapsed,
 			Stopwatch.GetElapsedTime(materializationStarted));
 		return outcome with
 		{
@@ -318,7 +588,7 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		return released == LeaseReleaseKind.Released
 			? outcome
 			: ScanOutcome.Failed(
-				CreateReleaseFailure(outcome.Succeeded ? null : outcome.Failure, released, releaseFault),
+				CreateReleaseFailure(outcome.Succeeded ? null : outcome.Failure, ListSubject, released, releaseFault),
 				outcome.Metrics);
 	}
 
@@ -341,13 +611,13 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		}
 	}
 
-	private static CheatEngineFailure CreateReleaseFailure(CheatEngineFailure? primaryFailure,
+	private static CheatEngineFailure CreateReleaseFailure(CheatEngineFailure? primaryFailure, string subject,
 		LeaseReleaseKind released, Exception? releaseFault)
 	{
 		if (primaryFailure is not { } primary)
 		{
 			return new CheatEngineFailure(CheatEngineFailureKind.InvalidState, ScanOperation,
-				$"The AOB result list release was not confirmed ({released}); copied results were discarded.",
+				$"The {subject} release was not confirmed ({released}); copied results were discarded.",
 				releaseFault, CheatEngineHostEffect.CleanupUnconfirmed);
 		}
 
@@ -358,7 +628,7 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 			_ => releaseFault
 		};
 		return new CheatEngineFailure(primary.Kind, primary.Operation,
-			$"{primary.Message} The AOB result list release was not confirmed ({released}).", exception,
+			$"{primary.Message} The {subject} release was not confirmed ({released}).", exception,
 			CheatEngineHostEffect.CleanupUnconfirmed);
 	}
 
@@ -386,10 +656,10 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 			"The AOB scan was cancelled after Cheat Engine completed it; no copied result was published.");
 	}
 
-	private bool TryGetModuleRange(ModuleName requested, out ModuleRange range, out CheatEngineFailure failure)
+	private bool TryGetModule(ModuleName requested, out ModuleInfo module, out CheatEngineFailure failure)
 	{
 		ModuleInfo[] modules = new ModuleInfo[MaximumModuleSnapshot];
-		range = ModuleRange.None;
+		module = default;
 		InspectionStatus status;
 		int written;
 		try
@@ -424,8 +694,8 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		bool found = false;
 		for (int index = 0; index < written; index++)
 		{
-			ModuleInfo module = modules[index];
-			if (!string.Equals(module.Name, requested.Value, StringComparison.OrdinalIgnoreCase))
+			ModuleInfo candidate = modules[index];
+			if (!string.Equals(candidate.Name, requested.Value, StringComparison.OrdinalIgnoreCase))
 			{
 				continue;
 			}
@@ -437,14 +707,14 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 				return false;
 			}
 
-			if (!module.ImageSize.HasValue)
+			if (!candidate.ImageSize.HasValue)
 			{
 				failure = ModuleFailure(CheatEngineFailureKind.CapabilityUnavailable,
 					"Cheat Engine did not report the requested module's image size.");
 				return false;
 			}
 
-			if (module.ImageSize.Value.Value == 0)
+			if (candidate.ImageSize.Value.Value == 0)
 			{
 				failure = ModuleFailure(CheatEngineFailureKind.InvalidHostResult,
 					"Cheat Engine reported a zero-length requested module.");
@@ -452,7 +722,7 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 			}
 
 			found = true;
-			range = new ModuleRange(module.BaseAddress.Value, module.ImageSize.Value.Value);
+			module = candidate;
 		}
 
 		if (found)
@@ -471,6 +741,9 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 	{
 		return new CheatEngineFailure(kind, InModuleOperation, message, null, CheatEngineHostEffect.NotStarted);
 	}
+
+	/// <summary>What the global route's copy needs besides the list: its filter, its scope and the host scan time.</summary>
+	private readonly record struct GlobalCopy(ModuleRange ModuleRange, PatternScanScope Scope, TimeSpan HostScanElapsed);
 
 	private readonly record struct ScanInput(
 		PatternScanner Scanner,
@@ -503,10 +776,11 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		internal int FilteredOut;
 		internal int Materialized;
 
-		internal readonly PatternScanMetrics ToMetrics(TimeSpan hostScanElapsed, TimeSpan materializationElapsed)
+		internal readonly PatternScanMetrics ToMetrics(PatternScanScope scope, TimeSpan hostScanElapsed,
+			TimeSpan materializationElapsed)
 		{
-			return new PatternScanMetrics(HostMatchCount, Examined, FilteredOut, Materialized,
-				PatternScanScope.GlobalHostScanWithManagedFilter, hostScanElapsed, materializationElapsed);
+			return new PatternScanMetrics(HostMatchCount, Examined, FilteredOut, Materialized, scope, hostScanElapsed,
+				materializationElapsed);
 		}
 	}
 

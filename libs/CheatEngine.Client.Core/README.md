@@ -244,10 +244,14 @@ Engine qualification gate.
 
 ## AOB scan cost, classification, and release
 
-`PatternScanner` resolves an optional module, runs one global Cheat Engine `AOBScan` through the SDK, and then copies
-the result list. Module and range filters are applied while copying; `MaximumResults` bounds only the copy. Neither
-reduces Cheat Engine's scan time or memory, and a cancellation token cannot interrupt a started scan: a cancellation
-observed after the scan returns `Cancelled` with `CheatEngineHostEffect.Completed`. `ScanDetailed` measures the Cheat
+`PatternScanner` runs a request without a module or range as one global Cheat Engine `AOBScan`. A module and/or range
+request resolves the module, builds the SDK's `AobScanBounds` (the module intersected with the range, whose inclusive end
+becomes `End + pattern length`, checked and saturated) and, when the port's `TargetSelection.ObserveCurrent` observation
+qualifies the target, runs the stable `AobScanner.TryScanWithinBounds` overload with a destination of
+`min(MaximumResults + 1, ScanResourceLimits.MaximumPatternMatches)` addresses and the caller's token. An unqualified
+target, or a session the SDK could not create or attach to one target, falls back to the global scan with the module and
+range applied while copying. `MaximumResults` bounds only the copy, and a cancellation token cannot interrupt a started
+scan: a cancellation observed after the scan returns `Cancelled` with `CheatEngineHostEffect.Completed`. `ScanDetailed` measures the Cheat
 Engine scan call and the Client copy separately (`PatternScanMetrics`), and
 `tests/CheatEngine.Client.Benchmarks/PatternScannerMaterializationBenchmarks.cs` measures the copy cost alone over a fake
 port; the Cheat Engine scan cost is a live-host measurement.

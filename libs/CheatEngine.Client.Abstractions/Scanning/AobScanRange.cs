@@ -2,12 +2,13 @@ using CheatEngine.SDK.Engine.Values;
 
 namespace CheatEngine.Client.Scanning;
 
-/// <summary>An inclusive target-address range used to filter copied AOB match addresses.</summary>
+/// <summary>An inclusive range of AOB match start addresses.</summary>
 /// <remarks>
-///     String-form <c>AOBScan</c> does not accept start and stop address arguments. The global scan is therefore not
-///     narrowed by this range: Core applies it while copying each matching address from the SDK-owned result list and
-///     before it contributes to the caller's materialization limit. It is a managed post-filter, not a native
-///     optimization: it does not reduce Cheat Engine's scan time or memory.
+///     <see cref="End" /> is the last allowed match start. On the bounded route Cheat Engine scans only
+///     <c>[Start, End + pattern length)</c>, saturated at the top of the address space, so a match starting at
+///     <see cref="End" /> is found. When the bounded route cannot run, the global <c>AOBScan</c> is not narrowed: Core
+///     applies the range while copying each matching address, before it contributes to the caller's materialization
+///     limit, and the range does not reduce Cheat Engine's scan time or memory.
 /// </remarks>
 public readonly record struct AobScanRange
 {

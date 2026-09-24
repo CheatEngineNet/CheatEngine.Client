@@ -94,6 +94,18 @@ public class PatternScannerMaterializationBenchmarks
 			return new AobHostOutcome(AobScanOutcomeKind.Matches, LuaStatus.Ok, entries.Length, default, default);
 		}
 
+		public AobBoundedHostResult TryScanWithinBounds(string pattern, AobScanBounds bounds, AobScanOptions options,
+			Span<Address> destination, CancellationToken cancellationToken)
+		{
+			throw new NotSupportedException("This benchmark measures the global route only.");
+		}
+
+		/// <summary>An unobserved selection: a module request takes the global route with its managed post-filter.</summary>
+		public TargetSelectionFacts ObserveSelection()
+		{
+			return default;
+		}
+
 		public InspectionStatus EnumerateModules(ModuleInfo[] destination, out int written)
 		{
 			destination[0] = module;

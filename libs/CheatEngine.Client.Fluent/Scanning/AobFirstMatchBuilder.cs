@@ -9,14 +9,16 @@ namespace CheatEngine.Client.Scanning;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         Core copies at most one post-filtered address from Cheat Engine's exhaustive result list. The limit bounds only
-///         that copy: it never stops Cheat Engine early and is never backed by a bounded or "first found" scan. The
+///         Core copies at most one address from an exhaustive scan (the global scan, or the exhaustive bounded scan of a
+///         module or range). The limit bounds only that copy: it never stops Cheat Engine early and is never backed by a
+///         "first found" scan. The
 ///         returned address is the first element in Cheat Engine's result-list order, which Cheat Engine does not
 ///         specify: it is not guaranteed to be the lowest address or the first logical region.
 ///     </para>
 ///     <para>
-///         <see langword="null" /> means Cheat Engine returned a result list without any post-filtered match. A scan
-///         that finds nothing is usually reported as <see cref="CheatEngineFailureKind.IndeterminateHostResult" /> (on
+///         <see langword="null" /> means the scan succeeded without a match inside the request: a factual zero of the
+///         bounded route, or a global result list without any address inside the module or range. On a global route a
+///         scan that finds nothing is reported as <see cref="CheatEngineFailureKind.IndeterminateHostResult" /> (on
 ///         Cheat Engine 7.7 <c>AOBScan</c> returns <c>nil</c> for zero matches and for some host failures alike), never
 ///         converted to <see langword="null" />.
 ///     </para>

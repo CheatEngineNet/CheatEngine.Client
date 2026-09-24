@@ -150,11 +150,13 @@ Address address = client.Patterns
 client.Memory.At(address + 0x14).Write(999);
 ```
 
-`InModule(...)` and `InRange(...)` are managed post-filters: Cheat Engine still runs one global `AOBScan` over the whole
-target, and Core copies only the addresses inside the module or range. `Take(n)`, `FirstOrNone()` and `RequireSingle()`
-bound only how many filtered addresses Core copies; they never stop Cheat Engine early, and `FirstOrNone()` follows
-Cheat Engine's unspecified result-list order. A scan that finds nothing is reported as `IndeterminateHostResult`
-(the scan route cannot tell zero matches from a host failure), never as `null` or `NotFound`.
+`InModule(...)` and `InRange(...)` scope the scan: on a qualified local target Cheat Engine scans only the module
+intersected with the range (an exhaustive MemScan that blocks its main thread and cannot be interrupted once started);
+on a CEServer or file-as-process target it runs one global `AOBScan` and Core keeps only the addresses inside the module
+or range. `Take(n)`, `FirstOrNone()` and `RequireSingle()` bound only how many addresses Core copies; they never stop
+Cheat Engine early, and `FirstOrNone()` follows Cheat Engine's unspecified result-list order. Only the bounded route
+reports a factual zero; on a global route a scan that finds nothing is reported as `IndeterminateHostResult` (that
+route cannot tell zero matches from a host failure), never as `null` or `NotFound`.
 
 Use the `Try...` terminal operations when absence of a process, scan result, or runtime capability is an expected
 condition. Do not make a worker wait for the Cheat Engine thread if that worker can call back into the Client.
@@ -246,7 +248,7 @@ following table is a delivery statement, not a substitute for a live host check.
 | Runtime facts and selected process                  | Available                       | Snapshot and attachment state are re-read through the active host                                                                                                                |
 | Typed memory and finite pointer chains              | Available                       | Built-in primitives (8- to 64-bit integers, float, double, Address) plus codecs passed with each request; strings and byte ranges are bounded                                    |
 | Modules, regions, symbols, and custom-symbol leases | Available                       | Results are copied; leases are activation-scoped                                                                                                                                 |
-| AOB scanning                                        | Available                       | Patterns are normalized; terminals are `FirstOrNone`, `RequireSingle`, or materialization-bounded `Take` (post-filtered global scan)                                             |
+| AOB scanning                                        | Available                       | Patterns are normalized; terminals are `FirstOrNone`, `RequireSingle`, or materialization-bounded `Take`; module and range scans are bounded on a qualified local target         |
 | Address List and memory records                     | Available                       | Snapshots and hierarchy materialization are bounded; table file access requires an allowed root                                                                                  |
 | Typed protected Lua and explicit Lua modules        | Available                       | No Lua state crosses the public Client contract                                                                                                                                  |
 | Value scanning                                      | **Capability-gated**            | The public state machine exists, but Client session creation stays unavailable until the internal `MemScan`/`FoundList` ownership path passes its Cheat Engine 7.7 x64 live gate |

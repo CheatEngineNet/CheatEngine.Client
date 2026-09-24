@@ -47,18 +47,20 @@ internal sealed partial class PluginClientModule(
 			return;
 		}
 
-		// Cost and order: InModule is a managed post-filter. Cheat Engine still runs one global AOBScan over the whole
-		// target, and Client keeps only the addresses inside the module; FirstOrNone copies one filtered address but
-		// never stops Cheat Engine early. "First" is Cheat Engine's result-list order, which is not specified: it is not
-		// guaranteed to be the lowest address. A cancellation token cannot interrupt a scan that has started.
+		// Cost and order: on a local target InModule limits Cheat Engine's scan to the module (a bounded MemScan that
+		// blocks Cheat Engine's main thread); on a CEServer or file-as-process target Cheat Engine scans the whole target
+		// and Client keeps only the addresses inside the module. FirstOrNone copies one address but never stops Cheat
+		// Engine early. "First" is Cheat Engine's result-list order, which is not specified: it is not guaranteed to be
+		// the lowest address. A cancellation token cannot interrupt a scan that has started.
 		AobScanBuilder scan = client.Patterns.Aob("48 8B ?? ?? ?? 89");
 		if (process.Name is { } processName)
 		{
 			scan = scan.InModule(processName);
 		}
 
-		// A scan that finds nothing fails with IndeterminateHostResult: this scan route cannot tell zero matches from a
-		// host failure, so it is logged as a skipped probe, never treated as "not found".
+		// On the bounded route a scan that finds nothing returns null. On a global route it fails with
+		// IndeterminateHostResult, because that route cannot tell zero matches from a host failure, so it is logged as a
+		// skipped probe, never treated as "not found".
 		if (!scan.ReadableExecutable()
 				.FirstOrNone()
 				.TryExecute(out Address? address, out CheatEngineFailure scanFailure))

@@ -5,6 +5,7 @@ using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Engine.Objects;
 using CheatEngine.SDK.Engine.Scanning.Aob;
 using CheatEngine.SDK.Engine.Targets;
+using CheatEngine.SDK.Engine.Values;
 
 namespace CheatEngine.Client.Core.Domains;
 
@@ -13,6 +14,13 @@ namespace CheatEngine.Client.Core.Domains;
 ///     <para>
 ///         The global route calls <c>AobScanner.TryScanOutcome</c> with its target context and copies both into an
 ///         <see cref="AobHostOutcome" />; classification happens in <see cref="PatternScanner" />, never here.
+///     </para>
+///     <para>
+///         The bounded route calls the stable <c>AobScanner.TryScanWithinBounds</c> overload without a call deadline and
+///         copies its result, the Cheat Engine error text and the session release into an
+///         <see cref="AobBoundedHostResult" />; the SDK releases the MemScan session itself, once, before it returns. The
+///         target observation that selects the route goes through <see cref="SdkRuntimeObservationPort" />, the only
+///         Client code that calls <c>TargetSelection</c>.
 ///     </para>
 ///     <para>
 ///         The SDK owner is handed to <see cref="SdkAobMatchList" /> through <see cref="OwnershipHandoff" />, so a failure
@@ -43,6 +51,40 @@ internal sealed class SdkAobScanPort : IAobScanPort
 		matches = OwnershipHandoff.Adopt(owner, static acquired => new SdkAobMatchList(acquired),
 			static acquired => SdkReleaseOutcomes.FromTarget(acquired.ReleaseWithOutcome().Status));
 		return host;
+	}
+
+	public AobBoundedHostResult TryScanWithinBounds(string pattern, AobScanBounds bounds, AobScanOptions options,
+		Span<Address> destination, CancellationToken cancellationToken)
+	{
+		// The stable overload without a call deadline: the deadline overload is experimental (CESDK5010).
+		AobBoundedScanResult result =
+			AobScanner.TryScanWithinBounds(pattern, bounds, options, destination, cancellationToken);
+		return new AobBoundedHostResult
+		{
+			Kind = result.Kind,
+			CreationStatus = result.Creation.Status,
+			LuaStatus = result.LuaStatus,
+			HostResultCount = result.HostResultCount,
+			Written = result.Written,
+			RowsRead = result.RowsRead,
+			UnreadHostRows = result.UnreadHostRows,
+			BelowStartSkipped = result.BelowStartSkipped,
+			AtOrAfterStopSkipped = result.AtOrAfterStopSkipped,
+			IsMaterializationLimitReached = result.IsMaterializationLimitReached,
+			HostErrorText = result.HostErrorText,
+			IsHostErrorTextTruncated = result.IsHostErrorTextTruncated,
+			IsHostErrorTextUnreadable = result.IsHostErrorTextUnreadable,
+			HostScanElapsed = result.HostScanElapsed,
+			CopyElapsed = result.CopyElapsed,
+			FoundListRelease = result.Release.FoundList.Status,
+			MemScanRelease = result.Release.MemScan.Status,
+			ReleaseTermination = result.Release.Termination
+		};
+	}
+
+	public TargetSelectionFacts ObserveSelection()
+	{
+		return SdkRuntimeObservationPort.Instance.ObserveSelection();
 	}
 
 	public InspectionStatus EnumerateModules(ModuleInfo[] destination, out int written)

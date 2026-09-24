@@ -220,7 +220,8 @@ internal static class SdkApiUsage
 		_ = incarnation == other;
 	}
 
-	internal static void ScanningAndValueSurface(AobScanOptions options, Address address, Address other)
+	internal static void ScanningAndValueSurface(AobScanOptions options, Address address, Address other,
+		ModuleInfo module)
 	{
 		_ = new AobScanOptions("+X-C-W", FastScanMethod.Aligned, "4");
 		_ = options.AlignmentMethod;
@@ -233,6 +234,32 @@ internal static class SdkApiUsage
 		_ = outcome.ResultCount;
 		_ = context.Before;
 		_ = context.After;
+		_ = new Address(0x1000UL);
+		_ = AobScanBounds.TryFromModule(in module, out _);
+		_ = AobScanBounds.TryCreate(address, other, out AobScanBounds bounds);
+		_ = bounds.Start;
+		_ = bounds.Stop;
+		AobBoundedScanResult bounded =
+			AobScanner.TryScanWithinBounds("90", bounds, options, new Address[2], CancellationToken.None);
+		_ = bounded.Kind;
+		_ = bounded.Creation.Status;
+		_ = bounded.LuaStatus;
+		_ = bounded.HostResultCount;
+		_ = bounded.Written;
+		_ = bounded.RowsRead;
+		_ = bounded.UnreadHostRows;
+		_ = bounded.BelowStartSkipped;
+		_ = bounded.AtOrAfterStopSkipped;
+		_ = bounded.IsMaterializationLimitReached;
+		_ = bounded.HostErrorText;
+		_ = bounded.IsHostErrorTextTruncated;
+		_ = bounded.IsHostErrorTextUnreadable;
+		_ = bounded.HostScanElapsed;
+		_ = bounded.CopyElapsed;
+		MemoryScanReleaseOutcome release = bounded.Release;
+		_ = release.FoundList;
+		_ = release.MemScan;
+		_ = release.Termination;
 		_ = Address.FromUInt64(0);
 		_ = Address.TryParse("400000", out _);
 		_ = address.Value;

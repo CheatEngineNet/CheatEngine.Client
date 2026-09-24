@@ -145,27 +145,39 @@ No CheatEngine.SDK primitive backs these yet; they may arrive in a 1.x minor rel
 
 ### AOB scan semantics and limits
 
-`IPatternScanner` runs one global Cheat Engine `AOBScan` per request. `AobScanRequest.Module` and
-`AobScanRequest.Range` are managed post-filters: Core resolves the module first, then Cheat Engine scans the whole
-target, and Core copies only the addresses inside the module or range. They do not reduce Cheat Engine's scan time or
-memory. `AobScanRequest.MaximumResults` bounds only how many filtered addresses Core copies; it never stops Cheat Engine
-early. The copied order is Cheat Engine's result-list order, which Cheat Engine does not specify: the first copied
-address is not guaranteed to be the lowest address or the first logical region.
+`IPatternScanner` picks one of three routes for each request, and `PatternScanMetrics.Scope` names the one that ran:
+
+| Route (`PatternScanScope`)        | When                                                                  | Cheat Engine work and cost                                                                                                                         |
+|-----------------------------------|-----------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------|
+| `GlobalHostScan`                  | No module and no range                                                | One global `AOBScan` over the whole target                                                                                                         |
+| `HostBoundedRange`                | A module and/or range, on a qualified local target                    | An exhaustive MemScan limited to the module intersected with the range; blocks Cheat Engine's main thread and cannot be interrupted once started |
+| `GlobalHostScanWithManagedFilter` | A module and/or range whose bounded route cannot run                  | One global `AOBScan`; Core keeps only the addresses that start inside the module and range                                                        |
+
+The bounded route runs when `TargetSelection.ObserveCurrent` qualifies Cheat Engine's selected target as a local process
+incarnation. A CEServer or file-as-process target, a MemScan session CheatEngine.SDK could not create, or a target the
+SDK could not qualify during the scan falls back to the global route with managed filters. Core resolves the module
+before any scan, and a range that does not overlap the module is refused (`OperationRejected`, `NotStarted`) before any
+scan. The range end is the last allowed match start: the bounded route scans up to `End + pattern length`, saturated at
+the top of the address space. On the bounded route a match must lie entirely inside the module; the managed filter tests
+the match start only. `AobScanRequest.MaximumResults` bounds only how many addresses Core copies; it never stops Cheat
+Engine early, and the bounded route copies at most 65,535 addresses. The copied order is Cheat Engine's result-list
+order, which Cheat Engine does not specify: the first copied address is not guaranteed to be the lowest address or the
+first logical region.
 
 Four scan limits are distinct and must not be confused:
 
-| Limit                   | On the current route                                                                   |
-|-------------------------|----------------------------------------------------------------------------------------|
-| Cheat Engine work limit | None: Cheat Engine always runs a global scan (`PatternScanScope.GlobalHostScanWithManagedFilter`) |
-| Available results       | `PatternScanMetrics.HostMatchCount`, the size of Cheat Engine's result list             |
-| Materialization limit   | `AobScanRequest.MaximumResults`, which bounds `PatternScanMetrics.MaterializedCount`    |
-| Call deadline           | None: cancellation is observed only between Client-managed steps                        |
+| Limit                   | Meaning                                                                                                           |
+|-------------------------|-------------------------------------------------------------------------------------------------------------------|
+| Cheat Engine work limit | The bounds on `HostBoundedRange`; none on the global routes                                                       |
+| Available results       | `PatternScanMetrics.HostMatchCount`, the number of rows Cheat Engine returned                                     |
+| Materialization limit   | `AobScanRequest.MaximumResults`, which bounds `PatternScanMetrics.MaterializedCount`                              |
+| Call deadline           | None: cancellation is observed only between Cheat Engine calls and Client-managed steps                           |
 
 `IPatternScanOutcomeClient.ScanDetailed` is a companion contract that returns the same classification as `TryScan` plus `PatternScanMetrics`: host, examined, filtered-out, and copied counts, the scan
 scope, and the Cheat Engine scan time (`HostScanElapsed`) separately from the Client copy time
 (`MaterializationElapsed`). Counts and durations never contain addresses and are safe to log.
 
-Core's AOB route calls `AobScanner.TryScanOutcome` of CheatEngine.SDK 2.0.0, which reports each host outcome
+The global routes call `AobScanner.TryScanOutcome` of CheatEngine.SDK 2.0.0, which reports each host outcome
 separately:
 
 | Host outcome                        | Client result                                                        |
@@ -179,13 +191,32 @@ separately:
 | A list whose count cannot be read   | `InvalidHostResult`, `Completed`                                     |
 | An outcome the Client does not know | `IndeterminateHostResult`, `Unknown`                                 |
 
-A scan that finds nothing returns `IndeterminateHostResult` with the message "CE AOBScan returned nil: on CE 7.7 zero
-matches and host failures share this shape": Cheat Engine 7.7 returns `nil` for zero matches, and a host failure can
-return the same shape. It is never reported as `NotFound` or as a host rejection. The SDK also observes Cheat Engine's
+On a global route a scan that finds nothing returns `IndeterminateHostResult` with the message "CE AOBScan returned
+nil: on CE 7.7 zero matches and host failures share this shape": Cheat Engine 7.7 returns `nil` for zero matches, and a
+host failure can return the same shape. It is never reported as `NotFound` or as a host rejection. The SDK also observes Cheat Engine's
 selected target just before and just after the call: when the target changed in between, or its identity was lost or
 gained, the addresses may belong to another process, so they are discarded and the scan fails with `TargetChanged` or
 `TargetIdentityUnavailable` (`Completed`). The result list is released once through the SDK's `ReleaseWithOutcome`; any
 outcome other than a confirmed release is `CleanupUnconfirmed`, and copied addresses are then discarded.
+
+The bounded route calls `AobScanner.TryScanWithinBounds`, the stable overload without a call deadline:
+
+| Host outcome                                          | Client result                                                                         |
+|-------------------------------------------------------|---------------------------------------------------------------------------------------|
+| In-bounds matches                                     | Success with the copied addresses                                                     |
+| No in-bounds match, error text read                   | Success without addresses: a factual zero                                             |
+| No in-bounds match, error text unreadable             | `IndeterminateHostResult`, `Completed`                                                |
+| Cheat Engine reported an error text                   | `OperationRejected`, `Completed`; the message carries the bounded, unparsed text      |
+| Empty bounds                                          | `OperationRejected`, `NotStarted`                                                     |
+| Session not created, target not qualified in the scan | Fallback to the global route with managed filters                                     |
+| Target changed, Lua runtime changed                   | `TargetChanged`, `RuntimeChanged`                                                     |
+| Protected Lua failure, malformed result               | `LuaError`, `InvalidHostResult`                                                       |
+| Cancellation observed by the SDK                      | `Cancelled`: `NotStarted` before the scan completed, `Completed` after it             |
+| Deadline expired, unknown outcome                     | `IndeterminateHostResult`, `Unknown`                                                  |
+
+The SDK releases the MemScan session once, child before parent, on every exit; any release that is not confirmed is
+`CleanupUnconfirmed` and discards the copy, and a session whose creation rollback was not confirmed is never hidden
+behind a fallback.
 
 ### Target selection, runtime facts and pointer width
 
@@ -309,7 +340,7 @@ dispatch and between Client-managed steps.
 | Family | Cancellation stops preventing the host effect at | `HostEffect` values produced | Partial effects |
 |---|---|---|---|
 | Dispatcher (`ICheatEngineDispatcher`) | Dispatch admission: a `Cancelled` result proves the callback did not run | `NotStarted` (cancelled), `Unknown` (infrastructure failure) | Whatever the callback did; callback exceptions are rethrown unchanged |
-| Patterns / AOB (`IPatternScanner`, `IPatternScanOutcomeClient`, Fluent `Aob`) | The start of the global `AOBScan`; later cancellation discards the copy | `NotStarted` (validation, module lookup, cancellation before the scan, `AOBScan` unavailable), `Completed` (cancellation or invalid data after the scan, `IndeterminateHostResult` for a `nil` result, a target changed during the scan), `CleanupUnconfirmed` (result-list release not confirmed), `Unknown` (SDK fault during the scan call, protected Lua error, unrecognized outcome) | None published: a failed scan never returns a prefix |
+| Patterns / AOB (`IPatternScanner`, `IPatternScanOutcomeClient`, Fluent `Aob`) | The start of the global `AOBScan` or of the bounded scan; the SDK also observes the token between the bounded route's Cheat Engine calls; later cancellation discards the copy | `NotStarted` (validation, module lookup, cancellation before the scan, `AOBScan` unavailable), `Completed` (cancellation or invalid data after the scan, `IndeterminateHostResult` for a `nil` result, a target changed during the scan), `CleanupUnconfirmed` (result-list release not confirmed), `Unknown` (SDK fault during the scan call, protected Lua error, unrecognized outcome) | None published: a failed scan never returns a prefix |
 | Memory primitives, codecs, bytes, strings, pointer chains (`IMemoryClient`) | Dispatch admission; one call is one Cheat Engine operation | `NotStarted` (budget, unsupported type, unknown or mismatched pointer width, unavailable memory global, a pointer value above a 32-bit target on a write, a pointer chain base address above it), `Completed` (a pointer value or computed chain address above a 32-bit target after the reads returned), `Unknown` (SDK fault, host refusal, a failed codec) | `ReadBytesDetailed` reports the confirmed prefix of a partial byte read; a codec may perform several reads or writes, and a failed write codec can leave earlier writes in place |
 | Memory batches (`IMemoryClient.ReadPrimitiveBatchDetailed`, `WritePrimitiveBatchDetailed`) | Dispatch admission: a `Cancelled` dispatch reports `MemoryBatchWriteEffectState.NotStarted` | `NotStarted` (admission, pre-dispatch cancellation, unsupported type), `Started` (a completed prefix persists), `Unknown` (SDK fault or other dispatch failure) | `EffectState` is authoritative: `Partial` with `CompletedCount`/`FailedIndex`, never rolled back; `IsSuccess` is `true` only when every operation completed |
 | Inspection and symbol leases (`IInspectionClient`) | Dispatch admission | `NotStarted` (name already reserved by this activation, name already resolves, failed collision check), `CleanupUnconfirmed` (lease release not confirmed), `Unknown` (SDK fault) | A faulted `registerSymbol` is not claimed and not retried; a replaced name is left in place |

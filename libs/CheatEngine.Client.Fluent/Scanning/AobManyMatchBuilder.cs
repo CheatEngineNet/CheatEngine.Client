@@ -5,13 +5,14 @@ namespace CheatEngine.Client.Scanning;
 /// <summary>An immutable terminal builder for a materialization-bounded, copied AOB result set.</summary>
 /// <remarks>
 ///     <para>
-///         The limit bounds only how many post-filtered addresses Core copies from Cheat Engine's result list; Cheat Engine
-///         still runs one global scan and is never stopped early. Inspect <see cref="AobScanResult.IsTruncated" /> before
-///         treating the copy as complete.
+///         The limit bounds only how many addresses Core copies from Cheat Engine's result; Cheat Engine's scan (global,
+///         or bounded to the module and range) is never stopped early. Inspect <see cref="AobScanResult.IsTruncated" />
+///         before treating the copy as complete.
 ///     </para>
 ///     <para>
-///         A scan that finds nothing is usually reported as
-///         <see cref="CheatEngineFailureKind.IndeterminateHostResult" />, not as an empty result.
+///         On a global route a scan that finds nothing is reported as
+///         <see cref="CheatEngineFailureKind.IndeterminateHostResult" />, not as an empty result; only the bounded route
+///         reports a factual empty result.
 ///     </para>
 /// </remarks>
 public readonly record struct AobManyMatchBuilder

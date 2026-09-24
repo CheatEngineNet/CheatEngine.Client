@@ -24,14 +24,17 @@ Address address = client.Aob("48 8B ?? ?? ?? 89")
 client.Memory.At(address + 0x14).Write(999);
 ```
 
-`InModule(...)` and `InRange(...)` are managed post-filters. Core resolves the module first, then Cheat Engine runs one
-global `AOBScan` over the whole target, and Core copies only the addresses inside the module or range: they do not
-reduce Cheat Engine's scan time or memory. `Take(n)`, `FirstOrNone()` (1) and `RequireSingle()` (2) bound only how many
-filtered addresses Core copies; they never stop Cheat Engine early. `FirstOrNone()` returns the first element in Cheat
-Engine's result-list order, which Cheat Engine does not specify (not the lowest address, not the first logical region).
-`RequireSingle()` copies up to two matches from Cheat Engine's exhaustive list, so a truncated copy is reported as
-ambiguous. A scan that finds nothing is reported as `IndeterminateHostResult` (on Cheat Engine 7.7 `AOBScan` returns
-`nil` for zero matches and for some host failures alike), never as `null` or `NotFound`. A cancellation token cannot interrupt a scan that Cheat Engine has started.
+`InModule(...)` and `InRange(...)` scope the scan. On a qualified local target Cheat Engine runs an exhaustive MemScan
+limited to the module intersected with the range; it blocks Cheat Engine's main thread and cannot be interrupted once
+started. On a CEServer or file-as-process target, Cheat Engine runs one global `AOBScan` over the whole target and Core
+keeps only the addresses inside the module or range, which does not reduce Cheat Engine's scan time or memory.
+`Take(n)`, `FirstOrNone()` (1) and `RequireSingle()` (2) bound only how many addresses Core copies; they never stop
+Cheat Engine early. `FirstOrNone()` returns the first element in Cheat Engine's result-list order, which Cheat Engine
+does not specify (not the lowest address, not the first logical region). `RequireSingle()` copies up to two matches
+from an exhaustive scan, so a truncated copy is reported as ambiguous. Only the bounded route reports a factual zero
+(`null`, `NotFound`); on a global route a scan that finds nothing is reported as `IndeterminateHostResult` (on Cheat
+Engine 7.7 `AOBScan` returns `nil` for zero matches and for some host failures alike). A cancellation token cannot
+interrupt a scan that Cheat Engine has started.
 `IPatternScanOutcomeClient.ScanDetailed` reports the host match count, the examined/filtered/copied counts, and the
 Cheat Engine scan time separately from the copy time.
 
@@ -57,8 +60,8 @@ Abstractions  ←  Fluent
   handles or mutable builders.
 - Validates and normalizes an AOB pattern and its options before a terminal operation is selected.
 - Forces explicit result cardinality: `RequireSingle()`, `FirstOrNone()`, or `Take(maximumResults)`.
-- Preserves materialization-bounded copies: the global Cheat Engine scan is not bounded, only the number of copied
-  addresses is. Callers inspect `AobScanResult.IsTruncated` when a copy is intentionally incomplete.
+- Preserves materialization-bounded copies: the limit bounds only the number of copied addresses, never Cheat
+  Engine's scan. Callers inspect `AobScanResult.IsTruncated` when a copy is intentionally incomplete.
 - Provides `Memory.At(...)` and `memory.At(...)` builders for primitive and codec-based reads and
   writes without retaining a live target handle, including exact byte copies, explicit UTF-8/UTF-16
   bounds, finite pointer chains, and bounded homogeneous primitive batches. The primitive terminals
@@ -73,7 +76,7 @@ The package publishes functional namespaces only:
 
 | Namespace                     | Entry points                                                          |
 |-------------------------------|-----------------------------------------------------------------------|
-| `CheatEngine.Client.Scanning` | `Aob(...)`, AOB post-filters, and copy-bounded terminal builders      |
+| `CheatEngine.Client.Scanning` | `Aob(...)`, AOB module and range scopes, and copy-bounded terminals   |
 | `CheatEngine.Client.Memory`   | `Memory.At(...)`, `IMemoryClient.At(...)`, and `MemoryAddressBuilder` |
 
 `CheatEngine.Client.Fluent` is a package/assembly name, never a consumer namespace. The builders

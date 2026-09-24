@@ -3,11 +3,12 @@ namespace CheatEngine.Client.Scanning;
 /// <summary>Separates the Cheat Engine cost of one AOB scan from the Client cost of copying its result.</summary>
 /// <remarks>
 ///     <para>
-///         The four scan limits are distinct notions (audit ch.24): the <em>Cheat Engine work limit</em> (none on the
-///         global <c>AOBScan</c> route), the <em>available results</em> (<see cref="HostMatchCount" />), the
-///         <em>materialization limit</em> (<see cref="AobScanRequest.MaximumResults" />, which bounds
-///         <see cref="MaterializedCount" />), and the <em>call deadline</em> (none: cancellation is observed only between
-///         Client-managed steps and never interrupts a started Cheat Engine scan).
+///         The four scan limits are distinct notions (audit ch.24): the <em>Cheat Engine work limit</em> (the bounds on
+///         <see cref="PatternScanScope.HostBoundedRange" />, none on the global routes), the <em>available results</em>
+///         (<see cref="HostMatchCount" />), the <em>materialization limit</em>
+///         (<see cref="AobScanRequest.MaximumResults" />, which bounds <see cref="MaterializedCount" />), and the
+///         <em>call deadline</em> (none: cancellation is observed only between Cheat Engine calls and Client-managed steps
+///         and never interrupts a started Cheat Engine scan).
 ///     </para>
 ///     <para>
 ///         Counts and durations are safe to log; they never contain addresses or values. The invariants
@@ -63,7 +64,10 @@ public readonly record struct PatternScanMetrics
 		MaterializationElapsed = materializationElapsed;
 	}
 
-	/// <summary>Gets the number of entries in Cheat Engine's result list (the available results).</summary>
+	/// <summary>
+	///     Gets the number of entries Cheat Engine returned (the available results), saturated at
+	///     <see cref="int.MaxValue" />; on the bounded route it includes rows outside the bounds.
+	/// </summary>
 	public int HostMatchCount
 	{
 		get;
@@ -76,7 +80,10 @@ public readonly record struct PatternScanMetrics
 		get;
 	}
 
-	/// <summary>Gets the number of examined entries removed by the managed module or range post-filters.</summary>
+	/// <summary>
+	///     Gets the number of examined entries outside the request: removed by the managed module or range filters, or by
+	///     the bounded route's own start and stop checks.
+	/// </summary>
 	public int FilteredOutCount
 	{
 		get;

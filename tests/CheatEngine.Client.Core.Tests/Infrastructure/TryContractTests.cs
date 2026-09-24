@@ -705,6 +705,12 @@ public sealed class TryContractTests
 			throw Fault();
 		}
 
+		public AobBoundedHostResult TryScanWithinBounds(string pattern, AobScanBounds bounds, AobScanOptions options,
+			Span<Address> destination, CancellationToken cancellationToken)
+		{
+			throw Fault();
+		}
+
 		public InspectionStatus EnumerateModules(ModuleInfo[] destination, out int written)
 		{
 			throw Fault();

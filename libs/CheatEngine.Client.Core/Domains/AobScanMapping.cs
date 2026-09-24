@@ -1,14 +1,16 @@
+using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Results;
 using CheatEngine.SDK.Engine.Scanning.Aob;
+using CheatEngine.SDK.Engine.Scanning.Values;
 
 namespace CheatEngine.Client.Core.Domains;
 
 /// <summary>
-///     Maps the outcome of CheatEngine.SDK 2.0.0 <c>AobScanner.TryScanOutcome</c> and its target context to the Client
-///     vocabulary, value by value (audit F06, CRIT-03).
+///     Maps the outcomes of CheatEngine.SDK 2.0.0 <c>AobScanner.TryScanOutcome</c> (with its target context) and
+///     <c>AobScanner.TryScanWithinBounds</c> to the Client vocabulary, value by value (audit F06, F07, CRIT-03).
 /// </summary>
 /// <remarks>
-///     <para>Outcomes that hand out no usable result list:</para>
+///     <para>Global route, outcomes that hand out no usable result list:</para>
 ///     <list type="table">
 ///         <listheader>
 ///             <term>SDK outcome</term>
@@ -49,6 +51,55 @@ namespace CheatEngine.Client.Core.Domains;
 ///         <see cref="CheatEngineHostEffect.Completed" />; the returned addresses are discarded. Messages name the
 ///         category only, never an address, a process or a pattern. The mapping-totality tests fail when the consumed SDK
 ///         adds a value.
+///     </para>
+///     <para>Bounded route (<see cref="ClassifyBounded" />):</para>
+///     <list type="table">
+///         <listheader>
+///             <term>SDK outcome</term>
+///             <description>Client result</description>
+///         </listheader>
+///         <item><term><c>Matches</c></term><description>The in-bounds addresses are published.</description></item>
+///         <item>
+///             <term><c>NoMatches</c></term>
+///             <description>
+///                 The factual empty success when Cheat Engine's error text was read; otherwise
+///                 <c>IndeterminateHostResult</c>, <c>Completed</c>: a host error cannot be excluded.
+///             </description>
+///         </item>
+///         <item>
+///             <term><c>HostReportedError</c></term>
+///             <description><c>OperationRejected</c>, <c>Completed</c>, carrying the SDK's bounded, unparsed text.</description>
+///         </item>
+///         <item><term><c>InvalidBounds</c></term><description><c>OperationRejected</c>, <c>NotStarted</c></description></item>
+///         <item>
+///             <term><c>SessionCreationFailed</c>, <c>TargetIdentityUnavailable</c></term>
+///             <description>
+///                 Fall back to the global route with managed post-filters; a creation whose rollback Cheat Engine did not
+///                 confirm is <c>InvalidState</c>, <c>CleanupUnconfirmed</c> instead.
+///             </description>
+///         </item>
+///         <item><term><c>TargetChanged</c></term><description><c>TargetChanged</c></description></item>
+///         <item><term><c>RuntimeInvalidated</c></term><description><c>RuntimeChanged</c></description></item>
+///         <item><term><c>ScanFailed</c></term><description><c>LuaError</c>, naming the Lua status</description></item>
+///         <item><term><c>InvalidResult</c></term><description><c>InvalidHostResult</c></description></item>
+///         <item>
+///             <term><c>Cancelled</c></term>
+///             <description>
+///                 <c>Cancelled</c>: <c>NotStarted</c> before the scan completed (no host scan time), <c>Completed</c>
+///                 after it.
+///             </description>
+///         </item>
+///         <item>
+///             <term><c>WaitTimedOut</c>, <c>Unknown</c> or undefined</term>
+///             <description><c>IndeterminateHostResult</c>, <c>Unknown</c>: this Client never sets a call deadline.</description>
+///         </item>
+///     </list>
+///     <para>
+///         The host effect of <c>TargetChanged</c>, <c>RuntimeInvalidated</c>, <c>ScanFailed</c> and
+///         <c>InvalidResult</c> is <c>Completed</c> when the scan had completed (the SDK reported a host scan time) and
+///         <c>Unknown</c> otherwise. The session release is checked separately
+///         (<see cref="IsSessionReleaseConfirmed" />): an unconfirmed release turns any of these results into
+///         <c>CleanupUnconfirmed</c>.
 ///     </para>
 /// </remarks>
 internal static class AobScanMapping
@@ -143,12 +194,157 @@ internal static class AobScanMapping
 		}
 	}
 
+	/// <summary>Decides what the scanner does with a bounded result, before its session release is checked.</summary>
+	/// <param name="operation">The public Client operation name.</param>
+	/// <param name="result">The copied SDK result.</param>
+	/// <param name="failure">
+	///     The failure for <see cref="AobBoundedDisposition.Fail" />, and the reason of a
+	///     <see cref="AobBoundedDisposition.FallBack" /> (reported only when the fallback cannot run); default otherwise.
+	/// </param>
+	/// <returns>Whether to publish the addresses, fall back to the global route, or fail.</returns>
+	internal static AobBoundedDisposition ClassifyBounded(string operation, in AobBoundedHostResult result,
+		out CheatEngineFailure failure)
+	{
+		failure = default;
+		switch (result.Kind)
+		{
+			case AobBoundedScanOutcomeKind.Matches:
+				return AobBoundedDisposition.Publish;
+			case AobBoundedScanOutcomeKind.NoMatches when !result.IsHostErrorTextUnreadable:
+				return AobBoundedDisposition.Publish;
+			case AobBoundedScanOutcomeKind.NoMatches:
+				failure = new CheatEngineFailure(CheatEngineFailureKind.IndeterminateHostResult, operation,
+					"The bounded AOB scan found no in-bounds match, but Cheat Engine's error text could not be read, " +
+					"so a host error cannot be excluded.", null, CheatEngineHostEffect.Completed);
+				return AobBoundedDisposition.Fail;
+			case AobBoundedScanOutcomeKind.HostReportedError:
+				string suffix = result.IsHostErrorTextTruncated ? " (truncated)" : string.Empty;
+				failure = new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, operation,
+					$"Cheat Engine reported an error for the bounded AOB scan: {result.HostErrorText}{suffix}", null,
+					CheatEngineHostEffect.Completed);
+				return AobBoundedDisposition.Fail;
+			case AobBoundedScanOutcomeKind.InvalidBounds:
+				failure = new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, operation,
+					"CheatEngine.SDK refused the bounded AOB scan before any Cheat Engine call: its bounds are empty.",
+					null, CheatEngineHostEffect.NotStarted);
+				return AobBoundedDisposition.Fail;
+			case AobBoundedScanOutcomeKind.SessionCreationFailed
+				when result.CreationStatus == MemoryScanCreationStatus.RollbackUnconfirmed:
+				failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidState, operation,
+					"The bounded AOB scan session could not be created, and Cheat Engine did not confirm its rollback.",
+					null, CheatEngineHostEffect.CleanupUnconfirmed);
+				return AobBoundedDisposition.Fail;
+			case AobBoundedScanOutcomeKind.SessionCreationFailed:
+				failure = new CheatEngineFailure(CheatEngineFailureKind.CapabilityUnavailable, operation,
+					$"The bounded AOB scan session could not be created ({result.CreationStatus}).", null,
+					CheatEngineHostEffect.NotStarted);
+				return AobBoundedDisposition.FallBack;
+			case AobBoundedScanOutcomeKind.TargetIdentityUnavailable:
+				failure = new CheatEngineFailure(CheatEngineFailureKind.TargetIdentityUnavailable, operation,
+					"The selected target could not be qualified during the bounded AOB scan; nothing was published.",
+					null, ScanEffect(result));
+				return AobBoundedDisposition.FallBack;
+			case AobBoundedScanOutcomeKind.TargetChanged:
+				failure = new CheatEngineFailure(CheatEngineFailureKind.TargetChanged, operation,
+					"Cheat Engine's selected target changed during the bounded AOB scan; nothing was published.", null,
+					ScanEffect(result));
+				return AobBoundedDisposition.Fail;
+			case AobBoundedScanOutcomeKind.RuntimeInvalidated:
+				failure = new CheatEngineFailure(CheatEngineFailureKind.RuntimeChanged, operation,
+					"The Lua runtime changed during the bounded AOB scan; nothing was published.", null,
+					ScanEffect(result));
+				return AobBoundedDisposition.Fail;
+			case AobBoundedScanOutcomeKind.ScanFailed:
+				failure = new CheatEngineFailure(CheatEngineFailureKind.LuaError, operation,
+					$"A protected call of the bounded AOB scan failed with Lua status {result.LuaStatus}.", null,
+					ScanEffect(result));
+				return AobBoundedDisposition.Fail;
+			case AobBoundedScanOutcomeKind.InvalidResult:
+				failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult, operation,
+					"Cheat Engine returned a malformed wait result, count or row address for the bounded AOB scan.",
+					null, ScanEffect(result));
+				return AobBoundedDisposition.Fail;
+			case AobBoundedScanOutcomeKind.Cancelled:
+				failure = result.HostScanElapsed > TimeSpan.Zero
+					? CancellationMapping.AfterNativeCall(operation,
+						"The bounded AOB scan was cancelled after Cheat Engine completed it; nothing was published.")
+					: CancellationMapping.BeforeNativeCall(operation,
+						"The bounded AOB scan was cancelled before Cheat Engine started it.");
+				return AobBoundedDisposition.Fail;
+			case AobBoundedScanOutcomeKind.WaitTimedOut:
+				failure = new CheatEngineFailure(CheatEngineFailureKind.IndeterminateHostResult, operation,
+					"The bounded AOB scan reported a call deadline, which this Client never sets.", null,
+					CheatEngineHostEffect.Unknown);
+				return AobBoundedDisposition.Fail;
+			default:
+				failure = new CheatEngineFailure(CheatEngineFailureKind.IndeterminateHostResult, operation,
+					"CheatEngine.SDK reported a bounded AOB outcome this Client version does not recognize.", null,
+					CheatEngineHostEffect.Unknown);
+				return AobBoundedDisposition.Fail;
+		}
+	}
+
+	/// <summary>Gets whether the SDK read the host result count of a bounded scan, so its metrics are meaningful.</summary>
+	internal static bool HasReadCount(in AobBoundedHostResult result)
+	{
+		return result.Kind is AobBoundedScanOutcomeKind.Matches or AobBoundedScanOutcomeKind.NoMatches
+			or AobBoundedScanOutcomeKind.HostReportedError;
+	}
+
+	/// <summary>Checks the one child-before-parent release of a bounded scan's MemScan session.</summary>
+	/// <param name="result">The copied SDK result.</param>
+	/// <param name="released">The combined release kind (<see cref="SdkReleaseOutcomes.Worst" />).</param>
+	/// <returns>
+	///     <see langword="true" /> when no session was created, or when both owners report <c>Released</c> and a scan that
+	///     may still have been running needed no stop or had its stop confirmed.
+	/// </returns>
+	internal static bool IsSessionReleaseConfirmed(in AobBoundedHostResult result, out LeaseReleaseKind released)
+	{
+		if (result.CreationStatus != MemoryScanCreationStatus.Success ||
+			result.Kind == AobBoundedScanOutcomeKind.SessionCreationFailed)
+		{
+			// No session was published, so there is nothing to release; an unconfirmed rollback is its own failure.
+			released = LeaseReleaseKind.Released;
+			return true;
+		}
+
+		released = SdkReleaseOutcomes.Worst(SdkReleaseOutcomes.FromTarget(result.FoundListRelease),
+			SdkReleaseOutcomes.FromTarget(result.MemScanRelease)).Kind;
+		if (released == LeaseReleaseKind.Released &&
+			result.ReleaseTermination is not (MemoryScanTerminationStatus.NotRequired
+				or MemoryScanTerminationStatus.Confirmed))
+		{
+			released = LeaseReleaseKind.CleanupUnconfirmed;
+		}
+
+		return released == LeaseReleaseKind.Released;
+	}
+
+	/// <summary>The effect of a failure the SDK observed during a bounded scan: completed only after the scan completed.</summary>
+	private static CheatEngineHostEffect ScanEffect(in AobBoundedHostResult result)
+	{
+		return result.HostScanElapsed > TimeSpan.Zero ? CheatEngineHostEffect.Completed : CheatEngineHostEffect.Unknown;
+	}
+
 	private static CheatEngineFailure Indeterminate(string operation)
 	{
 		return new CheatEngineFailure(CheatEngineFailureKind.IndeterminateHostResult, operation,
 			"CheatEngine.SDK reported an AOB outcome this Client version does not recognize.", null,
 			CheatEngineHostEffect.Unknown);
 	}
+}
+
+/// <summary>What the scanner does with the result of a bounded scan.</summary>
+internal enum AobBoundedDisposition
+{
+	/// <summary>The scan failed; report its failure.</summary>
+	Fail = 0,
+
+	/// <summary>The scan succeeded; publish its in-bounds addresses.</summary>
+	Publish = 1,
+
+	/// <summary>The bounded route could not run on this target; run the global route with managed post-filters.</summary>
+	FallBack = 2
 }
 
 /// <summary>Whether the answer of one scan can be attributed to the target the caller expected.</summary>

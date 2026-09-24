@@ -103,7 +103,7 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 		Assert.Equal(Fields(SymbolLeaseReleaseKind.Released),
 			diagnostics.Single(nameof(ICoreDiagnostics.SymbolLeaseReleased)));
 		object?[] scan = diagnostics.Single(nameof(ICoreDiagnostics.PatternScanCompleted));
-		Assert.Equal(Fields(PatternScanScope.GlobalHostScanWithManagedFilter, 1, 1, false), scan[..4]);
+		Assert.Equal(Fields(PatternScanScope.GlobalHostScan, 1, 1, false), scan[..4]);
 		object?[] lua = diagnostics.Single(nameof(ICoreDiagnostics.LuaOperationCompleted));
 		Assert.Equal(Fields("Lua.Execute", "None", 0), Fields(lua[0], lua[1], lua[3]));
 		Assert.Equal(
@@ -746,6 +746,17 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 		{
 			matches = new SingleMatchList();
 			return AobHosts.Outcome(AobScanOutcomeKind.Matches, 1);
+		}
+
+		public AobBoundedHostResult TryScanWithinBounds(string pattern, AobScanBounds bounds, AobScanOptions options,
+			Span<Address> destination, CancellationToken cancellationToken)
+		{
+			throw new NotSupportedException("The diagnostics scan is unscoped.");
+		}
+
+		public TargetSelectionFacts ObserveSelection()
+		{
+			throw new NotSupportedException("The diagnostics scan is unscoped.");
 		}
 
 		public InspectionStatus EnumerateModules(ModuleInfo[] destination, out int written)

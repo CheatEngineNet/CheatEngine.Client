@@ -6,14 +6,15 @@ namespace CheatEngine.Client.Scanning;
 /// <summary>An immutable terminal builder for an AOB scan that must have exactly one match.</summary>
 /// <remarks>
 ///     <para>
-///         Uniqueness is proven from Cheat Engine's exhaustive result list: Core copies up to two post-filtered matches, and
-///         a truncated copy (a second post-filtered match exists) is reported as
-///         <see cref="CheatEngineFailureKind.AmbiguousMatch" />. This operation is never backed by a bounded, "unique", or
+///         Uniqueness is proven from an exhaustive scan (the global scan, or the exhaustive bounded scan of a module or
+///         range): Core copies up to two matches, and a truncated copy (a second match exists) is reported as
+///         <see cref="CheatEngineFailureKind.AmbiguousMatch" />. This operation is never backed by a "unique" or
 ///         "first found" scan, and a copy limit of one is never treated as proof of uniqueness.
 ///     </para>
 ///     <para>
-///         <see cref="CheatEngineFailureKind.NotFound" /> is reported only when Cheat Engine returned a result list without
-///         any post-filtered match. A scan that finds nothing is usually reported as
+///         <see cref="CheatEngineFailureKind.NotFound" /> is reported only when the scan succeeded without a match inside
+///         the request (a factual zero of the bounded route, or a global result list without any address inside the
+///         module or range). On a global route a scan that finds nothing is reported as
 ///         <see cref="CheatEngineFailureKind.IndeterminateHostResult" /> (on Cheat Engine 7.7 <c>AOBScan</c> returns
 ///         <c>nil</c> for zero matches and for some host failures alike), never as
 ///         <see cref="CheatEngineFailureKind.NotFound" />.
