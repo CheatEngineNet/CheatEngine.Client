@@ -42,22 +42,15 @@ public sealed partial class ArchitectureRatchetTests
 
 	private const string ClientLuaGlobalsType = "CheatEngine.Client.Core.Infrastructure.ClientLuaGlobals";
 
-	private const string MutationPort = "CheatEngine.Client.Core.Domains.SdkTableRecordMutationPort";
-
 	private const string TableClientType = "CheatEngine.Client.Core.Domains.TableClient";
 
 	private const string UnsafeLuaClientType = "CheatEngine.Client.Core.Domains.UnsafeLuaClient";
-
-	private const string AddressListMutations = "CheatEngine.SDK.Engine.AddressList.AddressListMutations";
 
 	private const string CheatTableFiles = "CheatEngine.SDK.Engine.Tables.CheatTableFiles";
 
 	private const string UnsafeLuaReason =
 		"CheatEngine.SDK 2.0.0 exposes no protected chunk-execution service; caller-supplied Lua runs only behind " +
 		"EnableUnsafeLuaExecution";
-
-	private const string ParentChainReason =
-		"Parent-chain walk of SetParent (cycle and depth guard): reads Parent through the raw Lua stack";
 
 	private const string ClientLuaGlobalsReason =
 		"Code the SDK LuaBindings generator emits for the FrozenLuaGlobals bindings; ClientLuaGlobals.cs is deleted " +
@@ -78,30 +71,6 @@ public sealed partial class ArchitectureRatchetTests
 	/// </summary>
 	private static readonly FrozenLuaUse[] FrozenLuaUsage =
 	[
-		new(MutationPort,
-			"CheatEngine.SDK.Engine.AddressList.MemoryRecord::TryRead(CheatEngine.SDK.Lua.State.LuaState,int32,CheatEngine.SDK.Engine.AddressList.MemoryRecord&)->boolean",
-			ParentChainReason, new LuaDebtKind.Transitional(new SdkReplacement(AddressListMutations, "L13", ["SetParent"]))),
-		new(MutationPort,
-			"CheatEngine.SDK.Engine.Objects.CEObject::TryCallMethod(System.ReadOnlySpan`1<byte>)->boolean",
-			"Destroys a record (Delete, and the one rollback of a failed Create) through a raw method call",
-			new LuaDebtKind.Transitional(new SdkReplacement(AddressListMutations, "L13", ["Delete"]))),
-		new(MutationPort,
-			"CheatEngine.SDK.Engine.Objects.CEObject::TryGetProperty(CheatEngine.SDK.Lua.State.LuaState,System.ReadOnlySpan`1<byte>)->CheatEngine.SDK.Lua.Calls.LuaStatus",
-			ParentChainReason, new LuaDebtKind.Transitional(new SdkReplacement(AddressListMutations, "L13", ["SetParent"]))),
-		new(MutationPort,
-			"CheatEngine.SDK.Engine.Objects.CEObject::TryGetProperty``2(System.ReadOnlySpan`1<byte>,!!1&)->boolean",
-			"Activation algorithm: reads Active and AsyncProcessing through raw property access",
-			new LuaDebtKind.Transitional(new SdkReplacement(AddressListMutations, "L13", ["SetActive"]))),
-		new(MutationPort,
-			"CheatEngine.SDK.Engine.Objects.CEObject::TrySetProperty``2(System.ReadOnlySpan`1<byte>,!!1)->boolean",
-			"Writes Parent and Active through raw property access",
-			new LuaDebtKind.Transitional(new SdkReplacement(AddressListMutations, "L13", ["SetParent", "SetActive"]))),
-		new(MutationPort, "CheatEngine.SDK.Lua.State.LuaFrame::.ctor(CheatEngine.SDK.Lua.State.LuaState)->void",
-			ParentChainReason, new LuaDebtKind.Transitional(new SdkReplacement(AddressListMutations, "L13", ["SetParent"]))),
-		new(MutationPort, "CheatEngine.SDK.Lua.State.LuaFrame::Dispose()->void",
-			ParentChainReason, new LuaDebtKind.Transitional(new SdkReplacement(AddressListMutations, "L13", ["SetParent"]))),
-		new(MutationPort, "CheatEngine.SDK.Lua.State.LuaState::IsNil(int32)->boolean",
-			ParentChainReason, new LuaDebtKind.Transitional(new SdkReplacement(AddressListMutations, "L13", ["SetParent"]))),
 		new(TableClientType,
 			"CheatEngine.SDK.Engine.Objects.CEObject::TryGetProperty``2(System.ReadOnlySpan`1<byte>,!!1&)->boolean",
 			"Record snapshots read Count, which ChildCount keeps for ADR-08 precision (A3): CheatEngine.SDK 2.0.0 only " +

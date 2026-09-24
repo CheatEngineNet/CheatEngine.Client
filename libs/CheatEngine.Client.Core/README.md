@@ -187,8 +187,12 @@ Every trusted table load that reaches Cheat Engine advances the table generation
 inside the dispatched load, on Cheat Engine's main thread; a record identifier handed out before it
 is refused with `InvalidState` (checked before dispatch and again inside the dispatched call) until
 a new snapshot observes it. Each snapshot is judged by the generation read when it was copied, so a
-snapshot copied before a concurrent load never hands out current identifiers. `TrySetActive` reads the record's state before and after one setter call and
-reports applied, unchanged, refused by the host, pending or indeterminate; it never retries.
+snapshot copied before a concurrent load never hands out current identifiers. Delete, parent assignment and
+activation are CheatEngine.SDK `AddressListMutations` commands (`Delete`, `SetParent` with the Client's explicit
+traversal limit of 4096 records, `SetActive`), classified value by value by `TableMapping`; the record is copied again
+after a completed command and a failed copy is never merged with the command's result. `SetActive` reads the record's
+state before and after one setter call and reports applied, unchanged, refused by the host, pending or indeterminate; it
+never retries. A failed `Create` is rolled back once through `AddressListMutations.Delete`.
 Symbol registration refuses a name that already resolves (`EngineInspection.ResolveAddress`), then
 registers through CheatEngine.SDK's ownership coordinator (`SymbolRegistry.TryRegisterOwned`) and
 registers the lease with the activation in the same main-thread callback. The lease release

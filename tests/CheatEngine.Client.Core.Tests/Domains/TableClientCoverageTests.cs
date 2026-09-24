@@ -206,31 +206,31 @@ public sealed class TableClientCoverageTests
 			return TableRecordCreation.Created;
 		}
 
-		public TableRecordMutationStatus TryDelete(MemoryRecordId id)
+		public TableRecordMutationOutcome TryDelete(MemoryRecordId id)
 		{
 			InvocationCount++;
-			return TableRecordMutationStatus.Success;
+			return TableRecordMutationOutcome.Succeeded;
 		}
 
-		public TableRecordMutationStatus TrySetParent(MemoryRecordId childId, MemoryRecordId? parentId,
+		public TableRecordMutationOutcome TrySetParent(MemoryRecordId childId, MemoryRecordId? parentId,
 			out MemoryRecordSnapshot record)
 		{
 			InvocationCount++;
 			record = default;
-			return TableRecordMutationStatus.Success;
+			return TableRecordMutationOutcome.Succeeded;
 		}
 
 		public TableActivationObservation TrySetActive(MemoryRecordId id, bool requested)
 		{
 			InvocationCount++;
-			return TableActivationObservation.Of(TableActivationStatus.Applied);
+			return TableActivationObservation.Of(MemoryRecordActivationOutcomeKind.Applied);
 		}
 
-		public TableRecordMutationStatus TrySelect(MemoryRecordId id, out MemoryRecordSnapshot record)
+		public TableRecordMutationOutcome TrySelect(MemoryRecordId id, out MemoryRecordSnapshot record)
 		{
 			InvocationCount++;
 			record = default;
-			return TableRecordMutationStatus.Success;
+			return TableRecordMutationOutcome.Succeeded;
 		}
 	}
 

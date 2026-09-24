@@ -1,135 +1,132 @@
 using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Tables;
 using CheatEngine.SDK.Engine.AddressList;
-using CheatEngine.SDK.Lua.Marshalling;
-using CheatEngine.SDK.Lua.Runtime;
-using CheatEngine.SDK.Lua.State;
 
 namespace CheatEngine.Client.Core.Domains;
 
-/// <summary>Protected SDK implementation of record creation, destruction, selection, activation and parent reassignment.</summary>
+/// <summary>
+///     Protected SDK implementation of record creation, deletion, selection, activation and parent reassignment. Delete,
+///     parent assignment and activation are CheatEngine.SDK's <see cref="AddressListMutations" /> commands, which resolve
+///     the record by identifier in the current list, refuse while a table file loads on the calling thread or after the
+///     Lua runtime changed, and report how far they got; the port adds no Lua of its own.
+/// </summary>
 internal sealed class SdkTableRecordMutationPort : ITableRecordMutationPort
 {
-	/// <summary>Names the Lua admission of the parent-chain read; the Tables client reports its own operation.</summary>
-	private const string ParentReadOperation = "Tables.ReadParent";
+	/// <summary>
+	///     The explicit bound of the parent-chain walk that <c>AddressListMutations.SetParent</c> runs before it assigns
+	///     a parent; the Client never relies on the SDK's default bound.
+	/// </summary>
+	/// <remarks>
+	///     Cheat Engine tables are shallow; a longer chain above the requested parent is refused as
+	///     <see cref="MemoryRecordMutationProblem.TraversalLimitReached" /> instead of being walked without bound.
+	/// </remarks>
+	internal const int ParentTraversalHops = 4096;
+
+	private static readonly MemoryRecordParentTraversalLimit ParentTraversalLimit = new(ParentTraversalHops);
 
 	/// <inheritdoc />
 	/// <remarks>
-	///     When initialization, snapshotting or the parent assignment fails, the record created by this call is destroyed
-	///     exactly once through its own handle. The <see langword="bool" /> result of that destroy is kept: a
-	///     <see langword="false" /> result or a fault is reported as <see cref="TableRecordRollback.Unconfirmed" /> and
-	///     never retried (audit A08-14).
+	///     When initialization, snapshotting or the parent assignment fails, the record created by this call is deleted
+	///     exactly once through <see cref="AddressListMutations.Delete" /> with its identifier. Only a completed delete is
+	///     <see cref="TableRecordRollback.Confirmed" />; any other result, a fault, or an identifier that could not be
+	///     read is <see cref="TableRecordRollback.Unconfirmed" />, never retried (audit A08-14).
 	/// </remarks>
 	public TableRecordCreation TryCreate(MemoryRecordDefinition definition, out MemoryRecordSnapshot record)
 	{
 		record = default;
 		if (!AddressListAccess.TryGetCurrent(out AddressList list))
 		{
-			return new TableRecordCreation(TableRecordMutationStatus.AddressListUnavailable,
+			return new TableRecordCreation(
+				TableRecordMutationOutcome.NotAttempted(MemoryRecordMutationProblem.AddressListUnavailable),
 				TableRecordRollback.NotRequired);
 		}
 
 		if (!list.TryCreateMemoryRecord(out MemoryRecord value))
 		{
-			return new TableRecordCreation(TableRecordMutationStatus.HostRejected, TableRecordRollback.NotRequired);
+			return new TableRecordCreation(TableRecordMutationOutcome.InvalidResultAfterInvocation,
+				TableRecordRollback.NotRequired);
 		}
 
-		TableRecordMutationStatus status;
+		if (!value.TryGetId(out MemoryRecordId createdId))
+		{
+			// Without its identifier the created record cannot be deleted through AddressListMutations.
+			return new TableRecordCreation(TableRecordMutationOutcome.InvalidResultAfterInvocation,
+				TableRecordRollback.Unconfirmed);
+		}
+
+		TableRecordMutationOutcome outcome;
 		Exception? fault = null;
 		try
 		{
-			status = TryInitializeRecord(value, definition)
-				? TryCompleteRecordCreation(value, definition, out record)
-				: TableRecordMutationStatus.HostRejected;
-			if (status == TableRecordMutationStatus.Success)
+			outcome = TryInitializeRecord(value, definition)
+				? TryCompleteRecordCreation(value, createdId, definition, out record)
+				: TableRecordMutationOutcome.InvalidResultAfterInvocation;
+			if (outcome.IsSuccess)
 			{
 				return TableRecordCreation.Created;
 			}
 		}
 		catch (Exception exception) when (SdkBoundary.IsSdkFault(exception))
 		{
-			status = TableRecordMutationStatus.HostRejected;
+			outcome = TableRecordMutationOutcome.InvalidResultAfterInvocation;
 			fault = exception;
 		}
 
 		record = default;
-		(TableRecordRollback rollback, Exception? rollbackFault) = RollBackCreatedRecord(value);
-		return new TableRecordCreation(status, rollback, fault, rollbackFault);
+		(TableRecordRollback rollback, Exception? rollbackFault) = RollBackCreatedRecord(createdId);
+		return new TableRecordCreation(outcome, rollback, fault, rollbackFault);
 	}
 
-	public TableRecordMutationStatus TryDelete(MemoryRecordId id)
+	public TableRecordMutationOutcome TryDelete(MemoryRecordId id)
 	{
-		if (!AddressListAccess.TryGetCurrent(out AddressList list))
-		{
-			return TableRecordMutationStatus.AddressListUnavailable;
-		}
-
-		if (!list.TryGetMemoryRecordById(id, out MemoryRecord record))
-		{
-			return TableRecordMutationStatus.RecordNotFound;
-		}
-
-		return record.Handle.TryCallMethod("destroy"u8)
-			? TableRecordMutationStatus.Success
-			: TableRecordMutationStatus.HostRejected;
+		return TableRecordMutationOutcome.From(AddressListMutations.Delete(id));
 	}
 
 	public TableActivationObservation TrySetActive(MemoryRecordId id, bool requested)
 	{
-		if (!AddressListAccess.TryGetCurrent(out AddressList list))
-		{
-			return TableActivationObservation.Of(TableActivationStatus.AddressListUnavailable);
-		}
-
-		return list.TryGetMemoryRecordById(id, out MemoryRecord record)
-			? TableRecordActivation.Apply(new RecordActivationAccess(record), requested)
-			: TableActivationObservation.Of(TableActivationStatus.RecordNotFound);
+		MemoryRecordActivationOutcome outcome = AddressListMutations.SetActive(id, requested);
+		MemoryRecordSnapshot? snapshot = TableMapping.CopiesRecord(outcome.Kind) &&
+										 TryCopyRecord(id, out MemoryRecordSnapshot copied)
+			? copied
+			: null;
+		return new TableActivationObservation(outcome.Kind, outcome.Problem, snapshot);
 	}
 
-	public TableRecordMutationStatus TrySelect(MemoryRecordId id, out MemoryRecordSnapshot record)
+	public TableRecordMutationOutcome TrySelect(MemoryRecordId id, out MemoryRecordSnapshot record)
 	{
 		record = default;
 		if (!AddressListAccess.TryGetCurrent(out AddressList list))
 		{
-			return TableRecordMutationStatus.AddressListUnavailable;
+			return TableRecordMutationOutcome.NotAttempted(MemoryRecordMutationProblem.AddressListUnavailable);
 		}
 
 		if (!list.TryGetMemoryRecordById(id, out MemoryRecord value))
 		{
-			return TableRecordMutationStatus.RecordNotFound;
+			return TableRecordMutationOutcome.NotAttempted(MemoryRecordMutationProblem.RecordNotFound);
 		}
 
-		return list.TrySetSelectedRecord(value) && TableClient.TrySnapshot(value, out record)
-			? TableRecordMutationStatus.Success
-			: TableRecordMutationStatus.HostRejected;
+		if (!list.TrySetSelectedRecord(value))
+		{
+			return TableRecordMutationOutcome.InvalidResultAfterInvocation;
+		}
+
+		return TableClient.TrySnapshot(value, out record)
+			? TableRecordMutationOutcome.Succeeded
+			: TableRecordMutationOutcome.CompletedWithoutSnapshot;
 	}
 
-	public TableRecordMutationStatus TrySetParent(MemoryRecordId childId, MemoryRecordId? parentId,
+	public TableRecordMutationOutcome TrySetParent(MemoryRecordId childId, MemoryRecordId? parentId,
 		out MemoryRecordSnapshot record)
 	{
 		record = default;
-		if (parentId is { } requestedParentId && requestedParentId == childId)
+		TableRecordMutationOutcome outcome =
+			TableRecordMutationOutcome.From(AddressListMutations.SetParent(childId, parentId, ParentTraversalLimit));
+		if (!outcome.IsSuccess)
 		{
-			return TableRecordMutationStatus.InvalidRelationship;
+			return outcome;
 		}
 
-		TableRecordMutationStatus status = TryResolveMutationContext(childId, parentId, out AddressList list,
-			out MemoryRecord child, out MemoryRecord parent);
-		if (status != TableRecordMutationStatus.Success)
-		{
-			return status;
-		}
-
-		if (parentId is { } candidateParentId)
-		{
-			status = ValidateParentRelationship(list, childId, candidateParentId, parent);
-			if (status != TableRecordMutationStatus.Success)
-			{
-				return status;
-			}
-		}
-
-		return TryAssignParent(child, parent, out record);
+		return TryCopyRecord(childId, out record) ? outcome : TableRecordMutationOutcome.CompletedWithoutSnapshot;
 	}
 
 	private static bool TryInitializeRecord(MemoryRecord value, MemoryRecordDefinition definition)
@@ -140,28 +137,25 @@ internal sealed class SdkTableRecordMutationPort : ITableRecordMutationPort
 			   value.TrySetValue(definition.Value);
 	}
 
-	private TableRecordMutationStatus TryCompleteRecordCreation(MemoryRecord value, MemoryRecordDefinition definition,
-		out MemoryRecordSnapshot record)
+	private TableRecordMutationOutcome TryCompleteRecordCreation(MemoryRecord value, MemoryRecordId createdId,
+		MemoryRecordDefinition definition, out MemoryRecordSnapshot record)
 	{
-		record = default;
-		if (definition.ParentId is not { } parentId)
+		if (definition.ParentId is { } parentId)
 		{
-			return TableClient.TrySnapshot(value, out record)
-				? TableRecordMutationStatus.Success
-				: TableRecordMutationStatus.HostRejected;
+			return TrySetParent(createdId, parentId, out record);
 		}
 
-		return value.TryGetId(out MemoryRecordId createdId)
-			? TrySetParent(createdId, parentId, out record)
-			: TableRecordMutationStatus.HostRejected;
+		return TableClient.TrySnapshot(value, out record)
+			? TableRecordMutationOutcome.Succeeded
+			: TableRecordMutationOutcome.CompletedWithoutSnapshot;
 	}
 
-	/// <summary>Destroys the record created by this call exactly once and reports whether Cheat Engine confirmed it.</summary>
-	private static (TableRecordRollback Rollback, Exception? Fault) RollBackCreatedRecord(MemoryRecord value)
+	/// <summary>Deletes the record created by this call exactly once and reports whether Cheat Engine confirmed it.</summary>
+	private static (TableRecordRollback Rollback, Exception? Fault) RollBackCreatedRecord(MemoryRecordId createdId)
 	{
 		try
 		{
-			return (value.Handle.TryCallMethod("destroy"u8)
+			return (AddressListMutations.Delete(createdId).IsCompleted
 				? TableRecordRollback.Confirmed
 				: TableRecordRollback.Unconfirmed, null);
 		}
@@ -171,150 +165,12 @@ internal sealed class SdkTableRecordMutationPort : ITableRecordMutationPort
 		}
 	}
 
-	private static TableRecordMutationStatus TryResolveMutationContext(MemoryRecordId childId, MemoryRecordId? parentId,
-		out AddressList list, out MemoryRecord child, out MemoryRecord parent)
-	{
-		list = default;
-		child = default;
-		parent = MemoryRecord.Null;
-		if (!AddressListAccess.TryGetCurrent(out list))
-		{
-			return TableRecordMutationStatus.AddressListUnavailable;
-		}
-
-		if (!list.TryGetMemoryRecordById(childId, out child))
-		{
-			return TableRecordMutationStatus.RecordNotFound;
-		}
-
-		if (parentId is { } parentIdValue && !list.TryGetMemoryRecordById(parentIdValue, out parent))
-		{
-			return TableRecordMutationStatus.ParentNotFound;
-		}
-
-		return TableRecordMutationStatus.Success;
-	}
-
-	private static TableRecordMutationStatus ValidateParentRelationship(AddressList list, MemoryRecordId childId,
-		MemoryRecordId candidateParentId, MemoryRecord parent)
-	{
-		if (!list.TryGetCount(out int topLevelCount))
-		{
-			return TableRecordMutationStatus.HostRejected;
-		}
-
-		MemoryRecord current = parent;
-		return TableParentRelationshipGuard.Validate(childId, candidateParentId, GetMaximumParentHops(topLevelCount),
-			_ => GetNextParentChainStep(ref current));
-	}
-
-	private static ParentChainStep GetNextParentChainStep(ref MemoryRecord current)
-	{
-		ParentReadStatus parentReadStatus = TryReadParent(current, out MemoryRecord next);
-		if (parentReadStatus == ParentReadStatus.Root)
-		{
-			return ParentChainStep.Root;
-		}
-
-		if (parentReadStatus != ParentReadStatus.Parent)
-		{
-			return ParentChainStep.HostRejected;
-		}
-
-		current = next;
-		if (!current.TryGetId(out MemoryRecordId nextId))
-		{
-			return ParentChainStep.HostRejected;
-		}
-
-		return ParentChainStep.Parent(nextId);
-	}
-
-	/// <summary>Reads the parent of one record in the chain walk of <see cref="TrySetParent" />.</summary>
-	/// <remarks>
-	///     The Lua admission comes from <see cref="LuaAdmission" />: a refusal throws
-	///     <see cref="LuaAdmissionRefusedException" />, which the Tables client reports as the classified refusal
-	///     (<see cref="CheatEngine.Client.Results.CheatEngineFailureKind.ActivationExpired" />,
-	///     <see cref="CheatEngine.Client.Results.CheatEngineFailureKind.InvalidState" /> or
-	///     <see cref="CheatEngine.Client.Results.CheatEngineFailureKind.RuntimeChanged" />) before any record is read.
-	///     Internal for the admission tests.
-	/// </remarks>
-	/// <exception cref="LuaAdmissionRefusedException">CheatEngine.SDK refused the Lua operation.</exception>
-	internal static ParentReadStatus TryReadParent(MemoryRecord current, out MemoryRecord parent)
-	{
-		using LuaRuntimeOperation operation = LuaAdmission.Acquire(ParentReadOperation);
-		LuaState state = operation.State;
-		using LuaFrame frame = new(state);
-		if (!current.Handle.TryGetProperty(state, "Parent"u8).IsOk)
-		{
-			parent = default;
-			return ParentReadStatus.HostRejected;
-		}
-
-		if (state.IsNil(-1))
-		{
-			parent = default;
-			return ParentReadStatus.Root;
-		}
-
-		return MemoryRecord.TryRead(state, -1, out parent)
-			? ParentReadStatus.Parent
-			: ParentReadStatus.HostRejected;
-	}
-
-	private static TableRecordMutationStatus TryAssignParent(MemoryRecord child, MemoryRecord parent,
-		out MemoryRecordSnapshot record)
+	/// <summary>Copies the current state of one record after a completed command, never merged with the command.</summary>
+	private static bool TryCopyRecord(MemoryRecordId id, out MemoryRecordSnapshot record)
 	{
 		record = default;
-		if (!child.Handle.TrySetProperty<MemoryRecord, MemoryRecord>("Parent"u8, parent) ||
-			!TableClient.TrySnapshot(child, out record))
-		{
-			return TableRecordMutationStatus.HostRejected;
-		}
-
-		return TableRecordMutationStatus.Success;
-	}
-
-	private static int GetMaximumParentHops(int topLevelCount)
-	{
-		const int traversalSlack = 1024;
-		return topLevelCount > int.MaxValue - traversalSlack
-			? int.MaxValue
-			: Math.Max(1, topLevelCount) + traversalSlack;
-	}
-
-	internal enum ParentReadStatus
-	{
-		Root,
-		Parent,
-		HostRejected
-	}
-
-	/// <summary>
-	///     The SDK handle calls of the activation algorithm (moved here from <see cref="TableClient" /> behind the mutation
-	///     port for C1 testability; the <c>Active</c> and <c>AsyncProcessing</c> names are Cheat Engine's MemoryRecord
-	///     properties).
-	/// </summary>
-	private readonly struct RecordActivationAccess(MemoryRecord record) : IRecordActivationAccess
-	{
-		public bool TryReadActive(out bool active)
-		{
-			return record.Handle.TryGetProperty<BooleanMarshaller, bool>("Active"u8, out active);
-		}
-
-		public bool TryWriteActive(bool active)
-		{
-			return record.Handle.TrySetProperty<BooleanMarshaller, bool>("Active"u8, active);
-		}
-
-		public bool TryReadAsyncProcessing(out bool processing)
-		{
-			return record.Handle.TryGetProperty<BooleanMarshaller, bool>("AsyncProcessing"u8, out processing);
-		}
-
-		public bool TrySnapshot(out MemoryRecordSnapshot snapshot)
-		{
-			return TableClient.TrySnapshot(record, out snapshot);
-		}
+		return AddressListAccess.TryGetCurrent(out AddressList list) &&
+			   list.TryGetMemoryRecordById(id, out MemoryRecord value) &&
+			   TableClient.TrySnapshot(value, out record);
 	}
 }

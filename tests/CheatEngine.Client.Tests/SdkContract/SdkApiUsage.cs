@@ -43,7 +43,7 @@ namespace CheatEngine.Client.Tests.SdkContract;
 internal static class SdkApiUsage
 {
 	internal static void AddressListSurface(AddressList list, MemoryRecord record, MemoryRecordId id,
-		MemoryRecordId otherId, LuaState state)
+		MemoryRecordId otherId)
 	{
 		_ = list.TryCreateMemoryRecord(out MemoryRecord created);
 		_ = list.TryGetCount(out int count);
@@ -60,22 +60,29 @@ internal static class SdkApiUsage
 		_ = record.TryGetIndex(out _);
 		_ = record.TryGetValue(out _);
 		_ = record.TryGetVariableType(out _);
-		_ = MemoryRecord.TryRead(state, -1, out _);
 		_ = record.TrySetAddressExpression("expression");
 		_ = record.TrySetDescription("description");
 		_ = record.TrySetValue("value");
 		_ = record.TrySetVariableType(VariableType.Dword);
 		_ = record.Handle;
-		_ = MemoryRecord.Null;
 		_ = id == otherId;
 	}
 
-	internal static void ObjectSurface(CEObject handle, Owned<StringList> owner, StringList list, LuaState state)
+	internal static void AddressListMutationSurface(MemoryRecordId id, MemoryRecordId? parentId)
 	{
-		_ = handle.TryCallMethod("destroy"u8);
-		_ = handle.TryGetProperty(state, "Parent"u8);
+		MemoryRecordMutationOutcome deleted = AddressListMutations.Delete(id);
+		_ = deleted.Effect;
+		_ = deleted.IsCompleted;
+		_ = deleted.Problem;
+		_ = AddressListMutations.SetParent(id, parentId, new MemoryRecordParentTraversalLimit(1));
+		MemoryRecordActivationOutcome activation = AddressListMutations.SetActive(id, true);
+		_ = activation.Kind;
+		_ = activation.Problem;
+	}
+
+	internal static void ObjectSurface(CEObject handle, Owned<StringList> owner, StringList list)
+	{
 		_ = handle.TryGetProperty<BooleanMarshaller, bool>("Active"u8, out _);
-		_ = handle.TrySetProperty<BooleanMarshaller, bool>("Active"u8, true);
 		_ = owner.Value;
 		TargetReleaseOutcome released = owner.ReleaseWithOutcome();
 		_ = released.Status;
@@ -304,7 +311,6 @@ internal static class SdkApiUsage
 		_ = LuaRuntime.ExternalStateResetDetected;
 		_ = operation.State;
 		using LuaFrame frame = new(state);
-		_ = state.IsNil(-1);
 		state.SetTop(state.Top);
 		_ = state.TryCall(0, 0);
 		_ = state.TryExecute(ReadOnlySpan<byte>.Empty, 0, ReadOnlySpan<byte>.Empty);

@@ -333,6 +333,8 @@ public sealed class TryContractTests
 			// SDK's own admission reports Detached.
 			Assert.False(tables.TryLoadTrustedTable(new TableLoadRequest(new TrustedTableFile(tablePath)),
 				out CheatEngineFailure loadFailure, token));
+			// AddressListMutations.Delete, which acquires its Lua operation itself, behind the record delete.
+			Assert.False(tables.TryDelete(new MemoryRecordId(7), out CheatEngineFailure deleteFailure, token));
 			Assert.False(inspection.TryRegisterSymbol(new SymbolRegistration("contractSymbol", Target),
 				out ISymbolRegistrationLease? lease, out CheatEngineFailure registerFailure, token));
 			// SymbolRegistry.TryGetName behind the symbol-name lookup.
@@ -350,7 +352,10 @@ public sealed class TryContractTests
 			Assert.True(bytes.IsEmpty);
 			Assert.Equal(0, detailed.ConfirmedLength);
 			CheatEngineFailure[] failures =
-				[loadFailure, registerFailure, nameFailure, readFailure, detailed.Failure!.Value, scanFailure];
+				[
+					loadFailure, deleteFailure, registerFailure, nameFailure, readFailure, detailed.Failure!.Value,
+					scanFailure
+				];
 			Assert.All(
 				failures,
 				static failure =>
@@ -383,7 +388,7 @@ public sealed class TryContractTests
 	public void ARefusedLuaAdmissionInsidePortWorkIsNeverReportedAsARejection(LuaAdmissionStatus status,
 		CheatEngineFailureKind expectedKind)
 	{
-		Assert.False(LuaAdmission.TryClassify(status, "Tables.ReadParent", out CheatEngineFailure refusal));
+		Assert.False(LuaAdmission.TryClassify(status, "Tables.SetParent", out CheatEngineFailure refusal));
 		LuaAdmissionRefusedException fault = new(refusal);
 		ThrowingPorts ports = new(fault);
 		CoreLifetime lifetime = InertCoreLifetime.Create();
@@ -870,12 +875,12 @@ public sealed class TryContractTests
 			throw Fault();
 		}
 
-		public TableRecordMutationStatus TryDelete(MemoryRecordId id)
+		public TableRecordMutationOutcome TryDelete(MemoryRecordId id)
 		{
 			throw Fault();
 		}
 
-		public TableRecordMutationStatus TrySetParent(MemoryRecordId childId, MemoryRecordId? parentId,
+		public TableRecordMutationOutcome TrySetParent(MemoryRecordId childId, MemoryRecordId? parentId,
 			out MemoryRecordSnapshot record)
 		{
 			throw Fault();
@@ -886,7 +891,7 @@ public sealed class TryContractTests
 			throw Fault();
 		}
 
-		public TableRecordMutationStatus TrySelect(MemoryRecordId id, out MemoryRecordSnapshot record)
+		public TableRecordMutationOutcome TrySelect(MemoryRecordId id, out MemoryRecordSnapshot record)
 		{
 			throw Fault();
 		}

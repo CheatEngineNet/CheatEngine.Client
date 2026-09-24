@@ -240,15 +240,15 @@ internal sealed class TableClient(
 
 		// Changing Cheat Engine's GUI selection is a host-visible mutation, so it goes through the mutation port.
 		MemoryRecordSnapshot captured = default;
-		TableRecordMutationStatus status = TableRecordMutationStatus.HostRejected;
-		if (!TryDispatch("Tables.Select", id, null, () => status = _recordMutations.TrySelect(id, out captured),
+		TableRecordMutationOutcome outcome = default;
+		if (!TryDispatch("Tables.Select", id, null, () => outcome = _recordMutations.TrySelect(id, out captured),
 				out long observedGeneration, out failure, cancellationToken))
 		{
 			record = default;
 			return false;
 		}
 
-		if (status == TableRecordMutationStatus.Success)
+		if (outcome.IsSuccess)
 		{
 			_generation.Observe(captured, observedGeneration);
 			record = captured;
@@ -256,7 +256,7 @@ internal sealed class TableClient(
 		}
 
 		record = default;
-		failure = MutationFailure("Tables.Select", status);
+		failure = TableMapping.MutationFailure("Tables.Select", outcome);
 		return false;
 	}
 
@@ -290,7 +290,7 @@ internal sealed class TableClient(
 			return false;
 		}
 
-		if (creation.Status == TableRecordMutationStatus.Success)
+		if (creation.Outcome.IsSuccess)
 		{
 			_generation.Observe(captured, observedGeneration);
 			record = captured;
@@ -363,20 +363,20 @@ internal sealed class TableClient(
 		}
 
 		// A successful delete does not make the identifier stale: a second delete reports not found (A14-38).
-		TableRecordMutationStatus status = TableRecordMutationStatus.HostRejected;
-		if (!TryDispatch("Tables.Delete", id, null, () => status = _recordMutations.TryDelete(id), out _,
+		TableRecordMutationOutcome outcome = default;
+		if (!TryDispatch("Tables.Delete", id, null, () => outcome = _recordMutations.TryDelete(id), out _,
 				out failure, cancellationToken))
 		{
 			return false;
 		}
 
-		if (status == TableRecordMutationStatus.Success)
+		if (outcome.IsSuccess)
 		{
 			failure = default;
 			return true;
 		}
 
-		failure = MutationFailure("Tables.Delete", status);
+		failure = TableMapping.MutationFailure("Tables.Delete", outcome);
 		return false;
 	}
 
@@ -411,8 +411,9 @@ internal sealed class TableClient(
 			_generation.Observe(snapshot, observedGeneration);
 		}
 
-		bool applied = TryMapActivation(Operation, isActive, observation, out record, out failure);
-		if (GetNotAppliedStatus(observation.Status) is { } notApplied)
+		bool applied = TableMapping.TryClassifyActivation(Operation, isActive, observation, out failure);
+		record = TableMapping.CopiesRecord(observation.Kind) ? observation.Snapshot ?? default : default;
+		if (GetNotAppliedStatus(observation.Kind) is { } notApplied)
 		{
 			_lifetime?.Diagnostics.RecordActivationNotApplied(Operation, isActive, notApplied);
 		}
@@ -445,32 +446,33 @@ internal sealed class TableClient(
 
 		if (parentId is { } requestedParentId && requestedParentId == childId)
 		{
+			// CheatEngine.SDK refuses it the same way before any Lua call; refusing it here spares the dispatch.
 			record = default;
-			failure = CoreFailureFactory.WithHostEffect(
-				MutationFailure("Tables.SetParent", TableRecordMutationStatus.InvalidRelationship),
-				CheatEngineHostEffect.NotStarted);
+			failure = TableMapping.MutationFailure("Tables.SetParent",
+				TableRecordMutationOutcome.NotAttempted(MemoryRecordMutationProblem.SelfParent));
 			return false;
 		}
 
 		MemoryRecordSnapshot captured = default;
-		TableRecordMutationStatus status = TableRecordMutationStatus.HostRejected;
+		TableRecordMutationOutcome outcome = default;
 		if (!TryDispatch("Tables.SetParent", childId, parentId,
-				() => status = _recordMutations.TrySetParent(childId, parentId, out captured),
+				() => outcome = _recordMutations.TrySetParent(childId, parentId, out captured),
 				out long observedGeneration, out failure, cancellationToken))
 		{
 			record = default;
 			return false;
 		}
 
-		record = captured;
-		if (status == TableRecordMutationStatus.Success)
+		if (outcome.IsSuccess)
 		{
 			_generation.Observe(captured, observedGeneration);
+			record = captured;
 			failure = default;
 			return true;
 		}
 
-		failure = MutationFailure("Tables.SetParent", status);
+		record = default;
+		failure = TableMapping.MutationFailure("Tables.SetParent", outcome);
 		return false;
 	}
 
@@ -706,69 +708,16 @@ internal sealed class TableClient(
 	///     Names an activation outcome that did not apply the requested state for the diagnostics event, or returns
 	///     <see langword="null" /> for an applied, unchanged or refused-before-start outcome.
 	/// </summary>
-	private static string? GetNotAppliedStatus(TableActivationStatus status)
+	private static string? GetNotAppliedStatus(MemoryRecordActivationOutcomeKind kind)
 	{
-		return status switch
+		return kind switch
 		{
-			TableActivationStatus.RefusedByHost => nameof(TableActivationStatus.RefusedByHost),
-			TableActivationStatus.Pending => nameof(TableActivationStatus.Pending),
-			TableActivationStatus.Indeterminate or TableActivationStatus.Unknown =>
-				nameof(TableActivationStatus.Indeterminate),
-			_ => null
+			MemoryRecordActivationOutcomeKind.Applied or MemoryRecordActivationOutcomeKind.Unchanged
+				or MemoryRecordActivationOutcomeKind.NotAttempted => null,
+			MemoryRecordActivationOutcomeKind.RefusedByHost => nameof(MemoryRecordActivationOutcomeKind.RefusedByHost),
+			MemoryRecordActivationOutcomeKind.Pending => nameof(MemoryRecordActivationOutcomeKind.Pending),
+			_ => nameof(MemoryRecordActivationOutcomeKind.Indeterminate)
 		};
-	}
-
-	/// <summary>Maps an activation observation to the public result (audit A14-12, A14-33, A14-42, Q35).</summary>
-	private static bool TryMapActivation(string operation, bool requested, TableActivationObservation observation,
-		out MemoryRecordSnapshot record, out CheatEngineFailure failure)
-	{
-		record = observation.Snapshot ?? default;
-		switch (observation.Status)
-		{
-			case TableActivationStatus.Unchanged or TableActivationStatus.Applied when observation.Snapshot is not null:
-				failure = default;
-				return true;
-			case TableActivationStatus.Unchanged:
-				failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult, operation,
-					"The memory record already had the requested state, but its snapshot could not be copied.", null,
-					CheatEngineHostEffect.NotStarted);
-				return false;
-			case TableActivationStatus.Applied:
-				failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult, operation,
-					"Cheat Engine applied the requested state, but the record snapshot could not be copied.", null,
-					CheatEngineHostEffect.Completed);
-				return false;
-			case TableActivationStatus.RecordNotFound:
-				failure = new CheatEngineFailure(CheatEngineFailureKind.NotFound, operation,
-					"The requested Cheat Engine memory record was not found.", null, CheatEngineHostEffect.NotStarted);
-				return false;
-			case TableActivationStatus.AddressListUnavailable:
-				failure = new CheatEngineFailure(CheatEngineFailureKind.CapabilityUnavailable, operation,
-					"Cheat Engine's Address List capability is unavailable.", null, CheatEngineHostEffect.NotStarted);
-				return false;
-			case TableActivationStatus.NotAttempted:
-				failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult, operation,
-					"Cheat Engine did not report the record's current activation state, so no change was attempted.",
-					null, CheatEngineHostEffect.NotStarted);
-				return false;
-			case TableActivationStatus.RefusedByHost:
-				failure = new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, operation,
-					$"Cheat Engine left the memory record {(requested ? "inactive" : "active")}; an activation callback, " +
-					"script or record type refused the change; partial script effects may persist.", null,
-					CheatEngineHostEffect.Started);
-				return false;
-			case TableActivationStatus.Pending:
-				failure = new CheatEngineFailure(CheatEngineFailureKind.IndeterminateHostResult, operation,
-					"The record activates asynchronously; its final state is not observable in this call.", null,
-					CheatEngineHostEffect.Started);
-				return false;
-			default:
-				record = default;
-				failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult, operation,
-					"Cheat Engine did not report the record's state after the change; its effect is unknown.", null,
-					CheatEngineHostEffect.Unknown);
-				return false;
-		}
 	}
 
 	/// <summary>Classifies a failed creation and states whether a partially initialized record may remain.</summary>
@@ -776,7 +725,7 @@ internal sealed class TableClient(
 	{
 		CheatEngineFailure failure = creation.Fault is { } fault
 			? SdkBoundary.Translate("Tables.Create", fault, CheatEngineHostEffect.Unknown, _lifetime)
-			: MutationFailure("Tables.Create", creation.Status);
+			: TableMapping.MutationFailure("Tables.Create", creation.Outcome);
 		return creation.Rollback switch
 		{
 			TableRecordRollback.Confirmed =>
@@ -947,7 +896,7 @@ internal sealed class TableClient(
 	private static CheatEngineFailure HostFailure(string operation)
 	{
 		return new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult, operation,
-			"Cheat Engine did not return the expected Address List contract.");
+			TableMapping.InvalidContractMessage);
 	}
 
 	private static CheatEngineFailure LookupFailure(string operation, RecordLookupStatus status)
@@ -955,10 +904,9 @@ internal sealed class TableClient(
 		return status switch
 		{
 			RecordLookupStatus.NotFound => new CheatEngineFailure(CheatEngineFailureKind.NotFound, operation,
-				"The requested Cheat Engine memory record was not found."),
+				TableMapping.RecordNotFoundMessage),
 			RecordLookupStatus.AddressListUnavailable => new CheatEngineFailure(
-				CheatEngineFailureKind.CapabilityUnavailable, operation,
-				"Cheat Engine's Address List capability is unavailable."),
+				CheatEngineFailureKind.CapabilityUnavailable, operation, TableMapping.AddressListUnavailableMessage),
 			RecordLookupStatus.InvalidRecord => HostFailure(operation),
 			_ => HostFailure(operation)
 		};
@@ -981,29 +929,8 @@ internal sealed class TableClient(
 				$"The operation requires a hierarchy depth greater than the explicit limit of {request.MaximumDepth}."),
 			HierarchyBuildProblem.InvalidShape => HostFailure(GetHierarchyOperation),
 			_ when !found => new CheatEngineFailure(CheatEngineFailureKind.NotFound, GetHierarchyOperation,
-				"The requested Cheat Engine memory record was not found."),
+				TableMapping.RecordNotFoundMessage),
 			_ => HostFailure(GetHierarchyOperation)
-		};
-	}
-
-	private static CheatEngineFailure MutationFailure(string operation, TableRecordMutationStatus status)
-	{
-		return status switch
-		{
-			TableRecordMutationStatus.RecordNotFound => new CheatEngineFailure(CheatEngineFailureKind.NotFound,
-				operation, "The requested Cheat Engine memory record was not found."),
-			TableRecordMutationStatus.ParentNotFound => new CheatEngineFailure(CheatEngineFailureKind.NotFound,
-				operation, "The requested parent Cheat Engine memory record was not found."),
-			TableRecordMutationStatus.InvalidRelationship => new CheatEngineFailure(
-				CheatEngineFailureKind.OperationRejected, operation,
-				"The requested parent relationship is invalid: it is self-referential, cyclic, or exceeds the " +
-				"supported hierarchy depth."),
-			// Same classification as TrySetActive and the lookups (ADR-08): an unavailable Address List is a capability
-			// condition, not an unexpected host result, and no record was reached.
-			TableRecordMutationStatus.AddressListUnavailable => new CheatEngineFailure(
-				CheatEngineFailureKind.CapabilityUnavailable, operation,
-				"Cheat Engine's Address List capability is unavailable.", null, CheatEngineHostEffect.NotStarted),
-			_ => HostFailure(operation)
 		};
 	}
 

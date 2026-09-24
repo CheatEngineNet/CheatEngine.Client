@@ -352,32 +352,32 @@ public sealed class TableClientGenerationTests : IDisposable
 			return TableRecordCreation.Created;
 		}
 
-		public TableRecordMutationStatus TryDelete(MemoryRecordId id)
+		public TableRecordMutationOutcome TryDelete(MemoryRecordId id)
 		{
 			Calls++;
-			return TableRecordMutationStatus.Success;
+			return TableRecordMutationOutcome.Succeeded;
 		}
 
-		public TableRecordMutationStatus TrySetParent(MemoryRecordId childId, MemoryRecordId? parentId,
+		public TableRecordMutationOutcome TrySetParent(MemoryRecordId childId, MemoryRecordId? parentId,
 			out MemoryRecordSnapshot record)
 		{
 			Calls++;
 			record = Snapshot(childId);
-			return TableRecordMutationStatus.Success;
+			return TableRecordMutationOutcome.Succeeded;
 		}
 
 		public TableActivationObservation TrySetActive(MemoryRecordId id, bool requested)
 		{
 			Calls++;
-			return new TableActivationObservation(TableActivationStatus.Applied, !requested, requested, false,
-				Snapshot(id));
+			return new TableActivationObservation(MemoryRecordActivationOutcomeKind.Applied,
+				MemoryRecordMutationProblem.None, Snapshot(id));
 		}
 
-		public TableRecordMutationStatus TrySelect(MemoryRecordId id, out MemoryRecordSnapshot record)
+		public TableRecordMutationOutcome TrySelect(MemoryRecordId id, out MemoryRecordSnapshot record)
 		{
 			Calls++;
 			record = Snapshot(id);
-			return TableRecordMutationStatus.Success;
+			return TableRecordMutationOutcome.Succeeded;
 		}
 	}
 

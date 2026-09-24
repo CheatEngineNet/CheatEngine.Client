@@ -634,28 +634,28 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 			return TableRecordCreation.Created;
 		}
 
-		public TableRecordMutationStatus TryDelete(MemoryRecordId id)
+		public TableRecordMutationOutcome TryDelete(MemoryRecordId id)
 		{
-			return TableRecordMutationStatus.Success;
+			return TableRecordMutationOutcome.Succeeded;
 		}
 
-		public TableRecordMutationStatus TrySetParent(MemoryRecordId childId, MemoryRecordId? parentId,
+		public TableRecordMutationOutcome TrySetParent(MemoryRecordId childId, MemoryRecordId? parentId,
 			out MemoryRecordSnapshot record)
 		{
 			record = Snapshot(childId);
-			return TableRecordMutationStatus.Success;
+			return TableRecordMutationOutcome.Succeeded;
 		}
 
 		public TableActivationObservation TrySetActive(MemoryRecordId id, bool requested)
 		{
-			return new TableActivationObservation(TableActivationStatus.RefusedByHost, !requested, !requested, false,
-				Snapshot(id));
+			return new TableActivationObservation(MemoryRecordActivationOutcomeKind.RefusedByHost,
+				MemoryRecordMutationProblem.None, Snapshot(id));
 		}
 
-		public TableRecordMutationStatus TrySelect(MemoryRecordId id, out MemoryRecordSnapshot record)
+		public TableRecordMutationOutcome TrySelect(MemoryRecordId id, out MemoryRecordSnapshot record)
 		{
 			record = Snapshot(id);
-			return TableRecordMutationStatus.Success;
+			return TableRecordMutationOutcome.Succeeded;
 		}
 	}
 

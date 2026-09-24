@@ -110,6 +110,16 @@ public interface ITableClient
 	public MemoryRecordSnapshot Update(MemoryRecordUpdate update, CancellationToken cancellationToken = default);
 
 	/// <summary>Deletes one memory record from the current Cheat Engine address list.</summary>
+	/// <remarks>
+	///     CheatEngine.SDK resolves the identifier in the current list and deletes the record once: a second delete of the
+	///     same identifier is <see cref="CheatEngineFailureKind.NotFound" />. A delete that raised after it started is
+	///     <see cref="CheatEngineFailureKind.LuaError" /> with <see cref="CheatEngineHostEffect.Started" /> and is never
+	///     retried. Delete, <see cref="TrySetParent" /> and <see cref="TrySetActive" /> are refused without changing the
+	///     record with <see cref="CheatEngineFailureKind.InvalidState" /> while a table file loads on Cheat Engine's main
+	///     thread (a script of that table calling the Client), and with
+	///     <see cref="CheatEngineFailureKind.RuntimeChanged" /> when Cheat Engine's Lua runtime changed before the change
+	///     was attempted; both report <see cref="CheatEngineHostEffect.NotStarted" />.
+	/// </remarks>
 	public bool TryDelete(MemoryRecordId id, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
@@ -119,9 +129,10 @@ public interface ITableClient
 	/// <summary>Activates or deactivates one memory record and returns its copied post-change snapshot.</summary>
 	/// <remarks>
 	///     <para>
-	///         The Client reads the record's state before and after the change. A record already in the requested state
-	///         succeeds without calling Cheat Engine's setter. Otherwise the setter runs exactly once and is never retried
-	///         (an activation-failure handler that asks for a retry already repeats the change inside Cheat Engine).
+	///         CheatEngine.SDK reads the record's state before and after the change. A record already in the requested
+	///         state succeeds without calling Cheat Engine's setter. Otherwise the setter runs exactly once and is never
+	///         retried (an activation-failure handler that asks for a retry already repeats the change inside Cheat
+	///         Engine). The record is copied after the change, in the same call on Cheat Engine's main thread.
 	///     </para>
 	///     <para>
 	///         When Cheat Engine leaves the record in the other state (an activation callback, a script or the record type
@@ -130,9 +141,10 @@ public interface ITableClient
 	///         <paramref name="record" /> set to the copied post-change snapshot; partial script effects may persist. When
 	///         the record is still processing asynchronously, the result is
 	///         <see cref="CheatEngineFailureKind.IndeterminateHostResult" /> with <see cref="CheatEngineHostEffect.Started" />
-	///         and the snapshot. When the post-change state cannot be read, the result is
-	///         <see cref="CheatEngineFailureKind.InvalidHostResult" /> with <see cref="CheatEngineHostEffect.Unknown" /> and
-	///         a default <paramref name="record" />.
+	///         and the snapshot. When the setter raised or the post-change state cannot be read, the result is
+	///         <see cref="CheatEngineFailureKind.IndeterminateHostResult" /> with <see cref="CheatEngineHostEffect.Started" />
+	///         and a default <paramref name="record" />. A record that is not found, and the refusals described under
+	///         <see cref="TryDelete" />, report <see cref="CheatEngineHostEffect.NotStarted" />.
 	///     </para>
 	/// </remarks>
 	public bool TrySetActive(MemoryRecordId id, bool isActive, out MemoryRecordSnapshot record,
@@ -144,6 +156,14 @@ public interface ITableClient
 		CancellationToken cancellationToken = default);
 
 	/// <summary>Moves one record under a parent, or passes <see langword="null" /> to restore it to the root.</summary>
+	/// <remarks>
+	///     CheatEngine.SDK walks the parent chain of the requested parent before it assigns it, up to an explicit bound of
+	///     4096 records. A record requested as its own parent, or moved under one of its own descendants (a cycle), is
+	///     <see cref="CheatEngineFailureKind.OperationRejected" />, a longer chain is
+	///     <see cref="CheatEngineFailureKind.ResultLimitExceeded" />, and an absent record or parent is
+	///     <see cref="CheatEngineFailureKind.NotFound" />; all of them report <see cref="CheatEngineHostEffect.NotStarted" />.
+	///     The refusals described under <see cref="TryDelete" /> apply too.
+	/// </remarks>
 	public bool TrySetParent(MemoryRecordId childId, MemoryRecordId? parentId, out MemoryRecordSnapshot record,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default);
 

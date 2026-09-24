@@ -10,15 +10,30 @@ using CheatEngine.SDK.Engine.Enums;
 
 namespace CheatEngine.Client.Core.Tests.Domains;
 
+/// <summary>
+///     The Tables client over a fake mutation port: every outcome CheatEngine.SDK's <c>AddressListMutations</c> reports,
+///     and every outcome of the Client's own create and select steps, reaches the public failure contract through
+///     <see cref="TableMapping" />.
+/// </summary>
 public sealed class TableClientMutationTests
 {
+	public static TheoryData<MemoryRecordMutationProblem, CheatEngineFailureKind> ParentRefusals => new()
+	{
+		{ MemoryRecordMutationProblem.CycleDetected, CheatEngineFailureKind.OperationRejected },
+		{ MemoryRecordMutationProblem.SelfParent, CheatEngineFailureKind.OperationRejected },
+		{ MemoryRecordMutationProblem.TraversalLimitReached, CheatEngineFailureKind.ResultLimitExceeded },
+		{ MemoryRecordMutationProblem.ParentNotFound, CheatEngineFailureKind.NotFound },
+		{ MemoryRecordMutationProblem.RecordNotFound, CheatEngineFailureKind.NotFound },
+		{ MemoryRecordMutationProblem.TableLoadInProgress, CheatEngineFailureKind.InvalidState },
+		{ MemoryRecordMutationProblem.RuntimeIdentityChanged, CheatEngineFailureKind.RuntimeChanged },
+		{ MemoryRecordMutationProblem.GlobalUnavailable, CheatEngineFailureKind.CapabilityUnavailable },
+		{ MemoryRecordMutationProblem.LuaFailure, CheatEngineFailureKind.LuaError }
+	};
+
 	[Fact]
 	public void TryDeleteDispatchesTheRequestedRecordAndReturnsSuccess()
 	{
-		FakeRecordMutationPort mutations = new()
-		{
-			DeleteStatus = TableRecordMutationStatus.Success
-		};
+		FakeRecordMutationPort mutations = new();
 		TableClient client = CreateClient(mutations);
 
 		bool succeeded =
@@ -36,7 +51,7 @@ public sealed class TableClientMutationTests
 	{
 		TableClient client = CreateClient(new FakeRecordMutationPort
 		{
-			DeleteStatus = TableRecordMutationStatus.RecordNotFound
+			DeleteOutcome = TableRecordMutationOutcome.NotAttempted(MemoryRecordMutationProblem.RecordNotFound)
 		});
 
 		bool succeeded =
@@ -45,23 +60,32 @@ public sealed class TableClientMutationTests
 
 		Assert.False(succeeded);
 		Assert.Equal(CheatEngineFailureKind.NotFound, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
 		Assert.Equal("Tables.Delete", failure.Operation);
+		Assert.Equal(TableMapping.RecordNotFoundMessage, failure.Message);
 	}
 
 	[Fact]
 	[Trait("Qualification", "Q34")]
-	public void DeleteThrowsTheClassifiedHostFailure()
+	public void DeleteThrowsAStartedLuaFailureThatIsNeverRetried()
 	{
-		TableClient client = CreateClient(new FakeRecordMutationPort
+		// AddressListMutations.Delete reports a destroy that raised after it started as Indeterminate: part of it may
+		// persist, and the Client never retries it.
+		FakeRecordMutationPort mutations = new()
 		{
-			DeleteStatus = TableRecordMutationStatus.HostRejected
-		});
+			DeleteOutcome = new TableRecordMutationOutcome(MemoryRecordMutationEffect.Indeterminate,
+				MemoryRecordMutationProblem.LuaFailure)
+		};
+		TableClient client = CreateClient(mutations);
 
 		CheatEngineOperationException exception = Assert.Throws<CheatEngineOperationException>(() =>
 			client.Delete(new MemoryRecordId(41), TestContext.Current.CancellationToken));
 
-		Assert.Equal(CheatEngineFailureKind.InvalidHostResult, exception.Failure.Kind);
+		Assert.Equal(CheatEngineFailureKind.LuaError, exception.Failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.Started, exception.Failure.HostEffect);
 		Assert.Equal("Tables.Delete", exception.Failure.Operation);
+		Assert.Contains("effect is unknown", exception.Failure.Message, StringComparison.Ordinal);
+		Assert.Equal(1, mutations.DeleteCallCount);
 	}
 
 	[Fact]
@@ -70,7 +94,6 @@ public sealed class TableClientMutationTests
 		MemoryRecordSnapshot expected = Snapshot(41, "Ammo");
 		FakeRecordMutationPort mutations = new()
 		{
-			SetParentStatus = TableRecordMutationStatus.Success,
 			SetParentRecord = expected
 		};
 		TableClient client = CreateClient(mutations);
@@ -91,7 +114,6 @@ public sealed class TableClientMutationTests
 	{
 		FakeRecordMutationPort mutations = new()
 		{
-			SetParentStatus = TableRecordMutationStatus.Success,
 			SetParentRecord = Snapshot(41, "Ammo")
 		};
 		TableClient client = CreateClient(mutations);
@@ -117,21 +139,22 @@ public sealed class TableClientMutationTests
 		Assert.False(succeeded);
 		Assert.Equal(default, record);
 		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
 		Assert.Equal("Tables.SetParent", failure.Operation);
-		Assert.Equal(
-			"The requested parent relationship is invalid: it is self-referential, cyclic, or exceeds the " +
-			"supported hierarchy depth.",
-			failure.Message);
+		Assert.Equal("A memory record cannot be its own parent.", failure.Message);
 		Assert.Equal(0, mutations.SetParentCallCount);
 	}
 
-	[Fact]
+	[Theory]
 	[Trait("Qualification", "Q34")]
-	public void TrySetParentMapsAHostRejectedMutationToTheExactHostFailure()
+	[MemberData(nameof(ParentRefusals))]
+	public void TrySetParentReportsEveryRefusalOfCheatEngineSdkAsNotStarted(MemoryRecordMutationProblem problem,
+		CheatEngineFailureKind expected)
 	{
 		FakeRecordMutationPort mutations = new()
 		{
-			SetParentStatus = TableRecordMutationStatus.HostRejected
+			SetParentOutcome = TableRecordMutationOutcome.NotAttempted(problem),
+			SetParentRecord = Snapshot(41, "Ammo")
 		};
 		TableClient client = CreateClient(mutations);
 
@@ -140,11 +163,31 @@ public sealed class TableClientMutationTests
 
 		Assert.False(succeeded);
 		Assert.Equal(default, record);
-		Assert.Equal(new MemoryRecordId(41), mutations.LastChildId);
-		Assert.Equal(new MemoryRecordId(12), mutations.LastParentId);
-		Assert.Equal(CheatEngineFailureKind.InvalidHostResult, failure.Kind);
+		Assert.Equal(expected, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
 		Assert.Equal("Tables.SetParent", failure.Operation);
-		Assert.Equal("Cheat Engine did not return the expected Address List contract.", failure.Message);
+		Assert.Equal(1, mutations.SetParentCallCount);
+	}
+
+	[Fact]
+	public void TrySetParentKeepsACompletedMoveApartFromAFailedCopyOfTheRecord()
+	{
+		// CheatEngine.SDK asks callers never to merge a failed post-command read with the command result.
+		FakeRecordMutationPort mutations = new()
+		{
+			SetParentOutcome = TableRecordMutationOutcome.CompletedWithoutSnapshot
+		};
+		TableClient client = CreateClient(mutations);
+
+		bool succeeded = client.TrySetParent(new MemoryRecordId(41), new MemoryRecordId(12),
+			out MemoryRecordSnapshot record, out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(default, record);
+		Assert.Equal(CheatEngineFailureKind.InvalidHostResult, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.Completed, failure.HostEffect);
+		Assert.Equal("Cheat Engine completed the change, but the memory record could not be copied afterwards.",
+			failure.Message);
 	}
 
 	[Fact]
@@ -153,7 +196,7 @@ public sealed class TableClientMutationTests
 	{
 		TableClient client = CreateClient(new FakeRecordMutationPort
 		{
-			SetParentStatus = TableRecordMutationStatus.ParentNotFound
+			SetParentOutcome = TableRecordMutationOutcome.NotAttempted(MemoryRecordMutationProblem.ParentNotFound)
 		});
 
 		CheatEngineOperationException exception = Assert.Throws<CheatEngineOperationException>(() =>
@@ -165,82 +208,31 @@ public sealed class TableClientMutationTests
 	}
 
 	[Fact]
-	public void ParentRelationshipGuardPermitsARootTerminatedCandidateChain()
-	{
-		TableRecordMutationStatus status = TableParentRelationshipGuard.Validate(new MemoryRecordId(41),
-			new MemoryRecordId(12), 4,
-			static id => id == new MemoryRecordId(12) ? ParentChainStep.Root : ParentChainStep.HostRejected);
-
-		Assert.Equal(TableRecordMutationStatus.Success, status);
-	}
-
-	[Fact]
-	public void ParentRelationshipGuardPropagatesARejectedHostRead()
-	{
-		TableRecordMutationStatus status = TableParentRelationshipGuard.Validate(new MemoryRecordId(41),
-			new MemoryRecordId(12), 4, static _ => ParentChainStep.HostRejected);
-
-		Assert.Equal(TableRecordMutationStatus.HostRejected, status);
-	}
-
-	[Fact]
 	[Trait("Qualification", "Q34")]
-	public void ParentRelationshipGuardRejectsAnIndirectCycleBackToTheChild()
+	public void AMutationRefusedDuringATableLoadThrowsTheLifecycleException()
 	{
-		Dictionary<MemoryRecordId, ParentChainStep> links = new()
+		// InvalidState maps to CheatEngineClientLifecycleException on the throwing form.
+		TableClient client = CreateClient(new FakeRecordMutationPort
 		{
-			[new MemoryRecordId(12)] = ParentChainStep.Parent(new MemoryRecordId(24)),
-			[new MemoryRecordId(24)] = ParentChainStep.Parent(new MemoryRecordId(41))
-		};
+			DeleteOutcome = TableRecordMutationOutcome.NotAttempted(MemoryRecordMutationProblem.TableLoadInProgress)
+		});
 
-		TableRecordMutationStatus status = TableParentRelationshipGuard.Validate(new MemoryRecordId(41),
-			new MemoryRecordId(12), 4,
-			id => links[id]);
+		CheatEngineClientLifecycleException exception = Assert.Throws<CheatEngineClientLifecycleException>(() =>
+			client.Delete(new MemoryRecordId(41), TestContext.Current.CancellationToken));
 
-		Assert.Equal(TableRecordMutationStatus.InvalidRelationship, status);
-	}
-
-	[Fact]
-	[Trait("Qualification", "Q34")]
-	public void ParentRelationshipGuardRejectsAnExistingParentLoop()
-	{
-		Dictionary<MemoryRecordId, ParentChainStep> links = new()
-		{
-			[new MemoryRecordId(12)] = ParentChainStep.Parent(new MemoryRecordId(24)),
-			[new MemoryRecordId(24)] = ParentChainStep.Parent(new MemoryRecordId(12))
-		};
-
-		TableRecordMutationStatus status = TableParentRelationshipGuard.Validate(new MemoryRecordId(41),
-			new MemoryRecordId(12), 4,
-			id => links[id]);
-
-		Assert.Equal(TableRecordMutationStatus.InvalidRelationship, status);
-	}
-
-	[Fact]
-	[Trait("Qualification", "Q34")]
-	public void ParentRelationshipGuardRejectsAChainThatExceedsItsBound()
-	{
-		TableRecordMutationStatus status = TableParentRelationshipGuard.Validate(new MemoryRecordId(41),
-			new MemoryRecordId(12), 2,
-			static id => id switch
-			{
-				{ Value: 12 } => ParentChainStep.Parent(new MemoryRecordId(24)),
-				{ Value: 24 } => ParentChainStep.Parent(new MemoryRecordId(36)),
-				_ => ParentChainStep.Root
-			});
-
-		Assert.Equal(TableRecordMutationStatus.InvalidRelationship, status);
+		Assert.Equal(CheatEngineFailureKind.InvalidState, exception.Failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, exception.Failure.HostEffect);
 	}
 
 	[Fact]
 	[Trait("Qualification", "Q43")]
 	public void FailedCreateWithUnconfirmedRollbackReportsCleanupUnconfirmed()
 	{
-		InvalidOperationException rollbackFault = new("destroy faulted");
+		InvalidOperationException rollbackFault = new("delete faulted");
 		FakeRecordMutationPort mutations = new()
 		{
-			Creation = new TableRecordCreation(TableRecordMutationStatus.ParentNotFound,
+			Creation = new TableRecordCreation(
+				TableRecordMutationOutcome.NotAttempted(MemoryRecordMutationProblem.ParentNotFound),
 				TableRecordRollback.Unconfirmed, RollbackFault: rollbackFault)
 		};
 		TableClient client = CreateClient(mutations);
@@ -263,7 +255,8 @@ public sealed class TableClientMutationTests
 	{
 		TableClient client = CreateClient(new FakeRecordMutationPort
 		{
-			Creation = new TableRecordCreation(TableRecordMutationStatus.HostRejected, TableRecordRollback.Confirmed)
+			Creation = new TableRecordCreation(TableRecordMutationOutcome.InvalidResultAfterInvocation,
+				TableRecordRollback.Confirmed)
 		});
 
 		bool succeeded = client.TryCreate(Definition(), out _, out CheatEngineFailure failure,
@@ -272,17 +265,18 @@ public sealed class TableClientMutationTests
 		Assert.False(succeeded);
 		Assert.Equal(CheatEngineFailureKind.InvalidHostResult, failure.Kind);
 		Assert.Equal(CheatEngineHostEffect.Completed, failure.HostEffect);
+		Assert.Equal(TableMapping.InvalidContractMessage, failure.Message);
 	}
 
 	[Fact]
 	public void FailedCreateKeepsBothTheCreationAndTheRollbackFaults()
 	{
 		InvalidOperationException creationFault = new("initialization faulted");
-		InvalidOperationException rollbackFault = new("destroy faulted");
+		InvalidOperationException rollbackFault = new("delete faulted");
 		TableClient client = CreateClient(new FakeRecordMutationPort
 		{
-			Creation = new TableRecordCreation(TableRecordMutationStatus.HostRejected, TableRecordRollback.Unconfirmed,
-				creationFault, rollbackFault)
+			Creation = new TableRecordCreation(TableRecordMutationOutcome.InvalidResultAfterInvocation,
+				TableRecordRollback.Unconfirmed, creationFault, rollbackFault)
 		});
 
 		bool succeeded = client.TryCreate(Definition(), out _, out CheatEngineFailure failure,
@@ -315,92 +309,84 @@ public sealed class TableClientMutationTests
 		Assert.Equal(expected, record);
 	}
 
-	[Fact]
+	[Theory]
 	[Trait("Qualification", "Q35")]
-	public void TrySetActiveReportsRefusedWhenCheatEngineLeavesTheRecordInactive()
+	[InlineData(true, "left the memory record inactive")]
+	[InlineData(false, "left the memory record active")]
+	public void TrySetActiveReportsARefusalByTheHostWithThePostChangeSnapshot(bool requested, string expectedMessage)
 	{
-		FakeRecordActivation activation = new(active: false)
+		FakeRecordMutationPort mutations = new()
 		{
-			RefuseChange = true
+			Activation = new TableActivationObservation(MemoryRecordActivationOutcomeKind.RefusedByHost,
+				MemoryRecordMutationProblem.None, Snapshot(41, "Health", !requested))
 		};
-		TableClient client = CreateClient(new FakeRecordMutationPort { ActivationRecord = activation });
+		TableClient client = CreateClient(mutations);
 
-		bool succeeded = client.TrySetActive(new MemoryRecordId(41), true, out MemoryRecordSnapshot record,
+		bool succeeded = client.TrySetActive(new MemoryRecordId(41), requested, out MemoryRecordSnapshot record,
 			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
 
 		Assert.False(succeeded);
 		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
 		Assert.Equal(CheatEngineHostEffect.Started, failure.HostEffect);
 		Assert.Equal("Tables.SetActive", failure.Operation);
-		Assert.Contains("left the memory record inactive", failure.Message, StringComparison.Ordinal);
+		Assert.Contains(expectedMessage, failure.Message, StringComparison.Ordinal);
 		Assert.Contains("partial script effects may persist", failure.Message, StringComparison.Ordinal);
 		Assert.Equal(new MemoryRecordId(41), record.Id);
-		Assert.False(record.IsActive);
-		Assert.Equal(1, activation.WriteCount);
+		Assert.Equal(!requested, record.IsActive);
+		Assert.Equal([requested], mutations.RequestedStates);
 	}
 
-	[Fact]
+	[Theory]
 	[Trait("Qualification", "Q35")]
-	public void TrySetActiveReportsRefusedWhenCheatEngineLeavesTheRecordActive()
+	[InlineData(MemoryRecordActivationOutcomeKind.Applied)]
+	[InlineData(MemoryRecordActivationOutcomeKind.Unchanged)]
+	public void TrySetActiveSucceedsWithThePostChangeSnapshot(MemoryRecordActivationOutcomeKind kind)
 	{
-		FakeRecordActivation activation = new(active: true)
+		FakeRecordMutationPort mutations = new()
 		{
-			RefuseChange = true
+			Activation = new TableActivationObservation(kind, MemoryRecordMutationProblem.None,
+				Snapshot(41, "Health", true))
 		};
-		TableClient client = CreateClient(new FakeRecordMutationPort { ActivationRecord = activation });
+		TableClient client = CreateClient(mutations);
 
-		bool succeeded = client.TrySetActive(new MemoryRecordId(41), false, out MemoryRecordSnapshot record,
+		bool succeeded = client.TrySetActive(new MemoryRecordId(41), true, out MemoryRecordSnapshot record,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.True(succeeded);
+		Assert.Equal(default, failure);
+		Assert.True(record.IsActive);
+		Assert.Equal(1, mutations.SetActiveCallCount);
+	}
+
+	[Theory]
+	[InlineData(MemoryRecordActivationOutcomeKind.Applied, CheatEngineHostEffect.Completed)]
+	[InlineData(MemoryRecordActivationOutcomeKind.Unchanged, CheatEngineHostEffect.NotStarted)]
+	public void TrySetActiveKeepsASuccessfulCommandApartFromAFailedCopyOfTheRecord(
+		MemoryRecordActivationOutcomeKind kind, CheatEngineHostEffect expectedEffect)
+	{
+		TableClient client = CreateClient(new FakeRecordMutationPort
+		{
+			Activation = TableActivationObservation.Of(kind)
+		});
+
+		bool succeeded = client.TrySetActive(new MemoryRecordId(41), true, out MemoryRecordSnapshot record,
 			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
 
 		Assert.False(succeeded);
-		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
-		Assert.Contains("left the memory record active", failure.Message, StringComparison.Ordinal);
-		Assert.True(record.IsActive);
-		Assert.Equal(1, activation.WriteCount);
-	}
-
-	[Fact]
-	[Trait("Qualification", "Q35")]
-	public void TrySetActiveInTheRequestedStateDoesNotCallTheSetter()
-	{
-		FakeRecordActivation activation = new(active: true);
-		TableClient client = CreateClient(new FakeRecordMutationPort { ActivationRecord = activation });
-
-		bool succeeded = client.TrySetActive(new MemoryRecordId(41), true, out MemoryRecordSnapshot record,
-			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
-
-		Assert.True(succeeded);
-		Assert.Equal(default, failure);
-		Assert.True(record.IsActive);
-		Assert.Equal(0, activation.WriteCount);
-	}
-
-	[Fact]
-	[Trait("Qualification", "Q35")]
-	public void TrySetActiveAppliesTheRequestedStateAndReturnsThePostChangeSnapshot()
-	{
-		FakeRecordActivation activation = new(active: false);
-		TableClient client = CreateClient(new FakeRecordMutationPort { ActivationRecord = activation });
-
-		bool succeeded = client.TrySetActive(new MemoryRecordId(41), true, out MemoryRecordSnapshot record,
-			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
-
-		Assert.True(succeeded);
-		Assert.Equal(default, failure);
-		Assert.True(record.IsActive);
-		Assert.Equal(1, activation.WriteCount);
+		Assert.Equal(default, record);
+		Assert.Equal(CheatEngineFailureKind.InvalidHostResult, failure.Kind);
+		Assert.Equal(expectedEffect, failure.HostEffect);
 	}
 
 	[Fact]
 	[Trait("Qualification", "Q35")]
 	public void TrySetActiveReportsPendingForAnAsynchronousRecordStillProcessing()
 	{
-		FakeRecordActivation activation = new(active: false)
+		TableClient client = CreateClient(new FakeRecordMutationPort
 		{
-			ProcessingAfterWrite = true,
-			RefuseChange = true
-		};
-		TableClient client = CreateClient(new FakeRecordMutationPort { ActivationRecord = activation });
+			Activation = new TableActivationObservation(MemoryRecordActivationOutcomeKind.Pending,
+				MemoryRecordMutationProblem.None, Snapshot(41, "Health"))
+		});
 
 		bool succeeded = client.TrySetActive(new MemoryRecordId(41), true, out MemoryRecordSnapshot record,
 			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
@@ -413,50 +399,37 @@ public sealed class TableClientMutationTests
 	}
 
 	[Fact]
-	public void TrySetActiveReportsAnUnknownEffectWhenThePostChangeReadFails()
+	public void TrySetActiveReportsAStartedIndeterminateActivationWithoutASnapshot()
 	{
-		// A14-42: the native effect may have happened, but its result could not be copied.
-		FakeRecordActivation activation = new(active: false)
+		// A14-42: the setter ran, but CheatEngine.SDK could not establish the record's state after it.
+		TableClient client = CreateClient(new FakeRecordMutationPort
 		{
-			FailReadAfterWrite = true
-		};
-		TableClient client = CreateClient(new FakeRecordMutationPort { ActivationRecord = activation });
+			Activation = new TableActivationObservation(MemoryRecordActivationOutcomeKind.Indeterminate,
+				MemoryRecordMutationProblem.LuaFailure, Snapshot(41, "Health"))
+		});
 
 		bool succeeded = client.TrySetActive(new MemoryRecordId(41), true, out MemoryRecordSnapshot record,
 			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
 
 		Assert.False(succeeded);
-		Assert.Equal(CheatEngineFailureKind.InvalidHostResult, failure.Kind);
-		Assert.Equal(CheatEngineHostEffect.Unknown, failure.HostEffect);
+		Assert.Equal(CheatEngineFailureKind.IndeterminateHostResult, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.Started, failure.HostEffect);
 		Assert.Equal(default, record);
-		Assert.Equal(1, activation.WriteCount);
 	}
 
-	[Fact]
-	public void TrySetActiveNeverRetriesAfterARefusal()
-	{
-		// An OnActivationFailure handler that asks for a retry already loops inside Cheat Engine's single setter call.
-		FakeRecordActivation activation = new(active: false)
-		{
-			RefuseChange = true
-		};
-		TableClient client = CreateClient(new FakeRecordMutationPort { ActivationRecord = activation });
-
-		Assert.False(client.TrySetActive(new MemoryRecordId(41), true, out _, out _,
-			TestContext.Current.CancellationToken));
-
-		Assert.Equal(1, activation.WriteCount);
-		Assert.Equal(2, activation.ActiveReadCount);
-		Assert.Equal(1, activation.ProcessingReadCount);
-	}
-
-	[Fact]
+	[Theory]
 	[Trait("Qualification", "Q34")]
-	public void TrySetActiveReportsNotFoundForAnUnknownRecordWithoutTouchingTheHost()
+	[InlineData(MemoryRecordMutationProblem.RecordNotFound, CheatEngineFailureKind.NotFound)]
+	[InlineData(MemoryRecordMutationProblem.AddressListUnavailable, CheatEngineFailureKind.CapabilityUnavailable)]
+	[InlineData(MemoryRecordMutationProblem.TableLoadInProgress, CheatEngineFailureKind.InvalidState)]
+	[InlineData(MemoryRecordMutationProblem.RuntimeIdentityChanged, CheatEngineFailureKind.RuntimeChanged)]
+	[InlineData(MemoryRecordMutationProblem.InvalidResult, CheatEngineFailureKind.InvalidHostResult)]
+	public void TrySetActiveReportsAnActivationThatWasNotAttemptedAsNotStarted(MemoryRecordMutationProblem problem,
+		CheatEngineFailureKind expected)
 	{
 		FakeRecordMutationPort mutations = new()
 		{
-			Activation = TableActivationObservation.Of(TableActivationStatus.RecordNotFound)
+			Activation = TableActivationObservation.Of(MemoryRecordActivationOutcomeKind.NotAttempted, problem)
 		};
 		TableClient client = CreateClient(mutations);
 
@@ -465,16 +438,34 @@ public sealed class TableClientMutationTests
 
 		Assert.False(succeeded);
 		Assert.Equal(default, record);
-		Assert.Equal(CheatEngineFailureKind.NotFound, failure.Kind);
+		Assert.Equal(expected, failure.Kind);
 		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
 		Assert.Equal(1, mutations.SetActiveCallCount);
+	}
+
+	[Fact]
+	public void TrySetActiveFailsClosedOnAnUnrecognizedActivationOutcome()
+	{
+		TableClient client = CreateClient(new FakeRecordMutationPort
+		{
+			Activation = new TableActivationObservation(MemoryRecordActivationOutcomeKind.Unknown,
+				MemoryRecordMutationProblem.None, Snapshot(41, "Health"))
+		});
+
+		bool succeeded = client.TrySetActive(new MemoryRecordId(41), true, out MemoryRecordSnapshot record,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(default, record);
+		Assert.Equal(CheatEngineFailureKind.IndeterminateHostResult, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.Unknown, failure.HostEffect);
 	}
 
 	[Fact]
 	[Trait("Qualification", "Q34")]
 	public void DeletingTheSameRecordTwiceReportsNotFoundTheSecondTime()
 	{
-		// A14-38: the second delete finds no record, so destroy is never reached twice.
+		// A14-38: the second delete finds no record, so the record is never destroyed twice.
 		FakeRecordMutationPort mutations = new()
 		{
 			TrackDeletedRecords = true
@@ -515,15 +506,18 @@ public sealed class TableClientMutationTests
 	[Fact]
 	public void MutationsReportCapabilityUnavailableWhenTheAddressListIsUnavailable()
 	{
-		// ADR-08: an unavailable Address List is the same capability condition for every mutation as for TrySetActive
-		// and the lookups, never an unexpected host result; no record was reached.
+		// ADR-08: an unavailable Address List is the same capability condition for every mutation as for the lookups,
+		// never an unexpected host result; no record was reached.
+		TableRecordMutationOutcome unavailable =
+			TableRecordMutationOutcome.NotAttempted(MemoryRecordMutationProblem.AddressListUnavailable);
 		FakeRecordMutationPort mutations = new()
 		{
-			SelectStatus = TableRecordMutationStatus.AddressListUnavailable,
-			DeleteStatus = TableRecordMutationStatus.AddressListUnavailable,
-			SetParentStatus = TableRecordMutationStatus.AddressListUnavailable,
-			Creation = new TableRecordCreation(TableRecordMutationStatus.AddressListUnavailable,
-				TableRecordRollback.NotRequired)
+			SelectOutcome = unavailable,
+			DeleteOutcome = unavailable,
+			SetParentOutcome = unavailable,
+			Creation = new TableRecordCreation(unavailable, TableRecordRollback.NotRequired),
+			Activation = TableActivationObservation.Of(MemoryRecordActivationOutcomeKind.NotAttempted,
+				MemoryRecordMutationProblem.AddressListUnavailable)
 		};
 		TableClient client = CreateClient(mutations);
 		CancellationToken token = TestContext.Current.CancellationToken;
@@ -533,14 +527,16 @@ public sealed class TableClientMutationTests
 		bool reparented = client.TrySetParent(new MemoryRecordId(41), new MemoryRecordId(7), out _,
 			out CheatEngineFailure parentFailure, token);
 		bool created = client.TryCreate(Definition(), out _, out CheatEngineFailure createFailure, token);
+		bool activated = client.TrySetActive(new MemoryRecordId(41), true, out _, out CheatEngineFailure activeFailure,
+			token);
 
-		Assert.False(selected || deleted || reparented || created);
-		foreach (CheatEngineFailure failure in (CheatEngineFailure[]) [selectFailure, deleteFailure, parentFailure,
-					 createFailure])
+		Assert.False(selected || deleted || reparented || created || activated);
+		foreach (CheatEngineFailure failure in (CheatEngineFailure[])
+				 [selectFailure, deleteFailure, parentFailure, createFailure, activeFailure])
 		{
 			Assert.Equal(CheatEngineFailureKind.CapabilityUnavailable, failure.Kind);
 			Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
-			Assert.Equal("Cheat Engine's Address List capability is unavailable.", failure.Message);
+			Assert.Equal(TableMapping.AddressListUnavailableMessage, failure.Message);
 		}
 	}
 
@@ -554,28 +550,32 @@ public sealed class TableClientMutationTests
 		return new TableClient(new InlineDispatcher(), CoreClientPolicy.SafeDefaults, mutations);
 	}
 
-	private static MemoryRecordSnapshot Snapshot(int id, string description)
+	private static MemoryRecordSnapshot Snapshot(int id, string description, bool isActive = false)
 	{
 		return new MemoryRecordSnapshot(
 			new MemoryRecordId(id),
 			0,
 			new MemoryRecordContentSnapshot(description, "game.exe+24", "50", VariableType.Dword),
-			new MemoryRecordStateSnapshot(null));
+			new MemoryRecordStateSnapshot(null, isActive));
 	}
 
+	/// <summary>
+	///     A scripted mutation port: each member returns its configured outcome in CheatEngine.SDK's mutation vocabulary
+	///     and records how it was called.
+	/// </summary>
 	private sealed class FakeRecordMutationPort : ITableRecordMutationPort
 	{
-		internal TableRecordMutationStatus DeleteStatus
+		internal TableRecordMutationOutcome DeleteOutcome
 		{
 			get;
 			init;
-		} = TableRecordMutationStatus.Success;
+		} = TableRecordMutationOutcome.Succeeded;
 
-		internal TableRecordMutationStatus SetParentStatus
+		internal TableRecordMutationOutcome SetParentOutcome
 		{
 			get;
 			init;
-		} = TableRecordMutationStatus.Success;
+		} = TableRecordMutationOutcome.Succeeded;
 
 		internal MemoryRecordSnapshot SetParentRecord
 		{
@@ -595,13 +595,49 @@ public sealed class TableClientMutationTests
 			init;
 		}
 
+		internal TableActivationObservation Activation
+		{
+			get;
+			init;
+		} = new(MemoryRecordActivationOutcomeKind.Applied, MemoryRecordMutationProblem.None, Snapshot(41, "Health"));
+
+		internal MemoryRecordSnapshot SelectRecord
+		{
+			get;
+			init;
+		}
+
+		internal TableRecordMutationOutcome SelectOutcome
+		{
+			get;
+			init;
+		} = TableRecordMutationOutcome.Succeeded;
+
+		internal bool TrackDeletedRecords
+		{
+			get;
+			init;
+		}
+
 		internal int CreateCallCount
 		{
 			get;
 			private set;
 		}
 
+		internal int DeleteCallCount
+		{
+			get;
+			private set;
+		}
+
 		internal MemoryRecordId LastDeletedId
+		{
+			get;
+			private set;
+		}
+
+		internal int DestroyCount
 		{
 			get;
 			private set;
@@ -625,47 +661,12 @@ public sealed class TableClientMutationTests
 			private set;
 		}
 
-		internal TableActivationObservation? Activation
-		{
-			get;
-			init;
-		}
+		internal int SetActiveCallCount => RequestedStates.Count;
 
-		internal FakeRecordActivation? ActivationRecord
+		internal List<bool> RequestedStates
 		{
 			get;
-			init;
-		}
-
-		internal int SetActiveCallCount
-		{
-			get;
-			private set;
-		}
-
-		internal bool TrackDeletedRecords
-		{
-			get;
-			init;
-		}
-
-		internal int DestroyCount
-		{
-			get;
-			private set;
-		}
-
-		internal MemoryRecordSnapshot SelectRecord
-		{
-			get;
-			init;
-		}
-
-		internal TableRecordMutationStatus SelectStatus
-		{
-			get;
-			init;
-		} = TableRecordMutationStatus.Success;
+		} = [];
 
 		internal List<MemoryRecordId> SelectedIds
 		{
@@ -680,129 +681,49 @@ public sealed class TableClientMutationTests
 		public TableRecordCreation TryCreate(MemoryRecordDefinition definition, out MemoryRecordSnapshot record)
 		{
 			CreateCallCount++;
-			record = Creation.Status == TableRecordMutationStatus.Success ? CreatedRecord : default;
+			record = Creation.Outcome.IsSuccess ? CreatedRecord : default;
 			return Creation;
 		}
 
-		public TableRecordMutationStatus TryDelete(MemoryRecordId id)
+		public TableRecordMutationOutcome TryDelete(MemoryRecordId id)
 		{
+			DeleteCallCount++;
 			LastDeletedId = id;
 			if (!TrackDeletedRecords)
 			{
-				return DeleteStatus;
+				return DeleteOutcome;
 			}
 
 			if (!DeletedIds.Add(id))
 			{
-				return TableRecordMutationStatus.RecordNotFound;
+				return TableRecordMutationOutcome.NotAttempted(MemoryRecordMutationProblem.RecordNotFound);
 			}
 
 			DestroyCount++;
-			return TableRecordMutationStatus.Success;
+			return TableRecordMutationOutcome.Succeeded;
 		}
 
 		public TableActivationObservation TrySetActive(MemoryRecordId id, bool requested)
 		{
-			SetActiveCallCount++;
-			return ActivationRecord is { } record
-				? TableRecordActivation.Apply(record, requested)
-				: Activation ?? TableActivationObservation.Of(TableActivationStatus.Applied);
+			RequestedStates.Add(requested);
+			return Activation;
 		}
 
-		public TableRecordMutationStatus TrySelect(MemoryRecordId id, out MemoryRecordSnapshot record)
+		public TableRecordMutationOutcome TrySelect(MemoryRecordId id, out MemoryRecordSnapshot record)
 		{
 			SelectedIds.Add(id);
-			record = SelectStatus == TableRecordMutationStatus.Success ? SelectRecord : default;
-			return SelectStatus;
+			record = SelectOutcome.IsSuccess ? SelectRecord : default;
+			return SelectOutcome;
 		}
 
-		public TableRecordMutationStatus TrySetParent(MemoryRecordId childId, MemoryRecordId? parentId,
+		public TableRecordMutationOutcome TrySetParent(MemoryRecordId childId, MemoryRecordId? parentId,
 			out MemoryRecordSnapshot record)
 		{
 			SetParentCallCount++;
 			LastChildId = childId;
 			LastParentId = parentId;
 			record = SetParentRecord;
-			return SetParentStatus;
-		}
-	}
-
-	/// <summary>A record whose activation state, asynchronous processing and failures are scripted.</summary>
-	private sealed class FakeRecordActivation(bool active) : IRecordActivationAccess
-	{
-		private bool _active = active;
-		private bool _written;
-
-		internal bool RefuseChange
-		{
-			get;
-			init;
-		}
-
-		internal bool ProcessingAfterWrite
-		{
-			get;
-			init;
-		}
-
-		internal bool FailReadAfterWrite
-		{
-			get;
-			init;
-		}
-
-		internal int WriteCount
-		{
-			get;
-			private set;
-		}
-
-		internal int ActiveReadCount
-		{
-			get;
-			private set;
-		}
-
-		internal int ProcessingReadCount
-		{
-			get;
-			private set;
-		}
-
-		public bool TryReadActive(out bool value)
-		{
-			ActiveReadCount++;
-			value = _active;
-			return !(_written && FailReadAfterWrite);
-		}
-
-		public bool TryWriteActive(bool value)
-		{
-			WriteCount++;
-			_written = true;
-			if (!RefuseChange)
-			{
-				_active = value;
-			}
-
-			return true;
-		}
-
-		public bool TryReadAsyncProcessing(out bool processing)
-		{
-			ProcessingReadCount++;
-			processing = _written && ProcessingAfterWrite;
-			return true;
-		}
-
-		public bool TrySnapshot(out MemoryRecordSnapshot snapshot)
-		{
-			snapshot = new MemoryRecordSnapshot(
-				new MemoryRecordId(41),
-				0,
-				new MemoryRecordContentSnapshot("Health", "game.exe+24", "100", VariableType.Dword),
-				new MemoryRecordStateSnapshot(null, _active, 0));
-			return true;
+			return SetParentOutcome;
 		}
 	}
 
