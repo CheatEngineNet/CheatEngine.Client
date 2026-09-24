@@ -69,6 +69,7 @@ public sealed partial class WorkflowContractTests
 		"test-dumps-Debug",
 		"test-dumps-Release",
 		"release-notes",
+		"release-staging",
 		"attestation-bundles",
 		// Advisory governance workflows (scorecard.yml).
 		"scorecard-results"

@@ -2,13 +2,14 @@ name: Release
 
 run-name: Release ${{ github.ref_name }}${{ github.event_name == 'workflow_dispatch' && ' (dry run)' || '' }}
 
-# verify ─► ci ─► attest ─► draft-release ─► publish ─► verify-publication ─► finalize-release
+# verify ─► ci ─► stage ─► attest ─► draft-release ─► publish ─► verify-publication ─► finalize-release
 #
-# The seven packages that ci builds, tests and uploads as nuget-packages are the exact files that are attested,
-# attached to the draft release and pushed to nuget.org. Nothing is published before a draft release carries every
-# asset, and the release itself is published only after nuget.org serves the attested packages, so the flow works with
-# immutable releases. Only a tag push of this repository releases: a workflow_dispatch run, even one started from a
-# tag, is a dry run that verifies and builds, and never attests, drafts or publishes.
+# The seven packages that ci builds, tests and uploads as nuget-packages are the exact files that are staged with their
+# SBOMs and SHA256SUMS, attested, attached to the draft release and pushed to nuget.org. Nothing is published before a
+# draft release carries every asset, and the release itself is published only after nuget.org serves the attested
+# packages, so the flow works with immutable releases. Only a tag push of this repository releases: a workflow_dispatch
+# run, even one started from a tag, is a dry run that verifies, builds and stages the SBOMs and SHA256SUMS with a
+# read-only token, and never attests, drafts or publishes.
 # No job restores from or saves to a NuGet cache. RELEASING.md describes the procedure and every check.
 
 on:
@@ -174,11 +175,125 @@ jobs:
       package-version: ${{ needs.verify.outputs.version }}
       package-retention-days: 90
 
+  # Every run, dry runs included, with a read-only token and no OIDC token: extracts the SPDX SBOM each package embeds
+  # and writes SHA256SUMS over the packages, the symbol packages and the SBOMs. A dry run ends here, with those files in
+  # the release-staging artifact; a release attests exactly the files this job staged.
+  stage:
+    name: Stage SBOMs and checksums
+    needs: [ verify, ci ]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      VERSION: ${{ needs.verify.outputs.version }}
+    steps:
+      - name: Download packages
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: nuget-packages
+          path: artifacts/nuget
+
+      # Every package embeds its SPDX 2.2 document at _manifest/spdx_2.2/manifest.spdx.json. Its exact bytes are
+      # extracted as <Id>.<Version>.spdx.json, after checking that it describes that package and version, so attest
+      # signs (actions/attest sbom-path) and the release carries the document the package holds.
+      - name: Stage the SBOMs and SHA256SUMS
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $packageIds = @($env:PACKAGE_IDS -split '\s+' | Where-Object { $_ })
+
+          # A release names its version (verify); a dry run takes the version MinVer gave the packages.
+          $version = $env:VERSION
+          if (-not $version) {
+            $pattern = '^' + [regex]::Escape($packageIds[0]) + '\.(?<version>[0-9][0-9A-Za-z.-]*)\.nupkg$'
+            $found = @(Get-ChildItem -LiteralPath artifacts/nuget -File | ForEach-Object { [regex]::Match($_.Name, $pattern) } | Where-Object Success)
+            if ($found.Count -ne 1) {
+              throw "nuget-packages must hold exactly one $($packageIds[0]) package, found $($found.Count)."
+            }
+            $version = $found[0].Groups['version'].Value
+          }
+
+          # Exactly the seven packages of that version and symbol packages of them.
+          $packages = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+          foreach ($id in $packageIds) {
+            [void] $packages.Add("$id.$version.nupkg")
+            if (-not (Test-Path -LiteralPath "artifacts/nuget/$id.$version.nupkg" -PathType Leaf)) {
+              throw "nuget-packages has no $id.$version.nupkg."
+            }
+          }
+          foreach ($file in @(Get-ChildItem -LiteralPath artifacts/nuget -File)) {
+            $symbols = $file.Extension -ceq '.snupkg' -and $packages.Contains("$($file.BaseName).nupkg")
+            if (-not $packages.Contains($file.Name) -and -not $symbols) {
+              throw "nuget-packages holds $($file.Name), which is neither a package nor a symbol package of the seven ids at $version."
+            }
+          }
+
+          $staging = Join-Path $PWD 'artifacts/staging'
+          New-Item -ItemType Directory -Path $staging -Force | Out-Null
+          foreach ($id in $packageIds) {
+            $archive = [System.IO.Compression.ZipFile]::OpenRead((Join-Path $PWD "artifacts/nuget/$id.$version.nupkg"))
+            try {
+              $entry = $archive.GetEntry('_manifest/spdx_2.2/manifest.spdx.json')
+              if ($null -eq $entry) {
+                throw "$id.$version.nupkg has no _manifest/spdx_2.2/manifest.spdx.json."
+              }
+              $stream = $entry.Open()
+              try {
+                $memory = [System.IO.MemoryStream]::new()
+                $stream.CopyTo($memory)
+                $bytes = $memory.ToArray()
+              }
+              finally {
+                $stream.Dispose()
+              }
+            }
+            finally {
+              $archive.Dispose()
+            }
+
+            $document = [System.Text.Encoding]::UTF8.GetString($bytes).TrimStart([char] 0xFEFF) | ConvertFrom-Json
+            $root = @($document.packages | Where-Object { $_.SPDXID -eq 'SPDXRef-RootPackage' })
+            if ($document.spdxVersion -ne 'SPDX-2.2' -or $root.Count -ne 1 -or $root[0].name -ne $id -or $root[0].versionInfo -ne $version) {
+              throw "The SBOM inside $id.$version.nupkg does not describe $id $version as SPDX-2.2."
+            }
+            [System.IO.File]::WriteAllBytes((Join-Path $staging "$id.$version.spdx.json"), $bytes)
+          }
+
+          # sha256sum format ('<sha256>  <name>', sorted ordinally by name, LF).
+          $assets = [System.Collections.Generic.SortedDictionary[string, string]]::new([System.StringComparer]::Ordinal)
+          foreach ($file in @(Get-ChildItem -LiteralPath (Join-Path $PWD 'artifacts/nuget'), $staging -File)) {
+            $assets.Add($file.Name, $file.FullName)
+          }
+          $lines = foreach ($name in $assets.Keys) {
+            '{0}  {1}' -f (Get-FileHash -LiteralPath $assets[$name] -Algorithm SHA256).Hash.ToLowerInvariant(), $name
+          }
+          [System.IO.File]::WriteAllText((Join-Path $staging 'SHA256SUMS'), (($lines -join "`n") + "`n"), [System.Text.UTF8Encoding]::new($false))
+
+          $run = if ($env:VERSION) { "Release $version" } else { "Dry run of $version (nothing is attested, drafted or published)" }
+          $summary = @(
+            '### Staged SBOMs and checksums',
+            '',
+            "$run. The release-staging artifact holds the $($packageIds.Count) SBOMs and SHA256SUMS.",
+            '',
+            '| Asset | SHA-256 |',
+            '| --- | --- |'
+          ) + @($lines | ForEach-Object { $hash, $name = $_ -split '  ', 2; "| ``$name`` | ``$hash`` |" })
+          $summary | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      - name: Upload the staged SBOMs and SHA256SUMS
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-staging
+          path: artifacts/staging
+          if-no-files-found: error
+          retention-days: 90
+
   # attest, draft-release and publish share one guard: a tag push of this repository that verify accepted. Every later
   # job needs one of them, so a dry run skips the whole release path.
   attest:
     name: Attest packages
-    needs: [ verify, ci ]
+    needs: [ verify, ci, stage ]
     if: github.event_name == 'push' && github.ref_type == 'tag' && github.repository == 'CheatEngineNet/CheatEngine.Client' && needs.verify.outputs.version != ''
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -201,49 +316,42 @@ jobs:
           name: nuget-packages
           path: artifacts/nuget
 
-      # Every package embeds its SPDX 2.2 document at _manifest/spdx_2.2/manifest.spdx.json. Extracted next to the
-      # release assets as <Id>.<Version>.spdx.json, after checking that it describes that package and version, so it
-      # can be attested (actions/attest sbom-path) and attached to the release.
-      - name: Extract the SBOMs
+      - name: Download the staged SBOMs and SHA256SUMS
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-staging
+          path: artifacts/attestations
+
+      # This job signs exactly what stage checked and listed: every package, symbol package and SBOM has the SHA-256
+      # of the staged SHA256SUMS, and nothing else is there. The staged SHA256SUMS is then removed; it is written
+      # again over every release asset once the attestation bundles exist.
+      - name: Check the staged files
         run: |
           $ErrorActionPreference = 'Stop'
-          Add-Type -AssemblyName System.IO.Compression.FileSystem
-          $packageIds = @($env:PACKAGE_IDS -split '\s+' | Where-Object { $_ })
-          New-Item -ItemType Directory -Path artifacts/attestations -Force | Out-Null
-          foreach ($id in $packageIds) {
-            $package = "artifacts/nuget/$id.$env:VERSION.nupkg"
-            if (-not (Test-Path -LiteralPath $package -PathType Leaf)) {
-              throw "The package $id.$env:VERSION.nupkg is missing from artifacts/nuget."
+          $sums = [System.Collections.Generic.Dictionary[string, string]]::new([System.StringComparer]::Ordinal)
+          foreach ($line in @(Get-Content -LiteralPath artifacts/attestations/SHA256SUMS)) {
+            if ($line -cnotmatch '^(?<hash>[0-9a-f]{64})  (?<name>[^\s/\\]+)$' -or -not $sums.TryAdd($Matches['name'], $Matches['hash'])) {
+              throw "The staged SHA256SUMS has a malformed or repeated line: '$line'."
             }
-
-            $archive = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path -LiteralPath $package).Path)
-            try {
-              $entry = $archive.GetEntry('_manifest/spdx_2.2/manifest.spdx.json')
-              if ($null -eq $entry) {
-                throw "$id.$env:VERSION.nupkg has no _manifest/spdx_2.2/manifest.spdx.json."
-              }
-              $reader = [System.IO.StreamReader]::new($entry.Open())
-              try {
-                $text = $reader.ReadToEnd()
-              }
-              finally {
-                $reader.Dispose()
-              }
-            }
-            finally {
-              $archive.Dispose()
-            }
-
-            $document = $text | ConvertFrom-Json
-            $root = @($document.packages | Where-Object { $_.SPDXID -eq 'SPDXRef-RootPackage' })
-            if ($document.spdxVersion -ne 'SPDX-2.2' -or $root.Count -ne 1 -or $root[0].name -ne $id -or $root[0].versionInfo -ne $env:VERSION) {
-              throw "The SBOM inside $id.$env:VERSION.nupkg does not describe $id $env:VERSION as SPDX-2.2."
-            }
-
-            $target = "artifacts/attestations/$id.$env:VERSION.spdx.json"
-            [System.IO.File]::WriteAllText($target, $text, [System.Text.UTF8Encoding]::new($false))
-            Write-Output "Extracted the SBOM of $id $env:VERSION to $target."
           }
+          $files = @(Get-ChildItem artifacts/nuget, artifacts/attestations -File | Where-Object Name -cne 'SHA256SUMS')
+          foreach ($file in $files) {
+            $actual = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            if (-not $sums.ContainsKey($file.Name) -or $sums[$file.Name] -cne $actual) {
+              throw "$($file.Name) has SHA-256 $actual, which the staged SHA256SUMS does not list for it."
+            }
+          }
+          if ($files.Count -ne $sums.Count) {
+            throw "The staged SHA256SUMS lists $($sums.Count) files, but $($files.Count) are here."
+          }
+          foreach ($id in @($env:PACKAGE_IDS -split '\s+' | Where-Object { $_ })) {
+            foreach ($name in "$id.$env:VERSION.nupkg", "$id.$env:VERSION.spdx.json") {
+              if (-not $sums.ContainsKey($name)) {
+                throw "stage did not stage $name."
+              }
+            }
+          }
+          Remove-Item -LiteralPath artifacts/attestations/SHA256SUMS
 
       # One provenance attestation covers the seven packages and the five symbol packages.
       - name: Attest build provenance

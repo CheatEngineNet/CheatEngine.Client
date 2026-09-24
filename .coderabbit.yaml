@@ -177,10 +177,11 @@ reviews:
 
     - path: ".github/workflows/release.yml"
       instructions: |
-        Keep the contract order verify -> ci -> attest -> draft-release -> publish -> verify-publication ->
+        Keep the contract order verify -> ci -> stage -> attest -> draft-release -> publish -> verify-publication ->
         finalize-release. The ci job calls ci.yml with package-version and package-retention-days: 90 and never passes
         sonar. No package cache and no binary log in the release path. NuGet/login stays in the publish job, behind
-        the nuget environment and the tag and repository guard; a dispatch run stays a dry run.
+        the nuget environment and the tag and repository guard; a dispatch run stays a dry run, and stage, the only
+        job after ci that it runs, keeps a read-only token without id-token.
 
     - path: "{SECURITY.md,.github/CODEOWNERS,.github/ISSUE_TEMPLATE/**}"
       instructions: |

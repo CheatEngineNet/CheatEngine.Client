@@ -9,7 +9,7 @@ using YamlDotNet.RepresentationModel;
 namespace CheatEngine.Client.Repository.Tests.Release;
 
 /// <summary>
-/// The release workflow keeps the contract order (verify, ci, attest, draft-release, publish, verify-publication,
+/// The release workflow keeps the contract order (verify, ci, stage, attest, draft-release, publish, verify-publication,
 /// finalize-release), publishes only from a tag of this repository through the nuget environment, and never caches
 /// packages (audit A21-06). Pins, runners, timeouts and checkout credentials are checked for every workflow by the
 /// workflow contract tests.
@@ -20,13 +20,14 @@ public sealed partial class ReleaseWorkflowTests
 	private const string ProvenancePredicate = "https://slsa.dev/provenance/v1";
 	private const string SpdxPredicate = "https://spdx.dev/Document/v2.2";
 
-	private static readonly string[] JobOrder = ["verify", "ci", "attest", "draft-release", "publish", "verify-publication", "finalize-release"];
+	private static readonly string[] JobOrder = ["verify", "ci", "stage", "attest", "draft-release", "publish", "verify-publication", "finalize-release"];
 
 	private static readonly Dictionary<string, string[]> ExpectedNeeds = new(StringComparer.Ordinal)
 	{
 		["verify"] = [],
 		["ci"] = ["verify"],
-		["attest"] = ["verify", "ci"],
+		["stage"] = ["verify", "ci"],
+		["attest"] = ["verify", "ci", "stage"],
 		["draft-release"] = ["verify", "ci", "attest"],
 		["publish"] = ["verify", "ci", "draft-release"],
 		["verify-publication"] = ["verify", "publish"],
@@ -497,6 +498,49 @@ public sealed partial class ReleaseWorkflowTests
 		string text = File.ReadAllText(Path.Combine(RepositoryRoot.Path, WorkflowPath));
 		Assert.DoesNotMatch(@"\bgh api\b[^\n]*(--method|-X)\s*DELETE", text);
 		Assert.DoesNotMatch(@"\bgh api\b[^\n]*releases/", text);
+	}
+
+	/// <summary>
+	/// stage runs on every event, dry runs included, with a read-only token and no OIDC token: it extracts the SBOM each
+	/// package embeds and writes SHA256SUMS, and uploads them as release-staging. A release attests exactly those staged
+	/// files: attest needs stage, downloads its artifact and extracts no SBOM of its own.
+	/// </summary>
+	[Fact]
+	public void DryRunStagesTheSbomAndChecksums()
+	{
+		YamlMappingNode jobs = Mapping(Workflow.Value, "jobs");
+		YamlMappingNode stage = Mapping(jobs, "stage");
+		string[] needs = ["verify", "ci"];
+		Assert.Equal(needs, Needs(stage));
+		Assert.False(stage.Children.ContainsKey(new YamlScalarNode("if")), "stage must run on a workflow_dispatch dry run as well.");
+		Assert.False(stage.Children.ContainsKey(new YamlScalarNode("environment")));
+		YamlMappingNode permissions = Mapping(stage, "permissions");
+		Assert.Equal("read", Scalar(permissions, "contents"));
+		Assert.Single(permissions.Children);
+		Assert.DoesNotContain("secrets.", JobText("stage"), StringComparison.Ordinal);
+		Assert.DoesNotContain("GH_TOKEN", JobText("stage"), StringComparison.Ordinal);
+
+		List<YamlMappingNode> steps = Steps("stage");
+		Assert.DoesNotContain(steps, static step => Uses(step).StartsWith("actions/attest@", StringComparison.Ordinal));
+		string script = string.Join('\n', steps.Select(Run));
+		string[] required =
+		[
+			"$env:PACKAGE_IDS", "_manifest/spdx_2.2/manifest.spdx.json", "'SPDX-2.2'", "WriteAllBytes", "SHA256SUMS", "Get-FileHash",
+			"GITHUB_STEP_SUMMARY"
+		];
+		foreach (string value in required)
+		{
+			Assert.Contains(value, script, StringComparison.Ordinal);
+		}
+
+		Assert.DoesNotMatch(@"(?m)^\s*gh\s", script);
+		YamlMappingNode upload = Assert.Single(steps, static step => Uses(step).StartsWith("actions/upload-artifact@", StringComparison.Ordinal));
+		Assert.Equal("release-staging", Scalar(Mapping(upload, "with"), "name"));
+
+		Assert.Contains("stage", Needs(Mapping(jobs, "attest")));
+		Assert.Contains(Steps("attest"), static step => Uses(step).StartsWith("actions/download-artifact@", StringComparison.Ordinal)
+														&& Scalar(Mapping(step, "with"), "name") == "release-staging");
+		Assert.DoesNotContain("_manifest/spdx_2.2", JobText("attest"), StringComparison.Ordinal);
 	}
 
 	private static YamlMappingNode LoadWorkflow()
