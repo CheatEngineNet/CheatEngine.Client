@@ -36,6 +36,18 @@ public sealed partial class PackageConsumptionSmokeTests(PackagedClientFeedFixtu
 		["CheatEngine.Client.Hosting"] = "Build,Native,Analyzers,BuildTransitive"
 	};
 
+	/// <summary>The Client packages each package depends on, in ordinal order, frozen: the edges of the delivery graph.</summary>
+	private static readonly Dictionary<string, string[]> InterClientDependencies = new(StringComparer.Ordinal)
+	{
+		["CheatEngine.Client"] = ["CheatEngine.Client.Fluent", "CheatEngine.Client.Hosting"],
+		["CheatEngine.Client.Abstractions"] = [],
+		["CheatEngine.Client.Core"] = ["CheatEngine.Client.Abstractions"],
+		["CheatEngine.Client.Extensions.DependencyInjection"] = ["CheatEngine.Client.Abstractions", "CheatEngine.Client.Core"],
+		["CheatEngine.Client.Fluent"] = ["CheatEngine.Client.Abstractions"],
+		["CheatEngine.Client.Hosting"] = ["CheatEngine.Client.Extensions.DependencyInjection"],
+		["CheatEngine.Client.Templates"] = []
+	};
+
 	[Fact]
 	public void SevenPackagesAndFiveSymbolPackagesAreProduced()
 	{
@@ -96,21 +108,25 @@ public sealed partial class PackageConsumptionSmokeTests(PackagedClientFeedFixtu
 	}
 
 	[Fact]
-	public void InterClientDependenciesRequireTheCoPackedVersion()
+	public void InterClientDependenciesRequireTheExactCoPackedVersion()
 	{
+		// A bare version in a nuspec is a minimum; DI and Hosting use Core and DI internals, so every edge is exact.
 		fixture.RequirePackages();
-		int count = 0;
-		foreach (PackageArchive archive in fixture.Archives.Where(static archive => !archive.IsSymbolPackage))
+		string exact = $"[{fixture.ClientVersion}]";
+		foreach (string id in PackagedClientFeedFixture.PackageIds)
 		{
-			foreach (PackageDependency dependency in archive.Dependencies.Where(static dependency => dependency.Id.StartsWith(PackagedClientFeedFixture.ClientPackageId, StringComparison.Ordinal)))
+			PackageDependency[] client = fixture.Package(id).Dependencies
+				.Where(static dependency => dependency.Id.StartsWith(PackagedClientFeedFixture.ClientPackageId, StringComparison.Ordinal))
+				.ToArray();
+
+			Assert.Equal(InterClientDependencies[id], client.Select(static dependency => dependency.Id).Order(StringComparer.Ordinal));
+			foreach (PackageDependency dependency in client)
 			{
-				count++;
-				Assert.True(dependency.Version == fixture.ClientVersion,
-					$"{archive.Id} depends on {dependency.Id} '{dependency.Version}', expected the co-packed '{fixture.ClientVersion}'.");
+				Assert.True(dependency.Version == exact,
+					$"{id} depends on {dependency.Id} '{dependency.Version}', expected exactly the co-packed '{exact}'.");
+				PackagedClientFeedFixture.Evidence(nameof(InterClientDependenciesRequireTheExactCoPackedVersion), $"package={id} dependency={dependency.Id} version={dependency.Version}");
 			}
 		}
-
-		Assert.True(count >= 6, $"Expected the inter-Client dependencies of the package graph, found {count}.");
 	}
 
 	[Fact]

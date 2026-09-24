@@ -86,6 +86,14 @@ rules.
 CheatEngine.Client follows [Semantic Versioning 2.0.0](https://semver.org/) from 1.0.0. Every Client package is
 released with the same version; use one version for all of them.
 
+The seven packages ship in lockstep. Each Client package depends on the Client packages it builds on at exactly its own
+version (`[X.Y.Z]` in its nuspec, not the `X.Y.Z` minimum NuGet writes by default), because
+`CheatEngine.Client.Extensions.DependencyInjection` and `CheatEngine.Client.Hosting` use internal types of
+`CheatEngine.Client.Core` and of `CheatEngine.Client.Extensions.DependencyInjection`, which no public API baseline
+protects. Reference `CheatEngine.Client` and let it bring the others; a Client package you reference directly takes the
+same version. `CheatEngine.Client.Core` is not a standalone package: it has no public API and is published only as a
+dependency of `CheatEngine.Client.Extensions.DependencyInjection`.
+
 - **Patch releases (1.0.x)** fix behavior and documentation without changing the public API.
 - **Minor releases (1.x)** add API without breaking code compiled against an earlier 1.x:
   - new types, members, overloads and namespaces;

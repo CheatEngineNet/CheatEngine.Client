@@ -56,6 +56,14 @@ infrastructure are internal; the supported public contracts remain in functional
 the Abstractions package such as `CheatEngine.Client.Memory`, `.Scanning`, `.Tables`, `.Lua`, and
 `.Runtime`. Do not add consumer namespaces such as `CheatEngine.Client.Core`.
 
+Core is not a standalone package. It has no public API: `CheatEngine.Client.Extensions.DependencyInjection` and
+`CheatEngine.Client.Hosting` use its internal types through `InternalsVisibleTo`, and it is published only as a
+dependency of `CheatEngine.Client.Extensions.DependencyInjection`. The seven Client packages ship in lockstep, with one
+version, and each depends on the Client packages it builds on at exactly that version (`[X.Y.Z]` in its nuspec): a Core
+of another version than the packages that call its internals is never a supported combination. Do not reference Core
+on its own; reference `CheatEngine.Client`, or the Client package you need, at the same version as every other Client
+package.
+
 The package enables neither an SDK plugin entry point nor dynamic loading on its own. The final
 plugin project must directly reference both `CheatEngine.Client` and `CheatEngine.SDK` so that the
 SDK generator, build assets, native Lua bridge, and host bootstrap execute at the actual plugin

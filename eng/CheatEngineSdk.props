@@ -43,9 +43,11 @@
     - the capability reasons of libs/CheatEngine.Client.Core/Domains/RuntimeClient.cs and every sentence that states
       what the consumed SDK provides: rewrite what it means for the new major, not only its number;
     - the lock file regeneration above, with the .NET SDK CLI that global.json pins, project by project;
-    - after a .NET SDK bump, a check that the internal .NET SDK target _GetProjectReferenceVersions still exists: it
-      computes the dependency versions of project references in packed nuspecs, and an internal target can change
-      without notice.
+    - after a .NET SDK bump, a check that the internal .NET SDK target _GetProjectReferenceVersions still exists and
+      still produces _ProjectReferencesWithVersions items with ProjectVersion metadata: they carry the dependency
+      versions of project references in packed nuspecs, CheatEngineClientPinInterClientDependencies
+      (Directory.Build.targets) makes them exact, and an internal target can change without notice
+      (PackageConsumptionSmokeTests.InterClientDependenciesRequireTheExactCoPackedVersion fails if it does).
   -->
   <PropertyGroup Label="Consumed CheatEngine.SDK">
     <CheatEngineSdkVersion>2.0.0</CheatEngineSdkVersion>

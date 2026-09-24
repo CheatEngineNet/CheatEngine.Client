@@ -30,8 +30,9 @@ else from nuget.org). Every fact writes its evidence (package, bridge and hash v
 TRX report keeps. The facts prove that:
 
 - `SevenPackagesAndFiveSymbolPackagesAreProduced`, `EveryClientPackageSharesOneVersion` and
-  `InterClientDependenciesRequireTheCoPackedVersion`: the seven packages share one MinVer version, the five packages
-  with build output carry a symbol package with PDBs, and inter-Client dependencies require the co-packed version;
+  `InterClientDependenciesRequireTheExactCoPackedVersion`: the seven packages share one MinVer version, the five
+  packages with build output carry a symbol package with PDBs, and each package depends on exactly the frozen set of
+  Client packages at exactly the co-packed version (`[X.Y.Z]`, not the `X.Y.Z` minimum NuGet writes by default);
 - `SdkFacingPackagesDeclareThePinnedSdkRange`: Abstractions, Core and Hosting declare the pinned `CheatEngine.SDK`
   range with frozen asset exclusions, and no other package depends on the SDK directly;
 - `HostingPackageShipsOnlyTheGeneratorAssemblyAsAnalyzer` and `PackedAssembliesCarryTheMajorMinorAssemblyVersion`;

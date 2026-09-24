@@ -190,6 +190,41 @@
   </Target>
 
   <!--
+    Every inter-Client package dependency is exact (audit PKG-10, API-15). NuGet packs a project reference as a
+    dependency on the referenced project's package version, which a nuspec reads as a minimum ('1.0.0' means '>= 1.0.0').
+    Extensions.DependencyInjection and Hosting use Core and DependencyInjection internals through InternalsVisibleTo, and
+    Core has no public API, so a graph that mixed Client versions could fail at run time with MissingMethodException or
+    TypeLoadException, which neither package validation nor the public API baselines can see. The seven packages share
+    one version (CHEATENGINECLIENT9019), so each one requires exactly that version of every Client package it depends on.
+
+    The .NET SDK 10.0.401 pack targets (NuGet.Build.Tasks.Pack.targets, internal and undocumented; eng/CheatEngineSdk.props
+    asks for a re-check after a .NET SDK bump): GenerateNuspec depends on _GetProjectReferenceVersions, which reads the
+    project references of project.assets.json, calls _GetProjectVersion on each and collects the results as
+    _ProjectReferencesWithVersions items, whose ProjectVersion metadata is the referenced project's $(PackageVersion).
+    PackTask receives those items as ProjectReferencesWithVersions and parses ProjectVersion as a NuGet version range, so
+    '[X.Y.Z]' becomes an exact dependency. This target runs between the two. Restore never runs it, so no lock file
+    changes; the CheatEngine.SDK range is a package reference and is not affected.
+  -->
+  <Target Name="CheatEngineClientPinInterClientDependencies"
+          AfterTargets="_GetProjectReferenceVersions"
+          BeforeTargets="GenerateNuspec"
+          Condition="'$(IsPackable)' == 'true'">
+    <ItemGroup>
+      <_CheatEngineClientOtherVersionReference Remove="@(_CheatEngineClientOtherVersionReference)"/>
+      <_CheatEngineClientOtherVersionReference Include="@(_ProjectReferencesWithVersions)"
+                                               Condition="'%(_ProjectReferencesWithVersions.ProjectVersion)' != '$(PackageVersion)'"/>
+    </ItemGroup>
+    <Error Condition="'@(_CheatEngineClientOtherVersionReference)' != ''"
+           Code="CHEATENGINECLIENT9019"
+           Text="$(MSBuildProjectName) would be packed as '$(PackageVersion)' with project references packed as another version (@(_CheatEngineClientOtherVersionReference->'%(Filename) %(ProjectVersion)', ', ')). The seven Client packages share one MinVer version."/>
+    <ItemGroup>
+      <_ProjectReferencesWithVersions>
+        <ProjectVersion>[$(PackageVersion)]</ProjectVersion>
+      </_ProjectReferencesWithVersions>
+    </ItemGroup>
+  </Target>
+
+  <!--
     Microsoft.Sbom.Targets derives SbomGenerationPackageVersion from $(Version) at evaluation, which is the placeholder,
     not the MinVer version the package carries. Its GenerateSbomTarget runs after Pack, so setting the property after
     MinVer makes the SBOM describe the package it is embedded in.
