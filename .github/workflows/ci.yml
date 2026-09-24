@@ -95,12 +95,19 @@ jobs:
             throw "Client package creation failed with exit code $LASTEXITCODE."
           }
 
-          $ids = @(
-            'CheatEngine.Client', 'CheatEngine.Client.Abstractions', 'CheatEngine.Client.Core',
-            'CheatEngine.Client.Extensions.DependencyInjection', 'CheatEngine.Client.Fluent', 'CheatEngine.Client.Hosting',
-            'CheatEngine.Client.Templates'
-          )
-          $noSymbols = @('CheatEngine.Client', 'CheatEngine.Client.Templates')
+          # The seven ids, each declared once with whether it ships a symbol package (release.yml lists the same ids in
+          # PACKAGE_IDS).
+          $shipsSymbols = [ordered]@{
+            'CheatEngine.Client' = $false
+            'CheatEngine.Client.Abstractions' = $true
+            'CheatEngine.Client.Core' = $true
+            'CheatEngine.Client.Extensions.DependencyInjection' = $true
+            'CheatEngine.Client.Fluent' = $true
+            'CheatEngine.Client.Hosting' = $true
+            'CheatEngine.Client.Templates' = $false
+          }
+          $ids = @($shipsSymbols.Keys)
+          $noSymbols = @($ids | Where-Object { -not $shipsSymbols[$_] })
           $nupkgs = @(Get-ChildItem artifacts/nuget -Filter '*.nupkg')
           $snupkgs = @(Get-ChildItem artifacts/nuget -Filter '*.snupkg')
           if ($nupkgs.Count -ne $ids.Count -or $snupkgs.Count -ne ($ids.Count - $noSymbols.Count)) {

@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 
 using CheatEngine.Client.Repository.Tests.Infrastructure;
+using CheatEngine.Client.Repository.Tests.Packaging;
 using CheatEngine.Client.Repository.Tests.Workflows;
 
 using YamlDotNet.RepresentationModel;
@@ -246,8 +247,8 @@ public sealed partial class ReleaseWorkflowTests
 		Assert.Equal("${{ secrets.NUGET_USER }}", Scalar(Mapping(stepList[login], "with"), "user"));
 
 		string script = Text(stepList[push].Children[new YamlScalarNode("run")]);
-		string[] pushed = QuotedPackageId().Matches(script).Select(static match => match.Groups["id"].Value).ToArray();
-		Assert.Equal(PushOrder, pushed);
+		Assert.Equal(PushOrder, PackageIds());
+		Assert.Contains("foreach ($id in @($env:PACKAGE_IDS -split", script, StringComparison.Ordinal);
 		Assert.Contains("--skip-duplicate", script, StringComparison.Ordinal);
 		Assert.Contains("https://api.nuget.org/v3/index.json", script, StringComparison.Ordinal);
 		Assert.Contains("--no-symbols", script, StringComparison.Ordinal);
@@ -384,6 +385,93 @@ public sealed partial class ReleaseWorkflowTests
 		{
 			Assert.Contains($"@identity --predicate-type '{predicate}'", finalize, StringComparison.Ordinal);
 		}
+
+		// attest checks its own attestations, against the bundles and in the repository, before anything is public, and
+		// the provenance covers the symbol packages too.
+		List<YamlMappingNode> attest = Steps("attest");
+		int verifyStep = attest.FindIndex(static step => Run(step).Contains("gh attestation verify", StringComparison.Ordinal));
+		int upload = attest.FindIndex(static step => Uses(step).StartsWith("actions/upload-artifact@", StringComparison.Ordinal));
+		int lastAttestation = attest.FindLastIndex(static step => Uses(step).StartsWith("actions/attest@", StringComparison.Ordinal));
+		Assert.True(verifyStep > lastAttestation && verifyStep < upload, "attest must verify its attestations after creating them and before uploading the bundles.");
+		string attestScript = Run(attest[verifyStep]);
+		foreach (string predicate in predicates)
+		{
+			Assert.Matches($@"(?m)@identity --predicate-type '{Regex.Escape(predicate)}' --bundle \$\w+\s*$", attestScript);
+			Assert.Matches($@"(?m)@identity --predicate-type '{Regex.Escape(predicate)}'\s*$", attestScript);
+		}
+
+		string[] subjects = Scalar(Mapping(Step(Mapping(Mapping(Workflow.Value, "jobs"), "attest"), "provenance"), "with"), "subject-path")
+			.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+		string[] expectedSubjects = ["artifacts/nuget/*.nupkg", "artifacts/nuget/*.snupkg"];
+		Assert.Equal(expectedSubjects, subjects);
+	}
+
+	/// <summary>
+	/// release.yml declares the seven package ids once, as the workflow-level PACKAGE_IDS in dependency order, and every
+	/// job derives its list from it (the SBOM attestation steps take their subjects by position); ci.yml declares each id
+	/// once in its Pack step. Both sets equal the packable projects.
+	/// </summary>
+	[Fact]
+	public void PackageIdsAreDeclaredOnceAndMatchThePackableProjects()
+	{
+		string[] packable = PackageMetadataTests.PackableProjects.Select(Path.GetFileNameWithoutExtension).Select(static id => id!).Order(StringComparer.Ordinal).ToArray();
+		string[] declared = PackageIds();
+
+		Assert.Equal(declared.Length, declared.Distinct(StringComparer.Ordinal).Count());
+		Assert.Equal(packable, declared.Order(StringComparer.Ordinal));
+		Assert.Equal(PushOrder, declared);
+
+		string release = File.ReadAllText(Path.Combine(RepositoryRoot.Path, WorkflowPath));
+		Assert.Empty(QuotedPackageId().Matches(release));
+		List<string> offenders = [];
+		foreach (YamlNode key in Mapping(Workflow.Value, "jobs").Children.Keys)
+		{
+			string job = ((YamlScalarNode) key).Value!;
+			foreach (YamlMappingNode step in Steps(job))
+			{
+				if (step.Children.TryGetValue(new YamlScalarNode("with"), out YamlNode? with))
+				{
+					offenders.AddRange(((YamlMappingNode) with).Children.Values.OfType<YamlScalarNode>()
+						.Where(static value => PackageFileName().IsMatch(value.Value ?? string.Empty))
+						.Select(value => $"{job}: {value.Value}"));
+				}
+			}
+		}
+
+		Assert.True(offenders.Count == 0, $"Step inputs name packages instead of deriving them from PACKAGE_IDS:{Environment.NewLine}{string.Join(Environment.NewLine, offenders)}");
+		string[] readers = ["verify", "attest", "publish", "verify-publication", "finalize-release"];
+		foreach (string job in readers)
+		{
+			Assert.Contains("$env:PACKAGE_IDS", JobText(job), StringComparison.Ordinal);
+		}
+
+		// ci.yml: every quoted package id of the file is in the Pack step's declaration, once.
+		WorkflowFile ci = WorkflowFile.Load(".github/workflows/ci.yml");
+		string pack = Assert.Single(ci.Job("build-test").Steps, static step => step.Id == "pack").Run;
+		Assert.Equal(packable, QuotedIds(ci.Text, packable).Order(StringComparer.Ordinal));
+		Assert.Equal(packable, QuotedIds(pack, packable).Order(StringComparer.Ordinal));
+	}
+
+	/// <summary>
+	/// verify-publication resolves PackageBaseAddress/3.0.0 from the nuget.org service index instead of a hard-coded
+	/// flat container URL, and requires the nuget.org repository signature on every served package.
+	/// </summary>
+	[Fact]
+	public void VerifyPublicationResolvesTheServiceIndexAndRequiresTheRepositorySignature()
+	{
+		string script = Run(Assert.Single(Steps("verify-publication"), static step => Run(step).Contains("dotnet nuget verify", StringComparison.Ordinal)));
+		string[] required =
+		[
+			"Invoke-RestMethod -Uri 'https://api.nuget.org/v3/index.json'", "'PackageBaseAddress/3.0.0'", "dotnet nuget verify --all",
+			"^Signature type: Repository", @"^Service index: https://api\.nuget\.org/v3/index\.json", "'.signature.p7s'", "^Content hash:",
+			"DOTNET_CLI_UI_LANGUAGE = 'en'"
+		];
+		foreach (string value in required)
+		{
+			Assert.Contains(value, script, StringComparison.Ordinal);
+		}
+
+		Assert.DoesNotContain("v3-flatcontainer", script, StringComparison.Ordinal);
 	}
 
 	/// <summary>
@@ -495,6 +583,18 @@ public sealed partial class ReleaseWorkflowTests
 			: [((YamlScalarNode) needs).Value!];
 	}
 
+	/// <summary>The ids of the workflow-level PACKAGE_IDS, in declaration order.</summary>
+	private static string[] PackageIds()
+	{
+		return Scalar(Mapping(Workflow.Value, "env"), "PACKAGE_IDS").Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+	}
+
+	/// <summary>Every single-quoted occurrence of one of the given package ids, repeats included.</summary>
+	private static string[] QuotedIds(string text, string[] ids)
+	{
+		return QuotedPackageId().Matches(text).Select(static match => match.Groups["id"].Value).Where(id => ids.Contains(id, StringComparer.Ordinal)).ToArray();
+	}
+
 	/// <summary>The steps of a job; empty for a reusable-workflow call.</summary>
 	private static List<YamlMappingNode> Steps(string job)
 	{
@@ -534,4 +634,7 @@ public sealed partial class ReleaseWorkflowTests
 
 	[GeneratedRegex(@"\$identity = @\((?<body>[^)]*)\)", RegexOptions.CultureInvariant, 1000)]
 	private static partial Regex IdentityDeclaration();
+
+	[GeneratedRegex(@"CheatEngine\.Client(\.[A-Za-z]+)*\.(\$|\{\{|[0-9])", RegexOptions.CultureInvariant, 1000)]
+	private static partial Regex PackageFileName();
 }

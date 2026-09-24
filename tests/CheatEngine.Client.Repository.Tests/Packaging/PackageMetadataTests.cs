@@ -5,8 +5,8 @@ namespace CheatEngine.Client.Repository.Tests.Packaging;
 /// <summary>The package metadata declared in the repository is complete and has one source per value.</summary>
 public sealed class PackageMetadataTests
 {
-	/// <summary>The seven packable projects, one per shipped package id.</summary>
-	private static readonly string[] PackableProjects =
+	/// <summary>The seven packable projects, one per shipped package id; the release workflow tests compare their ids.</summary>
+	internal static readonly string[] PackableProjects =
 	[
 		"libs/CheatEngine.Client.Abstractions/CheatEngine.Client.Abstractions.csproj",
 		"libs/CheatEngine.Client.Core/CheatEngine.Client.Core.csproj",

@@ -28,6 +28,18 @@ defaults:
   run:
     shell: pwsh
 
+# The seven package ids, each declared once, in dependency order: every package comes after the Client packages it
+# depends on, the order publish pushes them in. Every list of packages in this workflow is derived from this one.
+env:
+  PACKAGE_IDS: >-
+    CheatEngine.Client.Abstractions
+    CheatEngine.Client.Fluent
+    CheatEngine.Client.Core
+    CheatEngine.Client.Extensions.DependencyInjection
+    CheatEngine.Client.Hosting
+    CheatEngine.Client
+    CheatEngine.Client.Templates
+
 jobs:
   verify:
     name: Verify tag
@@ -88,11 +100,7 @@ jobs:
             throw "Tag $env:REF_NAME points to $commit, which is not on the first-parent history of main. Tag the merged head of main."
           }
 
-          $packageIds = @(
-            'CheatEngine.Client', 'CheatEngine.Client.Abstractions', 'CheatEngine.Client.Core',
-            'CheatEngine.Client.Extensions.DependencyInjection', 'CheatEngine.Client.Fluent', 'CheatEngine.Client.Hosting',
-            'CheatEngine.Client.Templates'
-          )
+          $packageIds = @($env:PACKAGE_IDS -split '\s+' | Where-Object { $_ })
           foreach ($id in $packageIds) {
             $uri = "https://api.nuget.org/v3-flatcontainer/$($id.ToLowerInvariant())/index.json"
             $index = Invoke-RestMethod -Uri $uri -SkipHttpErrorCheck -StatusCodeVariable status -MaximumRetryCount 3 -RetryIntervalSec 5
@@ -137,10 +145,9 @@ jobs:
             throw "CHANGELOG.md has no non-empty section for $($sections -join ' or '). Move the release entries under '## [$env:VERSION] - <date>' before tagging."
           }
 
-          $packages = @(
-            'CheatEngine.Client', 'CheatEngine.Client.Abstractions', 'CheatEngine.Client.Core',
-            'CheatEngine.Client.Extensions.DependencyInjection', 'CheatEngine.Client.Fluent', 'CheatEngine.Client.Hosting',
-            'CheatEngine.Client.Templates') | ForEach-Object { "- [$_ $env:VERSION](https://www.nuget.org/packages/$_/$env:VERSION)" }
+          [string[]] $packageIds = @($env:PACKAGE_IDS -split '\s+' | Where-Object { $_ })
+          [System.Array]::Sort($packageIds, [System.StringComparer]::Ordinal)
+          $packages = $packageIds | ForEach-Object { "- [$_ $env:VERSION](https://www.nuget.org/packages/$_/$env:VERSION)" }
 
           New-Item -ItemType Directory -Path artifacts/release-notes -Force | Out-Null
           $text = (@($notes, '', '## Packages', '') + @($packages) + @('',
@@ -180,6 +187,7 @@ jobs:
       id-token: write # sign the attestations with the workflow identity
       attestations: write # store them in the repository
     env:
+      TAG: ${{ github.ref_name }}
       VERSION: ${{ needs.verify.outputs.version }}
     steps:
       - name: Checkout
@@ -200,11 +208,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           Add-Type -AssemblyName System.IO.Compression.FileSystem
-          $packageIds = @(
-            'CheatEngine.Client', 'CheatEngine.Client.Abstractions', 'CheatEngine.Client.Core',
-            'CheatEngine.Client.Extensions.DependencyInjection', 'CheatEngine.Client.Fluent', 'CheatEngine.Client.Hosting',
-            'CheatEngine.Client.Templates'
-          )
+          $packageIds = @($env:PACKAGE_IDS -split '\s+' | Where-Object { $_ })
           New-Item -ItemType Directory -Path artifacts/attestations -Force | Out-Null
           foreach ($id in $packageIds) {
             $package = "artifacts/nuget/$id.$env:VERSION.nupkg"
@@ -241,89 +245,141 @@ jobs:
             Write-Output "Extracted the SBOM of $id $env:VERSION to $target."
           }
 
+      # One provenance attestation covers the seven packages and the five symbol packages.
       - name: Attest build provenance
         id: provenance
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
-          subject-path: artifacts/nuget/*.nupkg
+          subject-path: |
+            artifacts/nuget/*.nupkg
+            artifacts/nuget/*.snupkg
 
-      - name: Attest the SBOM of CheatEngine.Client
-        id: sbom-client
+      # actions/attest takes one SBOM per call, so the seven SBOM steps below are numbered: SBOM n attests the package
+      # at position n of PACKAGE_IDS, which therefore must name exactly seven ids.
+      - name: Map the SBOM attestations to the packages
+        id: subjects
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $packageIds = @($env:PACKAGE_IDS -split '\s+' | Where-Object { $_ })
+          if ($packageIds.Count -ne 7) {
+            throw "The seven SBOM attestation steps need exactly seven ids in PACKAGE_IDS, found $($packageIds.Count)."
+          }
+          $outputs = for ($index = 0; $index -lt $packageIds.Count; $index++) {
+            "package-$($index + 1)=artifacts/nuget/$($packageIds[$index]).$env:VERSION.nupkg"
+            "sbom-$($index + 1)=artifacts/attestations/$($packageIds[$index]).$env:VERSION.spdx.json"
+          }
+          $outputs | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Attest SBOM 1
+        id: sbom-1
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
-          subject-path: artifacts/nuget/CheatEngine.Client.${{ env.VERSION }}.nupkg
-          sbom-path: artifacts/attestations/CheatEngine.Client.${{ env.VERSION }}.spdx.json
+          subject-path: ${{ steps.subjects.outputs.package-1 }}
+          sbom-path: ${{ steps.subjects.outputs.sbom-1 }}
 
-      - name: Attest the SBOM of CheatEngine.Client.Abstractions
-        id: sbom-abstractions
+      - name: Attest SBOM 2
+        id: sbom-2
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
-          subject-path: artifacts/nuget/CheatEngine.Client.Abstractions.${{ env.VERSION }}.nupkg
-          sbom-path: artifacts/attestations/CheatEngine.Client.Abstractions.${{ env.VERSION }}.spdx.json
+          subject-path: ${{ steps.subjects.outputs.package-2 }}
+          sbom-path: ${{ steps.subjects.outputs.sbom-2 }}
 
-      - name: Attest the SBOM of CheatEngine.Client.Core
-        id: sbom-core
+      - name: Attest SBOM 3
+        id: sbom-3
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
-          subject-path: artifacts/nuget/CheatEngine.Client.Core.${{ env.VERSION }}.nupkg
-          sbom-path: artifacts/attestations/CheatEngine.Client.Core.${{ env.VERSION }}.spdx.json
+          subject-path: ${{ steps.subjects.outputs.package-3 }}
+          sbom-path: ${{ steps.subjects.outputs.sbom-3 }}
 
-      - name: Attest the SBOM of CheatEngine.Client.Extensions.DependencyInjection
-        id: sbom-dependency-injection
+      - name: Attest SBOM 4
+        id: sbom-4
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
-          subject-path: artifacts/nuget/CheatEngine.Client.Extensions.DependencyInjection.${{ env.VERSION }}.nupkg
-          sbom-path: artifacts/attestations/CheatEngine.Client.Extensions.DependencyInjection.${{ env.VERSION }}.spdx.json
+          subject-path: ${{ steps.subjects.outputs.package-4 }}
+          sbom-path: ${{ steps.subjects.outputs.sbom-4 }}
 
-      - name: Attest the SBOM of CheatEngine.Client.Fluent
-        id: sbom-fluent
+      - name: Attest SBOM 5
+        id: sbom-5
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
-          subject-path: artifacts/nuget/CheatEngine.Client.Fluent.${{ env.VERSION }}.nupkg
-          sbom-path: artifacts/attestations/CheatEngine.Client.Fluent.${{ env.VERSION }}.spdx.json
+          subject-path: ${{ steps.subjects.outputs.package-5 }}
+          sbom-path: ${{ steps.subjects.outputs.sbom-5 }}
 
-      - name: Attest the SBOM of CheatEngine.Client.Hosting
-        id: sbom-hosting
+      - name: Attest SBOM 6
+        id: sbom-6
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
-          subject-path: artifacts/nuget/CheatEngine.Client.Hosting.${{ env.VERSION }}.nupkg
-          sbom-path: artifacts/attestations/CheatEngine.Client.Hosting.${{ env.VERSION }}.spdx.json
+          subject-path: ${{ steps.subjects.outputs.package-6 }}
+          sbom-path: ${{ steps.subjects.outputs.sbom-6 }}
 
-      - name: Attest the SBOM of CheatEngine.Client.Templates
-        id: sbom-templates
+      - name: Attest SBOM 7
+        id: sbom-7
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
-          subject-path: artifacts/nuget/CheatEngine.Client.Templates.${{ env.VERSION }}.nupkg
-          sbom-path: artifacts/attestations/CheatEngine.Client.Templates.${{ env.VERSION }}.spdx.json
+          subject-path: ${{ steps.subjects.outputs.package-7 }}
+          sbom-path: ${{ steps.subjects.outputs.sbom-7 }}
 
       # The bundles become release assets, named after what they attest.
       - name: Collect the attestation bundles
         env:
           PROVENANCE: ${{ steps.provenance.outputs.bundle-path }}
-          SBOM_CLIENT: ${{ steps.sbom-client.outputs.bundle-path }}
-          SBOM_ABSTRACTIONS: ${{ steps.sbom-abstractions.outputs.bundle-path }}
-          SBOM_CORE: ${{ steps.sbom-core.outputs.bundle-path }}
-          SBOM_DEPENDENCY_INJECTION: ${{ steps.sbom-dependency-injection.outputs.bundle-path }}
-          SBOM_FLUENT: ${{ steps.sbom-fluent.outputs.bundle-path }}
-          SBOM_HOSTING: ${{ steps.sbom-hosting.outputs.bundle-path }}
-          SBOM_TEMPLATES: ${{ steps.sbom-templates.outputs.bundle-path }}
+          SBOM_1: ${{ steps.sbom-1.outputs.bundle-path }}
+          SBOM_2: ${{ steps.sbom-2.outputs.bundle-path }}
+          SBOM_3: ${{ steps.sbom-3.outputs.bundle-path }}
+          SBOM_4: ${{ steps.sbom-4.outputs.bundle-path }}
+          SBOM_5: ${{ steps.sbom-5.outputs.bundle-path }}
+          SBOM_6: ${{ steps.sbom-6.outputs.bundle-path }}
+          SBOM_7: ${{ steps.sbom-7.outputs.bundle-path }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $bundles = [ordered]@{
-            "CheatEngine.Client.$env:VERSION.provenance.sigstore.json" = $env:PROVENANCE
-            "CheatEngine.Client.$env:VERSION.sbom.sigstore.json" = $env:SBOM_CLIENT
-            "CheatEngine.Client.Abstractions.$env:VERSION.sbom.sigstore.json" = $env:SBOM_ABSTRACTIONS
-            "CheatEngine.Client.Core.$env:VERSION.sbom.sigstore.json" = $env:SBOM_CORE
-            "CheatEngine.Client.Extensions.DependencyInjection.$env:VERSION.sbom.sigstore.json" = $env:SBOM_DEPENDENCY_INJECTION
-            "CheatEngine.Client.Fluent.$env:VERSION.sbom.sigstore.json" = $env:SBOM_FLUENT
-            "CheatEngine.Client.Hosting.$env:VERSION.sbom.sigstore.json" = $env:SBOM_HOSTING
-            "CheatEngine.Client.Templates.$env:VERSION.sbom.sigstore.json" = $env:SBOM_TEMPLATES
+          $packageIds = @($env:PACKAGE_IDS -split '\s+' | Where-Object { $_ })
+          $bundles = [ordered]@{ "CheatEngine.Client.$env:VERSION.provenance.sigstore.json" = $env:PROVENANCE }
+          for ($index = 0; $index -lt $packageIds.Count; $index++) {
+            $bundles["$($packageIds[$index]).$env:VERSION.sbom.sigstore.json"] = [Environment]::GetEnvironmentVariable("SBOM_$($index + 1)")
           }
           foreach ($name in $bundles.Keys) {
             if (-not $bundles[$name] -or -not (Test-Path -LiteralPath $bundles[$name] -PathType Leaf)) {
               throw "The attestation bundle for $name was not produced."
             }
             Copy-Item -LiteralPath $bundles[$name] -Destination (Join-Path artifacts/attestations $name)
+          }
+
+      # The attestations are checked where they are made, before anything is drafted or pushed: each subject against
+      # its bundle and against the attestations stored in the repository, with the identity that RELEASING.md gives
+      # consumers (this repository, the release.yml signer workflow, the tag and a hosted runner).
+      - name: Verify the attestations
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $identity = @(
+            '--repo', 'CheatEngineNet/CheatEngine.Client',
+            '--signer-workflow', 'CheatEngineNet/CheatEngine.Client/.github/workflows/release.yml',
+            '--source-ref', "refs/tags/$env:TAG",
+            '--deny-self-hosted-runners'
+          )
+          $provenance = "artifacts/attestations/CheatEngine.Client.$env:VERSION.provenance.sigstore.json"
+          foreach ($subject in @(Get-ChildItem artifacts/nuget -File | Sort-Object Name)) {
+            gh attestation verify $subject.FullName @identity --predicate-type 'https://slsa.dev/provenance/v1' --bundle $provenance
+            if ($LASTEXITCODE -ne 0) {
+              throw "The build provenance of $($subject.Name) did not verify against its bundle (exit code $LASTEXITCODE)."
+            }
+            gh attestation verify $subject.FullName @identity --predicate-type 'https://slsa.dev/provenance/v1'
+            if ($LASTEXITCODE -ne 0) {
+              throw "The build provenance of $($subject.Name) did not verify in the repository (exit code $LASTEXITCODE)."
+            }
+          }
+          foreach ($id in @($env:PACKAGE_IDS -split '\s+' | Where-Object { $_ })) {
+            $package = "artifacts/nuget/$id.$env:VERSION.nupkg"
+            $sbom = "artifacts/attestations/$id.$env:VERSION.sbom.sigstore.json"
+            gh attestation verify $package @identity --predicate-type 'https://spdx.dev/Document/v2.2' --bundle $sbom
+            if ($LASTEXITCODE -ne 0) {
+              throw "The SBOM attestation of $id.$env:VERSION.nupkg did not verify against its bundle (exit code $LASTEXITCODE)."
+            }
+            gh attestation verify $package @identity --predicate-type 'https://spdx.dev/Document/v2.2'
+            if ($LASTEXITCODE -ne 0) {
+              throw "The SBOM attestation of $id.$env:VERSION.nupkg did not verify in the repository (exit code $LASTEXITCODE)."
+            }
           }
 
       # sha256sum format ('<sha256>  <name>', sorted ordinally by name, LF) over every release asset: the packages,
@@ -518,16 +574,7 @@ jobs:
           NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $packages = @(
-            'CheatEngine.Client.Abstractions'
-            'CheatEngine.Client.Fluent'
-            'CheatEngine.Client.Core'
-            'CheatEngine.Client.Extensions.DependencyInjection'
-            'CheatEngine.Client.Hosting'
-            'CheatEngine.Client'
-            'CheatEngine.Client.Templates'
-          )
-          foreach ($id in $packages) {
+          foreach ($id in @($env:PACKAGE_IDS -split '\s+' | Where-Object { $_ })) {
             $package = "artifacts/nuget/$id.$env:VERSION.nupkg"
             if (-not (Test-Path -LiteralPath $package -PathType Leaf)) {
               throw "$package is missing from the nuget-packages artifact."
@@ -579,37 +626,44 @@ jobs:
           name: nuget-packages
           path: artifacts/nuget
 
-      # For each of the seven packages, polls the nuget.org flat container until it lists the version (validation and
-      # indexing take minutes), downloads the repository-signed package, and fails unless 'dotnet nuget verify --all'
-      # accepts its signature, the content hash it prints equals the SHA-512 of the attested, unsigned package (the
-      # value consumers' lock files record), and every entry except .signature.p7s is byte-identical to the attested
-      # package.
+      # Resolves PackageBaseAddress/3.0.0 from the nuget.org service index, never a hard-coded flat container URL. For
+      # each of the seven packages, polls the flat container until it lists the version (validation and indexing take
+      # minutes), downloads the served file, and fails unless 'dotnet nuget verify --all' accepts it with the nuget.org
+      # repository signature (type Repository, service index https://api.nuget.org/v3/index.json), the content hash it
+      # prints equals the SHA-512 of the attested, unsigned package (the value consumers' lock files record), and the
+      # served file holds exactly the attested entries, byte for byte, plus .signature.p7s.
       - name: Verify the published packages
         run: |
           $ErrorActionPreference = 'Stop'
           Add-Type -AssemblyName System.IO.Compression.FileSystem
-          $packageIds = @(
-            'CheatEngine.Client.Abstractions', 'CheatEngine.Client.Fluent', 'CheatEngine.Client.Core',
-            'CheatEngine.Client.Extensions.DependencyInjection', 'CheatEngine.Client.Hosting', 'CheatEngine.Client',
-            'CheatEngine.Client.Templates'
-          )
+          # The checks read the English output of dotnet nuget verify, whatever the runner locale.
+          $env:DOTNET_CLI_UI_LANGUAGE = 'en'
+          $packageIds = @($env:PACKAGE_IDS -split '\s+' | Where-Object { $_ })
           $deadline = [DateTime]::UtcNow.AddMinutes(45)
           $lowerVersion = $env:VERSION.ToLowerInvariant()
           $work = Join-Path ([System.IO.Path]::GetTempPath()) ('published-' + [guid]::NewGuid().ToString('N'))
           New-Item -ItemType Directory -Path $work | Out-Null
 
+          $serviceIndex = Invoke-RestMethod -Uri 'https://api.nuget.org/v3/index.json' -MaximumRetryCount 5 -RetryIntervalSec 10
+          $resource = @($serviceIndex.resources | Where-Object { $_.'@type' -ceq 'PackageBaseAddress/3.0.0' }) | Select-Object -First 1
+          if ($null -eq $resource) {
+            throw "The nuget.org service index has no PackageBaseAddress/3.0.0 resource."
+          }
+          $base = ([string] $resource.'@id').TrimEnd('/') + '/'
+          Write-Output "nuget.org PackageBaseAddress: $base"
+
           function Get-EntryHash {
             param([string] $Path)
-            $hashes = @{}
+            $hashes = [System.Collections.Generic.Dictionary[string, string]]::new([System.StringComparer]::Ordinal)
             $archive = [System.IO.Compression.ZipFile]::OpenRead($Path)
             try {
               foreach ($entry in $archive.Entries) {
-                if ($entry.FullName -eq '.signature.p7s' -or $entry.FullName.EndsWith('/')) {
+                if ($entry.FullName.EndsWith('/')) {
                   continue
                 }
                 $stream = $entry.Open()
                 try {
-                  $hashes[$entry.FullName] = [Convert]::ToHexString([System.Security.Cryptography.SHA256]::HashData($stream))
+                  $hashes.Add($entry.FullName, [Convert]::ToHexString([System.Security.Cryptography.SHA256]::HashData($stream)))
                 }
                 finally {
                   $stream.Dispose()
@@ -624,14 +678,14 @@ jobs:
 
           try {
             foreach ($id in $packageIds) {
-              $attested = "artifacts/nuget/$id.$env:VERSION.nupkg"
+              $attested = Join-Path $PWD "artifacts/nuget/$id.$env:VERSION.nupkg"
               if (-not (Test-Path -LiteralPath $attested -PathType Leaf)) {
                 throw "The attested package $id.$env:VERSION.nupkg is missing from artifacts/nuget."
               }
 
               $lowerId = $id.ToLowerInvariant()
               while ($true) {
-                $index = Invoke-RestMethod -Uri "https://api.nuget.org/v3-flatcontainer/$lowerId/index.json" -SkipHttpErrorCheck -StatusCodeVariable status -MaximumRetryCount 3 -RetryIntervalSec 5
+                $index = Invoke-RestMethod -Uri "$base$lowerId/index.json" -SkipHttpErrorCheck -StatusCodeVariable status -MaximumRetryCount 3 -RetryIntervalSec 5
                 if ($status -eq 200 -and (@($index.versions) -contains $lowerVersion)) {
                   break
                 }
@@ -643,25 +697,32 @@ jobs:
               }
 
               $signed = Join-Path $work "$lowerId.$lowerVersion.nupkg"
-              Invoke-WebRequest -Uri "https://api.nuget.org/v3-flatcontainer/$lowerId/$lowerVersion/$lowerId.$lowerVersion.nupkg" -OutFile $signed -MaximumRetryCount 3 -RetryIntervalSec 5
-              $verification = @(dotnet nuget verify --all $signed -v n 2>&1)
+              Invoke-WebRequest -Uri "$base$lowerId/$lowerVersion/$lowerId.$lowerVersion.nupkg" -OutFile $signed -MaximumRetryCount 3 -RetryIntervalSec 5
+              $verification = (@(dotnet nuget verify --all $signed -v n 2>&1) | ForEach-Object { "$_" }) -join "`n"
               if ($LASTEXITCODE -ne 0) {
-                throw "dotnet nuget verify --all failed for $id $env:VERSION with exit code ${LASTEXITCODE}:`n$($verification -join "`n")"
+                throw "dotnet nuget verify --all failed for $id $env:VERSION with exit code ${LASTEXITCODE}:`n$verification"
               }
-              $line = $verification | Select-String -Pattern '^Content hash:\s*(?<hash>\S+)\s*$' | Select-Object -First 1
+              if ($verification -cnotmatch '(?m)^Signature type: Repository\s*$' -or $verification -cnotmatch '(?m)^Service index: https://api\.nuget\.org/v3/index\.json\s*$') {
+                throw "dotnet nuget verify did not report the nuget.org repository signature of $id $env:VERSION. Its output was:`n$verification"
+              }
               $expected = [Convert]::ToBase64String([System.Security.Cryptography.SHA512]::HashData([System.IO.File]::ReadAllBytes($attested)))
-              if ($null -eq $line -or $line.Matches[0].Groups['hash'].Value -ne $expected) {
+              if ($verification -cnotmatch '(?m)^Content hash:\s*(?<hash>\S+)\s*$' -or $Matches['hash'] -cne $expected) {
                 throw "$id $env:VERSION on nuget.org does not have the content hash of the attested package ($expected)."
               }
 
               $attestedEntries = Get-EntryHash -Path $attested
               $signedEntries = Get-EntryHash -Path $signed
-              $differences = @(@($attestedEntries.Keys) + @($signedEntries.Keys) | Sort-Object -Unique | Where-Object { $attestedEntries[$_] -ne $signedEntries[$_] })
+              if ($attestedEntries.ContainsKey('.signature.p7s') -or -not $signedEntries.Remove('.signature.p7s')) {
+                throw "$id $env:VERSION on nuget.org has no .signature.p7s entry, or the attested package already had one."
+              }
+              $names = [System.Collections.Generic.HashSet[string]]::new([string[]] @($attestedEntries.Keys), [System.StringComparer]::Ordinal)
+              $names.UnionWith([string[]] @($signedEntries.Keys))
+              $differences = @($names | Where-Object { -not $attestedEntries.ContainsKey($_) -or -not $signedEntries.ContainsKey($_) -or $attestedEntries[$_] -cne $signedEntries[$_] })
               if ($differences.Count -gt 0) {
                 throw "$id $env:VERSION on nuget.org differs from the attested package in: $($differences -join ', ')."
               }
 
-              Write-Output "nuget.org serves the attested $id $env:VERSION."
+              Write-Output "nuget.org serves the attested $id $env:VERSION with its repository signature."
             }
           }
           finally {
@@ -681,41 +742,8 @@ jobs:
       GH_REPO: ${{ github.repository }}
       TAG: ${{ github.ref_name }}
       VERSION: ${{ needs.verify.outputs.version }}
+    # attest verified the attestations before anything became public; this job verifies what consumers download.
     steps:
-      - name: Download packages
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: nuget-packages
-          path: artifacts/release
-
-      # Provenance and SBOM attestations of each package, before the release becomes public, with the identity that
-      # RELEASING.md gives consumers: this repository, the release.yml signer workflow, the tag and a hosted runner.
-      - name: Verify the attestations
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $identity = @(
-            '--repo', 'CheatEngineNet/CheatEngine.Client',
-            '--signer-workflow', 'CheatEngineNet/CheatEngine.Client/.github/workflows/release.yml',
-            '--source-ref', "refs/tags/$env:TAG",
-            '--deny-self-hosted-runners'
-          )
-          $packages = @(Get-ChildItem artifacts/release -File -Filter "*.$env:VERSION.nupkg")
-          if ($packages.Count -ne 7) {
-            throw "Expected the seven attested packages in artifacts/release, found $($packages.Count)."
-          }
-          foreach ($package in $packages) {
-            gh attestation verify $package.FullName @identity --predicate-type 'https://slsa.dev/provenance/v1'
-            if ($LASTEXITCODE -ne 0) {
-              throw "The build provenance attestation of $($package.Name) did not verify (exit code $LASTEXITCODE)."
-            }
-            gh attestation verify $package.FullName @identity --predicate-type 'https://spdx.dev/Document/v2.2'
-            if ($LASTEXITCODE -ne 0) {
-              throw "The SBOM attestation of $($package.Name) did not verify (exit code $LASTEXITCODE)."
-            }
-          }
-
       # gh release view and gh release edit find a draft by its tag, which the REST lookup by tag never returns (it
       # serves published releases only). A release that is already published, on a re-run, is verified again but never
       # edited.
@@ -746,7 +774,7 @@ jobs:
 
       # Verifies what consumers download, not the local artifacts: every asset against SHA256SUMS, the release
       # attestation when the release is immutable (immutable releases are a repository setting, RELEASING.md), and the
-      # provenance and SBOM attestations of each package with the identity above.
+      # provenance and SBOM attestations with the identity that attest checked.
       - name: Verify the published release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -795,9 +823,14 @@ jobs:
               throw "The published $name has SHA-256 $actual; SHA256SUMS lists $($sums[$name])."
             }
           }
-          $packages = @($names | Where-Object { $_.EndsWith(".$env:VERSION.nupkg", [System.StringComparison]::Ordinal) })
-          if ($packages.Count -ne 7) {
-            throw "Release $env:TAG must carry the seven packages of $env:VERSION, found $($packages.Count)."
+          $packageIds = @($env:PACKAGE_IDS -split '\s+' | Where-Object { $_ })
+          $packages = @($packageIds | ForEach-Object { "$_.$env:VERSION.nupkg" })
+          $symbols = @($names | Where-Object { $_.EndsWith('.snupkg', [System.StringComparison]::Ordinal) })
+          $expected = @($packageIds | ForEach-Object { "$_.$env:VERSION.nupkg", "$_.$env:VERSION.spdx.json", "$_.$env:VERSION.sbom.sigstore.json" }) +
+            "CheatEngine.Client.$env:VERSION.provenance.sigstore.json"
+          $missing = @($expected | Where-Object { -not $sums.ContainsKey($_) })
+          if ($missing.Count -gt 0) {
+            throw "Release $env:TAG lacks the assets $($missing -join ', ')."
           }
 
           # Only an immutable release has a release attestation. SHA256SUMS, checked above, ties every other asset to it.
@@ -806,7 +839,7 @@ jobs:
             if ($LASTEXITCODE -ne 0) {
               throw "gh release verify $env:TAG failed with exit code $LASTEXITCODE."
             }
-            foreach ($name in @($packages) + 'SHA256SUMS') {
+            foreach ($name in @($packages) + @($symbols) + 'SHA256SUMS') {
               gh release verify-asset $env:TAG (Join-Path $published $name)
               if ($LASTEXITCODE -ne 0) {
                 throw "gh release verify-asset $env:TAG $name failed with exit code $LASTEXITCODE."
@@ -823,13 +856,14 @@ jobs:
             '--source-ref', "refs/tags/$env:TAG",
             '--deny-self-hosted-runners'
           )
-          foreach ($name in $packages) {
-            $path = Join-Path $published $name
-            gh attestation verify $path @identity --predicate-type 'https://slsa.dev/provenance/v1'
+          foreach ($name in @($packages) + @($symbols)) {
+            gh attestation verify (Join-Path $published $name) @identity --predicate-type 'https://slsa.dev/provenance/v1'
             if ($LASTEXITCODE -ne 0) {
               throw "The build provenance attestation of the published $name did not verify (exit code $LASTEXITCODE)."
             }
-            gh attestation verify $path @identity --predicate-type 'https://spdx.dev/Document/v2.2'
+          }
+          foreach ($name in $packages) {
+            gh attestation verify (Join-Path $published $name) @identity --predicate-type 'https://spdx.dev/Document/v2.2'
             if ($LASTEXITCODE -ne 0) {
               throw "The SBOM attestation of the published $name did not verify (exit code $LASTEXITCODE)."
             }
@@ -838,7 +872,7 @@ jobs:
           $summary = @(
             "### Release $env:TAG",
             '',
-            "Published; immutable: $(([bool] $state.isImmutable).ToString().ToLowerInvariant()). Every asset matches SHA256SUMS, and each package's provenance and SBOM attestations verify with the release.yml identity.",
+            "Published; immutable: $(([bool] $state.isImmutable).ToString().ToLowerInvariant()). Every asset matches SHA256SUMS; the provenance of each package and symbol package and the SBOM attestation of each package verify with the release.yml identity.",
             '',
             '| Asset | SHA-256 |',
             '| --- | --- |'
