@@ -52,8 +52,12 @@ TRX report keeps. The facts prove that:
   library carrying the NuGet content hash of the lock (measured, audit A21-02), and no workspace path;
 - `InstantiatedTemplateReferencesTheSdkDirectly` (audit A04-10) and
   `PackagedClientPluginWithoutDirectSdkReferenceReportsCECLIENT001Async`;
-- `PluginReferencingSdkTwoReportsCECLIENT017Async`: a plugin that references a re-versioned `CheatEngine.SDK` 2.x package
-  directly next to the packed Client fails its build with `CECLIENT017` (and NuGet reports NU1608).
+- `PluginReferencingTheNextSdkMajorReportsCECLIENT017Async`: a plugin that references directly, next to the packed
+  Client, the pinned `CheatEngine.SDK` re-versioned to the major of the pin's upper bound fails its build with
+  `CECLIENT017`, both as a prerelease (inside the declared range, no NuGet warning) and as a stable release (NU1608);
+  `CheatEngineClientAllowUnsupportedSdk=true` turns the error into a warning;
+- `PluginReferencingAnSdkBelowTheDeclaredRangeFailsRestoreAsync`: a plugin that references a re-versioned
+  `CheatEngine.SDK` below the declared range fails its restore with NU1605 (package downgrade).
 
 These are package-level results (fixture level C2); a Cheat Engine host run of Q40 is a separate qualification.
 `PackageSourceResolutionTests` has no category, so both CI legs check the package source rules.
@@ -64,13 +68,17 @@ These are package-level results (fixture level C2); a Cheat Engine host run of Q
 whose `origin` is a fork or a local path produces other URLs or none, and fails that fact.
 
 `BuildGuardTests` run the repository's MSBuild guard targets against real projects with overridden global properties,
-without restoring or building: `CommittedPinPassesTheSdkGuardAsync`, `SdkMajorTwoPinFailsWithCHEATENGINECLIENT9016Async`
-and `PrereleaseSdkPinFailsWithCHEATENGINECLIENT9016Async` prove that the consumed `CheatEngine.SDK` pin cannot move to a
-2.x or prerelease package, and that such a pin never produces a package (the pack guard refuses it with
-`CHEATENGINECLIENT9016` too). `RoslynPinDriftFailsWithCHEATENGINECLIENT9020Async` proves that the Roslyn pin of the
+without restoring or building: `CommittedPinPassesTheSdkGuardAsync`, `NextMajorPinFailsWithCHEATENGINECLIENT9016Async`
+and `PrereleaseSdkPinFailsWithCHEATENGINECLIENT9016Async` prove that the consumed `CheatEngine.SDK` pin cannot move to
+the next major or to a prerelease package, and that such a pin never produces a package (the pack guard refuses it
+with `CHEATENGINECLIENT9016` too). `RoslynPinDriftFailsWithCHEATENGINECLIENT9020Async` proves that the Roslyn pin of the
 packed Lua generator cannot drift from its declared floor, and `LockstepGuardAcceptsMinVerAndRefusesEveryOtherVersionSourceAsync`
 that a package version comes from MinVer only (`CHEATENGINECLIENT9019`). `SbomGuardRefusesAPackWithoutTheSbomAsync` proves
 that a package cannot be packed without its SPDX SBOM (`CHEATENGINECLIENT9021`).
+
+The SDK versions that these guard cases, the `CHEATENGINECLIENT9050` pin-drift case of
+`ConsumedSdkIdentityEmbeddingTests` and the two re-versioned SDK facts above probe are derived from
+`eng/CheatEngineSdk.props` (`Infrastructure/SdkPin.cs`), so they keep testing the same boundaries when the pin moves.
 
 Two metadata suites read the built Client assemblies with `System.Reflection.Metadata`. `Architecture/` is the
 ADR-01 ratchet. It freezes the direct Lua-stack and SDK-owner usages, the `[LuaGlobal]` inventory, and the absence of

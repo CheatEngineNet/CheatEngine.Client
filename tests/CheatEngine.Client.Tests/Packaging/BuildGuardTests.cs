@@ -28,16 +28,17 @@ public sealed class BuildGuardTests
 	}
 
 	[Fact]
-	public async Task SdkMajorTwoPinFailsWithCHEATENGINECLIENT9016Async()
+	public async Task NextMajorPinFailsWithCHEATENGINECLIENT9016Async()
 	{
-		string[] majorTwo = ["-p:CheatEngineSdkVersion=2.0.0", "-p:CheatEngineSdkUpperBound=3.0.0"];
+		int nextMajor = SdkPin.Major + 1;
+		string[] nextMajorPin = [$"-p:CheatEngineSdkVersion={nextMajor}.0.0", $"-p:CheatEngineSdkUpperBound={nextMajor + 1}.0.0"];
 
-		DotNetProcessResult result = await RunGuardAsync(SdkFacingLibrary, SdkPinGuard, majorTwo);
-		DotNetProcessResult pack = await RunGuardAsync(SdkFacingLibrary, SdkPackGuard, majorTwo);
+		DotNetProcessResult result = await RunGuardAsync(SdkFacingLibrary, SdkPinGuard, nextMajorPin);
+		DotNetProcessResult pack = await RunGuardAsync(SdkFacingLibrary, SdkPackGuard, nextMajorPin);
 
 		Assert.True(result.ExitCode != 0, result.ToString());
 		Assert.Contains("error CHEATENGINECLIENT9016", result.StandardOutput, StringComparison.Ordinal);
-		Assert.Contains("'2.0.0' has major version 2", result.StandardOutput, StringComparison.Ordinal);
+		Assert.Contains($"'{nextMajor}.0.0' has major version {nextMajor}", result.StandardOutput, StringComparison.Ordinal);
 		Assert.True(pack.ExitCode != 0, pack.ToString());
 		Assert.Contains("error CHEATENGINECLIENT9016", pack.StandardOutput, StringComparison.Ordinal);
 		Assert.Contains("cannot be packed", pack.StandardOutput, StringComparison.Ordinal);
@@ -46,12 +47,14 @@ public sealed class BuildGuardTests
 	[Fact]
 	public async Task PrereleaseSdkPinFailsWithCHEATENGINECLIENT9016Async()
 	{
+		string prerelease = $"{SdkPin.Major}.1.0-beta.1";
+
 		DotNetProcessResult result = await RunGuardAsync(SdkFacingLibrary, SdkPinGuard,
-			"-p:CheatEngineSdkVersion=1.1.0-beta.1");
+			$"-p:CheatEngineSdkVersion={prerelease}");
 
 		Assert.True(result.ExitCode != 0, result.ToString());
 		Assert.Contains("error CHEATENGINECLIENT9016", result.StandardOutput, StringComparison.Ordinal);
-		Assert.Contains("'1.1.0-beta.1' is a prerelease", result.StandardOutput, StringComparison.Ordinal);
+		Assert.Contains($"'{prerelease}' is a prerelease", result.StandardOutput, StringComparison.Ordinal);
 	}
 
 	[Fact]

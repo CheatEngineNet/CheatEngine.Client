@@ -78,8 +78,7 @@ public sealed partial class PackageConsumptionSmokeTests(PackagedClientFeedFixtu
 	public void SdkFacingPackagesDeclareThePinnedSdkRange()
 	{
 		fixture.RequirePackages();
-		XDocument pin = XDocument.Load(RepositoryLayout.Combine("eng/CheatEngineSdk.props"));
-		string range = $"[{Assert.Single(pin.Descendants("CheatEngineSdkVersion")).Value},{Assert.Single(pin.Descendants("CheatEngineSdkUpperBound")).Value})";
+		string range = $"[{SdkPin.Version},{SdkPin.UpperBound})";
 		foreach (string id in PackagedClientFeedFixture.PackageIds)
 		{
 			PackageDependency[] sdk = fixture.Package(id).Dependencies.Where(static dependency => dependency.Id == PackagedClientFeedFixture.SdkPackageId).ToArray();
@@ -276,7 +275,7 @@ public sealed partial class PackageConsumptionSmokeTests(PackagedClientFeedFixtu
 		XDocument project = XDocument.Parse(fixture.Package(PackagedClientFeedFixture.TemplatePackageId).EntryText(TemplateProjectEntry));
 
 		Assert.Equal(fixture.ClientVersion, PackageReferenceVersion(project, PackagedClientFeedFixture.ClientPackageId));
-		Assert.Equal(PinnedSdkVersion(), PackageReferenceVersion(project, PackagedClientFeedFixture.SdkPackageId));
+		Assert.Equal(SdkPin.Version, PackageReferenceVersion(project, PackagedClientFeedFixture.SdkPackageId));
 		Assert.Single(fixture.Package(PackagedClientFeedFixture.TemplatePackageId).EntryNames, static entry => entry.EndsWith(".csproj", StringComparison.Ordinal));
 	}
 
@@ -428,7 +427,7 @@ public sealed partial class PackageConsumptionSmokeTests(PackagedClientFeedFixtu
 		XDocument project = XDocument.Load(Path.Combine(fixture.TemplateDirectory, $"{PackagedClientFeedFixture.ConsumerName}.csproj"));
 
 		Assert.Equal(fixture.ClientVersion, PackageReferenceVersion(project, PackagedClientFeedFixture.ClientPackageId));
-		Assert.Equal(PinnedSdkVersion(), PackageReferenceVersion(project, PackagedClientFeedFixture.SdkPackageId));
+		Assert.Equal(SdkPin.Version, PackageReferenceVersion(project, PackagedClientFeedFixture.SdkPackageId));
 		Assert.Equal("true", project.Descendants("CheatEngineClientPluginProject").Single().Value);
 	}
 
@@ -487,19 +486,21 @@ public sealed partial class PackageConsumptionSmokeTests(PackagedClientFeedFixtu
 	}
 
 	[Fact]
-	public async Task PluginReferencingSdkTwoReportsCECLIENT017Async()
+	public async Task PluginReferencingTheNextSdkMajorReportsCECLIENT017Async()
 	{
 		fixture.RequireConsumer();
 		Assert.True(fixture.UsesPinnedSdk, $"This fact re-versions the pinned SDK; unset {PackagedClientFeedFixture.SdkPackageSourceVariable}.");
-		string feed = fixture.CreateDirectory("sdk-two-feed");
+		string feed = fixture.CreateDirectory("next-major-sdk-feed");
+		string nextMajor = $"{SdkPin.UpperMajor}.0.0";
 
-		// A 2.0.0 prerelease sorts below 2.0.0, so it satisfies [1.0.0, 2.0.0) and NuGet resolves it without any
-		// warning; a stable 2.0.0 only triggers the NU1608 warning. Both must fail the plugin build.
-		foreach ((string version, bool nuGetWarns) in (ValueTuple<string, bool>[]) [("2.0.0-cecanary.1", false), ("2.0.0", true)])
+		// The exclusive upper bound of the declared range is the first unsupported major. A prerelease of it sorts below
+		// it, so it satisfies [pin, upper bound) and NuGet resolves it without any warning; the stable release only
+		// triggers the NU1608 warning. Both must fail the plugin build.
+		foreach ((string version, bool nuGetWarns) in (ValueTuple<string, bool>[]) [($"{nextMajor}-cecanary.1", false), (nextMajor, true)])
 		{
 			fixture.CreateReversionedSdkPackage(feed, version);
-			string consumer = fixture.CreateDirectory($"sdk-two-consumer-{version}");
-			string project = Path.Combine(consumer, "SdkTwo.Plugin.csproj");
+			string consumer = fixture.CreateDirectory($"next-major-sdk-consumer-{version}");
+			string project = Path.Combine(consumer, "NextMajorSdk.Plugin.csproj");
 			await File.WriteAllTextAsync(project, PackagedClientFeedFixture.CreateConsumerProject(fixture.ClientVersion, version),
 				new UTF8Encoding(false), TestContext.Current.CancellationToken);
 			await File.WriteAllTextAsync(Path.Combine(consumer, "Plugin.cs"), PackagedClientFeedFixture.ConsumerSource,
@@ -520,15 +521,39 @@ public sealed partial class PackageConsumptionSmokeTests(PackagedClientFeedFixtu
 			Assert.Contains("error CECLIENT017", refused.StandardOutput, StringComparison.Ordinal);
 			Assert.True(allowed.ExitCode == 0, allowed.ToString());
 			Assert.Contains("warning CECLIENT017", allowed.StandardOutput, StringComparison.Ordinal);
-			PackagedClientFeedFixture.Evidence(nameof(PluginReferencingSdkTwoReportsCECLIENT017Async),
+			PackagedClientFeedFixture.Evidence(nameof(PluginReferencingTheNextSdkMajorReportsCECLIENT017Async),
 				$"sdk={version} nu1608={nuGetWarns} build=CECLIENT017 error; opt-out=CECLIENT017 warning");
 		}
 	}
 
-	private static string PinnedSdkVersion()
+	[Fact]
+	public async Task PluginReferencingAnSdkBelowTheDeclaredRangeFailsRestoreAsync()
 	{
-		XDocument pin = XDocument.Load(RepositoryLayout.Combine("eng/CheatEngineSdk.props"));
-		return Assert.Single(pin.Descendants("CheatEngineSdkVersion")).Value.Trim();
+		fixture.RequireConsumer();
+		Assert.True(fixture.UsesPinnedSdk, $"This fact re-versions the pinned SDK; unset {PackagedClientFeedFixture.SdkPackageSourceVariable}.");
+		string feed = fixture.CreateDirectory("below-range-sdk-feed");
+		string range = $"[{SdkPin.Version}, {SdkPin.UpperBound})";
+		// A late release of the previous major (0.99.0 while the pin is 1.x): below the lower bound of the declared range.
+		string version = $"{Math.Max(SdkPin.Major - 1, 0)}.99.0";
+		fixture.CreateReversionedSdkPackage(feed, version);
+		string consumer = fixture.CreateDirectory("below-range-sdk-consumer");
+		string project = Path.Combine(consumer, "BelowRangeSdk.Plugin.csproj");
+		await File.WriteAllTextAsync(project, PackagedClientFeedFixture.CreateConsumerProject(fixture.ClientVersion, version),
+			new UTF8Encoding(false), TestContext.Current.CancellationToken);
+		await File.WriteAllTextAsync(Path.Combine(consumer, "Plugin.cs"), PackagedClientFeedFixture.ConsumerSource,
+			new UTF8Encoding(false), TestContext.Current.CancellationToken);
+		string configuration = PackagedClientFeedFixture.WriteNuGetConfiguration(Path.Combine(consumer, "NuGet.Config"),
+			fixture.PackageCache, fixture.PackageSource, feed);
+
+		DotNetProcessResult restore = await fixture.RunAsync(consumer, "restore", project, "--configfile", configuration,
+			"--packages", fixture.PackageCache);
+
+		// The direct reference wins over the SDK-facing Client packages' dependency on the declared range, which NuGet
+		// reports as a package downgrade; the .NET SDK treats NU1605 as an error, so the restore fails before any build.
+		Assert.True(restore.ExitCode != 0, restore.ToString());
+		Assert.Contains("error NU1605", restore.StandardOutput, StringComparison.Ordinal);
+		PackagedClientFeedFixture.Evidence(nameof(PluginReferencingAnSdkBelowTheDeclaredRangeFailsRestoreAsync),
+			$"sdk={version} declared={range} restore=NU1605 error");
 	}
 
 	private string PackagedBridgeSha256()

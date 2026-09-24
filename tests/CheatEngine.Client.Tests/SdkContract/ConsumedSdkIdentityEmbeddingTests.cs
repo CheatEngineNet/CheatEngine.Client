@@ -1,6 +1,5 @@
 using System.Reflection;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 
 using CheatEngine.Client.Tests.Architecture;
 using CheatEngine.Client.Tests.Infrastructure;
@@ -17,14 +16,12 @@ namespace CheatEngine.Client.Tests.SdkContract;
 ///     The guard cases run only the evaluation and the guard target of <c>CheatEngine.Client.Core.csproj</c> (nothing is
 ///     restored, built or packed), like <c>BuildGuardTests</c>; they need the restored checkout the solution build leaves.
 /// </remarks>
-public sealed partial class ConsumedSdkIdentityEmbeddingTests
+public sealed class ConsumedSdkIdentityEmbeddingTests
 {
 	private const string MetadataPrefix = "CheatEngine.Client.ConsumedSdk.";
 	private const string CoreProject = "libs/CheatEngine.Client.Core/CheatEngine.Client.Core.csproj";
 	private const string CoreLockFile = "libs/CheatEngine.Client.Core/packages.lock.json";
-	private const string SdkPinFile = "eng/CheatEngineSdk.props";
 	private const string IdentityGuard = "CheatEngineClientRequireConsumedSdkIdentity";
-	private const int RegexTimeoutMilliseconds = 1000;
 
 	[Fact]
 	[Trait("Qualification", "Q48")]
@@ -33,12 +30,10 @@ public sealed partial class ConsumedSdkIdentityEmbeddingTests
 		using JsonDocument lockFile = JsonDocument.Parse(File.ReadAllText(RepositoryLayout.Combine(CoreLockFile)));
 		JsonElement lockedSdk = lockFile.RootElement.GetProperty("dependencies").GetProperty("net10.0")
 			.GetProperty("CheatEngine.SDK");
-		Match pin = SdkVersionPin().Match(File.ReadAllText(RepositoryLayout.Combine(SdkPinFile)));
 		string? loaded = ClientAssemblyCatalog.Load("CheatEngine.SDK.Engine")
 			.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
 		Dictionary<string, string> embedded = ReadEmbeddedMetadata();
 
-		Assert.True(pin.Success, $"{SdkPinFile} declares no CheatEngineSdkVersion.");
 		Assert.NotNull(loaded);
 		Assert.Equal(
 			new Dictionary<string, string>(StringComparer.Ordinal)
@@ -48,7 +43,7 @@ public sealed partial class ConsumedSdkIdentityEmbeddingTests
 				[MetadataPrefix + "ContentHashSha512"] = lockedSdk.GetProperty("contentHash").GetString()!
 			},
 			embedded);
-		Assert.Equal(pin.Groups["version"].Value, embedded[MetadataPrefix + "Version"]);
+		Assert.Equal(SdkPin.Version, embedded[MetadataPrefix + "Version"]);
 		Assert.Equal($"{embedded[MetadataPrefix + "Version"]}+{embedded[MetadataPrefix + "SourceCommit"]}", loaded);
 	}
 
@@ -67,9 +62,10 @@ public sealed partial class ConsumedSdkIdentityEmbeddingTests
 	public async Task BuildThatCannotEmbedTheConsumedSdkIdentityFailsWithCHEATENGINECLIENT9050Async()
 	{
 		using TemporaryDirectory emptyPackageRoot = new("empty-package-root");
+		string driftedPin = $"{SdkPin.Major}.{SdkPin.Minor}.{SdkPin.Patch + 1}";
 
 		DotNetProcessResult packageMissing = await RunGuardAsync($"-p:NuGetPackageRoot={emptyPackageRoot.Path}");
-		DotNetProcessResult pinDrift = await RunGuardAsync("-p:CheatEngineSdkVersion=1.0.1");
+		DotNetProcessResult pinDrift = await RunGuardAsync($"-p:CheatEngineSdkVersion={driftedPin}");
 
 		Assert.True(packageMissing.ExitCode != 0, packageMissing.ToString());
 		Assert.Contains("error CHEATENGINECLIENT9050", packageMissing.StandardOutput, StringComparison.Ordinal);
@@ -77,7 +73,7 @@ public sealed partial class ConsumedSdkIdentityEmbeddingTests
 			StringComparison.Ordinal);
 		Assert.True(pinDrift.ExitCode != 0, pinDrift.ToString());
 		Assert.Contains("error CHEATENGINECLIENT9050", pinDrift.StandardOutput, StringComparison.Ordinal);
-		Assert.Contains("not the pin 1.0.1 of eng/CheatEngineSdk.props", pinDrift.StandardOutput,
+		Assert.Contains($"not the pin {driftedPin} of eng/CheatEngineSdk.props", pinDrift.StandardOutput,
 			StringComparison.Ordinal);
 	}
 
@@ -108,8 +104,4 @@ public sealed partial class ConsumedSdkIdentityEmbeddingTests
 
 		return metadata;
 	}
-
-	[GeneratedRegex(@"<CheatEngineSdkVersion>(?<version>[^<]+)</CheatEngineSdkVersion>", RegexOptions.CultureInvariant,
-		RegexTimeoutMilliseconds)]
-	private static partial Regex SdkVersionPin();
 }
