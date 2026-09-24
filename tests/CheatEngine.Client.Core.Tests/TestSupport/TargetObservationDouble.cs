@@ -1,7 +1,10 @@
+using System.Reflection;
+
 using CheatEngine.Client.Core.Domains;
 using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Engine.Processes;
 using CheatEngine.SDK.Engine.Runtime;
+using CheatEngine.SDK.Engine.Targets;
 using CheatEngine.SDK.Lua.Calls;
 
 namespace CheatEngine.Client.Core.Tests.TestSupport;
@@ -31,6 +34,25 @@ internal static class TargetObservations
 			ProcessOperationStatusKind.FileAsProcessTarget => ProcessOperationStatus.FileAsProcessTarget,
 			_ => default
 		};
+	}
+
+	/// <summary>
+	///     Creates the local process incarnation the SDK would observe. Its constructor is internal to CheatEngine.SDK, so
+	///     test doubles reach it through reflection; production code only copies incarnations the SDK produced.
+	/// </summary>
+	internal static TargetProcessIncarnation Incarnation(int processId, long startedAtUtcTicks)
+	{
+		ConstructorInfo constructor = typeof(TargetProcessIncarnation).GetConstructor(
+			BindingFlags.Instance | BindingFlags.NonPublic, [typeof(int), typeof(long)]) ?? throw new InvalidOperationException(
+			"CheatEngine.SDK no longer declares the TargetProcessIncarnation(int, long) constructor.");
+		return (TargetProcessIncarnation) constructor.Invoke([processId, startedAtUtcTicks]);
+	}
+
+	/// <summary>Returns the same facts for another selected process.</summary>
+	internal static TargetArchitectureObservation WithProcessId(TargetArchitectureObservation facts, int processId)
+	{
+		return new TargetArchitectureObservation(new TargetProcessId(processId), facts.Backend, facts.Bitness,
+			facts.IsX86Family, facts.IsArmFamily, facts.IsAndroid, facts.AbiCode, facts.ConfiguredPointerSizeBytes);
 	}
 
 	/// <summary>Builds the facts Cheat Engine reports for one selected target (an x64 local process by default).</summary>

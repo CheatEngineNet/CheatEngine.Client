@@ -205,7 +205,7 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 		outcomes.Add(Describe("Runtime.GetSnapshot",
 			runtime.TryGetSnapshot(out _, out CheatEngineFailure failure, cancellationToken), failure));
 
-		ProcessClient processes = new(dispatcher, target, target, lifetime);
+		ProcessClient processes = new(dispatcher, target, target, target, lifetime);
 		outcomes.Add(Describe("Processes.First", processes.TryGetCurrent(out _, out failure, cancellationToken),
 			failure));
 		target.ProcessId = 200;
@@ -527,11 +527,6 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 				_configuredPointerSize = value;
 				Synchronize();
 			}
-		}
-
-		public void OpenProcess(long processId)
-		{
-			ProcessId = processId;
 		}
 
 		public bool TryGetLocalProcess(int processId, out LocalProcessInfo process)

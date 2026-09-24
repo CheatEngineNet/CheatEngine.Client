@@ -1,5 +1,6 @@
 using CheatEngine.SDK.Engine.Processes;
 using CheatEngine.SDK.Engine.Runtime;
+using CheatEngine.SDK.Engine.Targets;
 using CheatEngine.SDK.Lua.Calls;
 
 namespace CheatEngine.Client.Core.Domains;
@@ -11,8 +12,8 @@ namespace CheatEngine.Client.Core.Domains;
 ///         SDK did not report. The callers run them on Cheat Engine's main thread through the dispatcher.
 ///     </para>
 ///     <para>
-///         This type is the only Client code that references <c>RuntimeObservations</c>, <c>RuntimeHostOperations</c> and
-///         the read-only members of <c>RuntimeProcessOperations</c>; the architecture ratchet
+///         This type is the only Client code that references <c>RuntimeObservations</c>, <c>RuntimeHostOperations</c>,
+///         <c>TargetSelection</c> and the read-only members of <c>RuntimeProcessOperations</c>; the architecture ratchet
 ///         (<c>RuntimeProbeCallsOnlyReadOnlySdkOperations</c>) keeps it to read-only operations and away from
 ///         <c>CheatTableFiles</c> (Q45). No hosted test has a Cheat Engine process or Lua state, so its lines are excluded
 ///         from the coverage metric; <c>SdkRuntimeObservationPortTests</c> proves that each member requires an enabled
@@ -74,5 +75,22 @@ internal sealed class SdkRuntimeObservationPort : IRuntimeObservationPort
 	public ProcessOperationStatus TryGetConfiguredPointerSize(out int rawBytes, out PointerSize pointerSize)
 	{
 		return RuntimeProcessOperations.TryGetConfiguredPointerSize(out rawBytes, out pointerSize);
+	}
+
+	public TargetSelectionFacts ObserveSelection()
+	{
+		return Copy(TargetSelection.ObserveCurrent());
+	}
+
+	public TargetIdentityFacts ValidateSelection(TargetProcessIncarnation expected)
+	{
+		TargetIdentityCheck check = TargetSelection.ValidateCurrent(expected);
+		return new TargetIdentityFacts(check.Kind, Copy(check.Observed));
+	}
+
+	private static TargetSelectionFacts Copy(TargetSelectionObservation observation)
+	{
+		return new TargetSelectionFacts(observation.Status, observation.Backend, observation.SelectedProcessId,
+			observation.Incarnation);
 	}
 }

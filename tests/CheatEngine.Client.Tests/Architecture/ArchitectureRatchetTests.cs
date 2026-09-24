@@ -52,8 +52,6 @@ public sealed partial class ArchitectureRatchetTests
 
 	private const string CheatTableFiles = "CheatEngine.SDK.Engine.Tables.CheatTableFiles";
 
-	private const string RuntimeProcessOperations = "CheatEngine.SDK.Engine.Processes.RuntimeProcessOperations";
-
 	private const string SymbolRegistrationLease = "CheatEngine.SDK.Engine.Inspection.SymbolRegistrationLease";
 
 	private const string SymbolRegistry = "CheatEngine.SDK.Engine.Inspection.SymbolRegistry";
@@ -72,8 +70,6 @@ public sealed partial class ArchitectureRatchetTests
 	/// <summary>The only Lua globals the Client may bind itself, each a registered ADR-01 exception.</summary>
 	private static readonly FrozenLuaGlobal[] FrozenLuaGlobals =
 	[
-		new("openProcess", "Selects the target process for Attach.",
-			new SdkReplacement(RuntimeProcessOperations, "L9", ["SelectAndObserve"])),
 		new("loadTable", "Trusted table import behind the Client path policy.",
 			new SdkReplacement(CheatTableFiles, "L13", ["TryLoad"])),
 		new("saveTable", "Trusted table export behind the Client path policy.",
@@ -141,7 +137,6 @@ public sealed partial class ArchitectureRatchetTests
 			"CheatEngine.SDK.Lua.CompilerServices.LuaGlobalFunctions::TryPush(CheatEngine.SDK.Lua.State.LuaState,CheatEngine.SDK.Lua.References.LuaRef,System.ReadOnlySpan`1<byte>)->boolean",
 			"CheatEngine.SDK.Lua.Marshalling.AddressMarshaller::Push(CheatEngine.SDK.Lua.State.LuaState,uintptr)->void",
 			"CheatEngine.SDK.Lua.Marshalling.BooleanMarshaller::Push(CheatEngine.SDK.Lua.State.LuaState,boolean)->void",
-			"CheatEngine.SDK.Lua.Marshalling.Int64Marshaller::Push(CheatEngine.SDK.Lua.State.LuaState,int64)->void",
 			"CheatEngine.SDK.Lua.Marshalling.StringMarshaller::Push(CheatEngine.SDK.Lua.State.LuaState,string)->void",
 			"CheatEngine.SDK.Lua.Marshalling.StringMarshaller::TryRead(CheatEngine.SDK.Lua.State.LuaState,int32,string&)->boolean",
 			"CheatEngine.SDK.Lua.References.LuaRef::.ctor()->void",

@@ -118,11 +118,6 @@ public sealed class LocalProcessDiagnosticsTests
 			init;
 		}
 
-		public void OpenProcess(long processId)
-		{
-			throw new NotSupportedException();
-		}
-
 		public bool TryGetLocalProcess(int processId, out LocalProcessInfo process)
 		{
 			process = default;

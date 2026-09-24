@@ -9,6 +9,7 @@ using CheatEngine.SDK.Engine.Errors;
 using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Engine.Processes;
 using CheatEngine.SDK.Engine.Runtime;
+using CheatEngine.SDK.Engine.Targets;
 using CheatEngine.SDK.Lua.Calls;
 
 namespace CheatEngine.Client.Core.Tests.Domains;
@@ -20,7 +21,7 @@ public sealed class ProcessClientTests
 	{
 		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
 		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
-		ProcessClient client = new(new InlineDispatcher(), host, host.Port, selectionLifetime);
+		ProcessClient client = new(new InlineDispatcher(), host, host.Port, host.Port, selectionLifetime);
 
 		ProcessSnapshot initial = client.GetCurrent(TestContext.Current.CancellationToken);
 		ProcessSnapshot refreshed = client.Refresh(TestContext.Current.CancellationToken);
@@ -37,7 +38,7 @@ public sealed class ProcessClientTests
 		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
 		host.LocalProcesses[43] = new LocalProcessInfo(43, "fixture-b", "C:\\fixtures\\fixture-b.exe");
 		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
-		ProcessClient client = new(new InlineDispatcher(), host, host.Port, selectionLifetime);
+		ProcessClient client = new(new InlineDispatcher(), host, host.Port, host.Port, selectionLifetime);
 		ProcessSnapshot initial = client.GetCurrent(TestContext.Current.CancellationToken);
 		RecordingDisposable lease = new();
 		selectionLifetime.Track(lease, initial.SelectionEpoch);
@@ -57,7 +58,7 @@ public sealed class ProcessClientTests
 	{
 		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X86);
 		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
-		ProcessClient client = new(new InlineDispatcher(), host, host.Port, selectionLifetime);
+		ProcessClient client = new(new InlineDispatcher(), host, host.Port, host.Port, selectionLifetime);
 		ProcessSnapshot initial = client.GetCurrent(TestContext.Current.CancellationToken);
 		host.TargetArchitecture = CheatEngineArchitecture.X64;
 
@@ -79,6 +80,7 @@ public sealed class ProcessClientTests
 		ProcessClient client = new(
 			new SdkMainThreadDispatcher(activationLifetime, new InlineMainThreadInvoker()),
 			host,
+			host.Port,
 			host.Port,
 			selectionLifetime);
 		ProcessSnapshot initial = client.GetCurrent(TestContext.Current.CancellationToken);
@@ -112,6 +114,7 @@ public sealed class ProcessClientTests
 		ProcessClient client = new(
 			new SdkMainThreadDispatcher(activationLifetime, new InlineMainThreadInvoker()),
 			host,
+			host.Port,
 			host.Port,
 			selectionLifetime);
 		ProcessSnapshot initial = client.GetCurrent(TestContext.Current.CancellationToken);
@@ -153,6 +156,7 @@ public sealed class ProcessClientTests
 			new SdkMainThreadDispatcher(activationLifetime, new InlineMainThreadInvoker()),
 			host,
 			host.Port,
+			host.Port,
 			selectionLifetime);
 
 		bool succeeded = client.TryGetCurrent(
@@ -182,6 +186,7 @@ public sealed class ProcessClientTests
 			new SdkMainThreadDispatcher(activationLifetime, new InlineMainThreadInvoker()),
 			host,
 			host.Port,
+			host.Port,
 			selectionLifetime);
 
 		bool succeeded = client.TryGetCurrent(out ProcessSnapshot snapshot, out CheatEngineFailure failure,
@@ -201,9 +206,9 @@ public sealed class ProcessClientTests
 	{
 		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
 		LuaException expected = new("openProcess failed");
-		host.OpenProcessException = expected;
+		host.Port.SelectFault = expected;
 		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
-		ProcessClient client = new(new InlineDispatcher(), host, host.Port, selectionLifetime);
+		ProcessClient client = new(new InlineDispatcher(), host, host.Port, host.Port, selectionLifetime);
 
 		bool succeeded = client.TryAttach(new TargetProcessId(43), out ProcessSnapshot snapshot,
 			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
@@ -225,7 +230,7 @@ public sealed class ProcessClientTests
 		host.IsArm = false;
 		host.Is64Bit = false;
 		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
-		ProcessClient client = new(new InlineDispatcher(), host, host.Port, selectionLifetime);
+		ProcessClient client = new(new InlineDispatcher(), host, host.Port, host.Port, selectionLifetime);
 		ProcessSnapshot initial = client.GetCurrent(TestContext.Current.CancellationToken);
 		RecordingDisposable lease = new();
 		selectionLifetime.Track(lease, initial.SelectionEpoch);
@@ -246,7 +251,7 @@ public sealed class ProcessClientTests
 	{
 		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
 		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
-		ProcessClient client = new(new InlineDispatcher(), host, host.Port, selectionLifetime);
+		ProcessClient client = new(new InlineDispatcher(), host, host.Port, host.Port, selectionLifetime);
 		ProcessSnapshot initial = client.GetCurrent(TestContext.Current.CancellationToken);
 		RecordingDisposable lease = new();
 		selectionLifetime.Track(lease, initial.SelectionEpoch);
@@ -272,7 +277,7 @@ public sealed class ProcessClientTests
 		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
 		host.LocalProcesses[43] = new LocalProcessInfo(43, "fixture-b", "C:\\fixtures\\fixture-b.exe");
 		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
-		ProcessClient client = new(new InlineDispatcher(), host, host.Port, selectionLifetime);
+		ProcessClient client = new(new InlineDispatcher(), host, host.Port, host.Port, selectionLifetime);
 		ProcessSnapshot initial = client.GetCurrent(TestContext.Current.CancellationToken);
 		host.OpenedProcessId = 43;
 		host.IsX86 = null;
@@ -293,7 +298,7 @@ public sealed class ProcessClientTests
 		host.IsX86 = false;
 		host.IsArm = false;
 		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
-		ProcessClient client = new(new InlineDispatcher(), host, host.Port, selectionLifetime);
+		ProcessClient client = new(new InlineDispatcher(), host, host.Port, host.Port, selectionLifetime);
 
 		ProcessSnapshot snapshot = client.GetCurrent(TestContext.Current.CancellationToken);
 
@@ -309,7 +314,7 @@ public sealed class ProcessClientTests
 		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
 		host.OpenedProcessId = 0;
 		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
-		ProcessClient client = new(new InlineDispatcher(), host, host.Port, selectionLifetime);
+		ProcessClient client = new(new InlineDispatcher(), host, host.Port, host.Port, selectionLifetime);
 
 		bool succeeded = client.TryGetCurrent(out _, out CheatEngineFailure failure,
 			TestContext.Current.CancellationToken);
@@ -332,6 +337,7 @@ public sealed class ProcessClientTests
 			new SdkMainThreadDispatcher(activationLifetime, new InlineMainThreadInvoker()),
 			host,
 			host.Port,
+			host.Port,
 			selectionLifetime);
 
 		bool succeeded = client.TryGetCurrent(out ProcessSnapshot snapshot, out CheatEngineFailure failure,
@@ -351,7 +357,7 @@ public sealed class ProcessClientTests
 		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
 		host.Port.TargetStatus = ProcessOperationStatus.TargetChanged;
 		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
-		ProcessClient client = new(new InlineDispatcher(), host, host.Port, selectionLifetime);
+		ProcessClient client = new(new InlineDispatcher(), host, host.Port, host.Port, selectionLifetime);
 
 		bool succeeded = client.TryGetCurrent(out ProcessSnapshot snapshot, out CheatEngineFailure failure,
 			TestContext.Current.CancellationToken);
@@ -371,7 +377,7 @@ public sealed class ProcessClientTests
 		host.Port.TargetStatus = TargetObservations.LuaFailure;
 		host.Port.CurrentReads = [(ProcessOperationStatus.Success, 42), (TargetObservations.LuaFailure, 0)];
 		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
-		ProcessClient client = new(new InlineDispatcher(), host, host.Port, selectionLifetime);
+		ProcessClient client = new(new InlineDispatcher(), host, host.Port, host.Port, selectionLifetime);
 
 		bool succeeded = client.TryGetCurrent(out ProcessSnapshot snapshot, out CheatEngineFailure failure,
 			TestContext.Current.CancellationToken);
@@ -394,6 +400,7 @@ public sealed class ProcessClientTests
 		ProcessClient client = new(
 			new SdkMainThreadDispatcher(activationLifetime, new InlineMainThreadInvoker()),
 			host,
+			host.Port,
 			host.Port,
 			selectionLifetime);
 		using CancellationTokenSource cancellation = new();
@@ -433,6 +440,7 @@ public sealed class ProcessClientTests
 			new SdkMainThreadDispatcher(activationLifetime, new InlineMainThreadInvoker()),
 			host,
 			host.Port,
+			host.Port,
 			selectionLifetime);
 
 		bool succeeded = client.TryAttach(
@@ -445,7 +453,7 @@ public sealed class ProcessClientTests
 		Assert.Equal(default, snapshot);
 		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
 		Assert.Equal("Processes.Attach", failure.Operation);
-		Assert.Equal([43L], host.OpenProcessCalls);
+		Assert.Equal([43], host.Port.SelectCalls);
 	}
 
 	[Fact]
@@ -460,6 +468,7 @@ public sealed class ProcessClientTests
 		ProcessClient client = new(
 			new SdkMainThreadDispatcher(activationLifetime, new InlineMainThreadInvoker()),
 			host,
+			host.Port,
 			host.Port,
 			selectionLifetime);
 		ProcessSnapshot initial = client.GetCurrent(TestContext.Current.CancellationToken);
@@ -477,7 +486,7 @@ public sealed class ProcessClientTests
 		Assert.Equal(new TargetProcessId(43), snapshot.Id);
 		Assert.Null(snapshot.Name);
 		Assert.Null(snapshot.ExecutablePath);
-		Assert.Equal([43L], host.OpenProcessCalls);
+		Assert.Equal([43], host.Port.SelectCalls);
 		Assert.Equal(1, selectionLifetime.Epoch);
 		Assert.Equal(1, lease.DisposeCount);
 	}
@@ -488,7 +497,7 @@ public sealed class ProcessClientTests
 		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
 		host.LocalProcesses[43] = new LocalProcessInfo(43, "fixture-b", "C:\\fixtures\\fixture-b.exe");
 		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
-		ProcessClient client = new(new InlineDispatcher(), host, host.Port, selectionLifetime);
+		ProcessClient client = new(new InlineDispatcher(), host, host.Port, host.Port, selectionLifetime);
 		ProcessSnapshot initial = client.GetCurrent(TestContext.Current.CancellationToken);
 		RecordingDisposable lease = new();
 		selectionLifetime.Track(lease, initial.SelectionEpoch);
@@ -504,7 +513,7 @@ public sealed class ProcessClientTests
 		Assert.Equal(new TargetProcessId(43), snapshot.Id);
 		Assert.Equal(1, snapshot.SelectionEpoch);
 		Assert.Equal(1, lease.DisposeCount);
-		Assert.Equal([43L], host.OpenProcessCalls);
+		Assert.Equal([43], host.Port.SelectCalls);
 	}
 
 	[Fact]
@@ -512,7 +521,7 @@ public sealed class ProcessClientTests
 	{
 		FakeProcessHost noMatchHost = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
 		using TargetSelectionLifetime noMatchLifetime = CreateSelectionLifetime();
-		ProcessClient noMatchClient = new(new InlineDispatcher(), noMatchHost, noMatchHost.Port, noMatchLifetime);
+		ProcessClient noMatchClient = new(new InlineDispatcher(), noMatchHost, noMatchHost.Port, noMatchHost.Port, noMatchLifetime);
 
 		bool noMatchSucceeded = noMatchClient.TryAttachExactName(
 			"absent.exe",
@@ -523,7 +532,7 @@ public sealed class ProcessClientTests
 		Assert.False(noMatchSucceeded);
 		Assert.Equal(default, noMatchSnapshot);
 		Assert.Equal(CheatEngineFailureKind.NotFound, noMatchFailure.Kind);
-		Assert.Empty(noMatchHost.OpenProcessCalls);
+		Assert.Empty(noMatchHost.Port.SelectCalls);
 
 		FakeProcessHost ambiguousHost = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
 		ambiguousHost.NameMatches["fixture"] =
@@ -532,7 +541,7 @@ public sealed class ProcessClientTests
 			new LocalProcessInfo(44, "fixture", "C:\\fixtures\\two.exe")
 		];
 		using TargetSelectionLifetime ambiguousLifetime = CreateSelectionLifetime();
-		ProcessClient ambiguousClient = new(new InlineDispatcher(), ambiguousHost, ambiguousHost.Port, ambiguousLifetime);
+		ProcessClient ambiguousClient = new(new InlineDispatcher(), ambiguousHost, ambiguousHost.Port, ambiguousHost.Port, ambiguousLifetime);
 
 		bool ambiguousSucceeded = ambiguousClient.TryAttachExactName(
 			"fixture.exe",
@@ -543,7 +552,7 @@ public sealed class ProcessClientTests
 		Assert.False(ambiguousSucceeded);
 		Assert.Equal(default, ambiguousSnapshot);
 		Assert.Equal(CheatEngineFailureKind.AmbiguousMatch, ambiguousFailure.Kind);
-		Assert.Empty(ambiguousHost.OpenProcessCalls);
+		Assert.Empty(ambiguousHost.Port.SelectCalls);
 	}
 
 	[Fact]
@@ -556,14 +565,14 @@ public sealed class ProcessClientTests
 		};
 		using CoreLifetime lifetime = new(context);
 		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
-		ProcessClient client = new(new InlineDispatcher(), host, host.Port, selectionLifetime, lifetime.ThrowIfInactive);
+		ProcessClient client = new(new InlineDispatcher(), host, host.Port, host.Port, selectionLifetime, lifetime.ThrowIfInactive);
 
 		CheatEngineActivationExpiredException exception = Assert.Throws<CheatEngineActivationExpiredException>(() =>
 			client.TryAttachExactName("fixture.exe", out _, out _, TestContext.Current.CancellationToken));
 
 		Assert.Equal("Processes.AttachExactName", exception.Failure.Operation);
 		Assert.Equal(0, host.FindProcessesByExactNameCalls);
-		Assert.Empty(host.OpenProcessCalls);
+		Assert.Empty(host.Port.SelectCalls);
 	}
 
 	[Fact]
@@ -573,7 +582,7 @@ public sealed class ProcessClientTests
 		using ControlledCoreLifetimeContext context = new();
 		using CoreLifetime lifetime = new(context);
 		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
-		ProcessClient client = new(new InlineDispatcher(), host, host.Port, selectionLifetime, lifetime.ThrowIfInactive);
+		ProcessClient client = new(new InlineDispatcher(), host, host.Port, host.Port, selectionLifetime, lifetime.ThrowIfInactive);
 		using CancellationTokenSource cancellation = new();
 		cancellation.Cancel();
 
@@ -592,7 +601,7 @@ public sealed class ProcessClientTests
 		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
 		host.FindProcessesByExactNameException = new InvalidOperationException("fixture discovery failed");
 		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
-		ProcessClient client = new(new InlineDispatcher(), host, host.Port, selectionLifetime);
+		ProcessClient client = new(new InlineDispatcher(), host, host.Port, host.Port, selectionLifetime);
 
 		bool succeeded = client.TryAttachExactName("fixture.exe", out ProcessSnapshot snapshot,
 			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
@@ -602,7 +611,7 @@ public sealed class ProcessClientTests
 		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
 		Assert.Equal("Processes.AttachExactName", failure.Operation);
 		Assert.Equal(1, host.FindProcessesByExactNameCalls);
-		Assert.Empty(host.OpenProcessCalls);
+		Assert.Empty(host.Port.SelectCalls);
 	}
 
 	[Fact]
@@ -612,14 +621,14 @@ public sealed class ProcessClientTests
 		host.LocalProcesses[43] = new LocalProcessInfo(43, "fixture", "C:\\fixtures\\fixture.exe");
 		host.NameMatches["fixture"] = [host.LocalProcesses[43]];
 		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
-		ProcessClient client = new(new InlineDispatcher(), host, host.Port, selectionLifetime);
+		ProcessClient client = new(new InlineDispatcher(), host, host.Port, host.Port, selectionLifetime);
 
 		ProcessSnapshot snapshot = client.AttachExactName("fixture.exe", TestContext.Current.CancellationToken);
 
 		Assert.Equal(new TargetProcessId(43), snapshot.Id);
 		Assert.Equal("fixture", snapshot.Name);
 		Assert.Equal("C:\\fixtures\\fixture.exe", snapshot.ExecutablePath);
-		Assert.Equal([43L], host.OpenProcessCalls);
+		Assert.Equal([43], host.Port.SelectCalls);
 	}
 
 	[Theory]
@@ -630,11 +639,11 @@ public sealed class ProcessClientTests
 	{
 		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
 		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
-		ProcessClient client = new(new InlineDispatcher(), host, host.Port, selectionLifetime);
+		ProcessClient client = new(new InlineDispatcher(), host, host.Port, host.Port, selectionLifetime);
 
 		Assert.Throws<ArgumentException>(() =>
 			client.TryAttachExactName(name, out _, out _, TestContext.Current.CancellationToken));
-		Assert.Empty(host.OpenProcessCalls);
+		Assert.Empty(host.Port.SelectCalls);
 	}
 
 	[Theory]
@@ -650,7 +659,7 @@ public sealed class ProcessClientTests
 		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
 		host.Port.TargetStatus = TargetObservations.Status(status);
 		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
-		ProcessClient client = new(new InlineDispatcher(), host, host.Port, selectionLifetime);
+		ProcessClient client = new(new InlineDispatcher(), host, host.Port, host.Port, selectionLifetime);
 
 		bool succeeded = client.TryGetCurrent(out ProcessSnapshot snapshot, out CheatEngineFailure failure,
 			TestContext.Current.CancellationToken);
@@ -670,7 +679,7 @@ public sealed class ProcessClientTests
 		// A file opened as a process has no process identity: the earlier selection no longer holds (audit A12-07).
 		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
 		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
-		ProcessClient client = new(new InlineDispatcher(), host, host.Port, selectionLifetime);
+		ProcessClient client = new(new InlineDispatcher(), host, host.Port, host.Port, selectionLifetime);
 		ProcessSnapshot initial = client.GetCurrent(TestContext.Current.CancellationToken);
 		RecordingDisposable lease = new();
 		selectionLifetime.Track(lease, initial.SelectionEpoch);
@@ -683,6 +692,199 @@ public sealed class ProcessClientTests
 		Assert.Equal(CheatEngineFailureKind.TargetIdentityUnavailable, failure.Kind);
 		Assert.Equal(1, selectionLifetime.Epoch);
 		Assert.Equal(1, lease.DisposeCount);
+	}
+
+	[Theory]
+	[Trait("Qualification", "Q30.a")]
+	[InlineData(ProcessOperationStatusKind.SelectionNotConfirmed, CheatEngineFailureKind.OperationRejected)]
+	[InlineData(ProcessOperationStatusKind.TargetNotAttached, CheatEngineFailureKind.TargetNotAttached)]
+	[InlineData(ProcessOperationStatusKind.FileAsProcessTarget, CheatEngineFailureKind.TargetIdentityUnavailable)]
+	[InlineData(ProcessOperationStatusKind.TargetChanged, CheatEngineFailureKind.TargetChanged)]
+	[InlineData(ProcessOperationStatusKind.GlobalUnavailable, CheatEngineFailureKind.CapabilityUnavailable)]
+	[InlineData(ProcessOperationStatusKind.ProtectedLuaFailure, CheatEngineFailureKind.LuaError)]
+	[InlineData(ProcessOperationStatusKind.InvalidResult, CheatEngineFailureKind.InvalidHostResult)]
+	[InlineData(ProcessOperationStatusKind.Unknown, CheatEngineFailureKind.IndeterminateHostResult)]
+	public void TryAttachReportsEveryRefusedSelectionWithItsKindAndAnUnknownHostEffect(
+		ProcessOperationStatusKind status, CheatEngineFailureKind expected)
+	{
+		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
+		host.Port.SelectStatus = TargetObservations.Status(status);
+		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
+		ProcessClient client = new(new InlineDispatcher(), host, host.Port, host.Port, selectionLifetime);
+
+		bool succeeded = client.TryAttach(new TargetProcessId(43), out ProcessSnapshot snapshot,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(default, snapshot);
+		Assert.Equal(expected, failure.Kind);
+		Assert.Equal("Processes.Attach", failure.Operation);
+		Assert.Equal(CheatEngineHostEffect.Unknown, failure.HostEffect);
+		Assert.Equal([43], host.Port.SelectCalls);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q30.a")]
+	public void ARefusedAttachStillMovesTheSelectionEpochToWhatCheatEngineNowSelects()
+	{
+		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
+		host.SelectedAfterOpenOverride = 44;
+		host.LocalProcesses[44] = new LocalProcessInfo(44, "fixture-c", "C:\\fixtures\\fixture-c.exe");
+		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
+		ProcessClient client = new(new InlineDispatcher(), host, host.Port, host.Port, selectionLifetime);
+		ProcessSnapshot initial = client.GetCurrent(TestContext.Current.CancellationToken);
+		RecordingDisposable lease = new();
+		selectionLifetime.Track(lease, initial.SelectionEpoch);
+
+		bool succeeded = client.TryAttach(new TargetProcessId(43), out _, out CheatEngineFailure failure,
+			TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
+		Assert.Equal(1, selectionLifetime.Epoch);
+		Assert.Equal(1, lease.DisposeCount);
+		Assert.Equal(new TargetProcessId(44), client.GetCurrent(TestContext.Current.CancellationToken).Id);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q30.b")]
+	public void TheSelectionEpochAdvancesWhenTheSamePidDenotesAnotherIncarnation()
+	{
+		// The PID alone can be reused: the SDK's creation-time observation tells the two processes apart.
+		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
+		host.Port.Incarnation = TargetObservations.Incarnation(42, 1_000);
+		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
+		ProcessClient client = new(new InlineDispatcher(), host, host.Port, host.Port, selectionLifetime);
+		ProcessSnapshot initial = client.GetCurrent(TestContext.Current.CancellationToken);
+		RecordingDisposable lease = new();
+		selectionLifetime.Track(lease, initial.SelectionEpoch);
+		host.Port.Incarnation = TargetObservations.Incarnation(42, 2_000);
+
+		ProcessSnapshot refreshed = client.Refresh(TestContext.Current.CancellationToken);
+
+		Assert.Equal(new TargetProcessId(42), refreshed.Id);
+		Assert.Equal(initial.SelectionEpoch + 1, refreshed.SelectionEpoch);
+		Assert.Equal(1, lease.DisposeCount);
+		Assert.Equal(1, host.Port.Count(nameof(IRuntimeObservationPort.ObserveSelection)));
+		Assert.Equal(1, host.Port.Count(nameof(IRuntimeObservationPort.ValidateSelection)));
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q30.b")]
+	public void AnUnchangedIncarnationKeepsTheSelectionEpoch()
+	{
+		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
+		host.Port.Incarnation = TargetObservations.Incarnation(42, 1_000);
+		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
+		ProcessClient client = new(new InlineDispatcher(), host, host.Port, host.Port, selectionLifetime);
+
+		ProcessSnapshot initial = client.GetCurrent(TestContext.Current.CancellationToken);
+		ProcessSnapshot first = client.Refresh(TestContext.Current.CancellationToken);
+		ProcessSnapshot second = client.Refresh(TestContext.Current.CancellationToken);
+
+		Assert.Equal(0, initial.SelectionEpoch);
+		Assert.Equal(0, first.SelectionEpoch);
+		Assert.Equal(0, second.SelectionEpoch);
+		Assert.Equal(2, host.Port.Count(nameof(IRuntimeObservationPort.ValidateSelection)));
+	}
+
+	[Theory]
+	[Trait("Qualification", "Q30.b")]
+	[InlineData(TargetSelectionObservationStatus.CurrentTargetUnqualified)]
+	[InlineData(TargetSelectionObservationStatus.LuaFailure)]
+	[InlineData(TargetSelectionObservationStatus.GlobalUnavailable)]
+	[InlineData(TargetSelectionObservationStatus.InvalidResult)]
+	[InlineData(TargetSelectionObservationStatus.CurrentTargetBackendUnknown)]
+	public void AnUnavailableIdentityReadKeepsTheSelectionEpoch(TargetSelectionObservationStatus status)
+	{
+		// No comparable incarnation is no evidence of a change: leases stay valid.
+		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
+		host.Port.Incarnation = TargetObservations.Incarnation(42, 1_000);
+		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
+		ProcessClient client = new(new InlineDispatcher(), host, host.Port, host.Port, selectionLifetime);
+		ProcessSnapshot initial = client.GetCurrent(TestContext.Current.CancellationToken);
+		host.Port.SelectionStatus = status;
+
+		bool succeeded = client.TryRefresh(out ProcessSnapshot refreshed, out CheatEngineFailure failure,
+			TestContext.Current.CancellationToken);
+		host.Port.SelectionStatus = null;
+		host.Port.Incarnation = TargetObservations.Incarnation(42, 2_000);
+		ProcessSnapshot reused = client.Refresh(TestContext.Current.CancellationToken);
+
+		Assert.True(succeeded);
+		Assert.Equal(default, failure);
+		Assert.Equal(initial.SelectionEpoch, refreshed.SelectionEpoch);
+		// The last known incarnation was kept, so a later reuse is still detected.
+		Assert.Equal(initial.SelectionEpoch + 1, reused.SelectionEpoch);
+	}
+
+	[Theory]
+	[Trait("Qualification", "Q30.a")]
+	[InlineData(TargetSelectionObservationStatus.NoTargetSelected, false)]
+	[InlineData(TargetSelectionObservationStatus.CurrentTargetFileAsProcess, false)]
+	[InlineData(TargetSelectionObservationStatus.CurrentTargetRemoteBackend, false)]
+	[InlineData(TargetSelectionObservationStatus.NoTargetSelected, true)]
+	[InlineData(TargetSelectionObservationStatus.CurrentTargetRemoteBackend, true)]
+	public void ASelectionThatMovesBetweenTheFactsAndTheIdentityReadIsATargetChange(
+		TargetSelectionObservationStatus status, bool withKnownIncarnation)
+	{
+		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
+		host.Port.Incarnation = TargetObservations.Incarnation(42, 1_000);
+		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
+		ProcessClient client = new(new InlineDispatcher(), host, host.Port, host.Port, selectionLifetime);
+		if (withKnownIncarnation)
+		{
+			_ = client.GetCurrent(TestContext.Current.CancellationToken);
+		}
+
+		host.Port.SelectionStatus = status;
+
+		bool succeeded = client.TryRefresh(out ProcessSnapshot snapshot, out CheatEngineFailure failure,
+			TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(default, snapshot);
+		Assert.Equal(CheatEngineFailureKind.TargetChanged, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.Completed, failure.HostEffect);
+		Assert.Equal(0, selectionLifetime.Epoch);
+	}
+
+	[Theory]
+	[Trait("Qualification", "Q32")]
+	[InlineData(TargetBackend.CEServer)]
+	[InlineData(TargetBackend.Unknown)]
+	public void ATargetThatIsNotALocalProcessGetsNoLocalMetadataAndNoIncarnationRead(TargetBackend backend)
+	{
+		// A local PID and creation time do not describe a PID served by CEServer or of an unknown backend (A12-05).
+		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
+		host.Backend = backend;
+		host.Port.Incarnation = TargetObservations.Incarnation(42, 1_000);
+		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
+		ProcessClient client = new(new InlineDispatcher(), host, host.Port, host.Port, selectionLifetime);
+
+		ProcessSnapshot snapshot = client.GetCurrent(TestContext.Current.CancellationToken);
+
+		Assert.Equal(new TargetProcessId(42), snapshot.Id);
+		Assert.Null(snapshot.Name);
+		Assert.Null(snapshot.ExecutablePath);
+		Assert.Equal(0, host.Port.Count(nameof(IRuntimeObservationPort.ObserveSelection)));
+		Assert.Equal(0, host.Port.Count(nameof(IRuntimeObservationPort.ValidateSelection)));
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q32")]
+	public void ABackendChangeAtTheSamePidAdvancesTheSelectionEpoch()
+	{
+		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
+		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
+		ProcessClient client = new(new InlineDispatcher(), host, host.Port, host.Port, selectionLifetime);
+		ProcessSnapshot initial = client.GetCurrent(TestContext.Current.CancellationToken);
+		host.Backend = TargetBackend.CEServer;
+
+		ProcessSnapshot refreshed = client.Refresh(TestContext.Current.CancellationToken);
+
+		Assert.Equal(initial.SelectionEpoch + 1, refreshed.SelectionEpoch);
+		Assert.Null(refreshed.Name);
 	}
 
 	private static TargetSelectionLifetime CreateSelectionLifetime()
@@ -712,6 +914,7 @@ public sealed class ProcessClientTests
 	/// </summary>
 	private sealed class FakeProcessHost : IProcessHost
 	{
+		private TargetBackend _backend = TargetBackend.LocalProcess;
 		private bool _is64Bit;
 		private bool? _isArm;
 		private bool? _isX86;
@@ -732,11 +935,6 @@ public sealed class ProcessClientTests
 			get;
 		} =
 			new(StringComparer.OrdinalIgnoreCase);
-
-		internal List<long> OpenProcessCalls
-		{
-			get;
-		} = [];
 
 		internal int FindProcessesByExactNameCalls
 		{
@@ -771,6 +969,17 @@ public sealed class ProcessClientTests
 		{
 			get;
 			set;
+		}
+
+		/// <summary>Gets or sets how Cheat Engine reaches the selected target (a local process by default).</summary>
+		internal TargetBackend Backend
+		{
+			get => _backend;
+			set
+			{
+				_backend = value;
+				Synchronize();
+			}
 		}
 
 		/// <summary>Sets the ISA-family and 64-bit facts that Cheat Engine reports for the architecture.</summary>
@@ -817,20 +1026,9 @@ public sealed class ProcessClientTests
 			}
 		}
 
-		internal Exception? OpenProcessException
+		/// <summary>What Cheat Engine selects when the Client asks for a PID (the fake port's attach call).</summary>
+		private void Select(int processId)
 		{
-			get;
-			set;
-		}
-
-		public void OpenProcess(long processId)
-		{
-			OpenProcessCalls.Add(processId);
-			if (OpenProcessException is { } exception)
-			{
-				throw exception;
-			}
-
 			OpenedProcessId = SelectedAfterOpenOverride ?? processId;
 			AfterOpenProcess?.Invoke(this);
 		}
@@ -863,6 +1061,7 @@ public sealed class ProcessClientTests
 				OpenedProcessId = processId,
 				TargetArchitecture = architecture
 			};
+			host.Port.OnSelect = host.Select;
 			host.LocalProcesses[processId] = new LocalProcessInfo(
 				processId,
 				"fixture",
@@ -875,7 +1074,8 @@ public sealed class ProcessClientTests
 			Port.TargetStatus = _openedProcessId == 0
 				? ProcessOperationStatus.TargetNotAttached
 				: ProcessOperationStatus.Success;
-			Port.Target = TargetObservations.Create((int) Math.Max(_openedProcessId, 1), _is64Bit, _isX86, _isArm);
+			Port.Target = TargetObservations.Create((int) Math.Max(_openedProcessId, 1), _is64Bit, _isX86, _isArm,
+				backend: Backend);
 		}
 	}
 

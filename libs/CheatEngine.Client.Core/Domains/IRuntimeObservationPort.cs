@@ -1,5 +1,6 @@
 using CheatEngine.SDK.Engine.Processes;
 using CheatEngine.SDK.Engine.Runtime;
+using CheatEngine.SDK.Engine.Targets;
 using CheatEngine.SDK.Lua.Calls;
 
 namespace CheatEngine.Client.Core.Domains;
@@ -10,8 +11,9 @@ namespace CheatEngine.Client.Core.Domains;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         Every member is one read-only CheatEngine.SDK 2.0.0 operation: <c>RuntimeObservations.TryObserveRuntimeInfo</c>
-///         and the <c>RuntimeHostOperations</c> and <c>RuntimeProcessOperations</c> observations. None of them selects a
+///         Every member is one read-only CheatEngine.SDK 2.0.0 operation: <c>RuntimeObservations.TryObserveRuntimeInfo</c>,
+///         the <c>RuntimeHostOperations</c> and <c>RuntimeProcessOperations</c> observations, and
+///         <c>TargetSelection.ObserveCurrent</c> and <c>ValidateCurrent</c>. None of them selects a
 ///         target, loads a driver or a table, executes code remotely or changes a host setting (audit ADR-09a, Q45); the
 ///         architecture ratchet (<c>RuntimeProbeCallsOnlyReadOnlySdkOperations</c>) keeps the production port to that
 ///         list.
@@ -41,4 +43,17 @@ internal interface IRuntimeObservationPort : ITargetObservationPort
 
 	/// <summary>Reads the operating system Cheat Engine runs on (<c>getOperatingSystem</c>).</summary>
 	public LuaOperationStatus TryGetOperatingSystem(out CheatEngineOperatingSystem operatingSystem);
+
+	/// <summary>
+	///     Observes what identifies the selected target (<c>TargetSelection.ObserveCurrent</c>): its PID, its backend and,
+	///     for a local process, its incarnation (PID and observed creation time).
+	/// </summary>
+	public TargetSelectionFacts ObserveSelection();
+
+	/// <summary>
+	///     Checks whether the current selection still denotes <paramref name="expected" />
+	///     (<c>TargetSelection.ValidateCurrent</c>): current, a different PID, the same PID reused by another process, or
+	///     no comparable incarnation.
+	/// </summary>
+	public TargetIdentityFacts ValidateSelection(TargetProcessIncarnation expected);
 }

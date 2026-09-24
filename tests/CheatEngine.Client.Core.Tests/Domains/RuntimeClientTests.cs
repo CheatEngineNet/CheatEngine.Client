@@ -6,6 +6,7 @@ using CheatEngine.Client.Results;
 using CheatEngine.Client.Runtime;
 using CheatEngine.SDK.Engine.Processes;
 using CheatEngine.SDK.Engine.Runtime;
+using CheatEngine.SDK.Engine.Targets;
 using CheatEngine.SDK.Lua.Calls;
 
 namespace CheatEngine.Client.Core.Tests.Domains;
@@ -670,13 +671,15 @@ public sealed class RuntimeClientTests
 	public void TheRuntimeObservationPortExposesOnlyObservationMembers()
 	{
 		// Q45 / ADR-09a: a runtime observation observes; it never selects a process, loads a table or changes a host
-		// setting. Every member returns the SDK's status and fills only out parameters.
+		// setting. Every member returns the SDK's status or copied observation and fills only out parameters, except the
+		// incarnation that ValidateSelection compares.
 		string[] allowed =
 		[
 			nameof(IRuntimeObservationPort.TryObserveRuntimeInfo), nameof(IRuntimeObservationPort.ObserveHost),
 			nameof(IRuntimeObservationPort.TryGetCheatEngineFileVersion),
 			nameof(IRuntimeObservationPort.TryGetSystemArchitecture), nameof(IRuntimeObservationPort.TryIsCheatEngine64Bit),
-			nameof(IRuntimeObservationPort.TryGetOperatingSystem), nameof(ITargetObservationPort.ObserveCurrent),
+			nameof(IRuntimeObservationPort.TryGetOperatingSystem), nameof(IRuntimeObservationPort.ObserveSelection),
+			nameof(IRuntimeObservationPort.ValidateSelection), nameof(ITargetObservationPort.ObserveCurrent),
 			nameof(ITargetObservationPort.ObserveTargetArchitecture),
 			nameof(ITargetObservationPort.TryGetConfiguredPointerSize)
 		];
@@ -690,8 +693,15 @@ public sealed class RuntimeClientTests
 			members.Select(static member => member.Name).Order(StringComparer.Ordinal));
 		Assert.All(members, static member =>
 		{
-			Assert.Contains(member.ReturnType, (Type[]) [typeof(ProcessOperationStatus), typeof(LuaOperationStatus)]);
-			Assert.All(member.GetParameters(), static parameter => Assert.True(parameter.IsOut, parameter.Name));
+			Assert.Contains(member.ReturnType,
+				(Type[])
+				[
+					typeof(ProcessOperationStatus), typeof(LuaOperationStatus), typeof(TargetSelectionFacts),
+					typeof(TargetIdentityFacts)
+				]);
+			Assert.All(member.GetParameters(), static parameter =>
+				Assert.True(parameter.IsOut || parameter.ParameterType == typeof(TargetProcessIncarnation),
+					parameter.Name));
 		});
 		Assert.Empty(typeof(IRuntimeObservationPort).GetProperties());
 		Assert.Empty(typeof(IRuntimeObservationPort).GetEvents());

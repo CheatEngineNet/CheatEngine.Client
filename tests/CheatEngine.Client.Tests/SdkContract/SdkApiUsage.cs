@@ -9,6 +9,7 @@ using CheatEngine.SDK.Engine.Processes;
 using CheatEngine.SDK.Engine.Runtime;
 using CheatEngine.SDK.Engine.Scanning.Aob;
 using CheatEngine.SDK.Engine.Scanning.Values;
+using CheatEngine.SDK.Engine.Targets;
 using CheatEngine.SDK.Engine.Values;
 using CheatEngine.SDK.Hosting.Bootstrap;
 using CheatEngine.SDK.Hosting.Context;
@@ -188,6 +189,7 @@ internal static class SdkApiUsage
 		_ = RuntimeProcessOperations.ObserveCurrent(out _);
 		_ = RuntimeProcessOperations.ObserveTargetArchitecture(out _);
 		_ = RuntimeProcessOperations.TryGetConfiguredPointerSize(out _, out _);
+		_ = RuntimeProcessOperations.SelectAndObserve(processId, out _);
 		_ = ProcessOperationStatus.GlobalUnavailable;
 		_ = ProcessOperationStatus.Success;
 		_ = ProcessOperationStatus.TargetChanged;
@@ -199,6 +201,19 @@ internal static class SdkApiUsage
 		_ = current.Id;
 		_ = current.PointerSize;
 		_ = processId == otherProcessId;
+	}
+
+	internal static void TargetSelectionSurface(TargetProcessIncarnation incarnation, TargetProcessIncarnation other)
+	{
+		TargetSelectionObservation observation = TargetSelection.ObserveCurrent();
+		TargetIdentityCheck check = TargetSelection.ValidateCurrent(incarnation);
+		_ = check.Kind;
+		_ = check.Observed;
+		_ = observation.Backend;
+		_ = observation.Incarnation;
+		_ = observation.SelectedProcessId;
+		_ = observation.Status;
+		_ = incarnation != other;
 	}
 
 	internal static void ScanningAndValueSurface(AobScanOptions options, Address address, Address other)
@@ -238,7 +253,6 @@ internal static class SdkApiUsage
 		_ = status.IsOk;
 		AddressMarshaller.Push(state, 0);
 		BooleanMarshaller.Push(state, true);
-		Int64Marshaller.Push(state, 0L);
 		StringMarshaller.Push(state, "value");
 		_ = StringMarshaller.TryRead(state, -1, out _);
 		using LuaRef reference = new();

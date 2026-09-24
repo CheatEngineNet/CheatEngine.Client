@@ -2,6 +2,7 @@ using CheatEngine.Client.Results;
 using CheatEngine.Client.Runtime;
 using CheatEngine.SDK.Engine.Processes;
 using CheatEngine.SDK.Engine.Runtime;
+using CheatEngine.SDK.Engine.Targets;
 using CheatEngine.SDK.Lua.Calls;
 
 namespace CheatEngine.Client.Core.Domains;
@@ -36,7 +37,9 @@ namespace CheatEngine.Client.Core.Domains;
 ///     </list>
 ///     <para>
 ///         <c>Success</c> is not a failure and maps to <see cref="CheatEngineFailureKind.Unknown" />, which no caller
-///         reports.
+///         reports. The target-selection statuses (<see cref="TargetSelectionObservationStatus" />,
+///         <see cref="TargetIdentityCheckKind" />) map to what they establish about the selected process's identity:
+///         a failed or empty observation is never evidence of a change.
 ///     </para>
 /// </remarks>
 internal static class RuntimeObservationMapping
@@ -154,6 +157,50 @@ internal static class RuntimeObservationMapping
 		};
 	}
 
+	/// <summary>Returns what a selection observation establishes about the identity of the selected process.</summary>
+	/// <param name="status">The SDK selection observation status.</param>
+	/// <returns>The identity evidence; <see cref="SelectionIdentity.Unavailable" /> for an undefined value.</returns>
+	internal static SelectionIdentity ToSelectionIdentity(TargetSelectionObservationStatus status)
+	{
+		return status switch
+		{
+			TargetSelectionObservationStatus.CurrentTargetQualified => SelectionIdentity.Qualified,
+			TargetSelectionObservationStatus.CurrentTargetUnqualified => SelectionIdentity.Unqualified,
+			TargetSelectionObservationStatus.CurrentTargetRemoteBackend => SelectionIdentity.RemoteBackend,
+			TargetSelectionObservationStatus.CurrentTargetBackendUnknown => SelectionIdentity.BackendUnknown,
+			TargetSelectionObservationStatus.CurrentTargetFileAsProcess => SelectionIdentity.FileAsProcess,
+			TargetSelectionObservationStatus.NoTargetSelected => SelectionIdentity.NoTarget,
+			TargetSelectionObservationStatus.GlobalUnavailable => SelectionIdentity.Unavailable,
+			TargetSelectionObservationStatus.LuaFailure => SelectionIdentity.Unavailable,
+			TargetSelectionObservationStatus.InvalidResult => SelectionIdentity.Unavailable,
+			TargetSelectionObservationStatus.Unspecified => SelectionIdentity.Unavailable,
+			_ => SelectionIdentity.Unavailable
+		};
+	}
+
+	/// <summary>Returns what an incarnation check establishes about the selected process.</summary>
+	/// <param name="kind">The SDK identity check kind.</param>
+	/// <returns>The comparison; <see cref="IncarnationComparison.Unavailable" /> for an undefined value.</returns>
+	internal static IncarnationComparison ToIncarnationComparison(TargetIdentityCheckKind kind)
+	{
+		return kind switch
+		{
+			TargetIdentityCheckKind.Current => IncarnationComparison.Current,
+			TargetIdentityCheckKind.ProcessReused => IncarnationComparison.ProcessReused,
+			TargetIdentityCheckKind.TargetChanged => IncarnationComparison.SelectionChanged,
+			TargetIdentityCheckKind.NoTargetSelected => IncarnationComparison.SelectionChanged,
+			TargetIdentityCheckKind.RemoteBackend => IncarnationComparison.SelectionChanged,
+			TargetIdentityCheckKind.FileAsProcess => IncarnationComparison.SelectionChanged,
+			TargetIdentityCheckKind.CurrentTargetUnqualified => IncarnationComparison.Unavailable,
+			TargetIdentityCheckKind.BackendUnknown => IncarnationComparison.Unavailable,
+			TargetIdentityCheckKind.GlobalUnavailable => IncarnationComparison.Unavailable,
+			TargetIdentityCheckKind.LuaFailure => IncarnationComparison.Unavailable,
+			TargetIdentityCheckKind.InvalidResult => IncarnationComparison.Unavailable,
+			TargetIdentityCheckKind.Unspecified => IncarnationComparison.Unavailable,
+			_ => IncarnationComparison.Unavailable
+		};
+	}
+
 	private static string DescribeFailure(ProcessOperationStatusKind kind)
 	{
 		return kind switch
@@ -176,4 +223,45 @@ internal static class RuntimeObservationMapping
 			_ => "Cheat Engine reported no result for the target observation."
 		};
 	}
+}
+
+/// <summary>What a selection observation establishes about the identity of the selected process.</summary>
+internal enum SelectionIdentity
+{
+	/// <summary>The observation failed or recorded nothing: no identity evidence, and no evidence of a change.</summary>
+	Unavailable = 0,
+
+	/// <summary>A local process with its incarnation (PID and observed creation time).</summary>
+	Qualified = 1,
+
+	/// <summary>A local process whose incarnation could not be established.</summary>
+	Unqualified = 2,
+
+	/// <summary>A process served by CEServer: a local incarnation does not describe it.</summary>
+	RemoteBackend = 3,
+
+	/// <summary>A PID whose backend is not established: no local incarnation can be compared.</summary>
+	BackendUnknown = 4,
+
+	/// <summary>No target is selected.</summary>
+	NoTarget = 5,
+
+	/// <summary>A file opened as a process is selected; it has no process identity.</summary>
+	FileAsProcess = 6
+}
+
+/// <summary>What comparing a known incarnation with the current selection establishes.</summary>
+internal enum IncarnationComparison
+{
+	/// <summary>No comparable incarnation was observed: no evidence of a change.</summary>
+	Unavailable = 0,
+
+	/// <summary>The selection still denotes the known incarnation.</summary>
+	Current = 1,
+
+	/// <summary>The same PID now denotes another process (a different creation time).</summary>
+	ProcessReused = 2,
+
+	/// <summary>The selection moved away from the known process (another PID, no target, another backend).</summary>
+	SelectionChanged = 3
 }

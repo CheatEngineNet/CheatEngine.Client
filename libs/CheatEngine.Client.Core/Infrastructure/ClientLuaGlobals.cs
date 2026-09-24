@@ -12,9 +12,6 @@ namespace CheatEngine.Client.Core.Infrastructure;
 /// </summary>
 internal static partial class ClientLuaGlobals
 {
-	[LuaGlobal("openProcess")]
-	internal static partial void OpenProcess(long processId);
-
 	[LuaGlobal("loadTable")]
 	internal static partial void LoadTable(string path, bool merge);
 

@@ -1,20 +1,25 @@
 using CheatEngine.Client.Core.Domains;
+using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Engine.Processes;
 using CheatEngine.SDK.Engine.Runtime;
+using CheatEngine.SDK.Engine.Targets;
 using CheatEngine.SDK.Lua.Calls;
 
 namespace CheatEngine.Client.Core.Tests.TestSupport;
 
 /// <summary>
-///     A configurable <see cref="IRuntimeObservationPort" /> that behaves like the CheatEngine.SDK 2.0.0 operations:
-///     by default Cheat Engine 7.7.0.10621 x64 on Windows with an x64 local target (PID 42).
+///     A configurable Cheat Engine for the observation and selection ports that behaves like the CheatEngine.SDK 2.0.0
+///     operations: by default Cheat Engine 7.7.0.10621 x64 on Windows with an x64 local target (PID 42).
 /// </summary>
 /// <remarks>
 ///     Unless <see cref="RuntimeInfoStatus" /> or <see cref="Capabilities" /> is set, the aggregate snapshot follows the
 ///     SDK's rules: a failed host read fails it, a selected or absent target is a snapshot, any other target status is
-///     returned unchanged, and the capability list names each probed fact.
+///     returned unchanged, and the capability list names each probed fact. The selection observation follows the target
+///     unless <see cref="SelectionStatus" /> is set: a local target is qualified when it has an
+///     <see cref="Incarnation" />. <c>SelectAndObserve</c> selects the requested process unless <see cref="OnSelect" />
+///     says what Cheat Engine selects instead.
 /// </remarks>
-internal class FakeRuntimeObservationPort : TargetObservationDouble, IRuntimeObservationPort
+internal class FakeRuntimeObservationPort : TargetObservationDouble, IRuntimeObservationPort, IProcessSelectionPort
 {
 	private Exception? _fault;
 
@@ -89,8 +94,49 @@ internal class FakeRuntimeObservationPort : TargetObservationDouble, IRuntimeObs
 		}
 	}
 
-	/// <summary>Gets the names of the host and snapshot operations in call order.</summary>
+	/// <summary>Gets the names of the host, snapshot, selection and attach operations in call order.</summary>
 	internal List<string> Calls
+	{
+		get;
+	} = [];
+
+	/// <summary>Gets or sets the incarnation of a local target; <see langword="null" /> leaves it unqualified.</summary>
+	internal TargetProcessIncarnation? Incarnation
+	{
+		get;
+		set;
+	}
+
+	/// <summary>Gets or sets the status of the selection observation; derived from the target when unset.</summary>
+	internal TargetSelectionObservationStatus? SelectionStatus
+	{
+		get;
+		set;
+	}
+
+	/// <summary>Gets or sets the status of <c>SelectAndObserve</c>; derived from the resulting selection when unset.</summary>
+	internal ProcessOperationStatus? SelectStatus
+	{
+		get;
+		set;
+	}
+
+	/// <summary>Gets or sets what Cheat Engine does when asked to select a PID; it selects that PID when unset.</summary>
+	internal Action<int>? OnSelect
+	{
+		get;
+		set;
+	}
+
+	/// <summary>Gets or sets an exception <c>SelectAndObserve</c> throws.</summary>
+	internal Exception? SelectFault
+	{
+		get;
+		set;
+	}
+
+	/// <summary>Gets the PIDs <c>SelectAndObserve</c> was asked to select.</summary>
+	internal List<int> SelectCalls
 	{
 		get;
 	} = [];
@@ -140,7 +186,68 @@ internal class FakeRuntimeObservationPort : TargetObservationDouble, IRuntimeObs
 		return OperatingSystemStatus;
 	}
 
-	/// <summary>Counts the calls of one host or snapshot operation.</summary>
+	public TargetSelectionFacts ObserveSelection()
+	{
+		Record(nameof(ObserveSelection));
+		return CurrentSelection();
+	}
+
+	public TargetIdentityFacts ValidateSelection(TargetProcessIncarnation expected)
+	{
+		Record(nameof(ValidateSelection));
+		TargetSelectionFacts observed = CurrentSelection();
+		TargetIdentityCheckKind kind = observed is
+		{
+			Status: TargetSelectionObservationStatus.CurrentTargetQualified, Incarnation: { } current
+		}
+			? current.ProcessId != expected.ProcessId
+				? TargetIdentityCheckKind.TargetChanged
+				: current.StartedAtUtcTicks == expected.StartedAtUtcTicks
+					? TargetIdentityCheckKind.Current
+					: TargetIdentityCheckKind.ProcessReused
+			: observed.Status switch
+			{
+				TargetSelectionObservationStatus.NoTargetSelected => TargetIdentityCheckKind.NoTargetSelected,
+				TargetSelectionObservationStatus.CurrentTargetUnqualified =>
+					TargetIdentityCheckKind.CurrentTargetUnqualified,
+				TargetSelectionObservationStatus.GlobalUnavailable => TargetIdentityCheckKind.GlobalUnavailable,
+				TargetSelectionObservationStatus.LuaFailure => TargetIdentityCheckKind.LuaFailure,
+				TargetSelectionObservationStatus.CurrentTargetRemoteBackend => TargetIdentityCheckKind.RemoteBackend,
+				TargetSelectionObservationStatus.CurrentTargetFileAsProcess => TargetIdentityCheckKind.FileAsProcess,
+				TargetSelectionObservationStatus.CurrentTargetBackendUnknown => TargetIdentityCheckKind.BackendUnknown,
+				_ => TargetIdentityCheckKind.InvalidResult
+			};
+		return new TargetIdentityFacts(kind, observed);
+	}
+
+	public ProcessOperationStatus SelectAndObserve(TargetProcessId processId,
+		out CurrentProcessObservation observation)
+	{
+		Record(nameof(SelectAndObserve));
+		SelectCalls.Add(processId.Value);
+		if (SelectFault is { } fault)
+		{
+			throw fault;
+		}
+
+		if (OnSelect is { } select)
+		{
+			select(processId.Value);
+		}
+		else
+		{
+			TargetStatus = ProcessOperationStatus.Success;
+			Target = TargetObservations.WithProcessId(Target, processId.Value);
+		}
+
+		ProcessOperationStatus status = SelectStatus ?? (TargetStatus.IsSuccess && Target.ProcessId == processId
+			? ProcessOperationStatus.Success
+			: ProcessOperationStatus.SelectionNotConfirmed);
+		observation = status.IsSuccess ? new CurrentProcessObservation(processId, Target.Bitness) : default;
+		return status;
+	}
+
+	/// <summary>Counts the calls of one host, snapshot, selection or attach operation.</summary>
 	internal int Count(string member)
 	{
 		return Calls.Count(call => call == member);
@@ -193,6 +300,39 @@ internal class FakeRuntimeObservationPort : TargetObservationDouble, IRuntimeObs
 		}
 
 		return RuntimeCapabilities.Create([.. entries]);
+	}
+
+	private TargetSelectionFacts CurrentSelection()
+	{
+		TargetSelectionObservationStatus status = SelectionStatus ?? TargetStatus.Kind switch
+		{
+			ProcessOperationStatusKind.TargetNotAttached => TargetSelectionObservationStatus.NoTargetSelected,
+			ProcessOperationStatusKind.FileAsProcessTarget => TargetSelectionObservationStatus.CurrentTargetFileAsProcess,
+			_ => Target.Backend switch
+			{
+				TargetBackend.LocalProcess => Incarnation is null
+					? TargetSelectionObservationStatus.CurrentTargetUnqualified
+					: TargetSelectionObservationStatus.CurrentTargetQualified,
+				TargetBackend.CEServer => TargetSelectionObservationStatus.CurrentTargetRemoteBackend,
+				_ => TargetSelectionObservationStatus.CurrentTargetBackendUnknown
+			}
+		};
+		TargetBackend backend = status switch
+		{
+			TargetSelectionObservationStatus.CurrentTargetQualified or
+				TargetSelectionObservationStatus.CurrentTargetUnqualified => TargetBackend.LocalProcess,
+			TargetSelectionObservationStatus.CurrentTargetRemoteBackend => TargetBackend.CEServer,
+			TargetSelectionObservationStatus.CurrentTargetFileAsProcess => TargetBackend.FileAsProcess,
+			_ => TargetBackend.Unknown
+		};
+		int? processId = status is TargetSelectionObservationStatus.CurrentTargetQualified
+			or TargetSelectionObservationStatus.CurrentTargetUnqualified
+			or TargetSelectionObservationStatus.CurrentTargetRemoteBackend
+			or TargetSelectionObservationStatus.CurrentTargetBackendUnknown
+			? Target.ProcessId.Value
+			: null;
+		return new TargetSelectionFacts(status, backend, processId,
+			status == TargetSelectionObservationStatus.CurrentTargetQualified ? Incarnation : null);
 	}
 
 	private static RuntimeCapabilityAvailability Available(RuntimeCapabilityId capability)

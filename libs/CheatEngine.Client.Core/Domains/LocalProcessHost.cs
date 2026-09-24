@@ -1,25 +1,15 @@
 using System.ComponentModel;
 using System.Diagnostics;
 
-using CheatEngine.Client.Core.Infrastructure;
-
 namespace CheatEngine.Client.Core.Domains;
 
-/// <summary>
-///     Production process host: Cheat Engine's attach call through a generated binding, and local metadata through the
-///     base class library.
-/// </summary>
+/// <summary>Production process host: local metadata through the base class library.</summary>
 /// <remarks>
 ///     Name and executable path come from <see cref="Process" /> and describe a local process only: they are not evidence
 ///     of a CEServer target or of a file opened as a process, whose identifiers do not name a local process.
 /// </remarks>
 internal sealed class LocalProcessHost : IProcessHost
 {
-	public void OpenProcess(long processId)
-	{
-		ClientLuaGlobals.OpenProcess(processId);
-	}
-
 	public bool TryGetLocalProcess(int processId, out LocalProcessInfo process)
 	{
 		try

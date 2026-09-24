@@ -1,16 +1,13 @@
 namespace CheatEngine.Client.Core.Domains;
 
-/// <summary>Internal adapter boundary for Cheat Engine's attach call and local managed process metadata.</summary>
+/// <summary>Internal adapter boundary for local managed process metadata.</summary>
 /// <remarks>
-///     The target facts come from <see cref="ITargetObservationPort" /> (read-only CheatEngine.SDK observations). Local
-///     metadata comes from the base class library: it describes local processes only and never a CEServer or
-///     file-as-process target.
+///     The target facts come from <see cref="IRuntimeObservationPort" /> and the attach call from
+///     <see cref="IProcessSelectionPort" /> (CheatEngine.SDK operations). Local metadata comes from the base class
+///     library: it describes local processes only and never a CEServer or file-as-process target.
 /// </remarks>
 internal interface IProcessHost
 {
-	/// <summary>Asks Cheat Engine to open (attach to) a process; this also resets Cheat Engine's configured pointer size.</summary>
-	public void OpenProcess(long processId);
-
 	public bool TryGetLocalProcess(int processId, out LocalProcessInfo process);
 
 	public IReadOnlyList<LocalProcessInfo> GetLocalProcesses();

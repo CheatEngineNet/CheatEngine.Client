@@ -12,7 +12,9 @@ namespace CheatEngine.Client.Processes;
 ///     <para>
 ///         Cheat Engine's selected target is ambient: a session that holds a process identifier does not stop the user,
 ///         another plugin or a script from selecting another process. The checks of this client (CheatEngine.SDK's
-///         PID-bracketed observation, selection epoch) reduce that risk; they are not transactions.
+///         PID-bracketed observation, the process incarnation, the selection epoch) reduce that risk; they are not
+///         transactions. Like CheatEngine.SDK, this client cannot see a selection that changed and changed back between
+///         two observations (A-B-A): only a later observation of another PID or incarnation advances the epoch.
 ///     </para>
 ///     <para>
 ///         Every observation is a read-only CheatEngine.SDK 2.0.0 operation that reads the selected process identifier
@@ -20,7 +22,12 @@ namespace CheatEngine.Client.Processes;
 ///         Cheat Engine reports the same ISA family, width and pointer size as an x64 target. The ISA is the SDK's
 ///         derivation from Cheat Engine's x86 and ARM family facts together with its 64-bit fact, never from the 64-bit
 ///         fact alone; the process width is the observed bitness. A file opened as a process has no process identity.
-///         This client reads no target-identity evidence, so it does not detect identifier reuse by another process.
+///     </para>
+///     <para>
+///         For a local process the selection identity also includes its incarnation: the PID and the creation time that
+///         CheatEngine.SDK observed together with the local backend. When the same PID denotes another process (a
+///         different creation time), the selection epoch advances. A CEServer target or a target whose backend is not
+///         established has no local incarnation and never receives local operating-system metadata.
 ///     </para>
 /// </remarks>
 public interface IProcessClient
@@ -46,8 +53,8 @@ public interface IProcessClient
 	public ProcessSnapshot GetCurrent(CancellationToken cancellationToken = default);
 
 	/// <summary>
-	///     Re-reads Cheat Engine's selected target and advances the selection epoch when its PID changed, or when its
-	///     observed ISA or process width changed from one known value to another.
+	///     Re-reads Cheat Engine's selected target and advances the selection epoch when its PID or its local incarnation
+	///     changed, or when its observed backend, ISA or process width changed from one known value to another.
 	/// </summary>
 	/// <remarks>
 	///     Returns <see cref="CheatEngineFailureKind.TargetNotAttached" /> and invalidates an observed selection when
@@ -66,9 +73,24 @@ public interface IProcessClient
 
 	/// <summary>Tries to attach Cheat Engine to an explicit process identifier and verifies the selected target.</summary>
 	/// <remarks>
-	///     Attaching resets Cheat Engine's configured pointer size to the target default, so an attach silently undoes an
-	///     earlier pointer-size override. A fault of Cheat Engine's attach call is returned with
-	///     <see cref="CheatEngineHostEffect.Unknown" />; exceptions otherwise follow <see cref="TryGetCurrent" />.
+	///     <para>
+	///         The attach is CheatEngine.SDK's <c>SelectAndObserve</c>: Cheat Engine's selection call, then the selected
+	///         process identifier read again; a normal return of the call is not success by itself. A refused attach keeps
+	///         the SDK status as its kind, with <see cref="CheatEngineHostEffect.Unknown" />:
+	///         <see cref="CheatEngineFailureKind.OperationRejected" /> when Cheat Engine did not confirm the requested
+	///         process, <see cref="CheatEngineFailureKind.TargetNotAttached" /> when it then reported no target,
+	///         <see cref="CheatEngineFailureKind.TargetIdentityUnavailable" /> for a file opened as a process,
+	///         <see cref="CheatEngineFailureKind.TargetChanged" /> when the selection changed again before it was observed,
+	///         and <see cref="CheatEngineFailureKind.CapabilityUnavailable" />,
+	///         <see cref="CheatEngineFailureKind.LuaError" /> or <see cref="CheatEngineFailureKind.InvalidHostResult" /> for
+	///         an absent, raising or malformed global. The selection is observed again after a refusal, so the selection
+	///         epoch follows whatever Cheat Engine now selects.
+	///     </para>
+	///     <para>
+	///         Attaching resets Cheat Engine's configured pointer size to the target default, so an attach silently undoes
+	///         an earlier pointer-size override. A fault of the attach call is returned with
+	///         <see cref="CheatEngineHostEffect.Unknown" />; exceptions otherwise follow <see cref="TryGetCurrent" />.
+	///     </para>
 	/// </remarks>
 	public bool TryAttach(TargetProcessId processId, out ProcessSnapshot snapshot,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default);

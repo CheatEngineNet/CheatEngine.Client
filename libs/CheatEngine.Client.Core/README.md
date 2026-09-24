@@ -117,8 +117,9 @@ tuple it was produced with). A build that cannot embed that identity fails with
 
 Every runtime and target fact is a read-only CheatEngine.SDK 2.0.0 operation, called through
 `SdkRuntimeObservationPort`: `RuntimeObservations.TryObserveRuntimeInfo` for the snapshot,
-`RuntimeHostOperations` for the host facts and `RuntimeProcessOperations` (`ObserveCurrent`,
-`ObserveTargetArchitecture`, `TryGetConfiguredPointerSize`) for the target. A snapshot never loads a
+`RuntimeHostOperations` for the host facts, `RuntimeProcessOperations` (`ObserveCurrent`,
+`ObserveTargetArchitecture`, `TryGetConfiguredPointerSize`) for the target and `TargetSelection`
+(`ObserveCurrent`, `ValidateCurrent`) for its identity. A snapshot never loads a
 driver, runs remote code, changes the target, loads a table or allocates target memory; the
 architecture ratchet keeps the port to that exact read-only list (Q45). The SDK reads the selected
 process identifier before and after the target facts and reads none of them when no target, or a
@@ -137,11 +138,25 @@ keeps only when two selected-PID reads agree; the ISA, the backend and the ABI t
 `TargetIdentityUnavailable` for a file opened as a process, `CapabilityUnavailable` for an absent
 global, `LuaError`, `InvalidHostResult`.
 
-Cheat Engine's selected target is ambient. `ProcessClient` advances the target-selection epoch,
-and releases target-bound leases, when the PID changes, when a known ISA or process width changes
-to another known value, or when Cheat Engine reports no target or a file opened as a process; a
-fact that is transiently unknown keeps the epoch and the last known value. Local process name and
-path come from the operating system and describe local processes only.
+The one call that changes Cheat Engine's selection is `RuntimeProcessOperations.SelectAndObserve`,
+behind `SdkProcessSelectionPort`, and `ProcessClient.TryAttach` is its only caller (architecture
+ratchet). A normal return of `openProcess` is not success by itself: the SDK reads the selected PID
+again, and a refused attach keeps the SDK status as its kind (`OperationRejected` for an
+unconfirmed selection, `TargetNotAttached`, `TargetIdentityUnavailable`, `TargetChanged`,
+`CapabilityUnavailable`, `LuaError`, `InvalidHostResult`) with an `Unknown` host effect. The
+selection is observed again after a refusal, so the epoch follows what Cheat Engine now selects.
+
+Cheat Engine's selected target is ambient. For a local process the selection identity is the PID
+and its incarnation, the creation time CheatEngine.SDK observed together with the local backend; a
+known incarnation is checked with `TargetSelection.ValidateCurrent`. `ProcessClient` advances the
+target-selection epoch, and releases target-bound leases, when the PID changes, when the same PID
+denotes another incarnation, when a known backend, ISA or process width changes to another known
+value, or when Cheat Engine reports no target or a file opened as a process; a fact that is
+transiently unknown, including an incarnation that cannot be read, keeps the epoch and the last
+known value. Like the SDK, the Client cannot see a selection that changed and changed back between
+two observations (A-B-A). A CEServer target or a target whose backend is not established has no
+incarnation and no local metadata: local process name and path come from the operating system and
+describe local processes only.
 
 Codecs use the target bitness (`targetIs64Bit`, the width `readPointer` follows), never the plugin's
 own width. When the SDK reports that Cheat Engine's configured pointer size differs from the bitness
@@ -180,7 +195,7 @@ standard `Logging:LogLevel` filters select them:
 |---|---|---|---|
 | 1000 | Debug | `RuntimeSnapshotCaptured`: activation epoch, target architecture, process and configured pointer bytes, mismatch flag | `CheatEngine.Client.Runtime` |
 | 1001 | Debug | `CapabilityRefused`: capability id, operation, gate, gate state; once per capability and operation per activation | `CheatEngine.Client.Runtime` |
-| 1100 | Debug | `TargetSelectionAdvanced`: activation and selection epochs, operation, reason (`PidChanged`, `ArchitectureChanged`, `WidthChanged`, `TargetDetached`) | `CheatEngine.Client.Processes` |
+| 1100 | Debug | `TargetSelectionAdvanced`: activation and selection epochs, operation, reason (`PidChanged`, `ProcessReused`, `BackendChanged`, `ArchitectureChanged`, `WidthChanged`, `TargetDetached`) | `CheatEngine.Client.Processes` |
 | 1200 | Information | `PointerWidthMismatchRefused`: operation, process and configured pointer bytes | `CheatEngine.Client.Memory` |
 | 1201 | Debug | `MemoryBatchCompleted`: operation, requested and completed counts, effect state | `CheatEngine.Client.Memory` |
 | 1300 | Debug | `TableGenerationAdvanced`: activation epoch, table generation | `CheatEngine.Client.Tables` |

@@ -1,4 +1,6 @@
 using CheatEngine.Client.Core.Domains;
+using CheatEngine.Client.Core.Tests.TestSupport;
+using CheatEngine.SDK.Engine.Inspection;
 
 namespace CheatEngine.Client.Core.Tests.Domains;
 
@@ -18,7 +20,9 @@ public sealed class SdkRuntimeObservationPortTests
 		nameof(IRuntimeObservationPort.TryGetOperatingSystem),
 		nameof(ITargetObservationPort.ObserveCurrent),
 		nameof(ITargetObservationPort.ObserveTargetArchitecture),
-		nameof(ITargetObservationPort.TryGetConfiguredPointerSize)
+		nameof(ITargetObservationPort.TryGetConfiguredPointerSize),
+		nameof(IRuntimeObservationPort.ObserveSelection),
+		nameof(IRuntimeObservationPort.ValidateSelection)
 	];
 
 	[Theory]
@@ -40,10 +44,22 @@ public sealed class SdkRuntimeObservationPortTests
 			nameof(ITargetObservationPort.ObserveTargetArchitecture) => () => port.ObserveTargetArchitecture(out _),
 			nameof(ITargetObservationPort.TryGetConfiguredPointerSize) => () =>
 				port.TryGetConfiguredPointerSize(out _, out _),
+			nameof(IRuntimeObservationPort.ObserveSelection) => () => port.ObserveSelection(),
+			nameof(IRuntimeObservationPort.ValidateSelection) => () =>
+				port.ValidateSelection(TargetObservations.Incarnation(42, 1_000)),
 			_ => throw new ArgumentOutOfRangeException(nameof(member), member, null)
 		};
 
 		Assert.Throws<InvalidOperationException>(observe);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q30.a")]
+	public void TheSelectionPortRequiresAnEnabledPluginContext()
+	{
+		// The one call that changes Cheat Engine's selection is refused before openProcess runs.
+		Assert.Throws<InvalidOperationException>(() =>
+			SdkProcessSelectionPort.Instance.SelectAndObserve(new TargetProcessId(42), out _));
 	}
 
 	[Fact]

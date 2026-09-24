@@ -23,6 +23,7 @@ using CheatEngine.SDK.Engine.Processes;
 using CheatEngine.SDK.Engine.Runtime;
 using CheatEngine.SDK.Engine.Scanning.Aob;
 using CheatEngine.SDK.Engine.Scanning.Values;
+using CheatEngine.SDK.Engine.Targets;
 using CheatEngine.SDK.Engine.Values;
 using CheatEngine.SDK.Lua.Calls;
 using CheatEngine.SDK.Lua.Runtime;
@@ -132,7 +133,7 @@ public sealed class TryContractTests
 				.TryExecute(new LuaScript("return 1"), out _, cancelled),
 			"UnavailableCapability" => () => new UnavailableAllocationClient(lifetime)
 				.TryAllocate(new TargetAllocationRequest(4096), out _, out _, cancelled),
-			"Processes" => () => new ProcessClient(dispatcher, ports, ports, lifetime)
+			"Processes" => () => new ProcessClient(dispatcher, ports, ports, ports, lifetime)
 				.TryGetCurrent(out _, out _, cancelled),
 			"Runtime" => () => new RuntimeClient(dispatcher, ports, static () => 1).TryGetSnapshot(out _, out _, cancelled),
 			_ => throw new ArgumentOutOfRangeException(nameof(family), family, null)
@@ -198,10 +199,10 @@ public sealed class TryContractTests
 				]),
 				static (client, request, t) => (client.TryWritePrimitiveBatch(request, out CheatEngineFailure f, t), f),
 				static (client, request, t) => client.WritePrimitiveBatch(request, t), token),
-			"Processes.GetCurrent" => Run(new ProcessClient(dispatcher, ports, ports, lifetime), 0,
+			"Processes.GetCurrent" => Run(new ProcessClient(dispatcher, ports, ports, ports, lifetime), 0,
 				static (client, _, t) => (client.TryGetCurrent(out ProcessSnapshot _, out CheatEngineFailure f, t), f),
 				static (client, _, t) => client.GetCurrent(t), token),
-			"Processes.Attach" => Run(new ProcessClient(dispatcher, ports, ports, lifetime), new TargetProcessId(43),
+			"Processes.Attach" => Run(new ProcessClient(dispatcher, ports, ports, ports, lifetime), new TargetProcessId(43),
 				static (client, processId, t) => (client.TryAttach(processId, out _, out CheatEngineFailure f, t), f),
 				static (client, processId, t) => client.Attach(processId, t), token),
 			"Runtime.GetSnapshot" => Run(new RuntimeClient(dispatcher, ports, static () => 1), 0,
@@ -451,7 +452,7 @@ public sealed class TryContractTests
 				(new LuaClient(dispatcher, lifetime).TryExecute(new ConstantOperation(), out _,
 					out CheatEngineFailure f, cancelled), f)),
 			"ProcessesAttachExactNameCancellation" => TryFailure(() =>
-				(new ProcessClient(dispatcher, ports, ports, lifetime).TryAttachExactName("fixture.exe", out _,
+				(new ProcessClient(dispatcher, ports, ports, ports, lifetime).TryAttachExactName("fixture.exe", out _,
 					out CheatEngineFailure f, cancelled), f)),
 			_ => throw new ArgumentOutOfRangeException(nameof(refusal), refusal, null)
 		};
@@ -481,7 +482,7 @@ public sealed class TryContractTests
 		MemoryClient memory = new(dispatcher, lifetime, ports);
 		TableClient tables = new(dispatcher, CoreClientPolicy.SafeDefaults, ports, lifetime, ports);
 		LuaClient lua = new(dispatcher, lifetime);
-		ProcessClient processes = new(dispatcher, ports, ports, lifetime);
+		ProcessClient processes = new(dispatcher, ports, ports, ports, lifetime);
 		RuntimeClient runtime = new(dispatcher, ports, static () => 1);
 		CancellationToken cancelled = new(true);
 
@@ -626,7 +627,7 @@ public sealed class TryContractTests
 	/// <summary>One fake for every Core port; each call throws the configured SDK fault unless configured otherwise.</summary>
 	private sealed class ThrowingPorts(Exception fault)
 		: IAobScanPort, IInspectionPort, ITableRecordLookupPort, ITableRecordMutationPort, IMemoryCodecContextPort,
-			IRuntimeObservationPort, IProcessHost
+			IRuntimeObservationPort, IProcessSelectionPort, IProcessHost
 	{
 		private int _writes;
 
@@ -830,7 +831,18 @@ public sealed class TryContractTests
 			throw Fault();
 		}
 
-		public void OpenProcess(long processId)
+		public TargetSelectionFacts ObserveSelection()
+		{
+			throw Fault();
+		}
+
+		public TargetIdentityFacts ValidateSelection(TargetProcessIncarnation expected)
+		{
+			throw Fault();
+		}
+
+		public ProcessOperationStatus SelectAndObserve(TargetProcessId processId,
+			out CurrentProcessObservation observation)
 		{
 			throw Fault();
 		}

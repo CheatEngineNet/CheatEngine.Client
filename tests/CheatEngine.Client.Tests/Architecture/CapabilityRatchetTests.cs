@@ -8,8 +8,9 @@ namespace CheatEngine.Client.Tests.Architecture;
 
 /// <summary>
 ///     C0 capability ratchets (audit ADR-09, ADR-09a, A17-19, A17-20, SRC02-08): runtime and target observations call
-///     only read-only CheatEngine.SDK operations, and contract-only domains stay unavailable on the CheatEngine.SDK major
-///     the Client supports (<c>_CheatEngineClientSupportedSdkMajor</c> in <c>eng/CheatEngineSdk.props</c>).
+///     only read-only CheatEngine.SDK operations, the one selection call is reachable only from
+///     <c>ProcessClient.TryAttach</c>, and contract-only domains stay unavailable on the CheatEngine.SDK major the Client
+///     supports (<c>_CheatEngineClientSupportedSdkMajor</c> in <c>eng/CheatEngineSdk.props</c>).
 /// </summary>
 /// <remarks>Everything is read from the compiled Client assemblies; no Client code runs.</remarks>
 public sealed class CapabilityRatchetTests
@@ -19,6 +20,14 @@ public sealed class CapabilityRatchetTests
 	private const string ClientLuaGlobalsType = "CheatEngine.Client.Core.Infrastructure.ClientLuaGlobals";
 
 	private const string ObservationPortType = "CheatEngine.Client.Core.Domains.SdkRuntimeObservationPort";
+
+	private const string SelectionPortType = "CheatEngine.Client.Core.Domains.SdkProcessSelectionPort";
+
+	private const string SelectionPortInterface = "CheatEngine.Client.Core.Domains.IProcessSelectionPort";
+
+	private const string ProcessClientType = "CheatEngine.Client.Core.Domains.ProcessClient";
+
+	private const string SelectAndObserve = "RuntimeProcessOperations::SelectAndObserve";
 
 	private const string CheatTableFilesType = "CheatEngine.SDK.Engine.Tables.CheatTableFiles";
 
@@ -45,12 +54,13 @@ public sealed class CapabilityRatchetTests
 		"RuntimeObservations::TryObserveRuntimeInfo",
 		"RuntimeProcessOperations::ObserveCurrent",
 		"RuntimeProcessOperations::ObserveTargetArchitecture",
-		"RuntimeProcessOperations::TryGetConfiguredPointerSize"
+		"RuntimeProcessOperations::TryGetConfiguredPointerSize",
+		"TargetSelection::ObserveCurrent",
+		"TargetSelection::ValidateCurrent"
 	];
 
-	/// <summary>Bindings with a host effect: attach, table import/export and symbol registration.</summary>
-	private static readonly string[] MutatingGlobals =
-		["LoadTable", "OpenProcess", "RegisterSymbol", "SaveTable", "UnregisterSymbol"];
+	/// <summary>Bindings with a host effect: table import/export and symbol registration.</summary>
+	private static readonly string[] MutatingGlobals = ["LoadTable", "RegisterSymbol", "SaveTable", "UnregisterSymbol"];
 
 	/// <summary>Types that observe the runtime and must never reach a binding or an SDK operation with a host effect.</summary>
 	private static readonly string[] ObservationOnlyTypes =
@@ -81,8 +91,19 @@ public sealed class CapabilityRatchetTests
 				.Distinct(StringComparer.Ordinal)
 				.Order(StringComparer.Ordinal)
 		];
-		string[] outsideThePort = [.. runtimeCalls.Where(static call => !call.StartsWith(ObservationPortType + ".",
-			StringComparison.Ordinal))];
+		string[] outsideThePorts =
+		[
+			.. sdkCalls.Where(static call => RuntimeOperationTypes.Contains(call.DeclaringType, StringComparer.Ordinal) &&
+											 call.OuterType != ObservationPortType &&
+											 !(call.OuterType == SelectionPortType && call.Operation == SelectAndObserve))
+				.Select(static call => call.ToString())
+		];
+		string[] selectionPortOperations =
+		[
+			.. sdkCalls.Where(static call => call.OuterType == SelectionPortType)
+				.Select(static call => call.Operation)
+				.Distinct(StringComparer.Ordinal)
+		];
 		string[] tableCalls =
 		[
 			.. sdkCalls.Where(static call => ObservationOnlyTypes.Contains(call.OuterType, StringComparer.Ordinal) &&
@@ -102,17 +123,54 @@ public sealed class CapabilityRatchetTests
 		Assert.True(ReadOnlySdkOperations.SequenceEqual(portOperations, StringComparer.Ordinal),
 			"The observation port calls SDK operations outside the read-only allowlist, or no longer calls one of " +
 			"them (Q45):" + Environment.NewLine + string.Join(Environment.NewLine, portOperations));
-		Assert.True(outsideThePort.Length == 0,
-			"Only the observation port may call a CheatEngine.SDK runtime or process operation:" + Environment.NewLine +
-			string.Join(Environment.NewLine, outsideThePort));
+		Assert.True(outsideThePorts.Length == 0,
+			"Only the observation port, and the selection port for SelectAndObserve, may call a CheatEngine.SDK runtime " +
+			"or process operation:" + Environment.NewLine + string.Join(Environment.NewLine, outsideThePorts));
+		Assert.Equal([SelectAndObserve], selectionPortOperations);
+		Assert.DoesNotContain(runtimeCalls, static call => call.Contains("::SelectAndObserve(", StringComparison.Ordinal) &&
+														   !call.StartsWith(SelectionPortType + ".", StringComparison.Ordinal));
 		Assert.True(tableCalls.Length == 0,
 			"An observation-only type references CheatTableFiles (Q45):" + Environment.NewLine +
 			string.Join(Environment.NewLine, tableCalls));
 		Assert.True(effectsFromObservers.Length == 0,
 			"An observation-only type references a binding with a host effect (Q45):" + Environment.NewLine +
 			string.Join(Environment.NewLine, effectsFromObservers));
-		Assert.Contains(bindingCalls, static call => call.Global == "OpenProcess" &&
-													 call.Type == "CheatEngine.Client.Core.Domains.LocalProcessHost");
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q45")]
+	public void SelectAndObserveIsReachableOnlyFromTryAttach()
+	{
+		// The one Cheat Engine call of the Processes domain that changes the selected target: every call to the
+		// selection port, through its interface or its production type, is in ProcessClient.TryAttach (its lambda or
+		// local function), so no observation can select a process.
+		List<(string Type, string Method)> callers = [];
+		ClientAssemblyCatalog.ReadMetadata(CoreAssembly, (reader, peReader) =>
+		{
+			foreach (MetadataSurface.IlReference reference in MetadataSurface.ReadIlReferences(reader, peReader))
+			{
+				if (reference.Token.Kind != HandleKind.MethodDefinition)
+				{
+					continue;
+				}
+
+				MethodDefinition target = reader.GetMethodDefinition((MethodDefinitionHandle) reference.Token);
+				string declaringType = MetadataSurface.ResolveTypeDefinition(reader, target.GetDeclaringType()).FullName;
+				if (reader.GetString(target.Name) == "SelectAndObserve" &&
+					declaringType is SelectionPortInterface or SelectionPortType)
+				{
+					callers.Add((reference.OuterType, reference.Method));
+				}
+			}
+		});
+
+		Assert.NotEmpty(callers);
+		Assert.All(callers, static caller =>
+		{
+			Assert.Equal(ProcessClientType, caller.Type);
+			Assert.True(caller.Method == "TryAttach" || caller.Method.StartsWith("<TryAttach>", StringComparison.Ordinal),
+				$"{caller.Type}.{caller.Method} calls SelectAndObserve outside TryAttach.");
+		});
 	}
 
 	[Fact]

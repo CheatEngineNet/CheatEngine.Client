@@ -176,8 +176,12 @@ successful no-match. On this route the indeterminate category is the accurate on
 
 Cheat Engine's selected target is ambient: `IProcessClient.Attach` changes Cheat Engine's global selection, and a
 snapshot or a session that holds a process identifier does not stop the user, another plugin or a script from selecting
-another process. `ProcessSnapshot.SelectionEpoch` and CheatEngine.SDK's PID-bracketed observation reduce that risk for
-Client-owned leases; they are not transactions. `ProcessSnapshot.Name` and `ExecutablePath` are optional local metadata from the
+another process. `ProcessSnapshot.SelectionEpoch`, CheatEngine.SDK's PID-bracketed observation and, for a local process,
+its incarnation (the PID and the creation time the SDK observed) reduce that risk for Client-owned leases; they are not
+transactions. The selection epoch advances when the same PID denotes another process, but neither the SDK nor the Client
+can see a selection that changed and changed back between two observations (A-B-A). `Attach` is CheatEngine.SDK's
+`SelectAndObserve`: a normal return of Cheat Engine's selection call is not success until the selected process
+identifier is read again. `ProcessSnapshot.Name` and `ExecutablePath` are optional local metadata from the
 operating system: they describe a local process only, never a CEServer target or a file opened as a process, and they do
 not prove liveness.
 
@@ -283,7 +287,7 @@ dispatch and between Client-managed steps.
 | Tables (`ITableClient`) | Dispatch admission; `Find` filters a copied snapshot | `NotStarted` (policy, invalid relationship, stale record identifier, activation of a record that was not found), `Started` (activation refused by the host or pending), `Completed` (`Find` cancelled after the snapshot, failed `Create` whose rollback was confirmed), `CleanupUnconfirmed` (record rollback not confirmed), `Unknown` (SDK fault, `loadTable` fault, indeterminate activation) | A failed `Create` destroys the partial record once and never retries; a refused activation can leave partial script effects; `loadTable` can execute table Lua |
 | Lua typed operations and modules (`ILuaClient`) | Dispatch admission | `NotStarted` (cancellation), otherwise the operation's own failure | Owned by the operation; operation exceptions are rethrown unchanged |
 | Unsafe Lua (`IUnsafeLuaClient`) | Dispatch admission | `NotStarted` (policy, or a Lua admission refused by CheatEngine.SDK), `Unknown` (SDK fault; the script may have run partially) | The script may have run partially before a Lua error |
-| Runtime and Processes (`ICheatEngineRuntime`, `IProcessClient`) | Dispatch admission; `AttachExactName` also observes it before the local process catalog (`NotStarted`) | `Completed` (CheatEngine.SDK reported a status that establishes no target: `TargetChanged`, `TargetIdentityUnavailable` for a file opened as a process, `CapabilityUnavailable`, `LuaError`, `InvalidHostResult`), `Unknown` (SDK fault, no selected target, a fault of the attach call) | A fact CheatEngine.SDK could not read stays `Unknown` in the snapshot instead of failing the call; `Attach` changes Cheat Engine's global selection |
+| Runtime and Processes (`ICheatEngineRuntime`, `IProcessClient`) | Dispatch admission; `AttachExactName` also observes it before the local process catalog (`NotStarted`) | `Completed` (CheatEngine.SDK reported a status that establishes no target: `TargetChanged`, `TargetIdentityUnavailable` for a file opened as a process, `CapabilityUnavailable`, `LuaError`, `InvalidHostResult`), `Unknown` (SDK fault, no selected target, an attach that CheatEngine.SDK refused or could not confirm) | A fact CheatEngine.SDK could not read stays `Unknown` in the snapshot instead of failing the call; `Attach` changes Cheat Engine's global selection |
 | Capability-gated domains (allocations, assembly) | Not applicable: no Cheat Engine work is dispatched | `NotStarted` (`CapabilityUnavailable` or `Cancelled`) | None |
 | Value scans (`IValueScanner`) | Not applicable: no Cheat Engine work is dispatched | Not yet reported (`Unknown`) | None; the refusal is the same `CapabilityUnavailable` or `Cancelled`, and reporting `NotStarted` here is scheduled with the other value-scan changes |
 
