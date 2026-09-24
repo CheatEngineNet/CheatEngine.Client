@@ -19,7 +19,9 @@ internal sealed class SdkAobScanPort : IAobScanPort
 		[NotNullWhen(true)] out IAobMatchList? matches)
 	{
 		matches = null;
-		if (!AobScanner.TryScan(pattern, options, out Owned<StringList>? owner))
+		// The SDK annotates the owner NotNullWhen(true); the guard keeps a contract break from reaching
+		// OwnershipHandoff.Adopt, whose ArgumentNullException would otherwise escape a Try method.
+		if (!AobScanner.TryScan(pattern, options, out Owned<StringList>? owner) || owner is null)
 		{
 			return AobScanHostStatus.NoResultList;
 		}

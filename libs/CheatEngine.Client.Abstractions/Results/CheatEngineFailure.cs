@@ -20,32 +20,22 @@ namespace CheatEngine.Client.Results;
 /// </remarks>
 public readonly record struct CheatEngineFailure
 {
-	/// <summary>Creates a failure while retaining an optional SDK exception for diagnostics.</summary>
-	/// <remarks>
-	///     The <see cref="HostEffect" /> of a failure created by this constructor is
-	///     <see cref="CheatEngineHostEffect.Unknown" />.
-	/// </remarks>
-	/// <param name="kind">The stable failure category.</param>
-	/// <param name="operation">The Client operation that failed, for example <c>Patterns.Scan</c>.</param>
-	/// <param name="message">A human-readable diagnostic message; it may contain user data.</param>
-	/// <param name="exception">The originating exception, if any; it may contain user data.</param>
-	public CheatEngineFailure(CheatEngineFailureKind kind, string operation, string message, Exception? exception)
-		: this(kind, operation, message, exception, CheatEngineHostEffect.Unknown)
-	{
-	}
+	private readonly string? _message;
+	private readonly string? _operation;
 
-	/// <summary>Creates a failure that also states the known Cheat Engine side effect of the failed operation.</summary>
+	/// <summary>Creates a failure that states its category, the failed operation and what is known of its host effect.</summary>
 	/// <param name="kind">The stable failure category.</param>
 	/// <param name="operation">The Client operation that failed, for example <c>Patterns.Scan</c>.</param>
 	/// <param name="message">A human-readable diagnostic message; it may contain user data.</param>
 	/// <param name="exception">The originating exception, if any; it may contain user data.</param>
-	/// <param name="hostEffect">What is known about the Cheat Engine side effect of the failed operation.</param>
-	/// <exception cref="ArgumentException"><paramref name="operation" /> or <paramref name="message" /> is empty.</exception>
+	/// <param name="hostEffect">
+	///     What is known about the Cheat Engine side effect of the failed operation; the conservative
+	///     <see cref="CheatEngineHostEffect.Unknown" /> when omitted.
+	/// </param>
+	/// <exception cref="ArgumentException">
+	///     <paramref name="operation" /> or <paramref name="message" /> is <see langword="null" />, empty or white space.
+	/// </exception>
 	/// <exception cref="ArgumentOutOfRangeException"><paramref name="hostEffect" /> is not a defined value.</exception>
-	/// <remarks>
-	///     The historical four-parameter overload remains for binary compatibility; the optional parameters moved to this
-	///     overload so that source calls with three arguments keep compiling (Roslyn public-API rule RS0027).
-	/// </remarks>
 	public CheatEngineFailure(CheatEngineFailureKind kind, string operation, string message,
 		Exception? exception = null, CheatEngineHostEffect hostEffect = CheatEngineHostEffect.Unknown)
 	{
@@ -58,30 +48,40 @@ public readonly record struct CheatEngineFailure
 		}
 
 		Kind = kind;
-		Operation = operation;
-		Message = message;
+		_operation = operation;
+		_message = message;
 		Exception = exception;
 		HostEffect = hostEffect;
 	}
 
 	/// <summary>Gets the stable failure category.</summary>
+	/// <remarks><see cref="CheatEngineFailureKind.Unknown" /> for the <see langword="default" /> value.</remarks>
 	public CheatEngineFailureKind Kind
 	{
 		get;
 	}
 
-	/// <summary>Gets the client operation that failed.</summary>
-	public string Operation
-	{
-		get;
-	}
+	/// <summary>Gets the Client operation that failed.</summary>
+	/// <remarks>Never <see langword="null" />: <see cref="string.Empty" /> for the <see langword="default" /> value.</remarks>
+	public string Operation => _operation ?? string.Empty;
 
 	/// <summary>Gets a human-readable diagnostic message.</summary>
-	/// <remarks>The message may contain user data (addresses, expressions, paths, Lua text); do not log it by default.</remarks>
-	public string Message
-	{
-		get;
-	}
+	/// <remarks>
+	///     The message may contain user data (addresses, expressions, paths, Lua text); do not log it by default. Its text
+	///     is not part of the contract and can change in any release. Never <see langword="null" />:
+	///     <see cref="string.Empty" /> for the <see langword="default" /> value.
+	/// </remarks>
+	public string Message => _message ?? string.Empty;
+
+	/// <summary>Gets whether this value is the <see langword="default" /> failure, which describes no failure.</summary>
+	/// <remarks>
+	///     No Client operation returns the <see langword="default" /> value as a failure: a <c>Try</c> method leaves its
+	///     <c>failure</c> output <see langword="default" /> only when it returns <see langword="true" />. Reading a
+	///     <see langword="default" /> value is safe: <see cref="Operation" /> and <see cref="Message" /> are empty,
+	///     <see cref="Kind" /> and <see cref="HostEffect" /> are <c>Unknown</c>, and <see cref="Exception" /> is
+	///     <see langword="null" />. Only <see cref="Throw(CancellationToken)" /> rejects it.
+	/// </remarks>
+	public bool IsDefault => _operation is null;
 
 	/// <summary>Gets the originating SDK exception when one exists.</summary>
 	/// <remarks>The exception may contain user data; do not log it by default.</remarks>
@@ -146,7 +146,7 @@ public readonly record struct CheatEngineFailure
 	[StackTraceHidden]
 	public readonly void Throw(CancellationToken cancellationToken = default)
 	{
-		if (Operation is null)
+		if (IsDefault)
 		{
 			throw new InvalidOperationException(
 				"A default CheatEngineFailure describes no failure and cannot be thrown.");
@@ -169,6 +169,6 @@ public readonly record struct CheatEngineFailure
 	/// <returns>A redaction-safe description that never contains <see cref="Message" /> or <see cref="Exception" />.</returns>
 	public override string ToString()
 	{
-		return $"{Kind} in {Operation ?? "<no operation>"} (host effect: {HostEffect})";
+		return $"{Kind} in {(IsDefault ? "<no operation>" : Operation)} (host effect: {HostEffect})";
 	}
 }

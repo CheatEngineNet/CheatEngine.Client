@@ -1,3 +1,5 @@
+using System.Reflection;
+
 using CheatEngine.Client.Results;
 
 namespace CheatEngine.Client.Abstractions.Tests.Results;
@@ -88,23 +90,70 @@ public sealed class CheatEngineFailureTests
 		Assert.Same(innerException, exception.InnerException);
 	}
 
-	/// <summary>Keeps the historical constructor conservative and round-trips an explicit host effect.</summary>
+	/// <summary>Omitting the host effect keeps it conservative, and an explicit host effect round-trips.</summary>
 	[Fact]
-	public void HostEffectDefaultsToUnknownAndRoundTripsThroughTheNewConstructor()
+	public void HostEffectDefaultsToUnknownAndRoundTripsThroughTheConstructor()
 	{
 		InvalidOperationException innerException = new("release failed");
 
-		CheatEngineFailure legacy = new(CheatEngineFailureKind.LuaError, "Lua.Execute", "Lua failed.");
+		CheatEngineFailure omitted = new(CheatEngineFailureKind.LuaError, "Lua.Execute", "Lua failed.");
 		CheatEngineFailure explicitEffect = new(CheatEngineFailureKind.InvalidState, "Patterns.Scan",
 			"The release was not confirmed.", innerException, CheatEngineHostEffect.CleanupUnconfirmed);
 
 		Assert.Equal(CheatEngineHostEffect.Unknown, default(CheatEngineFailure).HostEffect);
-		Assert.Equal(CheatEngineHostEffect.Unknown, legacy.HostEffect);
+		Assert.Equal(CheatEngineHostEffect.Unknown, omitted.HostEffect);
 		Assert.Equal(CheatEngineHostEffect.CleanupUnconfirmed, explicitEffect.HostEffect);
 		Assert.Equal(CheatEngineFailureKind.InvalidState, explicitEffect.Kind);
 		Assert.Same(innerException, explicitEffect.Exception);
 		Assert.NotEqual(explicitEffect, new CheatEngineFailure(explicitEffect.Kind, explicitEffect.Operation,
 			explicitEffect.Message, innerException, CheatEngineHostEffect.Completed));
+	}
+
+	/// <summary>The failure has exactly one public constructor, whose trailing parameters are optional.</summary>
+	[Fact]
+	public void FailureHasExactlyOneConstructor()
+	{
+		ConstructorInfo constructor = Assert.Single(typeof(CheatEngineFailure).GetConstructors());
+
+		Assert.Equal(["kind", "operation", "message", "exception", "hostEffect"],
+			constructor.GetParameters().Select(static parameter => parameter.Name));
+		Assert.Equal([false, false, false, true, true],
+			constructor.GetParameters().Select(static parameter => parameter.IsOptional));
+	}
+
+	/// <summary>A default failure is safe to read: its strings are empty, never null, and it reports itself as default.</summary>
+	[Fact]
+	public void DefaultFailureIsSafeToReadAndReportsItself()
+	{
+		CheatEngineFailure failure = default;
+
+		Assert.True(failure.IsDefault);
+		Assert.Equal(string.Empty, failure.Operation);
+		Assert.Equal(string.Empty, failure.Message);
+		Assert.Equal(CheatEngineFailureKind.Unknown, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.Unknown, failure.HostEffect);
+		Assert.Null(failure.Exception);
+		Assert.Equal("Unknown in <no operation> (host effect: Unknown)", failure.ToString());
+	}
+
+	/// <summary>Every constructed failure, even one of kind Unknown, is distinct from the default value.</summary>
+	[Fact]
+	public void ConstructedFailuresAreNeverDefault()
+	{
+		CheatEngineFailure unknown = new(CheatEngineFailureKind.Unknown, "Runtime.GetSnapshot", "Unclassified.");
+
+		Assert.False(unknown.IsDefault);
+		Assert.NotEqual(default, unknown);
+		Assert.Equal("Runtime.GetSnapshot", unknown.Operation);
+		Assert.Equal("Unclassified.", unknown.Message);
+	}
+
+	/// <summary>A null operation or message is rejected like an empty one.</summary>
+	[Fact]
+	public void ConstructorRejectsNullOperationOrMessage()
+	{
+		Assert.Throws<ArgumentNullException>(() => new CheatEngineFailure(CheatEngineFailureKind.Unknown, null!, "message"));
+		Assert.Throws<ArgumentNullException>(() => new CheatEngineFailure(CheatEngineFailureKind.Unknown, "Operation", null!));
 	}
 
 	/// <summary>Rejects a host effect outside the documented vocabulary instead of storing an unclassifiable value.</summary>

@@ -399,10 +399,10 @@ CheatEngine.Client.Results.CheatEngineClientLifecycleException.CheatEngineClient
 CheatEngine.Client.Results.CheatEngineFailure
 CheatEngine.Client.Results.CheatEngineFailure.CheatEngineFailure() -> void
 CheatEngine.Client.Results.CheatEngineFailure.CheatEngineFailure(CheatEngine.Client.Results.CheatEngineFailureKind kind, string! operation, string! message, System.Exception? exception = null, CheatEngine.Client.Results.CheatEngineHostEffect hostEffect = CheatEngine.Client.Results.CheatEngineHostEffect.Unknown) -> void
-CheatEngine.Client.Results.CheatEngineFailure.CheatEngineFailure(CheatEngine.Client.Results.CheatEngineFailureKind kind, string! operation, string! message, System.Exception? exception) -> void
 CheatEngine.Client.Results.CheatEngineFailure.Equals(CheatEngine.Client.Results.CheatEngineFailure other) -> bool
 CheatEngine.Client.Results.CheatEngineFailure.Exception.get -> System.Exception?
 CheatEngine.Client.Results.CheatEngineFailure.HostEffect.get -> CheatEngine.Client.Results.CheatEngineHostEffect
+CheatEngine.Client.Results.CheatEngineFailure.IsDefault.get -> bool
 CheatEngine.Client.Results.CheatEngineFailure.Kind.get -> CheatEngine.Client.Results.CheatEngineFailureKind
 CheatEngine.Client.Results.CheatEngineFailure.Message.get -> string!
 CheatEngine.Client.Results.CheatEngineFailure.Operation.get -> string!

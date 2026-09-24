@@ -244,6 +244,11 @@ A cancelled throwing call is therefore handled with `catch (OperationCanceledExc
 cancellation; read `CheatEngineOperationCanceledException.Failure.HostEffect` to learn whether Cheat Engine work had
 started. The `Try` form of the same call returns the same failure instead of throwing it.
 
+A `Try` method leaves its `failure` output `default` only when it returns `true`. The `default` failure is safe to
+read: `IsDefault` is `true`, `Operation` and `Message` are empty strings (never `null`), `Kind` and `HostEffect` are
+`Unknown`, and `Exception` is `null`. `CheatEngineFailure` has a single constructor,
+`(kind, operation, message, exception = null, hostEffect = Unknown)`, which rejects an empty operation or message.
+
 `CheatEngineFailure.HostEffect` states how far the Cheat Engine primitive got: `NotStarted`, `Started` (effects may
 persist), `Completed` (the primitive returned; the failure happened while Core copied or validated), `NotApplied` (the
 primitive returned its documented negative result, so nothing was applied), `CleanupUnconfirmed` (a resource or change
