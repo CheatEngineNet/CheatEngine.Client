@@ -41,7 +41,12 @@ read committed files: the project never builds, packs, restores or starts a proc
   condition (a push, a tag, this repository, a verified version), that `verify` receives the event name, so a
   `workflow_dispatch` started from a tag stays a dry run, and that no later job can run after them once they are
   skipped. `TheWriteTokenReachesOnlyTheStepsThatCallGitHub` proves that the `contents: write` token never reaches a
-  restore or test step.
+  restore or test step. The release chain tests (audit PKG-06 to PKG-08) prove that `finalize-release` reads and
+  publishes the draft with `gh release view` and `gh release edit`, then verifies the downloaded assets; that a re-run
+  deletes a stale draft with `gh release delete`; that `publish` checks every package and symbol package against
+  `SHA256SUMS` before it pushes the packages, then the symbols; that every `gh attestation verify` pins the signer
+  workflow, the tag and hosted runners; that `stage` writes the SBOMs and `SHA256SUMS` on dry runs without an OIDC
+  token; and that each workflow declares the seven package ids once, equal to the packable projects.
 - `Toolchain/ToolchainPinTests` keeps the build reproducible from the commit alone: `global.json` pins the exact .NET
   SDK (`rollForward: disable`, with an `errorMessage` naming the install command), `AnalysisLevel` is a numbered
   release rather than `latest`, and the NuGet audit policy blocks high and critical advisories in every build. The
