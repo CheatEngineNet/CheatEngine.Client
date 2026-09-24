@@ -174,10 +174,11 @@ exact host profile of the release; the documentation link of each diagnostic poi
   the Lua runtime that made it. After Cheat Engine selected another process, or when the process identifier names
   another process, the release is refused (`RefusedTargetChanged`) and nothing is freed in the new target: the Client
   never selects the old process again. A refused or unconfirmed release sets `RequiresManualRecovery`, keeps
-  `Address` and `Size` readable, is never retried, and is reported when the plugin is disabled. The lease is released
-  when Cheat Engine selects another process and before the plugin is disabled. When Cheat Engine allocated but no lease
-  could be published, the one compensating release is reported: `CleanupUnconfirmed`, with the address in the failure
-  message, when it was not confirmed.
+  `Address` and `Size` readable, is never retried, and is reported when the plugin is disabled. A release that cannot
+  begin because CheatEngine.SDK detached is `CleanupUnavailable`: it frees nothing, is reported at deactivation too,
+  and does not set `RequiresManualRecovery`. The lease is released when Cheat Engine selects another process and before
+  the plugin is disabled. When Cheat Engine allocated but no lease could be published, the one compensating release is
+  reported: `CleanupUnconfirmed`, with the address in the failure message, when it was not confirmed.
 - **Executable memory:** `AllocationProtection.ExecuteReadWrite` needs no opt-in beyond this diagnostic. The allocation
   itself runs nothing; what the application writes into it, and executes, is its own responsibility.
 - **Known limits:** Cheat Engine may round the size up to its page size and may allocate away from the preferred

@@ -27,6 +27,13 @@ namespace CheatEngine.Client.Allocations;
 ///         <see cref="Address" /> and <see cref="Size" /> stay readable.
 ///     </para>
 ///     <para>
+///         A release that cannot begin because CheatEngine.SDK detached its runtime is
+///         <see cref="LeaseReleaseKind.CleanupUnavailable" />: nothing was freed and CheatEngine.SDK consumed the
+///         owner, yet <see cref="RequiresManualRecovery" /> and <see cref="ICheatEngineLease.IsReleased" /> stay
+///         <see langword="false" />. The lease stays registered, so the deactivation report carries it; retrying the
+///         release frees nothing.
+///     </para>
+///     <para>
 ///         The lease belongs to the activation and to its target selection: selecting another process releases it
 ///         (which is then refused, as above), and so does disabling the plugin. Do not cache or pool allocations across
 ///         selections.
@@ -60,10 +67,11 @@ public interface ITargetMemoryLease : ICheatEngineLease
 	}
 
 	/// <summary>
-	///     Gets whether the release ended without freeing the allocation, which may remain in the target until the
-	///     application frees it by other means or the process ends: the value of
-	///     <see cref="LeaseReleaseOutcome.RequiresManualRecovery" /> of <see cref="ICheatEngineLease.LastReleaseOutcome" />,
-	///     and <see langword="false" /> before any release.
+	///     Gets <see cref="LeaseReleaseOutcome.RequiresManualRecovery" /> of
+	///     <see cref="ICheatEngineLease.LastReleaseOutcome" />: whether the last release ended, refused or unconfirmed,
+	///     with an allocation that may remain in the target until the application frees it by other means or the process
+	///     ends. It is <see langword="false" /> before any release, after a confirmed release, and after a release that
+	///     could not begin (<see cref="LeaseReleaseKind.CleanupUnavailable" />), which frees nothing either.
 	/// </summary>
 	public bool RequiresManualRecovery
 	{

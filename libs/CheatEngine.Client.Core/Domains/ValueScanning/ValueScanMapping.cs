@@ -255,6 +255,12 @@ internal static class ValueScanMapping
 	///     or <see cref="CheatEngineFailureKind.RuntimeChanged" /> when the release was refused for that reason, otherwise
 	///     <see cref="CheatEngineFailureKind.InvalidState" />; always <see cref="CheatEngineHostEffect.NotStarted" />.
 	/// </returns>
+	/// <remarks>
+	///     CheatEngine.SDK 2.0.0 reports a session released after a change of the Lua runtime as <c>NotInvoked</c>
+	///     (<see cref="LeaseReleaseKind.CleanupUnavailable" />), so such a session reports
+	///     <see cref="CheatEngineFailureKind.InvalidState" />; the <see cref="LeaseReleaseKind.RefusedRuntimeChanged" /> arm
+	///     keeps the mapping total over the lease vocabulary.
+	/// </remarks>
 	internal static CheatEngineFailure Released(string operation, LeaseReleaseOutcome? outcome)
 	{
 		CheatEngineFailureKind kind = outcome?.Kind switch

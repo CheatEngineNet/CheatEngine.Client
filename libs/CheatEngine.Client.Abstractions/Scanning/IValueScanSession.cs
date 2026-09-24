@@ -45,8 +45,17 @@ namespace CheatEngine.Client.Scanning;
 ///     </para>
 ///     <para>
 ///         <b>Release.</b> <see cref="ICheatEngineLease.Release" /> destroys the found list, then the scanner, on Cheat
-///         Engine's main thread, and reports the worse of the two outcomes. CheatEngine.SDK refuses to destroy them
-///         through another target or Lua runtime: the release then reports the refusal, which requires manual recovery.
+///         Engine's main thread, and reports the worse of the two outcomes; a scan that may still run is asked to stop
+///         first, and a stop that Cheat Engine did not confirm is <see cref="LeaseReleaseKind.CleanupUnconfirmed" />.
+///         CheatEngine.SDK never destroys them through another target: after a target change it refuses the release
+///         before any Cheat Engine call (<see cref="LeaseReleaseKind.RefusedTargetChanged" /> or
+///         <see cref="LeaseReleaseKind.RefusedTargetIdentityUnavailable" />), which requires manual recovery. After a
+///         change of the Lua runtime, or when the target was never checked, CheatEngine.SDK consumes the session without
+///         any Cheat Engine call and reports a release that could not begin: the outcome is
+///         <see cref="LeaseReleaseKind.CleanupUnavailable" />, <see cref="ICheatEngineLease.IsReleased" /> stays
+///         <see langword="false" /> while <see cref="State" /> is <see cref="ValueScanSessionState.Released" />, and the
+///         lease stays registered so that the deactivation report carries it. Retrying that release destroys nothing,
+///         since CheatEngine.SDK no longer owns the objects.
 ///     </para>
 /// </remarks>
 [Experimental(ClientExperimentalDiagnostics.ValueScans, UrlFormat = ClientExperimentalDiagnostics.UrlFormat)]
