@@ -91,6 +91,7 @@ public sealed class LiveSessionS2Tests(LiveQualificationFixture fixture)
 [Collection(LiveQualificationSerialGroup.Name)]
 [Trait("Category", "LiveQualification")]
 [Trait("Session", "S3")]
+[Trait("Qualification", "Q26")]
 [Trait("Qualification", "Q28")]
 [Trait("Qualification", "Q30.a")]
 [Trait("Qualification", "Q30.b")]

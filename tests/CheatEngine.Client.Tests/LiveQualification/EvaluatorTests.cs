@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Runtime.Versioning;
 using System.Text;
 
@@ -94,6 +95,60 @@ public sealed class EvaluatorTests
 			"""{"lease":{"released":true,"requiresManualRecovery":true},"lastRelease":{"kind":"RefusedTargetChanged"}}"""))).Status);
 		Assert.Equal(ReceiptStatus.Failed, check.Evaluate(Evidence(("allocation-state-on-b",
 			"""{"lease":{"released":true,"requiresManualRecovery":false},"lastRelease":{"kind":"Released"}}"""))).Status);
+	}
+
+	[Theory]
+	[InlineData(4243, 2, true)]
+	[InlineData(4242, 2, false)]
+	[InlineData(4243, 1, false)]
+	[InlineData(4243, 3, false)]
+	public void ATargetSwitchReportsTheSelectedProcessWithALaterEpoch(int processOnB, int epochOnB, bool passes)
+	{
+		QualificationCheck check = Check("Q32", "S3", "target-change-observed");
+		static string Runtime(int processId, int epoch)
+		{
+			return "{\"ok\":true,\"process\":{\"processId\":" + processId.ToString(CultureInfo.InvariantCulture) +
+				   ",\"selectionEpoch\":" + epoch.ToString(CultureInfo.InvariantCulture) + "}}";
+		}
+
+		CheckResult result = check.Evaluate(Evidence(("opened-process-a", "4242"), ("runtime-on-a", Runtime(4242, 1)),
+			("opened-process-b", "4243"), ("runtime-on-b", Runtime(processOnB, epochOnB)),
+			("opened-process-a-again", "4242"), ("runtime-back-on-a", Runtime(4242, 3))));
+
+		Assert.Equal(passes ? ReceiptStatus.Passed : ReceiptStatus.Failed, result.Status);
+		Assert.Contains("opened-process-b=4243: runtime-on-b process " + processOnB.ToString(CultureInfo.InvariantCulture),
+			result.Observation, StringComparison.Ordinal);
+		Assert.Equal(ReceiptStatus.NotExecuted, check.Evaluate(Evidence(("opened-process-a", "4242"),
+			("runtime-on-a", Runtime(4242, 1)))).Status);
+	}
+
+	[Fact]
+	public void ALeaseEndedByATargetChangeIsNeverReleasedOnTheOtherProcess()
+	{
+		const string Ended = """{"ok":true,"session":{"state":"Released","released":true},"lastRelease":{"kind":"RefusedTargetChanged","requiresManualRecovery":true}}""";
+		const string ReleasedOnB = """{"ok":true,"release":{"kind":"RefusedTargetChanged","hostEffect":"NotStarted"},"lastRelease":{"kind":"RefusedTargetChanged","requiresManualRecovery":true}}""";
+		const string FreedOnB = """{"ok":true,"release":{"kind":"Released","hostEffect":"NotStarted"},"lastRelease":{"kind":"RefusedTargetChanged","requiresManualRecovery":true}}""";
+		const string AllocationReleasedOnB = """{"ok":true,"releasedBefore":true,"release":{"kind":"RefusedTargetChanged","hostEffect":"NotStarted"},"requiresManualRecovery":true}""";
+		const string AllocationFreedOnB = """{"ok":true,"releasedBefore":false,"release":{"kind":"Released","hostEffect":"Completed"},"requiresManualRecovery":false}""";
+
+		Assert.Equal(ReceiptStatus.Passed, Check("Q26", "S3", "refused-after-target-change")
+			.Evaluate(Evidence(("value-scan-state-on-b", Ended))).Status);
+		Assert.Equal(ReceiptStatus.Failed, Check("Q26", "S3", "refused-after-target-change")
+			.Evaluate(Evidence(("value-scan-state-on-b", Ended.Replace("RefusedTargetChanged", "Released", StringComparison.Ordinal)))).Status);
+		Assert.Equal(ReceiptStatus.Passed, Check("Q26", "S3", "nothing-released-on-b")
+			.Evaluate(Evidence(("value-scan-release-on-b", ReleasedOnB))).Status);
+		Assert.Equal(ReceiptStatus.Failed, Check("Q26", "S3", "nothing-released-on-b")
+			.Evaluate(Evidence(("value-scan-release-on-b", FreedOnB))).Status);
+		Assert.Equal(ReceiptStatus.Passed, Check("Q35", "S3", "nothing-disabled-on-b")
+			.Evaluate(Evidence(("aa-release-on-b", ReleasedOnB))).Status);
+		Assert.Equal(ReceiptStatus.Failed, Check("Q35", "S3", "nothing-disabled-on-b")
+			.Evaluate(Evidence(("aa-release-on-b", ReleasedOnB.Replace("NotStarted", "Completed", StringComparison.Ordinal)))).Status);
+		Assert.Equal(ReceiptStatus.Passed, Check("Q30.a", "S3", "nothing-freed-on-b")
+			.Evaluate(Evidence(("allocation-release-on-b", AllocationReleasedOnB))).Status);
+		Assert.Equal(ReceiptStatus.Failed, Check("Q30.a", "S3", "nothing-freed-on-b")
+			.Evaluate(Evidence(("allocation-release-on-b", AllocationFreedOnB))).Status);
+		Assert.Equal(ReceiptStatus.Passed, Check("Q26", "S3", "file-as-process-refused").Evaluate(Evidence(("value-scan-unidentified",
+			"""{"ok":true,"created":false,"failure":{"kind":"TargetIdentityUnavailable","hostEffect":"NotStarted"}}"""))).Status);
 	}
 
 	[Fact]

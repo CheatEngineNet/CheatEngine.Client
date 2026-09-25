@@ -120,6 +120,13 @@ internal sealed record SessionEvidence(
 		return false;
 	}
 
+	/// <summary>The plain value of a driver step, or the result that says why it cannot be used.</summary>
+	internal bool TryValue(string step, [NotNullWhen(true)] out string? value, out CheckResult notUsable)
+	{
+		value = TryRecord(step, out TranscriptRecord? record, out notUsable) ? record.Value : null;
+		return value is not null;
+	}
+
 	/// <summary>The plain value of a driver step (a Lua setup or check step).</summary>
 	internal CheckResult Value(string step, Func<string, bool> passes)
 	{

@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Runtime.Versioning;
+using System.Text.Json;
 
 namespace CheatEngine.Client.Tests.LiveQualification;
 
@@ -95,6 +96,9 @@ internal static class ScenarioEvaluators
 			Add("Q09", session, "independent-disable", "disabling Plugin A leaves Plugin B answering",
 				static evidence => evidence.AfterOperator(["toggle-disable-a"],
 					() => evidence.Value("b-ping-after-a-disabled", static value => long.TryParse(value, CultureInfo.InvariantCulture, out _))));
+			Add("Q09", session, "b-disables-alone", "Plugin B then disables on its own: its functions are gone",
+				static evidence => evidence.AfterOperator(["toggle-disable-b"],
+					() => evidence.Value("toggle-disable-b", static value => value == "disabled")));
 
 			// Q10: a CheatEngine.SDK 1.x neighbour and the Client plugins side by side.
 			Add("Q10", session, "neighbour-identity",
@@ -218,6 +222,25 @@ internal static class ScenarioEvaluators
 			static evidence => evidence.Observe("value-scan-release",
 				static observed => observed.Text("release.kind") == "Released" && observed.Is("release.complete"),
 				"release.kind", "release.hostEffect", "session.state"));
+		Add("Q26", "S3", "refused-after-target-change",
+			"after Cheat Engine selects another process, the session has ended with RefusedTargetChanged and manual recovery",
+			static evidence => evidence.Observe("value-scan-state-on-b",
+				static observed => observed.Is("session.released") && observed.Text("session.state") == "Released" &&
+								   observed.Text("lastRelease.kind") == "RefusedTargetChanged" &&
+								   observed.Is("lastRelease.requiresManualRecovery"),
+				"session.released", "session.state", "lastRelease.kind", "lastRelease.requiresManualRecovery"));
+		Add("Q26", "S3", "nothing-released-on-b",
+			"a release attempt on the other process makes no Cheat Engine call: it returns the ending refusal again",
+			static evidence => evidence.Observe("value-scan-release-on-b",
+				static observed => observed.Text("release.kind") == "RefusedTargetChanged" &&
+								   observed.Text("release.hostEffect") == "NotStarted" &&
+								   observed.Text("lastRelease.kind") == "RefusedTargetChanged" &&
+								   observed.Is("lastRelease.requiresManualRecovery"),
+				"release.kind", "release.hostEffect", "lastRelease.kind"));
+		Add("Q26", "S3", "file-as-process-refused", "no session is created on a file opened as a process",
+			static evidence => evidence.Observe("value-scan-unidentified",
+				static observed => observed.Bool("created") == false && observed.Text("failure.kind") == "TargetIdentityUnavailable",
+				"created", "failure.kind", "failure.hostEffect"));
 
 		// Q27: global AOB scans.
 		Add("Q27", "S1", "known-pattern-matches", "the module header pattern gives Matches on the global route",
@@ -262,11 +285,17 @@ internal static class ScenarioEvaluators
 				"failure.kind", "truncated", "checks.cancellationHonest"));
 
 		// Q30.a: allocations.
-		Add("Q30.a", "S1", "allocated", "an allocation is a committed region that starts at the lease address",
-			static evidence => evidence.Observe("allocation-allocate",
-				static observed => observed.Is("allocated") && observed.Text("region.state") == "Committed" &&
-								   observed.Is("region.startsAtAllocation"),
-				"allocated", "region.state", "region.protection"));
+		Add("Q30.a", "S1", "allocated",
+			"an allocation is a committed region that starts at the lease address, held by an active lease",
+			static evidence => Both(evidence.Observe("allocation-allocate",
+					static observed => observed.Is("allocated") && observed.Text("region.state") == "Committed" &&
+									   observed.Is("region.startsAtAllocation"),
+					"allocated", "region.state", "region.protection"),
+				evidence.Observe("allocation-state",
+					static observed => observed.Bool("lease.released") == false &&
+									   observed.Bool("lease.requiresManualRecovery") == false &&
+									   observed.Element("lastRelease") is { ValueKind: JsonValueKind.Null },
+					"lease.released", "lease.requiresManualRecovery")));
 		Add("Q30.a", "S1", "released", "its release is Released and frees the region",
 			static evidence => evidence.Observe("allocation-release",
 				static observed => observed.Text("release.kind") == "Released" && observed.Is("release.complete") &&
@@ -278,10 +307,15 @@ internal static class ScenarioEvaluators
 				static observed => observed.Is("lease.released") && observed.Text("lastRelease.kind") == "RefusedTargetChanged" &&
 								   observed.Is("lease.requiresManualRecovery"),
 				"lease.released", "lastRelease.kind", "lease.requiresManualRecovery"));
-		Add("Q30.a", "S3", "nothing-freed-on-b", "a release attempt on the other process frees nothing",
+		Add("Q30.a", "S3", "nothing-freed-on-b",
+			"a release attempt on the other process frees nothing: it returns the ending refusal again",
 			static evidence => evidence.Observe("allocation-release-on-b",
-				static observed => observed.Text("release.kind") == "AlreadyReleased" && observed.Is("requiresManualRecovery"),
-				"release.kind", "requiresManualRecovery", "onAuthorizedTarget"));
+				static observed => observed.Is("releasedBefore") &&
+								   observed.Text("release.kind") == "RefusedTargetChanged" &&
+								   observed.Text("release.hostEffect") == "NotStarted" &&
+								   observed.Is("requiresManualRecovery"),
+				"releasedBefore", "release.kind", "release.hostEffect", "requiresManualRecovery",
+				"onAuthorizedTarget"));
 		Add("Q30.a", "S3", "consumed-owner-stays-ended", "back on the first process the refused lease stays ended",
 			static evidence => evidence.Observe("allocation-state-back-on-a",
 				static observed => observed.Is("lease.released") && observed.Text("lastRelease.kind") == "RefusedTargetChanged",
@@ -350,9 +384,9 @@ internal static class ScenarioEvaluators
 		Add("Q32", "S3", "file-as-process-backend", "a file opened as a process is reported with the FileAsProcess backend",
 			static evidence => evidence.Observe("runtime-file-as-process",
 				static observed => observed.Text("process.backend") == "FileAsProcess", "process.backend", "runtime.backend"));
-		Add("Q32", "S3", "target-change-observed", "selecting the second target moves the selection epoch and the process id",
-			static evidence => evidence.Observe("runtime-on-b", static observed => observed.Number("process.processId") > 0,
-				"process.processId", "process.selectionEpoch"));
+		Add("Q32", "S3", "target-change-observed",
+			"each process Cheat Engine selects (A, B, then A again) is the one the Client reports next, with a later selection epoch",
+			TargetSwitches);
 
 		// Q33: a partial batch.
 		Add("Q33", "S1", "partial-effect", "a batch whose third address is unmapped reports two writes and a partial effect",
@@ -396,10 +430,19 @@ internal static class ScenarioEvaluators
 			static evidence => evidence.Observe("aa-apply-failing",
 				static observed => observed.Bool("applied") == false && observed.Element("failure") is not null,
 				"applied", "failure.kind", "failure.hostEffect"));
-		Add("Q35", "S3", "refused-after-target-change", "after a target change the patch lease ended with a refused release",
+		Add("Q35", "S3", "refused-after-target-change",
+			"after a target change the patch lease ended with RefusedTargetChanged and manual recovery",
 			static evidence => evidence.Observe("aa-state-on-b",
-				static observed => observed.Is("lease.released") && observed.Is("lease.requiresManualRecovery"),
+				static observed => observed.Is("lease.released") && observed.Is("lease.requiresManualRecovery") &&
+								   observed.Text("lastRelease.kind") == "RefusedTargetChanged",
 				"lease.released", "lastRelease.kind", "lease.requiresManualRecovery"));
+		Add("Q35", "S3", "nothing-disabled-on-b",
+			"a release attempt on the other process makes no Cheat Engine call: it returns the ending refusal again",
+			static evidence => evidence.Observe("aa-release-on-b",
+				static observed => observed.Text("release.kind") == "RefusedTargetChanged" &&
+								   observed.Text("release.hostEffect") == "NotStarted" &&
+								   observed.Text("lastRelease.kind") == "RefusedTargetChanged",
+				"release.kind", "release.hostEffect", "lastRelease.kind", "symbolResolves"));
 
 		// Q40: plugins built from the packed packages.
 		Add("Q40", "S1", "client-assemblies-packed", "every Client assembly of the harness bundle equals the packed package's",
@@ -471,6 +514,45 @@ internal static class ScenarioEvaluators
 		}
 
 		return checks;
+	}
+
+	/// <summary>
+	///     Q32 on S3: each process the driver selects through Cheat Engine (A, then B, then A again) is the one the
+	///     Client's next <c>runtime</c> reports, and each selection moves the Client's selection epoch forward; a Client
+	///     that kept a stale selection fails.
+	/// </summary>
+	private static CheckResult TargetSwitches(SessionEvidence evidence)
+	{
+		(string Opened, string Runtime)[] switches =
+		[
+			("opened-process-a", "runtime-on-a"), ("opened-process-b", "runtime-on-b"),
+			("opened-process-a-again", "runtime-back-on-a")
+		];
+		List<string> facts = [];
+		bool passed = true;
+		string? previousProcess = null;
+		long? previousEpoch = null;
+		foreach ((string opened, string runtime) in switches)
+		{
+			if (!evidence.TryValue(opened, out string? selected, out CheckResult notUsable) ||
+				!evidence.TryObserve(runtime, out Observed? observed, out notUsable))
+			{
+				return notUsable;
+			}
+
+			long? processId = observed.Number("process.processId");
+			long? epoch = observed.Number("process.selectionEpoch");
+			passed &= processId?.ToString(CultureInfo.InvariantCulture) == selected &&
+					  !string.Equals(selected, previousProcess, StringComparison.Ordinal) &&
+					  epoch is not null && (previousEpoch is null || epoch > previousEpoch);
+			string reported = processId?.ToString(CultureInfo.InvariantCulture) ?? "absent";
+			string moved = epoch?.ToString(CultureInfo.InvariantCulture) ?? "absent";
+			facts.Add($"{opened}={selected}: {runtime} process {reported}, epoch {moved}");
+			previousProcess = selected;
+			previousEpoch = epoch;
+		}
+
+		return CheckResult.From(passed, string.Join("; ", facts));
 	}
 
 	/// <summary>

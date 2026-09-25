@@ -37,7 +37,7 @@ public sealed partial class SessionPlanTests
 				 "status-after-reenable write-configure-fault toggle-disable-for-fault toggle-enable-faulted " +
 				 "remove-configure-fault toggle-enable-after-fault status-after-fault logs clear-address-list",
 		["S3"] = "main-form open-process-a opened-process-a scratch-allocation load-plugin harness-ready target-declare " +
-				 "allocation-allocate value-scan-first aa-apply open-process-b opened-process-b runtime-on-b " +
+				 "runtime-on-a allocation-allocate value-scan-first aa-apply open-process-b opened-process-b runtime-on-b " +
 				 "allocation-state-on-b allocation-release-on-b value-scan-state-on-b value-scan-release-on-b aa-state-on-b " +
 				 "aa-release-on-b open-process-a-again opened-process-a-again runtime-back-on-a allocation-state-back-on-a " +
 				 "allocation-allocate-new allocation-release-new open-file-as-process runtime-file-as-process " +
@@ -52,6 +52,30 @@ public sealed partial class SessionPlanTests
 				  "neighbour-identity a-ping b-ping a-collision-before load-collision a-collision-after third-party-replace " +
 				  "toggle-disable-a third-party-survives b-ping-after-a-disabled toggle-disable-b clear-address-list",
 		["S6"] = "main-form load-template template-ready template-status clear-address-list"
+	};
+
+	/// <summary>
+	///     The steps of every session that no check reads: the Cheat Engine-level preparation (opening a target, the
+	///     scratch region, loading a plugin, the leases S3 makes on A before the switch), and the spike's read-only
+	///     settings probe. Every other step must change a check's verdict when it is missing.
+	/// </summary>
+	private static readonly Dictionary<string, string> SetupSteps = new(StringComparer.Ordinal)
+	{
+		["S1"] = "main-form open-process opened-process scratch-allocation load-plugin harness-ready target-declare " +
+				 "pointer-size-4 pointer-size-8 table-create table-destroy-record table-create-again worker-start " +
+				 "settings-probe clear-address-list",
+		["S2"] = "main-form open-process opened-process load-plugin harness-ready status keep-function write-configure-fault " +
+				 "remove-configure-fault clear-address-list",
+		["S3"] = "main-form open-process-a scratch-allocation load-plugin harness-ready target-declare allocation-allocate " +
+				 "value-scan-first aa-apply open-process-b open-process-a-again allocation-allocate-new open-file-as-process " +
+				 "clear-address-list",
+		["S4"] = "main-form open-process opened-process scratch-allocation load-plugin harness-ready target-declare " +
+				 "clear-address-list",
+		["S5a"] = "main-form load-plugin-a a-ready load-neighbour neighbour-ready load-plugin-b b-ready load-collision " +
+				  "third-party-replace clear-address-list",
+		["S5b"] = "main-form load-plugin-a a-ready load-neighbour neighbour-ready load-plugin-b b-ready load-collision " +
+				  "third-party-replace clear-address-list",
+		["S6"] = "main-form load-template template-ready clear-address-list"
 	};
 
 	[Fact]
@@ -159,6 +183,22 @@ public sealed partial class SessionPlanTests
 	}
 
 	[Fact]
+	public void EveryDriverStepIsReadByACheckOrIsReviewedSetup()
+	{
+		Assert.Equal(ReviewedSteps.Keys.Order(StringComparer.Ordinal), SetupSteps.Keys.Order(StringComparer.Ordinal));
+		foreach (QualificationSessionPlan plan in SessionPlans.All)
+		{
+			string[] steps = [.. plan.Driver(Context(plan)).Select(static step => step.Name)];
+			string[] verdicts = Verdicts(plan, steps, null);
+
+			// A step is read when removing it from the transcript changes the verdict or the observation of a check.
+			string[] unread = [.. steps.Where(step => Verdicts(plan, steps, step).SequenceEqual(verdicts, StringComparer.Ordinal))];
+
+			Assert.Equal(SetupSteps[plan.Session].Split(' ').Order(StringComparer.Ordinal), unread.Order(StringComparer.Ordinal));
+		}
+	}
+
+	[Fact]
 	public void SessionSetupsMatchWhatTheirScenariosNeed()
 	{
 		Assert.True(SessionPlans.S1.Setup is { EnableAutoAssembler: true, TableRoot: true, LifecycleSink: true, AuthorizedRole: "A" });
@@ -220,6 +260,19 @@ public sealed partial class SessionPlanTests
 		Assert.Equal("4D 5A 90 00 03 00 00 00", LiveSandboxSession.HeaderPattern(image));
 		Assert.Matches("^([0-9A-F]{2} ){15}[0-9A-F]{2}$", LiveSandboxSession.RandomPattern());
 		Assert.Equal(4, LiveSandboxSession.CountValues("a MARKER, marker and 0x1E2880 1e2880", ["marker", "1E2880", "ab"]));
+	}
+
+	private static string[] Verdicts(QualificationSessionPlan plan, IEnumerable<string> steps, string? without)
+	{
+		StringBuilder transcript = new();
+		foreach (string step in steps.Where(step => step != without))
+		{
+			transcript.Append("R\t").Append(step).Append("\tok\t\"{}\"\n");
+		}
+
+		SessionEvidence evidence = new(TranscriptParser.Parse(Encoding.UTF8.GetBytes(transcript.Append("DONE\n").ToString())),
+			string.Empty, [], new Dictionary<string, string>(StringComparer.Ordinal));
+		return [.. plan.Checks.Select(check => check.Evaluate(evidence)).Select(static result => $"{result.Status}: {result.Observation}")];
 	}
 
 	private static SessionContext Context(QualificationSessionPlan plan)

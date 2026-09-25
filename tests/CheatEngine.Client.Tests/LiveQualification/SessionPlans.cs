@@ -292,6 +292,7 @@ internal static class SessionPlans
 			ScratchAllocation(),
 			.. LoadHarness(context),
 			LuaDriverSteps.Call("target-declare", "target_declare", LuaLiteral.String(ScratchSymbol)),
+			LuaDriverSteps.Call("runtime-on-a", "runtime"),
 			Allocation("allocation-allocate", "allocate", AllocationName, 64),
 			LuaDriverSteps.Call("value-scan-first", "value_scan", LuaLiteral.String("first"),
 				LuaLiteral.String(ScratchSymbol), LuaLiteral.Integer(context.FirstMarker)),

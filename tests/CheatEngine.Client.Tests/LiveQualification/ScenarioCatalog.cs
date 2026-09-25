@@ -51,7 +51,7 @@ internal static class ScenarioCatalog
 		new("Q20", "C3", "Byte and string round trips", ["S1"]),
 		new("Q21", "C3", "Integer and address boundaries, and the 2^53 marshalling rule", ["S1", "S4"]),
 		new("Q25", "C3", "A value scan finds its marker and float texts follow the rounded comparison", ["S1"]),
-		new("Q26", "C3", "A value scan session scans again, resets and releases", ["S1"]),
+		new("Q26", "C3", "A value scan session scans again, resets and releases, and a target change ends it", ["S1", "S3"]),
 		new("Q27", "C3", "A global AOB scan: matches, and an indeterminate zero", ["S1"]),
 		new("Q28", "C3", "A module AOB scan equals the global result inside the module", ["S1", "S3", "S4"]),
 		new("Q29", "C3", "AOB copy limits and cancellation", ["S1"]),

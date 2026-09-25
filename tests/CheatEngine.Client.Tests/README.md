@@ -186,9 +186,13 @@ sessions, release gate and the capability map) and `ScenarioEvaluators` (one C# 
   refusal (Q44), the operator toggles of Q05, Q06 and the kept-function check of Q16, and the disable at `closeCE` read
   from the lifecycle sink (Q43).
 - **S3**, target identity on two gtutorial-x86_64 instances: an allocation, a scan session and a patch on A, then
-  `openProcess(B)` (the leases end with a refused release, nothing is freed on B), back on A (the refused leases stay
-  ended; a new allocation releases), and a copy opened as a file (no allocation or session, the AOB fallback route).
-  Q30.b, the reuse of a process id, cannot be produced on demand and stays NotExecuted (waivable, plan A12).
+  `openProcess(B)` (each lease has ended with a `RefusedTargetChanged` release that requires manual recovery, and a
+  release attempt on B returns that refusal again without any Cheat Engine call), back on A (the refused leases stay
+  ended; a new allocation releases), and a copy opened as a file (no allocation or scan session,
+  `TargetIdentityUnavailable`; the AOB fallback route). Each process Cheat Engine selects is the one the Client reports
+  next, with a later selection epoch (Q26, Q28, Q30.a, Q32, Q35). Q30.b, the reuse of a process id, cannot be produced
+  on demand and stays NotExecuted (waivable, plan A12). A test proves that every driver step is read by a check or is
+  reviewed setup.
 - **S4**, the x86 target gtutorial-i386: bitness 4, an address above 4 GiB refused, the x86 module scan and instruction
   profile (Q21, Q28, Q32).
 - **S5a** and **S5b**, coexistence in two load orders (A, then the SDK 1.x neighbour, then B; and the neighbour, A, B):
