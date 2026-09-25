@@ -29,9 +29,10 @@ body:
     attributes:
       label: Area
       options:
-        - Abstractions (public contracts, options, failures)
+        - Abstractions (public contracts, options, failures, leases)
         - Fluent API
-        - Core (memory, AOB scanning, symbols, processes, tables)
+        - Core (processes, memory, AOB scanning, inspection and symbols, tables, protected Lua)
+        - Experimental APIs (value scans, allocations, instructions, Auto Assembler patches; CECLIENT5001-5004)
         - Hosting and dependency injection
         - Lua source generator
         - Template (dotnet new ceplugin)

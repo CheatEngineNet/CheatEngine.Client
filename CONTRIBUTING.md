@@ -15,32 +15,39 @@ and tests that describe the behavior you change.
 
 ## Build and test
 
-Run these commands from the repository root. Restores are locked: they fail when a project's dependencies no longer
-match its committed `packages.lock.json`.
+Run these commands from the repository root before every commit. Restores are locked: they fail when a project's
+dependencies no longer match its committed `packages.lock.json`.
 
 ```powershell
 dotnet restore CheatEngine.Client.slnx --locked-mode
 dotnet build CheatEngine.Client.slnx -c Debug --no-restore
-dotnet test --solution CheatEngine.Client.slnx -c Debug --no-build --fail-skips on --filter-not-trait "Category=LiveQualification"
+dotnet test --solution CheatEngine.Client.slnx -c Debug --no-build --fail-skips on --filter-not-trait "Category=PackageConsumption" --filter-not-trait "Category=LiveQualification"
 dotnet build CheatEngine.Client.slnx -c Release --no-restore
-dotnet test --solution CheatEngine.Client.slnx -c Release --no-build --fail-skips on --filter-not-trait "Category=LiveQualification"
 ```
 
-A skipped test fails the run: an environment-dependent test is fixed or deleted, never skipped. The live qualification
-tests (`Category=LiveQualification`) start a sandboxed Cheat Engine, so every command here, like CI, excludes them by
-trait; run without that filter, they fail with the instructions of their opt-in (see
-[`tests/CheatEngine.Client.Tests`](tests/CheatEngine.Client.Tests/README.md)).
+The test command is the one of the CI Debug leg: it runs every test except the package consumption tests
+(`Category=PackageConsumption`) and the live qualification tests (`Category=LiveQualification`); the Release build
+compiles the configuration that is packed. A skipped test fails the run: an environment-dependent test is fixed or
+deleted, never skipped. The live qualification tests start a sandboxed Cheat Engine, so every command here, like CI,
+excludes them by trait; run without that filter, they fail with the instructions of their opt-in (see
+[Live qualification](#live-qualification)).
 
-The package consumption tests consume the exact packages you pack. Pack to `artifacts/nuget` and point them at that
-folder; without the variable they pack the repository themselves, which is slower:
+The package consumption tests consume the exact packages you pack, as the CI Release leg does. Run them as well when a
+change reaches what is packed: a project file, `eng/`, `Directory.Build.*`, `Directory.Packages.props`, `templates/`,
+a packed README, or a public API that the template or a README snippet uses. The Native AOT probe completes the set:
 
 ```powershell
+Remove-Item artifacts/nuget -Recurse -Force -ErrorAction SilentlyContinue
 dotnet pack CheatEngine.Client.slnx -c Release --no-build -o artifacts/nuget
 $env:CHEATENGINE_CLIENT_PACKAGE_SOURCE = (Resolve-Path artifacts/nuget).Path
-dotnet test --project tests/CheatEngine.Client.Tests/CheatEngine.Client.Tests.csproj -c Release --no-build --fail-skips on --filter-not-trait "Category=LiveQualification"
+dotnet test --solution CheatEngine.Client.slnx -c Release --no-build --fail-skips on --filter-not-trait "Category=LiveQualification"
+Remove-Item Env:CHEATENGINE_CLIENT_PACKAGE_SOURCE
+dotnet publish tests/CheatEngine.Client.AotProbe/CheatEngine.Client.AotProbe.csproj -c Release --no-restore -o artifacts/aot-probe
+./artifacts/aot-probe/CheatEngine.Client.AotProbe.exe
 ```
 
-To run everything except those tests, add `--filter-not-trait "Category=PackageConsumption"` as well.
+Without `CHEATENGINE_CLIENT_PACKAGE_SOURCE`, the package consumption tests pack the repository themselves, which is
+slower.
 
 ### Lock files
 
@@ -158,16 +165,22 @@ pull request that finds it; there is no scheduled job that re-runs threading-sen
 
 - Follow [`.editorconfig`](.editorconfig): tab-indented C#, two-space project and configuration files. Builds treat
   formatting, compiler and analyzer diagnostics as errors; run `dotnet format` on the projects you touch. A commit that
-  only reformats or mechanically renames code is listed in [`.git-blame-ignore-revs`](.git-blame-ignore-revs).
+  only reformats or mechanically renames code is listed in [`.git-blame-ignore-revs`](.git-blame-ignore-revs), and the
+  pull request that contains it is merged with a merge commit ([Merge policy](#merge-policy)).
 - Use file-scoped namespaces, explicit types instead of `var`, braces, explicit accessibility and `_camelCase` private
   fields. Constants and `static readonly` fields are PascalCase at every accessibility, and async methods end with
   `Async`. Test names are PascalCase sentences; async tests keep the `Async` suffix.
 - Public APIs require XML documentation. A public API change in Abstractions, Fluent, Hosting or the DI extensions is
   declared in that project's `PublicAPI.Unshipped.txt` (RS0016/RS0017 are errors); Core has no public API and the
-  `CheatEngine.Client` facade ships no assembly. `PublicAPI.Shipped.txt` changes only in a release pull request. No
-  Client package has been published yet: the 1.0.0 release pull request (#59) cleared every `PublicAPI.Shipped.txt`
-  when it started and promotes `Unshipped` to `Shipped` once, as its last API commit, so no `*REMOVED*` entry is ever
-  written for an API that never shipped.
+  `CheatEngine.Client` facade ships no assembly. `PublicAPI.Shipped.txt` changes only in a release pull request, which
+  moves `Unshipped` to `Shipped` once, as its last API commit ([RELEASING](RELEASING.md#prepare-a-release)). 1.0.0 is
+  the first release: its pull request (#59) cleared every `PublicAPI.Shipped.txt` when it started, so no `*REMOVED*`
+  entry exists for an API that never shipped. From 1.0.0 on, the 1.x rules of the
+  [README](README.md#versioning-and-compatibility) apply: a stable public API is never removed or changed before 2.0.
+- An experimental API carries `[Experimental("CECLIENT500x")]`, whose `UrlFormat` points to its section of the
+  Abstractions README, and its PublicAPI lines keep the `[CECLIENT500x]` prefix (`ClientExperimentalDiagnosticsTests`).
+  It leaves experimental only when committed host evidence covers every scenario of its capability
+  ([RELEASING](RELEASING.md#qualification-gate)).
 - Core implementation types stay `internal sealed`, and every Cheat Engine interaction goes through the Client's
   dispatcher and ports; the SDK remains the only native authority.
 - `InternalsVisibleTo` grants serve the package graph and this repository only: every project grants `<Project>.Tests`
@@ -178,11 +191,13 @@ pull request that finds it; there is no scheduled job that re-runs threading-sen
   in any release, and the Core and Extensions.DependencyInjection READMEs say so. Add a grant only for a Client package
   that composes another one, or for a test or benchmark project of this repository.
 - The architecture ratchet in `tests/CheatEngine.Client.Tests/Architecture` freezes the Client's remaining ADR-01 debt:
-  the Lua globals it binds itself and its direct Lua and owner usages. Shrinking a list is always allowed; growing it
-  requires a registered exception, in the ratchet itself, with its reason and the CheatEngine.SDK primitive that
-  replaces it (and the lot that adopts it) or that is still missing. The typed SDK Lua API the Client uses is an exact,
-  reasoned inventory of its own, and no Client code references or suppresses an `[Experimental]` SDK member
-  (`CESDK5xxx`).
+  its direct Lua and owner usages. The Client binds no Lua global itself, and that list stays empty. Shrinking a list
+  is always allowed. Growing it requires a registered exception, in the ratchet itself, with its reason and the name of
+  the CheatEngine.SDK primitive that is missing (`AwaitingSdkPrimitive`, like the `MemoryRecord` child-count getter);
+  an exception that names no missing SDK primitive is not accepted, and a new need goes to the CheatEngine.SDK
+  repository first. The only permanent entries are the unsafe Lua opt-in's (`UnsafeLuaClient`). The typed SDK Lua API
+  the Client uses is an exact, reasoned inventory of its own, and no Client code references or suppresses an
+  `[Experimental]` SDK member (`CESDK5xxx`).
 
 ## Evidence and qualification levels
 
@@ -191,6 +206,18 @@ doubles, **C2** native fixture, **C3** the exact Cheat Engine host with a loaded
 plugins, a target switch). A C1 or C2 success is never presented as host qualification, and a Native AOT publication is
 never a Cheat Engine load. CI runs static and managed tests only; the Cheat Engine 7.7 x64 live suite is opt-in and never
 runs in CI.
+
+### Live qualification
+
+The live qualification tests (`tests/CheatEngine.Client.Tests/LiveQualification`, `Category=LiveQualification`) build
+plugins from the packed Client packages, load them into a sandboxed copy of Cheat Engine 7.7.0.10621 x64 and drive
+disposable gtutorial targets. They run only on a maintainer workstation that opts in, with the operator present, never
+in CI (they fail when `CI=true`). The procedure, from the prerequisites and the opt-in to the protection of the user's
+Cheat Engine state and the commands, is in
+[`tests/CheatEngine.Client.Tests/README.md`](tests/CheatEngine.Client.Tests/README.md#live-qualification);
+[RELEASING](RELEASING.md#qualification-gate) says which run a release needs. A result counts only as the committed,
+redacted evidence of a run under `tests/CheatEngine.Client.Tests/LiveQualification/Evidence/`, and until that evidence
+exists no document claims a host qualification (`QualificationEvidenceTests`).
 
 ## Branches and pull requests
 
@@ -204,12 +231,24 @@ runs in CI.
 
 Fill in the pull request template: the problem, the resulting behavior, the validation commands and results with their
 qualification level, the API and compatibility impact, and any remaining host-level limitation. Pull requests are
-squash-merged once the required checks pass, so the pull request title becomes the commit subject on `main`.
+merged once the required checks pass, as the merge policy below says.
+
+### Merge policy
+
+- **Squash merge** by default: the pull request title becomes the commit subject on `main`, except for a pull request
+  with a single commit, whose squash keeps that commit's subject ([Commits](#commits) gives it the same conventions).
+- **Merge commit**, never a squash or a rebase, for a pull request that contains a commit listed in
+  [`.git-blame-ignore-revs`](.git-blame-ignore-revs). A squash or a rebase would give that commit a new SHA on `main`,
+  the listed SHA would no longer exist there, and `git blame` would stop ignoring the reformat. The 1.0.0 release pull
+  request (#59) is merged this way. GitHub gives the merge commit its own subject (`Merge pull request #N from ...`)
+  and repeats the pull request title in its message, so the title conventions below still apply.
+- A branch whose commits `.git-blame-ignore-revs` lists is never rebased: later changes are new commits on top of it.
 
 ### Pull request conventions
 
 No required check enforces these; CodeRabbit's automatic review checks them on every push and flags a miss, but it is
-advisory and never blocks a merge. Follow them anyway, since the title becomes the squash commit subject on `main`:
+advisory and never blocks a merge. Follow them anyway, since the title becomes the subject of the squash commit on
+`main`, or the message of the merge commit:
 
 - **Title:** an imperative sentence (`Add`, `Fix`, `Keep`...) that starts with an uppercase letter, has at most 72
   characters, no Conventional Commit prefix such as `feat:` and no trailing period.
@@ -223,9 +262,14 @@ advisory and never blocks a merge. Follow them anyway, since the title becomes t
 
 Dependabot opens weekly pull requests for NuGet packages, GitHub Actions (the workflows and `.github/actions`) and the
 .NET SDK of `global.json`. A new release waits 7 days (30 for a NuGet major); security updates are not delayed. Minor
-and patch updates are grouped. Dependabot ignores `CheatEngine.SDK` majors (a Client migration), the Roslyn packages
-(they move with the Lua generator's compiler floor, `CHEATENGINECLIENT9020`), the SDK-implicit ILLink and ILCompiler
-packages (they move with `global.json`) and .NET SDK majors ([`.github/dependabot.yml`](.github/dependabot.yml)).
+and patch updates are grouped, and so are NuGet security updates, except a `CheatEngine.SDK` update, version or
+security: it moves the reviewed pin, so it arrives in a pull request of its own and passes only once the bump procedure
+of [`eng/CheatEngineSdk.props`](eng/CheatEngineSdk.props) is complete (identity literals, every lock file, prose). The
+pin is also the lower bound of the `CheatEngine.SDK` range that Abstractions, Core and Hosting publish, so a release
+that moves it raises that bound for every consumer and records it under **Deployment** in `CHANGELOG.md`. Dependabot
+ignores `CheatEngine.SDK` majors (a Client migration), the Roslyn packages (they move with the Lua generator's compiler
+floor, `CHEATENGINECLIENT9020`), the SDK-implicit ILLink and ILCompiler packages (they move with `global.json`) and .NET
+SDK majors ([`.github/dependabot.yml`](.github/dependabot.yml)).
 
 The `Microsoft.Extensions.*` versions of [`Directory.Packages.props`](Directory.Packages.props) are published floors,
 not only build inputs: Extensions.DependencyInjection and Hosting declare the ones they reference as minimum versions

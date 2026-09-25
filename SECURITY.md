@@ -2,12 +2,20 @@
 
 ## Supported versions
 
-No CheatEngine.Client package has been published yet. After the first release, the latest published minor line of the
-seven `CheatEngine.Client*` packages receives security fixes; earlier lines do not. All seven packages share one
-version, so a fix ships as a new version of every package.
+| Version        | Supported                    | Requires CheatEngine.SDK |
+|----------------|------------------------------|--------------------------|
+| 1.0.x          | Yes                          | `[2.0.0, 3.0.0)`         |
+| Before 1.0.0   | No: no version was published | Not applicable           |
+
+1.0.0 is the first release. The latest published minor line of the seven `CheatEngine.Client*` packages receives
+security fixes; earlier lines do not, so this table moves to 1.1.x when 1.1.0 is published. All seven packages share
+one version, so a fix ships as a new version of every package. A fix within 1.x stays on CheatEngine.SDK 2.x: a new
+CheatEngine.SDK major means a new Client major version.
 
 CheatEngine.SDK, which the Client consumes, follows its own policy:
-<https://github.com/CheatEngineNet/CheatEngine.SDK/security/policy>.
+<https://github.com/CheatEngineNet/CheatEngine.SDK/security/policy>. A plugin references CheatEngine.SDK directly, so it
+can take a CheatEngine.SDK 2.x fix without waiting for a Client release: Client 1.0.x accepts every 2.x version at or
+above 2.0.0.
 
 ## Reporting a vulnerability
 

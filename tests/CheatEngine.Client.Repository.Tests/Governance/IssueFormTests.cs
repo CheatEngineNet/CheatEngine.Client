@@ -1,6 +1,8 @@
+using System.Text.Json;
 using System.Text.RegularExpressions;
 
 using CheatEngine.Client.Repository.Tests.Infrastructure;
+using CheatEngine.Client.Repository.Tests.Packaging;
 
 using YamlDotNet.RepresentationModel;
 
@@ -8,8 +10,9 @@ namespace CheatEngine.Client.Repository.Tests.Governance;
 
 /// <summary>
 /// Issue forms (A22-44, audit Checkpoint F: "an issue of compatibility can be tied to a precise tuple"). The
-/// compatibility form requires every element of the release tuple; every form follows GitHub's form schema; blank
-/// issues are disabled and vulnerabilities are routed to private reporting. Schema:
+/// compatibility form requires every element of the release tuple; every form follows GitHub's form schema; the version
+/// placeholders name the Client line and the pinned CheatEngine.SDK; blank issues are disabled and vulnerabilities are
+/// routed to private reporting. Schema:
 /// https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/syntax-for-issue-forms
 /// </summary>
 public sealed class IssueFormTests
@@ -80,6 +83,47 @@ public sealed class IssueFormTests
 		Assert.True(problems.Count == 0, $"{CompatibilityForm}: {string.Join("; ", problems)}.");
 		Assert.Equal(["(C0)", "(C1)", "(C2)", "(C3)", "(C4)"], Options(elements["observed-level"]).Select(LevelSuffix));
 		Assert.True(elements.ContainsKey("bridge-fingerprint") && !IsRequired(elements["bridge-fingerprint"]));
+	}
+
+	[Fact]
+	public void VersionPlaceholdersNameTheClientLineAndThePinnedSdk()
+	{
+		// A reporter copies these examples, so each one must be able to exist: a stable Client version of the current
+		// major line (MinVerMinimumMajorMinor), exactly the pinned CheatEngine.SDK (eng/CheatEngineSdk.props), and the
+		// content hash the lock files record for it, abbreviated as "<start>...<end>".
+		string clientMajor = PackageVersioningTests.BuildProperty("MinVerMinimumMajorMinor").Split('.')[0];
+		string contentHash = PinnedSdkContentHash();
+		List<string> problems = [];
+		int placeholders = 0;
+		foreach (string form in IssueForms())
+		{
+			foreach ((string id, YamlMappingNode element) in ElementsById(GovernanceFile.LoadYaml(form)))
+			{
+				string placeholder = Placeholder(element) ?? string.Empty;
+				if (id is "client-version" or "sdk-version" or "sdk-content-hash")
+				{
+					placeholders++;
+				}
+
+				string? problem = id switch
+				{
+					"client-version" when !IsStableVersionOfMajor(placeholder, clientMajor) =>
+						$"is not a stable {clientMajor}.x.y version",
+					"sdk-version" when placeholder != SdkPin.Version => $"is not the pinned {SdkPin.Version}",
+					"sdk-content-hash" when !Abbreviates(placeholder, contentHash) =>
+						"does not abbreviate the pinned content hash",
+					_ => null
+				};
+				if (problem is not null)
+				{
+					problems.Add($"{form}: the {id} placeholder '{placeholder}' {problem}");
+				}
+			}
+		}
+
+		Assert.True(placeholders >= 5,
+			$"Expected the version placeholders of the bug and compatibility forms, found {placeholders}.");
+		Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
 	}
 
 	[Fact]
@@ -258,5 +302,42 @@ public sealed class IssueFormTests
 		return GovernanceFile.Strings(GovernanceFile.Mapping(element, "attributes") is { } attributes
 			? GovernanceFile.Child(attributes, "options")
 			: null);
+	}
+
+	private static string? Placeholder(YamlMappingNode element)
+	{
+		return GovernanceFile.Mapping(element, "attributes") is { } attributes
+			? GovernanceFile.Scalar(attributes, "placeholder")
+			: null;
+	}
+
+	private static bool IsStableVersionOfMajor(string version, string major)
+	{
+		string[] segments = version.Split('.');
+		return segments.Length == 3 && segments[0] == major
+			&& segments.All(static segment => segment.Length > 0 && segment.All(char.IsAsciiDigit));
+	}
+
+	/// <summary>Whether <paramref name="abbreviation" /> is "&lt;start&gt;...&lt;end&gt;" of <paramref name="value" />.</summary>
+	private static bool Abbreviates(string abbreviation, string value)
+	{
+		string[] parts = abbreviation.Split("...");
+		return parts.Length == 2 && parts[0].Length >= 8 && parts[1].Length > 0
+			&& value.StartsWith(parts[0], StringComparison.Ordinal) && value.EndsWith(parts[1], StringComparison.Ordinal);
+	}
+
+	/// <summary>The content hash the lock files record for the pinned CheatEngine.SDK (one value, per SdkPinTests).</summary>
+	private static string PinnedSdkContentHash()
+	{
+		using JsonDocument lockFile = SdkPin.ReadJson("libs/CheatEngine.Client.Core/packages.lock.json");
+		string[] hashes =
+		[
+			.. lockFile.RootElement.GetProperty("dependencies").EnumerateObject()
+				.Where(static framework => framework.Value.TryGetProperty(SdkPin.PackageId, out _))
+				.Select(static framework => framework.Value.GetProperty(SdkPin.PackageId).GetProperty("contentHash"))
+				.Select(static contentHash => contentHash.GetString() ?? string.Empty)
+				.Distinct(StringComparer.Ordinal)
+		];
+		return Assert.Single(hashes);
 	}
 }

@@ -19,9 +19,12 @@ reviews:
     title:
       mode: "warning"
       requirements: >-
-        Pull requests are squash-merged and the title becomes the commit subject on main. The convention: an
-        imperative sentence (Add, Fix, Keep...) starting with an uppercase letter, at most 72 characters, no
-        Conventional Commit prefix such as "feat:" or "fix(scope):", no trailing period.
+        Pull requests are squash-merged, so the title becomes the commit subject on main (a single-commit pull request
+        keeps its commit's subject, which follows the same convention); a pull request that contains a commit listed in
+        .git-blame-ignore-revs is merged with a merge commit instead, whose message repeats the title under GitHub's
+        "Merge pull request" subject. The convention: an imperative sentence (Add, Fix, Keep...) starting with an
+        uppercase letter, at most 72 characters, no Conventional Commit prefix such as "feat:" or "fix(scope):", no
+        trailing period.
     description:
       mode: "warning"
     docstrings:
@@ -54,29 +57,41 @@ reviews:
           documents the contract, and CHANGELOG.md has an entry under "## [Unreleased]" in the matching category
           (Added for an extension, Changed for a semantic correction, Security for a hardened refusal, Deployment for
           what is built, packed, pinned or published). Also fail when PublicAPI.Shipped.txt changes outside a release
-          pull request: before 1.0.0 every Shipped file holds only "#nullable enable", and the 1.0.0 release pull
-          request promotes Unshipped to Shipped once, as its last API commit. Fail otherwise.
+          pull request, which promotes Unshipped to Shipped once, as its last API commit (the 1.0.0 release pull request
+          started from Shipped files that held only "#nullable enable"). From 1.0.0 on, also fail when a stable public
+          API listed in a PublicAPI.Shipped.txt file is removed or changes signature or meaning before a new major
+          version, when the value of a public enum member changes, or when an interface whose remarks say Implementable
+          gains, loses or changes a member (the README section "Versioning and compatibility" lists them); an interface
+          whose remarks say Call-only may gain members in a minor release, and an API marked
+          [Experimental("CECLIENT500x")] may change in one. Fail otherwise.
       - name: "SDK boundary and pin"
         mode: "warning"
         instructions: >-
           Fail when: a public Client signature exposes LuaState, CEObject, Owned<T>, a native pointer, an
           activation-bound handle or another SDK ownership type, or an SDK type outside the allowlist of
           tests/CheatEngine.Client.Tests/PublicClientSignatureBoundaryTests.cs; a Core implementation type becomes
-          public; Client code declares a native import or binds a Lua global itself without a registered exception in
-          the architecture ratchet (tests/CheatEngine.Client.Tests/Architecture) stating its reason and the
-          CheatEngine.SDK primitive that replaces it or is missing; Client code references or suppresses an
+          public; Client code declares a native import or binds a Lua global itself (the architecture ratchet in
+          tests/CheatEngine.Client.Tests/Architecture refuses both); Client code uses the SDK Lua stack or an SDK owner
+          directly, outside the sanctioned typed SDK surface of that ratchet, without a registered exception that
+          states its reason and names the missing CheatEngine.SDK primitive; Client code references or suppresses an
           [Experimental] CheatEngine.SDK member (CESDK5xxx); a CheatEngine.SDK version literal appears outside
-          eng/CheatEngineSdk.props, or the pin moves to another SDK major without that being a deliberate, reviewed
-          migration (there is no automated migration guide; the bump procedure and the major migration checklist are
-          documented in eng/CheatEngineSdk.props itself); or a packages.lock.json changes without a project or package
-          change that explains it. Otherwise pass.
+          eng/CheatEngineSdk.props; CheatEngineSdkUpperBound or _CheatEngineClientSupportedSdkMajor changes, which moves
+          the Client to another CheatEngine.SDK major: that is a new Client major version and a deliberate, reviewed
+          migration, never part of a 1.x change (there is no automated migration guide; the bump procedure and the major
+          migration checklist are documented in eng/CheatEngineSdk.props itself); a CheatEngine.SDK version change
+          within the major skips a step of that bump procedure; or a packages.lock.json changes without a project or
+          package change that explains it. Otherwise pass.
       - name: "Qualification evidence"
         mode: "warning"
         instructions: >-
           Pass when every validation claimed in the description states its level: C0 static contract, C1 managed tests
           or doubles, C2 native fixture, C3 exact Cheat Engine host with a loaded plugin, C4 several components (two
           plugins, a target switch). Fail when a C1 or C2 result, a CI run or a Native AOT publication is presented as
-          Cheat Engine host qualification, or when a capability is described as available without host evidence.
+          Cheat Engine host qualification; when a capability is described as available without host evidence; when a
+          document claims a host qualification, a scenario result or a live run id that the committed evidence under
+          tests/CheatEngine.Client.Tests/LiveQualification/Evidence does not hold; or when an
+          [Experimental("CECLIENT500x")] attribute, or the [CECLIENT500x] prefix of its PublicAPI lines, is removed
+          before that evidence covers every scenario its capability requires (RELEASING.md, "Qualification gate").
           Otherwise pass.
 
   # The GitHub App performs automatic reviews. No CodeRabbit token, CLI, or workflow is used here.
@@ -112,8 +127,11 @@ reviews:
       instructions: |
         Preserve a public, high-level Client API. Do not expose LuaState, CEObject, Owned<T>, native pointers,
         activation-bound handles, or SDK lifetime ownership. SDK values that cross this API must be stable copied values.
-        Detailed outcomes go on companion interfaces (the IMemoryBatchClient pattern), never as new members of an
-        existing public interface; every public change is declared in PublicAPI.Unshipped.txt.
+        Every public interface says in its remarks whether it is Call-only or Implementable: within 1.x a Call-only
+        interface may gain members in a minor release, an Implementable one never changes. Public enums are int enums
+        with explicit values that never change meaning; an outcome enum (Kind, Status, State, Effect, Scope) keeps
+        Unknown = 0. Every public change is declared in PublicAPI.Unshipped.txt, and an experimental API keeps its
+        [Experimental("CECLIENT500x")] attribute and the [CECLIENT500x] prefix of its PublicAPI lines.
 
     - path: "libs/CheatEngine.Client.Core/**"
       instructions: |
@@ -155,11 +173,13 @@ reviews:
 
     - path: "tests/**/Architecture/**"
       instructions: |
-        The architecture ratchet freezes the Client's ADR-01 debt. Shrinking a frozen list is always acceptable;
-        growing it requires a registered exception, in the ratchet itself, with its reason and the CheatEngine.SDK
-        primitive that replaces it (and the plan lot that adopts it) or that is still missing (there is no separate
-        migration guide file). SanctionedSdkLuaSurface is exact: each typed SDK Lua member the Client uses carries its
-        reason. SdkExperimentalApiRatchetTests forbids any reference to or suppression of an [Experimental] SDK member.
+        The architecture ratchet freezes the Client's ADR-01 debt. Shrinking a frozen list is always acceptable.
+        FrozenLuaGlobals stays empty. Growing FrozenLuaUsage requires a registered exception, in the ratchet itself,
+        with its reason and the name of the CheatEngine.SDK primitive that is missing (AwaitingSdkPrimitive); flag an
+        exception that names no missing SDK primitive, and a new Permanent entry outside UnsafeLuaClient (there is no
+        separate migration guide file). SanctionedSdkLuaSurface is exact: each typed SDK Lua member the Client uses
+        carries its reason. SdkExperimentalApiRatchetTests forbids any reference to or suppression of an [Experimental]
+        SDK member.
 
     - path: ".github/**"
       instructions: |
@@ -177,7 +197,9 @@ reviews:
         only and $LASTEXITCODE checks. CodeQL, Scorecard, zizmor-online and dependency-submission are advisory.
         scorecard.yml intentionally has no defaults, env or run steps. Write permissions are granted per job with a
         reason comment: outside release.yml, contents: write exists only in the dependency-submission.yml job submit.
-        Never use pull_request_target.
+        Never use pull_request_target. In dependabot.yml, every ecosystem keeps a cooldown of at least 7 days,
+        CheatEngine.SDK majors stay ignored, and CheatEngine.SDK stays out of every group, version and security updates
+        alike (DependabotConfigurationTests).
 
     - path: ".github/workflows/release.yml"
       instructions: |
@@ -190,8 +212,10 @@ reviews:
     - path: "{SECURITY.md,.github/CODEOWNERS,.github/ISSUE_TEMPLATE/**}"
       instructions: |
         Keep the required fields of the compatibility form aligned with the Client release tuple (package versions,
-        consumed CheatEngine.SDK identity, native bridge, host profile). Vulnerabilities are reported privately, never
-        in public issues. CODEOWNERS stays informational.
+        consumed CheatEngine.SDK identity, native bridge, host profile), and the version placeholders on the Client
+        line and the pinned CheatEngine.SDK (IssueFormTests). SECURITY.md lists the supported Client line with the
+        CheatEngine.SDK range it requires. Vulnerabilities are reported privately, never in public issues. CODEOWNERS
+        stays informational.
 
     - path: "eng/CheatEngineSdk.props"
       instructions: |
@@ -212,7 +236,7 @@ reviews:
         Keep a Changelog 1.1.0 with the exact heading "## [Unreleased]" and its four categories in order: Added,
         Changed, Security, Deployment. The release workflow reads that section for the release notes.
 
-    - path: "{README.md,ROADMAP.md,docs/**}"
+    - path: "{README.md,ROADMAP.md}"
       instructions: |
         Keep the architecture boundary explicit: CheatEngine.SDK owns ABI, native bindings, Lua globals, dispatcher,
         and native resource ownership; CheatEngine.Client owns high-level workflows, policies, and developer ergonomics.

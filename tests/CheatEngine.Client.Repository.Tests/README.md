@@ -87,10 +87,13 @@ read committed files: the project never builds, packs, restores or starts a proc
   - `CodeQlWorkflowTests`, `ScorecardWorkflowTests` and `OnlineZizmorWorkflowTests` prove the advisory security
     workflows: a manual traced build of the whole shipped graph without dependency cache, the Scorecard verifier's
     restrictions, the same zizmor version as the Gate and no SARIF upload from forks;
-  - `DependabotConfigurationTests` proves the cooldowns, the covered ecosystems and the ignores that protect frozen
-    decisions (CheatEngine.SDK majors, Roslyn, SDK-implicit packages);
+  - `DependabotConfigurationTests` proves the cooldowns, the covered ecosystems, the ignores that protect frozen
+    decisions (CheatEngine.SDK majors, Roslyn, SDK-implicit packages) and that a CheatEngine.SDK update, version or
+    security, a reviewed pin move, never joins a grouped pull request (`CheatEngineSdkUpdatesAreNeverGrouped`);
   - `CommunityHealthTests` and `IssueFormTests` prove `SECURITY.md`, `CODE_OF_CONDUCT.md`, CODEOWNERS and the issue
-    forms, and that no form presents a profile as qualified.
+    forms, that no form presents a profile as qualified, and that the version placeholders name a stable version of
+    the Client's major line, the pinned CheatEngine.SDK and its content hash
+    (`VersionPlaceholdersNameTheClientLineAndThePinnedSdk`).
 
 ## Run
 

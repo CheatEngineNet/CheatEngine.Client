@@ -25,12 +25,19 @@ updates:
       default-days: 7
       semver-major-days: 30
     groups:
+      # CheatEngine.SDK stays out of both groups: its update, version or security, moves the reviewed pin
+      # (eng/CheatEngineSdk.props bump procedure: identity literals, every lock file, prose) and the lower bound of the
+      # SDK range the Client packages publish, so it gets a pull request of its own instead of holding the other
+      # updates back.
       nuget-minor-and-patch:
         applies-to: version-updates
+        patterns: [ '*' ]
+        exclude-patterns: [ CheatEngine.SDK ]
         update-types: [ minor, patch ]
       nuget-security:
         applies-to: security-updates
         patterns: [ '*' ]
+        exclude-patterns: [ CheatEngine.SDK ]
     ignore:
       # The Client stays on CheatEngine.SDK 2.x: range [2.0.0,3.0.0) (CHEATENGINECLIENT9016), so every major
       # update (3.0.0 and later) is ignored. This covers the CPM entry and the Coexistence fixtures'

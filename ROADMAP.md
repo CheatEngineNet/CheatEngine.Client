@@ -1,12 +1,49 @@
 # CheatEngine.Client Roadmap
 
-**Planning baseline: September 21, 2026.** This is an outcome-based plan, not a delivery-date commitment. It does not imply product implementation, package publication, or live-host qualification.
+**Planning baseline: September 21, 2026; post-1.0 section written for the 1.0.0 release.** This is an outcome-based plan, not a delivery-date commitment. It does not imply product implementation, package publication, or live-host qualification.
 
 ## Operating boundary
 
 SDK owns CE integration; Client owns developer-facing workflows. Independent reliability fixes need not wait for all SDK research. Source merged, package shipped, fixture passed and host qualified are separate gates.
 
+## After 1.0.0
+
+1.0.0 is the first release; it consumes CheatEngine.SDK 2.0.0. Nothing below has a date or breaks 1.x: a new public API arrives in a 1.x minor release, under the versioning rules of the [README](README.md#versioning-and-compatibility), and a new CheatEngine.SDK major means a Client 2.0.
+
+### Domains awaiting CheatEngine.SDK primitives
+
+1.0 has no public contract, not even a gated placeholder, for these Cheat Engine features, because no CheatEngine.SDK primitive owns them: timers; hotkeys; the debugger and breakpoints; the speed hack; target-memory and file hashing; DBVM; remote execution and DLL injection; pausing, resuming or creating a process, and attaching to the foreground process; assembly comments; detaching from a process. Each one can arrive in a 1.x minor release once the consumed CheatEngine.SDK owns it (target binding, cleanup and failure semantics) and its live qualification scenarios exist. The primitive is requested in the CheatEngine.SDK repository first.
+
+### CheatEngine.SDK requests
+
+| Request | What the Client needs it for | Until then |
+|---|---|---|
+| A child-count getter on `MemoryRecord` | `MemoryRecordStateSnapshot.ChildCount` from a typed SDK getter | `TableClient` reads the `Count` property through the untyped `CEObject.TryGetProperty`, the one `AwaitingSdkPrimitive` entry of the architecture ratchet, because `MemoryRecord.TryGetChild(int)` cannot tell an index out of range from a failed read |
+| A read status for the `Script` of a memory record | `MemoryRecordContentSnapshot.Script` that tells a record without a script from a failed read | `null` covers both, and a failed `Script` read does not fail the snapshot |
+| A protected chunk-execution service | Caller-supplied Lua under the SDK's protection | `UnsafeLuaClient` stays the permanent entry of the ratchet, behind the `EnableUnsafeLuaExecution` opt-in |
+
+### Leaving experimental
+
+Each experimental id leaves experimental once every scenario its capability requires succeeds on the exact host tuple, without a waiver ([RELEASING](RELEASING.md#qualification-gate)). An id lifted before 1.0.0 ships stable in 1.0.0; an id still experimental then is lifted in a 1.x minor release, and until that release its API can change or be removed in a minor release.
+
+| Id | API | Scenarios |
+|---|---|---|
+| `CECLIENT5001` | Value scans (`IValueScanner`) | Q25, Q26 |
+| `CECLIENT5002` | Target allocations (`IAllocationClient`) | Q30.a |
+| `CECLIENT5003` | Single-instruction assembly and disassembly (`IAssemblyClient`) | Q32 |
+| `CECLIENT5004` | Auto Assembler patches (`IAutoAssemblerClient`, registered by `EnableAutoAssemblerPatches()`) | Q35, Q44 |
+
+### Lua operations
+
+Generated Lua operations take scalar inputs and return one result in 1.0 (`CECLUA1103`). CheatEngine.SDK 2.0.0's `LuaOptional<T>` lets a binding omit a trailing argument (`LUA_TNONE`, not an explicit `nil`) and read the number of results Lua actually returned; the Client adopts it once it has a contract for an omitted input and an absent result.
+
+### Benchmarks
+
+The facade-versus-direct-SDK comparison (audit item A24-26) is deferred: `tests/CheatEngine.Client.Benchmarks` measures the Client over in-process fakes, and comparing a Client operation with the same direct CheatEngine.SDK call needs a hosted Cheat Engine.
+
 ## Milestones
+
+These milestones and epics are the pre-1.0 plan. Their ids stay stable for the issues that reference them; the [CHANGELOG](CHANGELOG.md) says what 1.0.0 shipped.
 
 | Phase | Outcome | Exit evidence |
 |---|---|---|

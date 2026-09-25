@@ -10,8 +10,8 @@ namespace CheatEngine.Client.Repository.Tests.Governance;
 /// Hardened Dependabot configuration (PR-CQ-08, A21-36, CI-BOTH-6): a cooldown on every ecosystem (zizmor
 /// dependabot-cooldown threshold: 7 days, https://docs.zizmor.sh/audits/#dependabot-cooldown), NuGet, GitHub Actions
 /// (workflows and composite actions) and the .NET SDK covered, and the ignores that protect frozen decisions: the
-/// Client stays on the CheatEngine.SDK major of its pin (eng/CheatEngineSdk.props), Roslyn moves with the generator
-/// floor, SDK-implicit packages move with global.json.
+/// Client stays on the CheatEngine.SDK major of its pin (eng/CheatEngineSdk.props), a CheatEngine.SDK update is never
+/// grouped with other packages, Roslyn moves with the generator floor, SDK-implicit packages move with global.json.
 /// Options: https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference
 /// </summary>
 public sealed class DependabotConfigurationTests
@@ -78,6 +78,30 @@ public sealed class DependabotConfigurationTests
 		Assert.Contains($"CheatEngine.SDK {SdkPin.SupportedMajor}.x", text, StringComparison.Ordinal);
 		Assert.Contains($"[{SdkPin.Version},{SdkPin.UpperBound})", text, StringComparison.Ordinal);
 		Assert.Contains($"({SdkPin.UpperBound} and later) is ignored", text, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void CheatEngineSdkUpdatesAreNeverGrouped()
+	{
+		// A CheatEngine.SDK update, version or security, moves the reviewed pin and the lower bound of the SDK range
+		// the Client packages publish; it passes only with the bump procedure of eng/CheatEngineSdk.props, so every
+		// NuGet group excludes it and it never holds a grouped pull request back.
+		YamlMappingNode groups = Assert.IsType<YamlMappingNode>(GovernanceFile.Child(Update("nuget"), "groups"));
+
+		List<string> groupsThatTakeTheSdk = [];
+		foreach (KeyValuePair<YamlNode, YamlNode> group in groups.Children)
+		{
+			YamlMappingNode definition = Assert.IsType<YamlMappingNode>(group.Value);
+			IReadOnlyList<string> excluded =
+				GovernanceFile.Strings(GovernanceFile.Child(definition, "exclude-patterns"));
+			if (!excluded.Contains(SdkPin.PackageId, StringComparer.Ordinal))
+			{
+				groupsThatTakeTheSdk.Add(((YamlScalarNode) group.Key).Value!);
+			}
+		}
+
+		Assert.NotEmpty(groups.Children);
+		Assert.Empty(groupsThatTakeTheSdk);
 	}
 
 	[Fact]
