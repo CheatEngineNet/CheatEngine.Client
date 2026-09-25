@@ -17,7 +17,7 @@ namespace CheatEngine.Client.Assembly;
 ///         Engine reports; they are never parsed from the disassembler's byte column.
 ///     </para>
 /// </remarks>
-[Experimental("CECLIENT5003", UrlFormat = "https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/libs/CheatEngine.Client.Abstractions/README.md#{0}")]
+[Experimental(ClientExperimentalDiagnostics.Instructions, UrlFormat = ClientExperimentalDiagnostics.UrlFormat)]
 public readonly record struct AssemblyInstructionSnapshot
 {
 	/// <summary>Creates a copied assembly-instruction snapshot.</summary>

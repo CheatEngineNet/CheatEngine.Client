@@ -1,5 +1,3 @@
-#pragma warning disable CECLIENT5004 // Core implements the experimental Auto Assembler surface it serves.
-
 using CheatEngine.Client.Assembly;
 using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Results;

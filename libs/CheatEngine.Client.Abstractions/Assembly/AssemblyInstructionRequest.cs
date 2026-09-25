@@ -9,7 +9,7 @@ namespace CheatEngine.Client.Assembly;
 ///     The address is the explicit origin Cheat Engine receives: the same text assembles to different bytes for another
 ///     origin, preference or range-check option, so reuse the bytes only at the address they were assembled for.
 /// </remarks>
-[Experimental("CECLIENT5003", UrlFormat = "https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/libs/CheatEngine.Client.Abstractions/README.md#{0}")]
+[Experimental(ClientExperimentalDiagnostics.Instructions, UrlFormat = ClientExperimentalDiagnostics.UrlFormat)]
 public readonly record struct AssemblyInstructionRequest
 {
 	/// <summary>Creates an instruction-assembly request.</summary>

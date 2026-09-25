@@ -151,7 +151,7 @@ public sealed class CheatEngineClientBuilder
 	///         <see cref="IAutoAssemblerClient" /> from the activation provider and apply only scripts your plugin owns.
 	///     </para>
 	/// </remarks>
-	[Experimental("CECLIENT5004", UrlFormat = "https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/libs/CheatEngine.Client.Abstractions/README.md#{0}")]
+	[Experimental(ClientExperimentalDiagnostics.AutoAssemblerPatches, UrlFormat = ClientExperimentalDiagnostics.UrlFormat)]
 	public CheatEngineClientBuilder EnableAutoAssemblerPatches()
 	{
 		if (Services.Any(static descriptor => descriptor.ServiceType == typeof(IAutoAssemblerClient)))

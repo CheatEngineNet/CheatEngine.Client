@@ -8,7 +8,7 @@ namespace CheatEngine.Client.Assembly;
 ///     Engine returned one. It is user data (it can contain script source and file paths), so <see cref="ToString" />
 ///     omits it.
 /// </remarks>
-[Experimental("CECLIENT5004", UrlFormat = "https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/libs/CheatEngine.Client.Abstractions/README.md#{0}")]
+[Experimental(ClientExperimentalDiagnostics.AutoAssemblerPatches, UrlFormat = ClientExperimentalDiagnostics.UrlFormat)]
 public readonly record struct AutoAssemblerCheckResult
 {
 	/// <summary>Creates a check verdict.</summary>

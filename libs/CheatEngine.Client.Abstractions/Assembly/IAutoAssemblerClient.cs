@@ -40,7 +40,7 @@ namespace CheatEngine.Client.Assembly;
 ///         and are user data.
 ///     </para>
 /// </remarks>
-[Experimental("CECLIENT5004", UrlFormat = "https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/libs/CheatEngine.Client.Abstractions/README.md#{0}")]
+[Experimental(ClientExperimentalDiagnostics.AutoAssemblerPatches, UrlFormat = ClientExperimentalDiagnostics.UrlFormat)]
 public interface IAutoAssemblerClient
 {
 	/// <summary>Tries to check the <c>[ENABLE]</c> section of a script without applying it.</summary>

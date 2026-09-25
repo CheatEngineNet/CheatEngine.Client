@@ -1,5 +1,3 @@
-#pragma warning disable CECLIENT5003 // Core implements the experimental instruction surface it serves.
-
 using System.Collections.Immutable;
 using System.Runtime.InteropServices;
 

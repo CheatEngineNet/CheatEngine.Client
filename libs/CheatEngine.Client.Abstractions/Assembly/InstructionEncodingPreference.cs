@@ -12,7 +12,7 @@ namespace CheatEngine.Client.Assembly;
 ///     </para>
 ///     <para>Values are stable; a minor release can add one.</para>
 /// </remarks>
-[Experimental("CECLIENT5003", UrlFormat = "https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/libs/CheatEngine.Client.Abstractions/README.md#{0}")]
+[Experimental(ClientExperimentalDiagnostics.Instructions, UrlFormat = ClientExperimentalDiagnostics.UrlFormat)]
 [SuppressMessage("Naming", "CA1720:Identifiers should not contain type names",
 	Justification = "The members mirror Cheat Engine's apShort, apLong and apFar jump preferences.")]
 public enum InstructionEncodingPreference

@@ -37,7 +37,7 @@ namespace CheatEngine.Client.Assembly;
 ///         <see cref="IAutoAssemblerClient" />, which the activation registers only when it opts in.
 ///     </para>
 /// </remarks>
-[Experimental("CECLIENT5003", UrlFormat = "https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/libs/CheatEngine.Client.Abstractions/README.md#{0}")]
+[Experimental(ClientExperimentalDiagnostics.Instructions, UrlFormat = ClientExperimentalDiagnostics.UrlFormat)]
 public interface IAssemblyClient
 {
 	/// <summary>Tries to assemble exactly one instruction into copied bytes.</summary>

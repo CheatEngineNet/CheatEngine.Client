@@ -13,6 +13,8 @@ namespace CheatEngine.Client.Tests.Architecture;
 ///     Every experimental Client API is catalogued (plan L15): its <c>[Experimental]</c> diagnostic id is an entry of
 ///     <see cref="Catalog" />, its <c>UrlFormat</c> points to the Abstractions README, that README has the id's anchor, its
 ///     PublicAPI entries carry the <c>[id]</c> prefix, and only Core, DI and <c>tests/</c> suppress the diagnostic.
+///     Every id is declared once, in <c>ClientExperimentalDiagnostics</c>, which every attribute uses, and the Client
+///     libraries suppress an id in their project file, never file by file.
 /// </summary>
 /// <remarks>
 ///     A lot that adds an experimental API appends one entry to <see cref="Catalog" /> and the matching README anchor; the
@@ -26,6 +28,10 @@ public sealed partial class ClientExperimentalDiagnosticsTests
 		"https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/libs/CheatEngine.Client.Abstractions/README.md#{0}";
 
 	private const string AbstractionsReadme = "libs/CheatEngine.Client.Abstractions/README.md";
+
+	private const string DiagnosticsType = "CheatEngine.Client.ClientExperimentalDiagnostics";
+
+	private const string UrlFormatField = "UrlFormat";
 
 	private const int RegexTimeoutMilliseconds = 1000;
 
@@ -95,6 +101,55 @@ public sealed partial class ClientExperimentalDiagnosticsTests
 			string.Join(Environment.NewLine, wrongUrl));
 		Assert.True(unused.Length == 0,
 			"These catalogued ids mark no Client API; remove them from the catalog: " + string.Join(", ", unused));
+	}
+
+	[Fact]
+	public void EveryIdIsDeclaredOnceAndTheLibrariesUseTheDeclarationAndSuppressItPerProject()
+	{
+		Type declarations = ClientAssemblyCatalog.Load("CheatEngine.Client.Abstractions")
+			.GetType(DiagnosticsType, throwOnError: true)!;
+		FieldInfo[] constants = declarations.GetFields(BindingFlags.NonPublic | BindingFlags.Static);
+		string[] declared =
+		[
+			.. constants.Where(static field => field.IsLiteral && field.Name != UrlFormatField)
+				.Select(static field => (string) field.GetRawConstantValue()!).Order(StringComparer.Ordinal)
+		];
+
+		Assert.Equal(Catalog.Select(static diagnostic => diagnostic.Id).Order(StringComparer.Ordinal), declared);
+		Assert.Equal(ExpectedUrlFormat,
+			(string?) Array.Find(constants, static field => field.Name == UrlFormatField)?.GetRawConstantValue());
+		List<string> offenders = [];
+		foreach (string file in EnumerateScannedFiles())
+		{
+			string relative = Path.GetRelativePath(RepositoryLayout.Root, file).Replace('\\', '/');
+			if (!relative.StartsWith("libs/", StringComparison.Ordinal) ||
+				!relative.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+			{
+				continue;
+			}
+
+			string text = File.ReadAllText(file);
+			offenders.AddRange(LiteralExperimentalArgument().Matches(text)
+				.Select(match => $"{relative}: {match.Value.Trim()} (use ClientExperimentalDiagnostics)"));
+			offenders.AddRange(FindSuppressions(relative, text)
+				.Select(suppression => $"{relative}: {suppression} (suppress in the project file)"));
+		}
+
+		Assert.True(offenders.Count == 0,
+			"An [Experimental] attribute of a Client library names its id and address through the constants of " +
+			"ClientExperimentalDiagnostics, and Core and DI suppress an id in their project file:" +
+			Environment.NewLine + string.Join(Environment.NewLine, offenders));
+	}
+
+	[Theory]
+	[InlineData("[Experimental(\"CECLIENT5003\", UrlFormat = ClientExperimentalDiagnostics.UrlFormat)]")]
+	[InlineData("[Experimental(ClientExperimentalDiagnostics.Instructions, UrlFormat = \"https://example.invalid/{0}\")]")]
+	[InlineData("[System.Diagnostics.CodeAnalysis.ExperimentalAttribute( \"CECLIENT5004\")]")]
+	public void TheLiteralScanRecognizesALiteralIdOrAddress(string attribute)
+	{
+		Assert.Matches(LiteralExperimentalArgument(), attribute);
+		Assert.DoesNotMatch(LiteralExperimentalArgument(),
+			"[Experimental(ClientExperimentalDiagnostics.Instructions, UrlFormat = ClientExperimentalDiagnostics.UrlFormat)]");
 	}
 
 	[Fact]
@@ -370,6 +425,10 @@ public sealed partial class ClientExperimentalDiagnosticsTests
 
 	[GeneratedRegex(@"CECLIENT5\d{3}", RegexOptions.CultureInvariant, RegexTimeoutMilliseconds)]
 	private static partial Regex ExperimentalId();
+
+	[GeneratedRegex(@"\bExperimental(?:Attribute)?[ \t]*\([ \t]*""[^""]*""|\bUrlFormat[ \t]*=[ \t]*""[^""]*""",
+		RegexOptions.CultureInvariant, RegexTimeoutMilliseconds)]
+	private static partial Regex LiteralExperimentalArgument();
 
 	[GeneratedRegex(@"^[ \t]*#[ \t]*pragma[ \t]+warning[ \t]+disable\b(?<ids>[^\r\n]*)",
 		RegexOptions.CultureInvariant | RegexOptions.Multiline, RegexTimeoutMilliseconds)]

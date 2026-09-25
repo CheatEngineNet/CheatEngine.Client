@@ -32,7 +32,7 @@ namespace CheatEngine.Client.Assembly;
 ///         information (allocations, registered symbols): that table stays the only disable authority.
 ///     </para>
 /// </remarks>
-[Experimental("CECLIENT5004", UrlFormat = "https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/libs/CheatEngine.Client.Abstractions/README.md#{0}")]
+[Experimental(ClientExperimentalDiagnostics.AutoAssemblerPatches, UrlFormat = ClientExperimentalDiagnostics.UrlFormat)]
 public interface IAutoAssemblerPatchLease : ICheatEngineLease
 {
 	/// <summary>Gets the Client diagnostic name supplied with the script, if any.</summary>

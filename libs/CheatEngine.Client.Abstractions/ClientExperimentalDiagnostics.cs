@@ -9,6 +9,10 @@ namespace CheatEngine.Client;
 ///         and the exit criteria (<c>ClientExperimentalDiagnosticsTests</c> keeps the three in agreement).
 ///     </para>
 ///     <para>
+///         Every id is declared here once. The dependency-injection package compiles this file as a link for its opt-in,
+///         and Core and dependency injection suppress every id in their project file, never file by file.
+///     </para>
+///     <para>
 ///         An id is removed, with its attributes and prefixes, only when every live scenario of its capability passes on
 ///         the exact qualified tuple.
 ///     </para>
@@ -24,4 +28,16 @@ internal static class ClientExperimentalDiagnostics
 
 	/// <summary>Target allocations over CheatEngine.SDK's allocator (<c>IAllocationClient</c> and its types).</summary>
 	internal const string Allocations = "CECLIENT5002";
+
+	/// <summary>
+	///     Single-instruction assembly, disassembly and length operations (<c>ICheatEngineClient.Assembly</c>,
+	///     <c>IAssemblyClient</c> and its types).
+	/// </summary>
+	internal const string Instructions = "CECLIENT5003";
+
+	/// <summary>
+	///     Auto Assembler patches (<c>IAutoAssemblerClient</c>, its types and the dependency-injection opt-in
+	///     <c>EnableAutoAssemblerPatches</c>).
+	/// </summary>
+	internal const string AutoAssemblerPatches = "CECLIENT5004";
 }

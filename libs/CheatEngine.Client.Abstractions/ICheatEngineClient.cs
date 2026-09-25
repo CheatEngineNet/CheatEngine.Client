@@ -147,7 +147,7 @@ public interface ICheatEngineClient
 	///     Experimental (<c>CECLIENT5003</c>). Auto Assembler patches are not part of it: they are applied through
 	///     <c>IAutoAssemblerClient</c>, which only the <c>EnableAutoAssemblerPatches()</c> opt-in registers.
 	/// </remarks>
-	[Experimental("CECLIENT5003", UrlFormat = "https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/libs/CheatEngine.Client.Abstractions/README.md#{0}")]
+	[Experimental(ClientExperimentalDiagnostics.Instructions, UrlFormat = ClientExperimentalDiagnostics.UrlFormat)]
 	public IAssemblyClient Assembly
 	{
 		get;

@@ -3,9 +3,14 @@
   <PropertyGroup>
     <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
     <Description>Microsoft.Extensions.DependencyInjection registrations for CheatEngine.Client: the activation-scoped client, modules, memory codecs and validated options.</Description>
-    <!-- DI composes the experimental Client APIs (CECLIENT5001 value scans, CECLIENT5002 allocations); only Core, DI and tests may suppress them (ClientExperimentalDiagnosticsTests). -->
-    <NoWarn>$(NoWarn);CECLIENT5001;CECLIENT5002</NoWarn>
+    <!-- DI composes every experimental Client API (CECLIENT5001 value scans, CECLIENT5002 allocations, CECLIENT5003 instructions, CECLIENT5004 Auto Assembler patches) and suppresses them here, never file by file; only Core, DI and tests may suppress them (ClientExperimentalDiagnosticsTests). -->
+    <NoWarn>$(NoWarn);CECLIENT5001;CECLIENT5002;CECLIENT5003;CECLIENT5004</NoWarn>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The experimental ids are declared once, in Abstractions; the EnableAutoAssemblerPatches attribute uses them. -->
+    <Compile Include="../CheatEngine.Client.Abstractions/ClientExperimentalDiagnostics.cs" Link="ClientExperimentalDiagnostics.cs"/>
+  </ItemGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="CheatEngine.Client.Hosting"/>

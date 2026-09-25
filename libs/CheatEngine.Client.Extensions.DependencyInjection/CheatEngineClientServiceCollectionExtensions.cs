@@ -1,5 +1,3 @@
-#pragma warning disable CECLIENT5003 // DI composes the experimental instruction client of ICheatEngineClient.
-
 using CheatEngine.Client.Allocations;
 using CheatEngine.Client.Assembly;
 using CheatEngine.Client.Core;
