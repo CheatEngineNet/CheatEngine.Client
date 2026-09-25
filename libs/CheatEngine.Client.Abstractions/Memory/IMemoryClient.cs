@@ -29,8 +29,10 @@ namespace CheatEngine.Client.Memory;
 ///         <b>Exceptions.</b> Every member checks its arguments, then the activation, before any Cheat Engine call:
 ///         a <see langword="default" /> or tampered request throws an <see cref="ArgumentException" />, an ended
 ///         activation <see cref="CheatEngineActivationExpiredException" /> and a stopping one
-///         <see cref="CheatEngineInvalidStateException" />. A <c>Try</c> or <c>Detailed</c> member returns every other
-///         failure; the throwing member with the same inputs throws it through
+///         <see cref="CheatEngineInvalidStateException" />. A deactivation callback can still call every member on
+///         Cheat Engine's main thread (see <see cref="ICheatEngineClient" />), but the context a codec receives there
+///         throws <see cref="CheatEngineInvalidStateException" />. A <c>Try</c> or <c>Detailed</c> member returns
+///         every other failure; the throwing member with the same inputs throws it through
 ///         <see cref="CheatEngineFailure.Throw(CancellationToken)" />. The cancellation token is observed before the
 ///         work is dispatched to Cheat Engine's main thread.
 ///     </para>
@@ -45,7 +47,9 @@ public interface IMemoryClient
 	/// <param name="cancellationToken">Observed before the read is dispatched to Cheat Engine's main thread.</param>
 	/// <returns><see langword="true" /> when the value was read.</returns>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public bool TryReadPrimitive<T>(Address address, [MaybeNullWhen(false)] out T value,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 		where T : unmanaged;
@@ -57,7 +61,8 @@ public interface IMemoryClient
 	/// <returns>The value read.</returns>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping, or the read failed with <see cref="CheatEngineFailureKind.InvalidState" />.
+	///     The activation is stopping, outside a deactivation callback, or the read failed with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     The read observed the cancellation of <paramref name="cancellationToken" />.
@@ -74,7 +79,9 @@ public interface IMemoryClient
 	/// <param name="cancellationToken">Observed before the write is dispatched to Cheat Engine's main thread.</param>
 	/// <returns><see langword="true" /> when the value was written.</returns>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public bool TryWritePrimitive<T>(Address address, T value, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 		where T : unmanaged;
@@ -86,7 +93,8 @@ public interface IMemoryClient
 	/// <param name="cancellationToken">Observed before the write is dispatched to Cheat Engine's main thread.</param>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping, or the write failed with <see cref="CheatEngineFailureKind.InvalidState" />.
+	///     The activation is stopping, outside a deactivation callback, or the write failed with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     The write observed the cancellation of <paramref name="cancellationToken" />.
@@ -107,7 +115,9 @@ public interface IMemoryClient
 	///     one.
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public bool TryReadPrimitiveBatch<T>(MemoryPrimitiveBatchReadRequest<T> request, out ImmutableArray<T> values,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 		where T : unmanaged;
@@ -123,7 +133,8 @@ public interface IMemoryClient
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping, or the batch failed with <see cref="CheatEngineFailureKind.InvalidState" />.
+	///     The activation is stopping, outside a deactivation callback, or the batch failed with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     The batch observed the cancellation of <paramref name="cancellationToken" />.
@@ -150,7 +161,9 @@ public interface IMemoryClient
 	///     one.
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public MemoryPrimitiveBatchReadOutcome<T> ReadPrimitiveBatchDetailed<T>(MemoryPrimitiveBatchReadRequest<T> request,
 		CancellationToken cancellationToken = default)
 		where T : unmanaged;
@@ -169,7 +182,9 @@ public interface IMemoryClient
 	///     one.
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public bool TryWritePrimitiveBatch<T>(MemoryPrimitiveBatchWriteRequest<T> request, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 		where T : unmanaged;
@@ -184,7 +199,8 @@ public interface IMemoryClient
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping, or the batch failed with <see cref="CheatEngineFailureKind.InvalidState" />.
+	///     The activation is stopping, outside a deactivation callback, or the batch failed with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     The batch observed the cancellation of <paramref name="cancellationToken" />.
@@ -213,7 +229,9 @@ public interface IMemoryClient
 	///     one.
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public MemoryPrimitiveBatchWriteOutcome WritePrimitiveBatchDetailed<T>(MemoryPrimitiveBatchWriteRequest<T> request,
 		CancellationToken cancellationToken = default)
 		where T : unmanaged;
@@ -232,7 +250,9 @@ public interface IMemoryClient
 	///     one.
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public bool TryReadBytes(MemoryBytesReadRequest request, out ImmutableArray<byte> bytes,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default);
 
@@ -246,7 +266,8 @@ public interface IMemoryClient
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping, or the read failed with <see cref="CheatEngineFailureKind.InvalidState" />.
+	///     The activation is stopping, outside a deactivation callback, or the read failed with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     The read observed the cancellation of <paramref name="cancellationToken" />.
@@ -276,7 +297,9 @@ public interface IMemoryClient
 	///     one.
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public MemoryBytesReadOutcome ReadBytesDetailed(MemoryBytesReadRequest request,
 		CancellationToken cancellationToken = default);
 
@@ -289,7 +312,9 @@ public interface IMemoryClient
 	///     <paramref name="request" /> is the <see langword="default" /> request, which has no byte.
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public bool TryWriteBytes(MemoryBytesWriteRequest request, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
@@ -301,7 +326,8 @@ public interface IMemoryClient
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping, or the write failed with <see cref="CheatEngineFailureKind.InvalidState" />.
+	///     The activation is stopping, outside a deactivation callback, or the write failed with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     The write observed the cancellation of <paramref name="cancellationToken" />.
@@ -323,7 +349,9 @@ public interface IMemoryClient
 	///     tampered one whose encoding is not a defined value.
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public bool TryReadString(MemoryStringReadRequest request, [NotNullWhen(true)] out string? value,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default);
 
@@ -337,7 +365,8 @@ public interface IMemoryClient
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping, or the read failed with <see cref="CheatEngineFailureKind.InvalidState" />.
+	///     The activation is stopping, outside a deactivation callback, or the read failed with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     The read observed the cancellation of <paramref name="cancellationToken" />.
@@ -358,7 +387,9 @@ public interface IMemoryClient
 	///     or an undefined encoding (<see cref="ArgumentOutOfRangeException" />), or a text longer than its bound.
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public bool TryWriteString(MemoryStringWriteRequest request, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
@@ -374,7 +405,8 @@ public interface IMemoryClient
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping, or the write failed with <see cref="CheatEngineFailureKind.InvalidState" />.
+	///     The activation is stopping, outside a deactivation callback, or the write failed with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     The write observed the cancellation of <paramref name="cancellationToken" />.
@@ -395,7 +427,9 @@ public interface IMemoryClient
 	///     one with more than 64 offsets (<see cref="ArgumentOutOfRangeException" />).
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public bool TryResolvePointerChain(PointerChainRequest request, out Address address,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default);
 
@@ -409,7 +443,8 @@ public interface IMemoryClient
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping, or the chain failed with <see cref="CheatEngineFailureKind.InvalidState" />.
+	///     The activation is stopping, outside a deactivation callback, or the chain failed with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     The chain observed the cancellation of <paramref name="cancellationToken" />.
@@ -434,7 +469,9 @@ public interface IMemoryClient
 	///     before the activation check and before any Cheat Engine call.
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping (outside a deactivation callback, or inside one when the codec uses its context).
+	/// </exception>
 	public bool TryRead<T>(MemoryReadRequest<T> request, [MaybeNullWhen(false)] out T value,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default);
 
@@ -450,7 +487,8 @@ public interface IMemoryClient
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping, or the read failed with <see cref="CheatEngineFailureKind.InvalidState" />.
+	///     The activation is stopping (outside a deactivation callback, or inside one when the codec uses its context),
+	///     or the read failed with <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     The read observed the cancellation of <paramref name="cancellationToken" />.
@@ -474,7 +512,9 @@ public interface IMemoryClient
 	///     before the activation check and before any Cheat Engine call.
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping (outside a deactivation callback, or inside one when the codec uses its context).
+	/// </exception>
 	public bool TryWrite<T>(MemoryWriteRequest<T> request, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
@@ -489,7 +529,8 @@ public interface IMemoryClient
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping, or the write failed with <see cref="CheatEngineFailureKind.InvalidState" />.
+	///     The activation is stopping (outside a deactivation callback, or inside one when the codec uses its context),
+	///     or the write failed with <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     The write observed the cancellation of <paramref name="cancellationToken" />.

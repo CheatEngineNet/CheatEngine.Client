@@ -57,7 +57,7 @@ public readonly struct MemoryPointerChainBuilder
 	///     The Client activation that owns the memory service has ended.
 	/// </exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The Client activation is stopping and admits no new work, or the resolution failed with
+	///     The Client activation is stopping, outside a deactivation callback, or the resolution failed with
 	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	public Address Resolve(CancellationToken cancellationToken = default)
@@ -80,7 +80,7 @@ public readonly struct MemoryPointerChainBuilder
 	///     The Client activation that owns the memory service has ended.
 	/// </exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The Client activation is stopping and admits no new work.
+	///     The Client activation is stopping, outside a deactivation callback.
 	/// </exception>
 	public bool TryResolve(out Address address, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)

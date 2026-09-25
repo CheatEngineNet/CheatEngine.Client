@@ -11,8 +11,9 @@ namespace CheatEngine.Client.Runtime;
 ///     <para>
 ///         After its arguments, every operation checks the activation: an ended activation throws
 ///         <see cref="CheatEngineActivationExpiredException" /> and a stopping one
-///         <see cref="CheatEngineInvalidStateException" />. A <c>Try</c> member returns every other failure; the
-///         throwing member with the same inputs throws it through
+///         <see cref="CheatEngineInvalidStateException" />, except that a deactivation callback can still call every
+///         operation on Cheat Engine's main thread (see <see cref="ICheatEngineClient" />). A <c>Try</c> member
+///         returns every other failure; the throwing member with the same inputs throws it through
 ///         <see cref="CheatEngineFailure.Throw(CancellationToken)" />.
 ///     </para>
 /// </remarks>
@@ -33,7 +34,9 @@ public interface ICheatEngineRuntime
 	///     A fact that Cheat Engine could not report stays unknown in the snapshot instead of failing the call.
 	/// </remarks>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public bool TryGetSnapshot(
 		out CheatEngineRuntimeSnapshot snapshot,
 		out CheatEngineFailure failure,
@@ -44,7 +47,8 @@ public interface ICheatEngineRuntime
 	/// <returns>The captured runtime facts.</returns>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping, or the capture failed with <see cref="CheatEngineFailureKind.InvalidState" />.
+	///     The activation is stopping, outside a deactivation callback, or the capture failed with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     The capture observed the cancellation of <paramref name="cancellationToken" />.
@@ -65,7 +69,9 @@ public interface ICheatEngineRuntime
 	///     <paramref name="capability" /> is the <see langword="default" /> identifier, which names no capability.
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public bool TryGetClientCapability(
 		ClientCapabilityId capability,
 		out ClientCapabilityAvailability availability,
@@ -81,7 +87,8 @@ public interface ICheatEngineRuntime
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping, or the capture failed with <see cref="CheatEngineFailureKind.InvalidState" />.
+	///     The activation is stopping, outside a deactivation callback, or the capture failed with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     The capture observed the cancellation of <paramref name="cancellationToken" />.

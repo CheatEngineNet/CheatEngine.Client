@@ -57,7 +57,7 @@ public readonly struct AobManyMatchBuilder
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The Client activation that owns the scanner has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The Client activation is stopping and admits no new work, or the scan failed with
+	///     The Client activation is stopping, outside a deactivation callback, or the scan failed with
 	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <remarks>
@@ -88,7 +88,7 @@ public readonly struct AobManyMatchBuilder
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The Client activation that owns the scanner has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The Client activation is stopping and admits no new work.
+	///     The Client activation is stopping, outside a deactivation callback.
 	/// </exception>
 	public bool TryExecute(out AobScanResult result, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)

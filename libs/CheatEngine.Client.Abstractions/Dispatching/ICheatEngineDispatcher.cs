@@ -20,8 +20,9 @@ namespace CheatEngine.Client.Dispatching;
 ///         <b>Try is not "never throws".</b> The <c>TryInvoke</c> overloads return <see langword="false" /> only for a
 ///         pre-admission cancellation or a dispatcher admission/infrastructure failure. They <b>throw</b>
 ///         <see cref="CheatEngineActivationExpiredException" /> when the plugin activation has ended,
-///         <see cref="CheatEngineInvalidStateException" /> when the activation is stopping and no new work is admitted,
-///         and <see cref="ArgumentNullException" /> for a <see langword="null" /> callback. An exception thrown by the
+///         <see cref="CheatEngineInvalidStateException" /> when the activation is stopping, unless the call comes from
+///         a deactivation callback on Cheat Engine's main thread (see <see cref="ICheatEngineClient" />), and
+///         <see cref="ArgumentNullException" /> for a <see langword="null" /> callback. An exception thrown by the
 ///         callback is rethrown as the same instance with its original stack trace, never converted into a failure.
 ///     </para>
 ///     <para>
@@ -51,7 +52,9 @@ public interface ICheatEngineDispatcher
 	/// <remarks>Equivalent to <see cref="TryInvoke(Action, out CheatEngineFailure, CancellationToken)" /> without a token.</remarks>
 	/// <exception cref="ArgumentNullException"><paramref name="callback" /> is <see langword="null" />.</exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The plugin activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping and admits no new work.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public bool TryInvoke(Action callback, out CheatEngineFailure failure)
 	{
 		return TryInvoke(callback, out failure, CancellationToken.None);
@@ -72,7 +75,9 @@ public interface ICheatEngineDispatcher
 	/// </remarks>
 	/// <exception cref="ArgumentNullException"><paramref name="callback" /> is <see langword="null" />.</exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The plugin activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping and admits no new work.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public bool TryInvoke(Action callback, out CheatEngineFailure failure, CancellationToken cancellationToken);
 
 	/// <summary>Runs a callback on the captured main thread and returns its managed result.</summary>
@@ -87,7 +92,9 @@ public interface ICheatEngineDispatcher
 	/// </remarks>
 	/// <exception cref="ArgumentNullException"><paramref name="callback" /> is <see langword="null" />.</exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The plugin activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping and admits no new work.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public bool TryInvoke<T>(Func<T> callback, [MaybeNullWhen(false)] out T result, out CheatEngineFailure failure)
 	{
 		return TryInvoke(callback, out result, out failure, CancellationToken.None);
@@ -108,7 +115,9 @@ public interface ICheatEngineDispatcher
 	/// </remarks>
 	/// <exception cref="ArgumentNullException"><paramref name="callback" /> is <see langword="null" />.</exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The plugin activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping and admits no new work.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public bool TryInvoke<T>(Func<T> callback, [MaybeNullWhen(false)] out T result, out CheatEngineFailure failure,
 		CancellationToken cancellationToken);
 
@@ -118,7 +127,7 @@ public interface ICheatEngineDispatcher
 	/// <exception cref="ArgumentNullException"><paramref name="callback" /> is <see langword="null" />.</exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The plugin activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping and admits no new work, or dispatch failed with
+	///     The activation is stopping, outside a deactivation callback, or dispatch failed with
 	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationException">
@@ -140,7 +149,7 @@ public interface ICheatEngineDispatcher
 	/// <exception cref="ArgumentNullException"><paramref name="callback" /> is <see langword="null" />.</exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The plugin activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping and admits no new work, or dispatch failed with
+	///     The activation is stopping, outside a deactivation callback, or dispatch failed with
 	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
@@ -159,7 +168,7 @@ public interface ICheatEngineDispatcher
 	/// <exception cref="ArgumentNullException"><paramref name="callback" /> is <see langword="null" />.</exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The plugin activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping and admits no new work, or dispatch failed with
+	///     The activation is stopping, outside a deactivation callback, or dispatch failed with
 	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationException">
@@ -183,7 +192,7 @@ public interface ICheatEngineDispatcher
 	/// <exception cref="ArgumentNullException"><paramref name="callback" /> is <see langword="null" />.</exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The plugin activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping and admits no new work, or dispatch failed with
+	///     The activation is stopping, outside a deactivation callback, or dispatch failed with
 	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">

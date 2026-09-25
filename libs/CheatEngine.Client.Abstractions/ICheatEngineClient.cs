@@ -61,7 +61,23 @@ namespace CheatEngine.Client;
 ///         <b>Cancellation.</b> A <see cref="CancellationToken" /> is observed before Cheat Engine work is dispatched and
 ///         between Client-managed steps. It never interrupts a Cheat Engine call that has started and never removes an
 ///         effect that such a call produced: <see cref="CheatEngineFailure.HostEffect" /> says whether the work started.
-///         <see cref="Stopping" /> is cancelled when the plugin begins to disable; the client then admits no new work.
+///         <see cref="Stopping" /> is cancelled when the plugin begins to disable; the client then admits no new work,
+///         except from a deactivation callback.
+///     </para>
+///     <para>
+///         <b>Deactivation callbacks.</b> When the plugin disables, <c>CheatEngineClientPlugin.OnClientDisabling</c>
+///         (CheatEngine.Client.Hosting) and each module's <see cref="Modules.ICheatEngineClientModule.OnDisabling" />
+///         run on Cheat Engine's main thread after <see cref="Stopping" /> was cancelled and before the activation
+///         releases what it owns. A call they make on that thread still works on existing state: <see cref="Memory" />,
+///         <see cref="Patterns" />, the reads of <see cref="Inspection" />, the Address List records of
+///         <see cref="Tables" />, <see cref="Runtime" />, the current process of <see cref="Processes" />,
+///         <see cref="Dispatcher" />, the operations of an existing value-scan session, and the release of any lease.
+///         Every other call still throws <see cref="CheatEngineInvalidStateException" /> there: a call that creates a
+///         lease (a symbol registration, a value-scan session, an allocation, an Auto Assembler patch, a Lua module),
+///         a process attach, Lua and unsafe Lua execution, instructions, Auto Assembler scripts and table files. The
+///         context a memory codec receives refuses too, so a codec read or write fails when the codec uses it; a
+///         current-process read fails when it finds a changed target selection, which cannot advance while the
+///         activation stops; and a thread that a callback starts is refused like any other caller.
 ///     </para>
 ///     <para>
 ///         <b>Threading.</b> Every member is synchronous, because an attached Cheat Engine Lua runtime cannot safely be

@@ -19,7 +19,8 @@ namespace CheatEngine.Client.Lua;
 ///     <para>
 ///         After its arguments, every member checks the activation: an ended activation throws
 ///         <see cref="CheatEngineActivationExpiredException" /> and a stopping one
-///         <see cref="CheatEngineInvalidStateException" />. A <c>Try</c> member returns every other failure; the
+///         <see cref="CheatEngineInvalidStateException" />, from a deactivation callback too (see
+///         <see cref="ICheatEngineClient" />). A <c>Try</c> member returns every other failure; the
 ///         throwing member with the same inputs throws it through
 ///         <see cref="CheatEngineFailure.Throw(CancellationToken)" />. An exception thrown by an operation propagates
 ///         unchanged, as the same instance.

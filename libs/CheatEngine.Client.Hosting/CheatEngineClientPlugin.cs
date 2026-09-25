@@ -75,6 +75,13 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 
 	/// <summary>Runs before enabled Client modules are disabled in reverse registration order.</summary>
 	/// <param name="client">The client for the current activation.</param>
+	/// <remarks>
+	///     When the plugin disables, it runs on Cheat Engine's main thread after
+	///     <see cref="ICheatEngineClient.Stopping" /> was cancelled and before the activation releases what it owns.
+	///     A call it makes on that thread can still read and change existing state and release leases, but cannot
+	///     create a lease, attach, run Lua, instructions or Auto Assembler scripts, or load or save a table: see the
+	///     deactivation callbacks of <see cref="ICheatEngineClient" />.
+	/// </remarks>
 	protected virtual void OnClientDisabling(ICheatEngineClient client)
 	{
 		ArgumentNullException.ThrowIfNull(client);

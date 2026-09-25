@@ -14,7 +14,8 @@ namespace CheatEngine.Client.Lua;
 ///         <see cref="CheatEngineFailureKind.CapabilityUnavailable" /> and
 ///         <see cref="CheatEngineHostEffect.NotStarted" />. After its arguments, every member checks the activation: an
 ///         ended activation throws <see cref="CheatEngineActivationExpiredException" /> and a stopping one
-///         <see cref="CheatEngineInvalidStateException" />.
+///         <see cref="CheatEngineInvalidStateException" />, from a deactivation callback too (see
+///         <see cref="ICheatEngineClient" />).
 ///     </para>
 /// </remarks>
 public interface IUnsafeLuaClient

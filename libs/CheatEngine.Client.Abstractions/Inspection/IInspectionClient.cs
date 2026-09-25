@@ -24,7 +24,9 @@ namespace CheatEngine.Client.Inspection;
 ///     <para>
 ///         After its arguments, every member checks the activation: an ended activation throws
 ///         <see cref="CheatEngineActivationExpiredException" /> and a stopping one
-///         <see cref="CheatEngineInvalidStateException" />. A <c>Try</c> member returns every other failure; the
+///         <see cref="CheatEngineInvalidStateException" />, except that a deactivation callback can still call every
+///         member but <see cref="TryRegisterSymbol" /> and <see cref="RegisterSymbol" /> on Cheat Engine's main
+///         thread (see <see cref="ICheatEngineClient" />). A <c>Try</c> member returns every other failure; the
 ///         throwing member with the same inputs throws it through
 ///         <see cref="CheatEngineFailure.Throw(CancellationToken)" />.
 ///     </para>
@@ -45,7 +47,9 @@ public interface IInspectionClient
 	///     or <paramref name="processId" /> is not positive.
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public bool TryGetModules(
 		InspectionCollectionRequest request,
 		TargetProcessId? processId,
@@ -66,7 +70,8 @@ public interface IInspectionClient
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping, or inspection failed with <see cref="CheatEngineFailureKind.InvalidState" />.
+	///     The activation is stopping, outside a deactivation callback, or inspection failed with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     Inspection observed the cancellation of <paramref name="cancellationToken" />.
@@ -87,7 +92,9 @@ public interface IInspectionClient
 	///     <see langword="default" /> request (an <see cref="ArgumentOutOfRangeException" />).
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public bool TryGetModuleSections(
 		ModuleName moduleName,
 		InspectionCollectionRequest request,
@@ -106,7 +113,8 @@ public interface IInspectionClient
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping, or inspection failed with <see cref="CheatEngineFailureKind.InvalidState" />.
+	///     The activation is stopping, outside a deactivation callback, or inspection failed with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     Inspection observed the cancellation of <paramref name="cancellationToken" />.
@@ -125,7 +133,9 @@ public interface IInspectionClient
 	///     <paramref name="request" /> is the <see langword="default" /> request, which allows no item.
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public bool TryGetMemoryRegions(
 		InspectionCollectionRequest request,
 		out ImmutableArray<MemoryRegionInfo> regions,
@@ -141,7 +151,8 @@ public interface IInspectionClient
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping, or inspection failed with <see cref="CheatEngineFailureKind.InvalidState" />.
+	///     The activation is stopping, outside a deactivation callback, or inspection failed with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     Inspection observed the cancellation of <paramref name="cancellationToken" />.
@@ -157,7 +168,9 @@ public interface IInspectionClient
 	/// <param name="cancellationToken">Observed before the work is dispatched.</param>
 	/// <returns><see langword="true" /> when the region was copied.</returns>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public bool TryGetMemoryRegion(
 		Address address,
 		out MemoryRegionInfo region,
@@ -170,7 +183,8 @@ public interface IInspectionClient
 	/// <returns>The copied region.</returns>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping, or inspection failed with <see cref="CheatEngineFailureKind.InvalidState" />.
+	///     The activation is stopping, outside a deactivation callback, or inspection failed with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     Inspection observed the cancellation of <paramref name="cancellationToken" />.
@@ -188,7 +202,9 @@ public interface IInspectionClient
 	///     <paramref name="expression" /> is the <see langword="default" /> expression.
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public bool TryGetSymbol(
 		SymbolExpression expression,
 		out SymbolInfo symbol,
@@ -204,7 +220,8 @@ public interface IInspectionClient
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping, or inspection failed with <see cref="CheatEngineFailureKind.InvalidState" />.
+	///     The activation is stopping, outside a deactivation callback, or inspection failed with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     Inspection observed the cancellation of <paramref name="cancellationToken" />.
@@ -219,7 +236,9 @@ public interface IInspectionClient
 	/// <param name="cancellationToken">Observed before the work is dispatched.</param>
 	/// <returns><see langword="true" /> when a name was resolved.</returns>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public bool TryResolveName(
 		Address address,
 		[NotNullWhen(true)] out string? name,
@@ -232,7 +251,8 @@ public interface IInspectionClient
 	/// <returns>The resolved name.</returns>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping, or resolution failed with <see cref="CheatEngineFailureKind.InvalidState" />.
+	///     The activation is stopping, outside a deactivation callback, or resolution failed with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     Resolution observed the cancellation of <paramref name="cancellationToken" />.
@@ -297,7 +317,9 @@ public interface IInspectionClient
 	/// </exception>
 	/// <exception cref="ArgumentOutOfRangeException"><paramref name="mode" /> is not a defined value.</exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public bool TryResolveAddress(
 		SymbolExpression expression,
 		AddressResolutionMode mode,
@@ -318,7 +340,8 @@ public interface IInspectionClient
 	/// <exception cref="ArgumentOutOfRangeException"><paramref name="mode" /> is not a defined value.</exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping, or resolution failed with <see cref="CheatEngineFailureKind.InvalidState" />.
+	///     The activation is stopping, outside a deactivation callback, or resolution failed with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     Resolution observed the cancellation of <paramref name="cancellationToken" />.

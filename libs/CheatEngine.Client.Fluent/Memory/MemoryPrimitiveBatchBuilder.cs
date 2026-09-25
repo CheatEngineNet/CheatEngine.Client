@@ -62,7 +62,7 @@ public readonly struct MemoryPrimitiveBatchBuilder<T>
 	///     The Client activation that owns the memory service has ended.
 	/// </exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The Client activation is stopping and admits no new work, or the read failed with
+	///     The Client activation is stopping, outside a deactivation callback, or the read failed with
 	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	public ImmutableArray<T> Read(ReadOnlySpan<Address> addresses, CancellationToken cancellationToken = default)
@@ -91,7 +91,7 @@ public readonly struct MemoryPrimitiveBatchBuilder<T>
 	///     The Client activation that owns the memory service has ended.
 	/// </exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The Client activation is stopping and admits no new work.
+	///     The Client activation is stopping, outside a deactivation callback.
 	/// </exception>
 	public bool TryRead(ReadOnlySpan<Address> addresses, out ImmutableArray<T> values, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
@@ -123,7 +123,7 @@ public readonly struct MemoryPrimitiveBatchBuilder<T>
 	///     The Client activation that owns the memory service has ended.
 	/// </exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The Client activation is stopping and admits no new work, or the write failed with
+	///     The Client activation is stopping, outside a deactivation callback, or the write failed with
 	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	public void Write(ReadOnlySpan<MemoryAddressValue<T>> values, CancellationToken cancellationToken = default)
@@ -150,7 +150,7 @@ public readonly struct MemoryPrimitiveBatchBuilder<T>
 	///     The Client activation that owns the memory service has ended.
 	/// </exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The Client activation is stopping and admits no new work.
+	///     The Client activation is stopping, outside a deactivation callback.
 	/// </exception>
 	public bool TryWrite(ReadOnlySpan<MemoryAddressValue<T>> values, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)

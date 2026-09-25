@@ -33,8 +33,10 @@ namespace CheatEngine.Client.Processes;
 ///         Every member but <see cref="TryGetLocalProcesses" /> and <see cref="GetLocalProcesses" /> checks the
 ///         activation after its arguments: an ended activation throws
 ///         <see cref="CheatEngineActivationExpiredException" /> and a stopping one
-///         <see cref="CheatEngineInvalidStateException" />. A <c>Try</c> member returns every other failure; the
-///         throwing member with the same inputs throws it through
+///         <see cref="CheatEngineInvalidStateException" />. A deactivation callback can still read the current
+///         process on Cheat Engine's main thread (see <see cref="ICheatEngineClient" />), unless the observation finds
+///         a changed target selection, which cannot advance while the activation stops; it cannot attach. A
+///         <c>Try</c> member returns every other failure; the throwing member with the same inputs throws it through
 ///         <see cref="CheatEngineFailure.Throw(CancellationToken)" />.
 ///     </para>
 /// </remarks>
@@ -61,7 +63,10 @@ public interface IProcessClient
 	///     lifecycle exceptions (<see cref="CheatEngineClientException" />) are thrown.
 	/// </remarks>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping (outside a deactivation callback, or inside one when the observation finds a
+	///     changed target selection).
+	/// </exception>
 	public bool TryGetCurrentProcess(out ProcessSnapshot snapshot, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
@@ -72,7 +77,8 @@ public interface IProcessClient
 	/// <returns>The copied selected process.</returns>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping, or the observation failed with
+	///     The activation is stopping (outside a deactivation callback, or inside one when the observation finds a
+	///     changed target selection), or the observation failed with
 	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
@@ -106,7 +112,10 @@ public interface IProcessClient
 	///     <see cref="TryGetCurrentProcess" />.
 	/// </remarks>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping (outside a deactivation callback, or inside one when the observation finds a
+	///     changed target selection).
+	/// </exception>
 	public bool TryRefresh(out ProcessSnapshot snapshot, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
@@ -117,7 +126,8 @@ public interface IProcessClient
 	/// <returns>The copied selected process.</returns>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping, or the observation failed with
+	///     The activation is stopping (outside a deactivation callback, or inside one when the observation finds a
+	///     changed target selection), or the observation failed with
 	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">

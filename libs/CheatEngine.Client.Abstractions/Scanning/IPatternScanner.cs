@@ -111,7 +111,9 @@ public interface IPatternScanner
 	///     It is thrown before the activation check and before any Cheat Engine call.
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public bool TryScan(AobScanRequest request, out AobScanResult result, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
@@ -129,7 +131,8 @@ public interface IPatternScanner
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping, or the scan failed with <see cref="CheatEngineFailureKind.InvalidState" />.
+	///     The activation is stopping, outside a deactivation callback, or the scan failed with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     The scan observed the cancellation of <paramref name="cancellationToken" />.
@@ -156,6 +159,8 @@ public interface IPatternScanner
 	///     <see cref="TryScan" /> throws.
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public PatternScanOutcome ScanDetailed(AobScanRequest request, CancellationToken cancellationToken = default);
 }

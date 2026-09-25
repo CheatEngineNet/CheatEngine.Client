@@ -61,7 +61,7 @@ public readonly struct MemoryAddressBuilder
 	///     The Client activation that owns the memory service has ended.
 	/// </exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The Client activation is stopping and admits no new work, or the read failed with
+	///     The Client activation is stopping, outside a deactivation callback, or the read failed with
 	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	public T Read<T>(CancellationToken cancellationToken = default)
@@ -86,7 +86,7 @@ public readonly struct MemoryAddressBuilder
 	///     The Client activation that owns the memory service has ended.
 	/// </exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The Client activation is stopping and admits no new work.
+	///     The Client activation is stopping, outside a deactivation callback.
 	/// </exception>
 	public bool TryRead<T>([MaybeNullWhen(false)] out T value, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
@@ -115,7 +115,7 @@ public readonly struct MemoryAddressBuilder
 	///     The Client activation that owns the memory service has ended.
 	/// </exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The Client activation is stopping and admits no new work, or the write failed with
+	///     The Client activation is stopping, outside a deactivation callback, or the write failed with
 	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	public void Write<T>(T value, CancellationToken cancellationToken = default)
@@ -140,7 +140,7 @@ public readonly struct MemoryAddressBuilder
 	///     The Client activation that owns the memory service has ended.
 	/// </exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The Client activation is stopping and admits no new work.
+	///     The Client activation is stopping, outside a deactivation callback.
 	/// </exception>
 	public bool TryWrite<T>(T value, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
@@ -170,7 +170,7 @@ public readonly struct MemoryAddressBuilder
 	///     The Client activation that owns the memory service has ended.
 	/// </exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The Client activation is stopping and admits no new work, or the copy failed with
+	///     The Client activation is stopping, outside a deactivation callback, or the copy failed with
 	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	public ImmutableArray<byte> ReadBytes(int length, CancellationToken cancellationToken = default)
@@ -195,7 +195,7 @@ public readonly struct MemoryAddressBuilder
 	///     The Client activation that owns the memory service has ended.
 	/// </exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The Client activation is stopping and admits no new work.
+	///     The Client activation is stopping, outside a deactivation callback.
 	/// </exception>
 	public bool TryReadBytes(int length, out ImmutableArray<byte> bytes, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
@@ -224,7 +224,7 @@ public readonly struct MemoryAddressBuilder
 	///     The Client activation that owns the memory service has ended.
 	/// </exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The Client activation is stopping and admits no new work, or the write failed with
+	///     The Client activation is stopping, outside a deactivation callback, or the write failed with
 	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	public void WriteBytes(ReadOnlySpan<byte> bytes, CancellationToken cancellationToken = default)
@@ -248,7 +248,7 @@ public readonly struct MemoryAddressBuilder
 	///     The Client activation that owns the memory service has ended.
 	/// </exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The Client activation is stopping and admits no new work.
+	///     The Client activation is stopping, outside a deactivation callback.
 	/// </exception>
 	public bool TryWriteBytes(ReadOnlySpan<byte> bytes, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
@@ -284,7 +284,7 @@ public readonly struct MemoryAddressBuilder
 	///     The Client activation that owns the memory service has ended.
 	/// </exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The Client activation is stopping and admits no new work, or the read failed with
+	///     The Client activation is stopping, outside a deactivation callback, or the read failed with
 	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	public string ReadString(int maximumLength, MemoryStringEncoding encoding,
@@ -317,7 +317,7 @@ public readonly struct MemoryAddressBuilder
 	///     The Client activation that owns the memory service has ended.
 	/// </exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The Client activation is stopping and admits no new work.
+	///     The Client activation is stopping, outside a deactivation callback.
 	/// </exception>
 	public bool TryReadString(int maximumLength, MemoryStringEncoding encoding, [NotNullWhen(true)] out string? value,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
@@ -353,7 +353,7 @@ public readonly struct MemoryAddressBuilder
 	///     The Client activation that owns the memory service has ended.
 	/// </exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The Client activation is stopping and admits no new work, or the write failed with
+	///     The Client activation is stopping, outside a deactivation callback, or the write failed with
 	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	public void WriteString(string value, int maximumLength, MemoryStringEncoding encoding,
@@ -385,7 +385,7 @@ public readonly struct MemoryAddressBuilder
 	///     The Client activation that owns the memory service has ended.
 	/// </exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The Client activation is stopping and admits no new work.
+	///     The Client activation is stopping, outside a deactivation callback.
 	/// </exception>
 	public bool TryWriteString(string value, int maximumLength, MemoryStringEncoding encoding,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
@@ -431,8 +431,8 @@ public readonly struct MemoryAddressBuilder
 	///     The Client activation that owns the memory service has ended.
 	/// </exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The Client activation is stopping and admits no new work, or the read failed with
-	///     <see cref="CheatEngineFailureKind.InvalidState" />.
+	///     The Client activation is stopping (outside a deactivation callback, or inside one when the codec uses its
+	///     context), or the read failed with <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	public T ReadWith<T>(IMemoryCodec<T> codec, CancellationToken cancellationToken = default)
 	{
@@ -459,7 +459,8 @@ public readonly struct MemoryAddressBuilder
 	///     The Client activation that owns the memory service has ended.
 	/// </exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The Client activation is stopping and admits no new work.
+	///     The Client activation is stopping (outside a deactivation callback, or inside one when the codec uses its
+	///     context).
 	/// </exception>
 	public bool TryReadWith<T>(IMemoryCodec<T> codec, [MaybeNullWhen(false)] out T value,
 		out CheatEngineFailure failure,
@@ -492,8 +493,8 @@ public readonly struct MemoryAddressBuilder
 	///     The Client activation that owns the memory service has ended.
 	/// </exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The Client activation is stopping and admits no new work, or the write failed with
-	///     <see cref="CheatEngineFailureKind.InvalidState" />.
+	///     The Client activation is stopping (outside a deactivation callback, or inside one when the codec uses its
+	///     context), or the write failed with <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	public void WriteWith<T>(T value, IMemoryCodec<T> codec, CancellationToken cancellationToken = default)
 	{
@@ -520,7 +521,8 @@ public readonly struct MemoryAddressBuilder
 	///     The Client activation that owns the memory service has ended.
 	/// </exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The Client activation is stopping and admits no new work.
+	///     The Client activation is stopping (outside a deactivation callback, or inside one when the codec uses its
+	///     context).
 	/// </exception>
 	public bool TryWriteWith<T>(T value, IMemoryCodec<T> codec, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)

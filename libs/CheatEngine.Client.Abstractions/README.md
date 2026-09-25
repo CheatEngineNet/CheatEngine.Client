@@ -526,16 +526,29 @@ atomic.
   enum value or an out-of-range number `ArgumentOutOfRangeException`, as the argument's own constructor or factory
   does; a `default` request throws `ArgumentException` or one of these two, depending on the first field its check
   meets. Then `CheatEngineActivationExpiredException` when the activation has ended and
-  `CheatEngineInvalidStateException` when it is stopping: a `Try` form checks the activation under its own operation
-  name before it returns any failure, so a refusal of a well-formed request never hides an ended or stopping
-  activation (`IProcessClient.TryGetLocalProcesses` needs no activation), and an expired activation is never reported
-  as `Cancelled` or `CapabilityUnavailable`. An activation that ends while the work is being dispatched to Cheat
-  Engine's main thread is reported by the dispatcher, under the operation name `Dispatcher.Invoke`.
+  `CheatEngineInvalidStateException` when it is stopping, outside the deactivation callbacks below: a `Try` form checks
+  the activation under its own operation name before it returns any failure, so a refusal of a well-formed request
+  never hides an ended or stopping activation (`IProcessClient.TryGetLocalProcesses` needs no activation), and an
+  expired activation is never reported as `Cancelled` or `CapabilityUnavailable`. An activation that ends while the
+  work is being dispatched to Cheat Engine's main thread is reported by the dispatcher, under the operation name
+  `Dispatcher.Invoke`.
 - **Consumer code:** exceptions thrown by application-supplied code (dispatcher callbacks, `IMemoryCodec<T>` codecs,
   `ILuaOperation<T>` operations, the `ILuaResultMapper<TSource, TResult>` of a generated operation) are rethrown as the
   same instance, never converted into a failure. A codec or an operation reports an expected failure by returning
   `false` with its `out CheatEngineFailure failure`: a classified failure is published unchanged, including its host
   effect, and the `default` failure lets the Client classify what it observed.
+
+**Deactivation callbacks.** When the plugin disables, `CheatEngineClientPlugin.OnClientDisabling` and each module's
+`ICheatEngineClientModule.OnDisabling` run on Cheat Engine's main thread after `ICheatEngineClient.Stopping` was
+cancelled and before the activation releases what it owns. A call they make on that thread still works on existing
+state: `Memory`, `Patterns`, the reads of `Inspection`, the Address List records of `Tables`, `Runtime`, the current
+process of `Processes`, `Dispatcher`, the operations of an existing value-scan session, and the release of any lease.
+Every other call still throws `CheatEngineInvalidStateException` there: a call that creates a lease (a symbol
+registration, a value-scan session, an allocation, an Auto Assembler patch, a Lua module), a process attach, Lua and
+unsafe Lua execution, instructions, Auto Assembler scripts and table files. The context a memory codec receives refuses
+too, so a codec read or write fails when the codec uses it; a current-process read fails when it finds a changed target
+selection, which cannot advance while the activation stops; and a thread that a callback starts is refused like any
+other caller.
 
 Every throwing convenience form (the method without `Try`, and the Fluent `Execute` terminals) returns the value of
 its `Try` form or throws that form's failure through `CheatEngineFailure.Throw(cancellationToken)`, passing the token it
@@ -816,8 +829,9 @@ This charter is normative for every public type of the seven Client packages; th
   for a whole match). A limit of Cheat Engine's own, such as a page beyond its 32-bit result index, is
   `ResultLimitExceeded`.
 - A `Try` form that needs the activation checks it after its arguments and before it returns any failure: an ended
-  activation throws `CheatEngineActivationExpiredException` and a stopping one `CheatEngineInvalidStateException`,
-  whatever refusal the request would meet. That check is named after the operation: the exception's
+  activation throws `CheatEngineActivationExpiredException` and a stopping one `CheatEngineInvalidStateException`
+  (outside the deactivation callbacks of the failure contract, which can still work on existing state), whatever
+  refusal the request would meet. That check is named after the operation: the exception's
   `Failure.Operation` is the operation's own `<Service>.<Member>`, not the `Dispatcher.Invoke` of the dispatcher it
   would have used.
 - `CheatEngineFailure.Operation` is `<Service>.<Member>`. `Service` is the `ICheatEngineClient` property that exposes

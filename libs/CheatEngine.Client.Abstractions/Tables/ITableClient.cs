@@ -40,9 +40,10 @@ namespace CheatEngine.Client.Tables;
 ///     <para>
 ///         After its arguments, every member checks the activation: an ended activation throws
 ///         <see cref="CheatEngineActivationExpiredException" /> and a stopping one
-///         <see cref="CheatEngineInvalidStateException" />. A <c>Try</c> member returns every other failure; the
-///         throwing member with the same inputs throws it through
-///         <see cref="CheatEngineFailure.Throw(CancellationToken)" />.
+///         <see cref="CheatEngineInvalidStateException" />, except that a deactivation callback can still call every
+///         member but the trusted table load and save on Cheat Engine's main thread (see
+///         <see cref="ICheatEngineClient" />). A <c>Try</c> member returns every other failure; the throwing member
+///         with the same inputs throws it through <see cref="CheatEngineFailure.Throw(CancellationToken)" />.
 ///     </para>
 ///     <para>
 ///         Trusted table files follow the Client path policy. Cheat Engine's file form of <c>loadTable</c> offers no
@@ -59,7 +60,9 @@ public interface ITableClient
 	/// <returns><see langword="true" /> when the records were counted.</returns>
 	/// <remarks>Use <see cref="TryGetSnapshot" /> to copy the records under an explicit materialization limit.</remarks>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public bool TryGetRecordCount(out int recordCount, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
@@ -68,7 +71,8 @@ public interface ITableClient
 	/// <returns>The number of top-level records.</returns>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping, or the count failed with <see cref="CheatEngineFailureKind.InvalidState" />.
+	///     The activation is stopping, outside a deactivation callback, or the count failed with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     The count observed the cancellation of <paramref name="cancellationToken" />.
@@ -89,7 +93,9 @@ public interface ITableClient
 	///     <paramref name="request" /> is the <see langword="default" /> request, which allows no record.
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public bool TryGetSnapshot(MemoryRecordCollectionRequest request, out AddressTableSnapshot table,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default);
 
@@ -102,7 +108,8 @@ public interface ITableClient
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping, or the copy failed with <see cref="CheatEngineFailureKind.InvalidState" />.
+	///     The activation is stopping, outside a deactivation callback, or the copy failed with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     The copy observed the cancellation of <paramref name="cancellationToken" />.
@@ -129,7 +136,9 @@ public interface ITableClient
 	///     <see cref="ArgumentOutOfRangeException" />, as for a value type that is not a defined value).
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public bool TryFind(MemoryRecordSearch search, MemoryRecordCollectionRequest request,
 		out ImmutableArray<MemoryRecordSnapshot> records, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
@@ -148,7 +157,8 @@ public interface ITableClient
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping, or the search failed with <see cref="CheatEngineFailureKind.InvalidState" />.
+	///     The activation is stopping, outside a deactivation callback, or the search failed with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     The search observed the cancellation of <paramref name="cancellationToken" />.
@@ -166,7 +176,9 @@ public interface ITableClient
 	/// <remarks>An index is positional and changes when records are added, removed or moved; prefer an identifier.</remarks>
 	/// <exception cref="ArgumentOutOfRangeException"><paramref name="index" /> is negative.</exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public bool TryGetRecordAt(int index, out MemoryRecordSnapshot record, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
@@ -179,7 +191,9 @@ public interface ITableClient
 	/// <param name="cancellationToken">Observed before the read is dispatched to Cheat Engine's main thread.</param>
 	/// <returns><see langword="true" /> when the record was found and copied.</returns>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public bool TryGetRecord(MemoryRecordId id, out MemoryRecordSnapshot record, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
@@ -190,7 +204,8 @@ public interface ITableClient
 	/// <exception cref="ArgumentOutOfRangeException"><paramref name="index" /> is negative.</exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping, or the read failed with <see cref="CheatEngineFailureKind.InvalidState" />.
+	///     The activation is stopping, outside a deactivation callback, or the read failed with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     The read observed the cancellation of <paramref name="cancellationToken" />.
@@ -208,8 +223,9 @@ public interface ITableClient
 	/// <returns>The copied record.</returns>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping, or the read failed with <see cref="CheatEngineFailureKind.InvalidState" />, for
-	///     example for an identifier handed out before the last trusted table load.
+	///     The activation is stopping, outside a deactivation callback, or the read failed with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />, for example for an identifier handed out before the last
+	///     trusted table load.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     The read observed the cancellation of <paramref name="cancellationToken" />.
@@ -226,7 +242,9 @@ public interface ITableClient
 	/// <returns><see langword="true" /> when a record is selected and was copied.</returns>
 	/// <remarks>The read counterpart of <see cref="TrySelectRecord" />, which changes the selection.</remarks>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public bool TryGetSelectedRecord(out MemoryRecordSnapshot record, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
@@ -235,7 +253,8 @@ public interface ITableClient
 	/// <returns>The copied selected record.</returns>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping, or the read failed with <see cref="CheatEngineFailureKind.InvalidState" />.
+	///     The activation is stopping, outside a deactivation callback, or the read failed with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     The read observed the cancellation of <paramref name="cancellationToken" />.
@@ -261,7 +280,9 @@ public interface ITableClient
 	///     <see cref="TryDelete" />).
 	/// </remarks>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public bool TrySelectRecord(MemoryRecordId id, out MemoryRecordSnapshot record, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
@@ -275,7 +296,8 @@ public interface ITableClient
 	/// <returns>The copied record, now selected.</returns>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping, or the selection failed with <see cref="CheatEngineFailureKind.InvalidState" />.
+	///     The activation is stopping, outside a deactivation callback, or the selection failed with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     The selection observed the cancellation of <paramref name="cancellationToken" />.
@@ -302,7 +324,9 @@ public interface ITableClient
 	///     value type is not a defined value (an <see cref="ArgumentOutOfRangeException" />).
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public bool TryCreate(MemoryRecordDefinition definition, out MemoryRecordSnapshot record,
 		out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
@@ -319,7 +343,8 @@ public interface ITableClient
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping, or the creation failed with <see cref="CheatEngineFailureKind.InvalidState" />.
+	///     The activation is stopping, outside a deactivation callback, or the creation failed with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     The creation observed the cancellation of <paramref name="cancellationToken" />.
@@ -341,7 +366,9 @@ public interface ITableClient
 	///     type is not a defined value (an <see cref="ArgumentOutOfRangeException" />).
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public bool TryUpdate(MemoryRecordId id, MemoryRecordUpdate update, out MemoryRecordSnapshot record,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default);
 
@@ -356,7 +383,8 @@ public interface ITableClient
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping, or the update failed with <see cref="CheatEngineFailureKind.InvalidState" />.
+	///     The activation is stopping, outside a deactivation callback, or the update failed with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     The update observed the cancellation of <paramref name="cancellationToken" />.
@@ -387,7 +415,9 @@ public interface ITableClient
 	///     <see cref="CheatEngineHostEffect.NotStarted" />.
 	/// </remarks>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public bool TryDelete(MemoryRecordId id, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
@@ -400,8 +430,8 @@ public interface ITableClient
 	/// </param>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping, or the deletion failed with <see cref="CheatEngineFailureKind.InvalidState" />,
-	///     for example during a trusted table load.
+	///     The activation is stopping, outside a deactivation callback, or the deletion failed with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />, for example during a trusted table load.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     The deletion observed the cancellation of <paramref name="cancellationToken" />.
@@ -447,7 +477,9 @@ public interface ITableClient
 	///     </para>
 	/// </remarks>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public bool TrySetActive(MemoryRecordId id, bool isActive, out MemoryRecordSnapshot record,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default);
 
@@ -463,7 +495,8 @@ public interface ITableClient
 	/// <remarks>Follows <see cref="TrySetActive" />; the thrown failure carries the same kind and host effect.</remarks>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping, or the change failed with <see cref="CheatEngineFailureKind.InvalidState" />.
+	///     The activation is stopping, outside a deactivation callback, or the change failed with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     The change observed the cancellation of <paramref name="cancellationToken" />.
@@ -490,7 +523,9 @@ public interface ITableClient
 	///     The refusals described under <see cref="TryDelete" /> apply too.
 	/// </remarks>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public bool TrySetParent(MemoryRecordId childId, MemoryRecordId? parentId, out MemoryRecordSnapshot record,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default);
 
@@ -501,7 +536,8 @@ public interface ITableClient
 	/// <returns>The copied moved record.</returns>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping, or the move failed with <see cref="CheatEngineFailureKind.InvalidState" />.
+	///     The activation is stopping, outside a deactivation callback, or the move failed with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     The move observed the cancellation of <paramref name="cancellationToken" />.
@@ -531,7 +567,9 @@ public interface ITableClient
 	///     <paramref name="request" /> is the <see langword="default" /> request, which allows no record and no level.
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public bool TryGetHierarchy(MemoryRecordId rootId, MemoryRecordHierarchyRequest request,
 		out MemoryRecordHierarchySnapshot hierarchy, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
@@ -548,7 +586,8 @@ public interface ITableClient
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
-	///     The activation is stopping, or the copy failed with <see cref="CheatEngineFailureKind.InvalidState" />.
+	///     The activation is stopping, outside a deactivation callback, or the copy failed with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     The copy observed the cancellation of <paramref name="cancellationToken" />.
