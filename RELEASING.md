@@ -139,10 +139,11 @@ Remove-Item artifacts/rehearsal -Recurse -Force -ErrorAction SilentlyContinue
 dotnet pack CheatEngine.Client.slnx -c Release --no-build -o artifacts/rehearsal -p:MinVerVersionOverride=X.Y.Z
 $env:CHEATENGINE_CLIENT_PACKAGE_SOURCE = (Resolve-Path artifacts/rehearsal).Path
 $env:CHEATENGINE_CLIENT_LIVE_QUALIFICATION = 'I_AUTHORIZE_CE77_LIVE_PROBES_ON_A_DISPOSABLE_TARGET'
-dotnet test --project tests/CheatEngine.Client.Tests/CheatEngine.Client.Tests.csproj -c Release --no-build --filter-trait Category=LiveQualification
+dotnet test --project tests/CheatEngine.Client.Tests/CheatEngine.Client.Tests.csproj -c Release --no-build --filter-trait Category=LiveQualification --filter-not-trait Session=S0
 Remove-Item Env:CHEATENGINE_CLIENT_LIVE_QUALIFICATION
 ```
 
+The command runs the sessions S1 to S6 and leaves out the S0 spike (`Session=S0`), whose receipts are never committed.
 The operator stays at the workstation for the Settings > Plugins toggles the runner asks for. A first run finds the
 defects; after their fixes, a second run on the committed, clean tree is the one recorded. Its redacted receipts, its
 summary and any dated waiver are committed under `tests/CheatEngine.Client.Tests/LiveQualification/Evidence/`. The

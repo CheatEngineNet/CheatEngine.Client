@@ -208,8 +208,10 @@ S5 with the operator at the keyboard: a check that needs a plugin toggle through
 unless the driver saw that toggle done, and the Q43 checks are NotExecuted when no enable was disabled, neither by the
 operator nor at `closeCE` (a spike fact). The Q05 identification check reads the `CheatEngineSdkIdentification` line
 that CheatEngine.SDK 2.0.0 writes through its debug output sink. A live fact fails when a check fails or the workstation
-is not left as it was; a NotExecuted check is recorded, never turned into a pass. Run one session, or all of them, with
-the opt-in above and `--filter-trait Session=S1` (up to `S6`), or `--filter-trait Category=LiveQualification`.
+is not left as it was; a NotExecuted check is recorded, never turned into a pass. Run one session with the opt-in above
+and `--filter-trait Session=S1` (up to `S6`). Run all the recorded sessions with
+`--filter-trait Category=LiveQualification --filter-not-trait Session=S0`, the command `RELEASING.md` gives: it leaves
+out the S0 spike, whose receipts are never committed.
 
 Run it from the repository root, in PowerShell, with Cheat Engine, every gtutorial and DebugView closed:
 
