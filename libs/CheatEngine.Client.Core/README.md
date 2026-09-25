@@ -85,8 +85,8 @@ and fakes; no Client qualification receipt exists yet, so their qualification ga
 token is observed before dispatch or between Client-managed steps, not as an interruption of an
 already-running Lua primitive.
 
-No domain is contract-only any more: every capability composes one operational adapter, and a
-capability test keeps it that way on the supported SDK major (`_CheatEngineClientSupportedSdkMajor`
+Every capability composes one operational adapter, so every implementation gate is satisfied, and
+a capability test keeps it that way on the supported SDK major (`_CheatEngineClientSupportedSdkMajor`
 in `eng/CheatEngineSdk.props`).
 
 **Instructions** (experimental, `CECLIENT5003`) are operational: the internal `AssemblyClient`

@@ -448,7 +448,8 @@ public sealed class RuntimeClientTests
 		Assert.Equal(RuntimeClient.ExperimentalImplementationReason("CECLIENT5003"),
 			assembly.Evidence.Implementation.Reason);
 		Assert.Equal(ClientCapabilityEvidenceState.Unknown, assembly.Evidence.LiveQualification.State);
-		// No capability is contract-only: every implementation gate is satisfied, and none is available yet.
+		// Every capability composes an operational adapter: every implementation gate is satisfied, and none is
+		// available yet.
 		Assert.All(snapshot.Capabilities.Entries.ToArray(), static availability =>
 		{
 			Assert.Equal(ClientCapabilityEvidenceState.Satisfied, availability.Evidence.Implementation.State);
@@ -457,8 +458,8 @@ public sealed class RuntimeClientTests
 	}
 
 	/// <summary>
-	///     The snapshot reports the catalog's capabilities in catalog order, each with the implementation gate of its row
-	///     (the operational set is the one the other facts of this class use).
+	///     The snapshot reports the catalog's capabilities in catalog order, each with a satisfied implementation gate and
+	///     the host gate of its row (the catalog is the capability set the other facts of this class use).
 	/// </summary>
 	[Fact]
 	public void SnapshotComposesEveryCapabilityFromItsCatalogRow()
@@ -473,17 +474,13 @@ public sealed class RuntimeClientTests
 		foreach (ClientCapabilityDescriptor entry in ClientCapabilityCatalog.Entries)
 		{
 			Assert.True(snapshot.Capabilities.TryGet(entry.Id, out ClientCapabilityAvailability availability));
-			Assert.Equal(entry.Implementation == CapabilityImplementation.Operational
-				? ClientCapabilityEvidenceState.Satisfied
-				: ClientCapabilityEvidenceState.Missing, availability.Evidence.Implementation.State);
+			Assert.Equal(ClientCapabilityEvidenceState.Satisfied, availability.Evidence.Implementation.State);
 			Assert.Equal(entry.Host == CapabilityHostSource.SdkSelectedProcess
 				? ClientCapabilityEvidenceState.Satisfied
 				: ClientCapabilityEvidenceState.Unknown, availability.Evidence.Host.State);
 		}
 
-		Assert.Equal(OperationalCapabilities, ClientCapabilityCatalog.Entries
-			.Where(static entry => entry.Implementation == CapabilityImplementation.Operational)
-			.Select(static entry => entry.Id));
+		Assert.Equal(OperationalCapabilities, ClientCapabilityCatalog.Entries.Select(static entry => entry.Id));
 	}
 
 	[Fact]

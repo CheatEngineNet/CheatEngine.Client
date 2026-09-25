@@ -7,9 +7,10 @@ namespace CheatEngine.Client.Repository.Tests.Capabilities;
 
 /// <summary>
 ///     The documentation states what the Client build reports (audit CLI-DOC-1, A00-04, A10-05, A21-13, A21-21, A21-30):
-///     every capability table lists each <c>ClientCapabilityId</c> once with the implementation gate that
-///     <c>ClientCapabilityCatalog</c> declares and <c>RuntimeClient</c> composes, and with the live scenarios its
-///     qualification gate requires; the install guides state the supported host profile with its identities.
+///     every capability table lists each <c>ClientCapabilityId</c> once as the operational adapter that
+///     <c>ClientCapabilityCatalog</c> declares and <c>RuntimeClient</c> composes, with its experimental id and the live
+///     scenarios its qualification gate requires; the install guides state the supported host profile with its
+///     identities.
 /// </summary>
 /// <remarks>
 ///     Source scans only: this project has no project reference. A capability table is the Markdown table between
@@ -25,7 +26,6 @@ public sealed partial class CapabilityDocumentationTests
 	private const string CapabilityIdDeclarationPrefix = "public static ClientCapabilityId ";
 	private const string CatalogSource = "libs/CheatEngine.Client.Core/Domains/ClientCapabilityCatalog.cs";
 	private const string CoreLockFile = "libs/CheatEngine.Client.Core/packages.lock.json";
-	private const string ContractOnly = "Contract-only (Unavailable)";
 	private const string QualificationColumn = "Qualification";
 	private const string ProfileId = "ce-7.7.0.10621-x64-managed-hostfxr";
 	private const string HostExecutableSha256 = "9727076da50924e4a097b49a02155e4b34759269c3017ff31375364b8826eb4d";
@@ -65,33 +65,28 @@ public sealed partial class CapabilityDocumentationTests
 	public void CapabilityTablesMatchTheCatalogImplementationGates()
 	{
 		Dictionary<string, string> ids = ReadCapabilityIds();
-		Dictionary<string, bool> implemented = new(StringComparer.Ordinal);
-		Dictionary<string, string> experimental = new(StringComparer.Ordinal);
+		// Every catalog row is an operational adapter; the value is its experimental diagnostic id, if any.
+		Dictionary<string, string?> experimental = new(StringComparer.Ordinal);
 		string catalog = Read(CatalogSource);
 		foreach (Match match in ImplementationGate().Matches(catalog))
 		{
 			string id = ids[match.Groups["name"].Value];
-			Assert.True(implemented.TryAdd(id, match.Groups["gate"].Value == "Operational"),
+			Group diagnosticId = match.Groups["experimental"];
+			Assert.True(experimental.TryAdd(id, diagnosticId.Success ? diagnosticId.Value : null),
 				$"{CatalogSource} describes {id} more than once.");
-			if (match.Groups["experimental"].Success)
-			{
-				experimental.Add(id, match.Groups["experimental"].Value);
-			}
 		}
 
-		Assert.Equal(ids.Count, implemented.Count);
+		Assert.Equal(ids.Count, experimental.Count);
 		List<string> offenders = [];
 		foreach (CapabilityTable table in ReadCapabilityTables())
 		{
 			foreach (CapabilityRow row in table.Rows)
 			{
-				bool matches = implemented.TryGetValue(row.Id, out bool isImplemented) &&
-							   (!isImplemented
-								   ? row.Implementation == ContractOnly
-								   : experimental.TryGetValue(row.Id, out string? diagnosticId)
-									   ? OperationalImplementations.Any(operational =>
-										   row.Implementation == ExperimentalImplementation(operational, diagnosticId))
-									   : OperationalImplementations.Contains(row.Implementation, StringComparer.Ordinal));
+				bool matches = experimental.TryGetValue(row.Id, out string? diagnosticId) &&
+							   (diagnosticId is not null
+								   ? OperationalImplementations.Any(operational =>
+									   row.Implementation == ExperimentalImplementation(operational, diagnosticId))
+								   : OperationalImplementations.Contains(row.Implementation, StringComparer.Ordinal));
 				if (!matches)
 				{
 					offenders.Add($"{table.Path}:{row.Line} → {row.Id} says '{row.Implementation}'");
@@ -100,9 +95,9 @@ public sealed partial class CapabilityDocumentationTests
 		}
 
 		Assert.True(offenders.Count == 0,
-			"The Implementation column must follow the catalog's implementation gate ('Operational' → " +
+			"The Implementation column must name the catalog's operational adapter (" +
 			$"{string.Join(" or ", OperationalImplementations)}, or that label followed by " +
-			$"'{ExperimentalImplementation(string.Empty, "id")}' for an experimental API; 'ContractOnly' → {ContractOnly}):" +
+			$"'{ExperimentalImplementation(string.Empty, "id")}' for an experimental API):" +
 			Environment.NewLine + string.Join(Environment.NewLine, offenders));
 	}
 
@@ -237,7 +232,7 @@ public sealed partial class CapabilityDocumentationTests
 	private static partial Regex CapabilityIdDeclaration();
 
 	[GeneratedRegex(
-		@"Entry\(ClientCapabilityId\.(?<name>\w+),\s*CapabilityImplementation\.(?<gate>Operational|ContractOnly)\b[^)]*\)(?:\s*with\s*\{\s*ExperimentalDiagnosticId\s*=\s*""(?<experimental>[^""]+)""\s*\})?",
+		@"Entry\(ClientCapabilityId\.(?<name>\w+),[^)]*\)(?:\s*with\s*\{\s*ExperimentalDiagnosticId\s*=\s*""(?<experimental>[^""]+)""\s*\})?",
 		RegexOptions.CultureInvariant, RegexTimeoutMilliseconds)]
 	private static partial Regex ImplementationGate();
 

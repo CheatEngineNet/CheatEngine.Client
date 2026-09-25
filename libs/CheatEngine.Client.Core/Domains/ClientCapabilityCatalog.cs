@@ -4,18 +4,6 @@ using CheatEngine.Client.Runtime;
 
 namespace CheatEngine.Client.Core.Domains;
 
-/// <summary>Whether this build composes an operational adapter for a capability.</summary>
-internal enum CapabilityImplementation
-{
-	/// <summary>The Client composes an operational adapter: the implementation gate is satisfied.</summary>
-	Operational,
-
-	/// <summary>
-	///     The public contract exists but its adapter refuses every operation: the implementation gate is missing.
-	/// </summary>
-	ContractOnly
-}
-
 /// <summary>Where the policy gate of a capability comes from.</summary>
 internal enum CapabilityPolicySource
 {
@@ -46,7 +34,6 @@ internal enum CapabilityHostSource
 
 /// <summary>One row of <see cref="ClientCapabilityCatalog" />.</summary>
 /// <param name="Id">The Client capability.</param>
-/// <param name="Implementation">Whether this build composes an operational adapter.</param>
 /// <param name="Policy">Where the policy gate comes from.</param>
 /// <param name="Host">Where the host gate comes from.</param>
 /// <param name="RequiredScenarios">
@@ -55,7 +42,6 @@ internal enum CapabilityHostSource
 /// </param>
 internal sealed record ClientCapabilityDescriptor(
 	ClientCapabilityId Id,
-	CapabilityImplementation Implementation,
 	CapabilityPolicySource Policy,
 	CapabilityHostSource Host,
 	ImmutableArray<string> RequiredScenarios)
@@ -75,14 +61,15 @@ internal sealed record ClientCapabilityDescriptor(
 /// <summary>The one description of every Client capability, in the order the runtime snapshot reports them.</summary>
 /// <remarks>
 ///     <para>
-///         <see cref="RuntimeClient" /> composes the evidence of each capability from its row: the implementation gate,
-///         the source of the policy gate and of the host gate. The package, lifetime and live-qualification gates are the
-///         same for every capability. The required scenarios are the live qualification scenarios that the
+///         <see cref="RuntimeClient" /> composes the evidence of each capability from its row: the source of the policy
+///         gate and of the host gate, and the experimental id that the implementation gate names. Every capability
+///         composes an operational adapter, so its implementation gate is satisfied. The package, lifetime and
+///         live-qualification gates are the same for every capability. The required scenarios are the live qualification scenarios that the
 ///         qualification gate will require; that gate stays unknown until committed Client receipts exist.
 ///     </para>
 ///     <para>
 ///         Each capability has one row, and a lot changes only its own row. The capability tables of the READMEs follow
-///         the implementation column (<c>CapabilityDocumentationTests</c>), and <c>ClientCapabilityCatalogTests</c>
+///         the experimental ids and the required scenarios (<c>CapabilityDocumentationTests</c>), and <c>ClientCapabilityCatalogTests</c>
 ///         proves that every <see cref="ClientCapabilityId" /> appears exactly once.
 ///     </para>
 /// </remarks>
@@ -94,49 +81,49 @@ internal static class ClientCapabilityCatalog
 		get;
 	} =
 	[
-		Entry(ClientCapabilityId.ProcessSelection, CapabilityImplementation.Operational,
+		Entry(ClientCapabilityId.ProcessSelection,
 			CapabilityPolicySource.NotRequired, CapabilityHostSource.SdkSelectedProcess, "Q30.a", "Q31", "Q32"),
-		Entry(ClientCapabilityId.TypedMemory, CapabilityImplementation.Operational,
+		Entry(ClientCapabilityId.TypedMemory,
 			CapabilityPolicySource.NotRequired, CapabilityHostSource.NotProbed, "Q20", "Q21", "Q33"),
-		Entry(ClientCapabilityId.PatternScanning, CapabilityImplementation.Operational,
+		Entry(ClientCapabilityId.PatternScanning,
 			CapabilityPolicySource.NotRequired, CapabilityHostSource.NotProbed, "Q27", "Q28", "Q29"),
-		Entry(ClientCapabilityId.ValueScanning, CapabilityImplementation.Operational,
+		Entry(ClientCapabilityId.ValueScanning,
 			CapabilityPolicySource.NotRequired, CapabilityHostSource.NotProbed, "Q25", "Q26") with
 		{
 			ExperimentalDiagnosticId = "CECLIENT5001"
 		},
-		Entry(ClientCapabilityId.Inspection, CapabilityImplementation.Operational,
+		Entry(ClientCapabilityId.Inspection,
 			CapabilityPolicySource.NotRequired, CapabilityHostSource.NotProbed, "Q16.b", "Q28"),
-		Entry(ClientCapabilityId.Tables, CapabilityImplementation.Operational,
+		Entry(ClientCapabilityId.Tables,
 			CapabilityPolicySource.NotRequired, CapabilityHostSource.NotProbed, "Q34"),
-		Entry(ClientCapabilityId.ProtectedLua, CapabilityImplementation.Operational,
+		Entry(ClientCapabilityId.ProtectedLua,
 			CapabilityPolicySource.NotRequired, CapabilityHostSource.NotProbed, "Q05", "Q16", "Q19"),
 		// Arbitrary Lua is never qualified: no scenario, so its qualification gate stays unknown.
-		Entry(ClientCapabilityId.UnsafeLuaExecution, CapabilityImplementation.Operational,
+		Entry(ClientCapabilityId.UnsafeLuaExecution,
 			CapabilityPolicySource.UnsafeLuaExecutionOptIn, CapabilityHostSource.NotProbed),
-		Entry(ClientCapabilityId.Allocations, CapabilityImplementation.Operational,
+		Entry(ClientCapabilityId.Allocations,
 			CapabilityPolicySource.NotRequired, CapabilityHostSource.NotProbed, "Q30.a") with
 		{
 			ExperimentalDiagnosticId = "CECLIENT5002"
 		},
 		// Experimental (CECLIENT5003); Q32 covers the instruction profile of the x64 and the x86 target.
-		Entry(ClientCapabilityId.Assembly, CapabilityImplementation.Operational,
+		Entry(ClientCapabilityId.Assembly,
 			CapabilityPolicySource.NotRequired, CapabilityHostSource.NotProbed, "Q32") with
 		{
 			ExperimentalDiagnosticId = "CECLIENT5003"
 		},
 		// Experimental (CECLIENT5004) and registered only by the EnableAutoAssemblerPatches opt-in; Q44 is the policy
 		// refusal without it.
-		Entry(ClientCapabilityId.AutoAssemblerPatches, CapabilityImplementation.Operational,
+		Entry(ClientCapabilityId.AutoAssemblerPatches,
 			CapabilityPolicySource.AutoAssemblerPatchesOptIn, CapabilityHostSource.NotProbed, "Q35", "Q44") with
 		{
 			ExperimentalDiagnosticId = "CECLIENT5004"
 		}
 	];
 
-	private static ClientCapabilityDescriptor Entry(ClientCapabilityId id, CapabilityImplementation implementation,
-		CapabilityPolicySource policy, CapabilityHostSource host, params string[] requiredScenarios)
+	private static ClientCapabilityDescriptor Entry(ClientCapabilityId id, CapabilityPolicySource policy,
+		CapabilityHostSource host, params string[] requiredScenarios)
 	{
-		return new ClientCapabilityDescriptor(id, implementation, policy, host, [.. requiredScenarios]);
+		return new ClientCapabilityDescriptor(id, policy, host, [.. requiredScenarios]);
 	}
 }

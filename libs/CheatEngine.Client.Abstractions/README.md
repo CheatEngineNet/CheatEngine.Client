@@ -95,9 +95,9 @@ build consumed, and follows the range the packages declare. It is `Satisfied` fo
 above that version, by SemVer precedence (a prerelease of the consumed version is below it), and its reason says
 whether the loaded assembly is exactly the reviewed package or another 2.x release; it is `Missing` for another major or
 an older version, and `Unknown` when the loaded assembly declares no semantic informational version or the build embeds
-no identity. A contract-only capability is refused by its implementation gate, whatever its package gate reports.
-Probes are read-only: taking a snapshot never loads a driver, runs remote code, changes the target or allocates target
-memory. Each capability's qualification gate requires receipts for the live scenarios named in its row.
+no identity. Probes are read-only: taking a snapshot never loads a driver, runs remote code, changes the target or
+allocates target memory. Each capability's qualification gate requires receipts for the live scenarios named in its
+row.
 
 <!-- capability-table:start -->
 | Capability id | Implementation | Package | Host | Qualification | Status reported at runtime |
@@ -115,8 +115,7 @@ memory. Each capability's qualification gate requires receipts for the live scen
 | `Client.AutoAssemblerPatches` | Operational, policy opt-in, experimental (CECLIENT5004) | Loaded CheatEngine.SDK 2.x at or above the consumed 2.0.0 | Not probed by the snapshot (`Unknown`) | Unknown until Client receipts for Q35 and Q44 exist | `Unavailable` without `EnableAutoAssemblerPatches()`; otherwise `Unknown` |
 <!-- capability-table:end -->
 
-Every row also carries the lifetime gate (`Missing` once the activation has ended). A contract-only capability refuses
-each operation with `CapabilityUnavailable` and `CheatEngineHostEffect.NotStarted`; no Cheat Engine work is dispatched.
+Every row also carries the lifetime gate (`Missing` once the activation has ended).
 
 `Client.ValueScanning` is an operational adapter over CheatEngine.SDK's scan sessions, published as an experimental
 API (see "Experimental APIs" below): its implementation gate is `Satisfied`, and its qualification gate stays

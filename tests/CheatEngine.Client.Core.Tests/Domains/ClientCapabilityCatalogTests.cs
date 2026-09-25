@@ -85,7 +85,6 @@ public sealed partial class ClientCapabilityCatalogTests
 			static entry => entry.Policy == CapabilityPolicySource.AutoAssemblerPatchesOptIn);
 
 		Assert.Equal(ClientCapabilityId.AutoAssemblerPatches, patches.Id);
-		Assert.Equal(CapabilityImplementation.Operational, patches.Implementation);
 		Assert.Equal(CapabilityHostSource.NotProbed, patches.Host);
 		Assert.Equal(["Q35", "Q44"], patches.RequiredScenarios);
 		Assert.Equal(
@@ -104,15 +103,7 @@ public sealed partial class ClientCapabilityCatalogTests
 	}
 
 	[Fact]
-	public void NoCapabilityIsContractOnly()
-	{
-		Assert.Empty(ClientCapabilityCatalog.Entries
-			.Where(static entry => entry.Implementation == CapabilityImplementation.ContractOnly)
-			.Select(static entry => entry.Id));
-	}
-
-	[Fact]
-	public void OnlyOperationalCapabilitiesCanBeExperimentalAndValueScanningIsCeclient5001()
+	public void ExperimentalCapabilitiesCarryTheirDiagnosticIds()
 	{
 		Assert.Equal(
 			[
@@ -122,8 +113,6 @@ public sealed partial class ClientCapabilityCatalogTests
 			ClientCapabilityCatalog.Entries
 				.Where(static entry => entry.ExperimentalDiagnosticId is not null)
 				.Select(static entry => (entry.Id, entry.ExperimentalDiagnosticId!)));
-		Assert.All(ClientCapabilityCatalog.Entries.Where(static entry => entry.ExperimentalDiagnosticId is not null),
-			static entry => Assert.Equal(CapabilityImplementation.Operational, entry.Implementation));
 	}
 
 	[GeneratedRegex(@"^Q\d{2}(\.[a-z])?$", RegexOptions.CultureInvariant, 1000)]

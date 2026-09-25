@@ -15,13 +15,6 @@ namespace CheatEngine.Client.Core.Domains;
 /// </remarks>
 internal sealed class RuntimeClient : ICheatEngineRuntime
 {
-	/// <summary>
-	///     The implementation gate reason of a contract-only capability: its Client adapter refuses every operation. It
-	///     names no SDK version, because what the consumed package provides is the package gate's evidence (ADR-10).
-	/// </summary>
-	internal const string ContractOnlyReason =
-		"The Client composes no operational adapter for this capability in this build.";
-
 	private const string SnapshotOperation = "Runtime.GetSnapshot";
 
 	private readonly Version _clientAssemblyVersion;
@@ -213,7 +206,6 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 			: Missing("The Client activation is no longer current.");
 		// ADR-09, ADR-10: the package gate of every capability comes from evidence (the embedded consumed-SDK identity
 		// compared with the loaded CheatEngine.SDK.Engine), never from the presence of an interface or a version name.
-		// A contract-only capability is refused by its implementation gate, not by a claim about the package.
 		ClientCapabilityEvidenceGate package = _sdkIdentity.PackageGate;
 		ClientCapabilityEvidenceGate qualificationUnknown = UnknownEvidence(QualificationUnknownReason(_sdkIdentity));
 		ClientCapabilityEvidenceGate policyNotRequired = Satisfied(
@@ -222,7 +214,6 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 			"The runtime snapshot does not probe every host primitive required by this capability.");
 		ClientCapabilityEvidenceGate implemented = Satisfied(
 			"The Client composes an operational adapter for this capability.");
-		ClientCapabilityEvidenceGate contractOnly = Missing(ContractOnlyReason);
 
 		ClientCapabilityEvidenceGate unsafeLuaPolicy = _policy.EnableUnsafeLuaExecution
 			? Satisfied("Unsafe Lua execution was explicitly enabled for this activation.")
@@ -231,7 +222,8 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 			? Satisfied("Auto Assembler patches were explicitly enabled for this activation.")
 			: Missing("Auto Assembler patches require explicit EnableAutoAssemblerPatches opt-in for this activation.");
 
-		// Every capability is composed from its one catalog row; only the implementation, policy and host gates vary.
+		// Every capability is composed from its one catalog row; only the implementation reason (experimental or not),
+		// the policy gate and the host gate vary.
 		ImmutableArray<ClientCapabilityDescriptor> catalog = ClientCapabilityCatalog.Entries;
 		ClientCapabilityAvailability[] capabilities = new ClientCapabilityAvailability[catalog.Length];
 		for (int index = 0; index < catalog.Length; index++)
@@ -239,11 +231,9 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 			ClientCapabilityDescriptor entry = catalog[index];
 			capabilities[index] = Describe(
 				entry.Id,
-				entry.Implementation != CapabilityImplementation.Operational
-					? contractOnly
-					: entry.ExperimentalDiagnosticId is { } experimental
-						? Satisfied(ExperimentalImplementationReason(experimental))
-						: implemented,
+				entry.ExperimentalDiagnosticId is { } experimental
+					? Satisfied(ExperimentalImplementationReason(experimental))
+					: implemented,
 				package,
 				entry.Host == CapabilityHostSource.SdkSelectedProcess ? selectedProcess : unprobedHost,
 				qualificationUnknown,
