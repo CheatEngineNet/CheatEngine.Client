@@ -11,6 +11,8 @@ namespace CheatEngine.Client.Scanning;
 [Experimental(ClientExperimentalDiagnostics.ValueScans, UrlFormat = ClientExperimentalDiagnostics.UrlFormat)]
 public readonly record struct ValueScanPage
 {
+	private readonly ImmutableArray<ValueScanMatch> _matches;
+
 	/// <summary>Creates a value-scan result page.</summary>
 	/// <param name="startIndex">The zero-based index of the first match of the page.</param>
 	/// <param name="totalCount">The number of results Cheat Engine reported when the page was copied.</param>
@@ -21,7 +23,7 @@ public readonly record struct ValueScanPage
 		ArgumentOutOfRangeException.ThrowIfNegative(startIndex);
 		StartIndex = startIndex;
 		TotalCount = totalCount;
-		Matches = matches.IsDefault ? [] : matches;
+		_matches = matches.IsDefault ? [] : matches;
 	}
 
 	/// <summary>Gets the zero-based index of the first match of the page.</summary>
@@ -37,10 +39,8 @@ public readonly record struct ValueScanPage
 	}
 
 	/// <summary>Gets the copied matches, in Cheat Engine's result order.</summary>
-	public ImmutableArray<ValueScanMatch> Matches
-	{
-		get;
-	}
+	/// <remarks>Empty for the <see langword="default" /> value, never a default array.</remarks>
+	public ImmutableArray<ValueScanMatch> Matches => _matches.IsDefault ? [] : _matches;
 
 	/// <summary>Gets the index that follows the last match of the page: the start of the next page.</summary>
 	public long NextStartIndex => StartIndex + Matches.Length;

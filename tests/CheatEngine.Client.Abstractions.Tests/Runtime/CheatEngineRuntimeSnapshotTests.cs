@@ -137,7 +137,7 @@ public sealed class CheatEngineRuntimeSnapshotTests
 		ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => new CheatEngineRuntimeSnapshot(
 			42, default, CreatePlatformInfo(), ClientCapabilities.Empty, default));
 
-		Assert.Equal("version.ClientAssemblyVersion", exception.ParamName);
+		Assert.Equal("version", exception.ParamName);
 	}
 
 	/// <summary>Keeps every host and target fact as supplied; none is inferred from another (audit F08).</summary>

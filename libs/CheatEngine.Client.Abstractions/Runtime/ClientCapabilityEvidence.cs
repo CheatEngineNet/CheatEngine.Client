@@ -107,7 +107,7 @@ public readonly record struct ClientCapabilityEvidence
 	private ClientCapabilityEvidenceReasonCode GetEffectiveReasonCode()
 	{
 		// The constructor requires a reason for every gate, so a gate without one is the uninitialized default value.
-		if (Implementation.Reason is null)
+		if (Implementation.IsDefault)
 		{
 			return ClientCapabilityEvidenceReasonCode.Unknown;
 		}

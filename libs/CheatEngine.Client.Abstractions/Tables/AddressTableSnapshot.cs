@@ -9,23 +9,21 @@ namespace CheatEngine.Client.Tables;
 /// </remarks>
 public readonly record struct AddressTableSnapshot
 {
+	private readonly ImmutableArray<MemoryRecordSnapshot> _records;
+
 	/// <summary>Creates a bounded copied snapshot of every top-level record in the address list.</summary>
 	/// <param name="records">The copied top-level records; a default array is treated as empty.</param>
 	public AddressTableSnapshot(ImmutableArray<MemoryRecordSnapshot> records)
 	{
-		Records = records.IsDefault ? ImmutableArray<MemoryRecordSnapshot>.Empty : records;
-		RecordCount = Records.Length;
+		_records = records.IsDefault ? ImmutableArray<MemoryRecordSnapshot>.Empty : records;
 	}
 
 	/// <summary>Gets the number of copied top-level records.</summary>
-	public int RecordCount
-	{
-		get;
-	}
+	/// <remarks>0 for the <see langword="default" /> value.</remarks>
+	public int RecordCount => Records.Length;
 
 	/// <summary>Gets the copied top-level records.</summary>
-	public ImmutableArray<MemoryRecordSnapshot> Records
-	{
-		get;
-	}
+	/// <remarks>Empty for the <see langword="default" /> value, never a default array.</remarks>
+	public ImmutableArray<MemoryRecordSnapshot> Records =>
+		_records.IsDefault ? ImmutableArray<MemoryRecordSnapshot>.Empty : _records;
 }

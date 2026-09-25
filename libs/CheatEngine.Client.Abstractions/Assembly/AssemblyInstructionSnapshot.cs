@@ -20,6 +20,12 @@ namespace CheatEngine.Client.Assembly;
 [Experimental(ClientExperimentalDiagnostics.Instructions, UrlFormat = ClientExperimentalDiagnostics.UrlFormat)]
 public readonly record struct AssemblyInstructionSnapshot
 {
+	private readonly string? _addressText;
+	private readonly ImmutableArray<byte> _bytes;
+	private readonly string? _extra;
+	private readonly string? _opcode;
+	private readonly string? _text;
+
 	/// <summary>Creates a copied assembly-instruction snapshot.</summary>
 	/// <param name="address">The address of the instruction.</param>
 	/// <param name="length">The exact positive instruction length.</param>
@@ -47,11 +53,11 @@ public readonly record struct AssemblyInstructionSnapshot
 
 		Address = address;
 		Length = length;
-		AddressText = addressText;
-		Opcode = opcode;
-		Extra = extra;
-		Text = string.IsNullOrWhiteSpace(extra) ? opcode : opcode + " " + extra;
-		Bytes = ImmutableArray.Create(bytes);
+		_addressText = addressText;
+		_opcode = opcode;
+		_extra = extra;
+		_text = string.IsNullOrWhiteSpace(extra) ? opcode : opcode + " " + extra;
+		_bytes = ImmutableArray.Create(bytes);
 	}
 
 	/// <summary>Gets the address of the instruction.</summary>
@@ -67,35 +73,25 @@ public readonly record struct AssemblyInstructionSnapshot
 	}
 
 	/// <summary>Gets the copied address column of Cheat Engine's disassembler.</summary>
-	public string AddressText
-	{
-		get;
-	}
+	/// <remarks><see cref="string.Empty" /> for the <see langword="default" /> value.</remarks>
+	public string AddressText => _addressText ?? string.Empty;
 
 	/// <summary>Gets the copied mnemonic and operands column of Cheat Engine's disassembler.</summary>
-	public string Opcode
-	{
-		get;
-	}
+	/// <remarks><see cref="string.Empty" /> for the <see langword="default" /> value.</remarks>
+	public string Opcode => _opcode ?? string.Empty;
 
 	/// <summary>Gets the copied annotation column of Cheat Engine's disassembler; empty when there is none.</summary>
-	public string Extra
-	{
-		get;
-	}
+	/// <remarks><see cref="string.Empty" /> for the <see langword="default" /> value.</remarks>
+	public string Extra => _extra ?? string.Empty;
 
 	/// <summary>
 	///     Gets the instruction as one line: <see cref="Opcode" />, followed by a space and <see cref="Extra" /> when
 	///     <see cref="Extra" /> is not blank.
 	/// </summary>
-	public string Text
-	{
-		get;
-	}
+	/// <remarks><see cref="string.Empty" /> for the <see langword="default" /> value.</remarks>
+	public string Text => _text ?? string.Empty;
 
 	/// <summary>Gets the immutable copy of the target instruction bytes, read from target memory.</summary>
-	public ImmutableArray<byte> Bytes
-	{
-		get;
-	}
+	/// <remarks>Empty for the <see langword="default" /> value, never a default array.</remarks>
+	public ImmutableArray<byte> Bytes => _bytes.IsDefault ? ImmutableArray<byte>.Empty : _bytes;
 }

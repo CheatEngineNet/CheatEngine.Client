@@ -23,7 +23,7 @@ public readonly record struct MemoryRecordSnapshot
 		MemoryRecordStateSnapshot state)
 	{
 		ArgumentOutOfRangeException.ThrowIfNegative(index);
-		if (content.Description is null || content.AddressExpression is null || content.Value is null)
+		if (content.IsDefault)
 		{
 			throw new ArgumentException("Content requires non-null text fields.", nameof(content));
 		}

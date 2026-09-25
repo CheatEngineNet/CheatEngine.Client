@@ -14,6 +14,8 @@ namespace CheatEngine.Client.Scanning;
 [Experimental(ClientExperimentalDiagnostics.ValueScans, UrlFormat = ClientExperimentalDiagnostics.UrlFormat)]
 public readonly record struct ValueScanMatch
 {
+	private readonly string? _valueText;
+
 	/// <summary>Creates a copied value-scan match.</summary>
 	/// <param name="address">The target address of the match.</param>
 	/// <param name="valueText">The value text Cheat Engine returned for the match.</param>
@@ -22,7 +24,7 @@ public readonly record struct ValueScanMatch
 	{
 		ArgumentNullException.ThrowIfNull(valueText);
 		Address = address;
-		ValueText = valueText;
+		_valueText = valueText;
 	}
 
 	/// <summary>Gets the target address of the match.</summary>
@@ -32,8 +34,6 @@ public readonly record struct ValueScanMatch
 	}
 
 	/// <summary>Gets the value text Cheat Engine returned for the match, verbatim.</summary>
-	public string ValueText
-	{
-		get;
-	}
+	/// <remarks><see cref="string.Empty" /> for the <see langword="default" /> value.</remarks>
+	public string ValueText => _valueText ?? string.Empty;
 }

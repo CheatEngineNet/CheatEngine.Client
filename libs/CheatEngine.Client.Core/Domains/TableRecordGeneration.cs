@@ -51,11 +51,6 @@ internal sealed class TableRecordGeneration
 	/// <summary>Records every identifier of a table snapshot copied in <paramref name="observedGeneration" />.</summary>
 	internal void Observe(AddressTableSnapshot table, long observedGeneration)
 	{
-		if (table.Records.IsDefault)
-		{
-			return;
-		}
-
 		lock (_gate)
 		{
 			foreach (MemoryRecordSnapshot record in table.Records)

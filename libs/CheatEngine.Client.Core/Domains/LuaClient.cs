@@ -82,7 +82,8 @@ internal sealed class LuaClient : ILuaClient
 	{
 		ArgumentNullException.ThrowIfNull(luaModule);
 		LuaModuleDescriptor descriptor = luaModule.Descriptor;
-		if (descriptor.Name is null)
+		// A constructed descriptor always has a name; the default value has the empty one.
+		if (descriptor.Name.Length == 0)
 		{
 			throw new ArgumentException("The Lua module must declare its identity and exports in a descriptor.",
 				nameof(luaModule));

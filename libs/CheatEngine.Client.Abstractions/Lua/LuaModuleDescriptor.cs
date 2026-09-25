@@ -5,6 +5,9 @@ namespace CheatEngine.Client.Lua;
 /// <summary>Copied metadata that identifies one explicit Lua module and all global names it exports.</summary>
 public readonly record struct LuaModuleDescriptor
 {
+	private readonly ImmutableArray<LuaExportDescriptor> _exports;
+	private readonly string? _name;
+
 	/// <summary>Initializes one immutable module descriptor.</summary>
 	/// <param name="name">The stable module identity for the Client activation.</param>
 	/// <param name="exports">The Lua global names this module will register.</param>
@@ -12,11 +15,11 @@ public readonly record struct LuaModuleDescriptor
 	public LuaModuleDescriptor(string name, ImmutableArray<LuaExportDescriptor> exports)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(name);
-		Name = name;
-		Exports = exports.IsDefault ? ImmutableArray<LuaExportDescriptor>.Empty : exports;
+		_name = name;
+		_exports = exports.IsDefault ? ImmutableArray<LuaExportDescriptor>.Empty : exports;
 
-		HashSet<string>? names = Exports.IsEmpty ? null : new HashSet<string>(StringComparer.Ordinal);
-		foreach (LuaExportDescriptor export in Exports)
+		HashSet<string>? names = _exports.IsEmpty ? null : new HashSet<string>(StringComparer.Ordinal);
+		foreach (LuaExportDescriptor export in _exports)
 		{
 			ArgumentException.ThrowIfNullOrWhiteSpace(export.Name);
 			if (!names!.Add(export.Name))
@@ -29,14 +32,11 @@ public readonly record struct LuaModuleDescriptor
 	}
 
 	/// <summary>Gets the stable module identity for the Client activation.</summary>
-	public string Name
-	{
-		get;
-	}
+	/// <remarks><see cref="string.Empty" /> for the <see langword="default" /> value.</remarks>
+	public string Name => _name ?? string.Empty;
 
 	/// <summary>Gets immutable copied descriptors of each Lua global this module exports.</summary>
-	public ImmutableArray<LuaExportDescriptor> Exports
-	{
-		get;
-	}
+	/// <remarks>Empty for the <see langword="default" /> value, never a default array.</remarks>
+	public ImmutableArray<LuaExportDescriptor> Exports =>
+		_exports.IsDefault ? ImmutableArray<LuaExportDescriptor>.Empty : _exports;
 }

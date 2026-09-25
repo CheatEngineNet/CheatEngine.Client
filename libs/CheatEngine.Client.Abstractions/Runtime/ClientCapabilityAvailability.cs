@@ -3,6 +3,8 @@ namespace CheatEngine.Client.Runtime;
 /// <summary>An immutable observation of a Client-owned high-level capability and its evidence.</summary>
 public readonly record struct ClientCapabilityAvailability
 {
+	private readonly string? _reason;
+
 	/// <summary>Creates an availability projection from independently sourced prerequisite evidence.</summary>
 	/// <param name="capability">The stable Client-owned capability identifier.</param>
 	/// <param name="evidence">The implementation, package, host, qualification, policy and lifetime gates.</param>
@@ -24,7 +26,7 @@ public readonly record struct ClientCapabilityAvailability
 		Capability = capability;
 		Evidence = evidence;
 		State = evidence.AvailabilityState;
-		Reason = evidence.EffectiveReason;
+		_reason = evidence.EffectiveReason;
 	}
 
 	/// <summary>Gets the stable Client-owned capability identifier.</summary>
@@ -46,10 +48,8 @@ public readonly record struct ClientCapabilityAvailability
 	}
 
 	/// <summary>Gets the explicit probe, policy, or gate reason behind the state.</summary>
-	public string Reason
-	{
-		get;
-	}
+	/// <remarks><see cref="string.Empty" /> for the <see langword="default" /> value.</remarks>
+	public string Reason => _reason ?? string.Empty;
 
 	/// <summary>Gets whether this capability was explicitly established as available.</summary>
 	public bool IsAvailable => State == ClientCapabilityAvailabilityState.Available;

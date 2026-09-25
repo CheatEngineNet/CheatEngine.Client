@@ -5,6 +5,10 @@ namespace CheatEngine.Client.Tables;
 /// <summary>Copied content fields of a Cheat Engine memory record.</summary>
 public readonly record struct MemoryRecordContentSnapshot
 {
+	private readonly string? _addressExpression;
+	private readonly string? _description;
+	private readonly string? _value;
+
 	/// <summary>Creates copied content fields for a memory-record snapshot.</summary>
 	/// <param name="description">The record display description.</param>
 	/// <param name="addressExpression">The record's unresolved Cheat Engine address expression.</param>
@@ -25,31 +29,25 @@ public readonly record struct MemoryRecordContentSnapshot
 		ArgumentNullException.ThrowIfNull(value);
 		ArgumentOutOfRangeException.ThrowIfNegative(offsetCount);
 
-		Description = description;
-		AddressExpression = addressExpression;
-		Value = value;
+		_description = description;
+		_addressExpression = addressExpression;
+		_value = value;
 		VariableType = variableType;
 		Script = script;
 		OffsetCount = offsetCount;
 	}
 
 	/// <summary>Gets the record display description.</summary>
-	public string Description
-	{
-		get;
-	}
+	/// <remarks><see cref="string.Empty" /> for the <see langword="default" /> value.</remarks>
+	public string Description => _description ?? string.Empty;
 
 	/// <summary>Gets the record's unresolved Cheat Engine address expression.</summary>
-	public string AddressExpression
-	{
-		get;
-	}
+	/// <remarks><see cref="string.Empty" /> for the <see langword="default" /> value.</remarks>
+	public string AddressExpression => _addressExpression ?? string.Empty;
 
 	/// <summary>Gets the record's verbatim value text.</summary>
-	public string Value
-	{
-		get;
-	}
+	/// <remarks><see cref="string.Empty" /> for the <see langword="default" /> value.</remarks>
+	public string Value => _value ?? string.Empty;
 
 	/// <summary>Gets the record's Cheat Engine value type.</summary>
 	public VariableType VariableType
@@ -75,4 +73,7 @@ public readonly record struct MemoryRecordContentSnapshot
 	{
 		get;
 	}
+
+	/// <summary>Gets whether this value is the uninitialized <see langword="default" />.</summary>
+	internal bool IsDefault => _description is null;
 }

@@ -12,6 +12,12 @@ namespace CheatEngine.Client.Runtime;
 /// </remarks>
 public readonly record struct CheatEngineRuntimeVersionInfo
 {
+	/// <summary>The version every version property reports for the <see langword="default" /> value: 0.0.</summary>
+	private static readonly Version NoVersion = new(0, 0);
+
+	private readonly Version? _clientAssemblyVersion;
+	private readonly Version? _sdkAssemblyVersion;
+
 	/// <summary>Creates runtime version observations from independently observed facts.</summary>
 	/// <param name="cheatEngineVersion">
 	///     The complete Cheat Engine file version, or <see langword="null" /> when it was not observed.
@@ -52,8 +58,9 @@ public readonly record struct CheatEngineRuntimeVersionInfo
 
 		CheatEngineVersion = cheatEngineVersion;
 		QualifiedCheatEngineBaseline = qualifiedCheatEngineBaseline;
-		ClientAssemblyVersion = clientAssemblyVersion ?? throw new ArgumentNullException(nameof(clientAssemblyVersion));
-		SdkAssemblyVersion = sdkAssemblyVersion ?? throw new ArgumentNullException(nameof(sdkAssemblyVersion));
+		_clientAssemblyVersion =
+			clientAssemblyVersion ?? throw new ArgumentNullException(nameof(clientAssemblyVersion));
+		_sdkAssemblyVersion = sdkAssemblyVersion ?? throw new ArgumentNullException(nameof(sdkAssemblyVersion));
 		SdkPackageVersion = sdkPackageVersion;
 		IsReviewedSdkPackage = isReviewedSdkPackage;
 	}
@@ -74,16 +81,12 @@ public readonly record struct CheatEngineRuntimeVersionInfo
 	}
 
 	/// <summary>Gets the assembly version of this Client abstraction assembly.</summary>
-	public Version ClientAssemblyVersion
-	{
-		get;
-	}
+	/// <remarks>0.0 for the <see langword="default" /> value.</remarks>
+	public Version ClientAssemblyVersion => _clientAssemblyVersion ?? NoVersion;
 
 	/// <summary>Gets the assembly version of the SDK runtime-contract assembly.</summary>
-	public Version SdkAssemblyVersion
-	{
-		get;
-	}
+	/// <remarks>0.0 for the <see langword="default" /> value.</remarks>
+	public Version SdkAssemblyVersion => _sdkAssemblyVersion ?? NoVersion;
 
 	/// <summary>
 	///     Gets the informational version of the loaded CheatEngine.SDK.Engine assembly, for example
@@ -110,4 +113,7 @@ public readonly record struct CheatEngineRuntimeVersionInfo
 	public bool IsOnQualifiedCheatEngineLine => CheatEngineVersion is { } observed &&
 												observed.Major == QualifiedCheatEngineBaseline.Major &&
 												observed.Minor == QualifiedCheatEngineBaseline.Minor;
+
+	/// <summary>Gets whether this value is the uninitialized <see langword="default" />.</summary>
+	internal bool IsDefault => _clientAssemblyVersion is null;
 }

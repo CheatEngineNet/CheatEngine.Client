@@ -9,6 +9,8 @@ namespace CheatEngine.Client.Runtime;
 /// </remarks>
 public readonly record struct CheatEngineRuntimeSnapshot
 {
+	private readonly ClientCapabilities? _capabilities;
+
 	/// <summary>Creates a runtime snapshot from grouped observations.</summary>
 	/// <param name="epoch">The plugin activation epoch.</param>
 	/// <param name="version">The version observations.</param>
@@ -27,13 +29,15 @@ public readonly record struct CheatEngineRuntimeSnapshot
 		CheatEngineRuntimeLuaInfo lua)
 	{
 		ArgumentOutOfRangeException.ThrowIfNegative(epoch);
-		ArgumentNullException.ThrowIfNull(version.ClientAssemblyVersion);
-		ArgumentNullException.ThrowIfNull(version.SdkAssemblyVersion);
+		if (version.IsDefault)
+		{
+			throw new ArgumentNullException(nameof(version), "Initialized version observations are required.");
+		}
 
 		Epoch = epoch;
 		Version = version;
 		Platform = platform;
-		Capabilities = capabilities ?? throw new ArgumentNullException(nameof(capabilities));
+		_capabilities = capabilities ?? throw new ArgumentNullException(nameof(capabilities));
 		Lua = lua;
 	}
 
@@ -56,10 +60,8 @@ public readonly record struct CheatEngineRuntimeSnapshot
 	}
 
 	/// <summary>Gets the explicit availability observation and evidence of each Client capability.</summary>
-	public ClientCapabilities Capabilities
-	{
-		get;
-	}
+	/// <remarks><see cref="ClientCapabilities.Empty" /> for the <see langword="default" /> value.</remarks>
+	public ClientCapabilities Capabilities => _capabilities ?? ClientCapabilities.Empty;
 
 	/// <summary>Gets the Lua runtime observations.</summary>
 	public CheatEngineRuntimeLuaInfo Lua
