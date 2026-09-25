@@ -169,6 +169,8 @@ jobs:
             @{ Key = 'generatorInstances'; Rule = 'csharpsquid:S2325'; Resource = 'source-generators/**' }
             @{ Key = 'emittedFragments'; Rule = 'csharpsquid:S1192'; Resource = 'source-generators/**' }
             @{ Key = 'generatorComments'; Rule = 'csharpsquid:S125'; Resource = 'source-generators/**' }
+            # The qualification fault switch makes an activation-scoped resource throw from Dispose on purpose (Q06, Q43).
+            @{ Key = 'harnessFaultInjection'; Rule = 'csharpsquid:S3877'; Resource = 'tests/CheatEngine.Client.LivePlugin.Qualification/QualificationPlugin.cs' }
           )
           $arguments = @(
             "/k:$env:SONAR_PROJECT_KEY"
