@@ -15,17 +15,34 @@ read committed files: the project never builds, packs, restores or starts a proc
 - `Solution/SolutionInventoryTests` proves that every `*.csproj` on disk is built by CI through
   `CheatEngine.Client.slnx`, unless an explicit, reasoned exclusion says otherwise (the template content project).
 - `Release/RepositoryDocumentsTests` proves that the repository carries what a published package links to: an MIT
-  `LICENSE` equal to the package license expression, a `CHANGELOG.md` whose `[Unreleased]` section separates the four
-  release categories, and a `RELEASING.md` that documents the trusted publishing policy for `CheatEngine.Client*`.
+  `LICENSE` equal to the package license expression; a `CHANGELOG.md` whose `[Unreleased]` section separates the four
+  release categories and whose releases are `## [X.Y.Z] - YYYY-MM-DD` sections with a real ISO 8601 date, newest first
+  by version and date, each with an entry (`ChangelogReleasesAreDatedInIsoFormatNewestFirstAndHaveEntries`, whose
+  rules `TheReleaseSectionRulesSeeOrderDatesHeadingsAndEmptySections` exercises on synthetic headings); and a
+  `RELEASING.md` that documents the trusted publishing policy for `CheatEngine.Client*`, with the `CheatEngine`
+  organization as policy owner and `AriusII` as `NUGET_USER`.
 - `Packaging/SdkPinTests` proves that the Client consumes one reviewed `CheatEngine.SDK` package (audit ADR-10, A21-01,
-  A21-02):
+  A21-02). Its documentation checks read the Markdown and C# files of `src/`, `libs/`, `source-generators/` and
+  `templates/`, the template content project, the governance documents, every text file under `.github/` and the
+  CHANGELOG except the sections below the MinVer floor, which are released history:
   - `SdkVersionAppearsAsALiteralOnlyInTheSdkPropsFile`: project files derive every SDK version from
     `eng/CheatEngineSdk.props`;
   - `ProseMentionsOfTheConsumedSdkEqualThePin`: documentation and diagnostics that name the SDK version name the pin;
+  - `VersionRangesInTheDocumentationAreTheDeclaredSdkRange`: every two-bound version range is the range that
+    `eng/CheatEngineSdk.props` declares, spaces ignored, and at least one guarded document states it;
+  - `TupleLineHashesAreTheReviewedIdentityOfThePinnedSdk`: a SHA-512 or SHA-256 on a line that names CheatEngine.SDK,
+    its bridge or its content hash is the reviewed identity of `PackagedClientFeedFixture.PinnedSdkIdentity` or a host
+    profile hash, and the install guides state the content hash and the bridge hash;
+  - `TheDocumentationChecksSeeTupleHashesRangesAndOnlyTheCurrentChangelog` proves those helpers on synthetic lines;
   - `EveryLockFileResolvesThePinnedSdkWithOneContentHash`: every lock resolves the pin with one content hash;
   - `RetiredSdkIdentityLiteralsAppearNowhere`: no text file keeps the content hash, signed-file hash, bridge hash or
     source commit of an SDK package the Client no longer consumes;
-  - `SdkPinIsAStableVersionOfTheSupportedMajor` and `CoexistenceFixturesDeriveTheirSdkVersionFromThePin`.
+  - `SdkPinIsAStableVersionOfTheSupportedMajor`, `CoexistenceFixturesDeriveTheirSdkVersionFromThePin` and
+    `ConsumerSdkMajorGuardMatchesThePinUpperBound`.
+- `Packaging/NoStaleSdkWordingTests` refuses, in every text file of `libs/`, `src/`, `source-generators/` and
+  `templates/`, a wording about another CheatEngine.SDK version or a pending migration ("SDK 1.0.0", "SDK 2.0 ...
+  owners", "migration guide", "when the Client migrates", "until the SDK 2.0"), also when a comment wraps the phrase;
+  `TheDetectorFindsEveryStaleFormAcrossWrappedCommentsAndSparesTheCurrentWording` pins each form.
 - `Packaging/ConsumerDiagnosticCatalogTests` catalogs the `CECLIENT` build diagnostics that the Hosting package's
   `buildTransitive` targets bring to a plugin project: the codes the targets emit (MSBuild `Error` and `Warning`
   elements and the `Log.LogError` calls of their inline tasks) are exactly `CECLIENT001` to `CECLIENT017` and the rows
