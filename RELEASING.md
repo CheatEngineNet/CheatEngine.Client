@@ -86,7 +86,10 @@ otherwise.
      `AnalyzerReleases.Shipped.md`.
 
    Experimental entries keep their `[CECLIENT500x]` prefix in `PublicAPI.Shipped.txt`. For 1.0.0, every Shipped file
-   starts empty and receives the whole 1.0.0 surface, as the last API commit of the release pull request.
+   starts empty and receives the whole 1.0.0 surface. Make both moves in one commit, the last API commit of the release
+   pull request: `PublicApiFileTests` reads the `## Release X.Y.Z` section as the promotion, keeps every Shipped file
+   empty and forbids `*REMOVED*` entries until the first one exists, and requires each one to name a dated
+   `CHANGELOG.md` release.
 
    Then confirm the move compiles clean (RS0016/RS0017/RS0025, RS2000–RS2008):
 

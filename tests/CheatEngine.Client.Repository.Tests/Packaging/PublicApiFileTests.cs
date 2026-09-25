@@ -6,12 +6,20 @@ namespace CheatEngine.Client.Repository.Tests.Packaging;
 
 /// <summary>
 ///     The PublicAPI baselines of the shipping libraries stay truthful before and after the first release: every library
-///     declares both files, entries are ordinally sorted, and nothing counts as shipped until CHANGELOG.md records a dated
-///     release.
+///     declares both files, entries are ordinally sorted, and nothing counts as shipped until the release pull request
+///     promotes a dated CHANGELOG.md release.
 /// </summary>
+/// <remarks>
+///     The promotion is the <c>## Release X.Y.Z</c> section that the release pull request adds to
+///     <c>AnalyzerReleases.Shipped.md</c> in the commit that moves every <c>PublicAPI.Unshipped.txt</c> into
+///     <c>PublicAPI.Shipped.txt</c> (RELEASING.md, "Prepare a release"). A dated CHANGELOG heading is not the
+///     promotion: the release section is dated before the pull request ships its API.
+/// </remarks>
 public sealed partial class PublicApiFileTests
 {
 	private const string NullableHeader = "#nullable enable";
+
+	private const string ChangelogPath = "CHANGELOG.md";
 
 	private const int RegexTimeoutMilliseconds = 1000;
 
@@ -88,7 +96,7 @@ public sealed partial class PublicApiFileTests
 	[Fact]
 	public void NoRemovedEntriesBeforeTheFirstRelease()
 	{
-		if (HasDatedRelease())
+		if (PromotedReleases().Length > 0)
 		{
 			return;
 		}
@@ -102,15 +110,21 @@ public sealed partial class PublicApiFileTests
 		}
 
 		Assert.True(offenders.Count == 0,
-			"Nothing has been released, so an API is deleted, never marked *REMOVED*:" + Environment.NewLine +
+			"No release has been promoted, so an API is deleted, never marked *REMOVED*:" + Environment.NewLine +
 			string.Join(Environment.NewLine, offenders));
 	}
 
 	[Fact]
-	public void ShippedIsEmptyUntilTheChangelogHasADatedRelease()
+	public void ShippedIsEmptyUntilTheReleasePullRequestPromotesADatedRelease()
 	{
-		if (HasDatedRelease())
+		string[] promoted = PromotedReleases();
+		if (promoted.Length > 0)
 		{
+			string[] undated = FindUndatedPromotions(promoted,
+				File.ReadAllLines(Path.Combine(RepositoryRoot.Path, ChangelogPath)));
+			Assert.True(undated.Length == 0,
+				"AnalyzerReleases.Shipped.md promotes a release that CHANGELOG.md does not record as " +
+				$"'## [X.Y.Z] - YYYY-MM-DD': {string.Join(", ", undated)}.");
 			return;
 		}
 
@@ -126,9 +140,23 @@ public sealed partial class PublicApiFileTests
 		}
 
 		Assert.True(offenders.Count == 0,
-			"CHANGELOG.md records no dated release, so every PublicAPI.Shipped.txt must contain only " +
-			$"'{NullableHeader}'. The release pull request promotes Unshipped once, as its last API commit: " +
-			string.Join(", ", offenders));
+			"No AnalyzerReleases.Shipped.md has a '## Release X.Y.Z' section yet, so every PublicAPI.Shipped.txt " +
+			$"must contain only '{NullableHeader}'. The release pull request promotes Unshipped and the analyzer " +
+			"rules once, in one commit, as its last API commit: " + string.Join(", ", offenders));
+	}
+
+	[Fact]
+	public void ThePromotionIsAShippedAnalyzerReleaseThatTheChangelogDates()
+	{
+		// Until the release pull request promotes a release, the facts above never take their promoted path.
+		Assert.Empty(FindPromotedReleases(["; Shipped analyzer releases", "", "## Releases to come"]));
+		Assert.Equal(["1.0.0", "1.1.0"],
+			FindPromotedReleases(["## Release 1.0.0", "", "### New Rules", "## Release 1.1.0", "### Removed Rules"]));
+
+		string[] changelog = ["## [Unreleased]", "### Added", "## [1.0.0] - 2026-09-25", "- first"];
+		Assert.Empty(FindUndatedPromotions(["1.0.0"], changelog));
+		Assert.Equal(["1.1.0", "1.0"], FindUndatedPromotions(["1.0.0", "1.1.0", "1.0"], changelog));
+		Assert.Equal(["1.0.0"], FindUndatedPromotions(["1.0.0"], ["## [Unreleased]", "## [1.0.0]", "- undated"]));
 	}
 
 	[Fact]
@@ -170,15 +198,57 @@ public sealed partial class PublicApiFileTests
 		return RepositoryRoot.EnumerateSourceFiles("PublicAPI.*.txt").Order(StringComparer.Ordinal);
 	}
 
-	private static bool HasDatedRelease()
+	/// <summary>
+	///     The releases whose API the repository has promoted: the <c>## Release X.Y.Z</c> sections of every
+	///     <c>AnalyzerReleases.Shipped.md</c>, of which at least one must exist.
+	/// </summary>
+	private static string[] PromotedReleases()
 	{
-		return File.ReadLines(Path.Combine(RepositoryRoot.Path, "CHANGELOG.md"))
-			.Any(static line => DatedReleaseHeading().IsMatch(line));
+		// .claude/ holds local agent state (for example worktree copies of other commits), never repository content.
+		string[] files =
+		[
+			.. RepositoryRoot.EnumerateSourceFiles("AnalyzerReleases.Shipped.md")
+				.Where(static file => !file.StartsWith(".claude/", StringComparison.Ordinal))
+		];
+		Assert.True(files.Length > 0,
+			"No AnalyzerReleases.Shipped.md exists; the PublicAPI guards read the promotion of a release from it.");
+		List<string> lines = [];
+		foreach (string file in files)
+		{
+			lines.AddRange(File.ReadLines(Path.Combine(RepositoryRoot.Path, file)));
+		}
+
+		return FindPromotedReleases(lines);
 	}
 
-	[GeneratedRegex(@"^## \[\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?\] - \d{4}-\d{2}-\d{2}$", RegexOptions.CultureInvariant,
-		RegexTimeoutMilliseconds)]
+	/// <summary>The versions of the <c>## Release</c> sections of analyzer release lines, distinct, in order.</summary>
+	private static string[] FindPromotedReleases(IEnumerable<string> analyzerReleaseLines)
+	{
+		return
+		[
+			.. analyzerReleaseLines.Select(static line => PromotedReleaseHeading().Match(line))
+				.Where(static match => match.Success)
+				.Select(static match => match.Groups["version"].Value)
+				.Distinct(StringComparer.Ordinal)
+		];
+	}
+
+	/// <summary>The promoted versions that no <c>## [X.Y.Z] - YYYY-MM-DD</c> heading of the changelog dates.</summary>
+	private static string[] FindUndatedPromotions(string[] promoted, string[] changelog)
+	{
+		HashSet<string> dated = new(changelog.Select(static line => DatedReleaseHeading().Match(line))
+			.Where(static match => match.Success)
+			.Select(static match => match.Groups["version"].Value), StringComparer.Ordinal);
+		return [.. promoted.Where(version => !dated.Contains(version))];
+	}
+
+	[GeneratedRegex(@"^## \[(?<version>\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)\] - \d{4}-\d{2}-\d{2}$",
+		RegexOptions.CultureInvariant, RegexTimeoutMilliseconds)]
 	private static partial Regex DatedReleaseHeading();
+
+	/// <summary>A release section of an analyzer release tracking file.</summary>
+	[GeneratedRegex(@"^## Release (?<version>\S+)\s*$", RegexOptions.CultureInvariant, RegexTimeoutMilliseconds)]
+	private static partial Regex PromotedReleaseHeading();
 
 	[GeneratedRegex(@"#pragma\s+warning\s+disable\s+[^\r\n]*\bRS002[67]\b", RegexOptions.CultureInvariant,
 		RegexTimeoutMilliseconds)]
