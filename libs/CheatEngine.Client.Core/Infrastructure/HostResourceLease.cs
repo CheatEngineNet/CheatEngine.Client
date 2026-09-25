@@ -184,12 +184,14 @@ internal abstract class HostResourceLease : ICheatEngineLease, IOutcomeReporting
 		LeaseReleaseOutcome dispatched = default;
 		try
 		{
+			// A release is never cancelled: the deactivation cleanup releases leases while the activation stops, so the
+			// dispatch deliberately opts out of the activation's Stopping token.
 			_ = _dispatcher.TryInvoke(() =>
 			{
 				dispatched = ReleaseUnderGate();
 				ran = true;
 				return true;
-			}, out bool _, out CheatEngineFailure _);
+			}, out bool _, out CheatEngineFailure _, CancellationToken.None);
 		}
 		catch (Exception)
 		{
