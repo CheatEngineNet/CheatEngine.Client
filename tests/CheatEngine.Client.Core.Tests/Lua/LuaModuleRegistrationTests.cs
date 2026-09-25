@@ -96,7 +96,7 @@ public sealed class LuaModuleRegistrationTests
 
 		Assert.False(succeeded);
 		Assert.Null(lease);
-		Assert.Equal(CheatEngineFailureKind.InvalidState, failure.Kind);
+		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
 		Assert.Equal("Lua.RegisterModule", failure.Operation);
 		Assert.Contains("identity 'diagnostics'", failure.Message, StringComparison.Ordinal);
 		Assert.Equal(["first.register"], first.Events);
@@ -118,7 +118,7 @@ public sealed class LuaModuleRegistrationTests
 
 		Assert.False(succeeded);
 		Assert.Null(lease);
-		Assert.Equal(CheatEngineFailureKind.InvalidState, failure.Kind);
+		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
 		Assert.Contains("export 'diagnostics'", failure.Message, StringComparison.Ordinal);
 		Assert.Equal(["first.register"], first.Events);
 		Assert.Empty(second.Events);
@@ -209,7 +209,7 @@ public sealed class LuaModuleRegistrationTests
 		Assert.True(await firstRegistration);
 		Assert.False(secondSucceeded);
 		Assert.Null(secondLease);
-		Assert.Equal(CheatEngineFailureKind.InvalidState, secondFailure.Kind);
+		Assert.Equal(CheatEngineFailureKind.OperationRejected, secondFailure.Kind);
 		Assert.Empty(second.Events);
 		Assert.Equal(["first.register"], first.Events);
 		firstLease!.Dispose();

@@ -319,7 +319,9 @@ internal sealed class LuaClient : ILuaClient
 
 	private bool TryReserveModule(ILuaModule module, LuaModuleDescriptor descriptor, out CheatEngineFailure failure)
 	{
-		// Every module declares its identity and exports, so the complete name set is reserved before any Lua work.
+		// Every module declares its identity and exports, so the complete name set is reserved before any Lua work. The
+		// module instance that is already registered is a resource state (InvalidState); a name another module of the
+		// activation reserved is a refused request (OperationRejected), as for a symbol name the activation owns.
 		lock (_registeredModulesLock)
 		{
 			if (_registeredModules.ContainsKey(module))
@@ -332,7 +334,7 @@ internal sealed class LuaClient : ILuaClient
 
 			if (_reservedModuleNames.Contains(descriptor.Name))
 			{
-				failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidState, RegisterOperation,
+				failure = new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, RegisterOperation,
 					$"The Lua module identity '{descriptor.Name}' is already reserved by this client activation.", null,
 					CheatEngineHostEffect.NotStarted);
 				return false;
@@ -342,7 +344,7 @@ internal sealed class LuaClient : ILuaClient
 			{
 				if (_reservedExportNames.Contains(export.Name))
 				{
-					failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidState, RegisterOperation,
+					failure = new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, RegisterOperation,
 						$"The Lua export '{export.Name}' is already reserved by this client activation.", null,
 						CheatEngineHostEffect.NotStarted);
 					return false;

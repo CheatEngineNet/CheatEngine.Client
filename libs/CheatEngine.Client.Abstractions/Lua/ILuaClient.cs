@@ -22,7 +22,11 @@ public interface ILuaClient
 	/// <summary>Tries to register one explicitly supplied application Lua module on Cheat Engine's main thread.</summary>
 	/// <remarks>
 	///     The Client neither scans assemblies nor discovers exports by reflection. The module owns its generated SDK
-	///     calls; the returned lease gives the Client deterministic, activation-scoped cleanup ownership.
+	///     calls; the returned lease gives the Client deterministic, activation-scoped cleanup ownership. A module identity
+	///     or export name that another module of this activation reserved is refused with
+	///     <see cref="CheatEngineFailureKind.OperationRejected" />, like a symbol name the activation already owns, and a
+	///     module instance that is already registered with <see cref="CheatEngineFailureKind.InvalidState" />; both report
+	///     <see cref="CheatEngineHostEffect.NotStarted" /> before any Lua call.
 	/// </remarks>
 	public bool TryRegisterModule(
 		ILuaModule luaModule,
