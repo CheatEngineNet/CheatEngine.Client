@@ -15,7 +15,7 @@ namespace CheatEngine.Client.Tests.LiveQualification;
 ///     target hashes, the sandbox copy and the before/after fingerprint that proves the source untouched.
 /// </summary>
 [SupportedOSPlatform("windows")]
-public sealed class CheatEngineInstallationTests : IDisposable
+public sealed partial class CheatEngineInstallationTests : IDisposable
 {
 	private readonly TemporaryDirectory _temporary = new("LiveQualificationInstallation");
 	private readonly string _source;
@@ -160,7 +160,7 @@ public sealed class CheatEngineInstallationTests : IDisposable
 		SandboxLayout first = SandboxLayout.Create(Path.Combine(_temporary.Path, "runs"), now);
 		SandboxLayout second = SandboxLayout.Create(Path.Combine(_temporary.Path, "runs"), now);
 
-		Assert.Matches(new Regex("^20260924T101530Z-[0-9a-f]{4}$"), first.RunId);
+		Assert.Matches(ExpectedRunId(), first.RunId);
 		Assert.NotEqual(first.RunDirectory, second.RunDirectory);
 		Assert.True(Directory.Exists(first.PluginsDirectory));
 		Assert.Equal(Path.Combine(first.RunDirectory, "ce", "autorun", SandboxLayout.DriverScriptName), first.DriverScriptPath);
@@ -175,4 +175,7 @@ public sealed class CheatEngineInstallationTests : IDisposable
 			return new ExecutableFacts(machine, fileVersion);
 		}
 	}
+
+	[GeneratedRegex("^20260924T101530Z-[0-9a-f]{4}$")]
+	private static partial Regex ExpectedRunId();
 }

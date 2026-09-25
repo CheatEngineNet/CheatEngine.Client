@@ -9,7 +9,7 @@ namespace CheatEngine.Client.LivePlugin.Qualification.Tests;
 ///     touch the live target. The x64 plugin project cannot be referenced from this AnyCPU test module (see the project
 ///     README), so these tests read its own source files as text instead of compiling against it.
 /// </summary>
-public sealed class QualificationPluginSourceComplianceTests
+public sealed partial class QualificationPluginSourceComplianceTests
 {
 	private static readonly string[] ForbiddenTokens =
 	[
@@ -98,8 +98,7 @@ public sealed class QualificationPluginSourceComplianceTests
 	private static Dictionary<string, bool> ParseMutatingColumn(string readme)
 	{
 		Dictionary<string, bool> mutatingByName = [];
-		foreach (Match match in Regex.Matches(readme,
-			@"^\|\s*`(?<name>[A-Za-z_][A-Za-z0-9_]*)\([^`]*\)`\s*\|\s*(?<mutating>[^|]+)\|", RegexOptions.Multiline))
+		foreach (Match match in LuaFunctionTableRow().Matches(readme))
 		{
 			string mutatingText = match.Groups["mutating"].Value.Trim();
 			mutatingByName[match.Groups["name"].Value] = !mutatingText.Equals("no", StringComparison.OrdinalIgnoreCase);
@@ -111,8 +110,7 @@ public sealed class QualificationPluginSourceComplianceTests
 	private static Dictionary<string, string> ParseLuaFunctionTargets(string luaFunctionsSource)
 	{
 		Dictionary<string, string> targetByLuaName = [];
-		foreach (Match match in Regex.Matches(luaFunctionsSource,
-			"\\[LuaFunction\\(\"cheatengine_client_qualification_(?<lua>[a-z0-9_]+)\"\\)\\][^{]*\\{\\s*return\\s+QualificationScenarios\\.(?<target>[A-Za-z0-9_]+)\\("))
+		foreach (Match match in DelegatingLuaFunction().Matches(luaFunctionsSource))
 		{
 			targetByLuaName[match.Groups["lua"].Value] = match.Groups["target"].Value;
 		}
@@ -170,4 +168,12 @@ public sealed class QualificationPluginSourceComplianceTests
 		throw new InvalidOperationException(
 			$"'CheatEngine.Client.slnx' was not found above '{AppContext.BaseDirectory}': this test expects to run from the repository's artifacts directory.");
 	}
+
+	[GeneratedRegex(@"^\|\s*`(?<name>[A-Za-z_][A-Za-z0-9_]*)\([^`]*\)`\s*\|\s*(?<mutating>[^|]+)\|",
+		RegexOptions.Multiline)]
+	private static partial Regex LuaFunctionTableRow();
+
+	[GeneratedRegex("\\[LuaFunction\\(\"cheatengine_client_qualification_(?<lua>[a-z0-9_]+)\"\\)\\][^{]*\\{\\s*" +
+		"return\\s+QualificationScenarios\\.(?<target>[A-Za-z0-9_]+)\\(")]
+	private static partial Regex DelegatingLuaFunction();
 }
