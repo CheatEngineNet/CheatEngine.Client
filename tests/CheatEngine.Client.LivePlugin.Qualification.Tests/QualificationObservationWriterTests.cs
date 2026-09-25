@@ -88,4 +88,23 @@ public sealed class QualificationObservationWriterTests
 		Assert.Equal(0, root.GetProperty("none").GetProperty("count").GetInt32());
 		Assert.True(json.Length < 2048, "An observation of 20000 addresses stays small.");
 	}
+
+	[Fact]
+	public void UnknownFactsAreWrittenAsNullNeverAsADefault()
+	{
+		using QualificationObservation observation = new("runtime");
+
+		string json = observation.OptionalNumber("configuredPointerSizeBytes", null)
+			.OptionalNumber("knownBytes", 8)
+			.OptionalBoolean("targetIsAndroid", null)
+			.OptionalBoolean("differsFromBitness", false)
+			.Complete();
+		using JsonDocument document = JsonDocument.Parse(json);
+		JsonElement root = document.RootElement;
+
+		Assert.Equal(JsonValueKind.Null, root.GetProperty("configuredPointerSizeBytes").ValueKind);
+		Assert.Equal(8, root.GetProperty("knownBytes").GetInt32());
+		Assert.Equal(JsonValueKind.Null, root.GetProperty("targetIsAndroid").ValueKind);
+		Assert.Equal(JsonValueKind.False, root.GetProperty("differsFromBitness").ValueKind);
+	}
 }

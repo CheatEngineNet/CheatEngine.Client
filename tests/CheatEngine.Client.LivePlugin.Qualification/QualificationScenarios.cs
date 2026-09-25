@@ -6,10 +6,10 @@ using System.Security.Cryptography;
 using System.Text;
 
 using CheatEngine.Client;
-using CheatEngine.Client.Allocations;
 using CheatEngine.Client.Assembly;
 using CheatEngine.Client.Hosting;
 using CheatEngine.Client.Inspection;
+using CheatEngine.Client.Lua;
 using CheatEngine.Client.Memory;
 using CheatEngine.Client.Processes;
 using CheatEngine.Client.Results;
@@ -45,9 +45,6 @@ internal static class QualificationScenarios
 	private const int ModuleLimit = 1024;
 	private const int DefaultResultLimit = 100_000;
 	private const int MaximumResultLimit = 1_000_000;
-
-	// IPatternScanner documents that every route copies at most 65,535 addresses, whatever MaximumResults.
-	private const int DocumentedCopyCap = 65_535;
 
 	// Offsets inside the scratch region, one slot per scenario kind so that no write overlaps another.
 	private const int BytesOffset = 0;
@@ -109,7 +106,12 @@ internal static class QualificationScenarios
 		});
 	}
 
-	/// <summary>The Client's process and runtime snapshots, the process id first (spike D2; Q31, Q32, Q45).</summary>
+	/// <summary>
+	///     The Client's process snapshot, the process id first, and its runtime snapshot: the host facts (Cheat Engine file
+	///     version, operating system, Cheat Engine bitness), the target backend, architecture and bitness, and the pointer
+	///     size Cheat Engine is configured with (Q31, Q32, Q45). A fact the Client reports as unknown is written as
+	///     <c>null</c>, never derived.
+	/// </summary>
 	internal static string Runtime()
 	{
 		return Guarded("runtime", static observation =>
@@ -126,51 +128,67 @@ internal static class QualificationScenarios
 
 			observation.BeginObject("process")
 				.Number("processId", process.Id.Value)
+				.String("backend", process.Backend.ToString())
 				.String("targetArchitecture", process.Architecture.ToString())
+				.Number("bitnessBytes", process.Bitness.Bytes)
+				.OptionalNumber("configuredPointerSizeBytes", process.ConfiguredPointerSizeBytes)
+				.OptionalBoolean("configuredPointerSizeDiffersFromBitness",
+					process.ConfiguredPointerSizeDiffersFromBitness)
 				.Number("selectionEpoch", process.SelectionEpoch)
 				.EndObject()
 				.Boolean("targetSelected", process.Id.Value != 0);
 
-			// With no target Cheat Engine reports the facts of an x64 target (spike D2): nothing is concluded without a PID.
-			if (process.Id.Value != 0)
+			if (!active.Client.Runtime.TryGetSnapshot(out CheatEngineRuntimeSnapshot snapshot, out failure))
 			{
-				if (active.Client.Runtime.TryGetSnapshot(out CheatEngineRuntimeSnapshot snapshot, out failure))
-				{
-					observation.BeginObject("runtime")
-						.String("systemArchitecture", snapshot.Platform.HostArchitecture.ToString())
-						.String("targetArchitecture", snapshot.Platform.TargetArchitecture.ToString())
-						.Number("targetPointerSizeBytes", snapshot.Platform.TargetBitness.Bytes)
-						.String("targetAbi", snapshot.Platform.TargetAbi.ToString())
-						.Number("activationEpoch", snapshot.Epoch)
-						.EndObject();
-				}
-				else
-				{
-					observation.Failure("runtimeFailure", failure);
-				}
+				return observation.Failure("runtimeFailure", failure).Boolean("ok", false).Complete();
 			}
 
-			// This Client version exposes no configured pointer size apart from the process width; the observation says
-			// so instead of deriving one.
-			return observation.BeginObject("configuredPointerSize").Boolean("exposedByClient", false).EndObject()
+			CheatEngineRuntimeVersionInfo version = snapshot.Version;
+			CheatEngineRuntimePlatformInfo platform = snapshot.Platform;
+			return observation.BeginObject("host")
+				.String("cheatEngineVersion", version.CheatEngineVersion?.ToString())
+				.Boolean("onQualifiedCheatEngineLine", version.IsOnQualifiedCheatEngineLine)
+				.String("operatingSystem", platform.HostOperatingSystem.ToString())
+				.OptionalNumber("cheatEngineBitnessBytes",
+					platform.CheatEngineBitness.IsKnown ? platform.CheatEngineBitness.Bytes : null)
+				.String("architecture", platform.HostArchitecture.ToString())
+				.EndObject()
+				.BeginObject("sdk")
+				.String("packageVersion", version.SdkPackageVersion)
+				.Boolean("reviewedPackage", version.IsReviewedSdkPackage)
+				.EndObject()
+				.BeginObject("runtime")
+				.String("backend", platform.TargetBackend.ToString())
+				.String("targetArchitecture", platform.TargetArchitecture.ToString())
+				.Number("bitnessBytes", platform.TargetBitness.Bytes)
+				.String("targetAbi", platform.TargetAbi.ToString())
+				.OptionalBoolean("targetIsAndroid", platform.TargetIsAndroid)
+				.Number("activationEpoch", snapshot.Epoch)
+				.Boolean("externalStateResetDetected", snapshot.Lua.ExternalStateResetDetected)
+				.EndObject()
+				.BeginObject("configuredPointerSize")
+				.Boolean("exposedByClient", true)
+				.OptionalNumber("bytes", platform.ConfiguredPointerSizeBytes)
+				.OptionalBoolean("differsFromBitness", platform.ConfiguredPointerSizeDiffersFromBitness)
+				.EndObject()
 				.Boolean("ok", true)
 				.Complete();
 		});
 	}
 
 	/// <summary>
-	///     Availability of every Client capability, and with <paramref name="probeOnly" /> = 0 one harmless Try call of
-	///     each contract-only family that reports itself unavailable (Q44). With 1 it only reads availability (Q45).
+	///     Availability and evidence gates of every Client capability (Q45: reading them changes nothing). With
+	///     <paramref name="probeOnly" /> = 0 it also reports the policy refusal of the capabilities that need an activation
+	///     opt-in (Q44): without <c>EnableAutoAssemblerPatches</c> or <c>EnableUnsafeLuaExecution</c> the Client registers
+	///     no <c>IAutoAssemblerClient</c> or <c>IUnsafeLuaClient</c>, so nothing can reach Cheat Engine, and the capability
+	///     reports a <c>Missing</c> policy gate. Neither form calls Cheat Engine beyond the runtime observations.
 	/// </summary>
 	internal static string Capabilities(long probeOnly)
 	{
-		return probeOnly == 0
-			? RunMutating("capabilities", static (observation, active, processId) =>
-				WriteCapabilities(observation, active, processId, performCalls: true))
-			: Guarded("capabilities", static observation =>
-				QualificationSession.TryGetActive(out QualificationSession.ActiveClient? active)
-					? WriteCapabilities(observation, active, ClientProcessId(active), performCalls: false)
-					: Inactive(observation));
+		return Guarded("capabilities", observation =>
+			QualificationSession.TryGetActive(out QualificationSession.ActiveClient? active)
+				? WriteCapabilities(observation, active, policyRefusals: probeOnly == 0)
+				: Inactive(observation));
 	}
 
 	/// <summary>
@@ -240,7 +258,8 @@ internal static class QualificationScenarios
 
 			long allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
 			long started = Stopwatch.GetTimestamp();
-			PatternScanOutcome outcome = active.Scans.ScanDetailed(request, cancellation?.Token ?? CancellationToken.None);
+			PatternScanOutcome outcome = active.Client.Patterns.ScanDetailed(request,
+				cancellation?.Token ?? CancellationToken.None);
 			TimeSpan elapsed = Stopwatch.GetElapsedTime(started);
 			long allocated = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
 
@@ -252,6 +271,12 @@ internal static class QualificationScenarios
 				.Boolean("moduleFilter", module is not null)
 				.Number("limit", limit)
 				.Number("cancelAfterMs", cancelAfterMs)
+				.EndObject()
+				.BeginObject("route")
+				.String("scope", outcome.Metrics?.Scope.ToString())
+				.String("hostOutcome", outcome.HostOutcome.ToString())
+				.String("reason", outcome.RouteReason.ToString())
+				.Boolean("targetIdentityVerified", outcome.TargetIdentityVerified)
 				.EndObject();
 			if (outcome.Failure is { } cause)
 			{
@@ -265,14 +290,25 @@ internal static class QualificationScenarios
 				.Number("managedAllocatedBytes", allocated);
 			WriteMetrics(observation, outcome.Metrics);
 
+			// Truncation is proven by the Client's own counts: one more in-request address was examined than copied, or
+			// host rows were left unread. The copy cap is the Client's (IPatternScanner documents it), never a harness
+			// constant; copiedBelowLimit records that the cap, not the request, stopped the copy.
 			bool cancelled = outcome.Failure is { Kind: CheatEngineFailureKind.Cancelled };
+			bool indeterminate = outcome.Failure is { Kind: CheatEngineFailureKind.IndeterminateHostResult };
+			bool truncationProven = outcome.Metrics is { } counts && counts.MaterializedCount == matches.Count &&
+									(counts.UnreadHostRowCount > 0 ||
+									 counts.ExaminedCount - counts.FilteredOutCount > (ulong) counts.MaterializedCount);
 			observation.BeginObject("checks")
-				.Boolean("truncationExplicit",
-					outcome.IsSuccess && truncated && matches.Count == Math.Min(limit, DocumentedCopyCap))
+				.Boolean("truncationExplicit", outcome.IsSuccess && truncated && truncationProven && matches.Count <= limit)
+				.Boolean("copiedBelowLimit", outcome.IsSuccess && truncated && matches.Count < limit)
 				.Boolean("cancellationHonest", (cancelled && outcome.Result is null) || (outcome.IsSuccess && !truncated))
 				.Boolean("noPrefixPublished", outcome.IsSuccess || outcome.Result is null)
 				.Boolean("notFoundReported", outcome.Failure is { Kind: CheatEngineFailureKind.NotFound })
-				.Boolean("indeterminateReported", outcome.Failure is { Kind: CheatEngineFailureKind.IndeterminateHostResult })
+				.Boolean("indeterminateReported", indeterminate)
+				.Boolean("globalZeroIsIndeterminate",
+					indeterminate && outcome.HostOutcome == PatternScanHostOutcomeKind.NoResult)
+				.Boolean("boundedZeroIsNoMatches", outcome.IsSuccess && matches.Count == 0 &&
+												   outcome.HostOutcome == PatternScanHostOutcomeKind.NoMatches)
 				.EndObject();
 
 			if (module is { } moduleFilter && outcome.IsSuccess && !truncated)
@@ -349,7 +385,7 @@ internal static class QualificationScenarios
 			}
 
 			int[] values = [0x11111111, 0x22222222, 0x33333333, 0x44444444];
-			MemoryPrimitiveBatchWriteOutcome outcome = active.Batches.WritePrimitiveBatchDetailed(
+			MemoryPrimitiveBatchWriteOutcome outcome = active.Client.Memory.WritePrimitiveBatchDetailed(
 				new MemoryPrimitiveBatchWriteRequest<int>(
 				[
 					new MemoryAddressValue<int>(first, values[0]),
@@ -367,7 +403,7 @@ internal static class QualificationScenarios
 
 			observation.Boolean("ok", true)
 				.BeginObject("outcome")
-				.Number("attempted", outcome.RequestedCount)
+				.Number("requested", outcome.RequestedCount)
 				.Number("completed", outcome.CompletedCount)
 				.Number("failedIndex", outcome.FailedIndex ?? -1)
 				.String("effectState", outcome.EffectState.ToString());
@@ -624,9 +660,10 @@ internal static class QualificationScenarios
 	}
 
 	private static string WriteCapabilities(QualificationObservation observation,
-		QualificationSession.ActiveClient active, int processIdBefore, bool performCalls)
+		QualificationSession.ActiveClient active, bool policyRefusals)
 	{
-		observation.Boolean("probeOnly", !performCalls).BeginArray("families");
+		int processIdBefore = ClientProcessId(active);
+		observation.Boolean("probeOnly", !policyRefusals).BeginArray("families");
 		foreach (ClientCapabilityId capability in (ClientCapabilityId[])
 				 [
 					 ClientCapabilityId.ProcessSelection, ClientCapabilityId.TypedMemory, ClientCapabilityId.PatternScanning,
@@ -636,25 +673,32 @@ internal static class QualificationScenarios
 				 ])
 		{
 			observation.BeginItem().String("capability", capability.Value);
-			bool known = active.Client.Runtime.TryGetClientCapability(capability,
-				out ClientCapabilityAvailability availability, out CheatEngineFailure failure);
-			if (!known)
+			if (!active.Client.Runtime.TryGetClientCapability(capability,
+					out ClientCapabilityAvailability availability, out CheatEngineFailure failure))
 			{
 				observation.Failure("availabilityFailure", failure).EndObject();
 				continue;
 			}
 
-			observation.String("state", availability.State.ToString());
-			if (performCalls && availability.State == ClientCapabilityAvailabilityState.Unavailable &&
-				TryHarmlessCall(active.Client, capability, out bool succeeded, out CheatEngineFailure callFailure))
+			ClientCapabilityEvidence evidence = availability.Evidence;
+			observation.String("state", availability.State.ToString())
+				.String("effectiveReasonCode", evidence.EffectiveReasonCode.ToString())
+				.BeginObject("gates")
+				.String("implementation", evidence.Implementation.State.ToString())
+				.String("package", evidence.Package.State.ToString())
+				.String("host", evidence.Host.State.ToString())
+				.String("qualification", evidence.LiveQualification.State.ToString())
+				.String("policy", evidence.Policy.State.ToString())
+				.String("lifetime", evidence.Lifetime.State.ToString())
+				.EndObject();
+			if (policyRefusals && TryDescribeOptInService(active.Services, capability, out bool registered))
 			{
-				observation.BeginObject("call").Boolean("succeeded", succeeded);
-				if (!succeeded)
-				{
-					observation.Failure("failure", callFailure);
-				}
-
-				observation.EndObject();
+				// The opt-in registers the service and satisfies the policy gate together; without it no call exists.
+				observation.BeginObject("policyRefusal")
+					.Boolean("serviceRegistered", registered)
+					.Boolean("refusedBeforeAnyHostCall",
+						!registered && evidence.Policy.State == ClientCapabilityEvidenceState.Missing)
+					.EndObject();
 			}
 
 			observation.EndObject();
@@ -669,36 +713,23 @@ internal static class QualificationScenarios
 			.Complete();
 	}
 
-	// One call per contract-only family, chosen to be harmless even if the family were available: nothing is written,
-	// executed or kept (every lease is disposed at once), and the address is in the never-mapped null region. It is only
-	// made when the capability already reports the family unavailable, so it checks that refusal (Q44).
-	private static bool TryHarmlessCall(ICheatEngineClient client, ClientCapabilityId capability, out bool succeeded,
-		out CheatEngineFailure failure)
+	// The services that only a builder opt-in registers (EnableAutoAssemblerPatches, EnableUnsafeLuaExecution): whether
+	// the activation's provider has one. Resolving a service makes no Cheat Engine call.
+	private static bool TryDescribeOptInService(IServiceProvider services, ClientCapabilityId capability,
+		out bool registered)
 	{
-		Address nullRegion = new(0x10);
-		failure = default;
-		succeeded = false;
 		switch (capability.Value)
 		{
-			case "Client.Allocations":
-#pragma warning disable CECLIENT5002 // The harness exercises the experimental allocations; the source is compiled standalone.
-				succeeded = client.Allocations.TryAllocate(new AllocationRequest(16), out ITargetMemoryLease? lease,
-					out failure, client.Stopping);
-				lease?.Dispose();
-#pragma warning restore CECLIENT5002
+			case "Client.AutoAssemblerPatches":
+#pragma warning disable CECLIENT5004 // The harness observes the experimental Auto Assembler opt-in (Q35, Q44).
+				registered = services.GetService(typeof(IAutoAssemblerClient)) is not null;
+#pragma warning restore CECLIENT5004
 				return true;
-			case "Client.Assembly":
-#pragma warning disable CECLIENT5003 // The harness probes the experimental instruction client (Q32, Q44).
-				succeeded = client.Assembly.TryDisassemble(nullRegion, out _, out failure, client.Stopping);
-#pragma warning restore CECLIENT5003
-				return true;
-			case "Client.ValueScanning":
-#pragma warning disable CECLIENT5001 // The harness exercises the experimental value scans; the source is compiled standalone.
-				succeeded = client.ValueScans.TryCreateSession(out IValueScanSession? session, out failure, client.Stopping);
-#pragma warning restore CECLIENT5001
-				session?.Dispose();
+			case "Client.UnsafeLuaExecution":
+				registered = services.GetService(typeof(IUnsafeLuaClient)) is not null;
 				return true;
 			default:
+				registered = false;
 				return false;
 		}
 	}
@@ -973,11 +1004,15 @@ internal static class QualificationScenarios
 
 		observation.Boolean("metricsReported", true)
 			.BeginObject("metrics")
+			.String("scope", value.Scope.ToString())
 			.Number("hostResultCount", Saturate(value.HostResultCount))
 			.Number("examinedCount", Saturate(value.ExaminedCount))
 			.Number("filteredOutCount", Saturate(value.FilteredOutCount))
 			.Number("materializedCount", value.MaterializedCount)
-			.String("scope", value.Scope.ToString())
+			.Number("belowStartSkippedCount", Saturate(value.BelowStartSkippedCount))
+			.Number("atOrAfterStopSkippedCount", Saturate(value.AtOrAfterStopSkippedCount))
+			.Number("unreadHostRowCount", Saturate(value.UnreadHostRowCount))
+			.Boolean("inBoundsCountIsExact", value.InBoundsCountIsExact)
 			.Number("hostScanMicroseconds", Microseconds(value.HostScanElapsed))
 			.Number("materializationMicroseconds", Microseconds(value.MaterializationElapsed))
 			.EndObject();
@@ -1015,27 +1050,32 @@ internal static class QualificationScenarios
 			return;
 		}
 
-		// The Client's one module rule on every route: all pattern bytes of a match lie inside the module.
+		// The Client's one module rule on every route (PatternScanner.IsInsideRequest): a match is kept only when all of
+		// its pattern bytes lie inside [BaseAddress, BaseAddress + ImageSize), so a match straddling the module end is
+		// never reported.
 		ulong start = found.BaseAddress.Value;
 		ulong length = (ulong) Math.Max(pattern.ByteLength, 1);
-		bool FitsInside(ulong address) =>
+		bool WholeMatchInside(ulong address) =>
 			length <= size.Value && address >= start && address - start <= size.Value - length;
 
-		bool allInside = filtered.TrueForAll(FitsInside);
-		PatternScanOutcome global = active.Scans.ScanDetailed(new AobScanRequest(pattern, limit));
+		bool allInside = filtered.TrueForAll(WholeMatchInside);
+		PatternScanOutcome global = active.Client.Patterns.ScanDetailed(new AobScanRequest(pattern, limit));
 		List<ulong> globalMatches = global.Result is { } result
 			? [.. result.Matches.Select(static address => address.Value)]
 			: [];
-		int insideCount = globalMatches.Count(FitsInside);
+		HashSet<ulong> globalInside = [.. globalMatches.Where(WholeMatchInside)];
 		bool globalComplete = global.IsSuccess && global.Result is { IsTruncated: false };
 		observation.Boolean("moduleFound", true)
 			.BeginObject("moduleCheck")
 			.Address("base", start)
 			.Number("size", (long) size.Value)
+			.Boolean("containsBase", filtered.Contains(start))
 			.Boolean("allInside", allInside)
+			.String("globalHostOutcome", global.HostOutcome.ToString())
+			.Boolean("globalComplete", globalComplete)
 			.Number("globalCount", globalMatches.Count)
-			.Number("globalInsideCount", insideCount)
-			.Boolean("filterExact", globalComplete && allInside && insideCount == filtered.Count)
+			.Number("globalInsideCount", globalInside.Count)
+			.Boolean("filterExact", globalComplete && allInside && globalInside.SetEquals(filtered))
 			.EndObject();
 	}
 

@@ -2,8 +2,6 @@ using System.Diagnostics.CodeAnalysis;
 
 using CheatEngine.Client;
 using CheatEngine.Client.Inspection;
-using CheatEngine.Client.Memory;
-using CheatEngine.Client.Scanning;
 
 using LivePlugin.Qualification.Harness;
 
@@ -77,12 +75,12 @@ internal static class QualificationSession
 		}
 	}
 
-	/// <summary>Publishes the Client of the activation that just enabled.</summary>
-	internal static void Attach(ICheatEngineClient client, IPatternScanner scans, IMemoryClient batches)
+	/// <summary>Publishes the Client and the service provider of the activation that just enabled.</summary>
+	internal static void Attach(ICheatEngineClient client, IServiceProvider services)
 	{
 		lock (Gate)
 		{
-			_active = new ActiveClient(client, scans, batches);
+			_active = new ActiveClient(client, services);
 		}
 	}
 
@@ -139,9 +137,11 @@ internal static class QualificationSession
 		}
 	}
 
-	/// <summary>The Client services of one activation.</summary>
+	/// <summary>
+	///     The Client of one activation and its service provider, from which the harness resolves the services that
+	///     exist only through a DI opt-in (<c>IAutoAssemblerClient</c>, <c>IUnsafeLuaClient</c>).
+	/// </summary>
 	internal sealed record ActiveClient(
 		ICheatEngineClient Client,
-		IPatternScanner Scans,
-		IMemoryClient Batches);
+		IServiceProvider Services);
 }

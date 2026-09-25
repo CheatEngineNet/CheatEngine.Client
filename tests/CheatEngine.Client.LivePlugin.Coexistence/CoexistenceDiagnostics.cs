@@ -80,9 +80,10 @@ internal static class CoexistenceDiagnostics
 	}
 
 	/// <summary>
-	///     Retains one intentionally tiny allocation only when the exact Client/SDK tuple exposes a qualified allocation
-	///     owner. The current released Client tuple reports capability unavailable; that outcome is an expected blocker,
-	///     never a passing retained-owner result.
+	///     Retains one intentionally tiny allocation through the experimental Client allocations (CECLIENT5002), so that
+	///     a later target change can show what the Client does with a lease bound to the previous process: the lease ends
+	///     with a refused release (<c>RefusedTargetChanged</c>, manual recovery required) and never acts on the new target.
+	///     A refused allocation is reported with its failure; it is a recorded observation, never a passing owner result.
 	/// </summary>
 	internal static string RetainOwner()
 	{
@@ -145,9 +146,11 @@ internal static class CoexistenceDiagnostics
 
 	private static string DescribeOwner(string prefix, ITargetMemoryLease owner)
 	{
+		LeaseReleaseOutcome? last = owner.LastReleaseOutcome;
 		return string.Create(
 			CultureInfo.InvariantCulture,
-			$"{prefix}; Released={owner.IsReleased}; SelectionEpoch={owner.SelectionEpoch}; Size={owner.Size}");
+			$"{prefix}; Released={owner.IsReleased}; LastRelease={last?.Kind.ToString() ?? "None"}; " +
+			$"RequiresManualRecovery={owner.RequiresManualRecovery}; SelectionEpoch={owner.SelectionEpoch}; Size={owner.Size}");
 	}
 
 	private static string Describe(AssemblyLoadContext? loadContext)

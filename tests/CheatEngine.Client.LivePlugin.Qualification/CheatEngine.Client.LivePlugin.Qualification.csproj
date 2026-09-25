@@ -2,10 +2,9 @@
 
   <!--
     The Client qualification plugin harness. CI compiles it through the solution so that it never rots; it is never
-    packed, never a test module and never loaded by CI. A future qualification procedure (not part of this repository
-    today; see the project README) would compile the same sources again in a clean folder against the exact CI Client
-    packages and the pinned CheatEngine.SDK (eng/CheatEngineSdk.props) from nuget.org, where Hosting's plugin validation
-    runs for real.
+    packed, never a test module and never loaded by CI. The live qualification runner of CheatEngine.Client.Tests
+    (PluginBundleBuilder) compiles the same sources again in a clean folder against the exact packed Client packages and
+    the pinned CheatEngine.SDK (eng/CheatEngineSdk.props) from nuget.org, where Hosting's plugin validation runs for real.
   -->
   <PropertyGroup>
     <AssemblyName>CheatEngine.Client.LivePlugin.Qualification</AssemblyName>

@@ -4,9 +4,7 @@ using CheatEngine.Client;
 using CheatEngine.Client.Extensions.DependencyInjection;
 using CheatEngine.Client.Hosting;
 using CheatEngine.Client.Lua;
-using CheatEngine.Client.Memory;
 using CheatEngine.Client.Modules;
-using CheatEngine.Client.Scanning;
 using CheatEngine.SDK.Annotations.Plugin;
 
 using LivePlugin.Qualification.Harness;
@@ -131,15 +129,17 @@ internal sealed class QualificationFaultModule(FaultDecision fault, Qualificatio
 	}
 }
 
-/// <summary>Publishes the activation's Client to the Lua functions and withdraws it before the activation ends.</summary>
-internal sealed class QualificationScenarioModule(IPatternScanner scans, IMemoryClient batches)
-	: ICheatEngineClientModule
+/// <summary>
+///     Publishes the activation's Client, with the activation's service provider, to the Lua functions and withdraws it
+///     before the activation ends.
+/// </summary>
+internal sealed class QualificationScenarioModule(IServiceProvider services) : ICheatEngineClientModule
 {
 	/// <inheritdoc />
 	public void OnEnabled(ICheatEngineClient client)
 	{
 		ArgumentNullException.ThrowIfNull(client);
-		QualificationSession.Attach(client, scans, batches);
+		QualificationSession.Attach(client, services);
 		QualificationLedger.Record("scenario.enabled");
 	}
 

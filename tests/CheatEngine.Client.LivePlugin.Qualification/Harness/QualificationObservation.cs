@@ -62,10 +62,40 @@ internal sealed partial class QualificationObservation : IDisposable
 		return this;
 	}
 
+	/// <summary>Writes an integer value, or <c>null</c> when the Client reports the fact as unknown.</summary>
+	internal QualificationObservation OptionalNumber(string name, long? value)
+	{
+		if (value is { } known)
+		{
+			_writer.WriteNumber(name, known);
+		}
+		else
+		{
+			_writer.WriteNull(name);
+		}
+
+		return this;
+	}
+
 	/// <summary>Writes a boolean value.</summary>
 	internal QualificationObservation Boolean(string name, bool value)
 	{
 		_writer.WriteBoolean(name, value);
+		return this;
+	}
+
+	/// <summary>Writes a boolean value, or <c>null</c> when the Client reports the fact as unknown.</summary>
+	internal QualificationObservation OptionalBoolean(string name, bool? value)
+	{
+		if (value is { } known)
+		{
+			_writer.WriteBoolean(name, known);
+		}
+		else
+		{
+			_writer.WriteNull(name);
+		}
+
 		return this;
 	}
 

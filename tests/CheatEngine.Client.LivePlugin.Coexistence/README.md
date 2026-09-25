@@ -22,10 +22,10 @@ assemblies plus their module-version IDs and load-context facts.
 Plugin A also exposes an exact collision marker, a target-observation function, and an explicitly opt-in retained-owner
 probe. Plugin B exposes an independent target-observation function. Both target functions call only
 `IProcessClient.TryRefresh`: they observe the current selection but never select, create, pause, or mutate a process.
-The owner probe is inert until the operator calls it on an authorized disposable target. With the currently released
-Client/SDK tuple it returns `CapabilityUnavailable` and no lease; this is a blocker record, not a passing owner test.
-When a future qualified Client/SDK tuple provides a real allocation owner, the same probe retains a 16-byte lease so a
-subsequent observed target change can prove the old lease was invalidated before anything can act on the new target.
+The owner probe is inert until the operator calls it on an authorized disposable target. It then retains a 16-byte
+allocation through the experimental Client allocations (`CECLIENT5002`), so that a subsequent observed target change
+can show that the old lease ended with a refused release before anything could act on the new target. A refused
+allocation is reported with its failure kind; it is an observation to record, not a passing owner test.
 
 The fixture never creates a loader policy or process-wide synchronization mechanism. It does not add a target or
 memory operation automatically. Side-by-side SDK packages, shared Lua/CE state, worker concurrency, target switching,
@@ -176,15 +176,18 @@ print(cheatengine_client_coexistence_a_retain_owner())
 print(cheatengine_client_coexistence_a_owner_state())
 ```
 
-If retain returns `Kind=CapabilityUnavailable`, record that the current tuple cannot perform the owner scenario and
-stop this extension; it is not a failed live run and it is not a pass. If it returns `Owner=Retained`, switch Cheat
-Engine to target B through the controlled host UI, then refresh **both** plugins and verify A's old lease is released
-before any further operation:
+If retain returns `Owner=Failure`, record its failure kind and stop this extension; it is not a pass. If it returns
+`Owner=Retained`, switch Cheat Engine to target B through the controlled host UI, then refresh **both** plugins and
+verify that A's old lease has ended before any further operation. Its release is refused, because CheatEngine.SDK
+already targets B: the allocation stays in target A and requires manual recovery, and nothing is freed in B:
 
 ```lua
 print(cheatengine_client_coexistence_b_target())
 print(cheatengine_client_coexistence_a_target())
-assert(string.find(cheatengine_client_coexistence_a_owner_state(), "Released=true", 1, true))
+local state = cheatengine_client_coexistence_a_owner_state()
+assert(string.find(state, "Released=true", 1, true))
+assert(string.find(state, "LastRelease=RefusedTargetChanged", 1, true))
+assert(string.find(state, "RequiresManualRecovery=true", 1, true))
 print(cheatengine_client_coexistence_a_release_owner())
 ```
 
