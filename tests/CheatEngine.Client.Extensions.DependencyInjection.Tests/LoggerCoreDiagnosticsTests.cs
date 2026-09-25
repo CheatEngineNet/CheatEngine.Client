@@ -96,26 +96,27 @@ public sealed partial class LoggerCoreDiagnosticsTests
 		using ILoggerFactory factory = CreateFactory(logs);
 		LoggerCoreDiagnostics diagnostics = new(factory);
 
+		// The refusals Core emits: the policy gate of the two opt-in capabilities, per public operation.
 		for (int attempt = 0; attempt < 3; attempt++)
 		{
-			diagnostics.CapabilityRefused("Client.Assembly", "Assembly.Disassemble",
-				ClientCapabilityEvidenceReasonCode.Implementation, ClientCapabilityEvidenceState.Missing);
-			diagnostics.CapabilityRefused("Client.Assembly", "Assembly.ApplyPatch",
-				ClientCapabilityEvidenceReasonCode.Implementation, ClientCapabilityEvidenceState.Missing);
-			diagnostics.CapabilityRefused("Client.UnsafeLuaExecution", "Lua.ExecuteUnsafe",
+			diagnostics.CapabilityRefused("Client.AutoAssemblerPatches", "AutoAssembler.ApplyPatch",
+				ClientCapabilityEvidenceReasonCode.Policy, ClientCapabilityEvidenceState.Missing);
+			diagnostics.CapabilityRefused("Client.AutoAssemblerPatches", "AutoAssembler.Check",
+				ClientCapabilityEvidenceReasonCode.Policy, ClientCapabilityEvidenceState.Missing);
+			diagnostics.CapabilityRefused("Client.UnsafeLuaExecution", "UnsafeLua.Execute",
 				ClientCapabilityEvidenceReasonCode.Policy, ClientCapabilityEvidenceState.Missing);
 		}
 
 		Assert.Equal(
 			[
-				"Capability Client.Assembly refused Assembly.Disassemble: the Implementation gate is Missing.",
-				"Capability Client.Assembly refused Assembly.ApplyPatch: the Implementation gate is Missing.",
-				"Capability Client.UnsafeLuaExecution refused Lua.ExecuteUnsafe: the Policy gate is Missing."
+				"Capability Client.AutoAssemblerPatches refused AutoAssembler.ApplyPatch: the Policy gate is Missing.",
+				"Capability Client.AutoAssemblerPatches refused AutoAssembler.Check: the Policy gate is Missing.",
+				"Capability Client.UnsafeLuaExecution refused UnsafeLua.Execute: the Policy gate is Missing."
 			],
 			logs.Entries.Select(static entry => entry.Message));
 		LoggerCoreDiagnostics nextActivation = new(factory);
-		nextActivation.CapabilityRefused("Client.Assembly", "Assembly.Disassemble",
-			ClientCapabilityEvidenceReasonCode.Implementation, ClientCapabilityEvidenceState.Missing);
+		nextActivation.CapabilityRefused("Client.AutoAssemblerPatches", "AutoAssembler.ApplyPatch",
+			ClientCapabilityEvidenceReasonCode.Policy, ClientCapabilityEvidenceState.Missing);
 		Assert.Equal(4, logs.Entries.Count);
 	}
 
@@ -133,12 +134,12 @@ public sealed partial class LoggerCoreDiagnosticsTests
 
 		for (int attempt = 0; attempt < 3; attempt++)
 		{
-			diagnostics.CapabilityRefused("Client.Assembly", "Assembly.Disassemble",
-				ClientCapabilityEvidenceReasonCode.Implementation, ClientCapabilityEvidenceState.Missing);
+			diagnostics.CapabilityRefused("Client.UnsafeLuaExecution", "UnsafeLua.Execute",
+				ClientCapabilityEvidenceReasonCode.Policy, ClientCapabilityEvidenceState.Missing);
 		}
 
 		Assert.Equal(0, logs.FailingLogs);
-		Assert.Equal(["Capability Client.Assembly refused Assembly.Disassemble: the Implementation gate is Missing."],
+		Assert.Equal(["Capability Client.UnsafeLuaExecution refused UnsafeLua.Execute: the Policy gate is Missing."],
 			logs.Entries.Select(static entry => entry.Message));
 	}
 
@@ -183,8 +184,8 @@ public sealed partial class LoggerCoreDiagnosticsTests
 	private static void EmitScriptedRun(LoggerCoreDiagnostics diagnostics)
 	{
 		diagnostics.RuntimeSnapshotCaptured(17, CheatEngineArchitecture.X64, 8, 8, false);
-		diagnostics.CapabilityRefused("Client.Allocations", "Allocations.Allocate",
-			ClientCapabilityEvidenceReasonCode.Implementation, ClientCapabilityEvidenceState.Missing);
+		diagnostics.CapabilityRefused("Client.AutoAssemblerPatches", "AutoAssembler.ApplyPatch",
+			ClientCapabilityEvidenceReasonCode.Policy, ClientCapabilityEvidenceState.Missing);
 		diagnostics.TargetSelectionAdvanced(17, 2, "Processes.Attach", "PidChanged");
 		diagnostics.PointerWidthMismatchRefused("Memory.ReadPrimitive", 8, 4);
 		diagnostics.MemoryBatchCompleted("Memory.WritePrimitiveBatch", 12, 5, "Partial");
@@ -193,7 +194,7 @@ public sealed partial class LoggerCoreDiagnosticsTests
 		diagnostics.RecordActivationNotApplied("Tables.SetActive", true, "RefusedByHost");
 		diagnostics.SymbolRegistrationRejected("Inspection.RegisterSymbol", "AlreadyResolves");
 		diagnostics.PatternScanCompleted(PatternScanScope.GlobalHostScanWithManagedFilter, 40L, 10, true, 250, 3);
-		diagnostics.LuaOperationCompleted("Lua.ExecuteUnsafe", "LuaError", 4, 36);
+		diagnostics.LuaOperationCompleted("UnsafeLua.Execute", "LuaError", 4, 36);
 		diagnostics.CoreResourceCleanupFailed("SymbolRegistrationLease",
 			"CheatEngine.Client.Results.CheatEngineOperationException");
 		diagnostics.LeaseReleased("Allocations.Release", LeaseReleaseKind.RefusedTargetChanged,
