@@ -40,8 +40,8 @@ public readonly record struct ValueScanValue
 	}
 
 	/// <summary>
-	///     Gets the type Cheat Engine compares; a first scan takes its <see cref="ValueScanFirstRequest.ValueType" /> from
-	///     its value.
+	///     Gets the type Cheat Engine compares; a first scan takes its
+	///     <see cref="ValueScanFirstRequest.ValueType" /> from its value.
 	/// </summary>
 	public ValueScanValueType ValueType
 	{

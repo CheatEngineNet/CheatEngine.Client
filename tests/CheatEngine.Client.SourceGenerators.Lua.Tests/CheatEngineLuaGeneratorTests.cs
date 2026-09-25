@@ -271,8 +271,8 @@ public sealed class CheatEngineLuaGeneratorTests
 	[Fact]
 	public void TheMapperRunsOutsideTheBindingFailureClassification()
 	{
-		// The mapper is application code: an exception it throws must leave TryExecute unchanged, never be classified as
-		// a binding failure, so its call follows the catch clauses that classify the SDK binding call.
+		// The mapper is application code: an exception it throws must leave TryExecute unchanged, never be classified
+		// as a binding failure, so its call follows the catch clauses that classify the SDK binding call.
 		GeneratorRun run = GeneratorRun.Execute(MappedOperationSource);
 
 		Assert.Empty(run.Diagnostics);

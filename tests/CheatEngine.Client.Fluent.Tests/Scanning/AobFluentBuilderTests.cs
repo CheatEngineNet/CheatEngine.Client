@@ -111,7 +111,8 @@ public sealed class AobFluentBuilderTests
 		AobScanBuilder builder = scanner.Aob("90").AlignedTo(8);
 
 		Assert.Equal(builder.WithAlignment(ScanAlignment.AlignedTo(4)).Alignment, builder.AlignedTo(4).Alignment);
-		Assert.Equal(builder.WithAlignment(ScanAlignment.LastDigits("f0")).Alignment, builder.LastDigits("f0").Alignment);
+		Assert.Equal(builder.WithAlignment(ScanAlignment.LastDigits("f0")).Alignment,
+			builder.LastDigits("f0").Alignment);
 		Assert.Equal(ScanAlignment.None, builder.WithAlignment(ScanAlignment.None).Alignment);
 		Assert.Equal(ScanAlignment.AlignedTo(8), builder.Alignment);
 	}

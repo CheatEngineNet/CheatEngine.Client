@@ -34,7 +34,7 @@ public sealed class TableClientLookupTests
 		Assert.Equal(3, lookups.LastIndex);
 	}
 
-	/// <summary>A copy of the top-level records fails the way every record lookup does, named after its method.</summary>
+	/// <summary>A copy of the top-level records fails like every record lookup, named after its method.</summary>
 	[Theory]
 	[InlineData(nameof(RecordLookupStatus.AddressListUnavailable), CheatEngineFailureKind.CapabilityUnavailable,
 		CheatEngineHostEffect.NotStarted)]

@@ -190,8 +190,8 @@ public sealed class TableClientCoverageTests
 			TestContext.Current.CancellationToken));
 		Assert.Equal(default, created);
 		Assert.Equal(expected, createFailure);
-		Assert.False(client.TryUpdate(id, update, out MemoryRecordSnapshot updated, out CheatEngineFailure updateFailure,
-			TestContext.Current.CancellationToken));
+		Assert.False(client.TryUpdate(id, update, out MemoryRecordSnapshot updated,
+			out CheatEngineFailure updateFailure, TestContext.Current.CancellationToken));
 		Assert.Equal(default, updated);
 		Assert.Equal(expected, updateFailure);
 		Assert.False(client.TryDelete(id, out CheatEngineFailure deleteFailure, TestContext.Current.CancellationToken));

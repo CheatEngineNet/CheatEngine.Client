@@ -14,9 +14,9 @@ namespace CheatEngine.Client.Scanning;
 ///         <see cref="InvalidResult" /> or <see cref="ResultListCountUnavailable" />. The bounded route reports
 ///         <see cref="Matches" />, <see cref="NoMatches" />, <see cref="HostReportedError" />, <see cref="InvalidResult" />,
 ///         <see cref="TargetChanged" />, <see cref="TargetIdentityUnavailable" />, <see cref="RuntimeChanged" />,
-///         <see cref="Cancelled" /> or <see cref="ProtectedLuaFailure" />: a fact that both routes report has one member.
-///         <see cref="Unknown" /> means no host outcome was observed (the request was refused or failed before a scan)
-///         or the outcome is not one this Client knows.
+///         <see cref="Cancelled" /> or <see cref="ProtectedLuaFailure" />: a fact that both routes report has one
+///         member. <see cref="Unknown" /> means no host outcome was observed (the request was refused or failed before
+///         a scan) or the outcome is not one this Client knows.
 ///     </para>
 /// </remarks>
 public enum PatternScanHostOutcomeKind

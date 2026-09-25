@@ -113,8 +113,9 @@ internal static class InspectionMapping
 	/// <param name="operation">The public operation name.</param>
 	/// <param name="status">The status CheatEngine.SDK reported.</param>
 	/// <returns>
-	///     The failure: <see cref="CheatEngineHostEffect.NotStarted" /> for an unavailable global, which Cheat Engine never
-	///     called, like every other inspection lookup; otherwise an unknown host effect, since a lookup changes nothing.
+	///     The failure: <see cref="CheatEngineHostEffect.NotStarted" /> for an unavailable global, which Cheat Engine
+	///     never called, like every other inspection lookup; otherwise an unknown host effect, since a lookup changes
+	///     nothing.
 	/// </returns>
 	internal static CheatEngineFailure NameLookupFailure(string operation, LuaOperationStatusKind status)
 	{

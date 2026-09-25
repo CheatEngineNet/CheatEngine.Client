@@ -363,8 +363,8 @@ internal sealed class InspectionClient(
 	}
 
 	/// <summary>
-	///     Refuses the default collection request, which allows no item, before dispatch: its constructor refuses a limit
-	///     below one, and a copy into no room would otherwise reach Cheat Engine only to exceed it.
+	///     Refuses the default collection request, which allows no item, before dispatch: its constructor refuses a
+	///     limit below one, and a copy into no room would otherwise reach Cheat Engine only to exceed it.
 	/// </summary>
 	private static bool IsDefault(InspectionCollectionRequest request, string operation, out CheatEngineFailure failure)
 	{
@@ -385,8 +385,8 @@ internal sealed class InspectionClient(
 	///     An unavailable inspection global is <see cref="CheatEngineFailureKind.CapabilityUnavailable" /> with
 	///     <see cref="CheatEngineHostEffect.NotStarted" />: Cheat Engine was not called, as the memory and Address List
 	///     lookups report it. A status this Client does not recognize fails closed as
-	///     <see cref="CheatEngineFailureKind.IndeterminateHostResult" />, like <see cref="InspectionMapping" />; every other
-	///     failure keeps an unknown host effect.
+	///     <see cref="CheatEngineFailureKind.IndeterminateHostResult" />, like <see cref="InspectionMapping" />; every
+	///     other failure keeps an unknown host effect.
 	/// </remarks>
 	internal static bool TryMap(InspectionStatus status, string operation, out CheatEngineFailure failure)
 	{
@@ -408,7 +408,8 @@ internal sealed class InspectionClient(
 		CheatEngineHostEffect effect = status == InspectionStatus.GlobalUnavailable
 			? CheatEngineHostEffect.NotStarted
 			: CheatEngineHostEffect.Unknown;
-		failure = new CheatEngineFailure(kind, operation, $"Cheat Engine inspection returned '{status}'.", null, effect);
+		failure = new CheatEngineFailure(kind, operation, $"Cheat Engine inspection returned '{status}'.", null,
+			effect);
 		return false;
 	}
 
@@ -442,8 +443,8 @@ internal sealed class InspectionClient(
 	/// </remarks>
 	private RegistrationStep RegisterOnMainThread(SymbolRegistration registration)
 	{
-		// No lease can be registered once the activation stops or ends: refuse before Cheat Engine registers a name that
-		// no lease could own, as every other lease-creating operation does in its callback.
+		// No lease can be registered once the activation stops or ends: refuse before Cheat Engine registers a name
+		// that no lease could own, as every other lease-creating operation does in its callback.
 		_lifetime.ThrowIfInactive(RegisterOperation);
 		InspectionStatus preflight = _inspection.ResolveAddress(new SymbolExpression(registration.Name),
 			AddressResolutionMode.Default, out _);

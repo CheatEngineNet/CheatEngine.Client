@@ -380,10 +380,10 @@ internal static class AobScanMapping
 	/// <returns>
 	///     The same category, in the Client's words: <c>ScanFailed</c> is
 	///     <see cref="PatternScanHostOutcomeKind.ProtectedLuaFailure" />, which the global route also reports, and
-	///     <c>RuntimeInvalidated</c> is <see cref="PatternScanHostOutcomeKind.RuntimeChanged" />. <c>InvalidBounds</c> (refused before any Cheat Engine
-	///     call), <c>SessionCreationFailed</c> (no scan ran; the request falls back) and <c>WaitTimedOut</c> (a deadline
-	///     this Client never sets) have no host outcome and are <see cref="PatternScanHostOutcomeKind.Unknown" />, like an
-	///     undefined value.
+	///     <c>RuntimeInvalidated</c> is <see cref="PatternScanHostOutcomeKind.RuntimeChanged" />.
+	///     <c>InvalidBounds</c> (refused before any Cheat Engine call), <c>SessionCreationFailed</c> (no scan ran;
+	///     the request falls back) and <c>WaitTimedOut</c> (a deadline this Client never sets) have no host outcome
+	///     and are <see cref="PatternScanHostOutcomeKind.Unknown" />, like an undefined value.
 	/// </returns>
 	internal static PatternScanHostOutcomeKind ToHostOutcome(AobBoundedScanOutcomeKind kind)
 	{

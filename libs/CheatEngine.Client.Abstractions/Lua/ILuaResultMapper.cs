@@ -16,9 +16,9 @@ namespace CheatEngine.Client.Lua;
 ///         member directly through static abstract interface dispatch; it never uses reflection.
 ///     </para>
 ///     <para>
-///         The generated operation calls the mapper after the SDK binding returned, outside the code that classifies the
-///         binding's failures: an exception the mapper throws leaves the operation unchanged, and the Client rethrows it
-///         as the same instance, like any exception of application-supplied code.
+///         The generated operation calls the mapper after the SDK binding returned, outside the code that classifies
+///         the binding's failures: an exception the mapper throws leaves the operation unchanged, and the Client
+///         rethrows it as the same instance, like any exception of application-supplied code.
 ///     </para>
 /// </remarks>
 public interface ILuaResultMapper<TSource, TResult>

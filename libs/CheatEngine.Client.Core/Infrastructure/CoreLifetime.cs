@@ -193,11 +193,11 @@ internal sealed class CoreLifetime : IDisposable
 	/// <remarks>
 	///     Creating a lease-owned resource is admitted only while the activation is active, never from the cleanup scope:
 	///     every operation that creates a lease (a symbol registration, a value-scan session, an allocation, an Auto
-	///     Assembler patch) calls this before it dispatches and again in its dispatched callback, before CheatEngine.SDK
-	///     creates anything that no lease could own. A Lua module registration calls it before it dispatches and after
-	///     the registration, and the activation tracks its lease before the dispatch, so the cleanup scope drains a module
-	///     that registered while the activation began stopping. Operations on an existing resource use
-	///     <see cref="ThrowIfDispatchRefused" />, so the cleanup scope can still release it.
+	///     Assembler patch) calls this before it dispatches and again in its dispatched callback, before
+	///     CheatEngine.SDK creates anything that no lease could own. A Lua module registration calls it before it
+	///     dispatches and after the registration, and the activation tracks its lease before the dispatch, so the
+	///     cleanup scope drains a module that registered while the activation began stopping. Operations on an
+	///     existing resource use <see cref="ThrowIfDispatchRefused" />, so the cleanup scope can still release it.
 	/// </remarks>
 	/// <param name="operation">The public operation name.</param>
 	internal void ThrowIfInactive(string operation)

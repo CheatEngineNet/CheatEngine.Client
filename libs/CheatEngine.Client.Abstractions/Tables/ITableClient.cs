@@ -121,9 +121,9 @@ public interface ITableClient
 	/// <returns><see langword="true" /> when every requested field was applied and the record was copied.</returns>
 	/// <remarks>
 	///     The default <paramref name="update" />, which changes nothing, is refused with
-	///     <see cref="CheatEngineFailureKind.OperationRejected" /> and <see cref="CheatEngineHostEffect.NotStarted" />, like
-	///     the default search of <see cref="TryFind" />. Refused during a trusted table load, like every mutation (see
-	///     <see cref="TryDelete" />).
+	///     <see cref="CheatEngineFailureKind.OperationRejected" /> and <see cref="CheatEngineHostEffect.NotStarted" />,
+	///     like the default search of <see cref="TryFind" />. Refused during a trusted table load, like every mutation
+	///     (see <see cref="TryDelete" />).
 	/// </remarks>
 	public bool TryUpdate(MemoryRecordId id, MemoryRecordUpdate update, out MemoryRecordSnapshot record,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default);

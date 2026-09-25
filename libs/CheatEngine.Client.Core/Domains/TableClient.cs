@@ -700,8 +700,8 @@ internal sealed class TableClient(
 	///     <see cref="TryFind" />, each failure named after the public operation that ran it.
 	/// </summary>
 	/// <remarks>
-	///     A copy that exceeds the limit is <see cref="CheatEngineFailureKind.ResultLimitExceeded" />; any other status is
-	///     reported like every record lookup (<see cref="LookupFailure" />), so an unavailable Address List is
+	///     A copy that exceeds the limit is <see cref="CheatEngineFailureKind.ResultLimitExceeded" />; any other status
+	///     is reported like every record lookup (<see cref="LookupFailure" />), so an unavailable Address List is
 	///     <see cref="CheatEngineFailureKind.CapabilityUnavailable" /> here too.
 	/// </remarks>
 	private bool TryCopyTopLevel(string operation, MemoryRecordCollectionRequest request,
@@ -1020,9 +1020,10 @@ internal sealed class TableClient(
 	/// <summary>Classifies a failed record lookup, the same way for every Tables read.</summary>
 	/// <remarks>
 	///     An unavailable Address List is <see cref="CheatEngineFailureKind.CapabilityUnavailable" /> with
-	///     <see cref="CheatEngineHostEffect.NotStarted" />: the lookup never ran, as for a mutation that CheatEngine.SDK
-	///     refused for the same reason. An absent record is <see cref="CheatEngineFailureKind.NotFound" /> and a malformed
-	///     one <see cref="CheatEngineFailureKind.InvalidHostResult" />.
+	///     <see cref="CheatEngineHostEffect.NotStarted" />: the lookup never ran, as for a mutation that
+	///     CheatEngine.SDK refused for the same reason. An absent record is
+	///     <see cref="CheatEngineFailureKind.NotFound" /> and a malformed one
+	///     <see cref="CheatEngineFailureKind.InvalidHostResult" />.
 	/// </remarks>
 	private static CheatEngineFailure LookupFailure(string operation, RecordLookupStatus status)
 	{
@@ -1031,14 +1032,14 @@ internal sealed class TableClient(
 			RecordLookupStatus.NotFound => new CheatEngineFailure(CheatEngineFailureKind.NotFound, operation,
 				TableMapping.RecordNotFoundMessage),
 			RecordLookupStatus.AddressListUnavailable => new CheatEngineFailure(
-				CheatEngineFailureKind.CapabilityUnavailable, operation, TableMapping.AddressListUnavailableMessage, null,
-				CheatEngineHostEffect.NotStarted),
+				CheatEngineFailureKind.CapabilityUnavailable, operation, TableMapping.AddressListUnavailableMessage,
+				null, CheatEngineHostEffect.NotStarted),
 			RecordLookupStatus.InvalidRecord => HostFailure(operation),
 			_ => HostFailure(operation)
 		};
 	}
 
-	/// <summary>Creates the refusal of a default collection or hierarchy request, before any Cheat Engine call.</summary>
+	/// <summary>Creates the refusal of a default collection or hierarchy request, made before dispatch.</summary>
 	private static CheatEngineFailure DefaultRequestFailure(string operation)
 	{
 		return new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, operation,
