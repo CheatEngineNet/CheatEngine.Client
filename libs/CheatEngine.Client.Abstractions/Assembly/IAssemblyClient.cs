@@ -13,6 +13,10 @@ namespace CheatEngine.Client.Assembly;
 ///         members to it, so implement it only in a test double.
 ///     </para>
 ///     <para>
+///         <b>Experimental (<c>CECLIENT5003</c>).</b> The instruction API can change in a minor release until its live
+///         scenarios pass; see the Abstractions README.
+///     </para>
+///     <para>
 ///         <b>One profile per call.</b> Each call observes the selected target and its instruction profile (x86, x64,
 ///         ARM32 or ARM64 with its address width) once, in the same dispatched callback as its Cheat Engine calls, and
 ///         never reselects or reconfigures anything. An address wider than the observed profile is refused with

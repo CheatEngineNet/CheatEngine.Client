@@ -11,6 +11,10 @@ namespace CheatEngine.Client.Assembly;
 ///         members to it, so implement it only in a test double.
 ///     </para>
 ///     <para>
+///         <b>Experimental (<c>CECLIENT5004</c>).</b> The Auto Assembler API can change in a minor release until its
+///         live scenarios pass; see the Abstractions README.
+///     </para>
+///     <para>
 ///         The lease holds the only disable information Cheat Engine returned for the patch. The first release attempt
 ///         that reaches Cheat Engine consumes it: CheatEngine.SDK validates that the target the patch was applied to is
 ///         still selected, then runs the script's <c>[DISABLE]</c> section once with that information. A release on

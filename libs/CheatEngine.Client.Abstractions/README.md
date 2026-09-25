@@ -805,7 +805,7 @@ This charter is normative for every public type of the seven Client packages; th
 
 | Suffix | Meaning | Construction |
 |---|---|---|
-| `*Request`, `*Definition`, `*Update`, `*Search` | A validated input | One public constructor; named factories only for per-kind invariants (`ScanAlignment.AlignedTo`, `ValueScanFirstRequest.Exact`) |
+| `*Request`, `*Definition`, `*Update`, `*Search`, `*Registration`, `*Script`, `*Descriptor` | A validated input | One public constructor; named factories only for per-kind invariants (`ScanAlignment.AlignedTo`, `ValueScanFirstRequest.Exact`) |
 | `*Snapshot` | An immutable copy of host state | Never settable |
 | `*Info` | A group of facts inside `CheatEngineRuntimeSnapshot` | — |
 | `*Result` | The value a successful call returns | — |

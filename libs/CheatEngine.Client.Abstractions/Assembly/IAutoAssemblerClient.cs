@@ -11,6 +11,10 @@ namespace CheatEngine.Client.Assembly;
 ///         members to it, so implement it only in a test double.
 ///     </para>
 ///     <para>
+///         <b>Experimental (<c>CECLIENT5004</c>).</b> The Auto Assembler API can change in a minor release until its
+///         live scenarios pass; see the Abstractions README.
+///     </para>
+///     <para>
 ///         <b>Explicit opt-in.</b> The dependency-injection integration registers this client only when the activation
 ///         calls <c>CheatEngineClientBuilder.EnableAutoAssemblerPatches()</c>; it is never a property of
 ///         <see cref="ICheatEngineClient" />. Without the opt-in no implementation is registered, and the
