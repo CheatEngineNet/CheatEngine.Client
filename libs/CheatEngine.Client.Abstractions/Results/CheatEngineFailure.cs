@@ -62,7 +62,16 @@ public readonly record struct CheatEngineFailure
 	}
 
 	/// <summary>Gets the Client operation that failed.</summary>
-	/// <remarks>Never <see langword="null" />: <see cref="string.Empty" /> for the <see langword="default" /> value.</remarks>
+	/// <remarks>
+	///     The name is <c>&lt;Service&gt;.&lt;Member&gt;</c>: <c>Service</c> is the <see cref="ICheatEngineClient" />
+	///     property that exposes the service (<c>UnsafeLua</c> or <c>AutoAssembler</c> for the services only dependency
+	///     injection registers, <c>Client</c> for the activation itself), and <c>Member</c> is the public method the caller
+	///     invoked, without <c>Try</c> or <c>Detailed</c>, for example <c>Memory.ReadBytes</c>. A lease release is
+	///     <c>&lt;Service&gt;.Release</c>, and a failure raised inside a memory codec or a Lua operation context names the
+	///     call that runs it (<c>Memory.Read</c>, <c>Memory.Write</c>, <c>Lua.Execute</c>). The name is safe to log;
+	///     like <see cref="Message" />, its text is not a compatibility contract. Never <see langword="null" />:
+	///     <see cref="string.Empty" /> for the <see langword="default" /> value.
+	/// </remarks>
 	public string Operation => _operation ?? string.Empty;
 
 	/// <summary>Gets a human-readable diagnostic message.</summary>

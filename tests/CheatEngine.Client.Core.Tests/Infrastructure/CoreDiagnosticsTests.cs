@@ -110,7 +110,7 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 		Assert.Equal(Fields("Lua.Execute", "None", 0), Fields(lua[0], lua[1], lua[3]));
 		Assert.Equal(
 			[
-				Fields(ClientCapabilityId.UnsafeLuaExecution.Value, "Lua.ExecuteUnsafe",
+				Fields(ClientCapabilityId.UnsafeLuaExecution.Value, "UnsafeLua.Execute",
 					ClientCapabilityEvidenceReasonCode.Policy, ClientCapabilityEvidenceState.Missing)
 			],
 			diagnostics.All(nameof(ICoreDiagnostics.CapabilityRefused)));
@@ -167,7 +167,7 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 
 		Assert.Equal(withoutDiagnostics, withThrowingDiagnostics);
 		Assert.Equal(14, throwing.Emissions.Count);
-		Assert.Contains("Lua.ExecuteUnsafe:False:CapabilityUnavailable", withThrowingDiagnostics);
+		Assert.Contains("UnsafeLua.Execute:False:CapabilityUnavailable", withThrowingDiagnostics);
 		Assert.Contains("Cleanup:InvalidOperationException", withThrowingDiagnostics);
 	}
 
@@ -264,7 +264,7 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 			failure));
 
 		UnsafeLuaClient unsafeLua = new(dispatcher, new CoreClientPolicy([_root], false), lifetime);
-		outcomes.Add(Describe("Lua.ExecuteUnsafe",
+		outcomes.Add(Describe("UnsafeLua.Execute",
 			unsafeLua.TryExecute(new LuaScript(SensitiveScript), out failure, cancellationToken), failure));
 
 		lifetime.Track(new ThrowingDisposable());

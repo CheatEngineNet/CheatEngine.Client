@@ -20,6 +20,12 @@ internal sealed class MemoryClient : IMemoryClient
 	/// <summary>The effect state reported for a read batch, which never changes the target.</summary>
 	private const string ReadBatchEffectState = "ReadOnly";
 
+	/// <summary>The operation name of a codec read, and of every failure its codec context raises.</summary>
+	private const string ReadOperation = "Memory.Read";
+
+	/// <summary>The operation name of a codec write, and of every failure its codec context raises.</summary>
+	private const string WriteOperation = "Memory.Write";
+
 	private readonly IMemoryCodecContextPort _codecContextPort;
 	private readonly ICheatEngineDispatcher _dispatcher;
 
@@ -359,7 +365,7 @@ internal sealed class MemoryClient : IMemoryClient
 		if (!outcome.Succeeded)
 		{
 			value = default;
-			failure = CreateCodecFailure(outcome, false, "Memory.Read");
+			failure = CreateCodecFailure(outcome, false, ReadOperation);
 			return false;
 		}
 
@@ -390,7 +396,7 @@ internal sealed class MemoryClient : IMemoryClient
 
 		if (!outcome.Succeeded)
 		{
-			failure = CreateCodecFailure(outcome, true, "Memory.Write");
+			failure = CreateCodecFailure(outcome, true, WriteOperation);
 			return false;
 		}
 
@@ -718,7 +724,7 @@ internal sealed class MemoryClient : IMemoryClient
 	private CodecOutcome TryReadCore<T>(MemoryReadRequest<T> request, out T? value)
 	{
 		TargetMemoryCodecContext context = TargetMemoryCodecContext.Create(_lifetime, _dispatcher, _codecContextPort,
-			_limits);
+			_limits, ReadOperation);
 		try
 		{
 			if (request.Codec.TryRead(context, request.Address, out value))
@@ -745,7 +751,7 @@ internal sealed class MemoryClient : IMemoryClient
 	private CodecOutcome TryWriteCore<T>(MemoryWriteRequest<T> request)
 	{
 		TargetMemoryCodecContext context = TargetMemoryCodecContext.Create(_lifetime, _dispatcher, _codecContextPort,
-			_limits);
+			_limits, WriteOperation);
 		try
 		{
 			T value = request.Value;
@@ -1269,12 +1275,11 @@ internal sealed class MemoryClient : IMemoryClient
 	private sealed class TargetMemoryCodecContext
 		: IMemoryReadContext, IMemoryWriteContext, ICorePointerCodecPolicy
 	{
-		private const string Operation = "Memory.CodecContext";
-
 		private readonly long _activationEpoch;
 		private readonly ICheatEngineDispatcher _dispatcher;
 		private readonly CoreLifetime _lifetime;
 		private readonly MemoryResourceLimits _limits;
+		private readonly string _operation;
 		private readonly IMemoryCodecContextPort _port;
 		private readonly int _threadId;
 		private CheatEngineOperationException? _contextFault;
@@ -1287,8 +1292,11 @@ internal sealed class MemoryClient : IMemoryClient
 			CoreLifetime lifetime,
 			ICheatEngineDispatcher dispatcher,
 			IMemoryCodecContextPort port,
-			MemoryResourceLimits limits)
+			MemoryResourceLimits limits,
+			string operation)
 		{
+			// A failure raised inside the codec names the public call that runs it (Memory.Read or Memory.Write).
+			_operation = operation;
 			_lifetime = lifetime ?? throw new ArgumentNullException(nameof(lifetime));
 			_dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
 			_port = port ?? throw new ArgumentNullException(nameof(port));
@@ -1423,7 +1431,7 @@ internal sealed class MemoryClient : IMemoryClient
 				SetAccessFailure(failure, false);
 				if (failure == MemoryAccessFailure.PartialRead)
 				{
-					Failure = MemoryAccessFailureMapping.ToByteReadFailure(Operation, failure,
+					Failure = MemoryAccessFailureMapping.ToByteReadFailure(_operation, failure,
 						Math.Clamp(written, 0, destination.Length), destination.Length).Message;
 				}
 
@@ -1503,7 +1511,7 @@ internal sealed class MemoryClient : IMemoryClient
 		private CheatEngineOperationException CreateContextFault(CheatEngineFailureKind kind, string message,
 			Exception? exception)
 		{
-			_contextFault = new CheatEngineOperationException(new CheatEngineFailure(kind, Operation, message,
+			_contextFault = new CheatEngineOperationException(new CheatEngineFailure(kind, _operation, message,
 				exception, CheatEngineHostEffect.NotStarted));
 			return _contextFault;
 		}
@@ -1546,9 +1554,10 @@ internal sealed class MemoryClient : IMemoryClient
 			CoreLifetime lifetime,
 			ICheatEngineDispatcher dispatcher,
 			IMemoryCodecContextPort port,
-			MemoryResourceLimits limits)
+			MemoryResourceLimits limits,
+			string operation)
 		{
-			return new TargetMemoryCodecContext(lifetime, dispatcher, port, limits);
+			return new TargetMemoryCodecContext(lifetime, dispatcher, port, limits, operation);
 		}
 
 		internal void Expire()
@@ -1565,11 +1574,11 @@ internal sealed class MemoryClient : IMemoryClient
 				!_dispatcher.IsMainThread)
 			{
 				throw new CheatEngineActivationExpiredException(
-					Operation,
+					_operation,
 					"The memory codec context is no longer valid for the current Cheat Engine invocation.");
 			}
 
-			_lifetime.ThrowIfInactive(Operation);
+			_lifetime.ThrowIfInactive(_operation);
 		}
 
 		private bool TryAdmitCodecBytes(int requestedBytes, int limit, ref int admittedBytes, string direction)

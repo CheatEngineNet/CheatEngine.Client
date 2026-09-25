@@ -18,6 +18,9 @@ namespace CheatEngine.Client.Core.Tests.Domains;
 
 public sealed class MemoryCodecContextLifetimeTests
 {
+	private const string ReadOperation = "Memory.Read";
+	private const string WriteOperation = "Memory.Write";
+
 	private static readonly Address TestAddress = new(0x405000);
 
 	[Fact]
@@ -97,10 +100,10 @@ public sealed class MemoryCodecContextLifetimeTests
 
 		IMemoryReadContext readContext = Assert.IsAssignableFrom<IMemoryReadContext>(codec.ReadContext);
 		IMemoryWriteContext writeContext = Assert.IsAssignableFrom<IMemoryWriteContext>(codec.WriteContext);
-		AssertExpired(() => _ = readContext.Bitness);
-		AssertExpired(() => readContext.TryReadBytes(TestAddress, new byte[1]));
-		AssertExpired(() => _ = writeContext.Bitness);
-		AssertExpired(() => writeContext.TryWriteBytes(TestAddress, [0x0A]));
+		AssertExpired(ReadOperation, () => _ = readContext.Bitness);
+		AssertExpired(ReadOperation, () => readContext.TryReadBytes(TestAddress, new byte[1]));
+		AssertExpired(WriteOperation, () => _ = writeContext.Bitness);
+		AssertExpired(WriteOperation, () => writeContext.TryWriteBytes(TestAddress, [0x0A]));
 		Assert.Equal(0, port.TotalCallCount);
 	}
 
@@ -129,8 +132,8 @@ public sealed class MemoryCodecContextLifetimeTests
 		Assert.False(writeSucceeded);
 		Assert.Equal(CheatEngineFailureKind.MemoryWriteFailed, writeFailure.Kind);
 		Assert.Equal("Memory.Write", writeFailure.Operation);
-		AssertExpired(() => _ = codec.ReadContext!.Bitness);
-		AssertExpired(() => _ = codec.WriteContext!.Bitness);
+		AssertExpired(ReadOperation, () => _ = codec.ReadContext!.Bitness);
+		AssertExpired(WriteOperation, () => _ = codec.WriteContext!.Bitness);
 		Assert.Equal(0, port.TotalCallCount);
 	}
 
@@ -161,8 +164,8 @@ public sealed class MemoryCodecContextLifetimeTests
 
 		Assert.Same(readException, actualRead);
 		Assert.Same(writeException, actualWrite);
-		AssertExpired(() => _ = readCodec.ReadContext!.Bitness);
-		AssertExpired(() => _ = writeCodec.WriteContext!.Bitness);
+		AssertExpired(ReadOperation, () => _ = readCodec.ReadContext!.Bitness);
+		AssertExpired(WriteOperation, () => _ = writeCodec.WriteContext!.Bitness);
 		Assert.Equal(0, port.TotalCallCount);
 	}
 
@@ -201,7 +204,7 @@ public sealed class MemoryCodecContextLifetimeTests
 		IMemoryReadContext firstContext = Assert.IsAssignableFrom<IMemoryReadContext>(firstCodec.ReadContext);
 		CapturingCodec secondCodec = new()
 		{
-			ReadAction = _ => AssertExpired(() => ConsumeBitness(firstContext))
+			ReadAction = _ => AssertExpired(ReadOperation, () => ConsumeBitness(firstContext))
 		};
 
 		Assert.True(client.TryRead(new MemoryReadRequest<int>(TestAddress, secondCodec), out _, out _,
@@ -241,15 +244,16 @@ public sealed class MemoryCodecContextLifetimeTests
 		Assert.True(newClient.TryRead(new MemoryReadRequest<int>(TestAddress, newCodec), out _, out _,
 			TestContext.Current.CancellationToken));
 
-		AssertExpired(() => _ = oldCodec.ReadContext!.Bitness);
+		AssertExpired(ReadOperation, () => _ = oldCodec.ReadContext!.Bitness);
 		Assert.Equal(0, oldPort.TotalCallCount);
 	}
 
-	private static void AssertExpired(Action operation)
+	/// <summary>An expired context names the public call that ran its codec: Memory.Read or Memory.Write.</summary>
+	private static void AssertExpired(string expectedOperation, Action operation)
 	{
 		CheatEngineActivationExpiredException exception =
 			Assert.Throws<CheatEngineActivationExpiredException>(operation);
-		Assert.Equal("Memory.CodecContext", exception.Failure.Operation);
+		Assert.Equal(expectedOperation, exception.Failure.Operation);
 	}
 
 	private static void ConsumeBitness(IMemoryReadContext context)

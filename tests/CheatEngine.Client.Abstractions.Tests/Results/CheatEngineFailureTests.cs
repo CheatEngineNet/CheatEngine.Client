@@ -320,13 +320,13 @@ public sealed class CheatEngineFailureTests
 	public void ToStringOmitsMessageAndException()
 	{
 		InvalidOperationException innerException = new("lua: attempt to call nil 'secretGlobal' at C:\\Users\\player\\t.ct");
-		CheatEngineFailure failure = new(CheatEngineFailureKind.LuaError, "Lua.ExecuteUnsafe",
+		CheatEngineFailure failure = new(CheatEngineFailureKind.LuaError, "UnsafeLua.Execute",
 			"The protected Lua call failed at 0x7FFC7A0A0000 while reading game.exe+1234.", innerException,
 			CheatEngineHostEffect.Unknown);
 
 		string text = failure.ToString();
 
-		Assert.Equal("LuaError in Lua.ExecuteUnsafe (host effect: Unknown)", text);
+		Assert.Equal("LuaError in UnsafeLua.Execute (host effect: Unknown)", text);
 		Assert.DoesNotContain("0x7FFC", text, StringComparison.OrdinalIgnoreCase);
 		Assert.DoesNotContain("game.exe", text, StringComparison.OrdinalIgnoreCase);
 		Assert.DoesNotContain("secretGlobal", text, StringComparison.Ordinal);

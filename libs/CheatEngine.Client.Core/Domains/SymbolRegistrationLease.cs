@@ -39,7 +39,7 @@ namespace CheatEngine.Client.Core.Domains;
 internal sealed class SymbolRegistrationLease : HostResourceLease, ISymbolRegistrationLease
 {
 	/// <summary>The stable operation name of the release, the only text its logs and reports carry.</summary>
-	internal const string ReleaseOperation = "Inspection.ReleaseSymbol";
+	internal const string ReleaseOperation = "Inspection.Release";
 
 	/// <summary>What the base lease records when the SDK release faults: a call may have begun.</summary>
 	private static readonly LeaseReleaseOutcome FaultedOutcome =

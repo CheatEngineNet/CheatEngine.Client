@@ -19,7 +19,7 @@ public sealed class UnsafeLuaClientTests
 
 		Assert.False(succeeded);
 		Assert.Equal(CheatEngineFailureKind.CapabilityUnavailable, failure.Kind);
-		Assert.Equal("Lua.ExecuteUnsafe", failure.Operation);
+		Assert.Equal("UnsafeLua.Execute", failure.Operation);
 		Assert.Equal(0, dispatcher.InvocationCount);
 	}
 
@@ -48,7 +48,7 @@ public sealed class UnsafeLuaClientTests
 		Assert.Equal(1, dispatcher.InvocationCount);
 		Assert.Equal(CheatEngineFailureKind.ActivationExpired, failure.Kind);
 		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
-		Assert.Equal("Lua.ExecuteUnsafe", failure.Operation);
+		Assert.Equal("UnsafeLua.Execute", failure.Operation);
 		Assert.Null(failure.Exception);
 		Assert.NotEqual(CheatEngineFailureKind.OperationRejected, failure.Kind);
 	}

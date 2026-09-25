@@ -117,7 +117,7 @@ public sealed class TryContractTests
 	private static string[] SdkFaultEntryPoints =>
 	[
 		"Patterns.Scan",
-		"Patterns.InModule",
+		"Patterns.Scan.InModule",
 		"Inspection.GetSymbol",
 		"Inspection.RegisterSymbol",
 		"Inspection.ResolveName",
@@ -309,7 +309,7 @@ public sealed class TryContractTests
 			"Patterns.Scan" => Run(new PatternScanner(dispatcher, ports), Request(),
 				static (scanner, request, t) => (scanner.TryScan(request, out _, out CheatEngineFailure f, t), f),
 				static (scanner, request, t) => scanner.Scan(request, t), token),
-			"Patterns.InModule" => Run(new PatternScanner(dispatcher, ports), Request(new ModuleName("game.exe")),
+			"Patterns.Scan.InModule" => Run(new PatternScanner(dispatcher, ports), Request(new ModuleName("game.exe")),
 				static (scanner, request, t) => (scanner.TryScan(request, out _, out CheatEngineFailure f, t), f),
 				static (scanner, request, t) => scanner.Scan(request, t), token),
 			"Inspection.GetSymbol" => Run(new InspectionClient(dispatcher, lifetime, ports),
@@ -409,7 +409,8 @@ public sealed class TryContractTests
 
 		Assert.False(succeeded);
 		Assert.Equal(expectedKind, failure.Kind);
-		Assert.Equal(entryPoint, failure.Operation);
+		// An entry point is named after the operation it reports, with an optional qualifier ("Patterns.Scan.InModule").
+		Assert.Equal(string.Join('.', entryPoint.Split('.').Take(2)), failure.Operation);
 		Assert.Same(fault, failure.Exception);
 		Assert.NotEqual(CheatEngineFailureKind.ActivationExpired, failure.Kind);
 		CheatEngineClientException thrown = Assert.ThrowsAny<CheatEngineClientException>(throwingForm);
@@ -555,7 +556,7 @@ public sealed class TryContractTests
 			Assert.Null(luaFailure.Exception);
 			Assert.Equal(CheatEngineFailureKind.ActivationExpired, luaFailure.Kind);
 			Assert.Equal(CheatEngineHostEffect.NotStarted, luaFailure.HostEffect);
-			Assert.Equal("Lua.ExecuteUnsafe", luaFailure.Operation);
+			Assert.Equal("UnsafeLua.Execute", luaFailure.Operation);
 			// The Auto Assembler port asks for the same admission before AutoAssemblerPatcher runs.
 			Assert.Null(patch);
 			CheatEngineFailure[] autoAssemblerFailures = [applyFailure, checkFailure];

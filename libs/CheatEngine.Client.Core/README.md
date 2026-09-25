@@ -234,7 +234,7 @@ registers the lease with the activation in the same main-thread callback. The le
 delegates to the SDK lease, which unregisters the name only when it still resolves to the leased
 address and no newer coordinator registration superseded it (a replaced name is left in place);
 both checks are best effort, not atomic. Each release attempt is event 1701 with the operation
-`Inspection.ReleaseSymbol`.
+`Inspection.Release`.
 
 ## Diagnostics events
 
@@ -343,9 +343,11 @@ session stay in Cheat Engine, and the drain reports the refusal.
 `SdkReleaseOutcomes` maps the CheatEngine.SDK 2.0.0 release statuses totally
 (`TargetReleaseStatus`, `SymbolRegistrationReleaseKind`; an
 unknown value is `Unknown` with an unknown effect) and combines the parts of one lease by
-keeping the outcome that leaves the most to do. The Lua module lease (`Lua.UnregisterModule`)
-is built on this base and maps the kind its module reports with `LuaModuleReleaseMapping`; the
-symbol lease (`Inspection.ReleaseSymbol`) is built on it too. `LuaRegistrationReleaseKind` is
+keeping the outcome that leaves the most to do. The Lua module lease (`Lua.Release`) is built on
+this base and maps the kind its module reports with `LuaModuleReleaseMapping`; the symbol lease
+(`Inspection.Release`) is built on it too. Every lease release is named `<Service>.Release`, and
+every failure operation `<Service>.<Member>` after the public call that produced it
+(`OperationNameTests`). `LuaRegistrationReleaseKind` is
 mapped by the generated Lua registrar, which owns the SDK registration lease (see the generator
 README).
 

@@ -53,7 +53,6 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 	: IPatternScanner
 {
 	private const int MaximumModuleSnapshot = 4096;
-	private const string InModuleOperation = "Patterns.InModule";
 	private const string ScanOperation = "Patterns.Scan";
 	private const string ListSubject = "AOB result list";
 	private const string SessionSubject = "bounded AOB scan session";
@@ -837,7 +836,7 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		catch (Exception inspectionFault) when (SdkBoundary.IsSdkFault(inspectionFault))
 		{
 			// Module inspection failed before the AOB scan was started.
-			failure = SdkBoundary.Translate(InModuleOperation, inspectionFault, CheatEngineHostEffect.NotStarted,
+			failure = SdkBoundary.Translate(ScanOperation, inspectionFault, CheatEngineHostEffect.NotStarted,
 				_dispatcher.Lifetime);
 			return false;
 		}
@@ -907,7 +906,7 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 	/// <summary>A module-resolution failure: the AOB scan itself never started.</summary>
 	private static CheatEngineFailure ModuleFailure(CheatEngineFailureKind kind, string message)
 	{
-		return new CheatEngineFailure(kind, InModuleOperation, message, null, CheatEngineHostEffect.NotStarted);
+		return new CheatEngineFailure(kind, ScanOperation, message, null, CheatEngineHostEffect.NotStarted);
 	}
 
 	/// <summary>What the global route's copy needs besides the list: its filter, its scope and the host scan time.</summary>

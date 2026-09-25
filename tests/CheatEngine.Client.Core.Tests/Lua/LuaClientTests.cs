@@ -82,7 +82,7 @@ public sealed class LuaClientTests
 			client.TryExecute<RetainingOperation, int>(operation, out _, out _, TestContext.Current.CancellationToken));
 
 		Assert.Equal(CheatEngineFailureKind.ActivationExpired, exception.Failure.Kind);
-		Assert.Equal("Lua.OperationContext", exception.Failure.Operation);
+		Assert.Equal("Lua.Execute", exception.Failure.Operation);
 		Assert.Null(operation.Context);
 	}
 

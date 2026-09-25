@@ -17,6 +17,8 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 {
 	private const string SnapshotOperation = "Runtime.GetSnapshot";
 
+	private const string CapabilityOperation = "Runtime.GetClientCapability";
+
 	private readonly Version _clientAssemblyVersion;
 	private readonly ICoreDiagnostics _diagnostics;
 	private readonly ICheatEngineDispatcher _dispatcher;
@@ -104,21 +106,7 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 		out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
-		// The observations are read-only (Q45) and report their outcomes as statuses; an SDK fault (for example a
-		// detached runtime) is returned as a failure, never thrown across this Try method.
-		CheatEngineRuntimeSnapshot captured = default;
-		if (!SdkBoundary.TryInvoke(_dispatcher, SnapshotOperation, () => captured = Capture(),
-				CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
-		{
-			snapshot = default;
-			return false;
-		}
-
-		snapshot = captured;
-		_diagnostics.RuntimeSnapshotCaptured(captured.Epoch, captured.Platform.TargetArchitecture,
-			captured.Platform.TargetBitness.Bytes, captured.Platform.ConfiguredPointerSizeBytes ?? 0,
-			captured.Platform.ConfiguredPointerSizeDiffersFromBitness == true);
-		return true;
+		return TryCapture(SnapshotOperation, out snapshot, out failure, cancellationToken);
 	}
 
 	public CheatEngineRuntimeSnapshot GetSnapshot(CancellationToken cancellationToken = default)
@@ -143,7 +131,7 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 			throw new ArgumentException("A Client capability identifier is required.", nameof(capability));
 		}
 
-		if (!TryGetSnapshot(out CheatEngineRuntimeSnapshot snapshot, out failure, cancellationToken))
+		if (!TryCapture(CapabilityOperation, out CheatEngineRuntimeSnapshot snapshot, out failure, cancellationToken))
 		{
 			availability = default;
 			return false;
@@ -247,6 +235,27 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 		}
 
 		return ClientCapabilities.Create(capabilities);
+	}
+
+	/// <summary>Captures one snapshot for the public call <paramref name="operation" />, which names its failure.</summary>
+	private bool TryCapture(string operation, out CheatEngineRuntimeSnapshot snapshot, out CheatEngineFailure failure,
+		CancellationToken cancellationToken)
+	{
+		// The observations are read-only (Q45) and report their outcomes as statuses; an SDK fault (for example a
+		// detached runtime) is returned as a failure, never thrown across a Try method.
+		CheatEngineRuntimeSnapshot captured = default;
+		if (!SdkBoundary.TryInvoke(_dispatcher, operation, () => captured = Capture(),
+				CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
+		{
+			snapshot = default;
+			return false;
+		}
+
+		snapshot = captured;
+		_diagnostics.RuntimeSnapshotCaptured(captured.Epoch, captured.Platform.TargetArchitecture,
+			captured.Platform.TargetBitness.Bytes, captured.Platform.ConfiguredPointerSizeBytes ?? 0,
+			captured.Platform.ConfiguredPointerSizeDiffersFromBitness == true);
+		return true;
 	}
 
 	/// <summary>The implementation gate reason of an operational capability whose public API is experimental.</summary>

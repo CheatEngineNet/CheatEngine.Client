@@ -26,7 +26,7 @@ namespace CheatEngine.Client.Core.Domains.ValueScanning;
 internal sealed class ValueScanSession : HostResourceLease, IValueScanSession
 {
 	/// <summary>The public operation name of the release.</summary>
-	internal const string ReleaseOperation = "Scans.ReleaseSession";
+	internal const string ReleaseOperation = "Scans.Release";
 
 	/// <summary>The public operation name of a first scan.</summary>
 	internal const string FirstScanOperation = "Scans.FirstScan";

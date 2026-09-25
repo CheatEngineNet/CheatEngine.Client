@@ -24,7 +24,7 @@ internal sealed class LuaOperationContext(long epoch, Func<bool> isCurrent) : IL
 		}
 
 		throw new CheatEngineActivationExpiredException(
-			"Lua.OperationContext",
+			"Lua.Execute",
 			"The Lua operation context is no longer valid for the current Cheat Engine activation.");
 	}
 

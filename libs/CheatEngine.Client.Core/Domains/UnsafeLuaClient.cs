@@ -15,7 +15,7 @@ namespace CheatEngine.Client.Core.Domains;
 
 internal sealed class UnsafeLuaClient : IUnsafeLuaClient
 {
-	private const string Operation = "Lua.ExecuteUnsafe";
+	private const string Operation = "UnsafeLua.Execute";
 
 	private readonly ICheatEngineDispatcher _dispatcher;
 	private readonly CoreLifetime? _lifetime;

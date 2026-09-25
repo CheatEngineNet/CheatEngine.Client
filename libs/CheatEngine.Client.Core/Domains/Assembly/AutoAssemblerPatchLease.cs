@@ -27,7 +27,7 @@ namespace CheatEngine.Client.Core.Domains.Assembly;
 internal sealed class AutoAssemblerPatchLease : HostResourceLease, IAutoAssemblerPatchLease
 {
 	/// <summary>The stable operation name of the release.</summary>
-	internal const string ReleaseOperation = "AutoAssembler.ReleasePatch";
+	internal const string ReleaseOperation = "AutoAssembler.Release";
 
 	private readonly IAutoAssemblerPatchOwner _patch;
 

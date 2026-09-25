@@ -97,7 +97,7 @@ internal sealed class TargetSelectionLifetime(Action<string> activationGuard) : 
 
 		lock (_gate)
 		{
-			ThrowIfExpiredCore(capturedEpoch, "TargetSelection.Track");
+			ThrowIfExpiredCore(capturedEpoch, "Client.TrackResource");
 			return _resources.Track(resource, capturedEpoch);
 		}
 	}

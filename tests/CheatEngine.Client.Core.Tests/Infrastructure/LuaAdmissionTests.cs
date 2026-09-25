@@ -25,12 +25,12 @@ public sealed class LuaAdmissionTests
 	[InlineData((LuaAdmissionStatus) 99, CheatEngineFailureKind.InvalidState)]
 	public void EachRefusalIsClassifiedAsNotStarted(LuaAdmissionStatus status, CheatEngineFailureKind expectedKind)
 	{
-		bool admitted = LuaAdmission.TryClassify(status, "Lua.ExecuteUnsafe", out CheatEngineFailure failure);
+		bool admitted = LuaAdmission.TryClassify(status, "UnsafeLua.Execute", out CheatEngineFailure failure);
 
 		Assert.False(admitted);
 		Assert.Equal(expectedKind, failure.Kind);
 		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
-		Assert.Equal("Lua.ExecuteUnsafe", failure.Operation);
+		Assert.Equal("UnsafeLua.Execute", failure.Operation);
 		Assert.Null(failure.Exception);
 		Assert.NotEqual(CheatEngineFailureKind.OperationRejected, failure.Kind);
 	}
@@ -40,7 +40,7 @@ public sealed class LuaAdmissionTests
 	[InlineData(LuaAdmissionStatus.NoStateForThread)]
 	public void AnOffMainThreadRefusalIsReportedAsAClientBug(LuaAdmissionStatus status)
 	{
-		Assert.False(LuaAdmission.TryClassify(status, "Lua.ExecuteUnsafe", out CheatEngineFailure failure));
+		Assert.False(LuaAdmission.TryClassify(status, "UnsafeLua.Execute", out CheatEngineFailure failure));
 
 		Assert.StartsWith("Client bug: called off the main thread.", failure.Message, StringComparison.Ordinal);
 	}
@@ -48,7 +48,7 @@ public sealed class LuaAdmissionTests
 	[Fact]
 	public void OnlyAdmittedIsASuccess()
 	{
-		Assert.True(LuaAdmission.TryClassify(LuaAdmissionStatus.Admitted, "Lua.ExecuteUnsafe",
+		Assert.True(LuaAdmission.TryClassify(LuaAdmissionStatus.Admitted, "UnsafeLua.Execute",
 			out CheatEngineFailure failure));
 		Assert.Equal(default, failure);
 	}
@@ -57,14 +57,14 @@ public sealed class LuaAdmissionTests
 	public void TryAcquireReportsADetachedRuntimeAsAnExpiredActivation()
 	{
 		// No Lua runtime is attached in unit tests: the real SDK admission reports Detached.
-		bool admitted = LuaAdmission.TryAcquire("Lua.ExecuteUnsafe", out LuaRuntimeOperation operation,
+		bool admitted = LuaAdmission.TryAcquire("UnsafeLua.Execute", out LuaRuntimeOperation operation,
 			out CheatEngineFailure failure);
 		operation.Dispose();
 
 		Assert.False(admitted);
 		Assert.Equal(CheatEngineFailureKind.ActivationExpired, failure.Kind);
 		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
-		Assert.Equal("Lua.ExecuteUnsafe", failure.Operation);
+		Assert.Equal("UnsafeLua.Execute", failure.Operation);
 	}
 
 	[Theory]

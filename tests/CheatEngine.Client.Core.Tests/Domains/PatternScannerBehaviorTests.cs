@@ -78,7 +78,7 @@ public sealed class PatternScannerBehaviorTests
 		Assert.False(succeeded);
 		Assert.Equal(default, result);
 		Assert.Equal(CheatEngineFailureKind.NotFound, failure.Kind);
-		Assert.Equal("Patterns.InModule", failure.Operation);
+		Assert.Equal("Patterns.Scan", failure.Operation);
 		Assert.Equal(1, port.EnumerationCalls);
 		Assert.Equal(0, port.ScanCalls);
 	}
@@ -98,7 +98,7 @@ public sealed class PatternScannerBehaviorTests
 		Assert.False(succeeded);
 		Assert.Equal(default, result);
 		Assert.Equal(CheatEngineFailureKind.AmbiguousMatch, failure.Kind);
-		Assert.Equal("Patterns.InModule", failure.Operation);
+		Assert.Equal("Patterns.Scan", failure.Operation);
 		Assert.Equal(1, port.EnumerationCalls);
 		Assert.Equal(0, port.ScanCalls);
 	}
@@ -118,7 +118,7 @@ public sealed class PatternScannerBehaviorTests
 		Assert.False(succeeded);
 		Assert.Equal(default, result);
 		Assert.Equal(CheatEngineFailureKind.CapabilityUnavailable, failure.Kind);
-		Assert.Equal("Patterns.InModule", failure.Operation);
+		Assert.Equal("Patterns.Scan", failure.Operation);
 		Assert.Equal(0, port.ScanCalls);
 	}
 
@@ -137,7 +137,7 @@ public sealed class PatternScannerBehaviorTests
 		Assert.False(succeeded);
 		Assert.Equal(default, result);
 		Assert.Equal(CheatEngineFailureKind.InvalidHostResult, failure.Kind);
-		Assert.Equal("Patterns.InModule", failure.Operation);
+		Assert.Equal("Patterns.Scan", failure.Operation);
 		Assert.Equal(0, port.ScanCalls);
 	}
 
@@ -156,7 +156,7 @@ public sealed class PatternScannerBehaviorTests
 		Assert.False(succeeded);
 		Assert.Equal(default, result);
 		Assert.Equal(CheatEngineFailureKind.InvalidHostResult, failure.Kind);
-		Assert.Equal("Patterns.InModule", failure.Operation);
+		Assert.Equal("Patterns.Scan", failure.Operation);
 		Assert.Equal(0, port.ScanCalls);
 	}
 

@@ -494,7 +494,7 @@ public sealed class MemoryPointerWidthTests
 			TargetFault = sdkFault
 		};
 		CheatEngineOperationException applicationFault = new(new CheatEngineFailure(
-			CheatEngineFailureKind.TargetNotAttached, "Memory.CodecContext", "application-owned"));
+			CheatEngineFailureKind.TargetNotAttached, "Memory.Read", "application-owned"));
 
 		bool succeeded = CreateClient(faulting).TryRead(new MemoryReadRequest<int>(TestAddress, new FactCodec()), out _,
 			out CheatEngineFailure failure, TestContext.Current.CancellationToken);

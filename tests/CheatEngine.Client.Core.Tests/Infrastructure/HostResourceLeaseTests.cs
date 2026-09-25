@@ -227,7 +227,7 @@ public sealed class HostResourceLeaseTests : IDisposable
 			_lifetime.DrainOwnedResourcesForDisable();
 		}
 
-		Assert.Equal("TargetSelection.Track", exception.Failure.Operation);
+		Assert.Equal("Client.TrackResource", exception.Failure.Operation);
 		Assert.Equal(0, lease.Calls);
 	}
 

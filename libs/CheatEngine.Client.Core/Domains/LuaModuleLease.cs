@@ -22,7 +22,7 @@ namespace CheatEngine.Client.Core.Domains;
 /// </remarks>
 internal sealed class LuaModuleLease : HostResourceLease, ILuaModuleLease
 {
-	private const string ReleaseOperation = "Lua.UnregisterModule";
+	private const string ReleaseOperation = "Lua.Release";
 
 	private readonly Lock _gate = new();
 	private readonly ILuaModule _module;

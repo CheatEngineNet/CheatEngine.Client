@@ -475,7 +475,7 @@ public sealed class LuaModuleRegistrationTests
 			CheatEngineOperationException report = Assert.Throws<CheatEngineOperationException>(
 				lifetime.DrainOwnedResourcesForDisable);
 			Assert.Equal(CheatEngineFailureKind.IndeterminateHostResult, report.Failure.Kind);
-			Assert.Equal("Lua.UnregisterModule", report.Failure.Operation);
+			Assert.Equal("Lua.Release", report.Failure.Operation);
 			Assert.Equal(CheatEngineHostEffect.CleanupUnconfirmed, report.Failure.HostEffect);
 		}
 
@@ -639,7 +639,7 @@ public sealed class LuaModuleRegistrationTests
 			CheatEngineOperationException report = Assert.Throws<CheatEngineOperationException>(
 				lifetime.DrainOwnedResourcesForDisable);
 			Assert.Equal(CheatEngineFailureKind.IndeterminateHostResult, report.Failure.Kind);
-			Assert.Equal("Lua.UnregisterModule", report.Failure.Operation);
+			Assert.Equal("Lua.Release", report.Failure.Operation);
 			Assert.Equal(CheatEngineHostEffect.CleanupUnconfirmed, report.Failure.HostEffect);
 			Assert.Contains(nameof(LeaseReleaseKind.CleanupUnconfirmed), report.Failure.Message, StringComparison.Ordinal);
 		}
