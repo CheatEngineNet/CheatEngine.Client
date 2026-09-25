@@ -291,6 +291,23 @@ public sealed class CheatEngineClientPluginTests
 	}
 
 	[Fact]
+	public void InvalidClientOptionsFailTheEnableWithTheirValidationExceptionAfterRollback()
+	{
+		List<string> events = [];
+		FakeClient client = new(51);
+		RecordingCleanup cleanup = new(events);
+		TestPlugin plugin = CreatePlugin(events, client, cleanup, static builder =>
+			builder.Configuration["CheatEngineClient:AllowedTableRoots:0"] = "relative-root");
+
+		OptionsValidationException exception = Assert.Throws<OptionsValidationException>(plugin.EnableForTest);
+
+		Assert.Equal(typeof(CheatEngineClientOptions), exception.OptionsType);
+		Assert.Equal(["configure"], events);
+		Assert.Equal(0, cleanup.DrainCount);
+		Assert.Throws<CheatEngineInvalidStateException>(plugin.GetRequiredClientForTest);
+	}
+
+	[Fact]
 	[Trait("Qualification", "Q06")]
 	public void FailedModuleEnableRollsBackAndTheSamePluginCanEnableAgain()
 	{

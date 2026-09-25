@@ -100,6 +100,12 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 	///     A Client activation of this plugin instance is already active, or Cheat Engine has not enabled a current
 	///     plugin context for it.
 	/// </exception>
+	/// <exception cref="OptionsValidationException">
+	///     The <see cref="CheatEngineClientOptions" /> that <see cref="Configure" /> bound or configured are invalid,
+	///     for example an <see cref="CheatEngineClientOptions.AllowedTableRoots" /> entry that is not a fully qualified
+	///     path or a <see cref="CheatEngineClientOptions.MemoryResourceLimits" /> value out of range. The partial
+	///     activation is rolled back first.
+	/// </exception>
 	/// <exception cref="AggregateException">
 	///     The activation failed and its rollback failed too: the activation failure comes first, then every rollback
 	///     failure. A failure whose rollback succeeded is rethrown unchanged.
