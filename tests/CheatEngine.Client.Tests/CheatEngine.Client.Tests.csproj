@@ -20,6 +20,8 @@
              Link="LiveQualification/Harness/QualificationAuthorization.cs"/>
     <Compile Include="../CheatEngine.Client.LivePlugin.Qualification/Harness/QualificationFaultSwitch.cs"
              Link="LiveQualification/Harness/QualificationFaultSwitch.cs"/>
+    <Compile Include="../CheatEngine.Client.LivePlugin.Qualification/Harness/QualificationInputs.cs"
+             Link="LiveQualification/Harness/QualificationInputs.cs"/>
   </ItemGroup>
 
 </Project>

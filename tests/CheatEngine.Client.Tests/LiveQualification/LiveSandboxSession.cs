@@ -37,7 +37,7 @@ internal sealed record LiveSessionResult(
 ///     Cheat Engine and the target and restores the user state; the source installation is then fingerprinted again.
 /// </summary>
 [SupportedOSPlatform("windows")]
-internal static class LiveSandboxSession
+internal static partial class LiveSandboxSession
 {
 	/// <summary>The qualification harness's display name (<c>QualificationPlugin.DisplayName</c>).</summary>
 	internal const string HarnessDisplayName = "CheatEngine.Client Qualification Plugin";

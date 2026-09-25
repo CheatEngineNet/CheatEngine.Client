@@ -161,14 +161,45 @@ skips what `.gitignore` excludes (`bin`, `obj`, `artifacts` and tool folders). T
 `CheatEngine.Client.Repository.Tests`, whose evidence tests recompute it; a change to any input after a recorded run
 requires a new run.
 
-The only live fact so far is `LiveSandboxSpikeTests` (`Session=S0`), the spike: it loads the harness on
-gtutorial-x86_64, calls `status`, `runtime` and `capabilities(1)`, inspects the settings form and closes Cheat Engine,
-then requires the user state restored, the source installation unchanged and no process left. The facts the spike
-establishes are still pending and will be recorded here: the registry values of the plugin list, whether the settings
-toggle is feasible, the dialogs Cheat Engine shows, what disable does at `closeCE`, what `loadPlugin` enables, whether
-elevation is needed, and whether hostfxr needs `DOTNET_ROOT` once `DOTNET_*` is removed. Until the plugin-list values
-are known, the guard neutralizes none of them, so the operator's own Cheat Engine plugins would load in the sandbox too;
-the guard still restores whatever the session changes. Spike receipts are never committed.
+`LiveSandboxSpikeTests` (`Session=S0`) is the spike: it loads the harness on gtutorial-x86_64, calls `status`, `runtime`
+and `capabilities(1)`, inspects the settings form and closes Cheat Engine, then requires the user state restored, the
+source installation unchanged and no process left. The facts the spike establishes are still pending and will be
+recorded here: the registry values of the plugin list, whether the settings toggle is feasible, the dialogs Cheat Engine
+shows, what disable does at `closeCE`, what `loadPlugin` enables, whether elevation is needed, whether hostfxr needs
+`DOTNET_ROOT` once `DOTNET_*` is removed, and the exact behaviour of the driver's `openFileAsProcess` call. Until the
+plugin-list values are known, the guard neutralizes none of them, so the operator's own Cheat Engine plugins would load in
+the sandbox too; the guard still restores whatever the session changes. Spike receipts are never committed.
+
+The sessions of the qualification are the live facts of `LiveSessionTests` (`Session=S1` to `S6`, one `Qualification`
+trait per scenario), described as data in `SessionPlans` (setup and driver steps), `ScenarioCatalog` (scenarios, levels,
+sessions, release gate and the capability map) and `ScenarioEvaluators` (one C# evaluator per check):
+
+- **S1**, the x64 core on gtutorial-x86_64, with the Auto Assembler opt-in, a table root below the session directory and
+  the lifecycle sink: identity (Q05), bundle identity (Q40), the capability probe (Q45), round trips (Q20, Q21), the
+  partial batch (Q33), `setPointerSize(4)` then 8 (Q31), target facts and instructions (Q32), AOB scans (Q27–Q29), value
+  scans (Q25, Q26), an allocation (Q30.a), Auto Assembler patches (Q35), tables (Q34), a symbol lease (Q16.b), worker
+  admission (Q19), the 2^53 marshalling rule (Q21) and logs (Q46).
+- **S2**, lifecycle and faults, without the Auto Assembler opt-in and with the `ModuleOnDisabling` fault: the policy
+  refusal (Q44), the operator toggles of Q05, Q06 and the kept-function check of Q16, and the disable at `closeCE` read
+  from the lifecycle sink (Q43).
+- **S3**, target identity on two gtutorial-x86_64 instances: an allocation, a scan session and a patch on A, then
+  `openProcess(B)` (the leases end with a refused release, nothing is freed on B), back on A (the refused leases stay
+  ended; a new allocation releases), and a copy opened as a file (no allocation or session, the AOB fallback route).
+  Q30.b, the reuse of a process id, cannot be produced on demand and stays NotExecuted (waivable, plan A12).
+- **S4**, the x86 target gtutorial-i386: bitness 4, an address above 4 GiB refused, the x86 module scan and instruction
+  profile (Q21, Q28, Q32).
+- **S5a** and **S5b**, coexistence in two load orders (A, then the SDK 1.x neighbour, then B; and the neighbour, A, B):
+  Q09, Q10 and Q16. The neighbour is a plain CheatEngine.SDK 1.x plugin generated in a temporary consumer
+  (`NeighbourPluginSource`) that reports its identity as booleans only.
+- **S6**, the template instantiated from the packed Templates package as `QualTemplatePlugin`, bundled and loaded (Q40).
+
+The release gate is Q09, Q10, Q40, Q43, Q44, Q45 and Q46 on the host, plus Q48 in CI (`SdkConsumerContractTests`). The
+sessions share one run directory, one `receipts.jsonl` and one `summary.json`, rewritten after each session. A check
+that needs a plugin toggle through Settings > Plugins stays NotExecuted, with the operator prompt, until the spike proves
+the toggle; so do the checks that read the identification line or what `closeCE` disables, whose format and behaviour
+are spike facts. A live fact fails when a check fails or the workstation is not left as it was; a NotExecuted check is
+recorded, never turned into a pass. Run one session, or all of them, with the opt-in above and
+`--filter-trait Session=S1` (up to `S6`), or `--filter-trait Category=LiveQualification`.
 
 Run it from the repository root, in PowerShell, with Cheat Engine, every gtutorial and DebugView closed:
 
@@ -193,7 +224,12 @@ fingerprint, run directories), `AuthorizationManifestTests` (the harness gate an
 writes), `LuaDriverScriptTests` (the reviewed driver text), `TranscriptParserTests`, `ReceiptLedgerTests`,
 `QualificationSummaryWriterTests`, `DebugOutputBufferTests` (process id filter and ANSI decoding),
 `HostProcessGuardTests` (blocking process names, the sandbox environment, injected modules),
-`LiveSandboxSessionTests` (the S0 receipts derived from a transcript and the workstation checks), and the serial
+`LiveSandboxSessionTests` (the S0 receipts derived from a transcript and the workstation checks), `ScenarioCatalogTests`
+(every scenario has checks in the sessions it names, the release gate and the capability map are covered, each live
+fact carries its scenario traits), `SessionPlanTests` (the reviewed step order of every session, harness calls only,
+operator toggles never attempted, every step a check reads exists), `EvaluatorTests` (every kind of check on canned
+evidence, passing and failing), `NeighbourPluginSourceTests` (the generated SDK 1.x neighbour, compared by hand once
+with the SDK's published 1.x quick start and never read from the SDK repository), and the serial
 `RegistrySnapshotTests` and `RegistryRecoveryTests`. The last two write the registry, but only a test-owned scratch key
 `HKCU\Software\CheatEngine.Client.Tests\<guid>` and a temporary folder standing for `%APPDATA%\Cheat Engine`; they delete
 the scratch key afterwards, and its parent `HKCU\Software\CheatEngine.Client.Tests` once it is empty. They never open

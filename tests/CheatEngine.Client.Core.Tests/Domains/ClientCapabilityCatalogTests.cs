@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 
 using CheatEngine.Client.Core.Domains;
 using CheatEngine.Client.Runtime;
+using CheatEngine.Client.Tests.LiveQualification;
 
 namespace CheatEngine.Client.Core.Tests.Domains;
 
@@ -61,6 +62,31 @@ public sealed partial class ClientCapabilityCatalogTests
 			Assert.All(entry.RequiredScenarios, static scenario => Assert.Matches(ScenarioId(), scenario));
 			Assert.Equal(entry.RequiredScenarios.Length,
 				entry.RequiredScenarios.Distinct(StringComparer.Ordinal).Count());
+		}
+	}
+
+	[Fact]
+	public void EveryRequiredScenarioExistsInTheLiveScenarioCatalog()
+	{
+		string[] missing =
+		[
+			.. ClientCapabilityCatalog.Entries.SelectMany(static entry => entry.RequiredScenarios)
+				.Where(static scenario => !ScenarioCatalog.Contains(scenario))
+		];
+
+		Assert.True(missing.Length == 0,
+			$"The live scenario catalog (CheatEngine.Client.Tests/LiveQualification) has no scenario {string.Join(", ", missing)}.");
+	}
+
+	[Fact]
+	public void TheLiveRunnerMapsEveryCapabilityToTheCatalogScenarios()
+	{
+		Assert.Equal(ClientCapabilityCatalog.Entries.Length, ScenarioCatalog.CapabilityScenarios.Count);
+		foreach (ClientCapabilityDescriptor entry in ClientCapabilityCatalog.Entries)
+		{
+			Assert.True(ScenarioCatalog.CapabilityScenarios.TryGetValue(entry.Id.Value, out IReadOnlyList<string>? scenarios),
+				entry.Id.Value);
+			Assert.Equal(entry.RequiredScenarios, scenarios);
 		}
 	}
 

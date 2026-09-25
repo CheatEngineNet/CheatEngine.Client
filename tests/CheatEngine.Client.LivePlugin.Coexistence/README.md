@@ -60,10 +60,13 @@ observation, not a portable hosting claim.
 
 ## Prepare isolated bundles and a receipt
 
-The current checkout does not include an automated bundle-preparation runner. Do not infer that a live fixture or a
-receipt exists from this document. For a future exact SDK package tuple, prepare three disjoint output directories
-with an approved harness, record the package and assembly hashes, and retain the complete dependency closure and
-host transcript before loading Cheat Engine.
+The live qualification runner of `CheatEngine.Client.Tests` prepares the bundles: its session S5 (two load orders,
+S5a and S5b) compiles each fixture's sources again in an isolated consumer against the exact packed Client packages and
+CheatEngine.SDK 2.0.0 from nuget.org (`PluginBundleBuilder`), deploys each complete closure to its own folder, adds a
+plain CheatEngine.SDK 1.x neighbour generated at run time, and drives the steps below that need no plugin toggle; it
+records the toggle steps as operator steps until its spike proves that the driver can perform them (see
+[Live qualification](../CheatEngine.Client.Tests/README.md#live-qualification)). Do not infer that a receipt exists
+from this document.
 
 Different requested package versions only make a side-by-side live run eligible. The receipt's assembly identities,
 package content hashes, full closures, and host transcript must still establish what the exact Cheat Engine loader did.
@@ -197,5 +200,5 @@ switch is a stopped/failing result, never a reason to continue against target B.
 
 No Cheat Engine execution is performed by this repository fixture or by an ordinary CI build. A managed Native AOT
 probe is publication evidence only; it does not prove that Cheat Engine can load, disable, remove, or unload a Native
-AOT plugin. No script in this repository produces a receipt for this fixture: host receipts come from the SDK
-qualification runner and from the Client qualification work that records Client scenarios against it.
+AOT plugin. No script in this repository produces a receipt for this fixture: its host receipts come from session S5
+of the Client's live qualification runner, on an explicit opt-in, never in CI.

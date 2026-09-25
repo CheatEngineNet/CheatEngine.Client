@@ -26,6 +26,7 @@ public sealed class LiveQualificationSerialGroup : ICollectionFixture<LiveQualif
 public sealed class LiveQualificationFixture : IAsyncLifetime
 {
 	private PackagedClientFeedFixture? _feed;
+	private LiveQualificationRun? _run;
 
 	/// <summary>The opt-in decision of this run.</summary>
 	internal LiveQualificationDecision Decision
@@ -58,6 +59,16 @@ public sealed class LiveQualificationFixture : IAsyncLifetime
 		{
 			await _feed.DisposeAsync();
 		}
+	}
+
+	/// <summary>
+	///     The run the sessions S1 to S6 of this test run share: one run directory, one receipt ledger and one summary.
+	///     The S0 spike keeps its own run, whose receipts are never committed.
+	/// </summary>
+	internal LiveQualificationRun Run(LiveQualificationInputs inputs)
+	{
+		ArgumentNullException.ThrowIfNull(inputs);
+		return _run ??= LiveQualificationRun.Create(inputs.RunRoot);
 	}
 
 	/// <summary>Fails the calling test, with the opt-in instructions, unless this run is authorized and its feed is usable.</summary>
