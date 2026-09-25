@@ -64,13 +64,14 @@ internal sealed record ClientCapabilityDescriptor(
 ///         <see cref="RuntimeClient" /> composes the evidence of each capability from its row: the source of the policy
 ///         gate and of the host gate, and the experimental id that the implementation gate names. Every capability
 ///         composes an operational adapter, so its implementation gate is satisfied. The package, lifetime and
-///         live-qualification gates are the same for every capability. The required scenarios are the live qualification scenarios that the
-///         qualification gate will require; that gate stays unknown until committed Client receipts exist.
+///         live-qualification gates are the same for every capability. The required scenarios are the live
+///         qualification scenarios that the qualification gate will require; that gate stays unknown until committed
+///         Client receipts exist.
 ///     </para>
 ///     <para>
 ///         Each capability has one row, and a lot changes only its own row. The capability tables of the READMEs follow
-///         the experimental ids and the required scenarios (<c>CapabilityDocumentationTests</c>), and <c>ClientCapabilityCatalogTests</c>
-///         proves that every <see cref="ClientCapabilityId" /> appears exactly once.
+///         the experimental ids and the required scenarios (<c>CapabilityDocumentationTests</c>), and
+///         <c>ClientCapabilityCatalogTests</c> proves that every <see cref="ClientCapabilityId" /> has exactly one row.
 ///     </para>
 /// </remarks>
 internal static class ClientCapabilityCatalog
