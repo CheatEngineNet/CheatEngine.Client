@@ -72,7 +72,7 @@ internal sealed class WorkflowFile
 	public static WorkflowFile Load(string relativePath)
 	{
 		string text = File.ReadAllText(Path.Combine(RepositoryRoot.Path, relativePath));
-		YamlStream stream = new();
+		YamlStream stream = [];
 		stream.Load(new StringReader(text));
 		YamlMappingNode root = stream.Documents[0].RootNode as YamlMappingNode
 							   ?? throw new InvalidOperationException($"{relativePath} is not a YAML mapping.");

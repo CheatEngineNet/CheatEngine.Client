@@ -36,14 +36,14 @@ public sealed class PatternScannerHostOutcomeTests
 				(CheatEngineFailureKind.InvalidHostResult, CheatEngineHostEffect.Completed)
 		};
 
-	public static TheoryData<string> F06Cases => new()
-	{
+	public static TheoryData<string> F06Cases =>
+	[
 		"AbsentGlobal",
 		"NilResult",
 		"ProtectedError",
 		"MalformedResult",
 		"EmptyList"
-	};
+	];
 
 	/// <summary>The five F06 acceptance cases: each SDK outcome keeps its own meaning, and only a list is a success.</summary>
 	[Theory]

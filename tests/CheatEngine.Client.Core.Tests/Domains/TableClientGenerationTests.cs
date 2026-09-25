@@ -23,8 +23,8 @@ public sealed class TableClientGenerationTests : IDisposable
 
 	private readonly string _root = Directory.CreateTempSubdirectory("ce-client-table-generation-").FullName;
 
-	public static TheoryData<string> IdentifierTakingOperations => new()
-	{
+	public static TheoryData<string> IdentifierTakingOperations =>
+	[
 		"GetRecord",
 		"Select",
 		"Update",
@@ -34,15 +34,15 @@ public sealed class TableClientGenerationTests : IDisposable
 		"SetParentParent",
 		"GetHierarchy",
 		"CreateUnderParent"
-	};
+	];
 
-	public static TheoryData<string> MutationsWithoutAnSdkCommand => new()
-	{
+	public static TheoryData<string> MutationsWithoutAnSdkCommand =>
+	[
 		"Create",
 		"CreateUnderParent",
 		"Update",
 		"Select"
-	};
+	];
 
 	public void Dispose()
 	{

@@ -30,7 +30,7 @@ internal static class GovernanceFile
 	/// <summary>The root mapping of a repository-relative YAML file.</summary>
 	public static YamlMappingNode LoadYaml(string relativePath)
 	{
-		YamlStream stream = new();
+		YamlStream stream = [];
 		using (StringReader reader = new(ReadText(relativePath)))
 		{
 			stream.Load(reader);

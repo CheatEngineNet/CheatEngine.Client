@@ -31,7 +31,7 @@ public sealed class CheatEngineClientOptions
 	public IList<string> AllowedTableRoots
 	{
 		get;
-	} = new List<string>();
+	} = [];
 
 	/// <summary>Gets the target-memory budgets captured when an activation creates its client services.</summary>
 	/// <remarks>

@@ -51,8 +51,8 @@ public sealed class TryContractTests
 {
 	private static readonly Address Target = new(0x401000);
 
-	public static TheoryData<string> Families => new()
-	{
+	public static TheoryData<string> Families =>
+	[
 		"Patterns",
 		"MemoryPrimitive",
 		"MemoryBatchDetailed",
@@ -68,7 +68,7 @@ public sealed class TryContractTests
 		"Allocations",
 		"AutoAssembler",
 		"Instructions"
-	};
+	];
 
 	public static TheoryData<string, string> SdkFaultCases
 	{

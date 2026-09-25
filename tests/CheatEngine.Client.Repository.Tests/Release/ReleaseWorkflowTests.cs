@@ -545,7 +545,7 @@ public sealed partial class ReleaseWorkflowTests
 
 	private static YamlMappingNode LoadWorkflow()
 	{
-		YamlStream stream = new();
+		YamlStream stream = [];
 		using StreamReader reader = new(Path.Combine(RepositoryRoot.Path, WorkflowPath));
 		stream.Load(reader);
 		return (YamlMappingNode) stream.Documents[0].RootNode;

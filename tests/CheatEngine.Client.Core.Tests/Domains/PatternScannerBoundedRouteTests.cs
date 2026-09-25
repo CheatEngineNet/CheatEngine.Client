@@ -23,13 +23,13 @@ public sealed class PatternScannerBoundedRouteTests
 	private const ulong ModuleBase = 0x4000;
 	private const ulong ModuleSize = 0x100;
 
-	public static TheoryData<string> Fallbacks => new()
-	{
+	public static TheoryData<string> Fallbacks =>
+	[
 		"UnqualifiedTarget",
 		"FileAsProcess",
 		"SessionCreationFailed",
 		"TargetIdentityUnavailable"
-	};
+	];
 
 	[Fact]
 	[Trait("Qualification", "Q28")]

@@ -9,7 +9,7 @@ public sealed class CoreResourceRegistryTests
 	[Fact]
 	public void DisposeReleasesDistinctResourcesInReverseRegistrationOrderAndIsIdempotent()
 	{
-		List<string> events = new();
+		List<string> events = [];
 		RecordingDisposable first = new("first", events);
 		RecordingDisposable second = new("second", events);
 		RecordingDisposable third = new("third", events);
