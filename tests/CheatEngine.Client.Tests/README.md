@@ -63,6 +63,17 @@ TRX report keeps. The facts prove that:
 These are package-level results (fixture level C2); a Cheat Engine host run of Q40 is a separate qualification.
 `PackageSourceResolutionTests` has no category, so both CI legs check the package source rules.
 
+`ReadmeSnippetCompilationTests` (`Category=PackageConsumption`, same fixture and serial collection) reads the README
+that each packed package publishes, and the repository README, and compiles every `csharp` block of one README as one
+plugin project against the packed Client: the documented `CheatEngine.Client`, `CheatEngine.SDK` and
+`Microsoft.Extensions.Configuration.Json` references (the last at the version the packed template stamps), `Nullable`,
+`ImplicitUsings` and warnings as errors, with the Hosting plugin profile checks when a block declares a
+`[CheatEnginePlugin]` type. Each block is written to `README.L<line>.cs`, so a compiler error names the README line of
+its block. `TheUmbrellaReadmeShowsACompiledPlugin` keeps a compiled plugin on the `CheatEngine.Client` page. The code
+block rules themselves (`ReadmeCodeBlocks`: a C# block is labelled `csharp`, a `csharp nocompile` block carries
+`<!-- nocompile: reason -->` on the line above it) are proven on fixed Markdown by `ReadmeCodeBlocksTests`, which has
+no category.
+
 `SymbolPackagesCarrySourceLinkToTheRepositoryCommit` expects Source Link URLs of
 `https://raw.githubusercontent.com/CheatEngineNet/CheatEngine.Client/<commit>/`, which the .NET SDK derives from the
 `origin` remote of the checkout that packs. CI checks out this repository, so it holds there; a local run in a clone

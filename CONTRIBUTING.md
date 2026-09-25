@@ -205,6 +205,12 @@ The README next to each packed project is its nuget.org page, written for plugin
 what the package offers and its contracts, with absolute `https://` links only (`PackedReadmesContainNoRelativeLinks`).
 What only a contributor needs lives here instead.
 
+Every C# block of a packed README and of the root README is labelled `csharp` and is a whole file (usings, namespace,
+types): `ReadmeSnippetCompilationTests` compiles the blocks of each README as one plugin project against the packed
+Client, with warnings as errors, so run the package consumption tests when you change one. A block that cannot compile
+on purpose is labelled `csharp nocompile`, and the line right above its opening fence says why:
+`<!-- nocompile: the reason -->`. A C# block labelled `cs` or `c#` fails the test instead of escaping it.
+
 ### Changing a package
 
 - **Abstractions:** every change is a public API change. Keep request and value types immutable, preserve the
