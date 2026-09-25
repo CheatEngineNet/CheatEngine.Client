@@ -25,8 +25,9 @@ a provider added through `Logging` receives the Core diagnostic events; `CheatEn
 provider receiving the Hosting lifecycle events. The `appsettings.json` of this project is copied next to the test
 assembly and read from `PluginDirectory`, the way a plugin reads its own file; a small JSON stand-in replaces
 `Microsoft.Extensions.Configuration.Json`, which only the plugin project references. `CheatEngineClientPluginTests`
-also proves that cleanup warns once (event 8) when the runtime snapshot reports an external Lua state reset, and that a
-missing or failing snapshot changes nothing.
+also proves that cleanup warns once (event 8) when CheatEngine.SDK reports an external Lua state reset, detected during
+the activation or by the Client-owned releases, reading the SDK's flag after those releases and never the runtime
+snapshot, which the SDK refuses after a reset; without a reset, or when the read fails, nothing changes.
 
 `CheatEngineHostLogProviderTests` replace CheatEngine.SDK's process-wide `HostLog` sink with a fake one, in a serial
 collection: the provider writes message templates and exception type names only by default (Q46), the formatted message

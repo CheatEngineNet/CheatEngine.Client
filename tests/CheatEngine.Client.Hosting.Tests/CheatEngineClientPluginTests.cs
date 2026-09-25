@@ -15,7 +15,6 @@ using CheatEngine.Client.Results;
 using CheatEngine.Client.Runtime;
 using CheatEngine.Client.Scanning;
 using CheatEngine.Client.Tables;
-using CheatEngine.SDK.Engine.Runtime;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -515,13 +514,25 @@ public sealed class CheatEngineClientPluginTests
 		Assert.Equal([20, 1, 3, 7, 4], logs.Entries.Select(static entry => entry.EventId));
 	}
 
-	[Fact]
-	public void CleanupWarnsOnceWhenTheRuntimeSnapshotReportsAnExternalLuaStateReset()
+	/// <summary>
+	///     A8 on CheatEngine.SDK 2.0.0: once the SDK detected an external Lua state reset it refuses every Lua admission,
+	///     the runtime snapshot's included, so the warning reads the SDK's flag through the cleanup bridge, after the
+	///     Client-owned releases, whose refused Lua admissions can be the ones that detect the reset. The runtime double
+	///     refuses the snapshot the way the real stack does after a reset, and cleanup never asks it.
+	/// </summary>
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public void CleanupWarnsOnceWhenCheatEngineSdkDetectedAnExternalLuaStateReset(bool detectedByTheReleases)
 	{
 		List<string> events = [];
 		CapturingLoggerProvider logs = new();
-		FakeClient client = new(58, new FakeRuntime(events, externalStateResetDetected: true));
-		RecordingCleanup cleanup = new(events);
+		FakeClient client = new(58, new ResetRefusingRuntime(events));
+		RecordingCleanup cleanup = new(events)
+		{
+			ResetDetected = !detectedByTheReleases,
+			DrainDetectsReset = detectedByTheReleases
+		};
 		TestPlugin plugin = CreatePlugin(events, client, cleanup, builder =>
 			builder.Logging.SetMinimumLevel(LogLevel.Trace).AddProvider(logs));
 
@@ -534,23 +545,26 @@ public sealed class CheatEngineClientPluginTests
 			"Cheat Engine Client activation 58: Cheat Engine replaced its Lua state outside the plugin's control. Lua " +
 			"work is refused until the next enable, and Lua-bound resources are not released into the new state.",
 			warning.Message);
+		Assert.Equal([20, 1, 3, 8, 7, 4], logs.Entries.Select(static entry => entry.EventId));
+		Assert.Equal(1, cleanup.ResetReadCount);
 		Assert.Equal(
-			[
-				"configure", "client.enabled", "cleanup.enter", "runtime.snapshot", "client.disabling", "cleanup.drain",
-				"cleanup.exit"
-			],
-			events);
+			["configure", "client.enabled", "cleanup.enter", "client.disabling", "cleanup.drain", "cleanup.exit"],
+			cleanup.EventsBeforeResetRead);
+		Assert.DoesNotContain("runtime.snapshot", events);
 	}
 
 	[Theory]
 	[InlineData(false)]
-	[InlineData(null)]
-	public void CleanupDoesNotWarnWithoutAReportedExternalLuaStateReset(bool? externalStateResetDetected)
+	[InlineData(true)]
+	public void CleanupDoesNotWarnWithoutAReportedExternalLuaStateReset(bool readThrows)
 	{
 		List<string> events = [];
 		CapturingLoggerProvider logs = new();
-		FakeClient client = new(59, new FakeRuntime(events, externalStateResetDetected));
-		RecordingCleanup cleanup = new(events);
+		FakeClient client = new(59, new ResetRefusingRuntime(events));
+		RecordingCleanup cleanup = new(events)
+		{
+			ResetReadFailure = readThrows ? new InvalidOperationException("reset read") : null
+		};
 		TestPlugin plugin = CreatePlugin(events, client, cleanup, builder =>
 			builder.Logging.SetMinimumLevel(LogLevel.Trace).AddProvider(logs));
 
@@ -558,9 +572,11 @@ public sealed class CheatEngineClientPluginTests
 		plugin.DisableForTest();
 
 		Assert.DoesNotContain(logs.Entries, static entry => entry.EventId == 8);
+		Assert.Equal([20, 1, 3, 7, 4], logs.Entries.Select(static entry => entry.EventId));
+		Assert.Equal(1, cleanup.ResetReadCount);
 		Assert.Equal(1, cleanup.DrainCount);
-		Assert.Contains("runtime.snapshot", events);
-		Assert.Contains(logs.Entries, static entry => entry.EventId == 4);
+		Assert.Equal(1, cleanup.ScopeDisposeCount);
+		Assert.DoesNotContain("runtime.snapshot", events);
 	}
 
 	[Fact]
@@ -940,6 +956,51 @@ public sealed class CheatEngineClientPluginTests
 			private set;
 		}
 
+		/// <summary>Gets or sets the SDK's external Lua state reset fact this cleanup bridge reports.</summary>
+		internal bool ResetDetected
+		{
+			get;
+			set;
+		}
+
+		/// <summary>Gets or sets whether the drain detects the reset, as a refused Lua-bound release does in the SDK.</summary>
+		internal bool DrainDetectsReset
+		{
+			get;
+			init;
+		}
+
+		/// <summary>Gets or sets an exception the reset fact read throws.</summary>
+		internal Exception? ResetReadFailure
+		{
+			get;
+			init;
+		}
+
+		/// <summary>Gets how many times the reset fact was read.</summary>
+		internal int ResetReadCount
+		{
+			get;
+			private set;
+		}
+
+		/// <summary>Gets the lifecycle events recorded before the last read of the reset fact.</summary>
+		internal string[] EventsBeforeResetRead
+		{
+			get;
+			private set;
+		} = [];
+
+		public bool ExternalLuaStateResetDetected
+		{
+			get
+			{
+				ResetReadCount++;
+				EventsBeforeResetRead = [.. events];
+				return ResetReadFailure is { } failure ? throw failure : ResetDetected;
+			}
+		}
+
 		public IDisposable EnterCleanupScope()
 		{
 			events.Add("cleanup.enter");
@@ -959,6 +1020,7 @@ public sealed class CheatEngineClientPluginTests
 		{
 			DrainCount++;
 			events.Add("cleanup.drain");
+			ResetDetected |= DrainDetectsReset;
 			if (drainFailure is not null)
 			{
 				throw drainFailure;
@@ -1189,7 +1251,11 @@ public sealed class CheatEngineClientPluginTests
 		}
 	}
 
-	private sealed class FakeRuntime(List<string> events, bool? externalStateResetDetected) : ICheatEngineRuntime
+	/// <summary>
+	///     Refuses the snapshot as the real stack does after CheatEngine.SDK detected an external Lua state reset: the SDK
+	///     refuses the snapshot's Lua admission and the Client reports the fault as a failure.
+	/// </summary>
+	private sealed class ResetRefusingRuntime(List<string> events) : ICheatEngineRuntime
 	{
 		public long Epoch => 1;
 
@@ -1197,20 +1263,10 @@ public sealed class CheatEngineClientPluginTests
 			CancellationToken cancellationToken = default)
 		{
 			events.Add("runtime.snapshot");
-			if (externalStateResetDetected is not { } reset)
-			{
-				snapshot = default;
-				failure = new CheatEngineFailure(CheatEngineFailureKind.CapabilityUnavailable, "Runtime.GetSnapshot",
-					"The test host has no runtime.");
-				return false;
-			}
-
-			snapshot = new CheatEngineRuntimeSnapshot(Epoch,
-				new CheatEngineRuntimeVersionInfo(null, CheatEngineVersion.Ce77010621, new Version(1, 0),
-					new Version(2, 0), null, false),
-				default, ClientCapabilities.Empty, new CheatEngineRuntimeLuaInfo(reset));
-			failure = default;
-			return true;
+			snapshot = default;
+			failure = new CheatEngineFailure(CheatEngineFailureKind.RuntimeChanged, "Runtime.GetSnapshot",
+				"Cheat Engine replaced its Lua state outside the plugin's control.");
+			return false;
 		}
 
 		public CheatEngineRuntimeSnapshot GetSnapshot(CancellationToken cancellationToken = default)

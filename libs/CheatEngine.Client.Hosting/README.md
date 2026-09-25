@@ -172,11 +172,14 @@ Hosting never logs exception messages, addresses, values, symbol expressions, fi
 data and belong to the application's explicit opt-in; `CheatEngineFailure.ToString()` follows the same rule. Logging is
 best effort: a logging provider that throws cannot abort enable, disable, or any remaining cleanup stage.
 
-At the start of cleanup, inside the main-thread cleanup scope, Hosting reads the runtime snapshot once. When its
-`Lua.ExternalStateResetDetected` reports that Cheat Engine replaced its Lua state outside the plugin's control during
-the activation, event 8 (`ExternalLuaStateResetDetected`, Warning, epoch only) says so: Lua work is refused until the
-next enable, and the Lua-bound releases that follow are refused rather than made into the replacement state. A snapshot
-that fails changes nothing.
+After the `ClientResources` stage and before the scope is disposed, Hosting reads CheatEngine.SDK's sticky external
+Lua state reset fact once. When CheatEngine.SDK detected, during the activation or during those releases, that Cheat
+Engine replaced its Lua state outside the plugin's control, event 8 (`ExternalLuaStateResetDetected`, Warning, epoch
+only) says so: Lua work is refused until the next enable, and the Lua-bound releases were refused rather than made into
+the replacement state. The read is a lock-free flag read, not a runtime snapshot: once CheatEngine.SDK detected the
+reset it refuses every Lua admission, the snapshot's included. A read that fails changes nothing. A reset that
+CheatEngine.SDK first detects when it detaches Lua, after the Client cleanup, is reported only by the SDK's own
+`LuaStateReplacedExternally:` host log line.
 
 ## Cheat Engine host log (opt-in)
 

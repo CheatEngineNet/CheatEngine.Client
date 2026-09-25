@@ -5,7 +5,6 @@ using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Extensions.DependencyInjection;
 using CheatEngine.Client.Modules;
 using CheatEngine.Client.Results;
-using CheatEngine.Client.Runtime;
 using CheatEngine.SDK.Hosting.Plugin;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -221,7 +220,8 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 	///     root provider, and configuration are then released in that order. Each stage is attempted even after an earlier
 	///     stage fails, allowing the caller to report one aggregate failure only after all owned resources had a cleanup
 	///     opportunity. Each failed stage is logged with its stable stage name and the exception type name only (Q43,
-	///     Q46); a throwing logging provider cannot abort the remaining stages.
+	///     Q46); a throwing logging provider cannot abort the remaining stages. Between the Client-owned resources and the
+	///     scope, the external Lua state reset warning is logged when CheatEngine.SDK reports one.
 	/// </remarks>
 	private List<Exception> CleanupActivation(Activation activation)
 	{
@@ -231,7 +231,6 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 			report.Attempt(CleanupStage.CleanupScope);
 			using (activation.Cleanup.EnterCleanupScope())
 			{
-				LogExternalLuaStateReset(activation);
 				report.Record(CleanupStage.ModuleCallbacks, activation.Lifecycle.Cleanup(OnClientDisabling));
 				report.Run(CleanupStage.ClientResources, activation.Cleanup.DrainOwnedResourcesForDisable);
 			}
@@ -241,6 +240,7 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 			report.Fail(CleanupStage.CleanupScope, exception);
 		}
 
+		LogExternalLuaStateReset(activation);
 		report.Run(CleanupStage.Scope, activation.Scope.Dispose);
 		report.Run(CleanupStage.Provider, activation.Provider.Dispose);
 		report.Run(CleanupStage.Configuration, activation.Builder.ReleaseConfiguration);
@@ -269,22 +269,27 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 	}
 
 	/// <summary>
-	///     Warns (event 8) when the runtime snapshot reports that CheatEngine.SDK detected an external Lua state reset during
-	///     this activation (A8).
+	///     Warns (event 8) when CheatEngine.SDK detected an external Lua state reset during this activation (A8).
 	/// </summary>
 	/// <remarks>
-	///     The fact is sticky until the next enable. It is read once per cleanup, inside the main-thread cleanup scope
-	///     where the snapshot may still dispatch, before the modules and the Client-owned resources are released: with the
-	///     reset, their Lua-bound releases are refused rather than made into the replacement state. The read is
-	///     diagnostics only: a snapshot that fails or throws, or a logging provider that throws, changes no cleanup
-	///     outcome.
+	///     <para>
+	///         The SDK's fact is sticky until the next enable. It is read once per cleanup, after the module callbacks and
+	///         the Client-owned resource releases, whose Lua admissions are the last ones the activation makes and can be
+	///         the ones that detect the reset, and before the scope and provider that own the logger are disposed. With
+	///         the reset, those Lua-bound releases were refused rather than made into the replacement state.
+	///     </para>
+	///     <para>
+	///         The read goes through the cleanup bridge, a lock-free read of the SDK's flag, never through the runtime
+	///         snapshot: once CheatEngine.SDK detected the reset it refuses every Lua admission, the snapshot's included,
+	///         so a snapshot can never report the reset. The read is diagnostics only: a read or a logging provider that
+	///         throws changes no cleanup outcome.
+	///     </para>
 	/// </remarks>
 	private static void LogExternalLuaStateReset(Activation activation)
 	{
 		try
 		{
-			if (activation.Client.Runtime.TryGetSnapshot(out CheatEngineRuntimeSnapshot snapshot, out _) &&
-				snapshot.Lua.ExternalStateResetDetected)
+			if (activation.Cleanup.ExternalLuaStateResetDetected)
 			{
 				SafeLog(activation, static (logger, epoch) => ClientHostingLog.ExternalLuaStateResetDetected(logger, epoch));
 			}

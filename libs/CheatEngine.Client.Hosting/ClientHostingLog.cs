@@ -42,8 +42,8 @@ internal static partial class ClientHostingLog
 		int failedStages);
 
 	/// <summary>
-	///     The runtime snapshot read at the start of cleanup reports that CheatEngine.SDK detected an external Lua state
-	///     reset during the activation (A8): Cheat Engine replaced its Lua state outside the plugin's control. Epoch only.
+	///     CheatEngine.SDK detected an external Lua state reset during the activation (A8), read once after the Client-owned
+	///     resources were released: Cheat Engine replaced its Lua state outside the plugin's control. Epoch only.
 	/// </summary>
 	[LoggerMessage(8, LogLevel.Warning,
 		"Cheat Engine Client activation {Epoch}: Cheat Engine replaced its Lua state outside the plugin's control. Lua " +
