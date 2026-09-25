@@ -380,11 +380,6 @@ CheatEngine.Client.Results.LeaseReleaseOutcome.Kind.get -> CheatEngine.Client.Re
 CheatEngine.Client.Results.LeaseReleaseOutcome.LeaseReleaseOutcome() -> void
 CheatEngine.Client.Results.LeaseReleaseOutcome.LeaseReleaseOutcome(CheatEngine.Client.Results.LeaseReleaseKind kind, CheatEngine.Client.Results.CheatEngineHostEffect hostEffect) -> void
 CheatEngine.Client.Results.LeaseReleaseOutcome.RequiresManualRecovery.get -> bool
-CheatEngine.Client.Runtime.CheatEngineRuntimeLuaInfo
-CheatEngine.Client.Runtime.CheatEngineRuntimeLuaInfo.CheatEngineRuntimeLuaInfo() -> void
-CheatEngine.Client.Runtime.CheatEngineRuntimeLuaInfo.CheatEngineRuntimeLuaInfo(bool externalStateResetDetected) -> void
-CheatEngine.Client.Runtime.CheatEngineRuntimeLuaInfo.Equals(CheatEngine.Client.Runtime.CheatEngineRuntimeLuaInfo other) -> bool
-CheatEngine.Client.Runtime.CheatEngineRuntimeLuaInfo.ExternalStateResetDetected.get -> bool
 CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo
 CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.CheatEngineBitness.get -> CheatEngine.SDK.Engine.Runtime.PointerSize
 CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.CheatEngineRuntimePlatformInfo() -> void
@@ -403,10 +398,9 @@ CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.TargetIsAndroid.get ->
 CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot
 CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.Capabilities.get -> CheatEngine.Client.Runtime.ClientCapabilities!
 CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.CheatEngineRuntimeSnapshot() -> void
-CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.CheatEngineRuntimeSnapshot(long epoch, CheatEngine.Client.Runtime.CheatEngineRuntimeVersionInfo version, CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo platform, CheatEngine.Client.Runtime.ClientCapabilities! capabilities, CheatEngine.Client.Runtime.CheatEngineRuntimeLuaInfo lua) -> void
+CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.CheatEngineRuntimeSnapshot(long epoch, CheatEngine.Client.Runtime.CheatEngineRuntimeVersionInfo version, CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo platform, CheatEngine.Client.Runtime.ClientCapabilities! capabilities) -> void
 CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.Epoch.get -> long
 CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.Equals(CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot other) -> bool
-CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.Lua.get -> CheatEngine.Client.Runtime.CheatEngineRuntimeLuaInfo
 CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.Platform.get -> CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo
 CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.Version.get -> CheatEngine.Client.Runtime.CheatEngineRuntimeVersionInfo
 CheatEngine.Client.Runtime.CheatEngineRuntimeVersionInfo
@@ -963,7 +957,6 @@ override CheatEngine.Client.Results.CheatEngineFailure.GetHashCode() -> int
 override CheatEngine.Client.Results.CheatEngineFailure.ToString() -> string!
 override CheatEngine.Client.Results.LeaseReleaseOutcome.GetHashCode() -> int
 override CheatEngine.Client.Results.LeaseReleaseOutcome.ToString() -> string!
-override CheatEngine.Client.Runtime.CheatEngineRuntimeLuaInfo.GetHashCode() -> int
 override CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.GetHashCode() -> int
 override CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.GetHashCode() -> int
 override CheatEngine.Client.Runtime.CheatEngineRuntimeVersionInfo.GetHashCode() -> int
@@ -1029,8 +1022,6 @@ static CheatEngine.Client.Results.CheatEngineFailure.operator !=(CheatEngine.Cli
 static CheatEngine.Client.Results.CheatEngineFailure.operator ==(CheatEngine.Client.Results.CheatEngineFailure left, CheatEngine.Client.Results.CheatEngineFailure right) -> bool
 static CheatEngine.Client.Results.LeaseReleaseOutcome.operator !=(CheatEngine.Client.Results.LeaseReleaseOutcome left, CheatEngine.Client.Results.LeaseReleaseOutcome right) -> bool
 static CheatEngine.Client.Results.LeaseReleaseOutcome.operator ==(CheatEngine.Client.Results.LeaseReleaseOutcome left, CheatEngine.Client.Results.LeaseReleaseOutcome right) -> bool
-static CheatEngine.Client.Runtime.CheatEngineRuntimeLuaInfo.operator !=(CheatEngine.Client.Runtime.CheatEngineRuntimeLuaInfo left, CheatEngine.Client.Runtime.CheatEngineRuntimeLuaInfo right) -> bool
-static CheatEngine.Client.Runtime.CheatEngineRuntimeLuaInfo.operator ==(CheatEngine.Client.Runtime.CheatEngineRuntimeLuaInfo left, CheatEngine.Client.Runtime.CheatEngineRuntimeLuaInfo right) -> bool
 static CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.operator !=(CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo left, CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo right) -> bool
 static CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.operator ==(CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo left, CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo right) -> bool
 static CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.operator !=(CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot left, CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot right) -> bool
@@ -1142,8 +1133,6 @@ static CheatEngine.Client.Tables.TrustedTableFile.operator ==(CheatEngine.Client
 ~override CheatEngine.Client.Results.CheatEngineFailure.Equals(object obj) -> bool
 ~override CheatEngine.Client.Results.CheatEngineFailure.ToString() -> string
 ~override CheatEngine.Client.Results.LeaseReleaseOutcome.Equals(object obj) -> bool
-~override CheatEngine.Client.Runtime.CheatEngineRuntimeLuaInfo.Equals(object obj) -> bool
-~override CheatEngine.Client.Runtime.CheatEngineRuntimeLuaInfo.ToString() -> string
 ~override CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.Equals(object obj) -> bool
 ~override CheatEngine.Client.Runtime.CheatEngineRuntimePlatformInfo.ToString() -> string
 ~override CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot.Equals(object obj) -> bool

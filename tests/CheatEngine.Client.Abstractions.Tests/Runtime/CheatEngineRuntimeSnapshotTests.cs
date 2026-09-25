@@ -5,23 +5,21 @@ namespace CheatEngine.Client.Abstractions.Tests.Runtime;
 
 public sealed class CheatEngineRuntimeSnapshotTests
 {
-	/// <summary>Keeps the version, platform, capability and Lua groups exactly as they were supplied.</summary>
+	/// <summary>Keeps the version, platform and capability groups exactly as they were supplied.</summary>
 	[Fact]
-	public void SnapshotKeepsItsFourGroups()
+	public void SnapshotKeepsItsThreeGroups()
 	{
 		CheatEngineRuntimeVersionInfo version = CreateVersionInfo(new CheatEngineVersion(7, 7, 0, 9999));
 		CheatEngineRuntimePlatformInfo platform = CreatePlatformInfo(TargetBackend.LocalProcess,
 			CheatEngineArchitecture.X86, PointerSize.Bit32, 4);
 		ClientCapabilities capabilities = ClientCapabilities.Empty;
-		CheatEngineRuntimeLuaInfo lua = new(true);
 
-		CheatEngineRuntimeSnapshot snapshot = new(42, version, platform, capabilities, lua);
+		CheatEngineRuntimeSnapshot snapshot = new(42, version, platform, capabilities);
 
 		Assert.Equal(42, snapshot.Epoch);
 		Assert.Equal(version, snapshot.Version);
 		Assert.Equal(platform, snapshot.Platform);
 		Assert.Same(capabilities, snapshot.Capabilities);
-		Assert.True(snapshot.Lua.ExternalStateResetDetected);
 	}
 
 	/// <summary>Keeps the observed four-part CE file version distinct from the qualified release baseline.</summary>
@@ -116,7 +114,7 @@ public sealed class CheatEngineRuntimeSnapshotTests
 	public void SnapshotRejectsNegativeActivationEpoch(long epoch)
 	{
 		Assert.Throws<ArgumentOutOfRangeException>(() => new CheatEngineRuntimeSnapshot(epoch,
-			CreateVersionInfo(CheatEngineVersion.Ce77010621), CreatePlatformInfo(), ClientCapabilities.Empty, default));
+			CreateVersionInfo(CheatEngineVersion.Ce77010621), CreatePlatformInfo(), ClientCapabilities.Empty));
 	}
 
 	/// <summary>Rejects an absent capability collection instead of accepting an incomplete runtime snapshot.</summary>
@@ -124,8 +122,7 @@ public sealed class CheatEngineRuntimeSnapshotTests
 	public void SnapshotRejectsANullCapabilityCollection()
 	{
 		ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => new CheatEngineRuntimeSnapshot(42,
-			CreateVersionInfo(CheatEngineVersion.Ce77010621), CreatePlatformInfo(), Null<ClientCapabilities>(),
-			default));
+			CreateVersionInfo(CheatEngineVersion.Ce77010621), CreatePlatformInfo(), Null<ClientCapabilities>()));
 
 		Assert.Equal("capabilities", exception.ParamName);
 	}
@@ -135,7 +132,7 @@ public sealed class CheatEngineRuntimeSnapshotTests
 	public void SnapshotRejectsDefaultVersionInfo()
 	{
 		ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => new CheatEngineRuntimeSnapshot(
-			42, default, CreatePlatformInfo(), ClientCapabilities.Empty, default));
+			42, default, CreatePlatformInfo(), ClientCapabilities.Empty));
 
 		Assert.Equal("version", exception.ParamName);
 	}
@@ -240,16 +237,6 @@ public sealed class CheatEngineRuntimeSnapshotTests
 			_ => PointerSize.Unknown
 		}, platform.ConfiguredPointerSize);
 		Assert.Equal(differs, platform.ConfiguredPointerSizeDiffersFromBitness);
-	}
-
-	/// <summary>Reports the external Lua state reset fact as supplied.</summary>
-	[Theory]
-	[InlineData(true)]
-	[InlineData(false)]
-	public void LuaInfoReportsTheExternalStateResetFact(bool detected)
-	{
-		Assert.Equal(detected, new CheatEngineRuntimeLuaInfo(detected).ExternalStateResetDetected);
-		Assert.False(default(CheatEngineRuntimeLuaInfo).ExternalStateResetDetected);
 	}
 
 	private static CheatEngineRuntimeVersionInfo CreateVersionInfo(CheatEngineVersion? observedVersion)

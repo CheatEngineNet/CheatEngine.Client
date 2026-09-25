@@ -1,4 +1,3 @@
-using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.SDK.Engine.Processes;
 using CheatEngine.SDK.Engine.Runtime;
 using CheatEngine.SDK.Engine.Targets;
@@ -32,8 +31,6 @@ internal sealed class SdkRuntimeObservationPort : IRuntimeObservationPort
 	{
 		get;
 	} = new();
-
-	public bool ExternalStateResetDetected => SdkBoundary.ExternalStateResetDetected;
 
 	public ProcessOperationStatus TryObserveRuntimeInfo(out RuntimeInfo? info)
 	{

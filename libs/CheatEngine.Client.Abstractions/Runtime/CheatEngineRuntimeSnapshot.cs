@@ -2,10 +2,17 @@ namespace CheatEngine.Client.Runtime;
 
 /// <summary>Immutable runtime observations captured during one active Cheat Engine activation.</summary>
 /// <remarks>
-///     The observations are grouped: <see cref="Version" /> (Cheat Engine, Client and CheatEngine.SDK versions),
-///     <see cref="Platform" /> (host and target facts), <see cref="Capabilities" /> (the Client capability evidence) and
-///     <see cref="Lua" /> (the Lua runtime facts). Each fact is what CheatEngine.SDK reported, and a fact that was not
-///     observed stays unknown.
+///     <para>
+///         The observations are grouped: <see cref="Version" /> (Cheat Engine, Client and CheatEngine.SDK versions),
+///         <see cref="Platform" /> (host and target facts) and <see cref="Capabilities" /> (the Client capability
+///         evidence). Each fact is what CheatEngine.SDK reported, and a fact that was not observed stays unknown.
+///     </para>
+///     <para>
+///         No snapshot reports an external Lua state reset. Once CheatEngine.SDK detects that Cheat Engine replaced its
+///         Lua state outside the plugin's control, it refuses every Lua admission, the snapshot's included: taking a
+///         snapshot then fails with <see cref="CheatEngine.Client.Results.CheatEngineFailureKind.RuntimeChanged" />, like
+///         all other Lua work, and Hosting logs the reset as a warning when it deactivates the plugin (event 8).
+///     </para>
 /// </remarks>
 public readonly record struct CheatEngineRuntimeSnapshot
 {
@@ -16,7 +23,6 @@ public readonly record struct CheatEngineRuntimeSnapshot
 	/// <param name="version">The version observations.</param>
 	/// <param name="platform">The host and target platform observations.</param>
 	/// <param name="capabilities">The Client capability observations.</param>
-	/// <param name="lua">The Lua runtime observations.</param>
 	/// <exception cref="ArgumentOutOfRangeException"><paramref name="epoch" /> is negative.</exception>
 	/// <exception cref="ArgumentNullException">
 	///     <paramref name="version" /> is uninitialized, or <paramref name="capabilities" /> is <see langword="null" />.
@@ -25,8 +31,7 @@ public readonly record struct CheatEngineRuntimeSnapshot
 		long epoch,
 		CheatEngineRuntimeVersionInfo version,
 		CheatEngineRuntimePlatformInfo platform,
-		ClientCapabilities capabilities,
-		CheatEngineRuntimeLuaInfo lua)
+		ClientCapabilities capabilities)
 	{
 		ArgumentOutOfRangeException.ThrowIfNegative(epoch);
 		if (version.IsDefault)
@@ -38,7 +43,6 @@ public readonly record struct CheatEngineRuntimeSnapshot
 		Version = version;
 		Platform = platform;
 		_capabilities = capabilities ?? throw new ArgumentNullException(nameof(capabilities));
-		Lua = lua;
 	}
 
 	/// <summary>Gets the activation epoch the snapshot was captured in.</summary>
@@ -62,10 +66,4 @@ public readonly record struct CheatEngineRuntimeSnapshot
 	/// <summary>Gets the explicit availability observation and evidence of each Client capability.</summary>
 	/// <remarks><see cref="ClientCapabilities.Empty" /> for the <see langword="default" /> value.</remarks>
 	public ClientCapabilities Capabilities => _capabilities ?? ClientCapabilities.Empty;
-
-	/// <summary>Gets the Lua runtime observations.</summary>
-	public CheatEngineRuntimeLuaInfo Lua
-	{
-		get;
-	}
 }

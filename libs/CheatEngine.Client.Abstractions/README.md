@@ -416,7 +416,7 @@ needs no current activation, and a local identifier is never evidence of a Cheat
 Every fact is a read-only CheatEngine.SDK 2.0.0 observation that reads the selected process identifier before and after
 the target facts, because Cheat Engine reports the same family, width and pointer size as an x64 target when no target
 is opened. A fact the SDK could not establish stays unknown; none is inferred from another. `CheatEngineRuntimeSnapshot`
-groups them in `Version`, `Platform`, `Capabilities` and `Lua` and keeps separate facts:
+groups them in `Version`, `Platform` and `Capabilities` and keeps separate facts:
 
 - **Versions** (`CheatEngineRuntimeVersionInfo`): the complete four-part Cheat Engine file version
   (`getCheatEngineFileVersion`), compared with the qualified baseline component by component as integers; the loaded
@@ -435,8 +435,11 @@ groups them in `Version`, `Platform`, `Capabilities` and `Lua` and keeps separat
   Engine reports through `getPointerSize()`. It is per-attachment state, independent of the bitness, reset when a process
   is opened, and can hold any integer. `ConfiguredPointerSizeDiffersFromBitness` reports a mismatch as a fact, or `null`
   when either value is unknown.
-- **External Lua state reset** (`CheatEngineRuntimeLuaInfo.ExternalStateResetDetected`): CheatEngine.SDK detected that
-  Cheat Engine replaced its Lua state outside the plugin's control; Lua work is then refused with `RuntimeChanged`.
+
+No snapshot reports an external Lua state reset. Once CheatEngine.SDK detects that Cheat Engine replaced its Lua state
+outside the plugin's control, it refuses every Lua admission, the snapshot's included: the snapshot then fails with
+`RuntimeChanged` like all other Lua work, and Hosting logs the reset as a warning when it deactivates the plugin (event
+8, see the Hosting README).
 
 Cheat Engine's pointer read follows the process width, not the configured size. The Client therefore passes the
 observed process width to CheatEngine.SDK's width-qualified pointer reads and writes on every pointer-typed operation

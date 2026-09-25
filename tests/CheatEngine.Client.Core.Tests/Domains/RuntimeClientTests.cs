@@ -51,7 +51,6 @@ public sealed class RuntimeClientTests
 		Assert.Equal(PointerSize.Bit64, snapshot.Platform.CheatEngineBitness);
 		Assert.Equal(TargetBackend.LocalProcess, snapshot.Platform.TargetBackend);
 		Assert.False(snapshot.Platform.TargetIsAndroid);
-		Assert.False(snapshot.Lua.ExternalStateResetDetected);
 		Assert.Equal(ClientCapabilityEvidenceState.Satisfied, ProcessSelectionHost(snapshot).State);
 		Assert.Equal(1, dispatcher.InvocationCount);
 		// The SDK snapshot answers alone: no host or target fact is read again.
@@ -337,22 +336,6 @@ public sealed class RuntimeClientTests
 		Assert.Equal(TargetBackend.FileAsProcess, fileSnapshot.Platform.TargetBackend);
 		Assert.Equal(PointerSize.Unknown, fileSnapshot.Platform.TargetBitness);
 		Assert.Equal(CheatEngineOperatingSystem.Windows, fileSnapshot.Platform.HostOperatingSystem);
-	}
-
-	[Theory]
-	[InlineData(true)]
-	[InlineData(false)]
-	public void SnapshotReportsTheExternalLuaStateResetFact(bool detected)
-	{
-		// A8: the SDK's sticky reset fact enters the snapshot.
-		RuntimeClient runtime = new(new InlineDispatcher(), new FakeRuntimeObservationPort
-		{
-			ExternalStateResetDetected = detected
-		}, static () => 1);
-
-		CheatEngineRuntimeSnapshot snapshot = runtime.GetSnapshot(TestContext.Current.CancellationToken);
-
-		Assert.Equal(detected, snapshot.Lua.ExternalStateResetDetected);
 	}
 
 	[Theory]
@@ -804,8 +787,7 @@ public sealed class RuntimeClientTests
 				Assert.True(parameter.IsOut || parameter.ParameterType == typeof(TargetProcessIncarnation),
 					parameter.Name));
 		});
-		Assert.Equal(nameof(IRuntimeObservationPort.ExternalStateResetDetected),
-			Assert.Single(typeof(IRuntimeObservationPort).GetProperties()).Name);
+		Assert.Empty(typeof(IRuntimeObservationPort).GetProperties());
 		Assert.Empty(typeof(IRuntimeObservationPort).GetEvents());
 	}
 

@@ -165,7 +165,6 @@ internal static partial class QualificationScenarios
 				.String("targetAbi", platform.TargetAbi.ToString())
 				.OptionalBoolean("targetIsAndroid", platform.TargetIsAndroid)
 				.Number("activationEpoch", snapshot.Epoch)
-				.Boolean("externalStateResetDetected", snapshot.Lua.ExternalStateResetDetected)
 				.EndObject()
 				.BeginObject("configuredPointerSize")
 				.Boolean("exposedByClient", true)

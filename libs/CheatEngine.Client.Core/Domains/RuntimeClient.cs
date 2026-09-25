@@ -209,8 +209,7 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 				target.ConfiguredPointerSizeBytes),
 			CreateClientCapabilities(observed.ProcessSelectionHost, new HostQualificationContext(
 				_sdkIdentity.ExactReviewedIdentity, _sdkIdentity.LoadedInformationalVersion, host.FileVersion,
-				host.CheatEngineIs64Bit, host.OperatingSystem, target.Backend, target.Architecture, _clientVersion)),
-			new CheatEngineRuntimeLuaInfo(_port.ExternalStateResetDetected));
+				host.CheatEngineIs64Bit, host.OperatingSystem, target.Backend, target.Architecture, _clientVersion)));
 	}
 
 	private ClientCapabilities CreateClientCapabilities(ClientCapabilityEvidenceGate selectedProcess,

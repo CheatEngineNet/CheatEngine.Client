@@ -26,15 +26,6 @@ namespace CheatEngine.Client.Core.Domains;
 /// </remarks>
 internal interface IRuntimeObservationPort : ITargetObservationPort
 {
-	/// <summary>
-	///     Gets whether CheatEngine.SDK detected that Cheat Engine replaced its Lua state outside the plugin's control;
-	///     sticky until the SDK attaches to a Lua state again.
-	/// </summary>
-	public bool ExternalStateResetDetected
-	{
-		get;
-	}
-
 	/// <summary>Observes the host and, when one is selected, the target in one Lua admission.</summary>
 	public ProcessOperationStatus TryObserveRuntimeInfo(out RuntimeInfo? info);
 
