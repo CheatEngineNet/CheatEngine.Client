@@ -111,28 +111,7 @@ internal sealed class TableClient(
 	public bool TryGetSnapshot(MemoryRecordCollectionRequest request, out AddressTableSnapshot table,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
-		AddressTableSnapshot captured = default;
-		RecordLookupStatus status = RecordLookupStatus.InvalidRecord;
-		if (!TryDispatch("Tables.GetSnapshot", null, null,
-				() => status = _recordLookups.TryGetTable(request.MaximumItems, out captured),
-				out long observedGeneration, out failure, cancellationToken))
-		{
-			table = default;
-			return false;
-		}
-
-		if (status == RecordLookupStatus.Success)
-		{
-			_generation.Observe(captured, observedGeneration);
-			table = captured;
-			return true;
-		}
-
-		table = default;
-		failure = status == RecordLookupStatus.LimitExceeded
-			? ResultLimitFailure("Tables.GetSnapshot", request.MaximumItems)
-			: HostFailure("Tables.GetSnapshot");
-		return false;
+		return TryCopyTopLevel("Tables.GetSnapshot", request, out table, out failure, cancellationToken);
 	}
 
 	public AddressTableSnapshot GetSnapshot(MemoryRecordCollectionRequest request,
@@ -159,7 +138,8 @@ internal sealed class TableClient(
 			return false;
 		}
 
-		if (!TryGetSnapshot(request, out AddressTableSnapshot snapshot, out failure, cancellationToken))
+		if (!TryCopyTopLevel("Tables.Find", request, out AddressTableSnapshot snapshot, out failure,
+				cancellationToken))
 		{
 			records = [];
 			return false;
@@ -708,6 +688,42 @@ internal sealed class TableClient(
 	}
 
 	/// <summary>
+	///     Copies every top-level record under the caller's limit for <see cref="TryGetSnapshot" /> and
+	///     <see cref="TryFind" />, each failure named after the public operation that ran it.
+	/// </summary>
+	/// <remarks>
+	///     A copy that exceeds the limit is <see cref="CheatEngineFailureKind.ResultLimitExceeded" />; any other status is
+	///     reported like every record lookup (<see cref="LookupFailure" />), so an unavailable Address List is
+	///     <see cref="CheatEngineFailureKind.CapabilityUnavailable" /> here too.
+	/// </remarks>
+	private bool TryCopyTopLevel(string operation, MemoryRecordCollectionRequest request,
+		out AddressTableSnapshot table, out CheatEngineFailure failure, CancellationToken cancellationToken)
+	{
+		AddressTableSnapshot captured = default;
+		RecordLookupStatus status = RecordLookupStatus.InvalidRecord;
+		if (!TryDispatch(operation, null, null,
+				() => status = _recordLookups.TryGetTable(request.MaximumItems, out captured),
+				out long observedGeneration, out failure, cancellationToken))
+		{
+			table = default;
+			return false;
+		}
+
+		if (status == RecordLookupStatus.Success)
+		{
+			_generation.Observe(captured, observedGeneration);
+			table = captured;
+			return true;
+		}
+
+		table = default;
+		failure = status == RecordLookupStatus.LimitExceeded
+			? ResultLimitFailure(operation, request.MaximumItems)
+			: LookupFailure(operation, status);
+		return false;
+	}
+
+	/// <summary>
 	///     Dispatches Client-internal Address List work after re-checking, on Cheat Engine's main thread, that no
 	///     identifier it takes became stale, and reads there the table generation the work observes.
 	/// </summary>
@@ -985,6 +1001,13 @@ internal sealed class TableClient(
 			TableMapping.InvalidContractMessage);
 	}
 
+	/// <summary>Classifies a failed record lookup, the same way for every Tables read.</summary>
+	/// <remarks>
+	///     An unavailable Address List is <see cref="CheatEngineFailureKind.CapabilityUnavailable" /> with
+	///     <see cref="CheatEngineHostEffect.NotStarted" />: the lookup never ran, as for a mutation that CheatEngine.SDK
+	///     refused for the same reason. An absent record is <see cref="CheatEngineFailureKind.NotFound" /> and a malformed
+	///     one <see cref="CheatEngineFailureKind.InvalidHostResult" />.
+	/// </remarks>
 	private static CheatEngineFailure LookupFailure(string operation, RecordLookupStatus status)
 	{
 		return status switch
@@ -992,7 +1015,8 @@ internal sealed class TableClient(
 			RecordLookupStatus.NotFound => new CheatEngineFailure(CheatEngineFailureKind.NotFound, operation,
 				TableMapping.RecordNotFoundMessage),
 			RecordLookupStatus.AddressListUnavailable => new CheatEngineFailure(
-				CheatEngineFailureKind.CapabilityUnavailable, operation, TableMapping.AddressListUnavailableMessage),
+				CheatEngineFailureKind.CapabilityUnavailable, operation, TableMapping.AddressListUnavailableMessage, null,
+				CheatEngineHostEffect.NotStarted),
 			RecordLookupStatus.InvalidRecord => HostFailure(operation),
 			_ => HostFailure(operation)
 		};

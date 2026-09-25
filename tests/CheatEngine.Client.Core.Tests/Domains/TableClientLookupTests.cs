@@ -28,9 +28,62 @@ public sealed class TableClientLookupTests
 		Assert.False(succeeded);
 		Assert.Equal(default, record);
 		Assert.Equal(CheatEngineFailureKind.CapabilityUnavailable, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
 		Assert.Equal("Tables.GetRecordAt", failure.Operation);
 		Assert.Equal("Cheat Engine's Address List capability is unavailable.", failure.Message);
 		Assert.Equal(3, lookups.LastIndex);
+	}
+
+	/// <summary>A copy of the top-level records fails the way every record lookup does, named after its method.</summary>
+	[Theory]
+	[InlineData(nameof(RecordLookupStatus.AddressListUnavailable), CheatEngineFailureKind.CapabilityUnavailable,
+		CheatEngineHostEffect.NotStarted)]
+	[InlineData(nameof(RecordLookupStatus.InvalidRecord), CheatEngineFailureKind.InvalidHostResult,
+		CheatEngineHostEffect.Unknown)]
+	public void ACopyOfTheTopLevelRecordsFailsLikeEveryRecordLookup(string status,
+		CheatEngineFailureKind expectedKind, CheatEngineHostEffect expectedEffect)
+	{
+		FakeRecordLookupPort lookups = new()
+		{
+			TableStatus = Enum.Parse<RecordLookupStatus>(status)
+		};
+		TableClient client = CreateClient(lookups);
+		CancellationToken token = TestContext.Current.CancellationToken;
+
+		bool copied = client.TryGetSnapshot(new MemoryRecordCollectionRequest(8), out AddressTableSnapshot table,
+			out CheatEngineFailure snapshotFailure, token);
+		bool found = client.TryFind(new MemoryRecordSearch("Ammo"), new MemoryRecordCollectionRequest(8),
+			out ImmutableArray<MemoryRecordSnapshot> records, out CheatEngineFailure findFailure, token);
+
+		Assert.False(copied);
+		Assert.Equal(default, table);
+		Assert.Equal(expectedKind, snapshotFailure.Kind);
+		Assert.Equal(expectedEffect, snapshotFailure.HostEffect);
+		Assert.Equal("Tables.GetSnapshot", snapshotFailure.Operation);
+		Assert.False(found);
+		Assert.True(records.IsEmpty);
+		Assert.Equal(expectedKind, findFailure.Kind);
+		Assert.Equal(expectedEffect, findFailure.HostEffect);
+		Assert.Equal("Tables.Find", findFailure.Operation);
+	}
+
+	[Fact]
+	public void FindNamesItselfWhenTheCopyExceedsTheLimit()
+	{
+		FakeRecordLookupPort lookups = new()
+		{
+			Table = [Snapshot(1, "Ammo"), Snapshot(2, "Health")]
+		};
+		TableClient client = CreateClient(lookups);
+
+		bool found = client.TryFind(new MemoryRecordSearch("Ammo"), new MemoryRecordCollectionRequest(1),
+			out ImmutableArray<MemoryRecordSnapshot> records, out CheatEngineFailure failure,
+			TestContext.Current.CancellationToken);
+
+		Assert.False(found);
+		Assert.True(records.IsEmpty);
+		Assert.Equal(CheatEngineFailureKind.ResultLimitExceeded, failure.Kind);
+		Assert.Equal("Tables.Find", failure.Operation);
 	}
 
 	[Fact]
@@ -329,6 +382,13 @@ public sealed class TableClientLookupTests
 			init;
 		} = [];
 
+		/// <summary>Gets a failed status that the table copy reports instead of copying <see cref="Table" />.</summary>
+		internal RecordLookupStatus TableStatus
+		{
+			get;
+			init;
+		} = RecordLookupStatus.Success;
+
 		internal int LastIndex
 		{
 			get;
@@ -370,6 +430,12 @@ public sealed class TableClientLookupTests
 
 		public RecordLookupStatus TryGetTable(int maximumItems, out AddressTableSnapshot table)
 		{
+			if (TableStatus != RecordLookupStatus.Success)
+			{
+				table = default;
+				return TableStatus;
+			}
+
 			if (Table.Length > maximumItems)
 			{
 				table = default;

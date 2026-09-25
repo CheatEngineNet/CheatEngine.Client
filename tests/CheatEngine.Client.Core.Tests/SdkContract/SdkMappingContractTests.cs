@@ -177,6 +177,25 @@ public sealed class SdkMappingContractTests
 
 	[Fact]
 	[Trait("Qualification", "Q48")]
+	public void AnUnavailableInspectionGlobalIsNotStartedAndAnUnknownStatusFailsClosed()
+	{
+		Assert.False(InspectionClient.TryMap(InspectionStatus.GlobalUnavailable, "Inspection.Contract",
+			out CheatEngineFailure unavailable));
+		Assert.False(InspectionClient.TryMap((InspectionStatus) 99, "Inspection.Contract",
+			out CheatEngineFailure unrecognized));
+		Assert.False(InspectionClient.TryMap(InspectionStatus.NotFound, "Inspection.Contract",
+			out CheatEngineFailure absent));
+
+		Assert.Equal(CheatEngineFailureKind.CapabilityUnavailable, unavailable.Kind);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, unavailable.HostEffect);
+		Assert.Equal(CheatEngineFailureKind.IndeterminateHostResult, unrecognized.Kind);
+		Assert.Equal(CheatEngineHostEffect.Unknown, unrecognized.HostEffect);
+		Assert.Equal(CheatEngineFailureKind.NotFound, absent.Kind);
+		Assert.Equal(CheatEngineHostEffect.Unknown, absent.HostEffect);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q48")]
 	public void EveryMemoryAccessFailureMapsToItsClientKindAndHostEffect()
 	{
 		MappingTotality.AssertTotal<MemoryAccessFailure>(

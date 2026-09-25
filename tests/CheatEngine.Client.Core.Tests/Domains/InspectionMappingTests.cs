@@ -90,6 +90,16 @@ public sealed class InspectionMappingTests
 	}
 
 	[Fact]
+	public void ANameLookupWhoseGlobalIsUnavailableDidNotStart()
+	{
+		CheatEngineFailure failure =
+			InspectionMapping.NameLookupFailure("Inspection.ResolveName", LuaOperationStatusKind.GlobalUnavailable);
+
+		Assert.Equal(CheatEngineFailureKind.CapabilityUnavailable, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
+	}
+
+	[Fact]
 	[Trait("Qualification", "Q48")]
 	public void TheResolutionModeReachesTheSdkAsItsShallowArgument()
 	{

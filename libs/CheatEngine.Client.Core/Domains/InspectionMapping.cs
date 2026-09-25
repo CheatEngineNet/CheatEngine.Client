@@ -12,7 +12,8 @@ namespace CheatEngine.Client.Core.Domains;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         A name lookup has no host effect, so only its failure kind is mapped:
+///         A name lookup changes nothing, so its failure keeps an unknown host effect, except an unavailable global,
+///         which Cheat Engine never called (<c>NotStarted</c>):
 ///     </para>
 ///     <list type="table">
 ///         <listheader>
@@ -111,7 +112,10 @@ internal static class InspectionMapping
 	/// <summary>Creates the failure of a name lookup that returned no name.</summary>
 	/// <param name="operation">The public operation name.</param>
 	/// <param name="status">The status CheatEngine.SDK reported.</param>
-	/// <returns>The failure, with an unknown host effect: a lookup changes nothing.</returns>
+	/// <returns>
+	///     The failure: <see cref="CheatEngineHostEffect.NotStarted" /> for an unavailable global, which Cheat Engine never
+	///     called, like every other inspection lookup; otherwise an unknown host effect, since a lookup changes nothing.
+	/// </returns>
 	internal static CheatEngineFailure NameLookupFailure(string operation, LuaOperationStatusKind status)
 	{
 		CheatEngineFailureKind kind = ToNameLookupFailureKind(status);
@@ -121,7 +125,10 @@ internal static class InspectionMapping
 			CheatEngineFailureKind.InvalidHostResult => "Cheat Engine returned an invalid symbol-name result.",
 			_ => $"The Cheat Engine symbol-name lookup returned '{status}'."
 		};
-		return new CheatEngineFailure(kind, operation, message);
+		CheatEngineHostEffect effect = status == LuaOperationStatusKind.GlobalUnavailable
+			? CheatEngineHostEffect.NotStarted
+			: CheatEngineHostEffect.Unknown;
+		return new CheatEngineFailure(kind, operation, message, null, effect);
 	}
 
 	/// <summary>Returns the failure kind of a registration that returned no lease.</summary>

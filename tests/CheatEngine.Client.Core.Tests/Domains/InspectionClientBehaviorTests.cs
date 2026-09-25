@@ -44,7 +44,7 @@ public sealed class InspectionClientBehaviorTests
 	[InlineData(InspectionStatus.GlobalUnavailable, CheatEngineFailureKind.CapabilityUnavailable)]
 	[InlineData(InspectionStatus.LuaFailure, CheatEngineFailureKind.LuaError)]
 	[InlineData(InspectionStatus.InvalidResult, CheatEngineFailureKind.InvalidHostResult)]
-	[InlineData((InspectionStatus) 999, CheatEngineFailureKind.Unknown)]
+	[InlineData((InspectionStatus) 999, CheatEngineFailureKind.IndeterminateHostResult)]
 	public void InspectionStatusesMapToStableClientFailures(InspectionStatus status,
 		CheatEngineFailureKind expectedKind)
 	{

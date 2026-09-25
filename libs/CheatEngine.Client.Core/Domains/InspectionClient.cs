@@ -323,6 +323,13 @@ internal sealed class InspectionClient(
 	}
 
 	/// <summary>Maps an SDK inspection status by value; internal so the Q48 contract tests can prove it is total.</summary>
+	/// <remarks>
+	///     An unavailable inspection global is <see cref="CheatEngineFailureKind.CapabilityUnavailable" /> with
+	///     <see cref="CheatEngineHostEffect.NotStarted" />: Cheat Engine was not called, as the memory and Address List
+	///     lookups report it. A status this Client does not recognize fails closed as
+	///     <see cref="CheatEngineFailureKind.IndeterminateHostResult" />, like <see cref="InspectionMapping" />; every other
+	///     failure keeps an unknown host effect.
+	/// </remarks>
 	internal static bool TryMap(InspectionStatus status, string operation, out CheatEngineFailure failure)
 	{
 		if (status == InspectionStatus.Success)
@@ -338,9 +345,12 @@ internal sealed class InspectionClient(
 			InspectionStatus.GlobalUnavailable => CheatEngineFailureKind.CapabilityUnavailable,
 			InspectionStatus.LuaFailure => CheatEngineFailureKind.LuaError,
 			InspectionStatus.InvalidResult => CheatEngineFailureKind.InvalidHostResult,
-			_ => CheatEngineFailureKind.Unknown
+			_ => CheatEngineFailureKind.IndeterminateHostResult
 		};
-		failure = new CheatEngineFailure(kind, operation, $"Cheat Engine inspection returned '{status}'.");
+		CheatEngineHostEffect effect = status == InspectionStatus.GlobalUnavailable
+			? CheatEngineHostEffect.NotStarted
+			: CheatEngineHostEffect.Unknown;
+		failure = new CheatEngineFailure(kind, operation, $"Cheat Engine inspection returned '{status}'.", null, effect);
 		return false;
 	}
 
