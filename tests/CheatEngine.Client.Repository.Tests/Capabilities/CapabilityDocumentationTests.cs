@@ -9,8 +9,8 @@ namespace CheatEngine.Client.Repository.Tests.Capabilities;
 ///     The documentation states what the Client build reports (audit CLI-DOC-1, A00-04, A10-05, A21-13, A21-21, A21-30):
 ///     every capability table lists each <c>ClientCapabilityId</c> once as the operational adapter that
 ///     <c>ClientCapabilityCatalog</c> declares and <c>RuntimeClient</c> composes, with its experimental id and the live
-///     scenarios its qualification gate requires; the install guides state the supported host profile with its
-///     identities.
+///     scenarios its qualification gate requires, and a table with a "1.0 status" column calls exactly the experimental
+///     APIs Experimental; the install guides state the supported host profile with its identities.
 /// </summary>
 /// <remarks>
 ///     Source scans only: this project has no project reference. A capability table is the Markdown table between
@@ -27,6 +27,12 @@ public sealed partial class CapabilityDocumentationTests
 	private const string CatalogSource = "libs/CheatEngine.Client.Core/Domains/ClientCapabilityCatalog.cs";
 	private const string CoreLockFile = "libs/CheatEngine.Client.Core/packages.lock.json";
 	private const string QualificationColumn = "Qualification";
+
+	/// <summary>The optional column of a plugin-author table that says what 1.0 offers for each capability.</summary>
+	private const string StatusColumn = "1.0 status";
+
+	private const string AvailableStatus = "Available";
+	private const string ExperimentalStatus = "Experimental";
 	private const string ProfileId = "ce-7.7.0.10621-x64-managed-hostfxr";
 	private const string HostExecutableSha256 = "9727076da50924e4a097b49a02155e4b34759269c3017ff31375364b8826eb4d";
 	private const string RuntimeConfigurationSha256 = "68f5d81c0a17cc5bdac40bb3d5d88a624f4d31b414f7195ad847d57b0126ac2b";
@@ -64,19 +70,7 @@ public sealed partial class CapabilityDocumentationTests
 	[Fact]
 	public void CapabilityTablesMatchTheCatalogImplementationGates()
 	{
-		Dictionary<string, string> ids = ReadCapabilityIds();
-		// Every catalog row is an operational adapter; the value is its experimental diagnostic id, if any.
-		Dictionary<string, string?> experimental = new(StringComparer.Ordinal);
-		string catalog = Read(CatalogSource);
-		foreach (Match match in ImplementationGate().Matches(catalog))
-		{
-			string id = ids[match.Groups["name"].Value];
-			Group diagnosticId = match.Groups["experimental"];
-			Assert.True(experimental.TryAdd(id, diagnosticId.Success ? diagnosticId.Value : null),
-				$"{CatalogSource} describes {id} more than once.");
-		}
-
-		Assert.Equal(ids.Count, experimental.Count);
+		Dictionary<string, string?> experimental = ReadExperimentalDiagnosticIds();
 		List<string> offenders = [];
 		foreach (CapabilityTable table in ReadCapabilityTables())
 		{
@@ -98,6 +92,40 @@ public sealed partial class CapabilityDocumentationTests
 			"The Implementation column must name the catalog's operational adapter (" +
 			$"{string.Join(" or ", OperationalImplementations)}, or that label followed by " +
 			$"'{ExperimentalImplementation(string.Empty, "id")}' for an experimental API):" +
+			Environment.NewLine + string.Join(Environment.NewLine, offenders));
+	}
+
+	[Fact]
+	public void CapabilityTableStatusColumnsMarkExactlyTheExperimentalApis()
+	{
+		Dictionary<string, string?> experimental = ReadExperimentalDiagnosticIds();
+		List<string> offenders = [];
+		int checkedRows = 0;
+		foreach (CapabilityTable table in ReadCapabilityTables())
+		{
+			foreach (CapabilityRow row in table.Rows)
+			{
+				if (row.Status is not { } status)
+				{
+					continue;
+				}
+
+				checkedRows++;
+				bool isExperimental = experimental.GetValueOrDefault(row.Id) is not null;
+				string expected = isExperimental ? ExperimentalStatus : AvailableStatus;
+				if (!status.StartsWith(expected, StringComparison.Ordinal) ||
+					(!isExperimental && status.Contains(ExperimentalStatus, StringComparison.OrdinalIgnoreCase)))
+				{
+					offenders.Add($"{table.Path}:{row.Line} → {row.Id} says '{status}', expected '{expected}...'");
+				}
+			}
+		}
+
+		Assert.True(checkedRows > 0,
+			$"No capability table has a '{StatusColumn}' column; the test would pass vacuously.");
+		Assert.True(offenders.Count == 0,
+			$"The '{StatusColumn}' column must start with '{ExperimentalStatus}' exactly for the capabilities whose " +
+			$"catalog row carries an experimental diagnostic id, and with '{AvailableStatus}' otherwise:" +
 			Environment.NewLine + string.Join(Environment.NewLine, offenders));
 	}
 
@@ -165,6 +193,26 @@ public sealed partial class CapabilityDocumentationTests
 		return $"{operational}, experimental ({diagnosticId})";
 	}
 
+	/// <summary>
+	///     Reads every catalog row, each an operational adapter, keyed by capability id: the value is its experimental
+	///     diagnostic id, or <see langword="null" /> for a stable API.
+	/// </summary>
+	private static Dictionary<string, string?> ReadExperimentalDiagnosticIds()
+	{
+		Dictionary<string, string> ids = ReadCapabilityIds();
+		Dictionary<string, string?> experimental = new(StringComparer.Ordinal);
+		foreach (Match match in ImplementationGate().Matches(Read(CatalogSource)))
+		{
+			string id = ids[match.Groups["name"].Value];
+			Group diagnosticId = match.Groups["experimental"];
+			Assert.True(experimental.TryAdd(id, diagnosticId.Success ? diagnosticId.Value : null),
+				$"{CatalogSource} describes {id} more than once.");
+		}
+
+		Assert.Equal(ids.Count, experimental.Count);
+		return experimental;
+	}
+
 	/// <summary>Reads <c>ClientCapabilityId</c> property names and their stable id strings.</summary>
 	private static Dictionary<string, string> ReadCapabilityIds()
 	{
@@ -192,8 +240,9 @@ public sealed partial class CapabilityDocumentationTests
 			int end = Array.FindIndex(lines, start + 1, static line => line.Trim() == EndMarker);
 			Assert.True(end > start, $"{path} opens a capability table without closing it.");
 			string header = Array.Find(lines[(start + 1)..end], static line => line.StartsWith('|')) ?? string.Empty;
-			int qualification = Array.FindIndex(header.Split('|'),
-				static column => column.Trim() == QualificationColumn);
+			string[] headers = header.Split('|');
+			int qualification = Array.FindIndex(headers, static column => column.Trim() == QualificationColumn);
+			int status = Array.FindIndex(headers, static column => column.Trim() == StatusColumn);
 			Assert.True(qualification > 0, $"{path} has a capability table without a '{QualificationColumn}' column.");
 			List<CapabilityRow> rows = [];
 			for (int index = start + 1; index < end; index++)
@@ -202,8 +251,9 @@ public sealed partial class CapabilityDocumentationTests
 				if (row.Success)
 				{
 					string[] columns = lines[index].Split('|');
+					string? statusCell = status > 0 ? Cell(columns, status) ?? string.Empty : null;
 					rows.Add(new CapabilityRow(row.Groups["id"].Value, row.Groups["implementation"].Value.Trim(),
-						qualification < columns.Length ? columns[qualification].Trim() : string.Empty, index + 1));
+						Cell(columns, qualification) ?? string.Empty, statusCell, index + 1));
 				}
 			}
 
@@ -211,6 +261,12 @@ public sealed partial class CapabilityDocumentationTests
 		}
 
 		return tables;
+	}
+
+	/// <summary>The trimmed cell at <paramref name="index" />, or <see langword="null" /> past the row's end.</summary>
+	private static string? Cell(string[] columns, int index)
+	{
+		return index < columns.Length ? columns[index].Trim() : null;
 	}
 
 	private static string[] Scenarios(string text)
@@ -249,5 +305,12 @@ public sealed partial class CapabilityDocumentationTests
 
 	private sealed record CapabilityTable(string Path, IReadOnlyList<CapabilityRow> Rows);
 
-	private sealed record CapabilityRow(string Id, string Implementation, string Qualification, int Line);
+	/// <summary>One capability row.</summary>
+	/// <param name="Status">The status cell, or <see langword="null" /> when the table has no status column.</param>
+	private sealed record CapabilityRow(
+		string Id,
+		string Implementation,
+		string Qualification,
+		string? Status,
+		int Line);
 }

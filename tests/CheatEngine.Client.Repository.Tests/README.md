@@ -87,6 +87,9 @@ read committed files: the project never builds, packs, restores or starts a proc
   `<!-- capability-table:start -->` and `<!-- capability-table:end -->`, in any README) equal to the Client's capability
   catalog: each `ClientCapabilityId` listed once, the catalog's operational adapter and experimental id in the
   Implementation column, and exactly the live scenarios its qualification gate requires in the Qualification column.
+  In a table with a "1.0 status" column, a row starts with `Experimental` exactly when the catalog gives its
+  capability an experimental diagnostic id, and with `Available` otherwise
+  (`CapabilityTableStatusColumnsMarkExactlyTheExperimentalApis`).
   `InstallGuidesStateTheQualifiedHostProfile` proves that the three install guides state the supported host profile,
   the host executable and runtime configuration hashes and the NuGet content hash that Core's lock file records.
 - `SourcePolicy/` holds the source rules no analyzer expresses:
