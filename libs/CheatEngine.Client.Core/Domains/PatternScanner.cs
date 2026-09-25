@@ -118,7 +118,7 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 			return false;
 		}
 
-		if (!IsDefined(request.Protection) || !IsDefined(request.Alignment))
+		if (!ScanOptionTranslation.IsDefined(request.Protection) || !ScanOptionTranslation.IsDefined(request.Alignment))
 		{
 			failure = Rejected("An AOB protection filter or alignment rule is not a defined value.");
 			return false;
@@ -126,25 +126,6 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 
 		failure = default;
 		return true;
-	}
-
-	/// <summary>Whether every requirement of a filter is defined; only memory tampering can make one undefined.</summary>
-	private static bool IsDefined(ScanProtectionFilter protection)
-	{
-		return Enum.IsDefined(protection.Executable) && Enum.IsDefined(protection.CopyOnWrite) &&
-			   Enum.IsDefined(protection.Writable);
-	}
-
-	/// <summary>Whether an alignment rule is one its factories can produce.</summary>
-	private static bool IsDefined(ScanAlignment alignment)
-	{
-		return alignment.Mode switch
-		{
-			ScanAlignmentMode.None => alignment is { Divisor: 0, Digits: null },
-			ScanAlignmentMode.AlignedTo => alignment is { Divisor: > 0, Digits: null },
-			ScanAlignmentMode.LastDigits => alignment is { Divisor: 0, Digits.Length: > 0 },
-			_ => false
-		};
 	}
 
 	/// <summary>

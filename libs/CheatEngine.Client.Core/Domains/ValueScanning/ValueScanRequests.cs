@@ -151,10 +151,12 @@ internal static class ValueScanRequests
 		refusal ??= request.StopAddress > request.StartAddress
 			? null
 			: "A value scan range must be non-empty: the exclusive stop address must be greater than the start address.";
-		refusal ??= IsValid(request.Protection)
+		refusal ??= ScanOptionTranslation.IsDefined(request.Protection)
 			? null
 			: "A value scan protection filter must use defined requirements.";
-		refusal ??= IsValid(request.Alignment) ? null : "A value scan alignment must be created by a ScanAlignment factory.";
+		refusal ??= ScanOptionTranslation.IsDefined(request.Alignment)
+			? null
+			: "A value scan alignment must be created by a ScanAlignment factory.";
 		return refusal is null;
 	}
 
@@ -196,23 +198,6 @@ internal static class ValueScanRequests
 	private static bool IsNumeric(ValueScanValueType valueType)
 	{
 		return valueType is >= ValueScanValueType.Integer8 and <= ValueScanValueType.DoubleFloat;
-	}
-
-	private static bool IsValid(ScanProtectionFilter protection)
-	{
-		return Enum.IsDefined(protection.Executable) && Enum.IsDefined(protection.CopyOnWrite) &&
-			   Enum.IsDefined(protection.Writable);
-	}
-
-	private static bool IsValid(ScanAlignment alignment)
-	{
-		return alignment.Mode switch
-		{
-			ScanAlignmentMode.None => alignment is { Divisor: 0, Digits: null },
-			ScanAlignmentMode.AlignedTo => alignment is { Divisor: > 0, Digits: null },
-			ScanAlignmentMode.LastDigits => alignment is { Divisor: 0, Digits.Length: > 0 },
-			_ => false
-		};
 	}
 
 	private static CheatEngineFailure Rejected(string operation, string? refusal)

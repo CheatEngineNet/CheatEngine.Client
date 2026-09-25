@@ -6,15 +6,39 @@ using CheatEngine.SDK.Engine.Enums;
 namespace CheatEngine.Client.Core.Domains;
 
 /// <summary>
-///     Writes the public scan options in Cheat Engine's own text, once for both scan routes: the AOB options
+///     Checks and writes the public scan options in Cheat Engine's own text, once for both scan routes: the AOB options
 ///     (<see cref="AobScanMapping.ToSdkOptions" />) and the value-scan first request (<c>ValueScanRequests</c>).
 /// </summary>
 /// <remarks>
-///     The public values validate themselves when they are created, and each route refuses an undefined value before
-///     dispatch, so this translation never sees one; an undefined requirement or alignment writes nothing.
+///     The public values validate themselves when they are created; only a tampered value can be undefined. Each route
+///     refuses one with <see cref="IsDefined(ScanProtectionFilter)" /> and <see cref="IsDefined(ScanAlignment)" />
+///     before dispatch, so the translation never sees one; an undefined requirement or alignment writes nothing.
 /// </remarks>
 internal static class ScanOptionTranslation
 {
+	/// <summary>Gets whether every requirement of a filter is defined; only tampering can make one undefined.</summary>
+	/// <param name="protection">The filter.</param>
+	/// <returns><see langword="true" /> when each of the three requirements is a defined value.</returns>
+	internal static bool IsDefined(ScanProtectionFilter protection)
+	{
+		return Enum.IsDefined(protection.Executable) && Enum.IsDefined(protection.CopyOnWrite) &&
+			   Enum.IsDefined(protection.Writable);
+	}
+
+	/// <summary>Gets whether an alignment rule is one its factories can produce.</summary>
+	/// <param name="alignment">The rule.</param>
+	/// <returns><see langword="true" /> for no alignment, a positive divisor alone or non-empty digits alone.</returns>
+	internal static bool IsDefined(ScanAlignment alignment)
+	{
+		return alignment.Mode switch
+		{
+			ScanAlignmentMode.None => alignment is { Divisor: 0, Digits: null },
+			ScanAlignmentMode.AlignedTo => alignment is { Divisor: > 0, Digits: null },
+			ScanAlignmentMode.LastDigits => alignment is { Divisor: 0, Digits.Length: > 0 },
+			_ => false
+		};
+	}
+
 	/// <summary>Writes a protection filter in Cheat Engine's clause grammar.</summary>
 	/// <param name="protection">The filter.</param>
 	/// <returns>

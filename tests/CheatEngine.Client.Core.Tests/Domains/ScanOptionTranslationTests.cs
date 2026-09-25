@@ -48,6 +48,23 @@ public sealed class ScanOptionTranslationTests
 	}
 
 	[Fact]
+	public void BothScanRoutesAcceptEveryOptionThePublicFactoriesCreate()
+	{
+		// One check serves both routes: every value a public constructor or factory creates is defined, and so are the
+		// default filter and alignment; only a tampered value is refused, by the AOB and value-scan validation alike.
+		foreach (ScanProtectionRequirement requirement in Enum.GetValues<ScanProtectionRequirement>())
+		{
+			ScanProtectionFilter filter = new(requirement, requirement, requirement);
+			Assert.True(ScanOptionTranslation.IsDefined(filter));
+		}
+
+		Assert.True(ScanOptionTranslation.IsDefined(default(ScanProtectionFilter)));
+		Assert.True(ScanOptionTranslation.IsDefined(default(ScanAlignment)));
+		Assert.True(ScanOptionTranslation.IsDefined(ScanAlignment.AlignedTo(4)));
+		Assert.True(ScanOptionTranslation.IsDefined(ScanAlignment.LastDigits("f0")));
+	}
+
+	[Fact]
 	public void OnlyTheAobOptionsOmitTheParameterWithoutAlignment()
 	{
 		Assert.Null(ScanOptionTranslation.ToFastScan(ScanAlignment.None, null).Parameter);
