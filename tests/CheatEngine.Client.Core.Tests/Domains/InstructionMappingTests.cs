@@ -16,7 +16,7 @@ public sealed class InstructionMappingTests
 	/// <summary>The Client failure kind of each status; <see langword="null" /> for a success.</summary>
 	private static readonly Dictionary<InstructionOperationStatus, CheatEngineFailureKind?> Kinds = new()
 	{
-		[InstructionOperationStatus.Unknown] = CheatEngineFailureKind.Unknown,
+		[InstructionOperationStatus.Unknown] = CheatEngineFailureKind.IndeterminateHostResult,
 		[InstructionOperationStatus.Success] = null,
 		[InstructionOperationStatus.InvalidProfile] = CheatEngineFailureKind.InvalidHostResult,
 		[InstructionOperationStatus.AddressExceedsProfileWidth] = CheatEngineFailureKind.OperationRejected,
@@ -59,7 +59,7 @@ public sealed class InstructionMappingTests
 							 Map(status, InstructionCallPhase.AfterEarlierCall)?.Kind == expected,
 			static status => Map(status, InstructionCallPhase.Operation) is
 			{
-				Kind: CheatEngineFailureKind.Unknown, HostEffect: CheatEngineHostEffect.Unknown
+				Kind: CheatEngineFailureKind.IndeterminateHostResult, HostEffect: CheatEngineHostEffect.Unknown
 			});
 	}
 

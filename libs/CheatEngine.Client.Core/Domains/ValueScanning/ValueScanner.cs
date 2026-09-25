@@ -108,8 +108,15 @@ internal sealed class ValueScanner : IValueScanner
 
 		if (status != MemoryScanCreationStatus.Success || handle is null)
 		{
-			_ = handle?.Release();
-			return new CreateOutcome(null, ValueScanMapping.FromCreationStatus(status, CreateOperation));
+			// A handle next to a failed creation is released at once; a release that is not complete leaves the
+			// failure's cleanup unconfirmed, as on every other failure path.
+			CheatEngineFailure failure = ValueScanMapping.FromCreationStatus(status, CreateOperation);
+			if (handle is not null && !ValueScanMapping.FromRelease(handle.Release()).IsComplete)
+			{
+				failure = CoreFailureFactory.WithHostEffect(failure, CheatEngineHostEffect.CleanupUnconfirmed);
+			}
+
+			return new CreateOutcome(null, failure);
 		}
 
 		if (cancellationToken.IsCancellationRequested)

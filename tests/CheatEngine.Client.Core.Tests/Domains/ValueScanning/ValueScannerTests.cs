@@ -103,6 +103,25 @@ public sealed class ValueScannerTests : IDisposable
 		Assert.Equal(1, _port.Creations);
 	}
 
+	[Theory]
+	[InlineData(TargetReleaseStatus.Released, CheatEngineHostEffect.Unknown)]
+	[InlineData(TargetReleaseStatus.UnconfirmedAfterInvocation, CheatEngineHostEffect.CleanupUnconfirmed)]
+	public void ASessionNextToAFailedCreationIsReleasedAndAnIncompleteReleaseLeavesTheCleanupUnconfirmed(
+		TargetReleaseStatus release, CheatEngineHostEffect hostEffect)
+	{
+		_port.Status = MemoryScanCreationStatus.LuaFailure;
+		_port.PublishesSessionOnFailure = true;
+		Handle.OwnerReleases = (release, release);
+
+		bool created = _scanner.TryCreateSession(out IValueScanSession? session, out CheatEngineFailure failure, Token);
+
+		Assert.False(created);
+		Assert.Null(session);
+		Assert.Equal(CheatEngineFailureKind.LuaError, failure.Kind);
+		Assert.Equal(hostEffect, failure.HostEffect);
+		Assert.Equal(1, Handle.Destroys);
+	}
+
 	[Fact]
 	public void CancellationBeforeCreationReachesNoFactory()
 	{

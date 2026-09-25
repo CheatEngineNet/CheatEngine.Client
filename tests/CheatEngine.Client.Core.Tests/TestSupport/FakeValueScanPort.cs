@@ -42,6 +42,15 @@ internal sealed class FakeValueScanPort : IValueScanPort
 		private set;
 	}
 
+	/// <summary>
+	///     Gets or sets whether a failed creation still publishes <see cref="Session" />, breaking the SDK contract.
+	/// </summary>
+	internal bool PublishesSessionOnFailure
+	{
+		get;
+		set;
+	}
+
 	public MemoryScanCreationStatus TryCreate(out IValueScanSessionHandle? session)
 	{
 		Creations++;
@@ -51,7 +60,7 @@ internal sealed class FakeValueScanPort : IValueScanPort
 			throw fault;
 		}
 
-		session = Status == MemoryScanCreationStatus.Success ? Session : null;
+		session = Status == MemoryScanCreationStatus.Success || PublishesSessionOnFailure ? Session : null;
 		return Status;
 	}
 }

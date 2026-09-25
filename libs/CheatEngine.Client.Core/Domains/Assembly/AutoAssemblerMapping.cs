@@ -54,7 +54,8 @@ namespace CheatEngine.Client.Core.Domains.Assembly;
 ///         <item>
 ///             <description>
 ///                 <c>Unknown</c> and any value this Client version does not know:
-///                 <see cref="CheatEngineFailureKind.Unknown" /> with an unknown effect, never a success.
+///                 <see cref="CheatEngineFailureKind.IndeterminateHostResult" /> with an unknown effect, never a
+///                 success, like every other SDK outcome the Client does not recognize.
 ///             </description>
 ///         </item>
 ///     </list>
@@ -64,7 +65,7 @@ namespace CheatEngine.Client.Core.Domains.Assembly;
 ///         with <see cref="CheatEngineHostEffect.NotStarted" />; <c>ProtectedLuaFailure</c> is
 ///         <see cref="CheatEngineFailureKind.LuaError" />, <c>InvalidResult</c>
 ///         <see cref="CheatEngineFailureKind.InvalidHostResult" />, and <c>Unknown</c> or an unknown value
-///         <see cref="CheatEngineFailureKind.Unknown" />, each with an unknown effect.
+///         <see cref="CheatEngineFailureKind.IndeterminateHostResult" />, each with an unknown effect.
 ///     </para>
 ///     <para>
 ///         Release (<see cref="TargetReleaseStatus" /> of the patch owner): <see cref="SdkReleaseOutcomes.FromTarget" />,
@@ -115,7 +116,7 @@ internal static class AutoAssemblerMapping
 				"Cheat Engine applied the script, but CheatEngine.SDK could not hand its disable information to an " +
 				$"owner; its one compensating disable ended as {DescribeCompensation(facts.Compensation)}. The patch may " +
 				"remain in the target.", null, CheatEngineHostEffect.CleanupUnconfirmed),
-			_ => new CheatEngineFailure(CheatEngineFailureKind.Unknown, operation,
+			_ => new CheatEngineFailure(CheatEngineFailureKind.IndeterminateHostResult, operation,
 				"CheatEngine.SDK reported no recognized Auto Assembler outcome; the script may have been applied.", null,
 				CheatEngineHostEffect.Unknown)
 		};
@@ -158,7 +159,7 @@ internal static class AutoAssemblerMapping
 					CheatEngineHostEffect.Unknown);
 				return false;
 			default:
-				failure = new CheatEngineFailure(CheatEngineFailureKind.Unknown, operation,
+				failure = new CheatEngineFailure(CheatEngineFailureKind.IndeterminateHostResult, operation,
 					"CheatEngine.SDK reported no recognized Auto Assembler check outcome.", null,
 					CheatEngineHostEffect.Unknown);
 				return false;

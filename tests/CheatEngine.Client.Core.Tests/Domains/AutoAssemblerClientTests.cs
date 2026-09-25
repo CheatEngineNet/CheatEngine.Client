@@ -208,7 +208,8 @@ public sealed class AutoAssemblerClientTests : IDisposable
 		CheatEngineFailureKind.TargetIdentityUnavailable, CheatEngineHostEffect.NotStarted)]
 	[InlineData(AutoAssemblerApplyOutcomeKind.HandoffFailed, CheatEngineFailureKind.BindingError,
 		CheatEngineHostEffect.CleanupUnconfirmed)]
-	[InlineData(AutoAssemblerApplyOutcomeKind.Unknown, CheatEngineFailureKind.Unknown, CheatEngineHostEffect.Unknown)]
+	[InlineData(AutoAssemblerApplyOutcomeKind.Unknown, CheatEngineFailureKind.IndeterminateHostResult,
+		CheatEngineHostEffect.Unknown)]
 	public void AFailedActivationIsMappedWithoutALease(AutoAssemblerApplyOutcomeKind kind,
 		CheatEngineFailureKind expectedKind, CheatEngineHostEffect expectedEffect)
 	{
@@ -251,7 +252,7 @@ public sealed class AutoAssemblerClientTests : IDisposable
 	}
 
 	[Fact]
-	public void AnOwnerNextToAFailureIsReleasedAndAnAppliedOutcomeWithoutAnOwnerIsInvalid()
+	public void AnOwnerNextToAFailureIsReleasedAndAnAppliedOutcomeWithoutAnOwnerIsIndeterminate()
 	{
 		AutoAssemblerClient client = CreateClient();
 		CancellationToken token = TestContext.Current.CancellationToken;
@@ -268,8 +269,27 @@ public sealed class AutoAssemblerClientTests : IDisposable
 
 		Assert.Equal(CheatEngineFailureKind.OperationRejected, rejected.Kind);
 		Assert.Equal(1, stray.ReleaseCalls);
-		Assert.Equal(CheatEngineFailureKind.InvalidHostResult, ownerless.Kind);
+		Assert.Equal(CheatEngineFailureKind.IndeterminateHostResult, ownerless.Kind);
 		Assert.Equal(CheatEngineHostEffect.CleanupUnconfirmed, ownerless.HostEffect);
+	}
+
+	[Fact]
+	public void AnOwnerNextToAFailureWhoseReleaseIsNotCompleteLeavesTheCleanupUnconfirmed()
+	{
+		AutoAssemblerClient client = CreateClient();
+		FakeOwner stray = new(_invoker)
+		{
+			ReleaseStatus = TargetReleaseStatus.UnconfirmedAfterInvocation
+		};
+		_port.Owner = stray;
+		_port.ApplyFacts = Facts(AutoAssemblerApplyOutcomeKind.Rejected);
+
+		Assert.False(client.TryApplyPatch(new AutoAssemblerScript(Script), out _, out CheatEngineFailure rejected,
+			TestContext.Current.CancellationToken));
+
+		Assert.Equal(CheatEngineFailureKind.OperationRejected, rejected.Kind);
+		Assert.Equal(CheatEngineHostEffect.CleanupUnconfirmed, rejected.HostEffect);
+		Assert.Equal(1, stray.ReleaseCalls);
 	}
 
 	[Fact]
@@ -714,7 +734,8 @@ public sealed class AutoAssemblerClientTests : IDisposable
 		CheatEngineHostEffect.Unknown)]
 	[InlineData(AutoAssemblerCheckOutcomeKind.InvalidResult, CheatEngineFailureKind.InvalidHostResult,
 		CheatEngineHostEffect.Unknown)]
-	[InlineData(AutoAssemblerCheckOutcomeKind.Unknown, CheatEngineFailureKind.Unknown, CheatEngineHostEffect.Unknown)]
+	[InlineData(AutoAssemblerCheckOutcomeKind.Unknown, CheatEngineFailureKind.IndeterminateHostResult,
+		CheatEngineHostEffect.Unknown)]
 	public void ACheckWithoutAVerdictIsAFailure(AutoAssemblerCheckOutcomeKind kind,
 		CheatEngineFailureKind expectedKind, CheatEngineHostEffect expectedEffect)
 	{

@@ -236,14 +236,21 @@ internal sealed class AutoAssemblerClient : IAutoAssemblerClient
 
 		if (AutoAssemblerMapping.ToApplyFailure(ApplyOperation, facts) is { } failure)
 		{
-			// The SDK publishes an owner only for an applied script; an owner next to a failure is released at once.
-			_ = patch?.Release();
+			// The SDK publishes an owner only for an applied script; an owner next to a failure is released at once,
+			// and a release that is not complete leaves the failure's cleanup unconfirmed, as on every failure path.
+			if (patch is not null && !AutoAssemblerMapping.ToReleaseOutcome(patch.Release()).IsComplete)
+			{
+				failure = CoreFailureFactory.WithHostEffect(failure, CheatEngineHostEffect.CleanupUnconfirmed);
+			}
+
 			return new ApplyAttempt(null, failure);
 		}
 
 		if (patch is null)
 		{
-			return new ApplyAttempt(null, new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult,
+			// A success that no owner holds is a result CheatEngine.SDK cannot attribute, as for an allocation or a
+			// scan session created without its owner.
+			return new ApplyAttempt(null, new CheatEngineFailure(CheatEngineFailureKind.IndeterminateHostResult,
 				ApplyOperation,
 				"CheatEngine.SDK reported an applied Auto Assembler script without publishing its owner; the patch may " +
 				"remain in the target.", null, CheatEngineHostEffect.CleanupUnconfirmed));

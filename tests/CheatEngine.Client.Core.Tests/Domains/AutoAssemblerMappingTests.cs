@@ -23,7 +23,8 @@ public sealed class AutoAssemblerMappingTests
 	private static readonly Dictionary<AutoAssemblerApplyOutcomeKind, (CheatEngineFailureKind, CheatEngineHostEffect)?>
 		ApplyResults = new()
 		{
-			[AutoAssemblerApplyOutcomeKind.Unknown] = (CheatEngineFailureKind.Unknown, CheatEngineHostEffect.Unknown),
+			[AutoAssemblerApplyOutcomeKind.Unknown] =
+			(CheatEngineFailureKind.IndeterminateHostResult, CheatEngineHostEffect.Unknown),
 			[AutoAssemblerApplyOutcomeKind.Applied] = null,
 			[AutoAssemblerApplyOutcomeKind.AppliedTargetChanged] = null,
 			[AutoAssemblerApplyOutcomeKind.Rejected] =
@@ -44,7 +45,7 @@ public sealed class AutoAssemblerMappingTests
 	private static readonly Dictionary<AutoAssemblerCheckOutcomeKind, (bool? Accepted, CheatEngineFailureKind Kind)>
 		CheckResults = new()
 		{
-			[AutoAssemblerCheckOutcomeKind.Unknown] = (null, CheatEngineFailureKind.Unknown),
+			[AutoAssemblerCheckOutcomeKind.Unknown] = (null, CheatEngineFailureKind.IndeterminateHostResult),
 			[AutoAssemblerCheckOutcomeKind.Accepted] = (true, CheatEngineFailureKind.Unknown),
 			[AutoAssemblerCheckOutcomeKind.Rejected] = (false, CheatEngineFailureKind.Unknown),
 			[AutoAssemblerCheckOutcomeKind.GlobalUnavailable] = (null, CheatEngineFailureKind.CapabilityUnavailable),
@@ -106,7 +107,7 @@ public sealed class AutoAssemblerMappingTests
 			static kind => ApplyResults.TryGetValue(kind, out (CheatEngineFailureKind, CheatEngineHostEffect)? expected) &&
 						   Describe(AutoAssemblerMapping.ToApplyFailure(Operation, Facts(kind))) == expected,
 			static kind => Describe(AutoAssemblerMapping.ToApplyFailure(Operation, Facts(kind))) ==
-						   (CheatEngineFailureKind.Unknown, CheatEngineHostEffect.Unknown));
+						   (CheatEngineFailureKind.IndeterminateHostResult, CheatEngineHostEffect.Unknown));
 	}
 
 	[Fact]
@@ -116,7 +117,7 @@ public sealed class AutoAssemblerMappingTests
 		MappingTotality.AssertTotal<AutoAssemblerCheckOutcomeKind>(
 			static kind => CheckResults.TryGetValue(kind, out (bool? Accepted, CheatEngineFailureKind Kind) expected) &&
 						   Check(kind) == expected,
-			static kind => Check(kind) == (default(bool?), CheatEngineFailureKind.Unknown));
+			static kind => Check(kind) == (default(bool?), CheatEngineFailureKind.IndeterminateHostResult));
 	}
 
 	[Fact]

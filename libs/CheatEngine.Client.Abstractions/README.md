@@ -784,7 +784,8 @@ This charter is normative for every public type of the seven Client packages; th
 - `CheatEngineFailure.Kind` says why and `HostEffect` how far the Cheat Engine primitive got. `InvalidState` is
   reserved for Client-side state: the activation, a session or resource, or a target fact the operation requires. A
   host rollback or release that was not confirmed is `IndeterminateHostResult` (or the kind of the failure that caused
-  it) with `CleanupUnconfirmed`.
+  it) with `CleanupUnconfirmed`. A CheatEngine.SDK outcome or status the Client does not recognize fails closed as
+  `IndeterminateHostResult`, never as a success; `Unknown` is left for an exception that cannot be classified.
 - The exception type depends only on the kind: `Cancelled` → `CheatEngineOperationCanceledException`;
   `ActivationExpired` → `CheatEngineActivationExpiredException`; `InvalidState` →
   `CheatEngineInvalidStateException`; any other kind → `CheatEngineOperationException`. No Client exception has a

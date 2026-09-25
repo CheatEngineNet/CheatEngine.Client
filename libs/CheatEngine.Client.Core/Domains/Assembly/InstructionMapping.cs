@@ -45,7 +45,7 @@ internal enum InstructionCallPhase
 ///         <item><term><c>UnsupportedTargetBackend</c></term><description><c>Unsupported</c></description></item>
 ///         <item>
 ///             <term><c>Unknown</c> and any value this Client version does not know</term>
-///             <description><c>Unknown</c>, never a success</description>
+///             <description><c>IndeterminateHostResult</c>, never a success</description>
 ///         </item>
 ///     </list>
 ///     <para>
@@ -82,7 +82,9 @@ internal static class InstructionMapping
 
 	/// <summary>Returns the Client failure kind of a status other than <c>Success</c>.</summary>
 	/// <param name="status">The SDK status.</param>
-	/// <returns>The failure kind; <see cref="CheatEngineFailureKind.Unknown" /> for an unrecognized value.</returns>
+	/// <returns>
+	///     The failure kind; <see cref="CheatEngineFailureKind.IndeterminateHostResult" /> for an unrecognized value.
+	/// </returns>
 	internal static CheatEngineFailureKind ToFailureKind(InstructionOperationStatus status)
 	{
 		return status switch
@@ -98,7 +100,7 @@ internal static class InstructionMapping
 			InstructionOperationStatus.LuaFailure => CheatEngineFailureKind.LuaError,
 			InstructionOperationStatus.InvalidResult => CheatEngineFailureKind.InvalidHostResult,
 			InstructionOperationStatus.UnsupportedTargetBackend => CheatEngineFailureKind.Unsupported,
-			_ => CheatEngineFailureKind.Unknown
+			_ => CheatEngineFailureKind.IndeterminateHostResult
 		};
 	}
 
