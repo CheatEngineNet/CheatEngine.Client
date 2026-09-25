@@ -4,6 +4,9 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Xml.Linq;
 
+using CheatEngine.Client.Dispatching;
+using CheatEngine.Client.Memory;
+using CheatEngine.Client.Processes;
 using CheatEngine.Client.Results;
 
 namespace CheatEngine.Client.Tests.Architecture;
@@ -44,11 +47,22 @@ namespace CheatEngine.Client.Tests.Architecture;
 ///         method and constructor does so for each reference-type parameter that is not nullable. Members that the
 ///         application implements or overrides are called by the Client and document no argument exception.
 ///     </para>
+///     <para>
+///         <b>Coverage.</b> Each rule asserts a floor on what it applied to (the members for the structure rules, the
+///         classified operation forms, the validated parameters), and known members pin the classification, so a rule
+///         that stops recognizing what it checks fails instead of passing on nothing.
+///     </para>
 /// </remarks>
 public sealed class PublicApiDocumentationTests
 {
 	private const string TryPrefix = "Try";
 	private const string DetailedSuffix = "Detailed";
+
+	/// <summary>A floor below the 158 operation forms (78 Try, 76 throwing, 4 Detailed) of the 1.0 surface.</summary>
+	private const int OperationFormFloor = 150;
+
+	/// <summary>A floor below the 149 parameters the argument rule validates on the 1.0 surface.</summary>
+	private const int ValidatedParameterFloor = 130;
 
 	private const string ActivationExpired = "T:CheatEngine.Client.Results.CheatEngineActivationExpiredException";
 	private const string InvalidState = "T:CheatEngine.Client.Results.CheatEngineInvalidStateException";
@@ -106,29 +120,79 @@ public sealed class PublicApiDocumentationTests
 	[Fact]
 	public void EveryPublicTypeAndMemberHasItsOwnSummary()
 	{
-		AssertNoOffenders(Check(static member => CheckSummary(member)), 800,
+		AssertNoOffenders(Check(static member => CheckSummary(member), static _ => 1), 800,
+			"public types and members",
 			"A public type or member has no summary of its own; document it instead of inheriting its documentation:");
 	}
 
 	[Fact]
 	public void EveryParameterTypeParameterAndReturnValueIsDocumented()
 	{
-		AssertNoOffenders(Check(static member => CheckSignature(member)), 800,
+		AssertNoOffenders(Check(static member => CheckSignature(member), static _ => 1), 800,
+			"public types and members",
 			"A public member leaves a parameter, a type parameter or its return value undocumented:");
 	}
 
 	[Fact]
 	public void EveryOperationFormDocumentsTheClientExceptionsItCanRaise()
 	{
-		AssertNoOffenders(Check(static member => CheckOperationForm(member)), 100,
+		AssertNoOffenders(
+			Check(static member => CheckOperationForm(member),
+				static member => FormOf(member) == OperationForm.None ? 0 : 1), OperationFormFloor,
+			"operation forms",
 			"An operation form does not document the Client exceptions of the failure contract:");
 	}
 
 	[Fact]
 	public void EveryValidatedArgumentDocumentsItsArgumentException()
 	{
-		AssertNoOffenders(Check(static member => CheckArguments(member)), 300,
+		AssertNoOffenders(
+			Check(static member => CheckArguments(member), static member => ValidatedParameters(member).Count()),
+			ValidatedParameterFloor, "validated parameters",
 			"A public member does not document the argument exception of a parameter it validates:");
+	}
+
+	[Fact]
+	public void EachOperationFormIsRecognizedOnTheSurface()
+	{
+		Dictionary<OperationForm, int> counts = DocumentedMembers()
+			.GroupBy(static member => FormOf(member))
+			.ToDictionary(static group => group.Key, static group => group.Count());
+		int tryForms = counts.GetValueOrDefault(OperationForm.Try);
+		int throwingForms = counts.GetValueOrDefault(OperationForm.Throwing);
+		int detailedForms = counts.GetValueOrDefault(OperationForm.Detailed);
+
+		Assert.True(tryForms > 70, $"Only {tryForms} Try forms were recognized.");
+		Assert.True(throwingForms > 70, $"Only {throwingForms} throwing forms were recognized.");
+		Assert.True(detailedForms >= 4, $"Only {detailedForms} Detailed forms were recognized.");
+	}
+
+	[Fact]
+	public void KnownMembersAreClassifiedAsTheCharterNamesThem()
+	{
+		AssertForm(OperationForm.Try, typeof(IMemoryClient), nameof(IMemoryClient.TryReadBytes));
+		AssertForm(OperationForm.Throwing, typeof(IMemoryClient), nameof(IMemoryClient.ReadBytes));
+		AssertForm(OperationForm.Detailed, typeof(IMemoryClient), nameof(IMemoryClient.ReadBytesDetailed));
+		AssertForm(OperationForm.Try, typeof(IProcessClient), nameof(IProcessClient.TryGetLocalProcesses));
+		AssertForm(OperationForm.Throwing, typeof(IProcessClient), nameof(IProcessClient.GetLocalProcesses));
+		AssertForm(OperationForm.Throwing, typeof(ICheatEngineDispatcher), nameof(ICheatEngineDispatcher.Invoke));
+		AssertForm(OperationForm.Throwing, typeof(MemoryAddressBuilder), nameof(MemoryAddressBuilder.ReadString));
+		AssertForm(OperationForm.None, typeof(IMemoryCodec<>), nameof(IMemoryCodec<>.TryRead));
+
+		AssertReason("a validated input value", typeof(IMemoryClient), nameof(IMemoryClient.ReadBytes), "request");
+		AssertReason("an enum", typeof(MemoryAddressBuilder), nameof(MemoryAddressBuilder.ReadString), "encoding");
+		AssertReason("a non-nullable reference", typeof(ICheatEngineDispatcher), nameof(ICheatEngineDispatcher.Invoke),
+			"callback");
+		Assert.Empty(DocumentedMembers().Where(static member =>
+			member.Member.DeclaringType == typeof(IMemoryCodec<>)).SelectMany(ValidatedParameters));
+	}
+
+	[Fact]
+	public void EveryActivationFreeOperationNamesAnOperationForm()
+	{
+		Assert.All(ActivationFreeOperations, operation => Assert.Contains(DocumentedMembers(), member =>
+			member.Member is MethodInfo method && FormOf(member) != OperationForm.None &&
+			$"{method.DeclaringType!.FullName}.{method.Name}" == operation));
 	}
 
 	[Fact]
@@ -151,28 +215,63 @@ public sealed class PublicApiDocumentationTests
 			.Concat(CheckArguments(member));
 	}
 
-	private static (int Inspected, List<string> Offenders) Check(
-		Func<DocumentedMember, IEnumerable<string>> rule)
+	/// <summary>Applies a rule to every documented member and counts what the rule applied to.</summary>
+	/// <param name="rule">The offences of one member.</param>
+	/// <param name="applicability">How many things of one member the rule checks (forms, parameters).</param>
+	private static (int Applicable, List<string> Offenders) Check(
+		Func<DocumentedMember, IEnumerable<string>> rule, Func<DocumentedMember, int> applicability)
 	{
-		int inspected = 0;
+		int applicable = 0;
 		List<string> offenders = [];
 		foreach (DocumentedMember member in DocumentedMembers())
 		{
-			inspected++;
+			applicable += applicability(member);
 			if (!Exemptions.ContainsKey(member.Id))
 			{
 				offenders.AddRange(rule(member).Select(offence => $"{member.Id}: {offence}"));
 			}
 		}
 
-		return (inspected, offenders);
+		return (applicable, offenders);
 	}
 
-	private static void AssertNoOffenders((int Inspected, List<string> Offenders) result, int minimum, string title)
+	private static void AssertNoOffenders((int Applicable, List<string> Offenders) result, int minimum,
+		string applicableTo, string title)
 	{
-		Assert.True(result.Inspected > minimum, $"Only {result.Inspected} public members were inspected.");
+		Assert.True(result.Applicable > minimum,
+			$"The rule applied to only {result.Applicable} {applicableTo}; it no longer recognizes what it checks.");
 		Assert.True(result.Offenders.Count == 0,
 			title + Environment.NewLine + string.Join(Environment.NewLine, result.Offenders));
+	}
+
+	private static void AssertForm(OperationForm expected, Type type, string name)
+	{
+		OperationForm[] forms = [.. MethodsNamed(type, name).Select(FormOf)];
+		Assert.NotEmpty(forms);
+		Assert.All(forms, form => Assert.Equal(expected, form));
+	}
+
+	private static void AssertReason(string expected, Type type, string name, string parameter)
+	{
+		string[] reasons =
+		[
+			.. MethodsNamed(type, name).SelectMany(ValidatedParameters)
+				.Where(validated => validated.Parameter.Name == parameter)
+				.Select(static validated => validated.Reason)
+		];
+		Assert.NotEmpty(reasons);
+		Assert.All(reasons, reason => Assert.Equal(expected, reason));
+	}
+
+	private static IEnumerable<DocumentedMember> MethodsNamed(Type type, string name)
+	{
+		return DocumentedMembers().Where(member =>
+			member.Member is MethodInfo method && method.DeclaringType == type && method.Name == name);
+	}
+
+	private static OperationForm FormOf(DocumentedMember member)
+	{
+		return member.Member is MethodInfo method ? Classify(method) : OperationForm.None;
 	}
 
 	private static IEnumerable<string> CheckSummary(DocumentedMember member)
@@ -294,8 +393,21 @@ public sealed class PublicApiDocumentationTests
 
 	private static IEnumerable<string> CheckArguments(DocumentedMember member)
 	{
-		if (member.Member is not MethodBase method || member.Documentation is not { } documentation ||
-			IsImplementedByTheApplication(method))
+		if (member.Documentation is not { } documentation)
+		{
+			return [];
+		}
+
+		return ValidatedParameters(member)
+			.Where(validated => !DocumentsArgument(documentation, validated.Parameter.Name!))
+			.Select(static validated =>
+				$"'{validated.Parameter.Name}' is {validated.Reason} without an argument exception that names it");
+	}
+
+	/// <summary>The parameters the argument rule applies to, each with the reason it is validated.</summary>
+	private static IEnumerable<(ParameterInfo Parameter, string Reason)> ValidatedParameters(DocumentedMember member)
+	{
+		if (member.Member is not MethodBase method || IsImplementedByTheApplication(method))
 		{
 			yield break;
 		}
@@ -325,9 +437,9 @@ public sealed class PublicApiDocumentationTests
 				reason = "a validated input value";
 			}
 
-			if (reason is not null && !DocumentsArgument(documentation, parameter.Name!))
+			if (reason is not null)
 			{
-				yield return $"'{parameter.Name}' is {reason} without an argument exception that names it";
+				yield return (parameter, reason);
 			}
 		}
 	}
