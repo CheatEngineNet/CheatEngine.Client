@@ -69,10 +69,13 @@ plugin project against the packed Client: the documented `CheatEngine.Client`, `
 `Microsoft.Extensions.Configuration.Json` references (the last at the version the packed template stamps), `Nullable`,
 `ImplicitUsings` and warnings as errors, with the Hosting plugin profile checks when a block declares a
 `[CheatEnginePlugin]` type. Each block is written to `README.L<line>.cs`, so a compiler error names the README line of
-its block. `TheUmbrellaReadmeShowsACompiledPlugin` keeps a compiled plugin on the `CheatEngine.Client` page. The code
-block rules themselves (`ReadmeCodeBlocks`: a C# block is labelled `csharp`, a `csharp nocompile` block carries
-`<!-- nocompile: reason -->` on the line above it) are proven on fixed Markdown by `ReadmeCodeBlocksTests`, which has
-no category.
+its block. `TheUmbrellaReadmeShowsACompiledPlugin` keeps a compiled plugin on the `CheatEngine.Client` page.
+`EveryDocumentedPackageReferenceNamesTheCompiledVersion` proves that every `PackageReference` a README writes names the
+version its blocks compile against (`X.Y.Z` for `CheatEngine.Client`, the SDK pin, the template's
+`Microsoft.Extensions.Configuration.Json` version), and `TheUmbrellaReadmeDocumentsEveryPluginProjectReference` that
+the `CheatEngine.Client` page writes all three references. The code block rules themselves (`ReadmeCodeBlocks`: a C#
+block is labelled `csharp`, a `csharp nocompile` block carries `<!-- nocompile: reason -->` on the line above it) are
+proven on fixed Markdown by `ReadmeCodeBlocksTests`, which has no category.
 
 `ConsumerDiagnosticsTests` (`Category=PackageConsumption`, same fixture and serial collection) restores and builds, for
 each case, a plugin project that consumes the packed packages and breaks one rule of the Hosting plugin profile, and

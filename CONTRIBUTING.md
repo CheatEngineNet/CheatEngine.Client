@@ -224,6 +224,11 @@ Client, with warnings as errors, so run the package consumption tests when you c
 on purpose is labelled `csharp nocompile`, and the line right above its opening fence says why:
 `<!-- nocompile: the reason -->`. A C# block labelled `cs` or `c#` fails the test instead of escaping it.
 
+A `PackageReference` that a README writes names the version the snippets compile against: `X.Y.Z` for
+`CheatEngine.Client`, the pinned version for `CheatEngine.SDK`, and the version of the template project for
+`Microsoft.Extensions.Configuration.Json`. When a dependency update moves the template's version, update the READMEs
+that write it (`EveryDocumentedPackageReferenceNamesTheCompiledVersion` names each stale line).
+
 ### Changing a package
 
 Whatever its assembly, a public type lives in the root namespace `CheatEngine.Client` or in a functional namespace
