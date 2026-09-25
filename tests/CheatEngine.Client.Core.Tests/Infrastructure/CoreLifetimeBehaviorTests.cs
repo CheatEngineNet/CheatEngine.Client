@@ -38,7 +38,7 @@ public sealed class CoreLifetimeBehaviorTests
 		using (lifetime.EnterCleanupScope())
 		{
 			Assert.True(lifetime.CanDispatch);
-			lifetime.ThrowIfDispatchAllowed("Test.Cleanup");
+			lifetime.ThrowIfDispatchRefused("Test.Cleanup");
 		}
 
 		Assert.False(lifetime.CanDispatch);
@@ -72,7 +72,7 @@ public sealed class CoreLifetimeBehaviorTests
 		CheatEngineActivationExpiredException inactive = Assert.Throws<CheatEngineActivationExpiredException>(() =>
 			lifetime.ThrowIfInactive("Test.Inactive"));
 		CheatEngineActivationExpiredException dispatch = Assert.Throws<CheatEngineActivationExpiredException>(() =>
-			lifetime.ThrowIfDispatchAllowed("Test.Dispatch"));
+			lifetime.ThrowIfDispatchRefused("Test.Dispatch"));
 
 		Assert.Equal("Test.Inactive", inactive.Failure.Operation);
 		Assert.Equal("Test.Dispatch", dispatch.Failure.Operation);

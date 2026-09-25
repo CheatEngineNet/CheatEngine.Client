@@ -37,7 +37,7 @@ internal sealed class SdkMainThreadDispatcher : ICheatEngineDispatcher, IStatefu
 		CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(callback);
-		_lifetime.ThrowIfDispatchAllowed(InvokeOperation);
+		_lifetime.ThrowIfDispatchRefused(InvokeOperation);
 		if (cancellationToken.IsCancellationRequested)
 		{
 			failure = CoreFailureFactory.Cancelled(InvokeOperation);
@@ -78,7 +78,7 @@ internal sealed class SdkMainThreadDispatcher : ICheatEngineDispatcher, IStatefu
 		CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(callback);
-		_lifetime.ThrowIfDispatchAllowed(InvokeOperation);
+		_lifetime.ThrowIfDispatchRefused(InvokeOperation);
 		if (cancellationToken.IsCancellationRequested)
 		{
 			result = default;
@@ -142,7 +142,7 @@ internal sealed class SdkMainThreadDispatcher : ICheatEngineDispatcher, IStatefu
 		CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(callback);
-		_lifetime.ThrowIfDispatchAllowed(InvokeOperation);
+		_lifetime.ThrowIfDispatchRefused(InvokeOperation);
 		if (cancellationToken.IsCancellationRequested)
 		{
 			result = default;
@@ -189,7 +189,7 @@ internal sealed class SdkMainThreadDispatcher : ICheatEngineDispatcher, IStatefu
 		CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(callback);
-		_lifetime.ThrowIfDispatchAllowed(InvokeOperation);
+		_lifetime.ThrowIfDispatchRefused(InvokeOperation);
 		if (cancellationToken.IsCancellationRequested)
 		{
 			failure = CoreFailureFactory.Cancelled(InvokeOperation);

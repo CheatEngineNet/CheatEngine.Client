@@ -84,7 +84,7 @@ internal sealed class CoreLifetime : IDisposable
 	/// </summary>
 	internal IDisposable EnterCleanupScope()
 	{
-		ThrowIfActivationCurrent("Client.EnterCleanupScope");
+		ThrowIfActivationExpired("Client.EnterCleanupScope");
 		if (!_context.IsMainThread)
 		{
 			throw ClientExceptions.InvalidState("Client.EnterCleanupScope",
@@ -197,13 +197,13 @@ internal sealed class CoreLifetime : IDisposable
 	///     creates anything that no lease could own. A Lua module registration calls it before it dispatches and after
 	///     the registration, and the activation tracks its lease before the dispatch, so the cleanup scope drains a module
 	///     that registered while the activation began stopping. Operations on an existing resource use
-	///     <see cref="ThrowIfDispatchAllowed" />, so the cleanup scope can still release it.
+	///     <see cref="ThrowIfDispatchRefused" />, so the cleanup scope can still release it.
 	/// </remarks>
 	/// <param name="operation">The public operation name.</param>
 	internal void ThrowIfInactive(string operation)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(operation);
-		ThrowIfActivationCurrent(operation);
+		ThrowIfActivationExpired(operation);
 
 		if (Stopping.IsCancellationRequested)
 		{
@@ -212,11 +212,14 @@ internal sealed class CoreLifetime : IDisposable
 		}
 	}
 
-	/// <summary>Rejects ordinary dispatch once admission closes, except for the current main-thread cleanup scope.</summary>
-	internal void ThrowIfDispatchAllowed(string operation)
+	/// <summary>
+	///     Throws when dispatch is refused: the activation ended, or it is stopping and the caller is not the current
+	///     main-thread cleanup scope.
+	/// </summary>
+	internal void ThrowIfDispatchRefused(string operation)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(operation);
-		ThrowIfActivationCurrent(operation);
+		ThrowIfActivationExpired(operation);
 
 		if (!Stopping.IsCancellationRequested || IsInCleanupScopeOnMainThread)
 		{
@@ -227,7 +230,8 @@ internal sealed class CoreLifetime : IDisposable
 			"The Cheat Engine plugin lifecycle is stopping and no new client work is admitted.");
 	}
 
-	private void ThrowIfActivationCurrent(string operation)
+	/// <summary>Throws the activation-expired exception once the captured activation is no longer current.</summary>
+	private void ThrowIfActivationExpired(string operation)
 	{
 		if (!IsActivationCurrent)
 		{
