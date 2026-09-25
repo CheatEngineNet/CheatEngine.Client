@@ -15,7 +15,10 @@ namespace CheatEngine.Client.Memory;
 ///     <para>
 ///         The Client invalidates this context immediately when the codec invocation returns or throws. Codecs must not
 ///         retain the context; a later member access throws
-///         <see cref="CheatEngine.Client.Results.CheatEngineActivationExpiredException" />.
+///         <see cref="CheatEngine.Client.Results.CheatEngineActivationExpiredException" />. From a deactivation
+///         callback, where the memory client still admits the codec write itself (see
+///         <see cref="ICheatEngineClient" />), every member throws <see cref="CheatEngineInvalidStateException" />,
+///         since the activation is stopping.
 ///     </para>
 ///     <para>
 ///         The width facts are observed once per codec invocation and expire with the context. Cheat Engine's
@@ -38,6 +41,13 @@ public interface IMemoryWriteContext
 	///     <see cref="CheatEngine.Client.Results.CheatEngineFailureKind.TargetNotAttached" /> when no target is selected,
 	///     otherwise the kind of the status Cheat Engine reported.
 	/// </remarks>
+	/// <exception cref="CheatEngineActivationExpiredException">
+	///     The context is used after its codec invocation returned or threw, or on another thread, or the activation
+	///     ended, or it is stopping and the codec does not run from a deactivation callback.
+	/// </exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping and the codec runs from a deactivation callback.
+	/// </exception>
 	/// <exception cref="CheatEngine.Client.Results.CheatEngineClientException">
 	///     Cheat Engine could not be asked for the target facts; the exception type follows the kind of the failure. The
 	///     Client reports this exception as the codec operation's failure when the codec lets it propagate.
@@ -51,6 +61,13 @@ public interface IMemoryWriteContext
 	///     Gets Cheat Engine's configured pointer size as a width when it is 4 or 8 bytes, otherwise
 	///     <see cref="PointerSize.Unknown" />. It is per-attachment Cheat Engine state, independent of the bitness.
 	/// </summary>
+	/// <exception cref="CheatEngineActivationExpiredException">
+	///     The context is used after its codec invocation returned or threw, or on another thread, or the activation
+	///     ended, or it is stopping and the codec does not run from a deactivation callback.
+	/// </exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping and the codec runs from a deactivation callback.
+	/// </exception>
 	/// <exception cref="CheatEngine.Client.Results.CheatEngineClientException">
 	///     Cheat Engine could not be asked for the target facts.
 	/// </exception>
@@ -63,6 +80,13 @@ public interface IMemoryWriteContext
 	///     Gets the raw value of Cheat Engine's configured pointer size, or <see langword="null" /> when it was not
 	///     observed. It can hold a value other than 4 or 8.
 	/// </summary>
+	/// <exception cref="CheatEngineActivationExpiredException">
+	///     The context is used after its codec invocation returned or threw, or on another thread, or the activation
+	///     ended, or it is stopping and the codec does not run from a deactivation callback.
+	/// </exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping and the codec runs from a deactivation callback.
+	/// </exception>
 	/// <exception cref="CheatEngine.Client.Results.CheatEngineClientException">
 	///     Cheat Engine could not be asked for the target facts.
 	/// </exception>
@@ -75,6 +99,13 @@ public interface IMemoryWriteContext
 	///     Gets whether the observed configured pointer size differs from a known bitness; <see langword="null" /> when
 	///     either value is unknown, which is no evidence of a mismatch.
 	/// </summary>
+	/// <exception cref="CheatEngineActivationExpiredException">
+	///     The context is used after its codec invocation returned or threw, or on another thread, or the activation
+	///     ended, or it is stopping and the codec does not run from a deactivation callback.
+	/// </exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping and the codec runs from a deactivation callback.
+	/// </exception>
 	/// <exception cref="CheatEngine.Client.Results.CheatEngineClientException">
 	///     Cheat Engine could not be asked for the target facts.
 	/// </exception>
@@ -92,9 +123,11 @@ public interface IMemoryWriteContext
 	/// </param>
 	/// <returns><see langword="true" /> when every byte was written.</returns>
 	/// <exception cref="CheatEngineActivationExpiredException">
-	///     The context is used after its codec invocation returned or threw, on another thread, or after the activation
-	///     ended.
+	///     The context is used after its codec invocation returned or threw, or on another thread, or the activation
+	///     ended, or it is stopping and the codec does not run from a deactivation callback.
 	/// </exception>
-	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping and the codec runs from a deactivation callback.
+	/// </exception>
 	public bool TryWriteBytes(Address address, ReadOnlySpan<byte> source, out CheatEngineFailure failure);
 }
