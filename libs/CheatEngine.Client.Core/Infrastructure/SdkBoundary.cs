@@ -10,16 +10,22 @@ namespace CheatEngine.Client.Core.Infrastructure;
 ///         Audit F15 / A11-31: no SDK exception type (<c>LuaException</c>, <c>EngineLuaException</c>,
 ///         <c>EngineGlobalUnavailableException</c>, <c>EngineMarshallingException</c>, a detached-runtime
 ///         <see cref="InvalidOperationException" />, ...) may cross a Client <c>Try*</c> method. Core wraps every
-///         Client-internal SDK call (ports, generated <c>ClientLuaGlobals</c> bindings, <c>TargetMemory</c>,
-///         <c>EngineInspection</c>, <c>AobScanner</c>, Address List access, protected Lua execution) and maps a fault
+///         Client-internal SDK call, whether a domain client makes it or its <c>Sdk*Port</c> adapter does:
+///         <c>TargetMemory</c>, <c>EngineInspection</c>, <c>SymbolRegistry</c>, <c>AobScanner</c>,
+///         <c>MemoryScanSessions</c>, <c>TargetMemoryAllocator</c>, <c>AutoAssemblerPatcher</c>, the instruction
+///         assembler, disassembler and navigator, the runtime, host and process observations, process selection,
+///         Address List access and mutations, <c>CheatTableFiles</c>, and protected Lua execution. It maps a fault
 ///         through <see cref="CoreFailureFactory" />, by exception type and SDK failure category, never by message text.
 ///     </para>
 ///     <para>
 ///         Two kinds of exception are never translated. Client lifecycle exceptions
 ///         (<see cref="CheatEngineClientException" /> and its subclasses, notably
 ///         <see cref="CheatEngineActivationExpiredException" />) keep their meaning and propagate. Exceptions from
-///         consumer-supplied code (codecs, <c>ILuaOperation</c>, Lua modules, dispatcher callbacks) are not wrapped at
-///         all: the dispatcher rethrows them unchanged by contract.
+///         consumer-supplied code (codecs, <c>ILuaOperation</c>, dispatcher callbacks) are not wrapped at all: the
+///         dispatcher rethrows them unchanged by contract. A Lua module's <c>ILuaModule.Register</c> is the exception
+///         to that rule: a generated module surfaces the CheatEngine.SDK faults of its registration from it (F15), so
+///         <c>LuaClient</c> reports the failure a <see cref="CheatEngineOperationException" /> carries and classifies
+///         any other exception with <see cref="Classify(string, Exception, CheatEngineHostEffect)" />.
 ///     </para>
 ///     <para>
 ///         When the activation is no longer current, an SDK fault is reported as
