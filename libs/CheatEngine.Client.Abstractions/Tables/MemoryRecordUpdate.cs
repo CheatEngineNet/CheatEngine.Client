@@ -4,11 +4,22 @@ using CheatEngine.SDK.Engine.Enums;
 namespace CheatEngine.Client.Tables;
 
 /// <summary>A partial change set for an existing Cheat Engine memory record.</summary>
+/// <remarks>
+///     The record it changes is the <see cref="MemoryRecordId" /> passed to <see cref="ITableClient.TryUpdate" />, first
+///     like every record-targeting operation. The <see langword="default" /> value changes nothing, and
+///     <see cref="ITableClient.TryUpdate" /> refuses it before any Cheat Engine call.
+/// </remarks>
 public readonly record struct MemoryRecordUpdate
 {
 	/// <summary>Creates a memory-record update containing at least one changed field.</summary>
+	/// <param name="description">The replacement description, or <see langword="null" /> to keep it.</param>
+	/// <param name="addressExpression">The non-empty replacement address expression, or <see langword="null" />.</param>
+	/// <param name="value">The replacement value text, or <see langword="null" /> to keep it.</param>
+	/// <param name="variableType">The replacement value type, or <see langword="null" /> to keep it.</param>
+	/// <exception cref="ArgumentException">
+	///     Every field is <see langword="null" />, or <paramref name="addressExpression" /> is empty.
+	/// </exception>
 	public MemoryRecordUpdate(
-		MemoryRecordId id,
 		string? description = null,
 		string? addressExpression = null,
 		string? value = null,
@@ -24,17 +35,10 @@ public readonly record struct MemoryRecordUpdate
 			throw new ArgumentException("An address expression must be null or non-empty.", nameof(addressExpression));
 		}
 
-		Id = id;
 		Description = description;
 		AddressExpression = addressExpression;
 		Value = value;
 		VariableType = variableType;
-	}
-
-	/// <summary>Gets the identifier of the record to change.</summary>
-	public MemoryRecordId Id
-	{
-		get;
 	}
 
 	/// <summary>Gets the optional replacement description.</summary>

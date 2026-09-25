@@ -380,7 +380,7 @@ public sealed class TableClientGenerationTests : IDisposable
 		{
 			"GetRecord" => (fixture.Client.TryGetRecord(HandedOut, out _, out CheatEngineFailure f, token), f),
 			"Select" => (fixture.Client.TrySelectRecord(HandedOut, out _, out CheatEngineFailure f, token), f),
-			"Update" => (fixture.Client.TryUpdate(new MemoryRecordUpdate(HandedOut, "renamed"), out _,
+			"Update" => (fixture.Client.TryUpdate(HandedOut, new MemoryRecordUpdate("renamed"), out _,
 				out CheatEngineFailure f, token), f),
 			"Delete" => (fixture.Client.TryDelete(HandedOut, out CheatEngineFailure f, token), f),
 			"SetActive" => (fixture.Client.TrySetActive(HandedOut, false, out _, out CheatEngineFailure f, token), f),
@@ -409,7 +409,7 @@ public sealed class TableClientGenerationTests : IDisposable
 			"CreateUnderParent" => (fixture.Client.TryCreate(
 				new MemoryRecordDefinition("child", "game.exe+30", "1", VariableType.Dword, HandedOut), out _,
 				out CheatEngineFailure f, token), f),
-			"Update" => (fixture.Client.TryUpdate(new MemoryRecordUpdate(HandedOut, "renamed"), out _,
+			"Update" => (fixture.Client.TryUpdate(HandedOut, new MemoryRecordUpdate("renamed"), out _,
 				out CheatEngineFailure f, token), f),
 			"Select" => (fixture.Client.TrySelectRecord(HandedOut, out _, out CheatEngineFailure f, token), f),
 			_ => throw new ArgumentOutOfRangeException(nameof(operation), operation, null)

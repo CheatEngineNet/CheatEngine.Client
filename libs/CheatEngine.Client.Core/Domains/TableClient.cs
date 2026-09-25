@@ -235,16 +235,16 @@ internal sealed class TableClient(
 		return default;
 	}
 
-	public bool TryGetSelected(out MemoryRecordSnapshot record, out CheatEngineFailure failure,
+	public bool TryGetSelectedRecord(out MemoryRecordSnapshot record, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
-		return TryRecord("Tables.GetSelected", null, _recordLookups.TryGetSelected, out record, out failure,
+		return TryRecord("Tables.GetSelectedRecord", null, _recordLookups.TryGetSelected, out record, out failure,
 			cancellationToken);
 	}
 
-	public MemoryRecordSnapshot GetSelected(CancellationToken cancellationToken = default)
+	public MemoryRecordSnapshot GetSelectedRecord(CancellationToken cancellationToken = default)
 	{
-		if (TryGetSelected(out MemoryRecordSnapshot result, out CheatEngineFailure failure, cancellationToken))
+		if (TryGetSelectedRecord(out MemoryRecordSnapshot result, out CheatEngineFailure failure, cancellationToken))
 		{
 			return result;
 		}
@@ -341,10 +341,21 @@ internal sealed class TableClient(
 		return default;
 	}
 
-	public bool TryUpdate(MemoryRecordUpdate update, out MemoryRecordSnapshot record,
+	public bool TryUpdate(MemoryRecordId id, MemoryRecordUpdate update, out MemoryRecordSnapshot record,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
-		if (IsStale("Tables.Update", update.Id, out failure))
+		// The default update is the only one without a change (its constructor refuses an empty change set): it is
+		// refused before dispatch, like the default search of TryFind.
+		if (update.Description is null && update.AddressExpression is null && update.Value is null &&
+			update.VariableType is null)
+		{
+			record = default;
+			failure = new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, "Tables.Update",
+				"A memory-record update must change at least one field.", null, CheatEngineHostEffect.NotStarted);
+			return false;
+		}
+
+		if (IsStale("Tables.Update", id, out failure))
 		{
 			record = default;
 			return false;
@@ -353,10 +364,10 @@ internal sealed class TableClient(
 		MemoryRecordSnapshot captured = default;
 		bool succeeded = false;
 		bool refused = false;
-		if (!TryDispatch("Tables.Update", update.Id, null, () =>
+		if (!TryDispatch("Tables.Update", id, null, () =>
 				{
 					refused = IsTrustedLoadInProgress;
-					succeeded = !refused && TryUpdateRecord(update, out captured);
+					succeeded = !refused && TryUpdateRecord(id, update, out captured);
 				},
 				out long observedGeneration, out failure, cancellationToken))
 		{
@@ -382,9 +393,10 @@ internal sealed class TableClient(
 		return false;
 	}
 
-	public MemoryRecordSnapshot Update(MemoryRecordUpdate update, CancellationToken cancellationToken = default)
+	public MemoryRecordSnapshot Update(MemoryRecordId id, MemoryRecordUpdate update,
+		CancellationToken cancellationToken = default)
 	{
-		if (TryUpdate(update, out MemoryRecordSnapshot result, out CheatEngineFailure failure, cancellationToken))
+		if (TryUpdate(id, update, out MemoryRecordSnapshot result, out CheatEngineFailure failure, cancellationToken))
 		{
 			return result;
 		}
@@ -803,11 +815,11 @@ internal sealed class TableClient(
 		};
 	}
 
-	private static bool TryUpdateRecord(MemoryRecordUpdate update, out MemoryRecordSnapshot record)
+	private static bool TryUpdateRecord(MemoryRecordId id, MemoryRecordUpdate update, out MemoryRecordSnapshot record)
 	{
 		record = default;
 		if (!AddressListAccess.TryGetCurrent(out AddressList list) ||
-			!list.TryGetMemoryRecordById(update.Id, out MemoryRecord value))
+			!list.TryGetMemoryRecordById(id, out MemoryRecord value))
 		{
 			return false;
 		}

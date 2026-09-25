@@ -55,7 +55,7 @@ public sealed class TableClientLookupTests
 	}
 
 	[Fact]
-	public void TryGetSelectedMapsAMalformedRecordToInvalidHostResult()
+	public void TryGetSelectedRecordMapsAMalformedRecordToInvalidHostResult()
 	{
 		FakeRecordLookupPort lookups = new()
 		{
@@ -63,13 +63,13 @@ public sealed class TableClientLookupTests
 		};
 		TableClient client = CreateClient(lookups);
 
-		bool succeeded = client.TryGetSelected(out MemoryRecordSnapshot record, out CheatEngineFailure failure,
+		bool succeeded = client.TryGetSelectedRecord(out MemoryRecordSnapshot record, out CheatEngineFailure failure,
 			TestContext.Current.CancellationToken);
 
 		Assert.False(succeeded);
 		Assert.Equal(default, record);
 		Assert.Equal(CheatEngineFailureKind.InvalidHostResult, failure.Kind);
-		Assert.Equal("Tables.GetSelected", failure.Operation);
+		Assert.Equal("Tables.GetSelectedRecord", failure.Operation);
 		Assert.Equal("Cheat Engine did not return the expected Address List contract.", failure.Message);
 		Assert.Equal(1, lookups.SelectedCalls);
 	}

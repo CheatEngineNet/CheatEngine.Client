@@ -76,11 +76,12 @@ public interface ITableClient
 	public MemoryRecordSnapshot GetRecord(MemoryRecordId id, CancellationToken cancellationToken = default);
 
 	/// <summary>Copies the selected address-list record when Cheat Engine has one.</summary>
-	public bool TryGetSelected(out MemoryRecordSnapshot record, out CheatEngineFailure failure,
+	/// <remarks>The read counterpart of <see cref="TrySelectRecord" />, which changes the selection.</remarks>
+	public bool TryGetSelectedRecord(out MemoryRecordSnapshot record, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
 	/// <summary>Gets the selected record or throws when Cheat Engine has no selection.</summary>
-	public MemoryRecordSnapshot GetSelected(CancellationToken cancellationToken = default);
+	public MemoryRecordSnapshot GetSelectedRecord(CancellationToken cancellationToken = default);
 
 	/// <summary>Selects one record by its identifier and returns its copied snapshot.</summary>
 	/// <remarks>
@@ -104,14 +105,29 @@ public interface ITableClient
 	public MemoryRecordSnapshot Create(MemoryRecordDefinition definition,
 		CancellationToken cancellationToken = default);
 
-	/// <summary>Applies a partial update and returns a copied snapshot of the changed record.</summary>
-	/// <remarks>Refused during a trusted table load, like every mutation (see <see cref="TryDelete" />).</remarks>
-	public bool TryUpdate(MemoryRecordUpdate update, out MemoryRecordSnapshot record,
-		out CheatEngineFailure failure,
-		CancellationToken cancellationToken = default);
+	/// <summary>Applies a partial update to one record and returns a copied snapshot of the changed record.</summary>
+	/// <param name="id">The identifier of the record to change, first like every record-targeting operation.</param>
+	/// <param name="update">The fields to change.</param>
+	/// <param name="record">The copied snapshot of the changed record on success.</param>
+	/// <param name="failure">The classified failure when the method returns <see langword="false" />.</param>
+	/// <param name="cancellationToken">Observed before dispatch.</param>
+	/// <returns><see langword="true" /> when every requested field was applied and the record was copied.</returns>
+	/// <remarks>
+	///     The default <paramref name="update" />, which changes nothing, is refused with
+	///     <see cref="CheatEngineFailureKind.OperationRejected" /> and <see cref="CheatEngineHostEffect.NotStarted" />, like
+	///     the default search of <see cref="TryFind" />. Refused during a trusted table load, like every mutation (see
+	///     <see cref="TryDelete" />).
+	/// </remarks>
+	public bool TryUpdate(MemoryRecordId id, MemoryRecordUpdate update, out MemoryRecordSnapshot record,
+		out CheatEngineFailure failure, CancellationToken cancellationToken = default);
 
-	/// <summary>Updates a record or throws when the host rejects the change.</summary>
-	public MemoryRecordSnapshot Update(MemoryRecordUpdate update, CancellationToken cancellationToken = default);
+	/// <summary>Updates one record or throws when the host rejects the change.</summary>
+	/// <param name="id">The identifier of the record to change.</param>
+	/// <param name="update">The fields to change.</param>
+	/// <param name="cancellationToken">Observed before dispatch.</param>
+	/// <returns>The copied snapshot of the changed record.</returns>
+	public MemoryRecordSnapshot Update(MemoryRecordId id, MemoryRecordUpdate update,
+		CancellationToken cancellationToken = default);
 
 	/// <summary>Deletes one memory record from the current Cheat Engine address list.</summary>
 	/// <remarks>

@@ -45,6 +45,23 @@ public sealed class TableClientCoverageTests
 	}
 
 	[Fact]
+	public void TryUpdateRejectsTheDefaultChangeSetWithoutDispatching()
+	{
+		RejectingDispatcher dispatcher = new(Failure());
+		TableClient client = CreateClient(dispatcher);
+
+		bool succeeded = client.TryUpdate(new MemoryRecordId(42), default, out MemoryRecordSnapshot record,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(default, record);
+		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
+		Assert.Equal("Tables.Update", failure.Operation);
+		Assert.Equal(0, dispatcher.InvocationCount);
+	}
+
+	[Fact]
 	public void NegativeRecordIndexIsRejectedBeforeTheAddressListIsRead()
 	{
 		RejectingDispatcher dispatcher = new(Failure());
@@ -122,7 +139,7 @@ public sealed class TableClientCoverageTests
 			TestContext.Current.CancellationToken));
 		Assert.Equal(default, identifiedRecord);
 		Assert.Equal(expected, identifiedFailure);
-		Assert.False(client.TryGetSelected(out MemoryRecordSnapshot selectedRecord,
+		Assert.False(client.TryGetSelectedRecord(out MemoryRecordSnapshot selectedRecord,
 			out CheatEngineFailure selectedFailure,
 			TestContext.Current.CancellationToken));
 		Assert.Equal(default, selectedRecord);
@@ -139,14 +156,14 @@ public sealed class TableClientCoverageTests
 		TableClient client = new(dispatcher, CoreClientPolicy.SafeDefaults, mutations);
 		MemoryRecordId id = new(42);
 		MemoryRecordDefinition definition = new("Health", "game.exe+10", "100", VariableType.Dword);
-		MemoryRecordUpdate update = new(id, value: "101");
+		MemoryRecordUpdate update = new(value: "101");
 
 		Assert.False(client.TryCreate(definition, out MemoryRecordSnapshot created,
 			out CheatEngineFailure createFailure,
 			TestContext.Current.CancellationToken));
 		Assert.Equal(default, created);
 		Assert.Equal(expected, createFailure);
-		Assert.False(client.TryUpdate(update, out MemoryRecordSnapshot updated, out CheatEngineFailure updateFailure,
+		Assert.False(client.TryUpdate(id, update, out MemoryRecordSnapshot updated, out CheatEngineFailure updateFailure,
 			TestContext.Current.CancellationToken));
 		Assert.Equal(default, updated);
 		Assert.Equal(expected, updateFailure);
