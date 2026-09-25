@@ -172,7 +172,8 @@ selection is observed again after a refusal, so the epoch follows what Cheat Eng
 Cheat Engine's selected target is ambient. For a local process the selection identity is the PID
 and its incarnation, the creation time CheatEngine.SDK observed together with the local backend; a
 known incarnation is checked with `TargetSelection.ValidateCurrent`. `ProcessClient` advances the
-target-selection epoch, and releases target-bound leases, when the PID changes, when the same PID
+target-selection epoch, and ends the target-bound leases of the earlier selection (CheatEngine.SDK
+refuses their release, see "Leases and release outcomes"), when the PID changes, when the same PID
 denotes another incarnation, when a known backend, ISA or process width changes to another known
 value, or when Cheat Engine reports no target or a file opened as a process; a fact that is
 transiently unknown, including an incarnation that cannot be read, keeps the epoch and the last
@@ -331,7 +332,12 @@ more before the plugin is disabled; an outcome that requires manual recovery (a 
 partial or unconfirmed cleanup) keeps it registered as well, and the drain turns every
 incomplete outcome into one `CheatEngineOperationException` of the aggregated deactivation
 failure (Q43), with the host effect `CleanupUnconfirmed`. A target change disposes a
-target-bound lease without throwing to the code that selected the new target.
+target-bound lease without throwing to the code that selected the new target, but that release
+frees nothing: it reaches CheatEngine.SDK after Cheat Engine already targets the new process, so
+CheatEngine.SDK refuses the release of an allocation, a value-scan session or an Auto Assembler
+patch before any Cheat Engine call (`RefusedTargetChanged`, or another refusal) and consumes its
+owner. The memory or the patch stays in the earlier process, the `MemScan` and `FoundList` of a
+session stay in Cheat Engine, and the drain reports the refusal.
 
 `SdkReleaseOutcomes` maps the CheatEngine.SDK 2.0.0 release statuses totally
 (`TargetReleaseStatus`, `SymbolRegistrationReleaseKind`; an

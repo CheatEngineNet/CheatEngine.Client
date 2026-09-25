@@ -18,7 +18,9 @@ namespace CheatEngine.Client.Scanning;
 ///         A session owns one Cheat Engine <c>MemScan</c> and its <c>FoundList</c>, created for the target Cheat Engine
 ///         has selected. Creation is refused with <see cref="CheatEngineFailureKind.TargetIdentityUnavailable" /> when the
 ///         identity of that target cannot be established, before any Cheat Engine object exists. The session belongs to
-///         the activation and to that target: selecting another process releases it, and so does disabling the plugin.
+///         the activation and to that target: disabling the plugin releases it, and selecting another process ends it
+///         with a release that CheatEngine.SDK refuses on the new target, which leaves both objects in Cheat Engine
+///         (see <see cref="IValueScanSession" />). Release a session before selecting another process.
 ///     </para>
 /// </remarks>
 [Experimental(ClientExperimentalDiagnostics.ValueScans, UrlFormat = ClientExperimentalDiagnostics.UrlFormat)]

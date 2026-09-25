@@ -11,9 +11,11 @@ namespace CheatEngine.Client.Core.Domains.Allocations;
 ///     <para>
 ///         The lease is a <see cref="HostResourceLease" /> registered with the activation and with the target selection it
 ///         was made in. Its release runs <c>ReleaseWithTargetOutcome</c> on Cheat Engine's main thread, when the
-///         application releases it, when Cheat Engine selects another process, or before CheatEngine.SDK detaches at
-///         deactivation. The SDK frees the allocation only in the process incarnation and the Lua runtime that made it;
-///         otherwise it refuses without any Cheat Engine call, and the lease never selects a target to free it.
+///         application releases it, when the Client observes that Cheat Engine selected another process, or before
+///         CheatEngine.SDK detaches at deactivation. The SDK frees the allocation only in the process incarnation and
+///         the Lua runtime that made it; otherwise it refuses without any Cheat Engine call, and the lease never
+///         selects a target to free it. The release that follows a target change is therefore refused and frees
+///         nothing.
 ///     </para>
 ///     <para>
 ///         The address, size and protection are copied when the allocation is made, so they stay readable after the

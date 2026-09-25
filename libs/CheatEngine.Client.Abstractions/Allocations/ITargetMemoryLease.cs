@@ -34,9 +34,10 @@ namespace CheatEngine.Client.Allocations;
 ///         release frees nothing.
 ///     </para>
 ///     <para>
-///         The lease belongs to the activation and to its target selection: selecting another process releases it
-///         (which is then refused, as above), and so does disabling the plugin. Do not cache or pool allocations across
-///         selections.
+///         The lease belongs to the activation and to its target selection: disabling the plugin releases it, and
+///         selecting another process ends it with a release that is refused, as above, which leaves the memory in the
+///         previous process. Release an allocation before selecting another process, and do not cache or pool
+///         allocations across selections.
 ///     </para>
 /// </remarks>
 [Experimental(ClientExperimentalDiagnostics.Allocations, UrlFormat = ClientExperimentalDiagnostics.UrlFormat)]

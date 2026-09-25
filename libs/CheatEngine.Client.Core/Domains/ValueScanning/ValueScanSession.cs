@@ -18,7 +18,9 @@ namespace CheatEngine.Client.Core.Domains.ValueScanning;
 ///     <para>
 ///         The session is a <see cref="HostResourceLease" /> registered with the activation and with its target selection:
 ///         the release runs <c>ReleaseWithOutcome</c> (found list, then scanner) on the main thread, when the application
-///         releases it, when Cheat Engine selects another process, or before CheatEngine.SDK detaches at deactivation.
+///         releases it, when the Client observes that Cheat Engine selected another process, or before CheatEngine.SDK
+///         detaches at deactivation. The release that follows a target change is refused by CheatEngine.SDK without any
+///         Cheat Engine call, which consumes both owners and leaves the two objects in Cheat Engine.
 ///     </para>
 /// </remarks>
 internal sealed class ValueScanSession : HostResourceLease, IValueScanSession

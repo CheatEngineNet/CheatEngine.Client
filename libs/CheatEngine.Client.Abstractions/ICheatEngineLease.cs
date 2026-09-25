@@ -23,9 +23,15 @@ namespace CheatEngine.Client;
 ///     </para>
 ///     <para>
 ///         The activation owns every lease it created. A lease that was never released is released when the plugin is
-///         disabled, and a target-bound lease is also released when Cheat Engine selects another process. A release that
-///         remains incomplete at that point (a retryable outcome that failed again, a refusal, an unconfirmed or partial
-///         cleanup) is reported in the aggregated deactivation failure, not thrown to the code that released the lease.
+///         disabled. A target-bound lease (an allocation, a value-scan session, an Auto Assembler patch) also ends when
+///         the Client observes that Cheat Engine selected another process, but that release frees nothing: it reaches
+///         CheatEngine.SDK after Cheat Engine already targets the new process, so CheatEngine.SDK refuses it before any
+///         Cheat Engine call (<see cref="LeaseReleaseKind.RefusedTargetChanged" /> or another refusal, which requires
+///         manual recovery) and no later release can free the resource: an allocation or a patch stays in the previous
+///         process, and the scanner and found list of a session stay in Cheat Engine. Release a target-bound lease
+///         before selecting another process. A release that is still incomplete when the plugin is disabled (a
+///         retryable outcome that failed again, a refusal, an unconfirmed or partial cleanup) is reported in the
+///         aggregated deactivation failure, not thrown to the code that released the lease.
 ///     </para>
 /// </remarks>
 public interface ICheatEngineLease : IDisposable

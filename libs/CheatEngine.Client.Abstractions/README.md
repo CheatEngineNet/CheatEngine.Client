@@ -157,7 +157,10 @@ exact host profile of the release; the documentation link of each diagnostic poi
   and waits for it in the same call, on Cheat Engine's main thread; a read copies one page of at most 1024 results, each
   an address and Cheat Engine's value text. Read a typed value again with `IMemoryClient.ReadPrimitive<T>(match.Address)`.
   The session is a lease (`ICheatEngineLease`): its release destroys the found list, then the scanner, on the main thread,
-  and it is released when Cheat Engine selects another process and before the plugin is disabled.
+  and it is released before the plugin is disabled. Release it before selecting another process: once the Client
+  observes that Cheat Engine selected another process, it ends the session, CheatEngine.SDK refuses that release before
+  any Cheat Engine call (`RefusedTargetChanged` or `RefusedTargetIdentityUnavailable`, `RequiresManualRecovery`), and
+  the `MemScan` and its `FoundList` stay in Cheat Engine.
 - **Known limits:** on Cheat Engine 7.7 the stop address is exclusive and the start address is not byte-exact. Cheat
   Engine's wait runs queued main-thread work, and a call to the same session from that work is refused with
   `InvalidState`. A scan cancelled after it started and before the Client waited for it stays `Scanning` until its
@@ -184,9 +187,11 @@ exact host profile of the release; the documentation link of each diagnostic poi
   never selects the old process again. A refused or unconfirmed release sets `RequiresManualRecovery`, keeps
   `Address` and `Size` readable, is never retried, and is reported when the plugin is disabled. A release that cannot
   begin because CheatEngine.SDK detached is `CleanupUnavailable`: it frees nothing, is reported at deactivation too,
-  and does not set `RequiresManualRecovery`. The lease is released when Cheat Engine selects another process and before
-  the plugin is disabled. When Cheat Engine allocated but no lease could be published, the one compensating release is
-  reported: `CleanupUnconfirmed`, with the address in the failure message, when it was not confirmed.
+  and does not set `RequiresManualRecovery`. The lease is released before the plugin is disabled. Once the Client
+  observes that Cheat Engine selected another process, it ends the lease with the refused release above, which leaves
+  the memory in the previous process: release allocations before selecting another process. When Cheat Engine
+  allocated but no lease could be published, the one compensating release is reported: `CleanupUnconfirmed`, with the
+  address in the failure message, when it was not confirmed.
 - **Executable memory:** `AllocationProtection.ExecuteReadWrite` needs no opt-in beyond this diagnostic. The allocation
   itself runs nothing; what the application writes into it, and executes, is its own responsibility.
 - **Known limits:** Cheat Engine may round the size up to its page size and may allocate away from the preferred
@@ -641,9 +646,17 @@ Only `Unknown` and `CleanupUnavailable` are retryable, as in CheatEngine.SDK: a 
 retried. A retryable lease is retried by a later `Release()` and, at the latest, by the activation cleanup before the
 plugin is disabled. A lease that is still incomplete then (a retry that failed again, a refusal, an unconfirmed or
 partial cleanup) is reported in the aggregated deactivation failure as a `CheatEngineOperationException` whose failure
-has the host effect `CleanupUnconfirmed`; it is never thrown to the code that released or disposed the lease. A
-target-bound lease is also released when Cheat Engine selects another process. `LeaseReleaseOutcome.ToString()`
-returns only the kind and the effect.
+has the host effect `CleanupUnconfirmed`; it is never thrown to the code that released or disposed the lease.
+
+A target-bound lease (an allocation, a value-scan session, an Auto Assembler patch) also ends when the Client observes
+that Cheat Engine selected another process, but that release frees nothing. It reaches CheatEngine.SDK after Cheat
+Engine already targets the new process, so CheatEngine.SDK refuses it before any Cheat Engine call
+(`RefusedTargetChanged` or another refusal, `RequiresManualRecovery`) and consumes its owner: an allocation or a patch
+stays in the previous process, the scanner and found list of a session stay in Cheat Engine, no later release can free
+them, and the refusal is reported when the plugin is disabled. Release every target-bound lease before selecting another
+process.
+
+`LeaseReleaseOutcome.ToString()` returns only the kind and the effect.
 
 ### Diagnostics and redaction
 
