@@ -268,6 +268,61 @@ public sealed class CheatEngineLuaGeneratorTests
 		Assert.Contains("global::TestPlugin.SnapshotMapper.Map(source)", generated, StringComparison.Ordinal);
 	}
 
+	[Fact]
+	public void TheMapperRunsOutsideTheBindingFailureClassification()
+	{
+		// The mapper is application code: an exception it throws must leave TryExecute unchanged, never be classified as
+		// a binding failure, so its call follows the catch clauses that classify the SDK binding call.
+		GeneratorRun run = GeneratorRun.Execute(MappedOperationSource);
+
+		Assert.Empty(run.Diagnostics);
+		string generated = run.GeneratedText("ReadSnapshot.CheatEngineLuaOperation.g.cs");
+		int binding = generated.IndexOf("global::TestPlugin.Globals.ReadSnapshot()", StringComparison.Ordinal);
+		int lastCatch = generated.LastIndexOf("catch (global::System.Exception exception)", StringComparison.Ordinal);
+		int mapper = generated.IndexOf("global::TestPlugin.SnapshotMapper.Map(source)", StringComparison.Ordinal);
+		Assert.True(binding >= 0 && binding < lastCatch, generated);
+		Assert.True(mapper > lastCatch, generated);
+
+		// The SDK source value is assigned inside the try block and read after it.
+		AssertNoCompilerDiagnostics(run.OutputCompilation.AddSyntaxTrees(CSharpSyntaxTree.ParseText(
+			"""
+			namespace TestPlugin;
+			internal static partial class Globals
+			{
+				public static partial SdkSnapshot ReadSnapshot() => new();
+			}
+			""", new CSharpParseOptions(LanguageVersion.CSharp14),
+			cancellationToken: TestContext.Current.CancellationToken)));
+	}
+
+	[Fact]
+	public void AnOutResultOperationReadsItsSourceAfterTheBindingFailureClassification()
+	{
+		GeneratorRun run = GeneratorRun.Execute(OutResultOperationSource);
+
+		Assert.Empty(run.Diagnostics);
+		string generated = run.GeneratedText("TryReadVersion.CheatEngineLuaOperation.g.cs");
+		int declaration = generated.IndexOf("global::System.Int32 source;", StringComparison.Ordinal);
+		int binding = generated.IndexOf("global::TestPlugin.Globals.TryReadVersion(_address, out source)",
+			StringComparison.Ordinal);
+		int lastCatch = generated.LastIndexOf("catch (global::System.Exception exception)", StringComparison.Ordinal);
+		Assert.True(declaration >= 0 && declaration < binding && binding < lastCatch, generated);
+		Assert.True(generated.IndexOf("result = source;", StringComparison.Ordinal) > lastCatch, generated);
+		AssertNoCompilerDiagnostics(run.OutputCompilation.AddSyntaxTrees(CSharpSyntaxTree.ParseText(
+			"""
+			namespace TestPlugin;
+			internal static partial class Globals
+			{
+				public static partial bool TryReadVersion(int address, out int version)
+				{
+					version = address;
+					return true;
+				}
+			}
+			""", new CSharpParseOptions(LanguageVersion.CSharp14),
+			cancellationToken: TestContext.Current.CancellationToken)));
+	}
+
 	[Theory]
 	[InlineData(
 		"[CheatEngineLuaModule(typeof(PluginLuaBindings), \" \")] internal sealed partial class PluginLuaModule { }")]

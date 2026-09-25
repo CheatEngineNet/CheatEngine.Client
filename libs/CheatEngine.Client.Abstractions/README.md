@@ -521,10 +521,10 @@ atomic.
   when it is stopping, and `ArgumentException`/`ArgumentNullException`/`ArgumentOutOfRangeException` for invalid
   arguments (programming errors). An expired activation is never reported as `Cancelled` or `CapabilityUnavailable`.
 - **Consumer code:** exceptions thrown by application-supplied code (dispatcher callbacks, `IMemoryCodec<T>` codecs,
-  `ILuaOperation<T>` operations) are rethrown as the same instance, never converted into a failure. A codec or an
-  operation reports an expected failure by returning `false` with its `out CheatEngineFailure failure`: a classified
-  failure is published unchanged, including its host effect, and the `default` failure lets the Client classify what it
-  observed.
+  `ILuaOperation<T>` operations, the `ILuaResultMapper<TSource, TResult>` of a generated operation) are rethrown as the
+  same instance, never converted into a failure. A codec or an operation reports an expected failure by returning
+  `false` with its `out CheatEngineFailure failure`: a classified failure is published unchanged, including its host
+  effect, and the `default` failure lets the Client classify what it observed.
 
 Every throwing convenience form (the method without `Try`, and the Fluent `Execute` terminals) returns the value of
 its `Try` form or throws that form's failure through `CheatEngineFailure.Throw(cancellationToken)`, passing the token it

@@ -43,11 +43,11 @@ internal static class OperationEmitter
 		source.OpenBlock();
 		source.WriteLine("global::System.ArgumentNullException.ThrowIfNull(context);");
 		source.WriteLine("context.ThrowIfExpired();");
+		source.WriteLine(model.SourceResultType + " source;");
 		source.WriteLine("try");
 		source.OpenBlock();
 		if (model.HasOutResult)
 		{
-			source.WriteLine(model.SourceResultType + " source;");
 			source.WriteLine("if (!" + model.BindingsType + "." + model.MethodName + "(" +
 							 EmitOutArgumentList(model.Parameters) + "))");
 			source.OpenBlock();
@@ -64,15 +64,10 @@ internal static class OperationEmitter
 		}
 		else
 		{
-			source.WriteLine(model.SourceResultType + " source = " + model.BindingsType + "." + model.MethodName + "(" +
+			source.WriteLine("source = " + model.BindingsType + "." + model.MethodName + "(" +
 							 EmitArgumentList(model.Parameters, true) + ");");
 		}
 
-		source.WriteLine(model.MapperType is null
-			? "result = source;"
-			: "result = " + model.MapperType + ".Map(source);");
-		source.WriteLine("failure = default;");
-		source.WriteLine("return true;");
 		source.CloseBlock();
 		source.WriteLine("catch (global::CheatEngine.SDK.Lua.Calls.LuaException exception)");
 		source.OpenBlock();
@@ -98,6 +93,14 @@ internal static class OperationEmitter
 		source.Unindent();
 		source.WriteLine("return false;");
 		source.CloseBlock();
+		source.WriteLine();
+		// Only the SDK binding call is classified: the mapper is application code, whose exception leaves TryExecute
+		// unchanged so that the Client rethrows it, like an exception of any other application-supplied code.
+		source.WriteLine(model.MapperType is null
+			? "result = source;"
+			: "result = " + model.MapperType + ".Map(source);");
+		source.WriteLine("failure = default;");
+		source.WriteLine("return true;");
 		source.CloseBlock();
 		source.CloseBlock();
 		source.CloseBlock();
