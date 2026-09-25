@@ -183,8 +183,10 @@ sessions, release gate and the capability map) and `ScenarioEvaluators` (one C# 
   scans (Q25, Q26), an allocation (Q30.a), Auto Assembler patches (Q35), tables (Q34), a symbol lease (Q16.b), worker
   admission (Q19), the 2^53 marshalling rule (Q21) and logs (Q46).
 - **S2**, lifecycle and faults, without the Auto Assembler opt-in and with the `ModuleOnDisabling` fault: the policy
-  refusal (Q44), the operator toggles of Q05, Q06 and the kept-function check of Q16, and the disable at `closeCE` read
-  from the lifecycle sink (Q43).
+  refusal (Q44), the operator toggles of Q05, Q06 and the kept-function check of Q16, and the last disable read from
+  the lifecycle sink (Q43), the one at `closeCE` or else the operator's last. The `Configure` fault of Q06 is written
+  for one enable only; the switch then selects `ModuleOnDisabling` again, so every later enable keeps the fault Q43
+  reads.
 - **S3**, target identity on two gtutorial-x86_64 instances: an allocation, a scan session and a patch on A, then
   `openProcess(B)` (each lease has ended with a `RefusedTargetChanged` release that requires manual recovery, and a
   release attempt on B returns that refusal again without any Cheat Engine call), back on A (the refused leases stay
@@ -203,10 +205,11 @@ sessions, release gate and the capability map) and `ScenarioEvaluators` (one C# 
 The release gate is Q09, Q10, Q40, Q43, Q44, Q45 and Q46 on the host, plus Q48 in CI (`SdkConsumerContractTests`). The
 sessions share one run directory, one `receipts.jsonl` and one `summary.json`, rewritten after each session. Run S2 and
 S5 with the operator at the keyboard: a check that needs a plugin toggle through Settings > Plugins is NotExecuted
-unless the driver saw that toggle done; so are the checks that read the identification line or what `closeCE`
-disables, whose format and behaviour are spike facts. A live fact fails when a check fails or the workstation is not
-left as it was; a NotExecuted check is recorded, never turned into a pass. Run one session, or all of them, with the
-opt-in above and `--filter-trait Session=S1` (up to `S6`), or `--filter-trait Category=LiveQualification`.
+unless the driver saw that toggle done, and the Q43 checks are NotExecuted when no enable was disabled, neither by the
+operator nor at `closeCE` (a spike fact). The Q05 identification check reads the `CheatEngineSdkIdentification` line
+that CheatEngine.SDK 2.0.0 writes through its debug output sink. A live fact fails when a check fails or the workstation
+is not left as it was; a NotExecuted check is recorded, never turned into a pass. Run one session, or all of them, with
+the opt-in above and `--filter-trait Session=S1` (up to `S6`), or `--filter-trait Category=LiveQualification`.
 
 Run it from the repository root, in PowerShell, with Cheat Engine, every gtutorial and DebugView closed:
 

@@ -47,6 +47,12 @@ internal sealed record QualificationCheck(
 internal static class ScenarioEvaluators
 {
 	/// <summary>Every check, by scenario then session.</summary>
+	/// <summary>The start of the identification line in the debug output (SDK <c>DebugOutputLogSink</c> and <c>LoadIdentification</c>).</summary>
+	internal const string IdentificationPrefix = "[CheatEngine.SDK.Hosting] Information: CheatEngineSdkIdentification: ";
+
+	private const string NoDisable = "the lifecycle sink records no disabled enable: no operator toggle ran, and what " +
+									 "closeCE disables is a fact the S0 spike records";
+
 	internal static IReadOnlyList<QualificationCheck> Checks
 	{
 		get;
@@ -67,11 +73,9 @@ internal static class ScenarioEvaluators
 				static observed => observed.Is("plugin.active") && observed.Number("plugin.pluginId") > 0 &&
 								   observed.Number("plugin.epoch") > 0,
 				"plugin.active", "plugin.pluginId", "plugin.epoch"));
-		Add("Q05", "S1", "identification-line", "the SDK identification line of the enable names the harness assembly",
-			static evidence => evidence.DebugOutput.Contains(PluginBundleBuilder.HarnessAssemblyName, StringComparison.Ordinal)
-				? CheckResult.Passed("the debug output names the harness assembly")
-				: CheckResult.NotExecuted("no identification line naming the harness was captured; its format is a fact the " +
-										  "S0 spike records"));
+		Add("Q05", "S1", "identification-line",
+			"the SDK identification line of the enable names the harness assembly as its plugin.assembly",
+			IdentificationLine);
 		Add("Q05", "S2", "reenable-epochs", "a re-enable reports a new activation with a later epoch",
 			static evidence => evidence.AfterOperator(["toggle-disable", "toggle-enable"],
 				() => evidence.Observe("status-after-reenable",
@@ -451,13 +455,9 @@ internal static class ScenarioEvaluators
 			static evidence => evidence.Fact(SessionFacts.ExpectedBridgeSha256) is { } expected
 				? evidence.FromFact(SessionFacts.BundleBridgeSha256, value => value == expected)
 				: CheckResult.NotExecuted("the reviewed bridge hash was not established"));
-		Add("Q40", "S1", "loaded-client-version", "the loaded Client assemblies carry the packed package version",
-			static evidence => evidence.Fact(SessionFacts.ClientPackageVersion) is { } version
-				? evidence.Observe("status", observed => observed.Items("assemblies")
-						.Where(static item => item.Text("role") is "clientHosting" or "clientCore")
-						.All(item => item.Text("informationalVersion")?.StartsWith(version, StringComparison.Ordinal) == true),
-					"plugin.active")
-				: CheckResult.NotExecuted("the package version was not established"));
+		Add("Q40", "S1", "loaded-client-version",
+			"the loaded Client Hosting and Core assemblies are both reported and carry the packed package version",
+			LoadedClientVersion);
 		Add("Q40", "S6", "template-sdk-content-hash",
 			"the instantiated template restores the reviewed CheatEngine.SDK package (its content hash)",
 			static evidence => evidence.Fact(SessionFacts.ExpectedSdkContentHash) is { } expected
@@ -468,11 +468,14 @@ internal static class ScenarioEvaluators
 		Add("Q40", "S6", "template-deps-isolated", "the template bundle's deps.json names no path of the build workspace",
 			static evidence => evidence.FromFact(SessionFacts.TemplateDepsWorkspacePaths, static value => value == "0"));
 
-		// Q43: the disable at closeCE runs every cleanup stage and aggregates the failures.
+		// Q43: the last disable (at closeCE, or the operator's last toggle) runs every cleanup stage and aggregates the
+		// failures; every enable of S2 but the one that must fail carries the ModuleOnDisabling fault.
 		Add("Q43", "S2", "cleanup-continues-past-fault",
-			"the faulty module's disable is followed by the first module's disable and the resource cleanup",
+			"in the last enable that was disabled, the faulty module's disable is followed by the first module's disable " +
+			"and the resource cleanup",
 			static evidence => LifecycleOrder(evidence, "fault.disabling.threw", "first.disabling", "resource.disposed"));
-		Add("Q43", "S2", "failures-aggregated", "the aggregated cleanup failure is logged with its template only",
+		Add("Q43", "S2", "failures-aggregated",
+			"in the last enable that was disabled, the aggregated cleanup failure is logged with its template only",
 			static evidence => Lifecycle(evidence, static line => line.StartsWith("log\tWarning\t", StringComparison.Ordinal) &&
 																 line.EndsWith("completed cleanup with {FailureCount} failure(s).", StringComparison.Ordinal)));
 
@@ -482,8 +485,7 @@ internal static class ScenarioEvaluators
 			static evidence => evidence.Observe("capabilities-policy", static observed =>
 				observed.Item("families", "capability", "Client.AutoAssemblerPatches") is { } patches &&
 				patches.Text("state") == "Unavailable" && patches.Text("gates.policy") == "Missing" &&
-				patches.Bool("policyRefusal.serviceRegistered") == false && patches.Is("policyRefusal.refusedBeforeAnyHostCall") &&
-				observed.Is("processUnchanged"), "processUnchanged"));
+				patches.Bool("policyRefusal.serviceRegistered") == false && observed.Is("processUnchanged"), "processUnchanged"));
 		Add("Q44", "S2", "unsafe-lua-policy-refused", "without the opt-in no unsafe Lua client exists",
 			static evidence => evidence.Observe("capabilities-policy", static observed =>
 				observed.Item("families", "capability", "Client.UnsafeLuaExecution") is { } unsafeLua &&
@@ -514,6 +516,76 @@ internal static class ScenarioEvaluators
 		}
 
 		return checks;
+	}
+
+	/// <summary>
+	///     Q05: with <c>CHEATENGINE_SDK_IDENTIFY_ON_ENABLE=1</c> (the runner sets it), CheatEngine.SDK 2.0.0 writes one
+	///     <c>CheatEngineSdkIdentification: </c> line per enable through its default debug output sink, which prefixes
+	///     <c>[CheatEngine.SDK.Hosting] Information: </c>; its <c>plugin.assembly</c> field is the plugin assembly's name
+	///     and version. Another debug line that merely names the harness, such as a load failure, is no identification.
+	/// </summary>
+	private static CheckResult IdentificationLine(SessionEvidence evidence)
+	{
+		if (evidence.DebugOutput.Length == 0)
+		{
+			return CheckResult.NotExecuted("no debug output was captured");
+		}
+
+		string[] lines =
+		[
+			.. evidence.DebugOutput.ReplaceLineEndings("\n").Split('\n')
+				.Where(static line => line.StartsWith(IdentificationPrefix, StringComparison.Ordinal))
+		];
+		foreach (string line in lines)
+		{
+			Dictionary<string, string> fields = new(StringComparer.Ordinal);
+			foreach (string field in line[IdentificationPrefix.Length..].Split("; "))
+			{
+				int equals = field.IndexOf('=', StringComparison.Ordinal);
+				if (equals > 0)
+				{
+					fields.TryAdd(field[..equals], field[(equals + 1)..]);
+				}
+			}
+
+			if (fields.TryGetValue("plugin.assembly", out string? assembly) &&
+				assembly.StartsWith(PluginBundleBuilder.HarnessAssemblyName + " ", StringComparison.Ordinal))
+			{
+				return CheckResult.Passed($"plugin.assembly={assembly}; sdk.version={fields.GetValueOrDefault("sdk.version")}");
+			}
+		}
+
+		return CheckResult.Failed($"{lines.Length} identification line(s), none whose plugin.assembly is " +
+								  PluginBundleBuilder.HarnessAssemblyName);
+	}
+
+	/// <summary>
+	///     Q40: the status observation reports both loaded Client assemblies (Hosting, and Core, which exists only while
+	///     the activation does), each with the packed package version, alone or with build metadata; an observation that
+	///     reports neither is no evidence of the version.
+	/// </summary>
+	private static CheckResult LoadedClientVersion(SessionEvidence evidence)
+	{
+		if (evidence.Fact(SessionFacts.ClientPackageVersion) is not { } version)
+		{
+			return CheckResult.NotExecuted("the package version was not established");
+		}
+
+		if (!evidence.TryObserve("status", out Observed? observed, out CheckResult notUsable))
+		{
+			return notUsable;
+		}
+
+		Observed[] client =
+		[
+			.. observed.Items("assemblies").Where(static item => item.Text("role") is "clientHosting" or "clientCore")
+		];
+		string[] roles = [.. client.Select(static item => item.Text("role") ?? string.Empty).Distinct(StringComparer.Ordinal)];
+		bool versioned = client.All(item => item.Text("informationalVersion") is { } loaded &&
+											(loaded == version || loaded.StartsWith(version + "+", StringComparison.Ordinal)));
+		string reported = string.Join(", ", client.Select(static item => $"{item.Text("role")}={item.Text("informationalVersion")}"));
+		return CheckResult.From(roles.Length == 2 && versioned,
+			$"package {version}; status reports {(reported.Length == 0 ? "no Client assembly" : reported)}");
 	}
 
 	/// <summary>
@@ -627,35 +699,33 @@ internal static class ScenarioEvaluators
 			$"{before}={first.Value}; {after}={second.Value}");
 	}
 
-	/// <summary>The lifecycle sink holds a line matching <paramref name="matches" />.</summary>
+	/// <summary>The lines of the last disabled enable hold one matching <paramref name="matches" />.</summary>
 	private static CheckResult Lifecycle(SessionEvidence evidence, Func<string, bool> matches)
 	{
-		if (!evidence.Lifecycle.Any(static line => line.Contains("disabling", StringComparison.Ordinal)))
+		if (LastDisabledEnable(evidence.Lifecycle) is not { } enable)
 		{
-			return CheckResult.NotExecuted("the lifecycle sink records no disable: what closeCE disables is a fact the S0 " +
-										   "spike records");
+			return CheckResult.NotExecuted(NoDisable);
 		}
 
-		return CheckResult.From(evidence.Lifecycle.Any(matches), $"{evidence.Lifecycle.Count} lifecycle lines");
+		return CheckResult.From(enable.Any(matches), $"{enable[0][LedgerPrefixLength(enable[0])..]}: {enable.Count} lifecycle lines");
 	}
 
-	/// <summary>The lifecycle sink holds the ledger stages in this order, after the last enable.</summary>
+	/// <summary>The ledger of the last disabled enable holds these stages, each a whole stage, in this order.</summary>
 	private static CheckResult LifecycleOrder(SessionEvidence evidence, params string[] stages)
 	{
-		if (!evidence.Lifecycle.Any(static line => line.Contains("disabling", StringComparison.Ordinal)))
+		if (LastDisabledEnable(evidence.Lifecycle) is not { } enable)
 		{
-			return CheckResult.NotExecuted("the lifecycle sink records no disable: what closeCE disables is a fact the S0 " +
-										   "spike records");
+			return CheckResult.NotExecuted(NoDisable);
 		}
 
+		string configured = enable[0][LedgerPrefixLength(enable[0])..];
 		int position = 0;
 		foreach (string stage in stages)
 		{
 			int found = -1;
-			for (int index = position; index < evidence.Lifecycle.Count; index++)
+			for (int index = position; index < enable.Count; index++)
 			{
-				if (evidence.Lifecycle[index].StartsWith("ledger\t", StringComparison.Ordinal) &&
-					evidence.Lifecycle[index].Contains(" " + stage, StringComparison.Ordinal))
+				if (string.Equals(LedgerStage(enable[index]), stage, StringComparison.Ordinal))
 				{
 					found = index;
 					break;
@@ -664,12 +734,69 @@ internal static class ScenarioEvaluators
 
 			if (found < 0)
 			{
-				return CheckResult.Failed($"the lifecycle sink has no '{stage}' after the earlier stages ({evidence.Lifecycle.Count} lines)");
+				return CheckResult.Failed($"{configured}: no '{stage}' after the earlier stages ({enable.Count} lines)");
 			}
 
 			position = found + 1;
 		}
 
-		return CheckResult.Passed($"stages in order: {string.Join(", ", stages)}");
+		return CheckResult.Passed($"{configured}: stages in order: {string.Join(", ", stages)}");
+	}
+
+	/// <summary>
+	///     The lifecycle sink lines of the last enable that recorded a disable (<c>plugin.disabling</c>), from its
+	///     <c>configure</c> ledger entry, which every enable writes first, to the next one; a disable of an earlier enable,
+	///     or its log lines, never count for a later one.
+	/// </summary>
+	private static List<string>? LastDisabledEnable(IReadOnlyList<string> lifecycle)
+	{
+		List<string>? last = null;
+		List<string>? current = null;
+		foreach (string line in lifecycle)
+		{
+			if (string.Equals(LedgerStage(line), "configure", StringComparison.Ordinal))
+			{
+				last = Disabled(current) ?? last;
+				current = [line];
+			}
+			else
+			{
+				current?.Add(line);
+			}
+		}
+
+		return Disabled(current) ?? last;
+
+		static List<string>? Disabled(List<string>? enable)
+		{
+			return enable?.Any(static line => string.Equals(LedgerStage(line), "plugin.disabling", StringComparison.Ordinal)) == true
+				? enable
+				: null;
+		}
+	}
+
+	/// <summary>The stage of a ledger line, <c>ledger&lt;TAB&gt;#&lt;enable&gt; &lt;stage&gt;[ &lt;detail&gt;]</c>, or <see langword="null" />.</summary>
+	private static string? LedgerStage(string line)
+	{
+		int start = LedgerPrefixLength(line);
+		if (start == 0)
+		{
+			return null;
+		}
+
+		int end = line.IndexOf(' ', start);
+		return end < 0 ? line[start..] : line[start..end];
+	}
+
+	/// <summary>The length of <c>ledger&lt;TAB&gt;#&lt;enable&gt; </c> at the start of a ledger line, or 0.</summary>
+	private static int LedgerPrefixLength(string line)
+	{
+		if (!line.StartsWith("ledger\t#", StringComparison.Ordinal))
+		{
+			return 0;
+		}
+
+		int space = line.IndexOf(' ', "ledger\t#".Length);
+		return space < 0 ? 0 : space + 1;
 	}
 }

@@ -79,11 +79,13 @@ public sealed class EvaluatorTests
 	public void TheAutoAssemblerPolicyRefusalNeedsNoClientAndAMissingPolicyGate()
 	{
 		QualificationCheck check = Check("Q44", "S2", "auto-assembler-policy-refused");
-		const string Refused = """{"ok":true,"processUnchanged":true,"families":[{"capability":"Client.AutoAssemblerPatches","state":"Unavailable","gates":{"policy":"Missing"},"policyRefusal":{"serviceRegistered":false,"refusedBeforeAnyHostCall":true}}]}""";
+		const string Refused = """{"ok":true,"processUnchanged":true,"families":[{"capability":"Client.AutoAssemblerPatches","state":"Unavailable","gates":{"policy":"Missing"},"policyRefusal":{"serviceRegistered":false}}]}""";
 
 		Assert.Equal(ReceiptStatus.Passed, check.Evaluate(Evidence(("capabilities-policy", Refused))).Status);
 		Assert.Equal(ReceiptStatus.Failed, check.Evaluate(Evidence(("capabilities-policy",
 			Refused.Replace("\"serviceRegistered\":false", "\"serviceRegistered\":true", StringComparison.Ordinal)))).Status);
+		Assert.Equal(ReceiptStatus.Failed, check.Evaluate(Evidence(("capabilities-policy",
+			Refused.Replace("\"Missing\"", "\"Satisfied\"", StringComparison.Ordinal)))).Status);
 	}
 
 	[Fact]
@@ -222,22 +224,73 @@ public sealed class EvaluatorTests
 	}
 
 	[Fact]
-	public void CleanupOrderIsReadFromTheLifecycleSinkAndNeverGuessed()
+	public void CleanupOrderIsReadFromTheLastDisabledEnableAndNeverGuessed()
 	{
 		QualificationCheck order = Check("Q43", "S2", "cleanup-continues-past-fault");
 		QualificationCheck aggregated = Check("Q43", "S2", "failures-aggregated");
-		string[] lifecycle =
-		[
-			"ledger\t#1 plugin.disabling", "ledger\t#1 last.disabling", "ledger\t#1 scenario.disabling",
-			"ledger\t#1 fault.disabling.threw InvalidOperationException", "ledger\t#1 first.disabling", "ledger\t#1 resource.disposed",
-			"log\tWarning\tCheatEngine.Client.Hosting.CheatEngineClientPlugin\t5\tCheat Engine Client activation {Epoch} completed cleanup with {FailureCount} failure(s)."
-		];
+		string[] faulted = Disabled(1, "ModuleOnDisabling", "fault.disabling.threw InvalidOperationException", true);
+		string[] clean = Disabled(2, "None", "fault.disabling", false);
 
-		Assert.Equal(ReceiptStatus.Passed, order.Evaluate(Evidence(lifecycle: lifecycle)).Status);
-		Assert.Equal(ReceiptStatus.Passed, aggregated.Evaluate(Evidence(lifecycle: lifecycle)).Status);
-		Assert.Equal(ReceiptStatus.Failed, order.Evaluate(Evidence(lifecycle: [.. lifecycle.Where(static line => !line.Contains("first.", StringComparison.Ordinal))])).Status);
-		Assert.Equal(ReceiptStatus.NotExecuted, order.Evaluate(Evidence(lifecycle: ["ledger\t#1 first.enabled"])).Status);
+		Assert.Equal(ReceiptStatus.Passed, order.Evaluate(Evidence(lifecycle: faulted)).Status);
+		Assert.Equal(ReceiptStatus.Passed, aggregated.Evaluate(Evidence(lifecycle: faulted)).Status);
+		Assert.Equal(ReceiptStatus.Failed, order.Evaluate(Evidence(lifecycle: [.. faulted.Where(static line => !line.Contains("first.", StringComparison.Ordinal))])).Status);
+
+		// An earlier faulty disable never stands in for the last one, and only a whole stage counts.
+		Assert.Equal(ReceiptStatus.Failed, order.Evaluate(Evidence(lifecycle: [.. faulted, .. clean])).Status);
+		Assert.Equal(ReceiptStatus.Failed, aggregated.Evaluate(Evidence(lifecycle: [.. faulted, .. clean])).Status);
+		Assert.Equal(ReceiptStatus.Failed, order.Evaluate(Evidence(lifecycle: [.. faulted.Select(static line =>
+			line.Replace("resource.disposed", "resource.disposed.unused", StringComparison.Ordinal))])).Status);
+
+		// An enable that was never disabled (the one that must fail, or the last one when closeCE disables nothing).
+		string[] enabledOnly = ["ledger\t#3 configure fault=Configure reason=Selected", "ledger\t#3 configure.threw InvalidOperationException"];
+		Assert.Equal(ReceiptStatus.Passed, order.Evaluate(Evidence(lifecycle: [.. faulted, .. enabledOnly])).Status);
+		Assert.Equal(ReceiptStatus.NotExecuted, order.Evaluate(Evidence(lifecycle: ["ledger\t#1 configure fault=None reason=Absent", "ledger\t#1 first.enabled"])).Status);
 		Assert.Equal(ReceiptStatus.NotExecuted, aggregated.Evaluate(Evidence()).Status);
+	}
+
+	[Fact]
+	public void OnlyTheSdkIdentificationLineNamingTheHarnessIdentifiesIt()
+	{
+		QualificationCheck check = Check("Q05", "S1", "identification-line");
+		const string Line = ScenarioEvaluators.IdentificationPrefix + "sdk.version=2.0.0+325c47b573f8bd39a247f1d0101f110fa36c1696; " +
+							"sdk.commit=325c47b573f8bd39a247f1d0101f110fa36c1696; sdk.consistent=true; plugin.id=3; " +
+							"plugin.assembly=CheatEngine.Client.LivePlugin.Qualification 1.0.0.0; host.argument=0";
+
+		CheckResult identified = check.Evaluate(DebugOutput("[CheatEngine.SDK.Hosting] Information: other\r\n" + Line + "\r\n"));
+		CheckResult mentioned = check.Evaluate(DebugOutput(
+			"[CheatEngine.SDK.Hosting] Error: CheatEngine.Client.LivePlugin.Qualification failed to load\n"));
+		CheckResult otherPlugin = check.Evaluate(DebugOutput(Line.Replace("plugin.assembly=CheatEngine.Client.LivePlugin.Qualification",
+			"plugin.assembly=CheatEngine.Client.LivePlugin.QualificationX", StringComparison.Ordinal)));
+
+		Assert.Equal(ReceiptStatus.Passed, identified.Status);
+		Assert.Contains("plugin.assembly=CheatEngine.Client.LivePlugin.Qualification 1.0.0.0", identified.Observation, StringComparison.Ordinal);
+		Assert.Equal(ReceiptStatus.Failed, mentioned.Status);
+		Assert.Equal(ReceiptStatus.Failed, otherPlugin.Status);
+		Assert.Equal(ReceiptStatus.NotExecuted, check.Evaluate(DebugOutput(string.Empty)).Status);
+	}
+
+	[Fact]
+	public void TheLoadedClientVersionNeedsBothClientAssemblies()
+	{
+		QualificationCheck check = Check("Q40", "S1", "loaded-client-version");
+		Dictionary<string, string> facts = new(StringComparer.Ordinal)
+		{
+			[SessionFacts.ClientPackageVersion] = "1.0.0"
+		};
+		static string Status(string assemblies)
+		{
+			return """{"ok":true,"plugin":{"active":true},"assemblies":[""" + assemblies + "]}";
+		}
+
+		const string Hosting = """{"role":"clientHosting","informationalVersion":"1.0.0+0123abc"}""";
+		const string Core = """{"role":"clientCore","informationalVersion":"1.0.0"}""";
+
+		Assert.Equal(ReceiptStatus.Passed, check.Evaluate(Evidence([("status", Status(Hosting + "," + Core))], [], [], [], facts)).Status);
+		Assert.Equal(ReceiptStatus.Failed, check.Evaluate(Evidence([("status", Status(string.Empty))], [], [], [], facts)).Status);
+		Assert.Equal(ReceiptStatus.Failed, check.Evaluate(Evidence([("status", Status(Hosting))], [], [], [], facts)).Status);
+		Assert.Equal(ReceiptStatus.Failed, check.Evaluate(Evidence([("status", Status(Hosting + "," +
+			Core.Replace("1.0.0", "1.0.0-rc.1", StringComparison.Ordinal)))], [], [], [], facts)).Status);
+		Assert.Equal(ReceiptStatus.NotExecuted, check.Evaluate(Evidence(("status", Status(Hosting + "," + Core)))).Status);
 	}
 
 	[Fact]
@@ -309,6 +362,27 @@ public sealed class EvaluatorTests
 	private static SessionEvidence Evidence(Dictionary<string, string> facts)
 	{
 		return Evidence([], [], [], [], facts);
+	}
+
+	/// <summary>The ledger of one disabled enable: its configured fault, the disable stages and the cleanup log line.</summary>
+	private static string[] Disabled(int enable, string fault, string faultStage, bool aggregated)
+	{
+		string prefix = "ledger\t#" + enable.ToString(CultureInfo.InvariantCulture) + " ";
+		string[] ledger =
+		[
+			prefix + "configure fault=" + fault + " reason=Selected", prefix + "activated", prefix + "plugin.disabling",
+			prefix + "last.disabling", prefix + "scenario.disabling", prefix + faultStage, prefix + "first.disabling",
+			prefix + "resource.disposed"
+		];
+		return aggregated
+			? [.. ledger, "log\tWarning\tCheatEngine.Client.Hosting.CheatEngineClientPlugin\t5\tCheat Engine Client activation {Epoch} completed cleanup with {FailureCount} failure(s)."]
+			: ledger;
+	}
+
+	private static SessionEvidence DebugOutput(string debugOutput)
+	{
+		return new SessionEvidence(TranscriptParser.Parse(Encoding.UTF8.GetBytes("DONE\n")), debugOutput, [],
+			new Dictionary<string, string>(StringComparer.Ordinal));
 	}
 
 	private static SessionEvidence Evidence((string Step, string Value)[] records, string[] errors, string[] notExecuted,

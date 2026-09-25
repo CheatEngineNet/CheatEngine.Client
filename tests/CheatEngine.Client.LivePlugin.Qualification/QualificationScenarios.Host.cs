@@ -202,8 +202,9 @@ internal static partial class QualificationScenarios
 					_module.Register();
 					_registered = true;
 				}
-				catch (CheatEngineOperationException exception)
+				catch (CheatEngineClientException exception)
 				{
+					// A refused registration throws the exception of its failure's kind: InvalidState from a worker.
 					_registerFailure = exception.Failure;
 				}
 				catch (Exception exception) when (exception is not OutOfMemoryException)

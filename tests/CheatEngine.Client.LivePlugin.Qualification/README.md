@@ -72,7 +72,8 @@ and tested there.
   without it `aa_patch` is refused and Q44 observes the policy refusal), `CECLIENT_QUALIFICATION_TABLE_ROOT` is the one
   allowed table root (Q34), and `CECLIENT_QUALIFICATION_LIFECYCLE_FILE` names the lifecycle receipt sink
   (`Harness/QualificationLifecycleSink.cs`, Q43): every lifecycle record entry and the template of every captured log
-  event is appended there, so the runner reads what the disable at `closeCE` did after the last Lua call.
+  event is appended there, so the runner reads what a disable did after the last Lua call, the operator's or the one at
+  `closeCE`. Each enable starts with its `configure` entry, which names the fault the switch selected.
 
 ## Lua functions
 
@@ -139,7 +140,11 @@ float from 2^53 on with a Lua error, which the driver records.
 `capabilities(0)` is the Q44 observation: without `EnableAutoAssemblerPatches` the activation registers no
 `IAutoAssemblerClient` (and without `EnableUnsafeLuaExecution` no `IUnsafeLuaClient`), so no call can reach Cheat Engine,
 and the capability reports a `Missing` policy gate. The harness only reads the capability evidence and resolves the
-service; it makes no other call.
+service; it makes no other call. This departs from the plan's Q44, which asked to observe a `NotStarted` refusal with no
+host call: without the opt-in there is no client to call, so the Client's own refusal (a policy refusal with
+`NotStarted`, before any port call, when a composition without the opt-in reaches `AutoAssemblerClient`) is proven at
+C1 only, by `AutoAssemblerClientTests` in `CheatEngine.Client.Core.Tests`. The live receipts state what they observed:
+the missing service and the `Missing` policy gate.
 
 ## Run
 

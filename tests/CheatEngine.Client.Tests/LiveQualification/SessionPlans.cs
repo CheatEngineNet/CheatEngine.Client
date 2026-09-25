@@ -262,11 +262,11 @@ internal static class SessionPlans
 			LuaDriverSteps.Lua("kept-function-after-disable", $"return {KeptFunctionGlobal}()"),
 			LuaDriverSteps.Toggle("toggle-enable", true, HarnessDisplayName, HarnessStatus),
 			LuaDriverSteps.Call("status-after-reenable", "status"),
-			LuaDriverSteps.Lua("write-configure-fault", ConfigureFault(context, write: true)),
+			LuaDriverSteps.Lua("write-configure-fault", WriteFaultSwitch(context, FaultStage.Configure)),
 			LuaDriverSteps.Toggle("toggle-disable-for-fault", false, HarnessDisplayName, HarnessStatus),
 			LuaDriverSteps.ConfirmedToggle("toggle-enable-faulted", true, HarnessDisplayName,
 				"This enable must fail, because the harness's Configure throws: close the error Cheat Engine shows."),
-			LuaDriverSteps.Lua("remove-configure-fault", ConfigureFault(context, write: false)),
+			LuaDriverSteps.Lua("restore-disabling-fault", WriteFaultSwitch(context, FaultStage.ModuleOnDisabling)),
 			LuaDriverSteps.Toggle("toggle-enable-after-fault", true, HarnessDisplayName, HarnessStatus,
 				"If it is still ticked after the failed enable, untick it and press OK first."),
 			LuaDriverSteps.Call("status-after-fault", "status"),
@@ -448,18 +448,16 @@ internal static class SessionPlans
 		return LuaDriverSteps.Call(step, "aa_patch", LuaLiteral.String(action), LuaLiteral.String(variant));
 	}
 
-	/// <summary>Writes (or removes) the harness fault switch that selects a <c>Configure</c> fault for the next enable (Q06).</summary>
-	private static string ConfigureFault(SessionContext context, bool write)
+	/// <summary>
+	///     Writes the harness fault switch the next enable reads: <c>Configure</c> for the enable that must fail (Q06),
+	///     then S2's own <c>ModuleOnDisabling</c> again, so the enables after it keep the fault whose disable Q43 reads.
+	/// </summary>
+	private static string WriteFaultSwitch(SessionContext context, FaultStage stage)
 	{
 		string directory = Path.GetDirectoryName(context.PluginPath(SessionBundle.Harness)) ?? string.Empty;
 		string path = LuaLiteral.String(Path.Combine(directory, QualificationFaultSwitch.FileName));
-		if (!write)
-		{
-			return $"return tostring(os.remove({path}))";
-		}
-
 		string content = LuaLiteral.String(
-			$$"""{ "schema": "{{QualificationFaultSwitch.Schema}}", "throwIn": "{{FaultStage.Configure}}" }""");
+			$$"""{ "schema": "{{QualificationFaultSwitch.Schema}}", "throwIn": "{{stage}}" }""");
 		return $"""
 			local file = assert(io.open({path}, "wb"))
 			file:write({content})

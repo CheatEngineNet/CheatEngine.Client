@@ -695,11 +695,10 @@ internal static partial class QualificationScenarios
 				.EndObject();
 			if (policyRefusals && TryDescribeOptInService(active.Services, capability, out bool registered))
 			{
-				// The opt-in registers the service and satisfies the policy gate together; without it no call exists.
+				// The opt-in registers the service and satisfies the policy gate together; without it no call exists, so
+				// the Client's own policy refusal (NotStarted, no host call) cannot be observed here: it is proven at C1.
 				observation.BeginObject("policyRefusal")
 					.Boolean("serviceRegistered", registered)
-					.Boolean("refusedBeforeAnyHostCall",
-						!registered && evidence.Policy.State == ClientCapabilityEvidenceState.Missing)
 					.EndObject();
 			}
 

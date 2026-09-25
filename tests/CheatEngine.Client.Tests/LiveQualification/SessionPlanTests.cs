@@ -35,7 +35,7 @@ public sealed partial class SessionPlanTests
 		["S2"] = "main-form open-process opened-process load-plugin harness-ready status capabilities-policy " +
 				 "aa-apply-refused keep-function toggle-disable kept-function-after-disable toggle-enable " +
 				 "status-after-reenable write-configure-fault toggle-disable-for-fault toggle-enable-faulted " +
-				 "remove-configure-fault toggle-enable-after-fault status-after-fault logs clear-address-list",
+				 "restore-disabling-fault toggle-enable-after-fault status-after-fault logs clear-address-list",
 		["S3"] = "main-form open-process-a opened-process-a scratch-allocation load-plugin harness-ready target-declare " +
 				 "runtime-on-a allocation-allocate value-scan-first aa-apply open-process-b opened-process-b runtime-on-b " +
 				 "allocation-state-on-b allocation-release-on-b value-scan-state-on-b value-scan-release-on-b aa-state-on-b " +
@@ -65,7 +65,7 @@ public sealed partial class SessionPlanTests
 				 "pointer-size-4 pointer-size-8 table-create table-destroy-record table-create-again worker-start " +
 				 "settings-probe clear-address-list",
 		["S2"] = "main-form open-process opened-process load-plugin harness-ready status keep-function write-configure-fault " +
-				 "remove-configure-fault clear-address-list",
+				 "restore-disabling-fault clear-address-list",
 		["S3"] = "main-form open-process-a scratch-allocation load-plugin harness-ready target-declare allocation-allocate " +
 				 "value-scan-first aa-apply open-process-b open-process-a-again allocation-allocate-new open-file-as-process " +
 				 "clear-address-list",
@@ -215,6 +215,18 @@ public sealed partial class SessionPlanTests
 		Assert.Equal([SessionBundle.Template], SessionPlans.S6.Setup.Bundles);
 		Assert.All(SessionPlans.All.Where(static plan => plan.Setup.Bundles.Contains(SessionBundle.Harness)),
 			static plan => Assert.Equal("A", plan.Setup.AuthorizedRole));
+	}
+
+	[Fact]
+	public void TheConfigureFaultIsFollowedByTheSessionsOwnDisablingFault()
+	{
+		IReadOnlyList<LuaDriverStep> steps = SessionPlans.S2.Driver(Context(SessionPlans.S2));
+
+		Assert.Contains("\\\"throwIn\\\": \\\"Configure\\\"", Assert.Single(steps, static step => step.Name == "write-configure-fault").Body,
+			StringComparison.Ordinal);
+		Assert.Contains($"\\\"throwIn\\\": \\\"{SessionPlans.S2.Setup.Fault}\\\"",
+			Assert.Single(steps, static step => step.Name == "restore-disabling-fault").Body, StringComparison.Ordinal);
+		Assert.DoesNotContain("os.remove", string.Concat(steps.Select(static step => step.Body)), StringComparison.Ordinal);
 	}
 
 	[Fact]
