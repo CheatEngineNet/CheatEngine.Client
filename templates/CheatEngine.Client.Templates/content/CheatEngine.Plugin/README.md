@@ -16,8 +16,10 @@ The project provides a minimal but production-shaped plugin boundary:
 - `CheatEngineClientPlugin` creates a fresh DI container and Client activation for every enable cycle. The Client graph,
   options, and codecs are provider-local singletons; the module scope is the one scope inside that new provider, not a
   persistent root that can be reused for a later enable.
-- `Configure` explicitly loads the optional `appsettings.json` beside the plugin with `reloadOnChange: false` and
-  registers the generated `PluginLuaModule` through `AddLuaModule<PluginLuaModule>()`, then the application module.
+- `Configure` explicitly loads the optional `appsettings.json` from `builder.PluginDirectory`, the folder of the plugin
+  assembly, with `reloadOnChange: false`, and registers the generated `PluginLuaModule` through
+  `AddLuaModule<PluginLuaModule>()`, then the application module. `AppContext.BaseDirectory` is not used: it describes
+  the Cheat Engine process that hosts .NET, not the plugin's deployment folder.
 - `PluginClientModule` demonstrates options, logging, a materialization-bounded AOB request (the module filter is
   applied after a global scan), typed memory access, the Address List record count, and normal Client module lifecycle
   callbacks.

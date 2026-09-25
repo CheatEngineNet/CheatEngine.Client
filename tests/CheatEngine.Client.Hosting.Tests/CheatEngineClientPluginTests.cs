@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.Reflection;
+using System.Text.Json;
 
 using CheatEngine.Client.Allocations;
 using CheatEngine.Client.Assembly;
@@ -496,6 +498,64 @@ public sealed class CheatEngineClientPluginTests
 		Assert.Equal(1, cleanup.DrainCount);
 	}
 
+	[Fact]
+	public void ProvidersAddedThroughTheBuilderLoggingReceiveTheActivationEvents()
+	{
+		List<string> events = [];
+		CapturingLoggerProvider logs = new();
+		FakeClient client = new(55);
+		RecordingCleanup cleanup = new(events);
+		TestPlugin plugin = CreatePlugin(events, client, cleanup, builder =>
+			builder.Logging.SetMinimumLevel(LogLevel.Trace).AddProvider(logs));
+
+		plugin.EnableForTest();
+		plugin.DisableForTest();
+
+		Assert.Equal([20, 1, 3, 7, 4], logs.Entries.Select(static entry => entry.EventId));
+	}
+
+	[Fact]
+	public void ConfigureReceivesTheFolderOfTheConcretePluginAssembly()
+	{
+		List<string> events = [];
+		FakeClient client = new(57);
+		RecordingCleanup cleanup = new(events);
+		string? pluginDirectory = null;
+		TestPlugin plugin = CreatePlugin(events, client, cleanup,
+			builder => pluginDirectory = builder.PluginDirectory);
+
+		plugin.EnableForTest();
+		plugin.DisableForTest();
+
+		Assert.NotNull(pluginDirectory);
+		Assert.Equal(Path.GetDirectoryName(typeof(TestPlugin).Assembly.Location), pluginDirectory);
+	}
+
+	/// <summary>
+	///     <c>appsettings.json</c> is deployed next to the plugin assembly and read from
+	///     <see cref="CheatEnginePluginBuilder.PluginDirectory" />, then bound to the Client options of the activation.
+	/// </summary>
+	[Fact]
+	public void AppSettingsFileIsLoadedFromThePluginDirectory()
+	{
+		List<string> events = [];
+		FakeClient client = new(56);
+		RecordingCleanup cleanup = new(events);
+		OptionsProbe probe = new();
+		TestPlugin plugin = CreatePlugin(events, client, cleanup, builder =>
+		{
+			builder.Configuration.Sources.Add(
+				new JsonFileStandInSource(Path.Combine(builder.PluginDirectory, "appsettings.json")));
+			builder.Services.AddSingleton(probe);
+			builder.Client.AddModule<OptionsProbeModule>();
+		});
+
+		plugin.EnableForTest();
+		plugin.DisableForTest();
+
+		Assert.Equal(4096, probe.MaximumReadBytes);
+	}
+
 	private static string GetConsumedSdkMetadata(string name)
 	{
 		string key = "CheatEngine.Client.ConsumedSdk." + name;
@@ -915,6 +975,80 @@ public sealed class CheatEngineClientPluginTests
 		{
 			events.Add("module.disabling");
 			throw new InvalidOperationException(failure.Message);
+		}
+	}
+
+	public sealed class OptionsProbe
+	{
+		internal int? MaximumReadBytes
+		{
+			get;
+			set;
+		}
+	}
+
+	public sealed class OptionsProbeModule(IOptions<CheatEngineClientOptions> options, OptionsProbe probe)
+		: ICheatEngineClientModule
+	{
+		public void OnEnabled(ICheatEngineClient client)
+		{
+			probe.MaximumReadBytes = options.Value.MemoryResourceLimits?.MaximumReadBytes;
+		}
+
+		public void OnDisabling(ICheatEngineClient client)
+		{
+		}
+	}
+
+	/// <summary>
+	///     Stands in for the <c>Microsoft.Extensions.Configuration.Json</c> file source that a plugin references and this
+	///     test project does not: it flattens one JSON file into configuration keys.
+	/// </summary>
+	private sealed class JsonFileStandInSource(string path) : IConfigurationSource
+	{
+		public IConfigurationProvider Build(IConfigurationBuilder builder)
+		{
+			return new JsonFileStandInProvider(path);
+		}
+	}
+
+	private sealed class JsonFileStandInProvider(string path) : ConfigurationProvider
+	{
+		public override void Load()
+		{
+			using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
+			Flatten(document.RootElement, string.Empty);
+		}
+
+		private void Flatten(JsonElement element, string key)
+		{
+			switch (element.ValueKind)
+			{
+				case JsonValueKind.Object:
+					foreach (JsonProperty property in element.EnumerateObject())
+					{
+						Flatten(property.Value, Child(key, property.Name));
+					}
+
+					break;
+				case JsonValueKind.Array:
+					int index = 0;
+					foreach (JsonElement item in element.EnumerateArray())
+					{
+						Flatten(item, Child(key, index.ToString(CultureInfo.InvariantCulture)));
+						index++;
+					}
+
+					break;
+				default:
+					Data[key] = element.ToString();
+					break;
+			}
+		}
+
+		private static string Child(string key, string name)
+		{
+			return key.Length == 0 ? name : ConfigurationPath.Combine(key, name);
 		}
 	}
 

@@ -15,8 +15,9 @@ public sealed class Plugin : CheatEngineClientPlugin
 	protected override void Configure(CheatEnginePluginBuilder builder)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
+		// appsettings.json is deployed next to the plugin assembly, not in Cheat Engine's folder.
 		builder.Configuration
-			.SetBasePath(AppContext.BaseDirectory)
+			.SetBasePath(builder.PluginDirectory)
 			.AddJsonFile("appsettings.json", optional: true, reloadOnChange: false);
 
 		builder.Client

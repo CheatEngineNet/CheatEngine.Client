@@ -90,8 +90,8 @@ public sealed class PublicClientSignatureBoundaryTests
 		"Microsoft.Extensions.Configuration.IConfigurationSection",
 		"Microsoft.Extensions.DependencyInjection.IServiceCollection",
 		"Microsoft.Extensions.DependencyInjection.IServiceScope",
-		"Microsoft.Extensions.DependencyInjection.ServiceProvider",
 		"Microsoft.Extensions.Logging.ILogger",
+		"Microsoft.Extensions.Logging.ILoggingBuilder",
 		"Microsoft.Extensions.Options.ValidateOptionsResult"
 	};
 

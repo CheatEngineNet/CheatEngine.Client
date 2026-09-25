@@ -128,7 +128,7 @@ public sealed class Plugin : CheatEngineClientPlugin
     protected override void Configure(CheatEnginePluginBuilder builder)
     {
         builder.Configuration
-            .SetBasePath(AppContext.BaseDirectory)
+            .SetBasePath(builder.PluginDirectory)
             .AddJsonFile("appsettings.json", optional: true, reloadOnChange: false);
 
         builder.Client.AddModule<PluginClientModule>();

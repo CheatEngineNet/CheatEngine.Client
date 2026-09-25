@@ -9,4 +9,9 @@
     <ProjectReference Include="../../libs/CheatEngine.Client.Hosting/CheatEngine.Client.Hosting.csproj"/>
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Deployed next to the test assembly, as a plugin deploys its appsettings.json next to the plugin assembly. -->
+    <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest"/>
+  </ItemGroup>
+
 </Project>

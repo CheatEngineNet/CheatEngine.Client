@@ -67,7 +67,12 @@ attached as secondary diagnostics. No module callback or Client-owned resource d
 created and published. The DI container disposes services it creates; Hosting explicitly releases its host-created
 `ConfigurationManager` only after the scope and provider have been released.
 
-Add configuration sources explicitly and keep reload disabled. The following is the normal plugin shape:
+Add configuration sources explicitly and keep reload disabled. `CheatEnginePluginBuilder` exposes `Configuration`,
+`Services`, `Logging` (the `ILoggingBuilder` of the activation provider), `Client` (the Client registrations) and
+`PluginDirectory`, the folder of the plugin assembly. Resolve the files deployed with the plugin against
+`PluginDirectory`: `AppContext.BaseDirectory` describes the Cheat Engine process that hosts .NET, not the plugin's
+deployment folder. Hosting creates the builder and builds the provider itself; neither is public. The following is the
+normal plugin shape:
 
 ```csharp
 using CheatEngine.Client;
@@ -83,7 +88,7 @@ public sealed class Plugin : CheatEngineClientPlugin
     protected override void Configure(CheatEnginePluginBuilder builder)
     {
         builder.Configuration
-            .SetBasePath(AppContext.BaseDirectory)
+            .SetBasePath(builder.PluginDirectory)
             .AddJsonFile("appsettings.json", optional: true, reloadOnChange: false);
 
         builder.Client.AddModule<MyClientModule>();

@@ -77,7 +77,7 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 				CheatEngineHostEffect.NotStarted).ToException();
 		}
 
-		CheatEnginePluginBuilder builder = new();
+		CheatEnginePluginBuilder builder = new(GetType().Assembly);
 		ActivationConstruction construction = new(builder);
 		Activation? activation = null;
 
