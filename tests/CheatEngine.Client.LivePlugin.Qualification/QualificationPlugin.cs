@@ -1,5 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
-
 using CheatEngine.Client;
 using CheatEngine.Client.Extensions.DependencyInjection;
 using CheatEngine.Client.Hosting;
@@ -28,25 +26,17 @@ public sealed class QualificationPlugin : CheatEngineClientPlugin
 	/// <summary>The name Cheat Engine shows in Edit &gt; Settings &gt; Plugins.</summary>
 	internal const string DisplayName = "CheatEngine.Client Qualification Plugin";
 
-	/// <summary>The folder the plugin was loaded from, where the runner writes the fault switch.</summary>
-	[UnconditionalSuppressMessage("SingleFile", "IL3000:Avoid accessing Assembly file path when publishing as a single file",
-		Justification = "The harness is a managed-hostfxr plugin loaded from its bundle folder and is never published as a single file; an empty location reads as no fault switch and no bridge.")]
-	internal static string? PluginDirectory()
-	{
-		string location = typeof(QualificationPlugin).Assembly.Location;
-		return location.Length == 0 ? null : Path.GetDirectoryName(location);
-	}
-
 	/// <inheritdoc />
 	protected override void Configure(CheatEnginePluginBuilder builder)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
+		string? pluginDirectory = ReadPluginDirectory(builder);
 		AuthorizationDecision authorization = QualificationAuthorization.Evaluate(QualificationEnvironment.Instance);
-		FaultDecision fault = QualificationFaultSwitch.Read(PluginDirectory(), authorization,
+		FaultDecision fault = QualificationFaultSwitch.Read(pluginDirectory, authorization,
 			QualificationEnvironment.Instance);
 		QualificationInputs inputs = QualificationInputs.Read(authorization, QualificationEnvironment.Instance);
 		QualificationLifecycleSink.Configure(inputs.LifecycleFile);
-		QualificationSession.BeginEnable(Context.PluginId, authorization, inputs);
+		QualificationSession.BeginEnable(Context.PluginId, authorization, inputs, pluginDirectory);
 		QualificationLedger.BeginEnable(fault);
 		if (fault.Stage == FaultStage.Configure)
 		{
@@ -57,8 +47,7 @@ public sealed class QualificationPlugin : CheatEngineClientPlugin
 
 		// Debug events included, so the Q46 sink sees every template the Client and Hosting write. The Hosting host log
 		// provider writes those templates to the Cheat Engine debug output, which Q46 also reads.
-		builder.Services.AddLogging(static logging =>
-			logging.SetMinimumLevel(LogLevel.Debug).AddProvider(QualificationSession.Logs).AddCheatEngineHostLog());
+		builder.Logging.SetMinimumLevel(LogLevel.Debug).AddProvider(QualificationSession.Logs).AddCheatEngineHostLog();
 		builder.Services.AddSingleton(fault);
 		builder.Services.AddScoped<QualificationScopedResource>();
 		builder.Client
@@ -97,6 +86,24 @@ public sealed class QualificationPlugin : CheatEngineClientPlugin
 	{
 		ArgumentNullException.ThrowIfNull(client);
 		QualificationLedger.Record("plugin.disabling");
+	}
+
+	/// <summary>
+	///     Reads the folder the plugin was loaded from, where the runner writes the fault switch and the bundle
+	///     keeps the native bridge, through Hosting's <see cref="CheatEnginePluginBuilder.PluginDirectory" />.
+	/// </summary>
+	/// <returns>The folder, or <see langword="null" /> when the plugin assembly has no file location.</returns>
+	private static string? ReadPluginDirectory(CheatEnginePluginBuilder builder)
+	{
+		try
+		{
+			return builder.PluginDirectory;
+		}
+		catch (InvalidOperationException)
+		{
+			// An assembly without a file location has no folder: it reads as no fault switch and no bridge.
+			return null;
+		}
 	}
 }
 

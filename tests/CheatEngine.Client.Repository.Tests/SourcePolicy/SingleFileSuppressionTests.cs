@@ -5,22 +5,28 @@ using CheatEngine.Client.Repository.Tests.Infrastructure;
 namespace CheatEngine.Client.Repository.Tests.SourcePolicy;
 
 /// <summary>
-///     The shipped Client reads an assembly file location in exactly one place: <c>CheatEnginePluginBuilder.PluginDirectory</c>
-///     of Hosting, whose single-file warning (IL3000) is suppressed under ADR-02 (Cheat Engine loads a managed plugin from its
-///     deployment folder, never from a single-file bundle). Any other file-location read must be designed, not suppressed.
+///     The repository reads an assembly file location in exactly one place:
+///     <c>CheatEnginePluginBuilder.PluginDirectory</c> of Hosting, whose single-file warning (IL3000) is suppressed
+///     under ADR-02 (Cheat Engine loads a managed plugin from its deployment folder, never from a single-file bundle).
+///     The shipped code, the qualification harness, the fixtures and the tests all go through that property; any
+///     other file-location read must be designed, not suppressed.
 /// </summary>
 public sealed partial class SingleFileSuppressionTests
 {
 	private const string PluginBuilderSource = "libs/CheatEngine.Client.Hosting/CheatEnginePluginBuilder.cs";
 
+	/// <summary>This policy test, which names the diagnostic in order to look for it.</summary>
+	private const string PolicySource =
+		$"tests/CheatEngine.Client.Repository.Tests/SourcePolicy/{nameof(SingleFileSuppressionTests)}.cs";
+
 	private static readonly string[] SourcePatterns = ["*.cs", "*.csproj", "*.props", "*.targets", "*.editorconfig"];
 
 	[Fact]
-	public void ShippedSourcesSuppressIL3000ExactlyOnceForThePluginDirectory()
+	public void TheRepositorySuppressesIL3000ExactlyOnceForThePluginDirectory()
 	{
 		List<string> hits = [];
 		foreach (string file in SourcePatterns.SelectMany(RepositoryRoot.EnumerateSourceFiles)
-					 .Where(static path => !path.StartsWith("tests/", StringComparison.Ordinal)))
+					 .Where(static path => !string.Equals(path, PolicySource, StringComparison.Ordinal)))
 		{
 			string[] lines = File.ReadAllLines(Path.Combine(RepositoryRoot.Path, file));
 			for (int index = 0; index < lines.Length; index++)

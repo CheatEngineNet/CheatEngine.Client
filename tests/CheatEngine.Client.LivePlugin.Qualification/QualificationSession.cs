@@ -32,6 +32,7 @@ internal static class QualificationSession
 	private static TargetDeclaration? _declaration;
 	private static QualificationInputs _inputs = QualificationInputs.None;
 	private static IAutoAssemblerPatchLease? _patch;
+	private static string? _pluginDirectory;
 	private static uint _pluginId;
 	private static ValueScanState? _valueScan;
 
@@ -61,6 +62,21 @@ internal static class QualificationSession
 			lock (Gate)
 			{
 				return _declaration;
+			}
+		}
+	}
+
+	/// <summary>
+	///     Gets the folder the plugin was loaded from, recorded by the last enable, or <see langword="null" /> when the
+	///     plugin assembly has no file location.
+	/// </summary>
+	internal static string? PluginDirectory
+	{
+		get
+		{
+			lock (Gate)
+			{
+				return _pluginDirectory;
 			}
 		}
 	}
@@ -128,13 +144,15 @@ internal static class QualificationSession
 	}
 
 	/// <summary>Records the facts of a new enable, before any activation exists.</summary>
-	internal static void BeginEnable(uint pluginId, AuthorizationDecision authorization, QualificationInputs inputs)
+	internal static void BeginEnable(uint pluginId, AuthorizationDecision authorization, QualificationInputs inputs,
+		string? pluginDirectory)
 	{
 		lock (Gate)
 		{
 			_pluginId = pluginId;
 			_authorization = authorization;
 			_inputs = inputs;
+			_pluginDirectory = pluginDirectory;
 		}
 	}
 

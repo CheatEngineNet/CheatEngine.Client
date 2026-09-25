@@ -1092,7 +1092,7 @@ internal static partial class QualificationScenarios
 
 	private static string? BridgeSha256()
 	{
-		string? directory = QualificationPlugin.PluginDirectory();
+		string? directory = QualificationSession.PluginDirectory;
 		string? bridge = directory is null ? null : Path.Combine(directory, BridgeFileName);
 		if (bridge is null || !File.Exists(bridge))
 		{
