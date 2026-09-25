@@ -1,5 +1,3 @@
-using System.Globalization;
-
 using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Results;
 using CheatEngine.Client.Scanning;
@@ -349,20 +347,9 @@ internal static class AobScanMapping
 	/// </remarks>
 	internal static AobScanOptions ToSdkOptions(ScanProtectionFilter protection, ScanAlignment alignment)
 	{
-		Span<char> text = stackalloc char[6];
-		int written = 0;
-		AppendProtection(text, ref written, protection.Executable, 'X');
-		AppendProtection(text, ref written, protection.CopyOnWrite, 'C');
-		AppendProtection(text, ref written, protection.Writable, 'W');
-		string flags = written == 0 ? string.Empty : new string(text[..written]);
-
-		return alignment.Kind switch
-		{
-			ScanAlignmentKind.AlignedTo => new AobScanOptions(flags, FastScanMethod.Aligned,
-				alignment.Divisor.ToString(CultureInfo.InvariantCulture)),
-			ScanAlignmentKind.LastDigits => new AobScanOptions(flags, FastScanMethod.LastDigits, alignment.Digits),
-			_ => new AobScanOptions(flags, FastScanMethod.NotAligned, null)
-		};
+		// The AOB options omit the alignment parameter without alignment (ScanOptionTranslation).
+		(FastScanMethod method, string? parameter) = ScanOptionTranslation.ToFastScan(alignment, null);
+		return new AobScanOptions(ScanOptionTranslation.ToProtectionText(protection), method, parameter);
 	}
 
 	/// <summary>Returns the public host outcome of a global scan.</summary>
@@ -443,33 +430,12 @@ internal static class AobScanMapping
 
 		released = SdkReleaseOutcomes.Worst(SdkReleaseOutcomes.FromTarget(result.FoundListRelease),
 			SdkReleaseOutcomes.FromTarget(result.MemScanRelease)).Kind;
-		if (released == LeaseReleaseKind.Released &&
-			result.ReleaseTermination is not (MemoryScanTerminationStatus.NotRequired
-				or MemoryScanTerminationStatus.Confirmed))
+		if (released == LeaseReleaseKind.Released && !ScanTermination.IsStopConfirmed(result.ReleaseTermination))
 		{
 			released = LeaseReleaseKind.CleanupUnconfirmed;
 		}
 
 		return released == LeaseReleaseKind.Released;
-	}
-
-	private static void AppendProtection(Span<char> text, ref int written, ScanProtectionRequirement requirement,
-		char flag)
-	{
-		char mode = requirement switch
-		{
-			ScanProtectionRequirement.Required => '+',
-			ScanProtectionRequirement.Excluded => '-',
-			ScanProtectionRequirement.Any => '*',
-			_ => '\0'
-		};
-		if (mode == '\0')
-		{
-			return;
-		}
-
-		text[written++] = mode;
-		text[written++] = flag;
 	}
 
 	/// <summary>The effect of a failure the SDK observed during a bounded scan: completed only after the scan completed.</summary>

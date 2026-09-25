@@ -1,6 +1,3 @@
-using System.Globalization;
-using System.Text;
-
 using CheatEngine.Client.Results;
 using CheatEngine.Client.Scanning;
 using CheatEngine.SDK.Engine.Enums;
@@ -12,8 +9,8 @@ namespace CheatEngine.Client.Core.Domains.ValueScanning;
 /// <remarks>
 ///     Every refusal is <see cref="CheatEngineFailureKind.OperationRejected" /> with
 ///     <see cref="CheatEngineHostEffect.NotStarted" />: it is decided before any Cheat Engine work is dispatched. The
-///     protection filter is written in Cheat Engine's clause grammar in the order <c>X</c>, <c>C</c>, <c>W</c>, and an
-///     alignment divisor as decimal text, as the AOB options are.
+///     protection filter and the alignment rule are written by <see cref="ScanOptionTranslation" />, the translation
+///     the AOB options use; without alignment the positional SDK request carries an empty parameter.
 /// </remarks>
 internal static class ValueScanRequests
 {
@@ -34,7 +31,8 @@ internal static class ValueScanRequests
 		}
 
 		ScanValueFlags flags = GetFlags(request.ValueType);
-		(FastScanMethod alignmentMethod, string alignmentParameter) = ToCheatEngineAlignment(request.Alignment);
+		(FastScanMethod alignmentMethod, string? alignmentParameter) =
+			ScanOptionTranslation.ToFastScan(request.Alignment, string.Empty);
 		sdkRequest = new FirstScanRequest(
 			ToScanOption(request.Comparison),
 			flags.VariableType,
@@ -43,9 +41,9 @@ internal static class ValueScanRequests
 			request.UpperValue?.Text ?? string.Empty,
 			request.StartAddress,
 			request.StopAddress,
-			ToCheatEngineProtection(request.Protection),
+			ScanOptionTranslation.ToProtectionText(request.Protection),
 			alignmentMethod,
-			alignmentParameter,
+			alignmentParameter ?? string.Empty,
 			flags.IsHexadecimalInput,
 			false,
 			flags.IsUnicodeScan,
@@ -136,32 +134,6 @@ internal static class ValueScanRequests
 		};
 	}
 
-	/// <summary>Writes a protection filter in Cheat Engine's clause grammar.</summary>
-	/// <param name="protection">The filter.</param>
-	/// <returns>The clauses in the order X, C, W; the empty string when every attribute is unspecified.</returns>
-	internal static string ToCheatEngineProtection(ScanProtectionFilter protection)
-	{
-		StringBuilder clauses = new(6);
-		AppendClause(clauses, protection.Executable, 'X');
-		AppendClause(clauses, protection.CopyOnWrite, 'C');
-		AppendClause(clauses, protection.Writable, 'W');
-		return clauses.ToString();
-	}
-
-	/// <summary>Writes an alignment rule as Cheat Engine's fast-scan method and parameter.</summary>
-	/// <param name="alignment">The rule.</param>
-	/// <returns>The method and its string parameter; the parameter is empty without alignment.</returns>
-	internal static (FastScanMethod Method, string Parameter) ToCheatEngineAlignment(ScanAlignment alignment)
-	{
-		return alignment.Kind switch
-		{
-			ScanAlignmentKind.AlignedTo => (FastScanMethod.Aligned,
-				alignment.Divisor.ToString(CultureInfo.InvariantCulture)),
-			ScanAlignmentKind.LastDigits => (FastScanMethod.LastDigits, alignment.Digits ?? string.Empty),
-			_ => (FastScanMethod.NotAligned, string.Empty)
-		};
-	}
-
 	private static bool TryValidateFirst(ValueScanFirstRequest request, out string? refusal)
 	{
 		refusal = request.Comparison switch
@@ -241,21 +213,6 @@ internal static class ValueScanRequests
 			ScanAlignmentKind.LastDigits => alignment is { Divisor: 0, Digits.Length: > 0 },
 			_ => false
 		};
-	}
-
-	private static void AppendClause(StringBuilder clauses, ScanProtectionRequirement requirement, char flag)
-	{
-		char? mode = requirement switch
-		{
-			ScanProtectionRequirement.Required => '+',
-			ScanProtectionRequirement.Excluded => '-',
-			ScanProtectionRequirement.Any => '*',
-			_ => null
-		};
-		if (mode is { } clause)
-		{
-			_ = clauses.Append(clause).Append(flag);
-		}
 	}
 
 	private static CheatEngineFailure Rejected(string operation, string? refusal)

@@ -237,8 +237,8 @@ public sealed class ValueScanMappingTests
 
 		MappingTotality.AssertTotal<MemoryScanTerminationStatus>(
 			termination => expected.TryGetValue(termination, out bool stopped) &&
-						   ValueScanMapping.IsStopConfirmed(termination) == stopped,
-			static termination => !ValueScanMapping.IsStopConfirmed(termination));
+						   ScanTermination.IsStopConfirmed(termination) == stopped,
+			static termination => !ScanTermination.IsStopConfirmed(termination));
 		Assert.Equal(Enum.GetValues<MemoryScanTerminationStatus>().Order(), expected.Keys.Order());
 	}
 

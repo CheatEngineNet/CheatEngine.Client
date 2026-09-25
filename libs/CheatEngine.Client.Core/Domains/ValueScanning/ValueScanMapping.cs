@@ -180,35 +180,18 @@ internal static class ValueScanMapping
 	/// <returns>The lease outcome.</returns>
 	/// <remarks>
 	///     Both objects confirmed as released still leave <see cref="LeaseReleaseKind.CleanupUnconfirmed" /> when a scan
-	///     that may have been running was not confirmed as stopped (<see cref="IsStopConfirmed" />), as the bounded AOB
-	///     route reports it. A release that could not reach Cheat Engine already reports its refusal in both statuses.
+	///     that may have been running was not confirmed as stopped (<see cref="ScanTermination.IsStopConfirmed" />), as the
+	///     bounded AOB route reports it. A release that could not reach Cheat Engine already reports its refusal in both
+	///     statuses.
 	/// </remarks>
 	internal static LeaseReleaseOutcome FromRelease(ValueScanReleaseStatuses statuses)
 	{
 		LeaseReleaseOutcome released = SdkReleaseOutcomes.Worst(SdkReleaseOutcomes.FromTarget(statuses.FoundList),
 			SdkReleaseOutcomes.FromTarget(statuses.MemScan));
-		return released.Kind == LeaseReleaseKind.Released && !IsStopConfirmed(statuses.Termination)
+		return released.Kind == LeaseReleaseKind.Released && !ScanTermination.IsStopConfirmed(statuses.Termination)
 			? SdkReleaseOutcomes.Worst(released,
 				new LeaseReleaseOutcome(LeaseReleaseKind.CleanupUnconfirmed, CheatEngineHostEffect.Started))
 			: released;
-	}
-
-	/// <summary>Returns whether no scan could still be running when the session's objects were released.</summary>
-	/// <param name="termination">The SDK's termination status of the release.</param>
-	/// <returns>
-	///     <see langword="true" /> only when no stop was needed or the one cooperative stop was confirmed; an unconfirmed,
-	///     refused or unrecognized stop is <see langword="false" />.
-	/// </returns>
-	internal static bool IsStopConfirmed(MemoryScanTerminationStatus termination)
-	{
-		return termination switch
-		{
-			MemoryScanTerminationStatus.NotRequired or MemoryScanTerminationStatus.Confirmed => true,
-			MemoryScanTerminationStatus.Unknown or MemoryScanTerminationStatus.WaitTimedOut
-				or MemoryScanTerminationStatus.TerminateFailed or MemoryScanTerminationStatus.WaitFailed
-				or MemoryScanTerminationStatus.NotInvoked => false,
-			_ => false
-		};
 	}
 
 	/// <summary>Returns how far a scan, wait or reset got when CheatEngine.SDK threw.</summary>
