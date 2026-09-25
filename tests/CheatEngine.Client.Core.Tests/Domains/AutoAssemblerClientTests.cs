@@ -2,15 +2,18 @@
 
 using CheatEngine.Client.Assembly;
 using CheatEngine.Client.Core.Dispatching;
+using CheatEngine.Client.Core.Domains;
 using CheatEngine.Client.Core.Domains.Assembly;
 using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Core.Tests.TestSupport;
 using CheatEngine.Client.Inspection;
+using CheatEngine.Client.Processes;
 using CheatEngine.Client.Results;
 using CheatEngine.Client.Runtime;
 using CheatEngine.Client.Scanning;
 using CheatEngine.SDK.Engine.Assembly;
 using CheatEngine.SDK.Engine.Errors;
+using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Engine.Objects;
 using CheatEngine.SDK.Engine.Runtime;
 using CheatEngine.SDK.Engine.Targets;
@@ -21,7 +24,9 @@ namespace CheatEngine.Client.Core.Tests.Domains;
 /// <summary>
 ///     The opt-in Auto Assembler client over a fake port (plan L17): the policy refusal without the opt-in (Q44), the
 ///     activation and release of a patch lease (Q35), every mapped outcome, and the lease rules (one disable attempt,
-///     refusal on a changed target, a <c>Dispose</c> that never throws).
+///     refusal on a changed target, a <c>Dispose</c> that never throws). A patch applied in a process selected in Cheat
+///     Engine's own window stays with that process, and a registration the activation or the selection refused reports
+///     what the release of the patch left.
 /// </summary>
 public sealed class AutoAssemblerClientTests : IDisposable
 {
@@ -33,6 +38,8 @@ public sealed class AutoAssemblerClientTests : IDisposable
 	private readonly TrackingInvoker _invoker = new();
 	private readonly CoreLifetime _lifetime;
 	private readonly FakePort _port;
+	private readonly ProcessClient _processes;
+	private readonly FakeSelectedTarget _target = new();
 
 	public AutoAssemblerClientTests()
 	{
@@ -40,7 +47,10 @@ public sealed class AutoAssemblerClientTests : IDisposable
 		_lifetime = new CoreLifetime(_context, _diagnostics);
 		_dispatcher = new SdkMainThreadDispatcher(_lifetime, _invoker);
 		_port = new FakePort(_invoker);
+		_processes = FakeSelectedTarget.CreateProcessClient(_dispatcher, _target);
 	}
+
+	private static CancellationToken Token => TestContext.Current.CancellationToken;
 
 	public void Dispose()
 	{
@@ -290,26 +300,143 @@ public sealed class AutoAssemblerClientTests : IDisposable
 
 	[Theory]
 	[Trait("Qualification", "Q35")]
-	[InlineData(TargetReleaseStatus.Released, CheatEngineHostEffect.Completed)]
-	[InlineData(TargetReleaseStatus.RefusedTargetChanged, CheatEngineHostEffect.CleanupUnconfirmed)]
+	[InlineData(TargetReleaseStatus.Released, CheatEngineHostEffect.Completed, "which was released at once")]
+	[InlineData(TargetReleaseStatus.RefusedTargetChanged, CheatEngineHostEffect.CleanupUnconfirmed,
+		"ended with RefusedTargetChanged")]
 	public void ALeaseThatCannotBeRegisteredIsReleasedAtOnce(TargetReleaseStatus release,
-		CheatEngineHostEffect expectedEffect)
+		CheatEngineHostEffect expectedEffect, string expected)
 	{
 		_port.Owner!.ReleaseStatus = release;
-		_port.DuringApply = () => _lifetime.TargetSelection.Advance("Processes.Attach");
-		AutoAssemblerClient client = CreateClient();
+		AutoAssemblerClient client = new(_dispatcher, new CoreClientPolicy([], false, true), _lifetime,
+			new StaleSelectionBinder(), _port);
 
 		bool applied = client.TryApplyPatch(new AutoAssemblerScript(Script), out IAutoAssemblerPatchLease? lease,
-			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+			out CheatEngineFailure failure, Token);
 
 		Assert.False(applied);
 		Assert.Null(lease);
 		Assert.Equal(CheatEngineFailureKind.TargetChanged, failure.Kind);
 		Assert.Equal(expectedEffect, failure.HostEffect);
 		Assert.IsType<CheatEngineClientLifecycleException>(failure.Exception);
-		Assert.Contains(release.ToString(), failure.Message, StringComparison.Ordinal);
+		Assert.Contains(expected, failure.Message, StringComparison.Ordinal);
 		Assert.Equal(1, _port.Owner.ReleaseCalls);
 		Assert.Equal([true], _port.Owner.ReleasedOnMainThread);
+		Assert.Throws<CheatEngineOperationException>(() => client.ApplyPatch(new AutoAssemblerScript(Script), Token));
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q43")]
+	public void AnActivationDuringTheDeactivationCleanupIsRefusedBeforeCheatEngineApplies()
+	{
+		AutoAssemblerClient client = CreateClient();
+		_context.Stop();
+		using (_lifetime.EnterCleanupScope())
+		{
+			Assert.Throws<CheatEngineClientLifecycleException>(() =>
+				client.TryApplyPatch(new AutoAssemblerScript(Script), out _, out _, Token));
+		}
+
+		Assert.Equal(0, _port.ApplyCalls);
+	}
+
+	[Theory]
+	[Trait("Qualification", "Q43")]
+	[InlineData(TargetReleaseStatus.Released, "which was released at once")]
+	[InlineData(TargetReleaseStatus.UnconfirmedAfterInvocation, "ended with CleanupUnconfirmed")]
+	public void AnActivationStoppingDuringTheApplyThrowsWhatTheReleaseLeft(TargetReleaseStatus release,
+		string expected)
+	{
+		_port.Owner!.ReleaseStatus = release;
+		_port.DuringApply = _context.Stop;
+		AutoAssemblerClient client = CreateClient();
+
+		CheatEngineClientLifecycleException stopping = Assert.Throws<CheatEngineClientLifecycleException>(() =>
+			client.TryApplyPatch(new AutoAssemblerScript(Script), out _, out _, Token));
+
+		Assert.Contains(expected, stopping.Message, StringComparison.Ordinal);
+		Assert.Equal(AutoAssemblerClient.ApplyOperation, stopping.Failure.Operation);
+		Assert.Equal(1, _port.Owner.ReleaseCalls);
+		Assert.Equal([true], _port.Owner.ReleasedOnMainThread);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q35")]
+	public void ATargetChangeObservedDuringTheApplyKeysTheLeaseToTheProcessItWasAppliedIn()
+	{
+		_ = _processes.GetCurrent(Token);
+		_port.Owner!.ReleaseStatus = TargetReleaseStatus.RefusedTargetChanged;
+		// CheatEngine.SDK bound the patch to process 42; Cheat Engine then selects process 43, which the Client
+		// observes before the lease is registered.
+		_port.DuringApply = () =>
+		{
+			_target.Select(FakeSelectedTarget.OtherProcessIncarnation);
+			_ = _processes.GetCurrent(Token);
+		};
+		AutoAssemblerClient client = CreateClient();
+
+		IAutoAssemblerPatchLease lease = client.ApplyPatch(new AutoAssemblerScript(Script), Token);
+		bool releasedWhenPublished = lease.IsReleased;
+		ProcessSnapshot observed = _processes.GetCurrent(Token);
+
+		Assert.False(releasedWhenPublished);
+		// The next observation of process 43 ends the lease of process 42: CheatEngine.SDK refuses the disable there.
+		Assert.True(observed.SelectionEpoch > lease.SelectionEpoch);
+		Assert.True(lease.IsReleased);
+		Assert.Equal(LeaseReleaseKind.RefusedTargetChanged, lease.LastReleaseOutcome?.Kind);
+		Assert.True(lease.RequiresManualRecovery);
+		Assert.Equal(1, _port.Owner.ReleaseCalls);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q35")]
+	public void APatchAppliedInAProcessSelectedInCheatEngineStaysWithThatProcess()
+	{
+		long observedEpoch = _processes.GetCurrent(Token).SelectionEpoch;
+		AutoAssemblerClient client = CreateClient();
+		FakeOwner first = _port.Owner!;
+		first.ReleaseStatus = TargetReleaseStatus.RefusedTargetChanged;
+		IAutoAssemblerPatchLease inFirst = client.ApplyPatch(new AutoAssemblerScript(Script), Token);
+		// Cheat Engine's own window selects another process: no Client call observes it.
+		_target.Select(FakeSelectedTarget.OtherProcessIncarnation);
+		FakeOwner second = new(_invoker)
+		{
+			TargetIncarnation = FakeSelectedTarget.OtherProcessIncarnation
+		};
+		_port.Owner = second;
+
+		IAutoAssemblerPatchLease inSecond = client.ApplyPatch(new AutoAssemblerScript(Script), Token);
+		long secondEpoch = inSecond.SelectionEpoch;
+		ProcessSnapshot observed = _processes.GetCurrent(Token);
+
+		// The first patch's process is no longer selected: its lease ended when the second patch was bound, and
+		// CheatEngine.SDK refused to disable it in the new target.
+		Assert.Equal(observedEpoch, inFirst.SelectionEpoch);
+		Assert.True(inFirst.IsReleased);
+		Assert.Equal(LeaseReleaseKind.RefusedTargetChanged, inFirst.LastReleaseOutcome?.Kind);
+		Assert.Equal(1, first.ReleaseCalls);
+		// The second patch belongs to the selection the next observation finds, which releases nothing.
+		Assert.True(secondEpoch > observedEpoch);
+		Assert.Equal(secondEpoch, observed.SelectionEpoch);
+		Assert.Equal(new TargetProcessId(43), observed.Id);
+		Assert.False(inSecond.IsReleased);
+		Assert.True(inSecond.IsEnabled);
+		Assert.Equal(0, second.ReleaseCalls);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q35")]
+	public void APatchInTheObservedProcessKeepsTheObservedSelection()
+	{
+		long observedEpoch = _processes.GetCurrent(Token).SelectionEpoch;
+		AutoAssemblerClient client = CreateClient();
+
+		IAutoAssemblerPatchLease lease = client.ApplyPatch(new AutoAssemblerScript(Script), Token);
+		ProcessSnapshot observed = _processes.GetCurrent(Token);
+
+		Assert.Equal(observedEpoch, lease.SelectionEpoch);
+		Assert.Equal(observedEpoch, observed.SelectionEpoch);
+		Assert.False(lease.IsReleased);
+		Assert.Equal(0, _port.Owner!.ReleaseCalls);
 	}
 
 	[Fact]
@@ -499,7 +626,8 @@ public sealed class AutoAssemblerClientTests : IDisposable
 
 	private AutoAssemblerClient CreateClient(bool enabled = true)
 	{
-		return new AutoAssemblerClient(_dispatcher, new CoreClientPolicy([], false, enabled), _lifetime, _port);
+		return new AutoAssemblerClient(_dispatcher, new CoreClientPolicy([], false, enabled), _lifetime, _processes,
+			_port);
 	}
 
 	/// <summary>Runs callbacks inline and marks the time spent inside them as Cheat Engine's main thread.</summary>
@@ -678,6 +806,12 @@ public sealed class AutoAssemblerClientTests : IDisposable
 	/// <summary>Consumes its disable information on the first release, like CheatEngine.SDK's patch owner.</summary>
 	private sealed class FakeOwner(TrackingInvoker invoker) : IAutoAssemblerPatchOwner
 	{
+		public TargetProcessIncarnation TargetIncarnation
+		{
+			get;
+			init;
+		} = FakeSelectedTarget.FirstIncarnation;
+
 		public bool IsEnabled => !IsConsumed;
 
 		public bool IsConsumed
@@ -735,6 +869,19 @@ public sealed class AutoAssemblerClientTests : IDisposable
 			LastReleaseStatus = ReleaseStatus;
 			RequiresManualRecovery = ReleaseStatus != TargetReleaseStatus.Released;
 			return ReleaseStatus;
+		}
+	}
+
+	/// <summary>A binder that keys every owner to an epoch the selection already left.</summary>
+	private sealed class StaleSelectionBinder : ITargetSelectionBinder
+	{
+		public TargetSelectionBinding BindOwner(TargetProcessIncarnation incarnation, string operation)
+		{
+			return new TargetSelectionBinding(-1, null);
+		}
+
+		public void ReportBinding(TargetSelectionBinding binding, string operation)
+		{
 		}
 	}
 

@@ -47,6 +47,15 @@ internal readonly record struct AutoAssemblerCheckFacts(
 /// </remarks>
 internal interface IAutoAssemblerPatchOwner
 {
+	/// <summary>
+	///     Gets the process incarnation that CheatEngine.SDK bound the patch to (<c>TargetIncarnation</c>): the target
+	///     it qualified before the activation, which its release validates again.
+	/// </summary>
+	public TargetProcessIncarnation TargetIncarnation
+	{
+		get;
+	}
+
 	/// <summary>Gets whether the owner still holds disable information that is current in the attached Lua state.</summary>
 	public bool IsEnabled
 	{

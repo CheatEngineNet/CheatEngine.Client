@@ -339,6 +339,7 @@ internal static class SdkApiUsage
 		_ = patch.IsEnabled;
 		_ = patch.LastReleaseOutcome;
 		_ = patch.RequiresManualRecovery;
+		_ = patch.TargetIncarnation;
 		_ = patch.ReleaseWithTargetOutcome();
 		_ = release.Status;
 	}

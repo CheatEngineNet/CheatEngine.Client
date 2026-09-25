@@ -108,8 +108,10 @@ of the same Client call is never `NotStarted`.
 `SdkAutoAssemblerPort` (`AutoAssemblerPatcher.TryApplyWithOutcome` and `TryCheck` with bounded
 options, behind `LuaAdmission`); `AutoAssemblerMapping` maps every SDK outcome category totally.
 The applied patch is handed to `AutoAssemblerPatchLease`, a target-bound `HostResourceLease`
-registered inside the same dispatched callback, which releases through the SDK owner's
-`ReleaseWithTargetOutcome` and never rebuilds a `[DISABLE]` section. That owner consumes its
+registered inside the same dispatched callback under the selection of the process incarnation the
+SDK bound the patch to (`ITargetSelectionBinder`, as for allocations and value scans), which
+releases through the SDK owner's `ReleaseWithTargetOutcome` and never rebuilds a `[DISABLE]`
+section; a refused registration is reported by `LeaseRegistration`. That owner consumes its
 disable information on every release status, so `AutoAssemblerMapping.ToReleaseOutcome` reports
 `NotInvoked` as `RefusedRuntimeChanged` (manual recovery) instead of the shared retryable
 `CleanupUnavailable`.

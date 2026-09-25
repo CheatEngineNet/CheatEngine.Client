@@ -41,7 +41,7 @@ public interface IAutoAssemblerPatchLease : ICheatEngineLease
 		get;
 	}
 
-	/// <summary>Gets the target-selection epoch captured when the patch was applied.</summary>
+	/// <summary>Gets the target-selection epoch of the process CheatEngine.SDK applied the patch in.</summary>
 	public long SelectionEpoch
 	{
 		get;

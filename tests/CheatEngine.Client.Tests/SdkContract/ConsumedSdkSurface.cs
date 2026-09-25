@@ -122,6 +122,7 @@ internal static class ConsumedSdkSurface
 		"CheatEngine.Client.Core M CheatEngine.SDK.Engine.Assembly.AutoAssemblerPatch::get_IsEnabled()->boolean",
 		"CheatEngine.Client.Core M CheatEngine.SDK.Engine.Assembly.AutoAssemblerPatch::get_LastReleaseOutcome()->CheatEngine.SDK.Engine.Targets.TargetReleaseOutcome",
 		"CheatEngine.Client.Core M CheatEngine.SDK.Engine.Assembly.AutoAssemblerPatch::get_RequiresManualRecovery()->boolean",
+		"CheatEngine.Client.Core M CheatEngine.SDK.Engine.Assembly.AutoAssemblerPatch::get_TargetIncarnation()->CheatEngine.SDK.Engine.Targets.TargetProcessIncarnation",
 		"CheatEngine.Client.Core M CheatEngine.SDK.Engine.Assembly.AutoAssemblerPatcher::TryApplyWithOutcome(string,CheatEngine.SDK.Engine.Assembly.AutoAssemblerOptions,CheatEngine.SDK.Engine.Assembly.AutoAssemblerPatch&)->CheatEngine.SDK.Engine.Assembly.AutoAssemblerApplyOutcome",
 		"CheatEngine.Client.Core M CheatEngine.SDK.Engine.Assembly.AutoAssemblerPatcher::TryCheck(string,boolean,CheatEngine.SDK.Engine.Assembly.AutoAssemblerOptions)->CheatEngine.SDK.Engine.Assembly.AutoAssemblerCheckOutcome",
 		"CheatEngine.Client.Core M CheatEngine.SDK.Engine.Assembly.InstructionAssembler::TryAssemble(CheatEngine.SDK.Engine.Assembly.InstructionTargetProfile,string,CheatEngine.SDK.Engine.Values.Address,CheatEngine.SDK.Engine.Assembly.AssemblePreference,boolean,System.Span`1<byte>,CheatEngine.SDK.Engine.Assembly.InstructionAssembly&)->CheatEngine.SDK.Engine.Assembly.InstructionOperationStatus",

@@ -82,6 +82,8 @@ internal sealed class SdkAutoAssemblerPort : IAutoAssemblerPort
 	/// </remarks>
 	private sealed class SdkPatchOwner(AutoAssemblerPatch patch) : IAutoAssemblerPatchOwner
 	{
+		public TargetProcessIncarnation TargetIncarnation => patch.TargetIncarnation;
+
 		public bool IsEnabled => patch.IsEnabled;
 
 		public bool IsConsumed => patch.IsDisposed;

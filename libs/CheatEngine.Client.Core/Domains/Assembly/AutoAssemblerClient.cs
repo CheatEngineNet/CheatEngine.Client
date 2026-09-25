@@ -9,7 +9,6 @@ using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Results;
 using CheatEngine.Client.Runtime;
 using CheatEngine.SDK.Engine.Assembly;
-using CheatEngine.SDK.Engine.Targets;
 
 namespace CheatEngine.Client.Core.Domains.Assembly;
 
@@ -22,11 +21,15 @@ namespace CheatEngine.Client.Core.Domains.Assembly;
 ///         dispatch: an applied patch is always returned as a lease, because a token cannot undo it.
 ///     </para>
 ///     <para>
-///         Inside the callback the Client captures the target-selection epoch, asks the port to apply the script, and
-///         registers the lease with the activation and that target selection before the callback returns. When the
-///         registration is refused (the target selection or the activation changed meanwhile), the patch is released at
-///         once through its owner and the failure reports what that release did. Outcomes are mapped by
-///         <see cref="AutoAssemblerMapping" />; SDK faults are translated by <see cref="SdkBoundary" />.
+///         Inside the callback the Client refuses an activation that stopped or ended since its admission, before Cheat
+///         Engine applies a patch that no lease could own, and asks the port to apply the script. It then registers
+///         the lease with the activation and with the target selection of the process incarnation that CheatEngine.SDK
+///         bound the patch to (<see cref="ITargetSelectionBinder" />), before the callback returns: a process selected
+///         in Cheat Engine's own window since the last observation advances the epoch first, so the next observation
+///         never releases a patch whose own process is still selected. When the registration is refused, the patch is
+///         released at once through its owner and <see cref="LeaseRegistration" /> reports what that release left.
+///         Outcomes are mapped by <see cref="AutoAssemblerMapping" />; SDK faults are translated by
+///         <see cref="SdkBoundary" />.
 ///     </para>
 ///     <para>
 ///         The SDK options are bounded here: host text (rejection detail, warnings, check messages) is copied up to
@@ -53,19 +56,27 @@ internal sealed class AutoAssemblerClient : IAutoAssemblerClient
 	private readonly CoreLifetime _lifetime;
 	private readonly CoreClientPolicy _policy;
 	private readonly IAutoAssemblerPort _port;
+	private readonly ITargetSelectionBinder _selection;
 
-	internal AutoAssemblerClient(SdkMainThreadDispatcher dispatcher, CoreClientPolicy policy, CoreLifetime lifetime)
-		: this(dispatcher, policy, lifetime, SdkAutoAssemblerPort.Instance)
+	/// <summary>Creates the client of an activation over CheatEngine.SDK's patcher.</summary>
+	/// <param name="dispatcher">The activation dispatcher.</param>
+	/// <param name="policy">The activation policy, whose opt-in gates every call.</param>
+	/// <param name="lifetime">The activation lifetime.</param>
+	/// <param name="selection">The owner of the observed target selection, the activation's process client.</param>
+	internal AutoAssemblerClient(SdkMainThreadDispatcher dispatcher, CoreClientPolicy policy, CoreLifetime lifetime,
+		ITargetSelectionBinder selection)
+		: this(dispatcher, policy, lifetime, selection, SdkAutoAssemblerPort.Instance)
 	{
 	}
 
 	/// <summary>Creates the client over an explicit port; tests supply a fake port and dispatcher.</summary>
 	internal AutoAssemblerClient(ICheatEngineDispatcher dispatcher, CoreClientPolicy policy, CoreLifetime lifetime,
-		IAutoAssemblerPort port)
+		ITargetSelectionBinder selection, IAutoAssemblerPort port)
 	{
 		_dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
 		_policy = policy ?? throw new ArgumentNullException(nameof(policy));
 		_lifetime = lifetime ?? throw new ArgumentNullException(nameof(lifetime));
+		_selection = selection ?? throw new ArgumentNullException(nameof(selection));
 		_port = port ?? throw new ArgumentNullException(nameof(port));
 	}
 
@@ -139,6 +150,7 @@ internal sealed class AutoAssemblerClient : IAutoAssemblerClient
 			return false;
 		}
 
+		_selection.ReportBinding(attempt.Binding, ApplyOperation);
 		if (attempt.Lease is not { } published)
 		{
 			failure = attempt.Failure;
@@ -167,14 +179,6 @@ internal sealed class AutoAssemblerClient : IAutoAssemblerClient
 
 		failure.Throw(cancellationToken);
 		throw new InvalidOperationException("Unreachable failure flow.");
-	}
-
-	/// <summary>The effect of an applied patch that the Client released again before returning it.</summary>
-	private static CheatEngineHostEffect CompensationEffect(TargetReleaseStatus status)
-	{
-		return status == TargetReleaseStatus.Released
-			? CheatEngineHostEffect.Completed
-			: CheatEngineHostEffect.CleanupUnconfirmed;
 	}
 
 	private static string RequireSource(AutoAssemblerScript script)
@@ -209,7 +213,9 @@ internal sealed class AutoAssemblerClient : IAutoAssemblerClient
 	/// <summary>Applies the script and publishes its lease, on Cheat Engine's main thread.</summary>
 	private ApplyAttempt ApplyOnMainThread(string source, string? name)
 	{
-		long selectionEpoch = _lifetime.TargetSelection.Epoch;
+		// No lease can be registered once the activation stops or ends: refuse before Cheat Engine applies a patch that
+		// no lease could own.
+		_lifetime.ThrowIfInactive(ApplyOperation);
 		if (!_port.TryApply(ApplyOperation, source, Options, out AutoAssemblerApplyFacts facts,
 				out IAutoAssemblerPatchOwner? patch, out CheatEngineFailure admissionFailure))
 		{
@@ -231,37 +237,46 @@ internal sealed class AutoAssemblerClient : IAutoAssemblerClient
 				"remain in the target.", null, CheatEngineHostEffect.CleanupUnconfirmed));
 		}
 
-		AutoAssemblerPatchLease created = new(patch, name, selectionEpoch,
-			facts.Kind == AutoAssemblerApplyOutcomeKind.AppliedTargetChanged, facts.HostWarnings,
-			facts.HostWarningsTruncated, _dispatcher, _lifetime.Diagnostics);
+		TargetSelectionBinding binding = default;
 		try
 		{
-			created.Register(_lifetime, selectionEpoch);
+			// The lease belongs to the selection of the process CheatEngine.SDK bound the patch to, not to the last
+			// selection the Client observed.
+			binding = _selection.BindOwner(patch.TargetIncarnation, ApplyOperation);
+			AutoAssemblerPatchLease created = new(patch, name, binding.SelectionEpoch,
+				facts.Kind == AutoAssemblerApplyOutcomeKind.AppliedTargetChanged, facts.HostWarnings,
+				facts.HostWarningsTruncated, _dispatcher, _lifetime.Diagnostics);
+			created.Register(_lifetime, binding.SelectionEpoch);
+			return new ApplyAttempt(created, default)
+			{
+				Binding = binding
+			};
 		}
-		catch (Exception exception) when (exception is CheatEngineClientException or ObjectDisposedException)
+		catch (Exception registration)
 		{
 			// The lease was never published: its owner makes the one disable attempt here, on the main thread.
-			TargetReleaseStatus status = patch.Release();
-			return new ApplyAttempt(null, CreateRegistrationFailure(exception, selectionEpoch, status));
+			LeaseReleaseOutcome released = AutoAssemblerMapping.ToReleaseOutcome(patch.Release());
+			if (registration is not (CheatEngineClientException or ObjectDisposedException))
+			{
+				throw;
+			}
+
+			return new ApplyAttempt(null, LeaseRegistration.Refused(_lifetime, ApplyOperation, registration, released,
+				"the applied Auto Assembler patch"))
+			{
+				Binding = binding
+			};
 		}
-
-		return new ApplyAttempt(created, default);
-	}
-
-	private CheatEngineFailure CreateRegistrationFailure(Exception exception, long selectionEpoch,
-		TargetReleaseStatus status)
-	{
-		CheatEngineFailureKind kind = _lifetime.TargetSelection.Epoch != selectionEpoch
-			? CheatEngineFailureKind.TargetChanged
-			: _lifetime.IsActivationCurrent
-				? CheatEngineFailureKind.InvalidState
-				: CheatEngineFailureKind.ActivationExpired;
-		return new CheatEngineFailure(kind, ApplyOperation,
-			"Cheat Engine applied the script, but the Client could not register its lease because the target " +
-			$"selection or the activation changed; the patch was released at once and the release ended as {status}.",
-			exception, CompensationEffect(status));
 	}
 
 	/// <summary>The lease published by one dispatched activation, or the failure that replaced it.</summary>
-	private readonly record struct ApplyAttempt(AutoAssemblerPatchLease? Lease, CheatEngineFailure Failure);
+	private readonly record struct ApplyAttempt(AutoAssemblerPatchLease? Lease, CheatEngineFailure Failure)
+	{
+		/// <summary>Gets the selection binding of an applied patch, reported after the callback returned.</summary>
+		internal TargetSelectionBinding Binding
+		{
+			get;
+			init;
+		}
+	}
 }

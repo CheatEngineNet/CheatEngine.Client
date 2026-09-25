@@ -25,11 +25,12 @@ namespace CheatEngine.Client.Assembly;
 ///     </para>
 ///     <para>
 ///         <b>Release every patch lease before selecting another process.</b> The lease is bound to the target
-///         selection, and the Client observes a selection change only after Cheat Engine already targets the new
-///         process. It then ends the lease with <see cref="LeaseReleaseKind.RefusedTargetChanged" />: CheatEngine.SDK
-///         refuses the disable on the new target but consumes the disable information, so the patch stays in the
-///         previous process, <see cref="IAutoAssemblerPatchLease.RequiresManualRecovery" /> is <see langword="true" />,
-///         and selecting the previous process again cannot disable it.
+///         selection of the process CheatEngine.SDK applied the patch in, and the Client observes a selection change
+///         only after Cheat Engine already targets the new process. It then ends the lease with
+///         <see cref="LeaseReleaseKind.RefusedTargetChanged" />: CheatEngine.SDK refuses the disable on the new target
+///         but consumes the disable information, so the patch stays in the previous process,
+///         <see cref="IAutoAssemblerPatchLease.RequiresManualRecovery" /> is <see langword="true" />, and selecting the
+///         previous process again cannot disable it.
 ///     </para>
 ///     <para>
 ///         A cancellation token is observed only before the work is dispatched to Cheat Engine's main thread

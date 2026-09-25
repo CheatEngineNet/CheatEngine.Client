@@ -184,7 +184,8 @@ public sealed class TryContractTests
 				.TryCreateSession(out _, out _, cancelled),
 			"Allocations" => () => new AllocationClient(dispatcher, Binder(dispatcher), allocations)
 				.TryAllocate(new AllocationRequest(4096), out _, out _, cancelled),
-			"AutoAssembler" => () => new AutoAssemblerClient(dispatcher, AutoAssemblerPolicy(), lifetime, ports)
+			"AutoAssembler" => () => new AutoAssemblerClient(dispatcher, AutoAssemblerPolicy(), lifetime,
+					Binder(dispatcher), ports)
 				.TryApplyPatch(new AutoAssemblerScript("[ENABLE]"), out _, out _, cancelled),
 			"Instructions" => () => new AssemblyClient(dispatcher, lifetime, new MemoryResourceLimits(), ports)
 				.TryDisassemble(Target, out _, out _, cancelled),
@@ -324,11 +325,13 @@ public sealed class TryContractTests
 				static (client, request, t) => (client.TryAllocate(request, out ITargetMemoryLease? _,
 					out CheatEngineFailure f, t), f),
 				static (client, request, t) => client.Allocate(request, t), token),
-			"AutoAssembler.ApplyPatch" => Run(new AutoAssemblerClient(dispatcher, AutoAssemblerPolicy(), lifetime, ports),
+			"AutoAssembler.ApplyPatch" => Run(
+				new AutoAssemblerClient(dispatcher, AutoAssemblerPolicy(), lifetime, Binder(dispatcher), ports),
 				new AutoAssemblerScript("[ENABLE]"),
 				static (client, script, t) => (client.TryApplyPatch(script, out _, out CheatEngineFailure f, t), f),
 				static (client, script, t) => client.ApplyPatch(script, t), token),
-			"AutoAssembler.Check" => Run(new AutoAssemblerClient(dispatcher, AutoAssemblerPolicy(), lifetime, ports),
+			"AutoAssembler.Check" => Run(
+				new AutoAssemblerClient(dispatcher, AutoAssemblerPolicy(), lifetime, Binder(dispatcher), ports),
 				new AutoAssemblerScript("[ENABLE]"),
 				static (client, script, t) => (client.TryCheck(script, out _, out CheatEngineFailure f, t), f),
 				static (client, script, t) => client.Check(script, t), token),
@@ -441,7 +444,7 @@ public sealed class TryContractTests
 			UnsafeLuaClient unsafeLua = new(dispatcher, new CoreClientPolicy([], true), lifetime);
 			ValueScanner scans = new(dispatcher, Binder(dispatcher));
 			AllocationClient allocations = new(dispatcher, Binder(dispatcher));
-			AutoAssemblerClient autoAssembler = new(dispatcher, AutoAssemblerPolicy(), lifetime);
+			AutoAssemblerClient autoAssembler = new(dispatcher, AutoAssemblerPolicy(), lifetime, Binder(dispatcher));
 			AssemblyClient instructions = new(dispatcher, lifetime, new MemoryResourceLimits());
 			CancellationToken token = TestContext.Current.CancellationToken;
 
@@ -706,10 +709,11 @@ public sealed class TryContractTests
 				(new AllocationClient(dispatcher, Binder(dispatcher), new FakeAllocationPort()).TryAllocate(default, out _,
 					out CheatEngineFailure f, token), f)),
 			"AutoAssemblerPolicy" => TryFailure(() =>
-				(new AutoAssemblerClient(dispatcher, new CoreClientPolicy([], false), lifetime, ports)
+				(new AutoAssemblerClient(dispatcher, new CoreClientPolicy([], false), lifetime, Binder(dispatcher),
+						ports)
 					.TryApplyPatch(new AutoAssemblerScript("[ENABLE]"), out _, out CheatEngineFailure f, token), f)),
 			"AutoAssemblerPreDispatchCancellation" => TryFailure(() =>
-				(new AutoAssemblerClient(dispatcher, AutoAssemblerPolicy(), lifetime, ports)
+				(new AutoAssemblerClient(dispatcher, AutoAssemblerPolicy(), lifetime, Binder(dispatcher), ports)
 					.TryCheck(new AutoAssemblerScript("[ENABLE]"), out _, out CheatEngineFailure f, cancelled), f)),
 			"InstructionsPreDispatchCancellation" => TryFailure(() =>
 				(new AssemblyClient(dispatcher, lifetime, new MemoryResourceLimits(), ports)

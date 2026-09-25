@@ -169,7 +169,8 @@ public sealed class CheatEngineClientBuilder
 		Services.AddSingleton<IAutoAssemblerClient>(static serviceProvider => new AutoAssemblerClient(
 			serviceProvider.GetRequiredService<SdkMainThreadDispatcher>(),
 			serviceProvider.GetRequiredService<CoreClientPolicy>(),
-			serviceProvider.GetRequiredService<CoreLifetime>()));
+			serviceProvider.GetRequiredService<CoreLifetime>(),
+			serviceProvider.GetRequiredService<ProcessClient>()));
 		return this;
 	}
 }

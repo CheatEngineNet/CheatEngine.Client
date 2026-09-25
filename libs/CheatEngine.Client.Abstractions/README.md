@@ -253,10 +253,15 @@ exact host profile of the release; the documentation link of each diagnostic poi
   detach or state reset or before the disable could begin (`RefusedRuntimeChanged`), or a disable Cheat Engine did not
   confirm (`CleanupUnconfirmed`) leaves `RequiresManualRecovery` set and is never retried.
 - **Target change:** release every patch lease before selecting another process. The lease is bound to the target
-  selection, and the Client observes a selection change only after Cheat Engine already targets the new process: it
-  then ends the lease with `RefusedTargetChanged`, CheatEngine.SDK consumes the disable information without running
-  `[DISABLE]`, and the patch stays in the previous process (`RequiresManualRecovery`). Selecting the previous process
-  again cannot disable it.
+  selection of the process CheatEngine.SDK applied the patch in, even when Cheat Engine's own window selected that
+  process since the Client last observed the selection; the leases of the process it replaced then end. The Client
+  observes a selection change only after Cheat Engine already targets the new process: it then ends the lease with
+  `RefusedTargetChanged`, CheatEngine.SDK consumes the disable information without running `[DISABLE]`, and the patch
+  stays in the previous process (`RequiresManualRecovery`). Selecting the previous process again cannot disable it.
+- **Registration:** an activation that stopped or ended is refused before Cheat Engine applies anything. A lease that
+  cannot be registered after the activation, because the selection moved meanwhile, is released at once and reported
+  as `TargetChanged`, with `Completed` or, when that release was not confirmed, `CleanupUnconfirmed`; an activation that
+  stops or ends during the call throws its lifecycle exception, whose message says what that release left.
 - **Outcomes:** `Applied` returns the lease; `AppliedTargetChanged` returns it with `AppliedAfterTargetChange` set and
   logs warning event 1800 (the patch stays bound to the target observed before the activation); `Rejected` is
   `OperationRejected` with an `Unknown` host effect (a rejected script can have applied part of its effects) and Cheat

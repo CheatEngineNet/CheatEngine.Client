@@ -36,7 +36,10 @@ internal sealed class AutoAssemblerPatchLease : HostResourceLease, IAutoAssemble
 	/// <summary>Creates the lease that owns an applied patch; register it with <see cref="HostResourceLease.Register" />.</summary>
 	/// <param name="patch">The sole owner of the patch's disable information.</param>
 	/// <param name="name">The Client diagnostic name of the script.</param>
-	/// <param name="selectionEpoch">The target-selection epoch captured before the activation.</param>
+	/// <param name="selectionEpoch">
+	///     The target-selection epoch of the process CheatEngine.SDK bound the patch to
+	///     (<see cref="ITargetSelectionBinder" />).
+	/// </param>
 	/// <param name="appliedAfterTargetChange">Whether the SDK observed a target change right after the activation.</param>
 	/// <param name="hostWarnings">Cheat Engine's bounded compilation warnings.</param>
 	/// <param name="hostWarningsTruncated">Whether <paramref name="hostWarnings" /> was cut at the bound.</param>
