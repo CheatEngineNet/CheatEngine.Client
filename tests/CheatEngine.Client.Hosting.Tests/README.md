@@ -21,8 +21,9 @@ boundary where a long-lived plugin host meets activation-scoped Client services.
 
 `CheatEnginePluginBuilderTests` proves that application code can neither create the builder nor build its provider,
 that `PluginDirectory` is the folder of the plugin assembly (and refuses an assembly without a file location), and that
-a provider added through `Logging` receives the Core diagnostic events; `CheatEngineClientPluginTests` shows the same
-provider receiving the Hosting lifecycle events. The `appsettings.json` of this project is copied next to the test
+a provider added through `Logging` receives the Core diagnostic events of the registered sink, which the registration of
+the Core lifetime resolves; `CheatEngineClientPluginTests` shows the same provider receiving the Hosting lifecycle
+events. The `appsettings.json` of this project is copied next to the test
 assembly and read from `PluginDirectory`, the way a plugin reads its own file; a small JSON stand-in replaces
 `Microsoft.Extensions.Configuration.Json`, which only the plugin project references. `CheatEngineClientPluginTests`
 also proves that cleanup warns once (event 8) when CheatEngine.SDK reports an external Lua state reset, detected during

@@ -1,6 +1,7 @@
 using System.Reflection;
 
 using CheatEngine.Client.Extensions.DependencyInjection;
+using CheatEngine.Client.Results;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -91,8 +92,9 @@ public sealed class CheatEnginePluginBuilderTests
 	}
 
 	/// <summary>
-	///     The Core diagnostics of an activation log through the activation provider's logger factory, so a provider added
-	///     through <see cref="CheatEnginePluginBuilder.Logging" /> receives them under their domain category.
+	///     The Core diagnostics of an activation log through the activation provider's logger factory: the registered
+	///     sink writes to a provider added through <see cref="CheatEnginePluginBuilder.Logging" />, under its domain
+	///     category, and the registration of the Core lifetime takes that same sink.
 	/// </summary>
 	[Fact]
 	public void ProvidersAddedThroughLoggingReceiveTheCoreDiagnosticEvents()
@@ -100,14 +102,23 @@ public sealed class CheatEnginePluginBuilderTests
 		CapturingLoggerProvider logs = new();
 		CheatEnginePluginBuilder builder = new(PluginAssembly);
 		builder.Logging.SetMinimumLevel(LogLevel.Trace).AddProvider(logs);
+		ServiceDescriptor coreLifetime = Assert.Single(builder.Services, static descriptor =>
+			descriptor.ServiceType.FullName == "CheatEngine.Client.Core.Infrastructure.CoreLifetime");
 
 		using ServiceProvider provider = builder.BuildServiceProvider();
-		LoggerCoreDiagnostics diagnostics = new(provider.GetRequiredService<ILoggerFactory>());
+		LoggerCoreDiagnostics diagnostics = provider.GetRequiredService<LoggerCoreDiagnostics>();
 		diagnostics.PointerWidthMismatchRefused("Memory.ReadPrimitive", 8, 4);
+		ResolutionRecorder resolutions = new(provider);
+
+		// A unit test has no Cheat Engine plugin context: the registration resolves its diagnostics sink, then the
+		// capture refuses.
+		Assert.Throws<CheatEngineInvalidStateException>(() => coreLifetime.ImplementationFactory!(resolutions));
 
 		(string Category, EventId EventId) entry = Assert.Single(logs.Entries);
 		Assert.Equal(LoggerCoreDiagnostics.MemoryCategory, entry.Category);
 		Assert.Equal(1200, entry.EventId.Id);
+		Assert.Equal([typeof(LoggerCoreDiagnostics)], resolutions.Requested);
+		Assert.Same(diagnostics, Assert.Single(resolutions.Resolved));
 	}
 
 	[Fact]
@@ -149,6 +160,32 @@ public sealed class CheatEnginePluginBuilderTests
 	private sealed class LocationlessAssembly : ReflectionAssembly
 	{
 		public override string Location => string.Empty;
+	}
+
+	/// <summary>Resolves from an activation provider and records what a registration factory asks it for.</summary>
+	private sealed class ResolutionRecorder(IServiceProvider services) : IServiceProvider
+	{
+		internal List<Type> Requested
+		{
+			get;
+		} = [];
+
+		internal List<object> Resolved
+		{
+			get;
+		} = [];
+
+		public object? GetService(Type serviceType)
+		{
+			Requested.Add(serviceType);
+			object? service = services.GetService(serviceType);
+			if (service is not null)
+			{
+				Resolved.Add(service);
+			}
+
+			return service;
+		}
 	}
 
 	private sealed class CapturingLoggerProvider : ILoggerProvider

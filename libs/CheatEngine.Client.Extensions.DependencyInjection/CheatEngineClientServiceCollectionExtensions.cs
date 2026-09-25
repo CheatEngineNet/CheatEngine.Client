@@ -84,9 +84,11 @@ public static class CheatEngineClientServiceCollectionExtensions
 		// Every descriptor is a direct construction path. The client never scans assemblies, resolves arbitrary types,
 		// or creates a nested provider; Core internals are visible only to this composition assembly.
 		// The Core diagnostics of this activation log through the activation's own logger factory (audit ch.24); Core
-		// itself references no logging assembly.
+		// itself references no logging assembly. The sink is a registration of its own, which the lifetime resolves.
+		services.TryAddSingleton<LoggerCoreDiagnostics>(static serviceProvider =>
+			new LoggerCoreDiagnostics(serviceProvider.GetRequiredService<ILoggerFactory>()));
 		services.TryAddSingleton<CoreLifetime>(static serviceProvider =>
-			CoreLifetime.Capture(new LoggerCoreDiagnostics(serviceProvider.GetRequiredService<ILoggerFactory>())));
+			CoreLifetime.Capture(serviceProvider.GetRequiredService<LoggerCoreDiagnostics>()));
 		services.TryAddSingleton<ICheatEngineClientActivationCleanup>(static serviceProvider =>
 			new CheatEngineClientActivationCleanup(serviceProvider.GetRequiredService<CoreLifetime>()));
 		services.TryAddSingleton<CoreClientPolicy>(static serviceProvider =>
