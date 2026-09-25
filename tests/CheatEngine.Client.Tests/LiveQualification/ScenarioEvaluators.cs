@@ -39,8 +39,8 @@ internal sealed record QualificationCheck(
 ///     The C# evaluators of every live check. Each reads the driver transcript (the harness's JSON observations and the
 ///     driver's own steps), the debug output, the lifecycle sink and the runner's facts, and returns Passed, Failed or
 ///     NotExecuted with the facts it rests on. A missing step is NotExecuted, never a pass; a check that needs an operator
-///     toggle stays NotExecuted until the S0 spike proves the toggle; nothing is inferred from a count that varies with
-///     the loaded modules (Q28 compares the bounded result with the global result inside the module).
+///     toggle stays NotExecuted unless the driver observed the toggle done; nothing is inferred from a count that varies
+///     with the loaded modules (Q28 compares the bounded result with the global result inside the module).
 /// </summary>
 [SupportedOSPlatform("windows")]
 internal static class ScenarioEvaluators
@@ -72,17 +72,19 @@ internal static class ScenarioEvaluators
 				: CheckResult.NotExecuted("no identification line naming the harness was captured; its format is a fact the " +
 										  "S0 spike records"));
 		Add("Q05", "S2", "reenable-epochs", "a re-enable reports a new activation with a later epoch",
-			static evidence => evidence.AfterOperator("toggle-enable", () => evidence.Observe("status-after-reenable",
-				static observed => observed.Number("plugin.activations") >= 2 &&
-								   observed.Number("plugin.lastEpoch") > observed.Number("plugin.previousEpoch"),
-				"plugin.activations", "plugin.lastEpoch", "plugin.previousEpoch")));
+			static evidence => evidence.AfterOperator(["toggle-disable", "toggle-enable"],
+				() => evidence.Observe("status-after-reenable",
+					static observed => observed.Number("plugin.activations") >= 2 &&
+									   observed.Number("plugin.lastEpoch") > observed.Number("plugin.previousEpoch"),
+					"plugin.activations", "plugin.lastEpoch", "plugin.previousEpoch")));
 
 		// Q06: a failed enable rolls back and the next enable reports it.
 		Add("Q06", "S2", "failed-enable-reported", "an enable whose Configure throws fails, and the next enable reports it",
-			static evidence => evidence.AfterOperator("toggle-enable-faulted", () => evidence.Observe("status-after-fault",
-				static observed => observed.Is("plugin.active") &&
-								   observed.Element("ledger")?.ToString().Contains("configure.threw", StringComparison.Ordinal) == true,
-				"plugin.active", "plugin.enableAttempts", "plugin.activations")));
+			static evidence => evidence.AfterOperator(["toggle-disable-for-fault", "toggle-enable-faulted", "toggle-enable-after-fault"],
+				() => evidence.Observe("status-after-fault",
+					static observed => observed.Is("plugin.active") &&
+									   observed.Element("ledger")?.ToString().Contains("configure.threw", StringComparison.Ordinal) == true,
+					"plugin.active", "plugin.enableAttempts", "plugin.activations")));
 
 		foreach (string session in (string[]) ["S5a", "S5b"])
 		{
@@ -91,7 +93,7 @@ internal static class ScenarioEvaluators
 				static evidence => Both(evidence.Value("a-identity", static value => value.StartsWith("Plugin=A", StringComparison.Ordinal)),
 					evidence.Value("b-identity", static value => value.StartsWith("Plugin=B", StringComparison.Ordinal))));
 			Add("Q09", session, "independent-disable", "disabling Plugin A leaves Plugin B answering",
-				static evidence => evidence.AfterOperator("toggle-disable-a",
+				static evidence => evidence.AfterOperator(["toggle-disable-a"],
 					() => evidence.Value("b-ping-after-a-disabled", static value => long.TryParse(value, CultureInfo.InvariantCulture, out _))));
 
 			// Q10: a CheatEngine.SDK 1.x neighbour and the Client plugins side by side.
@@ -118,12 +120,12 @@ internal static class ScenarioEvaluators
 					evidence.Value("a-collision-after", static value => value == "CollisionOwner=A")));
 			Add("Q16", session, "third-party-survives-disable",
 				"a third-party replacement of a Plugin A global survives the disable of Plugin A",
-				static evidence => evidence.AfterOperator("toggle-disable-a",
+				static evidence => evidence.AfterOperator(["toggle-disable-a"],
 					() => evidence.Value("third-party-survives", static value => value == "true")));
 		}
 
 		Add("Q16", "S2", "kept-function-dies", "a harness function kept by Lua raises a classified error after the disable",
-			static evidence => evidence.AfterOperator("toggle-disable", () => evidence.ExpectError("kept-function-after-disable")));
+			static evidence => evidence.AfterOperator(["toggle-disable"], () => evidence.ExpectError("kept-function-after-disable")));
 
 		// Q16.b: a Client symbol lease.
 		Add("Q16.b", "S1", "registered", "the lease registers the symbol on the scratch address",

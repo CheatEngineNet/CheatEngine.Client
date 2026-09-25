@@ -136,8 +136,11 @@ One session runs in this order:
    on the main thread, one step per tick, each under `pcall`. It waits for the main form, opens the target, loads the
    plugin, waits for the harness functions, calls them, inspects the settings form read-only, clears the address list,
    writes `DONE` and calls `closeCE()`. Each step appends `R<TAB>step<TAB>ok|error|notexecuted<TAB>%q` to the transcript.
-   The plugin toggles through Settings > Plugins are recorded as `notexecuted` with an operator prompt until the spike
-   proves that `getSettingsForm()` can perform them.
+   Until the spike proves that `getSettingsForm()` can perform them, the plugin toggles through Settings > Plugins are
+   operator steps (plan A12): a window that leaves Cheat Engine usable shows the prompt, and the driver waits up to 90
+   seconds for the plugin's function to disappear after a disable or come back after an enable, or, for the enable that
+   must fail, for the operator's Done. The observed effect is recorded `ok`; Skip, closing the window or no action in
+   time is recorded `notexecuted`.
 8. `DebugOutputCapture` owns the DBWIN objects (4096-byte section, `DBWIN_BUFFER_READY` and `DBWIN_DATA_READY`) and keeps
    only the Cheat Engine process's messages (`DebugOutputBuffer`).
 9. `HostProcessGuard` starts `<run>/ce/cheatengine-x86_64.exe` directly, never the launcher, with an environment
@@ -162,8 +165,8 @@ skips what `.gitignore` excludes (`bin`, `obj`, `artifacts` and tool folders). T
 requires a new run.
 
 `LiveSandboxSpikeTests` (`Session=S0`) is the spike: it loads the harness on gtutorial-x86_64, calls `status`, `runtime`
-and `capabilities(1)`, inspects the settings form and closes Cheat Engine, then requires the user state restored, the
-source installation unchanged and no process left. The facts the spike establishes are still pending and will be
+and `capabilities(1)`, inspects the settings form, asks the operator to disable and enable the harness, and closes Cheat
+Engine, then requires the user state restored, the source installation unchanged and no process left. The facts the spike establishes are still pending and will be
 recorded here: the registry values of the plugin list, whether the settings toggle is feasible, the dialogs Cheat Engine
 shows, what disable does at `closeCE`, what `loadPlugin` enables, whether elevation is needed, whether hostfxr needs
 `DOTNET_ROOT` once `DOTNET_*` is removed, and the exact behaviour of the driver's `openFileAsProcess` call. Until the
@@ -194,12 +197,12 @@ sessions, release gate and the capability map) and `ScenarioEvaluators` (one C# 
 - **S6**, the template instantiated from the packed Templates package as `QualTemplatePlugin`, bundled and loaded (Q40).
 
 The release gate is Q09, Q10, Q40, Q43, Q44, Q45 and Q46 on the host, plus Q48 in CI (`SdkConsumerContractTests`). The
-sessions share one run directory, one `receipts.jsonl` and one `summary.json`, rewritten after each session. A check
-that needs a plugin toggle through Settings > Plugins stays NotExecuted, with the operator prompt, until the spike proves
-the toggle; so do the checks that read the identification line or what `closeCE` disables, whose format and behaviour
-are spike facts. A live fact fails when a check fails or the workstation is not left as it was; a NotExecuted check is
-recorded, never turned into a pass. Run one session, or all of them, with the opt-in above and
-`--filter-trait Session=S1` (up to `S6`), or `--filter-trait Category=LiveQualification`.
+sessions share one run directory, one `receipts.jsonl` and one `summary.json`, rewritten after each session. Run S2 and
+S5 with the operator at the keyboard: a check that needs a plugin toggle through Settings > Plugins is NotExecuted
+unless the driver saw that toggle done; so are the checks that read the identification line or what `closeCE`
+disables, whose format and behaviour are spike facts. A live fact fails when a check fails or the workstation is not
+left as it was; a NotExecuted check is recorded, never turned into a pass. Run one session, or all of them, with the
+opt-in above and `--filter-trait Session=S1` (up to `S6`), or `--filter-trait Category=LiveQualification`.
 
 Run it from the repository root, in PowerShell, with Cheat Engine, every gtutorial and DebugView closed:
 

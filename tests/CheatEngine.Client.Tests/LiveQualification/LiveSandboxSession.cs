@@ -42,7 +42,10 @@ internal static partial class LiveSandboxSession
 	/// <summary>The qualification harness's display name (<c>QualificationPlugin.DisplayName</c>).</summary>
 	internal const string HarnessDisplayName = "CheatEngine.Client Qualification Plugin";
 
-	/// <summary>The S0 checks that must pass; the settings probe and the operator toggles may stay NotExecuted.</summary>
+	/// <summary>
+	///     The S0 checks that must pass; the settings probe and the operator toggles may stay NotExecuted (a toggle passes
+	///     when the driver saw the plugin's functions disappear, then come back).
+	/// </summary>
 	internal static readonly string[] SpikeRequiredChecks =
 	[
 		"session-completed", "load-plugin", "harness-ready", "status", "runtime", "capabilities", "user-state-restored",
@@ -175,8 +178,10 @@ internal static partial class LiveSandboxSession
 		foreach (string step in (string[]) ["toggle-disable", "toggle-enable"])
 		{
 			TranscriptRecord? record = transcript.Find(step);
-			yield return new QualificationReceipt(runId, session, session, step, "C3", ReceiptStatus.NotExecuted,
-				"the plugin toggle runs through Settings > Plugins", record?.Value ?? "not reached");
+			yield return new QualificationReceipt(runId, session, session, step, "C3",
+				record?.Status == TranscriptStatus.Ok ? ReceiptStatus.Passed : ReceiptStatus.NotExecuted,
+				"the operator toggles the plugin through Settings > Plugins and the driver sees its functions follow",
+				record?.Value ?? "not reached");
 		}
 
 		yield return Receipt("user-state-restored", "HKCU\\Software\\Cheat Engine and %APPDATA%\\Cheat Engine equal their backup",

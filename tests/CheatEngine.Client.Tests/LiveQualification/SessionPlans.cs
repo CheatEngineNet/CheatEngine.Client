@@ -113,8 +113,9 @@ internal sealed record QualificationSessionPlan(
 ///     The sessions S1 to S6 of the live qualification (runner specification). Every Cheat Engine-level setup (opening
 ///     a target, allocating the scratch region, changing the pointer size, opening a file as a process, loading a
 ///     plugin) is a reviewed driver step; the Client work runs in the plugins. A plugin toggle through Settings &gt;
-///     Plugins is an operator step, recorded <c>notexecuted</c> until the S0 spike proves that the driver can perform
-///     it, so every check that needs one stays NotExecuted instead of guessing.
+///     Plugins is an operator step until the S0 spike proves that the driver can perform it (plan A12): the driver
+///     prompts the operator and waits for the plugin's functions to disappear or come back, and a toggle the operator
+///     skips is recorded <c>notexecuted</c>, so every check that needs it stays NotExecuted instead of guessing.
 /// </summary>
 [SupportedOSPlatform("windows")]
 internal static class SessionPlans
@@ -140,6 +141,9 @@ internal static class SessionPlans
 
 	/// <summary>The harness's Plugin display name.</summary>
 	internal const string HarnessDisplayName = LiveSandboxSession.HarnessDisplayName;
+
+	/// <summary>The harness function whose presence tells the driver that the harness is enabled.</summary>
+	internal const string HarnessStatus = LuaDriverScript.HarnessFunctionPrefix + "status";
 
 	internal const string PluginADisplayName = "CheatEngine.Client Coexistence Plugin A";
 	internal const string PluginBDisplayName = "CheatEngine.Client Coexistence Plugin B";
@@ -254,15 +258,17 @@ internal static class SessionPlans
 			Patch("aa-apply-refused", "apply", "benign"),
 			LuaDriverSteps.Lua("keep-function",
 				$"{KeptFunctionGlobal} = _G[\"cheatengine_client_qualification_status\"]\nreturn \"kept\""),
-			LuaDriverSteps.Toggle("toggle-disable", false, HarnessDisplayName),
+			LuaDriverSteps.Toggle("toggle-disable", false, HarnessDisplayName, HarnessStatus),
 			LuaDriverSteps.Lua("kept-function-after-disable", $"return {KeptFunctionGlobal}()"),
-			LuaDriverSteps.Toggle("toggle-enable", true, HarnessDisplayName),
+			LuaDriverSteps.Toggle("toggle-enable", true, HarnessDisplayName, HarnessStatus),
 			LuaDriverSteps.Call("status-after-reenable", "status"),
 			LuaDriverSteps.Lua("write-configure-fault", ConfigureFault(context, write: true)),
-			LuaDriverSteps.Toggle("toggle-disable-for-fault", false, HarnessDisplayName),
-			LuaDriverSteps.Toggle("toggle-enable-faulted", true, HarnessDisplayName),
+			LuaDriverSteps.Toggle("toggle-disable-for-fault", false, HarnessDisplayName, HarnessStatus),
+			LuaDriverSteps.ConfirmedToggle("toggle-enable-faulted", true, HarnessDisplayName,
+				"This enable must fail, because the harness's Configure throws: close the error Cheat Engine shows."),
 			LuaDriverSteps.Lua("remove-configure-fault", ConfigureFault(context, write: false)),
-			LuaDriverSteps.Toggle("toggle-enable-after-fault", true, HarnessDisplayName),
+			LuaDriverSteps.Toggle("toggle-enable-after-fault", true, HarnessDisplayName, HarnessStatus,
+				"If it is still ticked after the failed enable, untick it and press OK first."),
 			LuaDriverSteps.Call("status-after-fault", "status"),
 			LuaDriverSteps.Call("logs", "logs"),
 			LuaDriverSteps.ClearAddressList()
@@ -499,12 +505,12 @@ internal static class SessionPlans
 				{{APing}} = cheatengine_client_coexistence_q16_third_party
 				return "replaced"
 				"""),
-			LuaDriverSteps.Toggle("toggle-disable-a", false, PluginADisplayName),
+			LuaDriverSteps.Toggle("toggle-disable-a", false, PluginADisplayName, AIdentity),
 			LuaDriverSteps.Lua("third-party-survives", $$"""
 				return tostring({{APing}} == cheatengine_client_coexistence_q16_third_party and {{AIdentity}} == nil and type({{BIdentity}}) == "function")
 				"""),
 			LuaDriverSteps.CallGlobal("b-ping-after-a-disabled", BPing),
-			LuaDriverSteps.Toggle("toggle-disable-b", false, PluginBDisplayName),
+			LuaDriverSteps.Toggle("toggle-disable-b", false, PluginBDisplayName, BIdentity),
 			LuaDriverSteps.ClearAddressList()
 		];
 	}

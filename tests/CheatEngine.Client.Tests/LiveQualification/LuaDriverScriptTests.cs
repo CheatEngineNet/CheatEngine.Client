@@ -6,7 +6,8 @@ namespace CheatEngine.Client.Tests.LiveQualification;
 
 /// <summary>
 ///     The autorun driver, as reviewed text: every change to the Lua that runs inside Cheat Engine shows up here first. It
-///     only calls functions the harness declares, never attempts an unproven settings toggle, and quotes every value.
+///     only calls functions the harness declares, never attempts an unproven settings toggle (it prompts the operator and
+///     waits for the toggle's effect), and quotes every value.
 /// </summary>
 [SupportedOSPlatform("windows")]
 public sealed class LuaDriverScriptTests
@@ -72,8 +73,14 @@ public sealed class LuaDriverScriptTests
 		    end
 		    return table.concat(found, ";")
 		  end },
-		  { name = "toggle-disable", kind = "notexecuted", prompt = "Operator: in Edit > Settings > Plugins, untick 'CheatEngine.Client Qualification Plugin' and press OK." },
-		  { name = "toggle-enable", kind = "notexecuted", prompt = "Operator: in Edit > Settings > Plugins, tick 'CheatEngine.Client Qualification Plugin' and press OK." },
+		  { name = "toggle-disable", kind = "operator", attempts = 360, prompt = "Operator: in Edit > Settings > Plugins, untick 'CheatEngine.Client Qualification Plugin' and press OK. The driver continues once the plugin's functions are gone.", run = function()
+		    if type(_G["cheatengine_client_qualification_status"]) == "function" then return nil end
+		    return "disabled"
+		  end },
+		  { name = "toggle-enable", kind = "operator", attempts = 360, prompt = "Operator: in Edit > Settings > Plugins, tick 'CheatEngine.Client Qualification Plugin' and press OK. The driver continues once the plugin's functions are back.", run = function()
+		    if type(_G["cheatengine_client_qualification_status"]) ~= "function" then return nil end
+		    return "enabled"
+		  end },
 		  { name = "clear-address-list", kind = "once", run = function()
 		    getAddressList().clear()
 		    return getAddressList().Count
@@ -83,6 +90,81 @@ public sealed class LuaDriverScriptTests
 		local index = 1
 		local attempts = 0
 		local finished = false
+
+		-- The operator window: it does not block Cheat Engine, so the operator can open Settings > Plugins.
+		local prompt = nil
+		local answer = nil
+
+		local function closePrompt()
+		  local form = prompt
+		  prompt = nil
+		  if form ~= nil then
+		    pcall(function() form.destroy() end)
+		  end
+		  answer = nil
+		end
+
+		local function showPrompt(step)
+		  local form = createForm(false)
+		  prompt = form
+		  form.Caption = "CheatEngine.Client qualification: operator step " .. step.name
+		  form.setSize(560, 180)
+		  pcall(function() form.FormStyle = "fsStayOnTop" end)
+		  local text = createMemo(form)
+		  text.setPosition(12, 12)
+		  text.setSize(536, 96)
+		  text.WordWrap = true
+		  pcall(function() text.ReadOnly = true end)
+		  text.append(step.prompt)
+		  local skip = createButton(form)
+		  skip.Caption = "Skip"
+		  skip.setPosition(460, 124)
+		  skip.OnClick = function() answer = "skip" end
+		  if step.run == nil then
+		    local done = createButton(form)
+		    done.Caption = "Done"
+		    done.setPosition(372, 124)
+		    done.OnClick = function() answer = "done" end
+		  end
+		  form.OnClose = function()
+		    -- Closing the window skips the step; a window the driver destroys is no longer the prompt.
+		    if prompt == form and answer == nil then answer = "skip" end
+		    return 1 -- caHide
+		  end
+		  form.centerScreen()
+		  form.show()
+		end
+
+		local function operatorStep(step)
+		  local ok, value = true, nil
+		  if step.run ~= nil then
+		    ok, value = pcall(step.run)
+		  elseif answer == "done" then
+		    value = "confirmed by the operator"
+		  end
+		  if not ok then
+		    record(step.name, "error", value)
+		  elseif value ~= nil then
+		    record(step.name, "ok", value)
+		  elseif answer == "skip" then
+		    record(step.name, "notexecuted", "skipped by the operator: " .. step.prompt)
+		  elseif attempts + 1 >= step.attempts then
+		    record(step.name, "notexecuted", "no operator action within 90 seconds: " .. step.prompt)
+		  else
+		    if prompt == nil then
+		      local shown, failure = pcall(showPrompt, step)
+		      if not shown then
+		        closePrompt()
+		        record(step.name, "error", failure)
+		        return true
+		      end
+		    end
+		    attempts = attempts + 1
+		    return false
+		  end
+		  closePrompt()
+		  return true
+		end
 
 		local function advance()
 		  local step = steps[index]
@@ -96,9 +178,10 @@ public sealed class LuaDriverScriptTests
 		    closeCE()
 		    return
 		  end
-		  if step.kind == "notexecuted" then
-		    record(step.name, "notexecuted", step.prompt)
+		  if step.kind == "operator" then
+		    if not operatorStep(step) then return end
 		    index = index + 1
+		    attempts = 0
 		    return
 		  end
 		  local ok, value = pcall(step.run)
@@ -122,6 +205,7 @@ public sealed class LuaDriverScriptTests
 		  local ok, failure = pcall(advance)
 		  if not ok then
 		    -- The driver itself failed: still clear the address list, then write DONE and close.
+		    pcall(closePrompt)
 		    pcall(record, "driver", "error", failure)
 		    index = index < #steps and #steps or #steps + 1
 		  end
@@ -155,8 +239,10 @@ public sealed class LuaDriverScriptTests
 		string rendered = LuaDriverScript.Render(plan);
 
 		Assert.Throws<NotSupportedException>(() => LuaDriverScript.Render(plan with { SettingsToggleProven = true }));
-		Assert.Contains("name = \"toggle-disable\", kind = \"notexecuted\"", rendered, StringComparison.Ordinal);
-		Assert.Contains("name = \"toggle-enable\", kind = \"notexecuted\"", rendered, StringComparison.Ordinal);
+		Assert.Contains("name = \"toggle-disable\", kind = \"operator\"", rendered, StringComparison.Ordinal);
+		Assert.Contains("name = \"toggle-enable\", kind = \"operator\"", rendered, StringComparison.Ordinal);
+		Assert.DoesNotContain("getSettingsForm", rendered[rendered.IndexOf("toggle-disable", StringComparison.Ordinal)..],
+			StringComparison.Ordinal);
 		Assert.DoesNotContain("Checked", rendered, StringComparison.Ordinal);
 		Assert.DoesNotContain("ModalResult", rendered, StringComparison.Ordinal);
 	}

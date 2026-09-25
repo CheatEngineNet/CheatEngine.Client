@@ -143,17 +143,31 @@ internal sealed record SessionEvidence(
 	}
 
 	/// <summary>
-	///     A check that needs an operator step first: NotExecuted while the driver recorded that step as not executed
-	///     (the settings toggle is a fact the S0 spike establishes), otherwise <paramref name="then" />.
+	///     A check that needs operator steps first (plugin toggles through Settings &gt; Plugins, plan A12):
+	///     <paramref name="then" /> only when the driver recorded each of them <c>ok</c>, that is when it observed the
+	///     toggle's effect or the operator confirmed a toggle whose effect it cannot observe; otherwise NotExecuted, with
+	///     what the driver recorded (skipped, no action in time, or a prompt that failed).
 	/// </summary>
-	internal CheckResult AfterOperator(string operatorStep, Func<CheckResult> then)
+	internal CheckResult AfterOperator(IReadOnlyList<string> operatorSteps, Func<CheckResult> then)
 	{
+		ArgumentNullException.ThrowIfNull(operatorSteps);
 		ArgumentNullException.ThrowIfNull(then);
-		TranscriptRecord? record = Transcript.Find(operatorStep);
-		return record is null || record.Status == TranscriptStatus.NotExecuted
-			? CheckResult.NotExecuted($"{operatorStep} was not executed: the Settings > Plugins toggle is operator work " +
-									  "until the S0 spike proves it")
-			: then();
+		foreach (string operatorStep in operatorSteps)
+		{
+			TranscriptRecord? record = Transcript.Find(operatorStep);
+			if (record is null)
+			{
+				return CheckResult.NotExecuted($"{operatorStep}: not reached");
+			}
+
+			if (record.Status != TranscriptStatus.Ok)
+			{
+				return CheckResult.NotExecuted($"{operatorStep} was not performed ({record.Status}: " +
+											   $"{Shorten(record.Value)}); the Settings > Plugins toggle is operator work");
+			}
+		}
+
+		return then();
 	}
 
 	/// <summary>A fact the runner established, or <see langword="null" />.</summary>

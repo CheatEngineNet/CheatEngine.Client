@@ -5,7 +5,8 @@ namespace CheatEngine.Client.Tests.LiveQualification;
 
 /// <summary>
 ///     How the S0 session turns a transcript and the workstation checks into receipts, without starting anything: a
-///     step that never ran fails, an operator toggle is never counted as passed, and the host hygiene checks are explicit.
+///     step that never ran fails, an operator toggle passes only when the driver saw it done, and the host hygiene checks
+///     are explicit.
 /// </summary>
 [SupportedOSPlatform("windows")]
 public sealed class LiveSandboxSessionTests
@@ -36,6 +37,20 @@ public sealed class LiveSandboxSessionTests
 		Assert.All(toggles, static receipt => Assert.Equal(ReceiptStatus.NotExecuted, receipt.Status));
 		Assert.Equal(["Operator: untick it", "Operator: tick it"], toggles.Select(static receipt => receipt.Observation));
 		Assert.All(receipts, static receipt => Assert.Equal(("S0", "S0", "C3"), (receipt.Session, receipt.Scenario, receipt.Level)));
+	}
+
+	[Fact]
+	public void AToggleTheDriverSawDonePasses()
+	{
+		Transcript transcript = TranscriptParser.Parse(Encoding.UTF8.GetBytes(
+			"R\ttoggle-disable\tok\t\"disabled\"\n" +
+			"R\ttoggle-enable\tnotexecuted\t\"skipped by the operator: Operator: tick it\"\n" +
+			"DONE\n"));
+
+		QualificationReceipt[] receipts = [.. LiveSandboxSession.SpikeReceipts(RunId, "S0", transcript, SessionOutcome.Completed, true, [], [], [])];
+
+		Assert.Equal(ReceiptStatus.Passed, Assert.Single(receipts, static receipt => receipt.Check == "toggle-disable").Status);
+		Assert.Equal(ReceiptStatus.NotExecuted, Assert.Single(receipts, static receipt => receipt.Check == "toggle-enable").Status);
 	}
 
 	[Fact]

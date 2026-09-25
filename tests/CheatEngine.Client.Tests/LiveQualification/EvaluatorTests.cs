@@ -5,8 +5,8 @@ namespace CheatEngine.Client.Tests.LiveQualification;
 
 /// <summary>
 ///     The evaluators on canned evidence: each check passes on the observation it requires and fails on its opposite,
-///     a missing step is NotExecuted, an operator step that did not run keeps its check NotExecuted, and nothing that
-///     depends on a fact the spike records is guessed.
+///     a missing step is NotExecuted, an operator step the driver did not see done keeps its check NotExecuted, and
+///     nothing that depends on a fact the spike records is guessed.
 /// </summary>
 [SupportedOSPlatform("windows")]
 public sealed class EvaluatorTests
@@ -122,18 +122,42 @@ public sealed class EvaluatorTests
 	}
 
 	[Fact]
-	public void AnOperatorStepThatDidNotRunKeepsItsCheckNotExecuted()
+	public void AnOperatorStepTheDriverDidNotSeeDoneKeepsItsCheckNotExecuted()
 	{
 		QualificationCheck check = Check("Q16", "S2", "kept-function-dies");
 
-		CheckResult skipped = check.Evaluate(Evidence(("toggle-disable", "Operator: untick it"),
+		CheckResult skipped = check.Evaluate(Evidence(("toggle-disable", "skipped by the operator: Operator: untick it"),
 			("kept-function-after-disable", """{"ok":true}"""), notExecuted: ["toggle-disable"]));
-		CheckResult ran = check.Evaluate(Evidence(("toggle-disable", "done"), ("kept-function-after-disable", "dead activation"),
+		CheckResult failedPrompt = check.Evaluate(Evidence(("toggle-disable", "attempt to call a nil value"),
+			("kept-function-after-disable", """{"ok":true}"""), errors: ["toggle-disable"]));
+		CheckResult ran = check.Evaluate(Evidence(("toggle-disable", "disabled"), ("kept-function-after-disable", "dead activation"),
 			errors: ["kept-function-after-disable"]));
 
 		Assert.Equal(ReceiptStatus.NotExecuted, skipped.Status);
-		Assert.Contains("S0 spike", skipped.Observation, StringComparison.Ordinal);
+		Assert.Contains("toggle-disable was not performed (NotExecuted: skipped by the operator", skipped.Observation,
+			StringComparison.Ordinal);
+		Assert.Equal(ReceiptStatus.NotExecuted, failedPrompt.Status);
+		Assert.Contains("toggle-disable was not performed (Error:", failedPrompt.Observation, StringComparison.Ordinal);
 		Assert.Equal(ReceiptStatus.Passed, ran.Status);
+	}
+
+	[Fact]
+	public void AFailedEnableIsReadOnlyAfterEveryToggleOfItsProtocol()
+	{
+		QualificationCheck check = Check("Q06", "S2", "failed-enable-reported");
+		const string Reported = """{"ok":true,"plugin":{"active":true},"ledger":["#2 configure fault=Configure reason=Selected","#2 configure.threw InvalidOperationException"]}""";
+		(string Step, string Value)[] steps =
+		[
+			("toggle-disable-for-fault", "disabled"), ("toggle-enable-faulted", "confirmed by the operator"),
+			("toggle-enable-after-fault", "enabled"), ("status-after-fault", Reported)
+		];
+
+		Assert.Equal(ReceiptStatus.Passed, check.Evaluate(Evidence(steps)).Status);
+		Assert.Equal(ReceiptStatus.NotExecuted, check.Evaluate(Evidence([.. steps.Skip(1)])).Status);
+		Assert.Equal(ReceiptStatus.NotExecuted,
+			check.Evaluate(Evidence(steps, [], ["toggle-enable-after-fault"], [], null)).Status);
+		Assert.Equal(ReceiptStatus.Failed, check.Evaluate(Evidence([.. steps[..3], ("status-after-fault",
+			Reported.Replace("configure.threw", "configure", StringComparison.Ordinal))])).Status);
 	}
 
 	[Fact]

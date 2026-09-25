@@ -92,12 +92,47 @@ public sealed partial class SessionPlanTests
 		foreach (QualificationSessionPlan plan in SessionPlans.All)
 		{
 			IReadOnlyList<LuaDriverStep> steps = plan.Driver(Context(plan));
-			Assert.All(steps.Where(static step => step.Name.StartsWith("toggle-", StringComparison.Ordinal)),
-				static step => Assert.Equal(LuaDriverStepKind.NotExecuted, step.Kind));
+			Assert.All(steps.Where(static step => step.Name.StartsWith("toggle-", StringComparison.Ordinal)), static step =>
+			{
+				Assert.Equal(LuaDriverStepKind.Operator, step.Kind);
+				Assert.StartsWith("Operator: in Edit > Settings > Plugins, ", step.Prompt, StringComparison.Ordinal);
+				Assert.Equal(LuaDriverScript.OperatorAttempts, step.Attempts);
+			});
+			Assert.All(steps.Where(static step => step.Kind == LuaDriverStepKind.Operator),
+				static step => Assert.StartsWith("toggle-", step.Name, StringComparison.Ordinal));
 			string rendered = LuaDriverScript.RenderSteps(plan.Session, TranscriptPath, steps);
 			Assert.DoesNotContain("Checked", rendered, StringComparison.Ordinal);
 			Assert.DoesNotContain("ModalResult", rendered, StringComparison.Ordinal);
+			Assert.DoesNotContain("getSettingsForm", string.Concat(steps.Where(static step => step.Kind == LuaDriverStepKind.Operator)
+				.Select(static step => step.Body)), StringComparison.Ordinal);
 		}
+	}
+
+	[Fact]
+	public void AToggleEndsWhenThePluginsFunctionIsGoneOrBackAndAFailingEnableOnConfirmation()
+	{
+		LuaDriverStep disable = LuaDriverSteps.Toggle("toggle-disable", false, "Plugin", "plugin_status");
+		LuaDriverStep enable = LuaDriverSteps.Toggle("toggle-enable", true, "Plugin", "plugin_status", "Note.");
+		LuaDriverStep failing = LuaDriverSteps.ConfirmedToggle("toggle-enable-faulted", true, "Plugin", "It must fail.");
+
+		Assert.Equal("""
+			if type(_G["plugin_status"]) == "function" then return nil end
+			return "disabled"
+			""".ReplaceLineEndings("\n"), disable.Body.ReplaceLineEndings("\n"));
+		Assert.Equal("""
+			if type(_G["plugin_status"]) ~= "function" then return nil end
+			return "enabled"
+			""".ReplaceLineEndings("\n"), enable.Body.ReplaceLineEndings("\n"));
+		Assert.Equal("Operator: in Edit > Settings > Plugins, tick 'Plugin' and press OK. Note. The driver continues once " +
+					 "the plugin's functions are back.", enable.Prompt);
+		Assert.Empty(failing.Body);
+		Assert.Equal("Operator: in Edit > Settings > Plugins, tick 'Plugin' and press OK. It must fail. Then press Done.",
+			failing.Prompt);
+		string rendered = LuaDriverScript.RenderSteps("S2", TranscriptPath, [disable, failing]);
+		Assert.Contains("""  { name = "toggle-enable-faulted", kind = "operator", attempts = 360, prompt = "Operator: in Edit > Settings > Plugins, tick 'Plugin' and press OK. It must fail. Then press Done." },""",
+			rendered, StringComparison.Ordinal);
+		Assert.Contains("""  { name = "toggle-disable", kind = "operator", attempts = 360, prompt = "Operator: in Edit > Settings > Plugins, untick 'Plugin' and press OK. The driver continues once the plugin's functions are gone.", run = function()""",
+			rendered, StringComparison.Ordinal);
 	}
 
 	[Fact]
