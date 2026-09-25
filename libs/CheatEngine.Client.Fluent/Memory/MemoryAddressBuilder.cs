@@ -200,7 +200,7 @@ public readonly record struct MemoryAddressBuilder
 	public string ReadString(int maximumLength, MemoryStringEncoding encoding,
 		CancellationToken cancellationToken = default)
 	{
-		return RequireMemory().ReadString(MemoryStringReadRequest.Create(Address, maximumLength, encoding),
+		return RequireMemory().ReadString(new MemoryStringReadRequest(Address, maximumLength, encoding),
 			cancellationToken);
 	}
 
@@ -221,7 +221,7 @@ public readonly record struct MemoryAddressBuilder
 	public bool TryReadString(int maximumLength, MemoryStringEncoding encoding, [NotNullWhen(true)] out string? value,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
-		return RequireMemory().TryReadString(MemoryStringReadRequest.Create(Address, maximumLength, encoding),
+		return RequireMemory().TryReadString(new MemoryStringReadRequest(Address, maximumLength, encoding),
 			out value,
 			out failure, cancellationToken);
 	}
@@ -264,7 +264,7 @@ public readonly record struct MemoryAddressBuilder
 	public void WriteString(string value, int maximumLength, MemoryStringEncoding encoding,
 		CancellationToken cancellationToken = default)
 	{
-		RequireMemory().WriteString(MemoryStringWriteRequest.CreateBounded(Address, value, maximumLength, encoding),
+		RequireMemory().WriteString(new MemoryStringWriteRequest(Address, value, maximumLength, encoding),
 			cancellationToken);
 	}
 
@@ -283,7 +283,7 @@ public readonly record struct MemoryAddressBuilder
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
 		return RequireMemory().TryWriteString(
-			MemoryStringWriteRequest.CreateBounded(Address, value, maximumLength, encoding),
+			new MemoryStringWriteRequest(Address, value, maximumLength, encoding),
 			out failure, cancellationToken);
 	}
 

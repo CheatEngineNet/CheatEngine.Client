@@ -52,9 +52,9 @@ public sealed class PatternScanOutcomeTests
 		Assert.Equal(6UL, metrics.ExaminedCount);
 		Assert.Equal(3UL, metrics.FilteredOutCount);
 		Assert.Equal(2, metrics.MaterializedCount);
-		Assert.Equal(1UL, metrics.BelowStartSkipped);
-		Assert.Equal(1UL, metrics.AtOrAfterStopSkipped);
-		Assert.Equal(4UL, metrics.UnreadHostRows);
+		Assert.Equal(1UL, metrics.BelowStartSkippedCount);
+		Assert.Equal(1UL, metrics.AtOrAfterStopSkippedCount);
+		Assert.Equal(4UL, metrics.UnreadHostRowCount);
 		Assert.False(metrics.InBoundsCountIsExact);
 		Assert.Equal(TimeSpan.FromMilliseconds(70), metrics.HostScanElapsed);
 		Assert.Equal(TimeSpan.FromMilliseconds(8), metrics.MaterializationElapsed);
@@ -73,21 +73,21 @@ public sealed class PatternScanOutcomeTests
 		Assert.Throws<ArgumentException>(() => Outcome(result, failure, metrics));
 		Assert.Throws<ArgumentException>(() => Outcome(null, default(CheatEngineFailure), null));
 
-		PatternScanOutcome success = new(result, null, metrics, PatternScanHostOutcome.Matches,
+		PatternScanOutcome success = new(result, null, metrics, PatternScanHostOutcomeKind.Matches,
 			PatternScanRouteReason.TargetIdentityNotQualified, false);
-		PatternScanOutcome noList = new(null, failure, null, PatternScanHostOutcome.NoResult,
+		PatternScanOutcome noList = new(null, failure, null, PatternScanHostOutcomeKind.NoResult,
 			PatternScanRouteReason.UnscopedRequest, false);
 
 		Assert.True(success.IsSuccess);
 		Assert.Equal(result, success.Result);
 		Assert.Equal(metrics, success.Metrics);
-		Assert.Equal(PatternScanHostOutcome.Matches, success.HostOutcome);
+		Assert.Equal(PatternScanHostOutcomeKind.Matches, success.HostOutcome);
 		Assert.Equal(PatternScanRouteReason.TargetIdentityNotQualified, success.RouteReason);
 		Assert.False(success.TargetIdentityVerified);
 		Assert.False(noList.IsSuccess);
 		Assert.Equal(failure, noList.Failure);
 		Assert.Null(noList.Metrics);
-		Assert.Equal(PatternScanHostOutcome.NoResult, noList.HostOutcome);
+		Assert.Equal(PatternScanHostOutcomeKind.NoResult, noList.HostOutcome);
 	}
 
 	[Fact]
@@ -101,10 +101,10 @@ public sealed class PatternScanOutcomeTests
 	}
 
 	[Theory]
-	[InlineData(PatternScanHostOutcome.NoResult, PatternScanRouteReason.UnscopedRequest)]
-	[InlineData(PatternScanHostOutcome.Unknown, PatternScanRouteReason.UnscopedRequest)]
-	[InlineData(PatternScanHostOutcome.Matches, PatternScanRouteReason.Unknown)]
-	public void ASuccessReportsAMatchesOrNoMatchesHostOutcomeAndItsRoute(PatternScanHostOutcome hostOutcome,
+	[InlineData(PatternScanHostOutcomeKind.NoResult, PatternScanRouteReason.UnscopedRequest)]
+	[InlineData(PatternScanHostOutcomeKind.Unknown, PatternScanRouteReason.UnscopedRequest)]
+	[InlineData(PatternScanHostOutcomeKind.Matches, PatternScanRouteReason.Unknown)]
+	public void ASuccessReportsAMatchesOrNoMatchesHostOutcomeAndItsRoute(PatternScanHostOutcomeKind hostOutcome,
 		PatternScanRouteReason routeReason)
 	{
 		AobScanResult result = new(ImmutableArray.Create<Address>(0x401000), false);
@@ -120,7 +120,7 @@ public sealed class PatternScanOutcomeTests
 			CheatEngineHostEffect.Completed);
 
 		Assert.Throws<ArgumentException>(() => new PatternScanOutcome(null, failure, null,
-			PatternScanHostOutcome.Matches, PatternScanRouteReason.UnscopedRequest, true));
+			PatternScanHostOutcomeKind.Matches, PatternScanRouteReason.UnscopedRequest, true));
 	}
 
 	[Fact]
@@ -130,15 +130,15 @@ public sealed class PatternScanOutcomeTests
 			CheatEngineHostEffect.Completed);
 
 		Assert.Throws<ArgumentOutOfRangeException>(() => new PatternScanOutcome(null, failure, null,
-			(PatternScanHostOutcome) 99, PatternScanRouteReason.Unknown, false));
+			(PatternScanHostOutcomeKind) 99, PatternScanRouteReason.Unknown, false));
 		Assert.Throws<ArgumentOutOfRangeException>(() => new PatternScanOutcome(null, failure, null,
-			PatternScanHostOutcome.Unknown, (PatternScanRouteReason) 99, false));
+			PatternScanHostOutcomeKind.Unknown, (PatternScanRouteReason) 99, false));
 	}
 
 	private static PatternScanOutcome Outcome(AobScanResult? result, CheatEngineFailure? failure,
 		PatternScanMetrics? metrics)
 	{
-		return new PatternScanOutcome(result, failure, metrics, PatternScanHostOutcome.Matches,
+		return new PatternScanOutcome(result, failure, metrics, PatternScanHostOutcomeKind.Matches,
 			PatternScanRouteReason.UnscopedRequest, false);
 	}
 

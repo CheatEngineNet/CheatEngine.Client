@@ -48,7 +48,7 @@ returning. An `Unregister` that CheatEngine.SDK refuses with `Detached` or `Exte
 
 ### Registration
 
-| CheatEngine.SDK reports | `Register` throws a `CheatEngineOperationException` with |
+| CheatEngine.SDK reports | `Register` throws, through `CheatEngineFailure.ToException`, the exception of |
 |---|---|
 | Admission `Detached` or `TransitionInProgress` | `ActivationExpired`, `NotStarted`; nothing ran |
 | Admission `ExternalStateReset` | `RuntimeChanged`, `NotStarted` |

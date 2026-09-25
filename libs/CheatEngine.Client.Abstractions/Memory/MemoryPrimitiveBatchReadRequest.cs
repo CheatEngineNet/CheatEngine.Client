@@ -22,10 +22,10 @@ public readonly struct MemoryPrimitiveBatchReadRequest<T>
 			throw new ArgumentException("A memory batch requires at least one address.", nameof(addresses));
 		}
 
-		if (addresses.Length > MemoryBatchLimits.MaximumOperations)
+		if (addresses.Length > MemoryBatchLimits.MaximumOperationCount)
 		{
 			throw new ArgumentOutOfRangeException(nameof(addresses),
-				$"A memory batch is limited to {MemoryBatchLimits.MaximumOperations} operations.");
+				$"A memory batch is limited to {MemoryBatchLimits.MaximumOperationCount} operations.");
 		}
 
 		Addresses = ImmutableArray.Create(addresses.ToArray());

@@ -13,12 +13,12 @@ namespace CheatEngine.Client.Scanning;
 ///         <see cref="NoResult" />, <see cref="GlobalUnavailable" />, <see cref="ProtectedLuaFailure" />,
 ///         <see cref="InvalidResult" /> or <see cref="ResultListCountUnavailable" />. The bounded route reports
 ///         <see cref="Matches" />, <see cref="NoMatches" />, <see cref="HostReportedError" />, <see cref="InvalidResult" />,
-///         <see cref="TargetChanged" />, <see cref="TargetIdentityUnavailable" />, <see cref="RuntimeInvalidated" />,
+///         <see cref="TargetChanged" />, <see cref="TargetIdentityUnavailable" />, <see cref="RuntimeChanged" />,
 ///         <see cref="Cancelled" /> or <see cref="ScanFailed" />. <see cref="Unknown" /> means no host outcome was
 ///         observed (the request was refused or failed before a scan) or the outcome is not one this Client knows.
 ///     </para>
 /// </remarks>
-public enum PatternScanHostOutcome
+public enum PatternScanHostOutcomeKind
 {
 	/// <summary>No host outcome was observed, or it is not one this Client version knows.</summary>
 	Unknown = 0,
@@ -60,7 +60,7 @@ public enum PatternScanHostOutcome
 	TargetIdentityUnavailable = 10,
 
 	/// <summary>The Lua runtime changed during the bounded scan.</summary>
-	RuntimeInvalidated = 11,
+	RuntimeChanged = 11,
 
 	/// <summary>CheatEngine.SDK observed the cancellation token between the bounded scan's Cheat Engine calls.</summary>
 	Cancelled = 12,

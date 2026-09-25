@@ -474,7 +474,7 @@ public sealed class AllocationClientTests : IDisposable
 		_context.Stop();
 		using (_lifetime.EnterCleanupScope())
 		{
-			Assert.Throws<CheatEngineClientLifecycleException>(() =>
+			Assert.Throws<CheatEngineInvalidStateException>(() =>
 				_client.TryAllocate(new AllocationRequest(64), out _, out _, Token));
 		}
 
@@ -491,7 +491,7 @@ public sealed class AllocationClientTests : IDisposable
 		_port.DuringAllocate = _context.Stop;
 		Region.ReleaseStatus = release;
 
-		CheatEngineClientLifecycleException stopping = Assert.Throws<CheatEngineClientLifecycleException>(() =>
+		CheatEngineInvalidStateException stopping = Assert.Throws<CheatEngineInvalidStateException>(() =>
 			_client.TryAllocate(new AllocationRequest(64), out _, out _, Token));
 
 		Assert.Contains(expected, stopping.Message, StringComparison.Ordinal);
@@ -514,7 +514,7 @@ public sealed class AllocationClientTests : IDisposable
 		Assert.Equal(CheatEngineFailureKind.TargetChanged, failure.Kind);
 		Assert.Equal(CheatEngineHostEffect.CleanupUnconfirmed, failure.HostEffect);
 		Assert.Contains("64 bytes at 0x7FF000001000", failure.Message, StringComparison.Ordinal);
-		Assert.IsType<CheatEngineClientLifecycleException>(failure.Exception);
+		Assert.IsType<CheatEngineInvalidStateException>(failure.Exception);
 		Assert.Equal(1, Region.ReleaseCalls);
 		Assert.Equal(0, Region.Deallocations);
 		Assert.Throws<CheatEngineOperationException>(() => client.Allocate(new AllocationRequest(64), Token));

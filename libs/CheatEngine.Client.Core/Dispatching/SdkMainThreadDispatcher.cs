@@ -55,8 +55,9 @@ internal sealed class SdkMainThreadDispatcher : ICheatEngineDispatcher, IStatefu
 		}
 		catch (Exception exception) when (!_lifetime.IsActivationCurrent)
 		{
-			throw new CheatEngineActivationExpiredException(InvokeOperation,
-				"The Cheat Engine plugin lifecycle changed while dispatching work.", exception);
+			throw ClientExceptions.ActivationExpired(InvokeOperation,
+				"The Cheat Engine plugin lifecycle changed while dispatching work.", exception,
+				CheatEngineHostEffect.Unknown);
 		}
 		catch (Exception exception)
 		{
@@ -97,8 +98,9 @@ internal sealed class SdkMainThreadDispatcher : ICheatEngineDispatcher, IStatefu
 		catch (Exception exception) when (!_lifetime.IsActivationCurrent)
 		{
 			result = default;
-			throw new CheatEngineActivationExpiredException(InvokeOperation,
-				"The Cheat Engine plugin lifecycle changed while dispatching work.", exception);
+			throw ClientExceptions.ActivationExpired(InvokeOperation,
+				"The Cheat Engine plugin lifecycle changed while dispatching work.", exception,
+				CheatEngineHostEffect.Unknown);
 		}
 		catch (Exception exception)
 		{
@@ -161,8 +163,9 @@ internal sealed class SdkMainThreadDispatcher : ICheatEngineDispatcher, IStatefu
 		catch (Exception exception) when (!_lifetime.IsActivationCurrent)
 		{
 			result = default;
-			throw new CheatEngineActivationExpiredException(InvokeOperation,
-				"The Cheat Engine plugin lifecycle changed while dispatching work.", exception);
+			throw ClientExceptions.ActivationExpired(InvokeOperation,
+				"The Cheat Engine plugin lifecycle changed while dispatching work.", exception,
+				CheatEngineHostEffect.Unknown);
 		}
 		catch (Exception exception)
 		{
@@ -204,8 +207,9 @@ internal sealed class SdkMainThreadDispatcher : ICheatEngineDispatcher, IStatefu
 		}
 		catch (Exception exception) when (!_lifetime.IsActivationCurrent)
 		{
-			throw new CheatEngineActivationExpiredException(InvokeOperation,
-				"The Cheat Engine plugin lifecycle changed while dispatching work.", exception);
+			throw ClientExceptions.ActivationExpired(InvokeOperation,
+				"The Cheat Engine plugin lifecycle changed while dispatching work.", exception,
+				CheatEngineHostEffect.Unknown);
 		}
 		catch (Exception exception)
 		{

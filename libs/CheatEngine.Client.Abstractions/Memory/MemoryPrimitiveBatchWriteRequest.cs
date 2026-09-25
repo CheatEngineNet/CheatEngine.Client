@@ -20,10 +20,10 @@ public readonly struct MemoryPrimitiveBatchWriteRequest<T>
 			throw new ArgumentException("A memory batch requires at least one value.", nameof(values));
 		}
 
-		if (values.Length > MemoryBatchLimits.MaximumOperations)
+		if (values.Length > MemoryBatchLimits.MaximumOperationCount)
 		{
 			throw new ArgumentOutOfRangeException(nameof(values),
-				$"A memory batch is limited to {MemoryBatchLimits.MaximumOperations} operations.");
+				$"A memory batch is limited to {MemoryBatchLimits.MaximumOperationCount} operations.");
 		}
 
 		Values = ImmutableArray.Create(values.ToArray());

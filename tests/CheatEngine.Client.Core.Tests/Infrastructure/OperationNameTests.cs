@@ -48,7 +48,7 @@ public sealed partial class OperationNameTests
 		["Processes"] = [typeof(IProcessClient)],
 		["Memory"] = [typeof(IMemoryClient)],
 		["Patterns"] = [typeof(IPatternScanner)],
-		["Scans"] = [typeof(IValueScanner), typeof(IValueScanSession)],
+		["ValueScans"] = [typeof(IValueScanner), typeof(IValueScanSession)],
 		["Allocations"] = [typeof(IAllocationClient)],
 		["Inspection"] = [typeof(IInspectionClient)],
 		["Tables"] = [typeof(ITableClient)],

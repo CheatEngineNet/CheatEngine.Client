@@ -14,7 +14,7 @@ internal sealed record CheatEngineClientDomainServices(
 	IProcessClient Processes,
 	IMemoryClient Memory,
 	IPatternScanner Patterns,
-	IValueScanner Scans,
+	IValueScanner ValueScans,
 	IInspectionClient Inspection,
 	ITableClient Tables,
 	ILuaClient Lua,

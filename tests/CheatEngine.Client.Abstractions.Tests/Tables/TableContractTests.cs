@@ -199,25 +199,19 @@ public sealed class TableContractTests
 		Assert.Equal("value", value.ParamName);
 	}
 
-	/// <summary>Normalizes default child arrays to empty both during construction and with-expression updates.</summary>
+	/// <summary>Normalizes default child arrays to empty, at construction and at the default value.</summary>
 	[Fact]
-	public void HierarchySnapshotNormalizesDefaultChildrenDuringConstructionAndWithUpdate()
+	public void HierarchySnapshotNormalizesDefaultChildren()
 	{
 		MemoryRecordHierarchySnapshot hierarchy = new(CreateSnapshot(
 			new MemoryRecordId(12),
 			0,
 			CreateContent(),
 			CreateState()), default);
-		MemoryRecordHierarchySnapshot updatedHierarchy = hierarchy with
-		{
-			Children = default
-		};
 		MemoryRecordHierarchySnapshot uninitializedHierarchy = default;
 
 		Assert.False(hierarchy.Children.IsDefault);
 		Assert.Empty(hierarchy.Children);
-		Assert.False(updatedHierarchy.Children.IsDefault);
-		Assert.Empty(updatedHierarchy.Children);
 		Assert.False(uninitializedHierarchy.Children.IsDefault);
 		Assert.Empty(uninitializedHierarchy.Children);
 	}

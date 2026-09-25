@@ -31,7 +31,7 @@ public class MemoryBatchBenchmarks
 	private MemoryPrimitiveBatchWriteRequest<int> _writes;
 
 	/// <summary>Gets or sets the number of operations in each batch, up to the hard per-batch limit.</summary>
-	[Params(1, 64, MemoryBatchLimits.MaximumOperations)]
+	[Params(1, 64, MemoryBatchLimits.MaximumOperationCount)]
 	public int OperationCount
 	{
 		get;

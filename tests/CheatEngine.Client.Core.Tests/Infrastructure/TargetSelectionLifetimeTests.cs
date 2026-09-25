@@ -27,7 +27,7 @@ public sealed class TargetSelectionLifetimeTests
 		Assert.Equal(1, first.DisposeCount);
 		Assert.Equal(1, second.DisposeCount);
 
-		CheatEngineClientLifecycleException exception = Assert.Throws<CheatEngineClientLifecycleException>(() =>
+		CheatEngineInvalidStateException exception = Assert.Throws<CheatEngineInvalidStateException>(() =>
 			lifetime.ThrowIfExpired(firstEpoch, "Memory.Read"));
 
 		Assert.Equal(CheatEngineFailureKind.InvalidState, exception.Failure.Kind);
@@ -99,15 +99,15 @@ public sealed class TargetSelectionLifetimeTests
 	[Fact]
 	public void ActivationGuardRejectsAnAdvanceWithoutChangingTheTargetSelectionEpoch()
 	{
-		CheatEngineActivationExpiredException expected = new("Process.Refresh", "The plugin epoch changed.");
 		TargetSelectionLifetime lifetime = new(static operation =>
-			throw new CheatEngineActivationExpiredException(operation, "The plugin epoch changed."));
+			throw new CheatEngineFailure(CheatEngineFailureKind.ActivationExpired, operation,
+				"The plugin epoch changed.").ToException(TestContext.Current.CancellationToken));
 
 		CheatEngineActivationExpiredException exception =
 			Assert.Throws<CheatEngineActivationExpiredException>(() => lifetime.Advance("Process.Refresh"));
 
-		Assert.Equal(expected.Failure.Kind, exception.Failure.Kind);
-		Assert.Equal(expected.Failure.Operation, exception.Failure.Operation);
+		Assert.Equal(CheatEngineFailureKind.ActivationExpired, exception.Failure.Kind);
+		Assert.Equal("Process.Refresh", exception.Failure.Operation);
 		Assert.Equal(0, lifetime.Epoch);
 	}
 

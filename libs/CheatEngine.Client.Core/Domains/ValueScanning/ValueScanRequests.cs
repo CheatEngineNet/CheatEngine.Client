@@ -206,11 +206,11 @@ internal static class ValueScanRequests
 
 	private static bool IsValid(ScanAlignment alignment)
 	{
-		return alignment.Kind switch
+		return alignment.Mode switch
 		{
-			ScanAlignmentKind.None => alignment is { Divisor: 0, Digits: null },
-			ScanAlignmentKind.AlignedTo => alignment is { Divisor: > 0, Digits: null },
-			ScanAlignmentKind.LastDigits => alignment is { Divisor: 0, Digits.Length: > 0 },
+			ScanAlignmentMode.None => alignment is { Divisor: 0, Digits: null },
+			ScanAlignmentMode.AlignedTo => alignment is { Divisor: > 0, Digits: null },
+			ScanAlignmentMode.LastDigits => alignment is { Divisor: 0, Digits.Length: > 0 },
 			_ => false
 		};
 	}

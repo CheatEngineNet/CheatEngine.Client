@@ -16,7 +16,7 @@ public sealed class CoreFailureFactoryTests
 	[Fact]
 	public void LifecycleCreatesTheStableInvalidStateFailure()
 	{
-		CheatEngineFailure failure = CoreFailureFactory.Lifecycle("Client.DrainResources", "The client is stopping.");
+		CheatEngineFailure failure = CoreFailureFactory.InvalidState("Client.DrainResources", "The client is stopping.");
 
 		Assert.Equal(CheatEngineFailureKind.InvalidState, failure.Kind);
 		Assert.Equal("Client.DrainResources", failure.Operation);
@@ -27,7 +27,8 @@ public sealed class CoreFailureFactoryTests
 	[Fact]
 	public void FromExceptionPreservesDedicatedActivationExpiryClassification()
 	{
-		CheatEngineActivationExpiredException exception = new("Memory.Read", "The epoch changed.");
+		Exception exception = new CheatEngineFailure(CheatEngineFailureKind.ActivationExpired, "Memory.Read",
+			"The epoch changed.").ToException(TestContext.Current.CancellationToken);
 
 		CheatEngineFailure failure = CoreFailureFactory.FromException("Dispatcher.Invoke", exception);
 
@@ -53,7 +54,8 @@ public sealed class CoreFailureFactoryTests
 	{
 		Exception exception = scenario switch
 		{
-			"lifecycle" => new CheatEngineClientLifecycleException("Client.Test", "Lifecycle stopped."),
+			"lifecycle" => new CheatEngineFailure(CheatEngineFailureKind.InvalidState, "Client.Test",
+				"Lifecycle stopped.").ToException(TestContext.Current.CancellationToken),
 			"capability" => new EngineCapabilityUnavailableException("Client.Test"),
 			"global" => new EngineGlobalUnavailableException("Client.Test"),
 			"operation" => new EngineOperationFailedException("Client.Test", "Host rejected the operation."),
@@ -136,7 +138,7 @@ public sealed class CoreFailureFactoryTests
 	{
 		MemoryScanException exception = CreateMemoryScanException(scanKind);
 
-		Assert.Equal(expectedKind, CoreFailureFactory.FromException("Scans.Next", exception).Kind);
+		Assert.Equal(expectedKind, CoreFailureFactory.FromException("ValueScans.Next", exception).Kind);
 		Assert.Equal(expectedKind, CoreFailureFactory.FromMemoryScanFailureKind(scanKind));
 	}
 

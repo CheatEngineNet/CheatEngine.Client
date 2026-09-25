@@ -17,5 +17,5 @@ public static class MemoryBatchLimits
 	///         <see cref="MemoryPrimitiveBatchWriteOutcome.EffectState" /> with the completed prefix length.
 	///     </para>
 	/// </remarks>
-	public const int MaximumOperations = 1024;
+	public const int MaximumOperationCount = 1024;
 }

@@ -29,7 +29,6 @@ public sealed class LuaModuleRegistrationTests
 		Assert.True(succeeded);
 		Assert.Equal(default, failure);
 		Assert.NotNull(lease);
-		Assert.Equal(81, lease.Epoch);
 		Assert.False(lease.IsReleased);
 		Assert.Equal(["diagnostics.register"], module.Events);
 		Assert.Equal(1, dispatcher.InvocationCount);
@@ -247,7 +246,7 @@ public sealed class LuaModuleRegistrationTests
 		CheatEngineOperationException exception = Assert.Throws<CheatEngineOperationException>(() =>
 			client.RegisterModule(rejected, TestContext.Current.CancellationToken));
 
-		Assert.Equal(81, lease.Epoch);
+		Assert.False(lease.IsReleased);
 		Assert.Equal(CheatEngineFailureKind.OperationRejected, exception.Failure.Kind);
 		Assert.Equal("Lua.RegisterModule", exception.Failure.Operation);
 		Assert.Equal(["accepted.register"], accepted.Events);
@@ -382,7 +381,7 @@ public sealed class LuaModuleRegistrationTests
 		Assert.Null(lease);
 		Assert.Equal(CheatEngineFailureKind.InvalidState, failure.Kind);
 		Assert.Equal("Lua.RegisterModule", failure.Operation);
-		Assert.IsType<CheatEngineClientLifecycleException>(failure.Exception);
+		Assert.IsType<CheatEngineInvalidStateException>(failure.Exception);
 		Assert.Equal(["diagnostics.register"], module.Events);
 		Assert.Equal(1, invoker.ActionCalls);
 
@@ -674,7 +673,7 @@ public sealed class LuaModuleRegistrationTests
 		ImmediateDispatcher dispatcher = new();
 		CheatEngineFailure refusal = new(CheatEngineFailureKind.OperationRejected, "Lua.RegisterModule",
 			"Lua global 'diagnostics_global' is already defined.", null, CheatEngineHostEffect.NotApplied);
-		RecordingModule module = new("diagnostics", new CheatEngineOperationException(refusal));
+		RecordingModule module = new("diagnostics", refusal.ToException(TestContext.Current.CancellationToken));
 		LuaClient client = CreateClient(dispatcher, static () => true);
 
 		bool succeeded = client.TryRegisterModule(module, out ILuaModuleLease? lease, out CheatEngineFailure failure,
@@ -683,29 +682,6 @@ public sealed class LuaModuleRegistrationTests
 		Assert.False(succeeded);
 		Assert.Null(lease);
 		Assert.Equal(refusal, failure);
-	}
-
-	[Fact]
-	public void TryRegisterModuleNeverReturnsADefaultFailureForARefusalThatDescribesNone()
-	{
-		ImmediateDispatcher dispatcher = new();
-		CheatEngineOperationException undescribed = new(default);
-		RecordingModule module = new("diagnostics", undescribed);
-		LuaClient client = CreateClient(dispatcher, static () => true);
-
-		bool succeeded = client.TryRegisterModule(module, out ILuaModuleLease? lease, out CheatEngineFailure failure,
-			TestContext.Current.CancellationToken);
-		CheatEngineOperationException thrown = Assert.Throws<CheatEngineOperationException>(() =>
-			client.RegisterModule(module, TestContext.Current.CancellationToken));
-
-		Assert.False(succeeded);
-		Assert.Null(lease);
-		Assert.False(failure.IsDefault);
-		Assert.Equal(CheatEngineFailureKind.Unknown, failure.Kind);
-		Assert.Equal("Lua.RegisterModule", failure.Operation);
-		Assert.Equal(CheatEngineHostEffect.Unknown, failure.HostEffect);
-		Assert.Same(undescribed, failure.Exception);
-		Assert.Equal(failure, thrown.Failure);
 	}
 
 	[Fact]

@@ -26,15 +26,15 @@ public sealed class PatternScannerDetailedOutcomeTests
 		PatternScanOutcome outcome = scanner.ScanDetailed(Request(null, 5), TestContext.Current.CancellationToken);
 
 		Assert.True(outcome.IsSuccess);
-		Assert.Equal(PatternScanHostOutcome.Matches, outcome.HostOutcome);
+		Assert.Equal(PatternScanHostOutcomeKind.Matches, outcome.HostOutcome);
 		Assert.Equal(PatternScanRouteReason.UnscopedRequest, outcome.RouteReason);
 		Assert.True(outcome.TargetIdentityVerified);
 		PatternScanMetrics metrics = Assert.NotNull(outcome.Metrics);
 		Assert.Equal(PatternScanScope.GlobalHostScan, metrics.Scope);
 		Assert.Equal(2UL, metrics.HostResultCount);
-		Assert.Equal(0UL, metrics.UnreadHostRows);
+		Assert.Equal(0UL, metrics.UnreadHostRowCount);
 		Assert.True(metrics.InBoundsCountIsExact);
-		Assert.Equal(0UL, metrics.BelowStartSkipped);
+		Assert.Equal(0UL, metrics.BelowStartSkippedCount);
 	}
 
 	[Fact]
@@ -50,7 +50,7 @@ public sealed class PatternScannerDetailedOutcomeTests
 
 		Assert.False(outcome.IsSuccess);
 		Assert.Equal(CheatEngineFailureKind.IndeterminateHostResult, outcome.Failure!.Value.Kind);
-		Assert.Equal(PatternScanHostOutcome.NoResult, outcome.HostOutcome);
+		Assert.Equal(PatternScanHostOutcomeKind.NoResult, outcome.HostOutcome);
 		Assert.Equal(PatternScanRouteReason.UnscopedRequest, outcome.RouteReason);
 		Assert.False(outcome.TargetIdentityVerified);
 		Assert.Null(outcome.Metrics);
@@ -82,7 +82,7 @@ public sealed class PatternScannerDetailedOutcomeTests
 		PatternScanOutcome outcome = scanner.ScanDetailed(Request(null, 1), TestContext.Current.CancellationToken);
 
 		Assert.Equal(CheatEngineFailureKind.TargetChanged, outcome.Failure!.Value.Kind);
-		Assert.Equal(PatternScanHostOutcome.Matches, outcome.HostOutcome);
+		Assert.Equal(PatternScanHostOutcomeKind.Matches, outcome.HostOutcome);
 		Assert.False(outcome.TargetIdentityVerified);
 	}
 
@@ -105,7 +105,7 @@ public sealed class PatternScannerDetailedOutcomeTests
 			TestContext.Current.CancellationToken);
 
 		Assert.True(outcome.IsSuccess);
-		Assert.Equal(PatternScanHostOutcome.Matches, outcome.HostOutcome);
+		Assert.Equal(PatternScanHostOutcomeKind.Matches, outcome.HostOutcome);
 		Assert.Equal(PatternScanRouteReason.ScopedRequestOnQualifiedTarget, outcome.RouteReason);
 		Assert.True(outcome.TargetIdentityVerified);
 		PatternScanMetrics metrics = Assert.NotNull(outcome.Metrics);
@@ -113,9 +113,9 @@ public sealed class PatternScannerDetailedOutcomeTests
 		Assert.Equal(5UL, metrics.HostResultCount);
 		Assert.Equal(5UL, metrics.ExaminedCount);
 		Assert.Equal(3UL, metrics.FilteredOutCount);
-		Assert.Equal(2UL, metrics.BelowStartSkipped);
-		Assert.Equal(1UL, metrics.AtOrAfterStopSkipped);
-		Assert.Equal(0UL, metrics.UnreadHostRows);
+		Assert.Equal(2UL, metrics.BelowStartSkippedCount);
+		Assert.Equal(1UL, metrics.AtOrAfterStopSkippedCount);
+		Assert.Equal(0UL, metrics.UnreadHostRowCount);
 		Assert.True(metrics.InBoundsCountIsExact);
 		Assert.True(metrics.HostScanElapsed > TimeSpan.Zero);
 	}
@@ -131,7 +131,7 @@ public sealed class PatternScannerDetailedOutcomeTests
 
 		Assert.True(outcome.Result!.Value.IsTruncated);
 		PatternScanMetrics metrics = Assert.NotNull(outcome.Metrics);
-		Assert.Equal(1UL, metrics.UnreadHostRows);
+		Assert.Equal(1UL, metrics.UnreadHostRowCount);
 		Assert.False(metrics.InBoundsCountIsExact);
 	}
 
@@ -148,7 +148,7 @@ public sealed class PatternScannerDetailedOutcomeTests
 			TestContext.Current.CancellationToken);
 
 		Assert.False(outcome.IsSuccess);
-		Assert.Equal(PatternScanHostOutcome.HostReportedError, outcome.HostOutcome);
+		Assert.Equal(PatternScanHostOutcomeKind.HostReportedError, outcome.HostOutcome);
 		Assert.Equal(PatternScanRouteReason.ScopedRequestOnQualifiedTarget, outcome.RouteReason);
 		Assert.False(outcome.TargetIdentityVerified);
 		Assert.False(Assert.NotNull(outcome.Metrics).InBoundsCountIsExact);
@@ -185,7 +185,7 @@ public sealed class PatternScannerDetailedOutcomeTests
 		Assert.True(outcome.IsSuccess, outcome.Failure?.Message);
 		Assert.Equal(PatternScanScope.GlobalHostScanWithManagedFilter, Assert.NotNull(outcome.Metrics).Scope);
 		Assert.Equal(PatternScanRouteReason.TargetIdentityNotQualified, outcome.RouteReason);
-		Assert.Equal(PatternScanHostOutcome.Matches, outcome.HostOutcome);
+		Assert.Equal(PatternScanHostOutcomeKind.Matches, outcome.HostOutcome);
 		Assert.False(outcome.TargetIdentityVerified);
 	}
 
@@ -202,7 +202,7 @@ public sealed class PatternScannerDetailedOutcomeTests
 
 		Assert.Equal(CheatEngineFailureKind.NotFound, outcome.Failure!.Value.Kind);
 		Assert.Equal(PatternScanRouteReason.Unknown, outcome.RouteReason);
-		Assert.Equal(PatternScanHostOutcome.Unknown, outcome.HostOutcome);
+		Assert.Equal(PatternScanHostOutcomeKind.Unknown, outcome.HostOutcome);
 	}
 
 	[Fact]
@@ -211,7 +211,7 @@ public sealed class PatternScannerDetailedOutcomeTests
 	{
 		MappingTotality.AssertTotal<AobScanOutcomeKind>(
 			static kind => AobScanMapping.ToHostOutcome(kind).ToString() == kind.ToString(),
-			static kind => AobScanMapping.ToHostOutcome(kind) == PatternScanHostOutcome.Unknown);
+			static kind => AobScanMapping.ToHostOutcome(kind) == PatternScanHostOutcomeKind.Unknown);
 	}
 
 	[Fact]
@@ -226,9 +226,12 @@ public sealed class PatternScannerDetailedOutcomeTests
 
 		MappingTotality.AssertTotal<AobBoundedScanOutcomeKind>(
 			kind => withoutHostOutcome.Contains(kind)
-				? AobScanMapping.ToHostOutcome(kind) == PatternScanHostOutcome.Unknown
-				: AobScanMapping.ToHostOutcome(kind).ToString() == kind.ToString(),
-			static kind => AobScanMapping.ToHostOutcome(kind) == PatternScanHostOutcome.Unknown);
+				? AobScanMapping.ToHostOutcome(kind) == PatternScanHostOutcomeKind.Unknown
+				: kind == AobBoundedScanOutcomeKind.RuntimeInvalidated
+					// The Client names a replaced Lua runtime RuntimeChanged, like the failure kind.
+					? AobScanMapping.ToHostOutcome(kind) == PatternScanHostOutcomeKind.RuntimeChanged
+					: AobScanMapping.ToHostOutcome(kind).ToString() == kind.ToString(),
+			static kind => AobScanMapping.ToHostOutcome(kind) == PatternScanHostOutcomeKind.Unknown);
 	}
 
 	private static FakeAobScanPort QualifiedPort(Address[] rows, AobBoundedHostResult? result = null)

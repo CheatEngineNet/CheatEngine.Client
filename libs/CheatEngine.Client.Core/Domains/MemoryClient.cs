@@ -59,7 +59,7 @@ internal sealed class MemoryClient : IMemoryClient
 		_dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
 		_lifetime = lifetime ?? throw new ArgumentNullException(nameof(lifetime));
 		_codecContextPort = codecContextPort ?? throw new ArgumentNullException(nameof(codecContextPort));
-		_limits = (limits ?? throw new ArgumentNullException(nameof(limits))).CreateSnapshot();
+		_limits = MemoryResourceLimitsCopy.CreateValidated(limits);
 	}
 
 	public MemoryPrimitiveBatchReadOutcome<T> ReadPrimitiveBatchDetailed<T>(MemoryPrimitiveBatchReadRequest<T> request,
@@ -68,7 +68,7 @@ internal sealed class MemoryClient : IMemoryClient
 	{
 		MemoryPrimitiveBatchReadOutcome<T> outcome = ReadPrimitiveBatchCore(request, cancellationToken);
 		// Counts only, never an address or a value (A24-17); a read batch has no target effect.
-		_lifetime.Diagnostics.MemoryBatchCompleted("Memory.ReadPrimitiveBatch", outcome.AttemptedCount,
+		_lifetime.Diagnostics.MemoryBatchCompleted("Memory.ReadPrimitiveBatch", outcome.RequestedCount,
 			outcome.CompletedCount, ReadBatchEffectState);
 		return outcome;
 	}
@@ -78,7 +78,7 @@ internal sealed class MemoryClient : IMemoryClient
 		where T : unmanaged
 	{
 		MemoryPrimitiveBatchWriteOutcome outcome = WritePrimitiveBatchCore(request, cancellationToken);
-		_lifetime.Diagnostics.MemoryBatchCompleted("Memory.WritePrimitiveBatch", outcome.AttemptedCount,
+		_lifetime.Diagnostics.MemoryBatchCompleted("Memory.WritePrimitiveBatch", outcome.RequestedCount,
 			outcome.CompletedCount, outcome.EffectState.ToString());
 		return outcome;
 	}
@@ -88,51 +88,51 @@ internal sealed class MemoryClient : IMemoryClient
 		where T : unmanaged
 	{
 		ValidateBatch(request.Addresses, nameof(request));
-		int attemptedCount = request.Addresses.Length;
+		int requestedCount = request.Addresses.Length;
 		if (!PrimitiveMemoryCodec<T>.IsSupported)
 		{
-			return new MemoryPrimitiveBatchReadOutcome<T>(attemptedCount, 0, null,
-				UnsupportedPrimitive<T>("Memory.ReadPrimitiveBatch"), []);
+			return new MemoryPrimitiveBatchReadOutcome<T>(requestedCount, [], null,
+				UnsupportedPrimitive<T>("Memory.ReadPrimitiveBatch"));
 		}
 
-		if (!TryAdmitBatch<T>(attemptedCount, false, "Memory.ReadPrimitiveBatch",
+		if (!TryAdmitBatch<T>(requestedCount, false, "Memory.ReadPrimitiveBatch",
 				out CheatEngineFailure admissionFailure))
 		{
-			return new MemoryPrimitiveBatchReadOutcome<T>(attemptedCount, 0, null, admissionFailure, []);
+			return new MemoryPrimitiveBatchReadOutcome<T>(requestedCount, [], null, admissionFailure);
 		}
 
 		PrimitiveBatchReadInput<T> input = new(request, _codecContextPort);
 		if (!TryInvoke(input, static current => PrimitiveMemoryCodec<T>.ReadBatch(current.Request, current.Port),
 				out PrimitiveBatchReadOutcome<T> outcome, out CheatEngineFailure dispatchFailure, cancellationToken))
 		{
-			return new MemoryPrimitiveBatchReadOutcome<T>(attemptedCount, 0, null, dispatchFailure, []);
+			return new MemoryPrimitiveBatchReadOutcome<T>(requestedCount, [], null, dispatchFailure);
 		}
 
 		if (outcome.WidthRefusal is { } widthRefusal)
 		{
 			// The whole Address batch is refused before its first read (PointerWidthPolicy).
-			return new MemoryPrimitiveBatchReadOutcome<T>(attemptedCount, 0, null,
-				RefuseWidth("Memory.ReadPrimitiveBatch", widthRefusal), []);
+			return new MemoryPrimitiveBatchReadOutcome<T>(requestedCount, [], null,
+				RefuseWidth("Memory.ReadPrimitiveBatch", widthRefusal));
 		}
 
 		if (outcome.Succeeded)
 		{
-			return new MemoryPrimitiveBatchReadOutcome<T>(attemptedCount, attemptedCount, null, null, outcome.Values);
+			return new MemoryPrimitiveBatchReadOutcome<T>(requestedCount, outcome.Values, null, null);
 		}
 
 		if (outcome.Fault is { } admissionFault && outcome.FailedIndex < 0)
 		{
 			// The target observation of an Address batch faulted before its first read.
-			return new MemoryPrimitiveBatchReadOutcome<T>(attemptedCount, 0, null,
+			return new MemoryPrimitiveBatchReadOutcome<T>(requestedCount, [], null,
 				SdkBoundary.Translate("Memory.ReadPrimitiveBatch", admissionFault, CheatEngineHostEffect.Unknown,
-					_lifetime), []);
+					_lifetime));
 		}
 
 		CheatEngineFailure failure = outcome.Fault is { } fault
 			? SdkBoundary.Translate("Memory.ReadPrimitiveBatch", fault, CheatEngineHostEffect.Unknown, _lifetime)
 			: CreateBatchFailure(false, outcome.FailedIndex, outcome.Failure);
-		return new MemoryPrimitiveBatchReadOutcome<T>(attemptedCount, outcome.FailedIndex, outcome.FailedIndex,
-			failure, outcome.Values);
+		return new MemoryPrimitiveBatchReadOutcome<T>(requestedCount, outcome.Values, outcome.FailedIndex,
+			failure);
 	}
 
 	private MemoryPrimitiveBatchWriteOutcome WritePrimitiveBatchCore<T>(MemoryPrimitiveBatchWriteRequest<T> request,
@@ -140,17 +140,17 @@ internal sealed class MemoryClient : IMemoryClient
 		where T : unmanaged
 	{
 		ValidateBatch(request.Values, nameof(request));
-		int attemptedCount = request.Values.Length;
+		int requestedCount = request.Values.Length;
 		if (!PrimitiveMemoryCodec<T>.IsSupported)
 		{
-			return new MemoryPrimitiveBatchWriteOutcome(attemptedCount, 0, null,
+			return new MemoryPrimitiveBatchWriteOutcome(requestedCount, 0, null,
 				UnsupportedPrimitive<T>("Memory.WritePrimitiveBatch"), MemoryBatchWriteEffectState.NotStarted);
 		}
 
-		if (!TryAdmitBatch<T>(attemptedCount, true, "Memory.WritePrimitiveBatch",
+		if (!TryAdmitBatch<T>(requestedCount, true, "Memory.WritePrimitiveBatch",
 				out CheatEngineFailure admissionFailure))
 		{
-			return new MemoryPrimitiveBatchWriteOutcome(attemptedCount, 0, null, admissionFailure,
+			return new MemoryPrimitiveBatchWriteOutcome(requestedCount, 0, null, admissionFailure,
 				MemoryBatchWriteEffectState.NotStarted);
 		}
 
@@ -158,27 +158,27 @@ internal sealed class MemoryClient : IMemoryClient
 		if (!TryInvoke(input, static current => PrimitiveMemoryCodec<T>.WriteBatch(current.Request, current.Port),
 				out PrimitiveBatchWriteOutcome outcome, out CheatEngineFailure dispatchFailure, cancellationToken))
 		{
-			return CreateDispatchFailureOutcome(attemptedCount, dispatchFailure);
+			return CreateDispatchFailureOutcome(requestedCount, dispatchFailure);
 		}
 
 		if (outcome.WidthRefusal is { } widthRefusal)
 		{
 			// The whole Address batch is refused before its first write (PointerWidthPolicy): nothing was written.
-			return new MemoryPrimitiveBatchWriteOutcome(attemptedCount, 0, null,
+			return new MemoryPrimitiveBatchWriteOutcome(requestedCount, 0, null,
 				RefuseWidth("Memory.WritePrimitiveBatch", widthRefusal),
 				MemoryBatchWriteEffectState.NotStarted);
 		}
 
 		if (outcome.Succeeded)
 		{
-			return new MemoryPrimitiveBatchWriteOutcome(attemptedCount, attemptedCount, null, null,
-				MemoryBatchWriteEffectState.Complete);
+			return new MemoryPrimitiveBatchWriteOutcome(requestedCount, requestedCount, null, null,
+				MemoryBatchWriteEffectState.Completed);
 		}
 
 		if (outcome.Fault is { } admissionFault && outcome.FailedIndex < 0)
 		{
 			// The target observation of an Address batch faulted before its first write: nothing was written.
-			return new MemoryPrimitiveBatchWriteOutcome(attemptedCount, 0, null,
+			return new MemoryPrimitiveBatchWriteOutcome(requestedCount, 0, null,
 				SdkBoundary.Translate("Memory.WritePrimitiveBatch", admissionFault, CheatEngineHostEffect.NotStarted,
 					_lifetime), MemoryBatchWriteEffectState.NotStarted);
 		}
@@ -188,7 +188,7 @@ internal sealed class MemoryClient : IMemoryClient
 			// The write at FailedIndex threw inside the SDK: whether it reached the target cannot be established.
 			CheatEngineFailure faultFailure = SdkBoundary.Translate("Memory.WritePrimitiveBatch", fault,
 				CheatEngineHostEffect.Unknown, _lifetime);
-			return new MemoryPrimitiveBatchWriteOutcome(attemptedCount, outcome.FailedIndex, outcome.FailedIndex,
+			return new MemoryPrimitiveBatchWriteOutcome(requestedCount, outcome.FailedIndex, outcome.FailedIndex,
 				faultFailure, MemoryBatchWriteEffectState.Unknown);
 		}
 
@@ -202,7 +202,7 @@ internal sealed class MemoryClient : IMemoryClient
 			failure = CoreFailureFactory.WithHostEffect(failure, CheatEngineHostEffect.Started);
 		}
 
-		return new MemoryPrimitiveBatchWriteOutcome(attemptedCount, outcome.FailedIndex, outcome.FailedIndex, failure,
+		return new MemoryPrimitiveBatchWriteOutcome(requestedCount, outcome.FailedIndex, outcome.FailedIndex, failure,
 			effectState);
 	}
 
@@ -306,7 +306,7 @@ internal sealed class MemoryClient : IMemoryClient
 			return false;
 		}
 
-		values = outcome.ReadPrefix;
+		values = outcome.Values;
 		failure = default;
 		return true;
 	}
@@ -727,18 +727,21 @@ internal sealed class MemoryClient : IMemoryClient
 			_limits, ReadOperation);
 		try
 		{
-			if (request.Codec.TryRead(context, request.Address, out value))
+			if (request.Codec.TryRead(context, request.Address, out value, out CheatEngineFailure codecFailure))
 			{
 				return CodecOutcome.Success;
 			}
 
-			return context.CreateFailureOutcome(
-				$"The codec for '{typeof(T).Name}' rejected the target-memory read.");
+			// A codec that classified its failure has it published unchanged, its host effect included; a codec that
+			// returned the default failure is classified from what the context observed.
+			return codecFailure.IsDefault
+				? context.CreateFailureOutcome($"The codec for '{typeof(T).Name}' rejected the target-memory read.")
+				: context.CreateClassifiedOutcome(codecFailure);
 		}
-		catch (CheatEngineOperationException exception) when (context.IsContextFault(exception))
+		catch (Exception exception) when (context.IsContextFault(exception))
 		{
 			// Only the exact exception instance this context threw is converted; any other codec exception, including
-			// an application-owned CheatEngineOperationException, is rethrown unchanged by the dispatcher.
+			// an application-owned Client exception, is rethrown unchanged by the dispatcher.
 			value = default;
 			return context.CreateFailureOutcome(exception.Message);
 		}
@@ -755,15 +758,16 @@ internal sealed class MemoryClient : IMemoryClient
 		try
 		{
 			T value = request.Value;
-			if (request.Codec.TryWrite(context, request.Address, in value))
+			if (request.Codec.TryWrite(context, request.Address, in value, out CheatEngineFailure codecFailure))
 			{
 				return CodecOutcome.Success;
 			}
 
-			return context.CreateFailureOutcome(
-				$"The codec for '{typeof(T).Name}' rejected the target-memory write.");
+			return codecFailure.IsDefault
+				? context.CreateFailureOutcome($"The codec for '{typeof(T).Name}' rejected the target-memory write.")
+				: context.CreateClassifiedOutcome(codecFailure);
 		}
-		catch (CheatEngineOperationException exception) when (context.IsContextFault(exception))
+		catch (Exception exception) when (context.IsContextFault(exception))
 		{
 			return context.CreateFailureOutcome(exception.Message);
 		}
@@ -775,6 +779,16 @@ internal sealed class MemoryClient : IMemoryClient
 
 	private CheatEngineFailure CreateCodecFailure(CodecOutcome outcome, bool isWrite, string operation)
 	{
+		if (outcome.Classified is { } classified)
+		{
+			if (outcome.WidthRefusal is { } refused)
+			{
+				ReportWidthRefusal(operation, refused);
+			}
+
+			return classified;
+		}
+
 		if (outcome.Fault is { } fault)
 		{
 			return SdkBoundary.Translate(operation, fault, CheatEngineHostEffect.Unknown, _lifetime);
@@ -867,19 +881,19 @@ internal sealed class MemoryClient : IMemoryClient
 			CheatEngineHostEffect.NotStarted);
 	}
 
-	private static MemoryPrimitiveBatchWriteOutcome CreateDispatchFailureOutcome(int attemptedCount,
+	private static MemoryPrimitiveBatchWriteOutcome CreateDispatchFailureOutcome(int requestedCount,
 		CheatEngineFailure dispatchFailure)
 	{
 		// ICheatEngineDispatcher observes cancellation before admission only, so a Cancelled dispatch failure proves that
 		// no callback ran and no write was attempted. Every other dispatch failure leaves the effect unknown.
 		if (dispatchFailure.Kind == CheatEngineFailureKind.Cancelled)
 		{
-			return new MemoryPrimitiveBatchWriteOutcome(attemptedCount, 0, null,
+			return new MemoryPrimitiveBatchWriteOutcome(requestedCount, 0, null,
 				CoreFailureFactory.WithHostEffect(dispatchFailure, CheatEngineHostEffect.NotStarted),
 				MemoryBatchWriteEffectState.NotStarted);
 		}
 
-		return new MemoryPrimitiveBatchWriteOutcome(attemptedCount, 0, null, dispatchFailure,
+		return new MemoryPrimitiveBatchWriteOutcome(requestedCount, 0, null, dispatchFailure,
 			MemoryBatchWriteEffectState.Unknown);
 	}
 
@@ -890,24 +904,24 @@ internal sealed class MemoryClient : IMemoryClient
 			throw new ArgumentException("A memory batch requires at least one operation.", parameterName);
 		}
 
-		if (values.Length > MemoryBatchLimits.MaximumOperations)
+		if (values.Length > MemoryBatchLimits.MaximumOperationCount)
 		{
 			throw new ArgumentOutOfRangeException(parameterName,
-				$"A memory batch is limited to {MemoryBatchLimits.MaximumOperations} operations.");
+				$"A memory batch is limited to {MemoryBatchLimits.MaximumOperationCount} operations.");
 		}
 	}
 
-	private bool TryAdmitBatch<T>(int attemptedCount, bool isWrite, string operation, out CheatEngineFailure failure)
+	private bool TryAdmitBatch<T>(int requestedCount, bool isWrite, string operation, out CheatEngineFailure failure)
 		where T : unmanaged
 	{
-		if (attemptedCount > _limits.MaximumBatchOperationCount)
+		if (requestedCount > _limits.MaximumBatchOperationCount)
 		{
-			failure = CreateLimitFailure(isWrite, operation, "batch operation count", attemptedCount,
+			failure = CreateLimitFailure(isWrite, operation, "batch operation count", requestedCount,
 				_limits.MaximumBatchOperationCount);
 			return false;
 		}
 
-		return TryAdmitPayload(PrimitiveMemoryCodec<T>.GetPayloadBytes(attemptedCount),
+		return TryAdmitPayload(PrimitiveMemoryCodec<T>.GetPayloadBytes(requestedCount),
 			_limits.MaximumBatchPayloadBytes, isWrite, operation, "batch payload", out failure);
 	}
 
@@ -1052,7 +1066,8 @@ internal sealed class MemoryClient : IMemoryClient
 		Exception? Fault,
 		CheatEngineFailureKind? Kind = null,
 		ObservedTarget? WidthRefusal = null,
-		MemoryAccessFailure? AccessFailure = null)
+		MemoryAccessFailure? AccessFailure = null,
+		CheatEngineFailure? Classified = null)
 	{
 		internal static CodecOutcome Success => new(true, null, null);
 	}
@@ -1282,7 +1297,7 @@ internal sealed class MemoryClient : IMemoryClient
 		private readonly string _operation;
 		private readonly IMemoryCodecContextPort _port;
 		private readonly int _threadId;
-		private CheatEngineOperationException? _contextFault;
+		private Exception? _contextFault;
 		private int _expired;
 		private ObservedTarget? _facts;
 		private int _readBytesAdmitted;
@@ -1378,12 +1393,15 @@ internal sealed class MemoryClient : IMemoryClient
 			}
 		}
 
-		public bool ConfiguredPointerSizeDiffersFromBitness
+		public bool? ConfiguredPointerSizeDiffersFromBitness
 		{
 			get
 			{
 				ThrowIfUnusable();
-				return ObserveFacts().ConfiguredPointerSizeDiffersFromBitness;
+				ObservedTarget facts = ObserveFacts();
+				return facts.ConfiguredPointerSizeBytes is { } configured && facts.Bitness.IsKnown
+					? configured != facts.Bitness.Bytes
+					: null;
 			}
 		}
 
@@ -1409,65 +1427,70 @@ internal sealed class MemoryClient : IMemoryClient
 			return true;
 		}
 
-		public bool TryReadBytes(Address address, Span<byte> destination)
+		public bool TryReadBytes(Address address, Span<byte> destination, out CheatEngineFailure failure)
 		{
 			ThrowIfUnusable();
 			if (!TryAdmitCodecBytes(destination.Length, _limits.MaximumReadBytes, ref _readBytesAdmitted, "read"))
 			{
+				failure = DescribeLastFailure(false);
 				return false;
 			}
 
 			try
 			{
-				if (_port.TryReadBytes(address, destination, out int written, out MemoryAccessFailure failure))
+				if (_port.TryReadBytes(address, destination, out int written, out MemoryAccessFailure access))
 				{
 					ClearFailure();
+					failure = default;
 					return true;
 				}
 
 				// The codec asked for the exact buffer: a confirmed prefix is reported in the failure, never left behind
 				// as if it were data.
 				destination.Clear();
-				SetAccessFailure(failure, false);
-				if (failure == MemoryAccessFailure.PartialRead)
+				SetAccessFailure(access, false);
+				if (access == MemoryAccessFailure.PartialRead)
 				{
-					Failure = MemoryAccessFailureMapping.ToByteReadFailure(_operation, failure,
+					Failure = MemoryAccessFailureMapping.ToByteReadFailure(_operation, access,
 						Math.Clamp(written, 0, destination.Length), destination.Length).Message;
 				}
-
-				return false;
 			}
 			catch (Exception exception) when (SdkBoundary.IsSdkFault(exception))
 			{
 				SetFailure(null, exception);
-				return false;
 			}
+
+			failure = DescribeLastFailure(false);
+			return false;
 		}
 
-		public bool TryWriteBytes(Address address, ReadOnlySpan<byte> source)
+		public bool TryWriteBytes(Address address, ReadOnlySpan<byte> source, out CheatEngineFailure failure)
 		{
 			ThrowIfUnusable();
 			if (!TryAdmitCodecBytes(source.Length, _limits.MaximumWriteBytes, ref _writeBytesAdmitted, "write"))
 			{
+				failure = DescribeLastFailure(true);
 				return false;
 			}
 
 			try
 			{
-				if (_port.TryWriteBytes(address, source, out MemoryAccessFailure failure))
+				if (_port.TryWriteBytes(address, source, out MemoryAccessFailure access))
 				{
 					ClearFailure();
+					failure = default;
 					return true;
 				}
 
-				SetAccessFailure(failure, true);
-				return false;
+				SetAccessFailure(access, true);
 			}
 			catch (Exception exception) when (SdkBoundary.IsSdkFault(exception))
 			{
 				SetFailure(null, exception);
-				return false;
 			}
+
+			failure = DescribeLastFailure(true);
+			return false;
 		}
 
 		/// <summary>Gets whether <paramref name="exception" /> is the exact exception instance this context threw.</summary>
@@ -1480,6 +1503,44 @@ internal sealed class MemoryClient : IMemoryClient
 		internal CodecOutcome CreateFailureOutcome(string defaultMessage)
 		{
 			return new CodecOutcome(false, Failure ?? defaultMessage, Fault, FailureKind, WidthRefusal, AccessFailure);
+		}
+
+		/// <summary>Creates the outcome of a codec that returned <see langword="false" /> with its own failure.</summary>
+		/// <param name="failure">The codec's classified failure, published unchanged.</param>
+		internal CodecOutcome CreateClassifiedOutcome(CheatEngineFailure failure)
+		{
+			return new CodecOutcome(false, null, null, WidthRefusal: WidthRefusal, Classified: failure);
+		}
+
+		/// <summary>
+		///     Classifies what this context recorded for its last access, as <see cref="TryReadBytes" /> and
+		///     <see cref="TryWriteBytes" /> hand it to the codec: an SDK fault by its classification, a refusal of the
+		///     context itself with <see cref="CheatEngineHostEffect.NotStarted" />, an access CheatEngine.SDK refused by its
+		///     mapped kind, and a codec budget refusal as a read or write failure that started nothing.
+		/// </summary>
+		private CheatEngineFailure DescribeLastFailure(bool isWrite)
+		{
+			string message = Failure ?? (isWrite
+				? "Cheat Engine rejected the target-memory write."
+				: "Cheat Engine rejected the target-memory read.");
+			if (Fault is { } fault)
+			{
+				return SdkBoundary.Classify(_operation, fault, CheatEngineHostEffect.Unknown);
+			}
+
+			if (FailureKind is { } kind)
+			{
+				return new CheatEngineFailure(kind, _operation, message, null, CheatEngineHostEffect.NotStarted);
+			}
+
+			if (AccessFailure is { } access)
+			{
+				return new CheatEngineFailure(MemoryAccessFailureMapping.ToFailureKind(access), _operation, message);
+			}
+
+			return new CheatEngineFailure(
+				isWrite ? CheatEngineFailureKind.MemoryWriteFailed : CheatEngineFailureKind.MemoryReadFailed, _operation,
+				message, null, CheatEngineHostEffect.NotStarted);
 		}
 
 		/// <summary>
@@ -1508,11 +1569,10 @@ internal sealed class MemoryClient : IMemoryClient
 			return facts;
 		}
 
-		private CheatEngineOperationException CreateContextFault(CheatEngineFailureKind kind, string message,
-			Exception? exception)
+		private Exception CreateContextFault(CheatEngineFailureKind kind, string message, Exception? exception)
 		{
-			_contextFault = new CheatEngineOperationException(new CheatEngineFailure(kind, _operation, message,
-				exception, CheatEngineHostEffect.NotStarted));
+			_contextFault = new CheatEngineFailure(kind, _operation, message, exception, CheatEngineHostEffect.NotStarted)
+				.ToException();
 			return _contextFault;
 		}
 
@@ -1573,7 +1633,7 @@ internal sealed class MemoryClient : IMemoryClient
 				Environment.CurrentManagedThreadId != _threadId ||
 				!_dispatcher.IsMainThread)
 			{
-				throw new CheatEngineActivationExpiredException(
+				throw ClientExceptions.ActivationExpired(
 					_operation,
 					"The memory codec context is no longer valid for the current Cheat Engine invocation.");
 			}

@@ -35,12 +35,19 @@ public readonly record struct CheatEngineFailure
 	/// <exception cref="ArgumentException">
 	///     <paramref name="operation" /> or <paramref name="message" /> is <see langword="null" />, empty or white space.
 	/// </exception>
-	/// <exception cref="ArgumentOutOfRangeException"><paramref name="hostEffect" /> is not a defined value.</exception>
+	/// <exception cref="ArgumentOutOfRangeException">
+	///     <paramref name="kind" /> or <paramref name="hostEffect" /> is not a defined value.
+	/// </exception>
 	public CheatEngineFailure(CheatEngineFailureKind kind, string operation, string message,
 		Exception? exception = null, CheatEngineHostEffect hostEffect = CheatEngineHostEffect.Unknown)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(operation);
 		ArgumentException.ThrowIfNullOrWhiteSpace(message);
+		if (!Enum.IsDefined(kind))
+		{
+			throw new ArgumentOutOfRangeException(nameof(kind), kind, "The failure kind must be a defined value.");
+		}
+
 		if (!Enum.IsDefined(hostEffect))
 		{
 			throw new ArgumentOutOfRangeException(nameof(hostEffect), hostEffect,
@@ -88,12 +95,16 @@ public readonly record struct CheatEngineFailure
 	///     <c>failure</c> output <see langword="default" /> only when it returns <see langword="true" />. Reading a
 	///     <see langword="default" /> value is safe: <see cref="Operation" /> and <see cref="Message" /> are empty,
 	///     <see cref="Kind" /> and <see cref="HostEffect" /> are <c>Unknown</c>, and <see cref="Exception" /> is
-	///     <see langword="null" />. Only <see cref="Throw(CancellationToken)" /> rejects it.
+	///     <see langword="null" />. Only <see cref="Throw(CancellationToken)" /> and
+	///     <see cref="ToException(CancellationToken)" /> reject it.
 	/// </remarks>
 	public bool IsDefault => _operation is null;
 
-	/// <summary>Gets the originating SDK exception when one exists.</summary>
-	/// <remarks>The exception may contain user data; do not log it by default.</remarks>
+	/// <summary>Gets the originating exception when one exists.</summary>
+	/// <remarks>
+	///     It may be a CheatEngine.SDK exception, whose type is not part of the Client contract and changes with the SDK:
+	///     never type-test it. It may contain user data; do not log it by default.
+	/// </remarks>
 	public Exception? Exception
 	{
 		get;
@@ -116,29 +127,8 @@ public readonly record struct CheatEngineFailure
 	///     <see cref="CheatEngineFailureKind.Cancelled" />, so that a caller can match it with the token it passed.
 	/// </param>
 	/// <remarks>
-	///     <list type="bullet">
-	///         <item>
-	///             <see cref="CheatEngineFailureKind.Cancelled" /> throws <see cref="CheatEngineOperationCanceledException" />,
-	///             an <see cref="OperationCanceledException" />.
-	///         </item>
-	///         <item>
-	///             <see cref="CheatEngineFailureKind.ActivationExpired" /> throws
-	///             <see cref="CheatEngineActivationExpiredException" />.
-	///         </item>
-	///         <item>
-	///             <see cref="CheatEngineFailureKind.InvalidState" /> throws <see cref="CheatEngineClientLifecycleException" />.
-	///         </item>
-	///         <item>
-	///             Every other kind, including a kind this version does not define, throws
-	///             <see cref="CheatEngineOperationException" />.
-	///         </item>
-	///         <item>
-	///             A <see langword="default" /> failure, which no operation produces, throws
-	///             <see cref="InvalidOperationException" />: it describes no failure.
-	///         </item>
-	///     </list>
-	///     The thrown exception's <c>Failure</c> equals this failure, including its <see cref="HostEffect" />. Every
-	///     throwing convenience operation of the Client throws through this method.
+	///     It throws the exception that <see cref="ToException(CancellationToken)" /> creates. Every throwing convenience
+	///     operation of the Client throws through this method.
 	/// </remarks>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     The failure is <see cref="CheatEngineFailureKind.Cancelled" />.
@@ -146,7 +136,7 @@ public readonly record struct CheatEngineFailure
 	/// <exception cref="CheatEngineActivationExpiredException">
 	///     The failure is <see cref="CheatEngineFailureKind.ActivationExpired" />.
 	/// </exception>
-	/// <exception cref="CheatEngineClientLifecycleException">
+	/// <exception cref="CheatEngineInvalidStateException">
 	///     The failure is <see cref="CheatEngineFailureKind.InvalidState" />.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationException">The failure has any other kind.</exception>
@@ -155,23 +145,57 @@ public readonly record struct CheatEngineFailure
 	[StackTraceHidden]
 	public readonly void Throw(CancellationToken cancellationToken = default)
 	{
+		throw ToException(cancellationToken);
+	}
+
+	/// <summary>Creates, without throwing it, the exception that <see cref="Throw(CancellationToken)" /> throws.</summary>
+	/// <param name="cancellationToken">
+	///     The token the failed operation observed, recorded on a <see cref="CheatEngineOperationCanceledException" />.
+	/// </param>
+	/// <returns>
+	///     The exception whose type depends only on <see cref="Kind" />, and whose <c>Failure</c> equals this failure,
+	///     including its <see cref="HostEffect" />:
+	///     <list type="bullet">
+	///         <item>
+	///             <see cref="CheatEngineFailureKind.Cancelled" />: <see cref="CheatEngineOperationCanceledException" />, an
+	///             <see cref="OperationCanceledException" />.
+	///         </item>
+	///         <item>
+	///             <see cref="CheatEngineFailureKind.ActivationExpired" />:
+	///             <see cref="CheatEngineActivationExpiredException" />.
+	///         </item>
+	///         <item>
+	///             <see cref="CheatEngineFailureKind.InvalidState" />: <see cref="CheatEngineInvalidStateException" />.
+	///         </item>
+	///         <item>
+	///             Every other kind, including a kind this version does not define:
+	///             <see cref="CheatEngineOperationException" />.
+	///         </item>
+	///     </list>
+	/// </returns>
+	/// <remarks>
+	///     This and <see cref="Throw(CancellationToken)" /> are the only public ways to obtain a Client exception: none
+	///     has a public constructor. Use it to hand a failure to code that expects an exception, for example a
+	///     <see cref="TaskCompletionSource{TResult}" />.
+	/// </remarks>
+	/// <exception cref="InvalidOperationException">
+	///     The failure is the <see langword="default" /> value, which describes no failure.
+	/// </exception>
+	public readonly Exception ToException(CancellationToken cancellationToken = default)
+	{
 		if (IsDefault)
 		{
 			throw new InvalidOperationException(
-				"A default CheatEngineFailure describes no failure and cannot be thrown.");
+				"A default CheatEngineFailure describes no failure and has no exception.");
 		}
 
-		switch (Kind)
+		return Kind switch
 		{
-			case CheatEngineFailureKind.Cancelled:
-				throw new CheatEngineOperationCanceledException(this, cancellationToken);
-			case CheatEngineFailureKind.ActivationExpired:
-				throw new CheatEngineActivationExpiredException(this);
-			case CheatEngineFailureKind.InvalidState:
-				throw new CheatEngineClientLifecycleException(this);
-			default:
-				throw new CheatEngineOperationException(this);
-		}
+			CheatEngineFailureKind.Cancelled => new CheatEngineOperationCanceledException(this, cancellationToken),
+			CheatEngineFailureKind.ActivationExpired => new CheatEngineActivationExpiredException(this),
+			CheatEngineFailureKind.InvalidState => new CheatEngineInvalidStateException(this),
+			_ => new CheatEngineOperationException(this)
+		};
 	}
 
 	/// <summary>Returns only the fields that are safe to log: kind, operation, and host effect.</summary>

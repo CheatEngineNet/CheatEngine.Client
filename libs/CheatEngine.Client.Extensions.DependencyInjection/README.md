@@ -109,7 +109,7 @@ change a Client result or cleanup.
 `CheatEngineClient:MemoryResourceLimits:MaximumReadBytes`) is validated with the options and copied when the memory
 client is created, so a later change does not affect the running activation. It uses the Client limit vocabulary.
 `MaximumReadBytes`, `MaximumWriteBytes`, and `MaximumStringBytes` set the **maximum block size** of one operation.
-`MaximumBatchOperationCount`, capped by `MemoryBatchLimits.MaximumOperations` (1024), sets the **request count per
+`MaximumBatchOperationCount`, capped by `MemoryBatchLimits.MaximumOperationCount` (1024), sets the **request count per
 batch**, and `MaximumBatchPayloadBytes` bounds that count multiplied by the element size. Together these budgets set the
 **maximum scratch allocation**: the largest managed buffer allocated for one operation. The target process gets no
 allocation. The **partial-effect state** of a batch write is not configurable: `MemoryBatchWriteEffectState` reports

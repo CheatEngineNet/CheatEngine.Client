@@ -49,7 +49,7 @@ internal sealed class AssemblyClient : IAssemblyClient
 	internal const string GetInstructionLengthOperation = "Assembly.GetInstructionLength";
 
 	/// <summary>The operation name of a previous-instruction query.</summary>
-	internal const string GetPreviousInstructionOperation = "Assembly.GetPreviousInstruction";
+	internal const string GetPreviousInstructionAddressOperation = "Assembly.GetPreviousInstructionAddress";
 
 	/// <summary>The size of the first assembly buffer: the longest x86 instruction takes 15 bytes.</summary>
 	internal const int InitialAssemblyCapacity = 16;
@@ -70,7 +70,7 @@ internal sealed class AssemblyClient : IAssemblyClient
 	{
 		_dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
 		_lifetime = lifetime ?? throw new ArgumentNullException(nameof(lifetime));
-		_limits = (limits ?? throw new ArgumentNullException(nameof(limits))).CreateSnapshot();
+		_limits = MemoryResourceLimitsCopy.CreateValidated(limits);
 		_port = port ?? throw new ArgumentNullException(nameof(port));
 	}
 
@@ -135,17 +135,17 @@ internal sealed class AssemblyClient : IAssemblyClient
 		return default;
 	}
 
-	public bool TryGetPreviousInstruction(Address address, out Address previousAddress,
+	public bool TryGetPreviousInstructionAddress(Address address, out Address previousAddress,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
-		return TryRun(GetPreviousInstructionOperation, address,
+		return TryRun(GetPreviousInstructionAddressOperation, address,
 			profile => GetPreviousOnMainThread(profile, address), out previousAddress, out failure,
 			cancellationToken);
 	}
 
-	public Address GetPreviousInstruction(Address address, CancellationToken cancellationToken = default)
+	public Address GetPreviousInstructionAddress(Address address, CancellationToken cancellationToken = default)
 	{
-		if (TryGetPreviousInstruction(address, out Address previous, out CheatEngineFailure failure,
+		if (TryGetPreviousInstructionAddress(address, out Address previous, out CheatEngineFailure failure,
 				cancellationToken))
 		{
 			return previous;
@@ -359,11 +359,11 @@ internal sealed class AssemblyClient : IAssemblyClient
 			(status == InstructionOperationStatus.Success && !profile.Accepts(previous)))
 		{
 			// The input was accepted before the call, so the width refusal is Cheat Engine's estimate.
-			return Fail<Address>(InstructionMapping.ReturnedAddressOutsideProfile(GetPreviousInstructionOperation));
+			return Fail<Address>(InstructionMapping.ReturnedAddressOutsideProfile(GetPreviousInstructionAddressOperation));
 		}
 
 		CheatEngineFailure? failure =
-			InstructionMapping.ToFailure(GetPreviousInstructionOperation, status, InstructionCallPhase.Operation);
+			InstructionMapping.ToFailure(GetPreviousInstructionAddressOperation, status, InstructionCallPhase.Operation);
 		return failure is { } refused ? Fail<Address>(refused) : Succeed(previous);
 	}
 

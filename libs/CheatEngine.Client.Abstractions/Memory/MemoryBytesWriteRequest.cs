@@ -5,7 +5,7 @@ using CheatEngine.SDK.Engine.Values;
 namespace CheatEngine.Client.Memory;
 
 /// <summary>A copied byte sequence to write to target memory.</summary>
-public readonly record struct MemoryBytesWriteRequest
+public readonly struct MemoryBytesWriteRequest
 {
 	/// <summary>Creates a byte write and copies the caller's data immediately.</summary>
 	public MemoryBytesWriteRequest(Address address, ReadOnlySpan<byte> bytes)

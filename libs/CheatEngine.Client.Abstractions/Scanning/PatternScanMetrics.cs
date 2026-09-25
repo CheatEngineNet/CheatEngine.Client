@@ -12,10 +12,10 @@ namespace CheatEngine.Client.Scanning;
 ///     </para>
 ///     <para>
 ///         Counts and durations are safe to log; they never contain addresses or values. The invariants
-///         <c>ExaminedCount + UnreadHostRows == HostResultCount</c>,
+///         <c>ExaminedCount + UnreadHostRowCount == HostResultCount</c>,
 ///         <c>MaterializedCount + FilteredOutCount &lt;= ExaminedCount</c> and
-///         <c>BelowStartSkipped + AtOrAfterStopSkipped &lt;= FilteredOutCount</c> always hold. When a failure stops the
-///         copy, the counts describe the work done before the failure.
+///         <c>BelowStartSkippedCount + AtOrAfterStopSkippedCount &lt;= FilteredOutCount</c> always hold. When a
+///         failure stops the copy, the counts describe the work done before the failure.
 ///     </para>
 /// </remarks>
 public readonly record struct PatternScanMetrics
@@ -26,9 +26,9 @@ public readonly record struct PatternScanMetrics
 	/// <param name="examinedCount">The number of rows Core or CheatEngine.SDK read.</param>
 	/// <param name="filteredOutCount">The number of examined rows outside the module or range.</param>
 	/// <param name="materializedCount">The number of examined rows Core copied into the result.</param>
-	/// <param name="belowStartSkipped">The rows the bounded route dropped below its start bound.</param>
-	/// <param name="atOrAfterStopSkipped">The rows the bounded route dropped at or after its stop bound.</param>
-	/// <param name="unreadHostRows">The rows that were not read, because the copy stopped first.</param>
+	/// <param name="belowStartSkippedCount">The rows the bounded route dropped below its start bound.</param>
+	/// <param name="atOrAfterStopSkippedCount">The rows the bounded route dropped at or after its stop bound.</param>
+	/// <param name="unreadHostRowCount">The rows that were not read, because the copy stopped first.</param>
 	/// <param name="inBoundsCountIsExact">
 	///     Whether every row was read, so the number of in-request matches is exactly
 	///     <c>ExaminedCount - FilteredOutCount</c>.
@@ -40,8 +40,8 @@ public readonly record struct PatternScanMetrics
 	/// </exception>
 	/// <exception cref="ArgumentException">The counts violate the documented invariants.</exception>
 	public PatternScanMetrics(PatternScanScope scope, ulong hostResultCount, ulong examinedCount,
-		ulong filteredOutCount, int materializedCount, ulong belowStartSkipped, ulong atOrAfterStopSkipped,
-		ulong unreadHostRows, bool inBoundsCountIsExact, TimeSpan hostScanElapsed, TimeSpan materializationElapsed)
+		ulong filteredOutCount, int materializedCount, ulong belowStartSkippedCount, ulong atOrAfterStopSkippedCount,
+		ulong unreadHostRowCount, bool inBoundsCountIsExact, TimeSpan hostScanElapsed, TimeSpan materializationElapsed)
 	{
 		if (!Enum.IsDefined(scope))
 		{
@@ -51,10 +51,10 @@ public readonly record struct PatternScanMetrics
 		ArgumentOutOfRangeException.ThrowIfNegative(materializedCount);
 		ArgumentOutOfRangeException.ThrowIfLessThan(hostScanElapsed, TimeSpan.Zero);
 		ArgumentOutOfRangeException.ThrowIfLessThan(materializationElapsed, TimeSpan.Zero);
-		if (examinedCount > hostResultCount || unreadHostRows != hostResultCount - examinedCount)
+		if (examinedCount > hostResultCount || unreadHostRowCount != hostResultCount - examinedCount)
 		{
 			throw new ArgumentException(
-				"The examined and unread rows must add up to the rows Cheat Engine returned.", nameof(unreadHostRows));
+				"The examined and unread rows must add up to the rows Cheat Engine returned.", nameof(unreadHostRowCount));
 		}
 
 		if (filteredOutCount > examinedCount || (ulong) materializedCount > examinedCount - filteredOutCount)
@@ -64,13 +64,14 @@ public readonly record struct PatternScanMetrics
 				nameof(materializedCount));
 		}
 
-		if (belowStartSkipped > filteredOutCount || atOrAfterStopSkipped > filteredOutCount - belowStartSkipped)
+		if (belowStartSkippedCount > filteredOutCount ||
+			atOrAfterStopSkippedCount > filteredOutCount - belowStartSkippedCount)
 		{
 			throw new ArgumentException("The bounded route's skipped rows are part of the filtered-out rows.",
 				nameof(filteredOutCount));
 		}
 
-		if (inBoundsCountIsExact && unreadHostRows != 0)
+		if (inBoundsCountIsExact && unreadHostRowCount != 0)
 		{
 			throw new ArgumentException("An exact in-request count requires every row to be read.",
 				nameof(inBoundsCountIsExact));
@@ -81,9 +82,9 @@ public readonly record struct PatternScanMetrics
 		ExaminedCount = examinedCount;
 		FilteredOutCount = filteredOutCount;
 		MaterializedCount = materializedCount;
-		BelowStartSkipped = belowStartSkipped;
-		AtOrAfterStopSkipped = atOrAfterStopSkipped;
-		UnreadHostRows = unreadHostRows;
+		BelowStartSkippedCount = belowStartSkippedCount;
+		AtOrAfterStopSkippedCount = atOrAfterStopSkippedCount;
+		UnreadHostRowCount = unreadHostRowCount;
 		InBoundsCountIsExact = inBoundsCountIsExact;
 		HostScanElapsed = hostScanElapsed;
 		MaterializationElapsed = materializationElapsed;
@@ -130,7 +131,7 @@ public readonly record struct PatternScanMetrics
 	///     Gets the rows the bounded route dropped because they began below its start: Cheat Engine's start bound is not
 	///     byte-exact. Zero on the global routes.
 	/// </summary>
-	public ulong BelowStartSkipped
+	public ulong BelowStartSkippedCount
 	{
 		get;
 	}
@@ -139,13 +140,13 @@ public readonly record struct PatternScanMetrics
 	///     Gets the rows the bounded route dropped at or after its stop bound; expected to be zero because Cheat Engine
 	///     honors it. Zero on the global routes.
 	/// </summary>
-	public ulong AtOrAfterStopSkipped
+	public ulong AtOrAfterStopSkippedCount
 	{
 		get;
 	}
 
 	/// <summary>Gets the rows that were not read because the copy stopped first.</summary>
-	public ulong UnreadHostRows
+	public ulong UnreadHostRowCount
 	{
 		get;
 	}

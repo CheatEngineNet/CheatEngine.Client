@@ -40,7 +40,7 @@ public sealed class MemoryCodecContextLifetimeTests
 				Assert.Equal(SdkPointerSize.Bit64, context.Bitness);
 				Assert.Equal(SdkPointerSize.Bit64, context.Bitness);
 				byte[] buffer = new byte[sizeof(int)];
-				Assert.True(context.TryReadBytes(TestAddress, buffer));
+				Assert.True(context.TryReadBytes(TestAddress, buffer, out _));
 			}
 		};
 
@@ -70,7 +70,7 @@ public sealed class MemoryCodecContextLifetimeTests
 			{
 				Assert.Equal(SdkPointerSize.Bit32, context.Bitness);
 				Assert.Equal(SdkPointerSize.Bit32, context.Bitness);
-				Assert.True(context.TryWriteBytes(TestAddress, [0x0A, 0x0B]));
+				Assert.True(context.TryWriteBytes(TestAddress, [0x0A, 0x0B], out _));
 			}
 		};
 
@@ -101,9 +101,9 @@ public sealed class MemoryCodecContextLifetimeTests
 		IMemoryReadContext readContext = Assert.IsAssignableFrom<IMemoryReadContext>(codec.ReadContext);
 		IMemoryWriteContext writeContext = Assert.IsAssignableFrom<IMemoryWriteContext>(codec.WriteContext);
 		AssertExpired(ReadOperation, () => _ = readContext.Bitness);
-		AssertExpired(ReadOperation, () => readContext.TryReadBytes(TestAddress, new byte[1]));
+		AssertExpired(ReadOperation, () => readContext.TryReadBytes(TestAddress, new byte[1], out _));
 		AssertExpired(WriteOperation, () => _ = writeContext.Bitness);
-		AssertExpired(WriteOperation, () => writeContext.TryWriteBytes(TestAddress, [0x0A]));
+		AssertExpired(WriteOperation, () => writeContext.TryWriteBytes(TestAddress, [0x0A], out _));
 		Assert.Equal(0, port.TotalCallCount);
 	}
 
@@ -264,7 +264,7 @@ public sealed class MemoryCodecContextLifetimeTests
 	private static void AssertWorkerReadIsRejected(IMemoryReadContext context)
 	{
 		Exception? pointerFailure = CaptureWorkerException(() => _ = context.Bitness);
-		Exception? readFailure = CaptureWorkerException(() => context.TryReadBytes(TestAddress, new byte[1]));
+		Exception? readFailure = CaptureWorkerException(() => context.TryReadBytes(TestAddress, new byte[1], out _));
 
 		Assert.IsType<CheatEngineActivationExpiredException>(pointerFailure);
 		Assert.IsType<CheatEngineActivationExpiredException>(readFailure);
@@ -273,7 +273,7 @@ public sealed class MemoryCodecContextLifetimeTests
 	private static void AssertWorkerWriteIsRejected(IMemoryWriteContext context)
 	{
 		Exception? pointerFailure = CaptureWorkerException(() => _ = context.Bitness);
-		Exception? writeFailure = CaptureWorkerException(() => context.TryWriteBytes(TestAddress, [0x0A]));
+		Exception? writeFailure = CaptureWorkerException(() => context.TryWriteBytes(TestAddress, [0x0A], out _));
 
 		Assert.IsType<CheatEngineActivationExpiredException>(pointerFailure);
 		Assert.IsType<CheatEngineActivationExpiredException>(writeFailure);
@@ -362,8 +362,9 @@ public sealed class MemoryCodecContextLifetimeTests
 			private set;
 		}
 
-		public bool TryRead(IMemoryReadContext context, Address address, out int value)
+		public bool TryRead(IMemoryReadContext context, Address address, out int value, out CheatEngineFailure failure)
 		{
+			failure = default;
 			ReadContext = context;
 			ReadAction?.Invoke(context);
 			if (ReadException is not null)
@@ -375,8 +376,9 @@ public sealed class MemoryCodecContextLifetimeTests
 			return ReadSucceeds;
 		}
 
-		public bool TryWrite(IMemoryWriteContext context, Address address, in int value)
+		public bool TryWrite(IMemoryWriteContext context, Address address, in int value, out CheatEngineFailure failure)
 		{
+			failure = default;
 			WriteContext = context;
 			WriteAction?.Invoke(context);
 			if (WriteException is not null)

@@ -16,7 +16,7 @@ public sealed class MemoryResourceLimitsAndBatchOutcomeTests
 		Assert.Equal(MemoryResourceLimits.DefaultMaximumWriteBytes, limits.MaximumWriteBytes);
 		Assert.Equal(MemoryResourceLimits.DefaultMaximumStringBytes, limits.MaximumStringBytes);
 		Assert.Equal(MemoryResourceLimits.DefaultMaximumBatchPayloadBytes, limits.MaximumBatchPayloadBytes);
-		Assert.Equal(MemoryBatchLimits.MaximumOperations, limits.MaximumBatchOperationCount);
+		Assert.Equal(MemoryBatchLimits.MaximumOperationCount, limits.MaximumBatchOperationCount);
 	}
 
 	[Theory]
@@ -25,7 +25,7 @@ public sealed class MemoryResourceLimitsAndBatchOutcomeTests
 	[InlineData(1, 1, 0, 1, 1)]
 	[InlineData(1, 1, 1, 0, 1)]
 	[InlineData(1, 1, 1, 1, 0)]
-	[InlineData(1, 1, 1, 1, MemoryBatchLimits.MaximumOperations + 1)]
+	[InlineData(1, 1, 1, 1, MemoryBatchLimits.MaximumOperationCount + 1)]
 	public void ExplicitLimitsRejectEveryInvalidBudget(int readBytes, int writeBytes, int stringBytes,
 		int batchPayloadBytes, int batchOperationCount)
 	{
@@ -34,42 +34,40 @@ public sealed class MemoryResourceLimitsAndBatchOutcomeTests
 	}
 
 	[Fact]
-	public void SnapshotIsIndependentAndValidatesConfigurationBoundProperties()
-	{
-		MemoryResourceLimits configured = new(33, 34, 35, 36, 37);
-		MemoryResourceLimits snapshot = configured.CreateSnapshot();
-		configured.MaximumReadBytes = 1;
-		configured.MaximumWriteBytes = 2;
-		configured.MaximumStringBytes = 3;
-		configured.MaximumBatchPayloadBytes = 4;
-		configured.MaximumBatchOperationCount = 5;
-
-		Assert.Equal(33, snapshot.MaximumReadBytes);
-		Assert.Equal(34, snapshot.MaximumWriteBytes);
-		Assert.Equal(35, snapshot.MaximumStringBytes);
-		Assert.Equal(36, snapshot.MaximumBatchPayloadBytes);
-		Assert.Equal(37, snapshot.MaximumBatchOperationCount);
-		Assert.Throws<ArgumentOutOfRangeException>(() => new MemoryResourceLimits
-		{
-			MaximumBatchOperationCount = MemoryBatchLimits.MaximumOperations + 1
-		}.CreateSnapshot());
-	}
-
-	[Fact]
 	public void ReadOutcomeCopiesItsCompletedPrefixAndExposesItsFailureDetails()
 	{
 		int[] prefix = [11, 22];
 		CheatEngineFailure cause = new(CheatEngineFailureKind.MemoryReadFailed, "Memory.ReadPrimitiveBatch", "Denied.");
 
-		MemoryPrimitiveBatchReadOutcome<int> outcome = new(3, 2, 2, cause, prefix);
+		MemoryPrimitiveBatchReadOutcome<int> outcome = new(3, prefix, 2, cause);
 		prefix[0] = 99;
 
-		Assert.Equal(3, outcome.AttemptedCount);
+		Assert.Equal(3, outcome.RequestedCount);
 		Assert.Equal(2, outcome.CompletedCount);
 		Assert.Equal(2, outcome.FailedIndex);
 		Assert.Equal(cause, outcome.Failure);
-		Assert.Equal([11, 22], outcome.ReadPrefix);
+		Assert.Equal([11, 22], outcome.Values);
 		Assert.False(outcome.IsSuccess);
+	}
+
+	[Fact]
+	public void ReadOutcomeNamesTheArgumentThatContradictsTheRequest()
+	{
+		CheatEngineFailure cause = new(CheatEngineFailureKind.MemoryReadFailed, "Memory.ReadPrimitiveBatch", "Denied.");
+
+		ArgumentOutOfRangeException noRequest = Assert.Throws<ArgumentOutOfRangeException>(() =>
+			new MemoryPrimitiveBatchReadOutcome<int>(0, [], null, cause));
+		ArgumentOutOfRangeException tooManyValues = Assert.Throws<ArgumentOutOfRangeException>(() =>
+			new MemoryPrimitiveBatchReadOutcome<int>(1, [11, 22], null, null));
+		ArgumentOutOfRangeException misplacedIndex = Assert.Throws<ArgumentOutOfRangeException>(() =>
+			new MemoryPrimitiveBatchReadOutcome<int>(3, [11], 2, cause));
+		ArgumentException missingFailure = Assert.Throws<ArgumentException>(() =>
+			new MemoryPrimitiveBatchReadOutcome<int>(2, [11], null, null));
+
+		Assert.Equal("requestedCount", noRequest.ParamName);
+		Assert.Equal("values", tooManyValues.ParamName);
+		Assert.Equal("failedIndex", misplacedIndex.ParamName);
+		Assert.Equal("failure", missingFailure.ParamName);
 	}
 
 	[Fact]
@@ -125,11 +123,10 @@ public sealed class MemoryResourceLimitsAndBatchOutcomeTests
 		MemoryBytesReadOutcome complete = new(2, [0x0A, 0x0B], null);
 		MemoryBytesReadOutcome refused = new(4, default, failure);
 
-		Assert.Equal((4, 2, false, false), (partial.RequestedLength, partial.ConfirmedLength, partial.IsComplete,
-			partial.IsSuccess));
+		Assert.Equal((4, 2, false), (partial.RequestedLength, partial.ConfirmedLength, partial.IsSuccess));
 		Assert.Equal([0x01, 0x02], partial.Bytes);
 		Assert.Equal(failure, partial.Failure);
-		Assert.Equal((2, true, true), (complete.ConfirmedLength, complete.IsComplete, complete.IsSuccess));
+		Assert.Equal((2, 2, true), (complete.RequestedLength, complete.ConfirmedLength, complete.IsSuccess));
 		Assert.Null(complete.Failure);
 		Assert.True(refused.Bytes.IsEmpty);
 		Assert.Equal(0, refused.ConfirmedLength);

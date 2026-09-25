@@ -75,7 +75,7 @@ public sealed class AobPatternTests
 
 		Assert.True(request.Protection.IsUnspecified);
 		Assert.Equal(ScanAlignment.None, request.Alignment);
-		Assert.Equal(ScanAlignmentKind.None, request.Alignment.Kind);
+		Assert.Equal(ScanAlignmentMode.None, request.Alignment.Mode);
 		Assert.Null(request.Module);
 		Assert.Null(request.Range);
 	}
@@ -86,10 +86,10 @@ public sealed class AobPatternTests
 		ScanAlignment aligned = ScanAlignment.AlignedTo(16);
 		ScanAlignment lastDigits = ScanAlignment.LastDigits("f0");
 
-		Assert.Equal(ScanAlignmentKind.AlignedTo, aligned.Kind);
+		Assert.Equal(ScanAlignmentMode.AlignedTo, aligned.Mode);
 		Assert.Equal(16, aligned.Divisor);
 		Assert.Null(aligned.Digits);
-		Assert.Equal(ScanAlignmentKind.LastDigits, lastDigits.Kind);
+		Assert.Equal(ScanAlignmentMode.LastDigits, lastDigits.Mode);
 		Assert.Equal("F0", lastDigits.Digits);
 		Assert.Equal(0, lastDigits.Divisor);
 		Assert.Equal(ScanAlignment.LastDigits("F0"), lastDigits);

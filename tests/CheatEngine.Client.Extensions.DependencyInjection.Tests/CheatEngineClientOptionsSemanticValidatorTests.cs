@@ -26,7 +26,7 @@ public sealed class CheatEngineClientOptionsSemanticValidatorTests
 			{
 				MemoryResourceLimits = new MemoryResourceLimits
 				{
-					MaximumBatchOperationCount = MemoryBatchLimits.MaximumOperations + 1
+					MaximumBatchOperationCount = MemoryBatchLimits.MaximumOperationCount + 1
 				}
 			});
 

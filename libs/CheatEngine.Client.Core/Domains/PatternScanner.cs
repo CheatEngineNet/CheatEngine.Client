@@ -138,11 +138,11 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 	/// <summary>Whether an alignment rule is one its factories can produce.</summary>
 	private static bool IsDefined(ScanAlignment alignment)
 	{
-		return alignment.Kind switch
+		return alignment.Mode switch
 		{
-			ScanAlignmentKind.None => alignment is { Divisor: 0, Digits: null },
-			ScanAlignmentKind.AlignedTo => alignment is { Divisor: > 0, Digits: null },
-			ScanAlignmentKind.LastDigits => alignment is { Divisor: 0, Digits.Length: > 0 },
+			ScanAlignmentMode.None => alignment is { Divisor: 0, Digits: null },
+			ScanAlignmentMode.AlignedTo => alignment is { Divisor: > 0, Digits: null },
+			ScanAlignmentMode.LastDigits => alignment is { Divisor: 0, Digits.Length: > 0 },
 			_ => false
 		};
 	}
@@ -542,8 +542,8 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		return fallback with
 		{
 			Metrics = new PatternScanMetrics(metrics.Scope, metrics.HostResultCount, metrics.ExaminedCount,
-				metrics.FilteredOutCount, metrics.MaterializedCount, metrics.BelowStartSkipped,
-				metrics.AtOrAfterStopSkipped, metrics.UnreadHostRows, metrics.InBoundsCountIsExact,
+				metrics.FilteredOutCount, metrics.MaterializedCount, metrics.BelowStartSkippedCount,
+				metrics.AtOrAfterStopSkippedCount, metrics.UnreadHostRowCount, metrics.InBoundsCountIsExact,
 				metrics.HostScanElapsed + priorHostScan, metrics.MaterializationElapsed)
 		};
 	}
@@ -925,7 +925,7 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		PatternScanMetrics? Metrics)
 	{
 		/// <summary>Gets what the host reported for the scan that ran; unknown when none ran.</summary>
-		internal PatternScanHostOutcome HostOutcome
+		internal PatternScanHostOutcomeKind HostOutcome
 		{
 			get;
 			init;

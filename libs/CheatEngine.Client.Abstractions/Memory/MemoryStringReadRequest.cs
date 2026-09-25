@@ -6,12 +6,21 @@ namespace CheatEngine.Client.Memory;
 /// <remarks>
 ///     <see cref="MaximumLength" /> is passed unchanged as Cheat Engine's <c>readString</c> <c>maxlength</c> argument.
 ///     Cheat Engine 7.7 does not document whether that argument counts bytes or characters, so treat it as a host-side
-///     bound, not as a character or byte count (evidence level: ToQualify, to be confirmed on a C3 host). Create a request
-///     with <see cref="Create" />.
+///     bound, not as a character or byte count (evidence level: ToQualify, to be confirmed on a C3 host).
 /// </remarks>
 public readonly record struct MemoryStringReadRequest
 {
-	private MemoryStringReadRequest(Address address, int maximumLength, MemoryStringEncoding encoding)
+	/// <summary>Creates a bounded text read with an explicit target encoding.</summary>
+	/// <param name="address">The first target address.</param>
+	/// <param name="maximumLength">
+	///     The positive value passed unchanged as Cheat Engine's <c>readString</c> <c>maxlength</c> argument; see
+	///     <see cref="MaximumLength" /> for why its unit is not stated.
+	/// </param>
+	/// <param name="encoding">The UTF-8 or UTF-16 target representation.</param>
+	/// <exception cref="ArgumentOutOfRangeException">
+	///     <paramref name="maximumLength" /> is zero or negative, or <paramref name="encoding" /> is not defined.
+	/// </exception>
+	public MemoryStringReadRequest(Address address, int maximumLength, MemoryStringEncoding encoding)
 	{
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumLength);
 		if (!Enum.IsDefined(encoding))
@@ -51,21 +60,5 @@ public readonly record struct MemoryStringReadRequest
 	public MemoryStringEncoding Encoding
 	{
 		get;
-	}
-
-	/// <summary>Creates a bounded text read with an explicit target encoding.</summary>
-	/// <param name="address">The first target address.</param>
-	/// <param name="maximumLength">
-	///     The positive value passed unchanged as Cheat Engine's <c>readString</c> <c>maxlength</c> argument; see
-	///     <see cref="MaximumLength" /> for why its unit is not stated.
-	/// </param>
-	/// <param name="encoding">The UTF-8 or UTF-16 target representation.</param>
-	/// <returns>A request that preserves the supplied encoding choice.</returns>
-	/// <exception cref="ArgumentOutOfRangeException">
-	///     <paramref name="maximumLength" /> is zero or negative, or <paramref name="encoding" /> is not defined.
-	/// </exception>
-	public static MemoryStringReadRequest Create(Address address, int maximumLength, MemoryStringEncoding encoding)
-	{
-		return new MemoryStringReadRequest(address, maximumLength, encoding);
 	}
 }

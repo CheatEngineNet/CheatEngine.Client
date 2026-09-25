@@ -5,7 +5,7 @@ using CheatEngine.SDK.Engine.Values;
 namespace CheatEngine.Client.Memory;
 
 /// <summary>A finite pointer chain whose offsets are applied after each target-aware pointer dereference.</summary>
-public readonly record struct PointerChainRequest
+public readonly struct PointerChainRequest
 {
 	/// <summary>Creates a bounded pointer chain by copying its offsets.</summary>
 	public PointerChainRequest(Address baseAddress, ReadOnlySpan<long> offsets)

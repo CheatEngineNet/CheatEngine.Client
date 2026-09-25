@@ -41,13 +41,13 @@ public sealed class RuntimeClientTests
 		Assert.Equal(new CheatEngineVersion(7, 7, 0, 10621), snapshot.Version.CheatEngineVersion);
 		Assert.Equal(new CheatEngineVersion(7, 7, 0, 10621), snapshot.Version.QualifiedCheatEngineBaseline);
 		Assert.True(snapshot.Version.IsOnQualifiedCheatEngineLine);
-		Assert.Equal(CheatEngineArchitecture.X64, snapshot.Platform.SystemArchitecture);
+		Assert.Equal(CheatEngineArchitecture.X64, snapshot.Platform.HostArchitecture);
 		Assert.Equal(CheatEngineArchitecture.X64, snapshot.Platform.TargetArchitecture);
 		Assert.Equal(PointerSize.Bit64, snapshot.Platform.TargetBitness);
 		Assert.Equal(TargetAbi.Windows, snapshot.Platform.TargetAbi);
 		Assert.Equal(8, snapshot.Platform.ConfiguredPointerSizeBytes);
 		Assert.Equal(CheatEngineOperatingSystem.Windows, snapshot.Platform.HostOperatingSystem);
-		Assert.True(snapshot.Platform.IsCheatEngine64Bit);
+		Assert.Equal(PointerSize.Bit64, snapshot.Platform.CheatEngineBitness);
 		Assert.Equal(TargetBackend.LocalProcess, snapshot.Platform.TargetBackend);
 		Assert.False(snapshot.Platform.TargetIsAndroid);
 		Assert.False(snapshot.Lua.ExternalStateResetDetected);
@@ -76,7 +76,7 @@ public sealed class RuntimeClientTests
 		Assert.Equal(TargetAbi.Unknown, snapshot.Platform.TargetAbi);
 		Assert.Null(snapshot.Platform.ConfiguredPointerSizeBytes);
 		Assert.Null(snapshot.Platform.ConfiguredPointerSizeDiffersFromBitness);
-		Assert.Equal(CheatEngineArchitecture.X64, snapshot.Platform.SystemArchitecture);
+		Assert.Equal(CheatEngineArchitecture.X64, snapshot.Platform.HostArchitecture);
 		Assert.Equal(ClientCapabilityEvidenceState.Satisfied, ProcessSelectionHost(snapshot).State);
 		Assert.Empty(port.TargetCalls);
 	}
@@ -120,7 +120,7 @@ public sealed class RuntimeClientTests
 		Assert.True(succeeded);
 		Assert.Equal(default, failure);
 		Assert.Equal(new CheatEngineVersion(7, 7, 0, 10621), snapshot.Version.CheatEngineVersion);
-		Assert.Equal(CheatEngineArchitecture.X64, snapshot.Platform.SystemArchitecture);
+		Assert.Equal(CheatEngineArchitecture.X64, snapshot.Platform.HostArchitecture);
 		Assert.Equal(CheatEngineArchitecture.Unknown, snapshot.Platform.TargetArchitecture);
 		Assert.Equal(PointerSize.Unknown, snapshot.Platform.TargetBitness);
 		Assert.Equal(kind == ProcessOperationStatusKind.FileAsProcessTarget
@@ -168,7 +168,7 @@ public sealed class RuntimeClientTests
 
 		Assert.Null(snapshot.Version.CheatEngineVersion);
 		Assert.False(snapshot.Version.IsOnQualifiedCheatEngineLine);
-		Assert.Equal(CheatEngineArchitecture.Unknown, snapshot.Platform.SystemArchitecture);
+		Assert.Equal(CheatEngineArchitecture.Unknown, snapshot.Platform.HostArchitecture);
 		// The target is observed on its own through the target observation policy.
 		Assert.Equal(CheatEngineArchitecture.X64, snapshot.Platform.TargetArchitecture);
 		Assert.Equal(ClientCapabilityEvidenceState.Satisfied, ProcessSelectionHost(snapshot).State);
@@ -700,7 +700,7 @@ public sealed class RuntimeClientTests
 		{
 			Assert.False(capability.IsAvailable, capability.Capability.Value);
 			Assert.NotEqual(ClientCapabilityAvailabilityState.Available, capability.State);
-			Assert.False(capability.Evidence.IsExecutable);
+			Assert.NotEqual(ClientCapabilityAvailabilityState.Available, capability.Evidence.AvailabilityState);
 		}
 	}
 

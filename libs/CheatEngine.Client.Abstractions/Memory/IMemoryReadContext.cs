@@ -1,3 +1,4 @@
+using CheatEngine.Client.Results;
 using CheatEngine.SDK.Engine.Runtime;
 using CheatEngine.SDK.Engine.Values;
 
@@ -37,9 +38,9 @@ public interface IMemoryReadContext
 	///     <see cref="CheatEngine.Client.Results.CheatEngineFailureKind.TargetNotAttached" /> when no target is selected,
 	///     otherwise the kind of the status Cheat Engine reported.
 	/// </remarks>
-	/// <exception cref="CheatEngine.Client.Results.CheatEngineOperationException">
-	///     Cheat Engine could not be asked for the target facts. The Client reports this exception as the codec
-	///     operation's failure when the codec lets it propagate.
+	/// <exception cref="CheatEngine.Client.Results.CheatEngineClientException">
+	///     Cheat Engine could not be asked for the target facts; the exception type follows the kind of the failure. The
+	///     Client reports this exception as the codec operation's failure when the codec lets it propagate.
 	/// </exception>
 	public PointerSize Bitness
 	{
@@ -50,7 +51,7 @@ public interface IMemoryReadContext
 	///     Gets Cheat Engine's configured pointer size as a width when it is 4 or 8 bytes, otherwise
 	///     <see cref="PointerSize.Unknown" />. It is per-attachment Cheat Engine state, independent of the bitness.
 	/// </summary>
-	/// <exception cref="CheatEngine.Client.Results.CheatEngineOperationException">
+	/// <exception cref="CheatEngine.Client.Results.CheatEngineClientException">
 	///     Cheat Engine could not be asked for the target facts.
 	/// </exception>
 	public PointerSize ConfiguredPointerSize
@@ -62,7 +63,7 @@ public interface IMemoryReadContext
 	///     Gets the raw value of Cheat Engine's configured pointer size, or <see langword="null" /> when it was not
 	///     observed. It can hold a value other than 4 or 8.
 	/// </summary>
-	/// <exception cref="CheatEngine.Client.Results.CheatEngineOperationException">
+	/// <exception cref="CheatEngine.Client.Results.CheatEngineClientException">
 	///     Cheat Engine could not be asked for the target facts.
 	/// </exception>
 	public int? ConfiguredPointerSizeBytes
@@ -74,17 +75,23 @@ public interface IMemoryReadContext
 	///     Gets whether the observed configured pointer size differs from a known bitness; <see langword="false" /> when
 	///     either value is unknown, which is no evidence of a mismatch.
 	/// </summary>
-	/// <exception cref="CheatEngine.Client.Results.CheatEngineOperationException">
+	/// <exception cref="CheatEngine.Client.Results.CheatEngineClientException">
 	///     Cheat Engine could not be asked for the target facts.
 	/// </exception>
-	public bool ConfiguredPointerSizeDiffersFromBitness
+	public bool? ConfiguredPointerSizeDiffersFromBitness
 	{
 		get;
 	}
 
 	/// <summary>Tries to fill the exact caller-provided buffer from target memory.</summary>
+	/// <param name="address">The first target address.</param>
+	/// <param name="destination">The buffer to fill completely.</param>
+	/// <param name="failure">
+	///     The classified failure of this read when the method returns <see langword="false" />; the default value on
+	///     success. A codec that fails because of this read can return it unchanged.
+	/// </param>
 	/// <returns>
 	///     <see langword="true" /> when every byte was read; otherwise <see langword="false" />, with the buffer cleared.
 	/// </returns>
-	public bool TryReadBytes(Address address, Span<byte> destination);
+	public bool TryReadBytes(Address address, Span<byte> destination, out CheatEngineFailure failure);
 }

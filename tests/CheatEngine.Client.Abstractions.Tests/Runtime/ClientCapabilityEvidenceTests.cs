@@ -97,7 +97,6 @@ public sealed class ClientCapabilityEvidenceTests
 
 		Assert.Equal(ClientCapabilityEvidenceReasonCode.Lifetime, evidence.EffectiveReasonCode);
 		Assert.Equal(ReasonFor(ClientCapabilityEvidenceReasonCode.Lifetime), evidence.EffectiveReason);
-		Assert.True(evidence.IsExecutable);
 		Assert.Equal(ClientCapabilityAvailabilityState.Available, evidence.AvailabilityState);
 	}
 

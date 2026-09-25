@@ -163,7 +163,7 @@ public sealed class ValueScannerTests : IDisposable
 
 		Assert.Equal(ValueScanSessionState.ResultsReady, session.State);
 		Assert.Equal(0UL, session.GetResultCount(Token));
-		Assert.Equal(0UL, page.TotalCount);
+		Assert.Equal(0UL, page.ResultCount);
 		Assert.True(page.Matches.IsEmpty);
 		Assert.False(page.HasMore);
 		Assert.Equal(["StartFirstScan", "Wait", "CopyPage", "ResultCount"], Handle.Calls);
@@ -186,7 +186,7 @@ public sealed class ValueScannerTests : IDisposable
 
 		Assert.Equal(3000UL, session.GetResultCount(Token));
 		Assert.Equal(ScanResourceLimits.MaximumValueScanPage, first.Matches.Length);
-		Assert.Equal(3000UL, first.TotalCount);
+		Assert.Equal(3000UL, first.ResultCount);
 		Assert.True(first.HasMore);
 		Assert.Equal(first.Matches.Length, first.NextStartIndex);
 		Assert.Equal(new Address(0x10000), first.Matches[0].Address);
@@ -611,7 +611,7 @@ public sealed class ValueScannerTests : IDisposable
 		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
 		Assert.Equal(calls, Handle.Calls.Count);
 		Assert.Equal(session.LastReleaseOutcome, session.Release());
-		Assert.Throws<CheatEngineClientLifecycleException>(() => session.Reset(Token));
+		Assert.Throws<CheatEngineInvalidStateException>(() => session.Reset(Token));
 	}
 
 	[Fact]
@@ -656,7 +656,7 @@ public sealed class ValueScannerTests : IDisposable
 	[Trait("Qualification", "Q26")]
 	public void ASessionForAProcessSelectedInCheatEngineStaysWithThatProcess()
 	{
-		_ = _processes.GetCurrent(Token);
+		long firstEpoch = _processes.GetCurrent(Token).SelectionEpoch;
 		FakeValueScanSessionHandle first = Handle;
 		first.OwnerReleases = (TargetReleaseStatus.RefusedTargetChanged, TargetReleaseStatus.RefusedTargetChanged);
 		IValueScanSession forFirst = CreateSession();
@@ -670,17 +670,34 @@ public sealed class ValueScannerTests : IDisposable
 
 		IValueScanSession forSecond = CreateSession();
 		int secondDestroysAfterCreation = second.Destroys;
-		_ = _processes.GetCurrent(Token);
+		long secondEpoch = _processes.GetCurrent(Token).SelectionEpoch;
 		forSecond.FirstScan(ValueScanFirstRequest.Exact(ValueScanValue.FromInt32(1)), Token);
 
 		// The first session's process is no longer selected: it was released when the second session was bound.
 		Assert.True(forFirst.IsReleased);
 		Assert.Equal(LeaseReleaseKind.RefusedTargetChanged, forFirst.LastReleaseOutcome?.Kind);
+		Assert.Equal(firstEpoch, forFirst.SelectionEpoch);
 		// The second session belongs to the selection the next observation finds, which releases nothing.
+		Assert.True(secondEpoch > firstEpoch);
+		Assert.Equal(secondEpoch, forSecond.SelectionEpoch);
 		Assert.Equal(0, secondDestroysAfterCreation);
 		Assert.Equal(0, second.Destroys);
 		Assert.False(forSecond.IsReleased);
 		Assert.Equal(ValueScanSessionState.ResultsReady, forSecond.State);
+	}
+
+	[Fact]
+	public void ASessionInTheObservedProcessKeepsTheObservedSelectionEpoch()
+	{
+		long observedEpoch = _processes.GetCurrent(Token).SelectionEpoch;
+
+		IValueScanSession session = CreateSession();
+		long laterEpoch = _processes.GetCurrent(Token).SelectionEpoch;
+
+		Assert.Equal(observedEpoch, session.SelectionEpoch);
+		Assert.Equal(observedEpoch, laterEpoch);
+		Assert.False(session.IsReleased);
+		Assert.Equal(0, Handle.Destroys);
 	}
 
 	[Fact]
@@ -690,7 +707,7 @@ public sealed class ValueScannerTests : IDisposable
 		_context.Stop();
 		using (_lifetime.EnterCleanupScope())
 		{
-			Assert.Throws<CheatEngineClientLifecycleException>(() => _scanner.TryCreateSession(out _, out _, Token));
+			Assert.Throws<CheatEngineInvalidStateException>(() => _scanner.TryCreateSession(out _, out _, Token));
 		}
 
 		Assert.Equal(0, _port.Creations);
@@ -702,7 +719,7 @@ public sealed class ValueScannerTests : IDisposable
 	{
 		_port.DuringCreate = _context.Stop;
 
-		CheatEngineClientLifecycleException stopping = Assert.Throws<CheatEngineClientLifecycleException>(() =>
+		CheatEngineInvalidStateException stopping = Assert.Throws<CheatEngineInvalidStateException>(() =>
 			_scanner.TryCreateSession(out _, out _, Token));
 
 		Assert.Contains("the new scan session, which was released at once", stopping.Message, StringComparison.Ordinal);

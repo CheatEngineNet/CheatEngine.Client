@@ -46,11 +46,11 @@ public sealed class CancellationMappingTests
 	[Fact]
 	public void ACancellationBetweenTwoNativeCallsIsStarted()
 	{
-		CheatEngineFailure failure = CancellationMapping.BetweenNativeCalls("Scans.FirstScan");
+		CheatEngineFailure failure = CancellationMapping.BetweenNativeCalls("ValueScans.FirstScan");
 
 		Assert.Equal(CheatEngineFailureKind.Cancelled, failure.Kind);
 		Assert.Equal(CheatEngineHostEffect.Started, failure.HostEffect);
-		Assert.Equal("Scans.FirstScan", failure.Operation);
+		Assert.Equal("ValueScans.FirstScan", failure.Operation);
 		Assert.Equal(CancellationMapping.BetweenNativeCallsMessage, failure.Message);
 		Assert.Null(failure.Exception);
 	}
@@ -60,7 +60,7 @@ public sealed class CancellationMappingTests
 	{
 		CheatEngineFailure before = CancellationMapping.BeforeNativeCall("Patterns.Scan", "Cancelled before the scan.");
 		CheatEngineFailure after = CancellationMapping.AfterNativeCall("Patterns.Scan", "Cancelled after the scan.");
-		CheatEngineFailure between = CancellationMapping.BetweenNativeCalls("Scans.NextScan", "Cancelled before the wait.");
+		CheatEngineFailure between = CancellationMapping.BetweenNativeCalls("ValueScans.NextScan", "Cancelled before the wait.");
 
 		Assert.Equal("Cancelled before the scan.", before.Message);
 		Assert.Equal(CheatEngineHostEffect.NotStarted, before.HostEffect);

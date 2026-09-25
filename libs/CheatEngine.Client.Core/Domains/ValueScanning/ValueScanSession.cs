@@ -26,22 +26,22 @@ namespace CheatEngine.Client.Core.Domains.ValueScanning;
 internal sealed class ValueScanSession : HostResourceLease, IValueScanSession
 {
 	/// <summary>The public operation name of the release.</summary>
-	internal const string ReleaseOperation = "Scans.Release";
+	internal const string ReleaseOperation = "ValueScans.Release";
 
 	/// <summary>The public operation name of a first scan.</summary>
-	internal const string FirstScanOperation = "Scans.FirstScan";
+	internal const string FirstScanOperation = "ValueScans.FirstScan";
 
 	/// <summary>The public operation name of a next scan.</summary>
-	internal const string NextScanOperation = "Scans.NextScan";
+	internal const string NextScanOperation = "ValueScans.NextScan";
 
 	/// <summary>The public operation name of a reset.</summary>
-	internal const string ResetOperation = "Scans.Reset";
+	internal const string ResetOperation = "ValueScans.Reset";
 
 	/// <summary>The public operation name of a result count.</summary>
-	internal const string ResultCountOperation = "Scans.GetResultCount";
+	internal const string ResultCountOperation = "ValueScans.GetResultCount";
 
 	/// <summary>The public operation name of a result read.</summary>
-	internal const string ReadOperation = "Scans.Read";
+	internal const string ReadOperation = "ValueScans.Read";
 
 	private const string ScanNotAwaitedMessage =
 		"The operation was cancelled after Cheat Engine started the scan and before the Client waited for it: the " +
@@ -58,11 +58,18 @@ internal sealed class ValueScanSession : HostResourceLease, IValueScanSession
 	/// <summary>Creates the lease of a created SDK session; the caller registers it.</summary>
 	/// <param name="dispatcher">The activation dispatcher.</param>
 	/// <param name="handle">The SDK session, which this lease owns from now on.</param>
-	internal ValueScanSession(SdkMainThreadDispatcher dispatcher, IValueScanSessionHandle handle)
+	/// <param name="selectionEpoch">The target-selection epoch of the process the session was created in.</param>
+	internal ValueScanSession(SdkMainThreadDispatcher dispatcher, IValueScanSessionHandle handle, long selectionEpoch)
 		: base(ReleaseOperation, dispatcher, dispatcher?.Lifetime.Diagnostics)
 	{
 		_dispatcher = dispatcher!;
 		_handle = handle ?? throw new ArgumentNullException(nameof(handle));
+		SelectionEpoch = selectionEpoch;
+	}
+
+	public long SelectionEpoch
+	{
+		get;
 	}
 
 	public ValueScanSessionState State =>

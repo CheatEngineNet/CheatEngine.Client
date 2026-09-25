@@ -59,7 +59,7 @@ internal static class CoreFailureFactory
 		return new CheatEngineFailure(GetKind(exception), operation, message, exception, hostEffect);
 	}
 
-	internal static CheatEngineFailure Lifecycle(string operation, string message, Exception? exception = null)
+	internal static CheatEngineFailure InvalidState(string operation, string message, Exception? exception = null)
 	{
 		return new CheatEngineFailure(CheatEngineFailureKind.InvalidState, operation, message, exception);
 	}
@@ -84,7 +84,7 @@ internal static class CoreFailureFactory
 		return exception switch
 		{
 			CheatEngineActivationExpiredException => CheatEngineFailureKind.ActivationExpired,
-			CheatEngineClientLifecycleException => CheatEngineFailureKind.InvalidState,
+			CheatEngineInvalidStateException => CheatEngineFailureKind.InvalidState,
 			EngineException engine => FromEngineFailureKind(engine.Kind),
 			LuaException => CheatEngineFailureKind.LuaError,
 			// The session is busy (a Cheat Engine call is still running) or not in a state that accepts the call.

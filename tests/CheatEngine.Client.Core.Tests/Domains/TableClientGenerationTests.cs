@@ -68,7 +68,7 @@ public sealed class TableClientGenerationTests : IDisposable
 		Assert.Equal(TableClient.StaleRecordIdentifierMessage, failure.Message);
 		Assert.Equal(dispatchedBefore, fixture.Dispatcher.InvocationCount);
 		Assert.Equal(0, fixture.Mutations.Calls);
-		Assert.Throws<CheatEngineClientLifecycleException>(() =>
+		Assert.Throws<CheatEngineInvalidStateException>(() =>
 			fixture.Client.SetActive(HandedOut, true, TestContext.Current.CancellationToken));
 	}
 
@@ -194,7 +194,7 @@ public sealed class TableClientGenerationTests : IDisposable
 		Fixture fixture = CreateFixture(fileStatus: LuaOperationStatus.LuaFailure(LuaStatus.RuntimeError));
 		Assert.True(fixture.Client.TryGetRecordAt(0, out _, out _, TestContext.Current.CancellationToken));
 
-		bool loaded = fixture.Client.TryLoadTrustedTable(new TableLoadRequest(fixture.TableFile, Merge: true),
+		bool loaded = fixture.Client.TryLoadTrustedTable(new TableLoadRequest(fixture.TableFile, merge: true),
 			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
 
 		Assert.False(loaded);

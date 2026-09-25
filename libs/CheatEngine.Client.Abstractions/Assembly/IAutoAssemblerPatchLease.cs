@@ -18,8 +18,12 @@ namespace CheatEngine.Client.Assembly;
 ///         a release after Cheat Engine's Lua runtime detached or replaced its Lua state, or one that could not begin
 ///         the disable, is refused (<see cref="LeaseReleaseKind.RefusedRuntimeChanged" />); and a disable that Cheat
 ///         Engine did not confirm is <see cref="LeaseReleaseKind.CleanupUnconfirmed" />. In each case the attempt ended
-///         the lease, the patch may remain in the target, and <see cref="RequiresManualRecovery" /> becomes
-///         <see langword="true" />: no later release can disable it.
+///         the lease, the patch may remain in the target, and
+///         <see cref="ICheatEngineLease.RequiresManualRecovery" /> becomes <see langword="true" />: no later release can
+///         disable it. Before any release, <see cref="CanDisable" /> is the early signal: it is <see langword="false" />
+///         once Cheat Engine's Lua runtime detached or replaced its Lua state, while
+///         <see cref="ICheatEngineLease.RequiresManualRecovery" /> stays <see langword="false" /> until a release
+///         reports what it left.
 ///     </para>
 ///     <para>
 ///         <b>Release the lease before selecting another process.</b> The Client observes a selection change only after
@@ -48,14 +52,17 @@ public interface IAutoAssemblerPatchLease : ICheatEngineLease
 	}
 
 	/// <summary>
-	///     Gets whether the lease still holds Cheat Engine's disable information in the current Lua state, so a release
-	///     can attempt the disable.
+	///     Gets whether a release can still run the <c>[DISABLE]</c> section: the lease holds Cheat Engine's disable
+	///     information in the current Lua state.
 	/// </summary>
 	/// <remarks>
-	///     <see langword="false" /> once a release attempt consumed the information, or after Cheat Engine's Lua state was
-	///     detached or replaced. It does not say whether the patch is still present in the target.
+	///     <see langword="false" /> once a release attempt consumed the information: read
+	///     <see cref="ICheatEngineLease.LastReleaseOutcome" /> to know whether that attempt disabled the patch. Before any
+	///     release, <see langword="false" /> means that Cheat Engine's Lua state was detached or replaced: a release that
+	///     reaches CheatEngine.SDK cannot run <c>[DISABLE]</c>, is refused
+	///     (<see cref="LeaseReleaseKind.RefusedRuntimeChanged" />) and leaves the patch in the target.
 	/// </remarks>
-	public bool IsEnabled
+	public bool CanDisable
 	{
 		get;
 	}
@@ -86,18 +93,4 @@ public interface IAutoAssemblerPatchLease : ICheatEngineLease
 		get;
 	}
 
-	/// <summary>
-	///     Gets whether the patch may remain in the target although this lease can no longer disable it: a release attempt
-	///     consumed Cheat Engine's disable information without a confirmed disable.
-	/// </summary>
-	/// <remarks>
-	///     This covers every outcome whose <see cref="LeaseReleaseOutcome.RequiresManualRecovery" /> is
-	///     <see langword="true" />. A <see cref="LeaseReleaseKind.CleanupUnavailable" /> outcome means that the release
-	///     could not be dispatched to Cheat Engine: the disable information was not consumed, and a later release can
-	///     still run <c>[DISABLE]</c>.
-	/// </remarks>
-	public bool RequiresManualRecovery
-	{
-		get;
-	}
 }

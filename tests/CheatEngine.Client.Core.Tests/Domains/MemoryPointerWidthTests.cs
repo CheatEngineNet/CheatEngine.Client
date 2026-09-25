@@ -223,7 +223,7 @@ public sealed class MemoryPointerWidthTests
 			TestContext.Current.CancellationToken);
 
 		Assert.False(write.IsSuccess);
-		Assert.Equal(2, write.AttemptedCount);
+		Assert.Equal(2, write.RequestedCount);
 		Assert.Equal(0, write.CompletedCount);
 		Assert.Null(write.FailedIndex);
 		Assert.Equal(MemoryBatchWriteEffectState.NotStarted, write.EffectState);
@@ -231,7 +231,7 @@ public sealed class MemoryPointerWidthTests
 		Assert.Equal(CheatEngineHostEffect.NotStarted, write.Failure.Value.HostEffect);
 		Assert.False(read.IsSuccess);
 		Assert.Equal(0, read.CompletedCount);
-		Assert.True(read.ReadPrefix.IsEmpty);
+		Assert.True(read.Values.IsEmpty);
 		Assert.Equal(CheatEngineFailureKind.OperationRejected, read.Failure!.Value.Kind);
 		Assert.Equal(0, port.PointerReads);
 		Assert.Equal(0, port.PointerWrites);
@@ -493,8 +493,8 @@ public sealed class MemoryPointerWidthTests
 		{
 			TargetFault = sdkFault
 		};
-		CheatEngineOperationException applicationFault = new(new CheatEngineFailure(
-			CheatEngineFailureKind.TargetNotAttached, "Memory.Read", "application-owned"));
+		CheatEngineOperationException applicationFault = (CheatEngineOperationException) new CheatEngineFailure(
+			CheatEngineFailureKind.TargetNotAttached, "Memory.Read", "application-owned").ToException(TestContext.Current.CancellationToken);
 
 		bool succeeded = CreateClient(faulting).TryRead(new MemoryReadRequest<int>(TestAddress, new FactCodec()), out _,
 			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
@@ -553,14 +553,15 @@ public sealed class MemoryPointerWidthTests
 			private set;
 		}
 
-		internal bool Differs
+		internal bool? Differs
 		{
 			get;
 			private set;
 		}
 
-		public bool TryRead(IMemoryReadContext context, Address address, out int value)
+		public bool TryRead(IMemoryReadContext context, Address address, out int value, out CheatEngineFailure failure)
 		{
+			failure = default;
 			if (Throw is not null)
 			{
 				throw Throw;
@@ -577,7 +578,7 @@ public sealed class MemoryPointerWidthTests
 			ConfiguredPointerSizeBytes = context.ConfiguredPointerSizeBytes;
 			ConfiguredPointerSize = context.ConfiguredPointerSize;
 			Differs = context.ConfiguredPointerSizeDiffersFromBitness;
-			if (ReadBytes && !context.TryReadBytes(address, new byte[Bitness.Bytes]))
+			if (ReadBytes && !context.TryReadBytes(address, new byte[Bitness.Bytes], out _))
 			{
 				value = 0;
 				return false;
@@ -587,8 +588,9 @@ public sealed class MemoryPointerWidthTests
 			return true;
 		}
 
-		public bool TryWrite(IMemoryWriteContext context, Address address, in int value)
+		public bool TryWrite(IMemoryWriteContext context, Address address, in int value, out CheatEngineFailure failure)
 		{
+			failure = default;
 			return true;
 		}
 	}
@@ -596,17 +598,19 @@ public sealed class MemoryPointerWidthTests
 	/// <summary>Behaves like the built-in Address codec: it asks the Core context to admit it before any access.</summary>
 	private sealed class PolicyCodec : IMemoryCodec<Address>
 	{
-		public bool TryRead(IMemoryReadContext context, Address address, out Address value)
+		public bool TryRead(IMemoryReadContext context, Address address, out Address value, out CheatEngineFailure failure)
 		{
+			failure = default;
 			value = default;
 			return ((ICorePointerCodecPolicy) context).TryAdmitPointerCodec() &&
-				   context.TryReadBytes(address, new byte[context.Bitness.Bytes]);
+				   context.TryReadBytes(address, new byte[context.Bitness.Bytes], out _);
 		}
 
-		public bool TryWrite(IMemoryWriteContext context, Address address, in Address value)
+		public bool TryWrite(IMemoryWriteContext context, Address address, in Address value, out CheatEngineFailure failure)
 		{
+			failure = default;
 			return ((ICorePointerCodecPolicy) context).TryAdmitPointerCodec() &&
-				   context.TryWriteBytes(address, new byte[context.Bitness.Bytes]);
+				   context.TryWriteBytes(address, new byte[context.Bitness.Bytes], out _);
 		}
 	}
 

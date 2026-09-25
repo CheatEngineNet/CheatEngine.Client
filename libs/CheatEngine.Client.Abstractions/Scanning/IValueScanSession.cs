@@ -61,6 +61,12 @@ namespace CheatEngine.Client.Scanning;
 [Experimental(ClientExperimentalDiagnostics.ValueScans, UrlFormat = ClientExperimentalDiagnostics.UrlFormat)]
 public interface IValueScanSession : ICheatEngineLease
 {
+	/// <summary>Gets the target-selection epoch of the process the session was created in.</summary>
+	public long SelectionEpoch
+	{
+		get;
+	}
+
 	/// <summary>Gets the session state that Cheat Engine's scan session reported after the last operation.</summary>
 	public ValueScanSessionState State
 	{

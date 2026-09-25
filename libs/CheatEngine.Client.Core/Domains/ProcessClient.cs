@@ -253,8 +253,8 @@ internal sealed class ProcessClient : IProcessClient, ITargetSelectionBinder
 	}
 
 	public bool TryGetLocalProcesses(
-		ProcessEnumerationRequest request,
-		out ProcessEnumerationResult result,
+		LocalProcessEnumerationRequest request,
+		out LocalProcessEnumerationResult result,
 		out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
@@ -262,11 +262,11 @@ internal sealed class ProcessClient : IProcessClient, ITargetSelectionBinder
 		return LocalProcessCatalog.TryEnumerate(_host, request, out result, out failure, cancellationToken);
 	}
 
-	public ProcessEnumerationResult GetLocalProcesses(
-		ProcessEnumerationRequest request,
+	public LocalProcessEnumerationResult GetLocalProcesses(
+		LocalProcessEnumerationRequest request,
 		CancellationToken cancellationToken = default)
 	{
-		if (TryGetLocalProcesses(request, out ProcessEnumerationResult result, out CheatEngineFailure failure,
+		if (TryGetLocalProcesses(request, out LocalProcessEnumerationResult result, out CheatEngineFailure failure,
 				cancellationToken))
 		{
 			return result;

@@ -121,10 +121,10 @@ public interface IProcessClient
 	///     <see cref="CheatEngineFailureKind.Cancelled" /> with <see cref="CheatEngineHostEffect.NotStarted" />. A
 	///     catalog that cannot be read is <see cref="CheatEngineFailureKind.OperationRejected" />.
 	/// </remarks>
-	public bool TryGetLocalProcesses(ProcessEnumerationRequest request, out ProcessEnumerationResult result,
+	public bool TryGetLocalProcesses(LocalProcessEnumerationRequest request, out LocalProcessEnumerationResult result,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default);
 
 	/// <summary>Enumerates copied local-process metadata within an explicit materialization bound.</summary>
-	public ProcessEnumerationResult GetLocalProcesses(ProcessEnumerationRequest request,
+	public LocalProcessEnumerationResult GetLocalProcesses(LocalProcessEnumerationRequest request,
 		CancellationToken cancellationToken = default);
 }

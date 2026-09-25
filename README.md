@@ -199,8 +199,8 @@ Services that touch Cheat Engine must preserve this activation-lifecycle contrac
 ### Failures, exceptions and cancellation
 
 `Try...` methods return a `CheatEngineFailure` for request, policy and budget refusals, cancellation before dispatch, and
-Cheat Engine results that are false, absent, indeterminate or malformed; no CheatEngine.SDK exception type crosses a
-`Try...` method. They still throw `CheatEngineActivationExpiredException`, `CheatEngineClientLifecycleException` and
+Cheat Engine results that are false, absent, indeterminate or malformed; no `Try...` method throws a CheatEngine.SDK
+exception. They still throw `CheatEngineActivationExpiredException`, `CheatEngineInvalidStateException` and
 argument exceptions, and they rethrow exceptions from your own callbacks, codecs and Lua operations unchanged.
 The throwing form of the same operation throws the same failure through `CheatEngineFailure.Throw(cancellationToken)`:
 a cancellation surfaces as `CheatEngineOperationCanceledException`, an `OperationCanceledException`, and every other
@@ -298,16 +298,20 @@ dependency of `CheatEngine.Client.Extensions.DependencyInjection`.
     call-only interface only in a test double, and expect to update the double in a minor release;
   - new enum values. Public enums are `int` enums whose explicit values never change meaning. An outcome enum (a name
     ending in `Kind`, `Status`, `State`, `Effect` or `Scope`) has `Unknown = 0`: handle a value you do not recognize
-    like `Unknown`. An option enum has a valid default at 0.
+    like `Unknown`. An option enum has a valid default at 0 and never an outcome suffix.
 - **Frozen for all of 1.x:** the *Implementable* interfaces (`ILuaModule`, `ILuaOperation<TResult>`,
   `ILuaResultMapper<TSource, TResult>`, `IMemoryCodec<T>` and `ICheatEngineClientModule`) never gain, lose or change a
   member.
 - **Experimental APIs**, marked `[Experimental("CECLIENT500x")]`, can change or be removed in a minor release until
   their live qualification passes; using one is an explicit opt-in to that diagnostic.
-- **Not contractual:** the text of `CheatEngineFailure.Message` and of exception messages. Classify a failure by
-  `CheatEngineFailure.Kind` and `HostEffect`, never by text.
-- **CheatEngine.SDK:** Client 1.x depends on CheatEngine.SDK `[2.0.0, 3.0.0)`. A new CheatEngine.SDK major version
-  means a new Client major version, never a Client minor release.
+- **Charter:** the public API charter of the `CheatEngine.Client.Abstractions` README fixes the Try and throwing forms,
+  the names, the exception policy (no Client exception has a public constructor; `CheatEngineFailure.Throw` and
+  `ToException` create them) and the CheatEngine.SDK value types a public signature may use; 1.x only adds to it.
+- **Not contractual:** the text of `CheatEngineFailure.Message`, of `CheatEngineFailure.Operation` and of exception
+  messages. Classify a failure by `CheatEngineFailure.Kind` and `HostEffect`, never by text.
+- **CheatEngine.SDK:** Client 1.x depends on CheatEngine.SDK `[2.0.0, 3.0.0)`. Its descriptive value types (`Address`,
+  `PointerSize`, `ModuleInfo` and the others the charter lists) are part of the Client's public signatures, so a new
+  CheatEngine.SDK major version means a new Client major version, never a Client minor release.
 - Removing or changing a stable public member, or changing the meaning of a value, happens only in a new major version.
 
 ## AOT, trimming, and deployment

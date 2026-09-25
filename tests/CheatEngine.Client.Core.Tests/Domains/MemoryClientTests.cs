@@ -90,7 +90,7 @@ public sealed class MemoryClientTests
 		MemoryClient client = new(new InlineDispatcher(), InertCoreLifetime.Create(), port, new MemoryResourceLimits());
 		Address address = 0x404000;
 
-		bool succeeded = client.TryReadString(MemoryStringReadRequest.Create(address, maximumLength,
+		bool succeeded = client.TryReadString(new MemoryStringReadRequest(address, maximumLength,
 				wideCharacter ? MemoryStringEncoding.Utf16 : MemoryStringEncoding.Utf8),
 			out string? value, out CheatEngineFailure failure, TestContext.Current.CancellationToken);
 
@@ -114,7 +114,7 @@ public sealed class MemoryClientTests
 		MemoryClient client = new(new InlineDispatcher(), InertCoreLifetime.Create(), port,
 			new MemoryResourceLimits(64, 64, 8, 64, 1));
 
-		bool succeeded = client.TryReadString(MemoryStringReadRequest.Create(0x405000, maximumLength,
+		bool succeeded = client.TryReadString(new MemoryStringReadRequest(0x405000, maximumLength,
 				wideCharacter ? MemoryStringEncoding.Utf16 : MemoryStringEncoding.Utf8),
 			out _, out CheatEngineFailure failure, TestContext.Current.CancellationToken);
 
@@ -146,7 +146,6 @@ public sealed class MemoryClientTests
 			TestContext.Current.CancellationToken);
 
 		Assert.False(outcome.IsSuccess);
-		Assert.False(outcome.IsComplete);
 		Assert.Equal(8, outcome.RequestedLength);
 		Assert.Equal(3, outcome.ConfirmedLength);
 		Assert.Equal([0x10, 0x20, 0x30], outcome.Bytes);
@@ -180,7 +179,6 @@ public sealed class MemoryClientTests
 			TestContext.Current.CancellationToken);
 
 		Assert.True(outcome.IsSuccess);
-		Assert.True(outcome.IsComplete);
 		Assert.Null(outcome.Failure);
 		Assert.Equal(4, outcome.ConfirmedLength);
 		Assert.Equal([0x0A, 0x0B, 0x0C, 0x0D], outcome.Bytes);
@@ -218,6 +216,47 @@ public sealed class MemoryClientTests
 		Assert.Equal([0, 0, 0, 0], codec.Buffer);
 	}
 
+	/// <summary>
+	///     The context hands the codec the classified failure of its own read, and a codec that returns it is published
+	///     unchanged: the operation names the public call, the kind follows the host's refusal.
+	/// </summary>
+	[Fact]
+	[Trait("Qualification", "Q20")]
+	public void ACodecThatPassesOnTheContextFailureHasItPublishedUnchanged()
+	{
+		ByteReadPort port = new([0x7F, 0x7F], MemoryAccessFailure.PartialRead);
+		ForwardingCodec codec = new();
+
+		bool succeeded = CreateClient(port).TryRead(new MemoryReadRequest<int>(0x406000, codec), out int value,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(0, value);
+		Assert.Equal(codec.ContextFailure, failure);
+		Assert.Equal(CheatEngineFailureKind.MemoryReadFailed, failure.Kind);
+		Assert.Equal("Memory.Read", failure.Operation);
+	}
+
+	/// <summary>A codec's own classified failure, host effect included, is the failure of the call.</summary>
+	[Fact]
+	public void ACodecThatClassifiesItsFailureHasItPublishedUnchanged()
+	{
+		ByteReadPort port = new([0x01, 0x02, 0x03, 0x04], MemoryAccessFailure.None);
+		CheatEngineFailure claimed = new(CheatEngineFailureKind.InvalidHostResult, "Application.Codec",
+			"The value read is not a valid enumeration member.", null, CheatEngineHostEffect.Completed);
+		ForwardingCodec codec = new()
+		{
+			Claimed = claimed
+		};
+
+		bool succeeded = CreateClient(port).TryRead(new MemoryReadRequest<int>(0x406000, codec), out _,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(claimed, failure);
+		Assert.Equal(default, codec.ContextFailure);
+	}
+
 	private static MemoryClient CreateClient(IMemoryCodecContextPort port)
 	{
 		return new MemoryClient(new InlineDispatcher(), InertCoreLifetime.Create(), port, new MemoryResourceLimits());
@@ -252,6 +291,45 @@ public sealed class MemoryClientTests
 		}
 	}
 
+	/// <summary>
+	///     Reads four bytes through its context and returns the context's failure, or <see cref="Claimed" /> after a
+	///     successful read.
+	/// </summary>
+	private sealed class ForwardingCodec : IMemoryCodec<int>
+	{
+		internal CheatEngineFailure Claimed
+		{
+			get;
+			init;
+		}
+
+		internal CheatEngineFailure ContextFailure
+		{
+			get;
+			private set;
+		}
+
+		public bool TryRead(IMemoryReadContext context, Address address, out int value, out CheatEngineFailure failure)
+		{
+			value = 0;
+			if (!context.TryReadBytes(address, new byte[sizeof(int)], out CheatEngineFailure readFailure))
+			{
+				ContextFailure = readFailure;
+				failure = readFailure;
+				return false;
+			}
+
+			failure = Claimed;
+			return Claimed.IsDefault;
+		}
+
+		public bool TryWrite(IMemoryWriteContext context, Address address, in int value, out CheatEngineFailure failure)
+		{
+			failure = default;
+			return false;
+		}
+	}
+
 	/// <summary>Reads four bytes through its context and keeps the buffer it passed.</summary>
 	private sealed class PrefixCodec : IMemoryCodec<int>
 	{
@@ -260,14 +338,16 @@ public sealed class MemoryClientTests
 			get;
 		} = new byte[sizeof(int)];
 
-		public bool TryRead(IMemoryReadContext context, Address address, out int value)
+		public bool TryRead(IMemoryReadContext context, Address address, out int value, out CheatEngineFailure failure)
 		{
+			failure = default;
 			value = 0;
-			return context.TryReadBytes(address, Buffer);
+			return context.TryReadBytes(address, Buffer, out _);
 		}
 
-		public bool TryWrite(IMemoryWriteContext context, Address address, in int value)
+		public bool TryWrite(IMemoryWriteContext context, Address address, in int value, out CheatEngineFailure failure)
 		{
+			failure = default;
 			return false;
 		}
 	}
@@ -346,8 +426,9 @@ public sealed class MemoryClientTests
 			private set;
 		}
 
-		public bool TryRead(IMemoryReadContext context, Address address, out int value)
+		public bool TryRead(IMemoryReadContext context, Address address, out int value, out CheatEngineFailure failure)
 		{
+			failure = default;
 			Assert.NotNull(context);
 			ReadCount++;
 			LastReadAddress = address;
@@ -355,8 +436,9 @@ public sealed class MemoryClientTests
 			return ReadSucceeds;
 		}
 
-		public bool TryWrite(IMemoryWriteContext context, Address address, in int value)
+		public bool TryWrite(IMemoryWriteContext context, Address address, in int value, out CheatEngineFailure failure)
 		{
+			failure = default;
 			Assert.NotNull(context);
 			WriteCount++;
 			LastWriteAddress = address;

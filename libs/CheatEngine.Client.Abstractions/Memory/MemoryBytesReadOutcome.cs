@@ -70,9 +70,6 @@ public sealed class MemoryBytesReadOutcome
 	/// <summary>Gets the number of bytes Cheat Engine confirmed, the length of <see cref="Bytes" />.</summary>
 	public int ConfirmedLength => Bytes.Length;
 
-	/// <summary>Gets whether every requested byte was confirmed.</summary>
-	public bool IsComplete => ConfirmedLength == RequestedLength;
-
 	/// <summary>Gets the failure when the read did not complete, or <see langword="null" />.</summary>
 	public CheatEngineFailure? Failure
 	{

@@ -16,5 +16,5 @@ public enum MemoryBatchWriteEffectState
 	Partial = 2,
 
 	/// <summary>Every requested write completed.</summary>
-	Complete = 3
+	Completed = 3
 }

@@ -1,5 +1,5 @@
+using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Lua;
-using CheatEngine.Client.Results;
 
 namespace CheatEngine.Client.Core.Domains;
 
@@ -23,7 +23,7 @@ internal sealed class LuaOperationContext(long epoch, Func<bool> isCurrent) : IL
 			return;
 		}
 
-		throw new CheatEngineActivationExpiredException(
+		throw ClientExceptions.ActivationExpired(
 			"Lua.Execute",
 			"The Lua operation context is no longer valid for the current Cheat Engine activation.");
 	}

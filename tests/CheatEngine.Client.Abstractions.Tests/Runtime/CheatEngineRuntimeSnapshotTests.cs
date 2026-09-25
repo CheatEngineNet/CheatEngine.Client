@@ -144,13 +144,13 @@ public sealed class CheatEngineRuntimeSnapshotTests
 	[Fact]
 	public void PlatformInfoKeepsEveryObservedFact()
 	{
-		CheatEngineRuntimePlatformInfo platform = new(CheatEngineOperatingSystem.Windows, true,
-			CheatEngineArchitecture.X64, TargetBackend.CEServer, CheatEngineArchitecture.Arm64, PointerSize.Bit64,
-			TargetAbi.Unix, true, 8);
+		CheatEngineRuntimePlatformInfo platform = new(CheatEngineOperatingSystem.Windows,
+			CheatEngineArchitecture.X64, PointerSize.Bit64, TargetBackend.CEServer, CheatEngineArchitecture.Arm64,
+			PointerSize.Bit64, TargetAbi.Unix, true, 8);
 
 		Assert.Equal(CheatEngineOperatingSystem.Windows, platform.HostOperatingSystem);
-		Assert.True(platform.IsCheatEngine64Bit);
-		Assert.Equal(CheatEngineArchitecture.X64, platform.SystemArchitecture);
+		Assert.Equal(CheatEngineArchitecture.X64, platform.HostArchitecture);
+		Assert.Equal(PointerSize.Bit64, platform.CheatEngineBitness);
 		Assert.Equal(TargetBackend.CEServer, platform.TargetBackend);
 		Assert.Equal(CheatEngineArchitecture.Arm64, platform.TargetArchitecture);
 		Assert.Equal(PointerSize.Bit64, platform.TargetBitness);
@@ -167,7 +167,8 @@ public sealed class CheatEngineRuntimeSnapshotTests
 		CheatEngineRuntimePlatformInfo platform = default;
 
 		Assert.Equal(CheatEngineOperatingSystem.Unknown, platform.HostOperatingSystem);
-		Assert.Null(platform.IsCheatEngine64Bit);
+		Assert.Equal(CheatEngineArchitecture.Unknown, platform.HostArchitecture);
+		Assert.Equal(PointerSize.Unknown, platform.CheatEngineBitness);
 		Assert.Equal(TargetBackend.Unknown, platform.TargetBackend);
 		Assert.Equal(PointerSize.Unknown, platform.TargetBitness);
 		Assert.Null(platform.TargetIsAndroid);
@@ -265,8 +266,8 @@ public sealed class CheatEngineRuntimeSnapshotTests
 	private static CheatEngineRuntimePlatformInfo CreatePlatformInfo(TargetBackend backend,
 		CheatEngineArchitecture architecture, PointerSize bitness, int? configured)
 	{
-		return new CheatEngineRuntimePlatformInfo(CheatEngineOperatingSystem.Windows, true, CheatEngineArchitecture.X64,
-			backend, architecture, bitness, TargetAbi.Windows, false, configured);
+		return new CheatEngineRuntimePlatformInfo(CheatEngineOperatingSystem.Windows, CheatEngineArchitecture.X64,
+			PointerSize.Bit64, backend, architecture, bitness, TargetAbi.Windows, false, configured);
 	}
 
 	private static T Null<T>() where T : class

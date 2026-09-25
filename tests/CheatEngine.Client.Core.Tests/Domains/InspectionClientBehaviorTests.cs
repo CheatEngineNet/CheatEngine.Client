@@ -542,7 +542,7 @@ public sealed class InspectionClientBehaviorTests
 		Assert.Equal(CheatEngineFailureKind.InvalidState, failure.Kind);
 		Assert.Equal(CheatEngineHostEffect.Completed, failure.HostEffect);
 		Assert.Equal("Inspection.RegisterSymbol", failure.Operation);
-		Assert.IsType<CheatEngineClientLifecycleException>(failure.Exception);
+		Assert.IsType<CheatEngineInvalidStateException>(failure.Exception);
 		Assert.Equal(["fixture-symbol"], port.UnregisteredNames);
 		Assert.Equal(1, port.ReleaseCalls);
 		Assert.False(port.Symbols.ContainsKey("fixture-symbol"));

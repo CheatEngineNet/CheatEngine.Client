@@ -33,19 +33,13 @@ internal sealed class LuaModuleLease : HostResourceLease, ILuaModuleLease
 	private bool _registered;
 	private bool _reservationReleased;
 
-	internal LuaModuleLease(ILuaModule module, long epoch, ICheatEngineDispatcher dispatcher,
-		ICoreDiagnostics? diagnostics, Action<ILuaModuleLease> untrack, Action<ILuaModule> releaseReservation)
+	internal LuaModuleLease(ILuaModule module, ICheatEngineDispatcher dispatcher, ICoreDiagnostics? diagnostics,
+		Action<ILuaModuleLease> untrack, Action<ILuaModule> releaseReservation)
 		: base(ReleaseOperation, dispatcher, diagnostics)
 	{
 		_module = module ?? throw new ArgumentNullException(nameof(module));
-		Epoch = epoch;
 		_untrack = untrack ?? throw new ArgumentNullException(nameof(untrack));
 		_releaseReservation = releaseReservation ?? throw new ArgumentNullException(nameof(releaseReservation));
-	}
-
-	public long Epoch
-	{
-		get;
 	}
 
 	public LuaModuleReleaseOutcome? ModuleReleaseOutcome

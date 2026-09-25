@@ -22,12 +22,6 @@ namespace CheatEngine.Client.Lua;
 /// </remarks>
 public interface ILuaModuleLease : ICheatEngineLease
 {
-	/// <summary>Gets the Client activation epoch that owns this registration.</summary>
-	public long Epoch
-	{
-		get;
-	}
-
 	/// <summary>
 	///     Gets what the module reported for the last release attempt that reached it, or <see langword="null" /> before
 	///     one did.

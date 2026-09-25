@@ -66,7 +66,7 @@ internal sealed class AutoAssemblerPatchLease : HostResourceLease, IAutoAssemble
 		get;
 	}
 
-	public bool IsEnabled => !IsReleased && _patch.IsEnabled;
+	public bool CanDisable => !IsReleased && _patch.IsEnabled;
 
 	public bool AppliedAfterTargetChange
 	{
@@ -83,8 +83,13 @@ internal sealed class AutoAssemblerPatchLease : HostResourceLease, IAutoAssemble
 		get;
 	}
 
-	public bool RequiresManualRecovery =>
-		LastReleaseOutcome is { RequiresManualRecovery: true } || _patch.RequiresManualRecovery;
+	/// <summary>
+	///     Gets CheatEngine.SDK's own flag, which only a release attempt sets: the attempt consumed the disable
+	///     information without a confirmed disable. It adds to the recorded outcome only for a status this Client version
+	///     does not recognize, whose outcome stays retryable; a replaced Lua state alone clears <see cref="CanDisable" />
+	///     and leaves the flag unset until a release.
+	/// </summary>
+	protected override bool OwnerRequiresManualRecovery => _patch.RequiresManualRecovery;
 
 	protected override LeaseReleaseOutcome ReleaseOnMainThread()
 	{

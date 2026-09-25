@@ -38,7 +38,7 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 	}
 
 	/// <summary>Gets the client for the active enable epoch.</summary>
-	/// <exception cref="CheatEngineClientLifecycleException">The plugin is not currently enabled.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">The plugin is not currently enabled.</exception>
 	protected ICheatEngineClient GetRequiredClient()
 	{
 		return GetActiveClient();
@@ -72,9 +72,9 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 	{
 		if (Volatile.Read(ref _activation) is not null)
 		{
-			throw new CheatEngineClientLifecycleException(
-				"EnableClient",
-				"The Cheat Engine client is already active for this plugin instance.");
+			throw new CheatEngineFailure(CheatEngineFailureKind.InvalidState, "EnableClient",
+				"The Cheat Engine client is already active for this plugin instance.", null,
+				CheatEngineHostEffect.NotStarted).ToException();
 		}
 
 		CheatEnginePluginBuilder builder = new();
@@ -313,9 +313,9 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 			return activation.Client;
 		}
 
-		throw new CheatEngineClientLifecycleException(
-			"GetClient",
-			"The Cheat Engine client is available only while the plugin is enabled.");
+		throw new CheatEngineFailure(CheatEngineFailureKind.InvalidState, "GetClient",
+			"The Cheat Engine client is available only while the plugin is enabled.", null,
+			CheatEngineHostEffect.NotStarted).ToException();
 	}
 
 	/// <summary>The stable, data-free names of the activation cleanup stages, in execution order.</summary>

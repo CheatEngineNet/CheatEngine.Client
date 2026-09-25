@@ -102,8 +102,7 @@ internal sealed class LuaClient : ILuaClient
 			return false;
 		}
 
-		LuaModuleLease created = new(luaModule, _epochProvider(), _dispatcher, _diagnostics, _untrackLease,
-			ReleaseModule);
+		LuaModuleLease created = new(luaModule, _dispatcher, _diagnostics, _untrackLease, ReleaseModule);
 		try
 		{
 			_trackLease(created);
@@ -381,26 +380,25 @@ internal sealed class LuaClient : ILuaClient
 	}
 
 	/// <summary>
-	///     Reports the exception that a module's <see cref="ILuaModule.Register" /> threw: the failure a
-	///     <see cref="CheatEngineOperationException" /> carries (a generated module classifies its own refusals), otherwise
-	///     the <see cref="SdkBoundary" /> classification with an unknown host effect.
+	///     Reports the exception that a module's <see cref="ILuaModule.Register" /> threw: the failure a Client exception
+	///     carries (a <see cref="CheatEngineClientException" /> or a <see cref="CheatEngineOperationCanceledException" />,
+	///     which a module, generated or not, obtains from <see cref="CheatEngineFailure.ToException" />), otherwise the
+	///     <see cref="SdkBoundary" /> classification with an unknown host effect.
 	/// </summary>
 	/// <remarks>
 	///     Unlike a codec or a typed operation, whose exceptions are rethrown unchanged, a module's registration is
 	///     classified: a generated module surfaces the CheatEngine.SDK faults of its registration from
 	///     <see cref="ILuaModule.Register" />, and no SDK exception may cross <see cref="TryRegisterModule" /> (F15). A
-	///     <see cref="CheatEngineOperationException" /> that carries the <see langword="default" /> failure describes
-	///     none, so it is reported as <see cref="CheatEngineFailureKind.Unknown" /> with the exception attached, the rule
-	///     of a typed operation that fails without a failure.
+	///     Client exception always carries a classified failure: its constructors are internal, and
+	///     <see cref="CheatEngineFailure.ToException" /> rejects the <see langword="default" /> failure.
 	/// </remarks>
 	private static CheatEngineFailure ClassifyRegistrationFault(Exception? fault)
 	{
 		return fault switch
 		{
-			CheatEngineOperationException { Failure.IsDefault: false } reported => reported.Failure,
-			CheatEngineOperationException undescribed => new CheatEngineFailure(CheatEngineFailureKind.Unknown,
-				RegisterOperation, "The Lua module refused its registration without an associated Cheat Engine failure.",
-				undescribed),
+			// A module reports a classified failure through CheatEngineFailure.ToException: keep it, whatever its kind.
+			CheatEngineClientException reported => reported.Failure,
+			CheatEngineOperationCanceledException cancelled => cancelled.Failure,
 			null => new CheatEngineFailure(CheatEngineFailureKind.Unknown, RegisterOperation,
 				"The Lua module registration ended without completing or reporting a failure."),
 			_ => SdkBoundary.Classify(RegisterOperation, fault, CheatEngineHostEffect.Unknown)
@@ -454,7 +452,7 @@ internal sealed class LuaClient : ILuaClient
 	private static CheatEngineFailure WithSecondaryFailure(CheatEngineFailure primaryFailure,
 		Exception secondaryFailure)
 	{
-		Exception primaryException = primaryFailure.Exception ?? new CheatEngineOperationException(primaryFailure);
+		Exception primaryException = primaryFailure.Exception ?? primaryFailure.ToException();
 		AggregateException combined = new(
 			"Lua module registration failed and its handoff cleanup encountered an additional failure.",
 			primaryException,

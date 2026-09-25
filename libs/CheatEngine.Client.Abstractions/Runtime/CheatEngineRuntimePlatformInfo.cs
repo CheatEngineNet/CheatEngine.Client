@@ -6,9 +6,10 @@ namespace CheatEngine.Client.Runtime;
 /// <remarks>
 ///     <para>
 ///         Every fact is one Cheat Engine global that CheatEngine.SDK read, and none is inferred from another (audit F08):
-///         the host operating system, whether Cheat Engine itself is 64-bit, the host architecture, the target backend,
-///         the target ISA, the target bitness, the target ABI, whether the target is Android, and Cheat Engine's
-///         configured pointer size. A fact that was not observed stays unknown or <see langword="null" />.
+///         the host operating system and architecture, the bitness of Cheat Engine itself, the target backend, the
+///         target ISA, the target bitness, the target ABI, whether the target is Android, and Cheat Engine's configured
+///         pointer size. Each fact names its subject (<c>Host</c>, <c>CheatEngine</c>, <c>Target</c>), and a fact that
+///         was not observed stays unknown or <see langword="null" />.
 ///     </para>
 ///     <para>
 ///         Cheat Engine's configured pointer size is per-attachment state: any (re)attach resets it to the target
@@ -20,10 +21,10 @@ public readonly record struct CheatEngineRuntimePlatformInfo
 {
 	/// <summary>Creates runtime platform observations from copied host facts.</summary>
 	/// <param name="hostOperatingSystem">The operating system Cheat Engine reports (<c>getOperatingSystem</c>).</param>
-	/// <param name="isCheatEngine64Bit">
-	///     Whether Cheat Engine itself is 64-bit (<c>cheatEngineIs64Bit</c>), or <see langword="null" /> when unknown.
+	/// <param name="hostArchitecture">The Cheat Engine host architecture (<c>getSystemArchitecture</c>).</param>
+	/// <param name="cheatEngineBitness">
+	///     The bitness of the Cheat Engine process itself (<c>cheatEngineIs64Bit</c>), or unknown.
 	/// </param>
-	/// <param name="systemArchitecture">The Cheat Engine host architecture (<c>getSystemArchitecture</c>).</param>
 	/// <param name="targetBackend">How Cheat Engine reaches the selected target, or unknown.</param>
 	/// <param name="targetArchitecture">The target ISA CheatEngine.SDK derived from the family facts, or unknown.</param>
 	/// <param name="targetBitness">The target bitness (<c>targetIs64Bit</c>), or unknown.</param>
@@ -41,8 +42,8 @@ public readonly record struct CheatEngineRuntimePlatformInfo
 	/// </exception>
 	public CheatEngineRuntimePlatformInfo(
 		CheatEngineOperatingSystem hostOperatingSystem,
-		bool? isCheatEngine64Bit,
-		CheatEngineArchitecture systemArchitecture,
+		CheatEngineArchitecture hostArchitecture,
+		PointerSize cheatEngineBitness,
 		TargetBackend targetBackend,
 		CheatEngineArchitecture targetArchitecture,
 		PointerSize targetBitness,
@@ -59,8 +60,8 @@ public readonly record struct CheatEngineRuntimePlatformInfo
 		}
 
 		HostOperatingSystem = hostOperatingSystem;
-		IsCheatEngine64Bit = isCheatEngine64Bit;
-		SystemArchitecture = systemArchitecture;
+		HostArchitecture = hostArchitecture;
+		CheatEngineBitness = cheatEngineBitness;
 		TargetBackend = targetBackend;
 		TargetArchitecture = targetArchitecture;
 		TargetBitness = targetBitness;
@@ -75,17 +76,18 @@ public readonly record struct CheatEngineRuntimePlatformInfo
 		get;
 	}
 
-	/// <summary>
-	///     Gets whether the Cheat Engine process itself is 64-bit (<c>cheatEngineIs64Bit</c>), or
-	///     <see langword="null" /> when unknown; never derived from <see cref="SystemArchitecture" />.
-	/// </summary>
-	public bool? IsCheatEngine64Bit
+	/// <summary>Gets the Cheat Engine host architecture (<c>getSystemArchitecture</c>), or unknown.</summary>
+	public CheatEngineArchitecture HostArchitecture
 	{
 		get;
 	}
 
-	/// <summary>Gets the Cheat Engine host architecture (<c>getSystemArchitecture</c>), or unknown.</summary>
-	public CheatEngineArchitecture SystemArchitecture
+	/// <summary>
+	///     Gets the bitness of the Cheat Engine process itself (<c>cheatEngineIs64Bit</c>): <see cref="PointerSize.Bit64" />
+	///     or <see cref="PointerSize.Bit32" /> as observed, <see cref="PointerSize.Unknown" /> when it was not observed;
+	///     never derived from <see cref="HostArchitecture" />.
+	/// </summary>
+	public PointerSize CheatEngineBitness
 	{
 		get;
 	}

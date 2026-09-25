@@ -39,18 +39,18 @@ internal static class ScanOptionTranslation
 	///     positional value-scan request sends the empty string.
 	/// </param>
 	/// <returns>
-	///     The method and its parameter: the decimal divisor for <see cref="ScanAlignmentKind.AlignedTo" />, the
-	///     upper-case digits for <see cref="ScanAlignmentKind.LastDigits" />, and <paramref name="unalignedParameter" />
+	///     The method and its parameter: the decimal divisor for <see cref="ScanAlignmentMode.AlignedTo" />, the
+	///     upper-case digits for <see cref="ScanAlignmentMode.LastDigits" />, and <paramref name="unalignedParameter" />
 	///     for <see cref="FastScanMethod.NotAligned" />.
 	/// </returns>
 	internal static (FastScanMethod Method, string? Parameter) ToFastScan(ScanAlignment alignment,
 		string? unalignedParameter)
 	{
-		return alignment.Kind switch
+		return alignment.Mode switch
 		{
-			ScanAlignmentKind.AlignedTo => (FastScanMethod.Aligned,
+			ScanAlignmentMode.AlignedTo => (FastScanMethod.Aligned,
 				alignment.Divisor.ToString(CultureInfo.InvariantCulture)),
-			ScanAlignmentKind.LastDigits => (FastScanMethod.LastDigits, alignment.Digits ?? unalignedParameter),
+			ScanAlignmentMode.LastDigits => (FastScanMethod.LastDigits, alignment.Digits ?? unalignedParameter),
 			_ => (FastScanMethod.NotAligned, unalignedParameter)
 		};
 	}

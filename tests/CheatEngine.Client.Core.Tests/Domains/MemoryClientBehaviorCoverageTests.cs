@@ -228,8 +228,9 @@ public sealed class MemoryClientBehaviorCoverageTests
 			private set;
 		}
 
-		public bool TryRead(IMemoryReadContext context, Address address, out int value)
+		public bool TryRead(IMemoryReadContext context, Address address, out int value, out CheatEngineFailure failure)
 		{
+			failure = default;
 			LastReadContext = context;
 			LastReadAddress = address;
 			ReadCount++;
@@ -237,8 +238,9 @@ public sealed class MemoryClientBehaviorCoverageTests
 			return ReadSucceeds;
 		}
 
-		public bool TryWrite(IMemoryWriteContext context, Address address, in int value)
+		public bool TryWrite(IMemoryWriteContext context, Address address, in int value, out CheatEngineFailure failure)
 		{
+			failure = default;
 			LastWriteContext = context;
 			LastWriteAddress = address;
 			LastWrittenValue = value;

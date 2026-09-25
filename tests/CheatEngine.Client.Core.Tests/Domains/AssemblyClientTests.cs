@@ -179,7 +179,7 @@ public sealed class AssemblyClientTests
 				out CheatEngineFailure f, token), f)),
 			Failure(() => (client.TryDisassemble(AboveFourGiB, out _, out CheatEngineFailure f, token), f)),
 			Failure(() => (client.TryGetInstructionLength(AboveFourGiB, out _, out CheatEngineFailure f, token), f)),
-			Failure(() => (client.TryGetPreviousInstruction(AboveFourGiB, out _, out CheatEngineFailure f, token), f))
+			Failure(() => (client.TryGetPreviousInstructionAddress(AboveFourGiB, out _, out CheatEngineFailure f, token), f))
 		];
 
 		Assert.All(failures, static failure =>
@@ -190,7 +190,7 @@ public sealed class AssemblyClientTests
 		Assert.Equal(
 			[
 				AssemblyClient.AssembleOperation, AssemblyClient.DisassembleOperation,
-				AssemblyClient.GetInstructionLengthOperation, AssemblyClient.GetPreviousInstructionOperation
+				AssemblyClient.GetInstructionLengthOperation, AssemblyClient.GetPreviousInstructionAddressOperation
 			],
 			failures.Select(static failure => failure.Operation));
 		Assert.Equal(4, port.ProfileObservations);
@@ -499,10 +499,10 @@ public sealed class AssemblyClientTests
 		};
 		CancellationToken token = TestContext.Current.CancellationToken;
 
-		Assert.Equal(new Address(0x400FFE), CreateClient(estimated).GetPreviousInstruction(Code, token));
+		Assert.Equal(new Address(0x400FFE), CreateClient(estimated).GetPreviousInstructionAddress(Code, token));
 		foreach (FakePort port in (FakePort[]) [refused, tooWide])
 		{
-			Assert.False(CreateClient(port).TryGetPreviousInstruction(Code, out Address previous,
+			Assert.False(CreateClient(port).TryGetPreviousInstructionAddress(Code, out Address previous,
 				out CheatEngineFailure failure, token));
 			Assert.Equal(default, previous);
 			Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
@@ -540,7 +540,7 @@ public sealed class AssemblyClientTests
 		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
 		Assert.Equal(AssemblyClient.DisassembleOperation, failure.Operation);
 		CheatEngineOperationCanceledException exception = Assert.Throws<CheatEngineOperationCanceledException>(() =>
-			client.GetPreviousInstruction(Code, cancelled));
+			client.GetPreviousInstructionAddress(Code, cancelled));
 		Assert.Equal(cancelled, exception.CancellationToken);
 		Assert.Empty(port.Calls);
 	}

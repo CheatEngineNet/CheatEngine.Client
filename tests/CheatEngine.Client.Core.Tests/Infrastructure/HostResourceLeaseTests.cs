@@ -219,8 +219,8 @@ public sealed class HostResourceLeaseTests : IDisposable
 		long staleEpoch = _lifetime.TargetSelection.Epoch;
 		_ = _lifetime.TargetSelection.Advance("Test.SelectTarget");
 
-		CheatEngineClientLifecycleException exception =
-			Assert.Throws<CheatEngineClientLifecycleException>(() => lease.Register(_lifetime, staleEpoch));
+		CheatEngineInvalidStateException exception =
+			Assert.Throws<CheatEngineInvalidStateException>(() => lease.Register(_lifetime, staleEpoch));
 		_context.Stop();
 		using (_lifetime.EnterCleanupScope())
 		{
@@ -300,6 +300,29 @@ public sealed class HostResourceLeaseTests : IDisposable
 		Assert.Equal(1, lease.Calls);
 		Assert.Equal(1, _invoker.Calls);
 		Assert.Equal([(Operation, kind, hostEffect)], _diagnostics.Releases);
+	}
+
+	/// <summary>
+	///     Every lease reports whether what it owns may remain and no later release can remove it: false before a release,
+	///     after a complete one and after a retryable one, true once an ending outcome requires manual recovery.
+	/// </summary>
+	[Theory]
+	[InlineData(LeaseReleaseKind.Released, CheatEngineHostEffect.Completed, false)]
+	[InlineData(LeaseReleaseKind.CleanupUnavailable, CheatEngineHostEffect.NotStarted, false)]
+	[InlineData(LeaseReleaseKind.RefusedTargetChanged, CheatEngineHostEffect.NotStarted, true)]
+	[InlineData(LeaseReleaseKind.CleanupUnconfirmed, CheatEngineHostEffect.Started, true)]
+	[InlineData(LeaseReleaseKind.PartiallyReleased, CheatEngineHostEffect.Started, true)]
+	public void RequiresManualRecoveryFollowsTheOutcomeThatEndedTheLease(LeaseReleaseKind kind,
+		CheatEngineHostEffect hostEffect, bool expected)
+	{
+		ScriptedLease lease = CreateLease(new LeaseReleaseOutcome(kind, hostEffect));
+		ICheatEngineLease contract = lease;
+
+		bool before = contract.RequiresManualRecovery;
+		_ = lease.Release();
+
+		Assert.False(before);
+		Assert.Equal(expected, contract.RequiresManualRecovery);
 	}
 
 	private ScriptedLease CreateLease(params LeaseReleaseOutcome[] outcomes)

@@ -178,7 +178,7 @@ public sealed class SdkMainThreadDispatcherBehaviorTests
 			new SdkMainThreadDispatcher(expired, invoker), static () =>
 			{
 			}, TestContext.Current.CancellationToken));
-		CheatEngineClientLifecycleException stoppingException = Assert.Throws<CheatEngineClientLifecycleException>(() =>
+		CheatEngineInvalidStateException stoppingException = Assert.Throws<CheatEngineInvalidStateException>(() =>
 			TryInvoke(form, new SdkMainThreadDispatcher(stopping, invoker), static () =>
 			{
 			}, TestContext.Current.CancellationToken));

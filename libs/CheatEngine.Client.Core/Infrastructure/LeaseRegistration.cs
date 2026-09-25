@@ -20,10 +20,10 @@ internal static class LeaseRegistration
 	/// <returns>
 	///     While the activation still admits work, a <see cref="CheatEngineFailureKind.TargetChanged" /> failure (the
 	///     target selection moved on): <see cref="CheatEngineHostEffect.Completed" /> when the release was confirmed,
-	///     otherwise <see cref="CheatEngineHostEffect.CleanupUnconfirmed" />.
+	///     otherwise <see cref="CheatEngineHostEffect.CleanupUnconfirmed" />. A thrown exception carries the same effect.
 	/// </returns>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation ended; the message says what remains.</exception>
-	/// <exception cref="CheatEngineClientLifecycleException">The activation is stopping; the message says what remains.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping; the message says what remains.</exception>
 	internal static CheatEngineFailure Refused(CoreLifetime lifetime, string operation, Exception registration,
 		LeaseReleaseOutcome released, string resource)
 	{
@@ -32,18 +32,19 @@ internal static class LeaseRegistration
 			? $"No lease could be registered for {resource}, which was released at once."
 			: $"No lease could be registered for {resource}, and releasing it ended with {released.Kind}: it may " +
 			  "remain in Cheat Engine or in the target.";
+		CheatEngineHostEffect effect =
+			released.IsComplete ? CheatEngineHostEffect.Completed : CheatEngineHostEffect.CleanupUnconfirmed;
 		if (!lifetime.IsActivationCurrent)
 		{
-			throw new CheatEngineActivationExpiredException(operation, message, registration);
+			throw ClientExceptions.ActivationExpired(operation, message, registration, effect);
 		}
 
 		if (!lifetime.IsCurrent)
 		{
-			throw new CheatEngineClientLifecycleException(operation, message, registration);
+			throw ClientExceptions.InvalidState(operation, message, registration, effect);
 		}
 
 		return new CheatEngineFailure(CheatEngineFailureKind.TargetChanged, operation,
-			message + " The target selection changed before the lease was registered.", registration,
-			released.IsComplete ? CheatEngineHostEffect.Completed : CheatEngineHostEffect.CleanupUnconfirmed);
+			message + " The target selection changed before the lease was registered.", registration, effect);
 	}
 }

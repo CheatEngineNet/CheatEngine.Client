@@ -24,7 +24,7 @@ namespace CheatEngine.Client.Scanning;
 ///                 A request without <see cref="AobScanRequest.Module" /> or <see cref="AobScanRequest.Range" />
 ///                 (<see cref="PatternScanRouteReason.UnscopedRequest" />). Cheat Engine runs one global <c>AOBScan</c>
 ///                 over the whole target: the cost is a full scan whatever the materialization limit. Matches are exact,
-///                 but zero matches are indeterminate (<see cref="PatternScanHostOutcome.NoResult" />).
+///                 but zero matches are indeterminate (<see cref="PatternScanHostOutcomeKind.NoResult" />).
 ///             </description>
 ///         </item>
 ///         <item>
@@ -95,7 +95,7 @@ public interface IPatternScanner
 	///     Expected failures, including an unconfirmed release of the Cheat Engine result list or scan session
 	///     (<see cref="CheatEngineHostEffect.CleanupUnconfirmed" />), are returned as <paramref name="failure" />. Lifecycle
 	///     faults throw <see cref="CheatEngineActivationExpiredException" /> or
-	///     <see cref="CheatEngineClientLifecycleException" />.
+	///     <see cref="CheatEngineInvalidStateException" />.
 	/// </remarks>
 	public bool TryScan(AobScanRequest request, out AobScanResult result, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
@@ -115,6 +115,6 @@ public interface IPatternScanner
 	///     <see cref="PatternScanOutcome.Failure" />.
 	/// </returns>
 	/// <exception cref="CheatEngineActivationExpiredException">The client activation has expired.</exception>
-	/// <exception cref="CheatEngineClientLifecycleException">The client activation is stopping.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">The client activation is stopping.</exception>
 	public PatternScanOutcome ScanDetailed(AobScanRequest request, CancellationToken cancellationToken = default);
 }

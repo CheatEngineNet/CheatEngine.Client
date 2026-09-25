@@ -33,14 +33,14 @@ public sealed class PatternScanOutcome
 	/// <exception cref="ArgumentException">
 	///     Both or neither of <paramref name="result" /> and <paramref name="failure" /> are present, the failure is not a
 	///     classified failure, a success has no metrics, the metrics contradict the copied result, a success reports a host
-	///     outcome other than <see cref="PatternScanHostOutcome.Matches" /> or <see cref="PatternScanHostOutcome.NoMatches" />
-	///     or no route, or a failure reports a verified target.
+	///     outcome other than <see cref="PatternScanHostOutcomeKind.Matches" /> or
+	///     <see cref="PatternScanHostOutcomeKind.NoMatches" /> or no route, or a failure reports a verified target.
 	/// </exception>
 	/// <exception cref="ArgumentOutOfRangeException">
 	///     <paramref name="hostOutcome" /> or <paramref name="routeReason" /> is not a defined value.
 	/// </exception>
 	public PatternScanOutcome(AobScanResult? result, CheatEngineFailure? failure, PatternScanMetrics? metrics,
-		PatternScanHostOutcome hostOutcome, PatternScanRouteReason routeReason, bool targetIdentityVerified)
+		PatternScanHostOutcomeKind hostOutcome, PatternScanRouteReason routeReason, bool targetIdentityVerified)
 	{
 		if (!Enum.IsDefined(hostOutcome))
 		{
@@ -110,7 +110,7 @@ public sealed class PatternScanOutcome
 	}
 
 	/// <summary>Gets what Cheat Engine reported for the scan that ran, before the Client decided the result.</summary>
-	public PatternScanHostOutcome HostOutcome
+	public PatternScanHostOutcomeKind HostOutcome
 	{
 		get;
 	}
@@ -135,7 +135,7 @@ public sealed class PatternScanOutcome
 	}
 
 	private static void ValidateSuccess(AobScanResult copied, PatternScanMetrics? metrics,
-		PatternScanHostOutcome hostOutcome, PatternScanRouteReason routeReason)
+		PatternScanHostOutcomeKind hostOutcome, PatternScanRouteReason routeReason)
 	{
 		if (metrics is not { } measured)
 		{
@@ -148,7 +148,7 @@ public sealed class PatternScanOutcome
 				nameof(metrics));
 		}
 
-		if (hostOutcome is not (PatternScanHostOutcome.Matches or PatternScanHostOutcome.NoMatches))
+		if (hostOutcome is not (PatternScanHostOutcomeKind.Matches or PatternScanHostOutcomeKind.NoMatches))
 		{
 			throw new ArgumentException("A successful pattern scan reports the Matches or NoMatches host outcome.",
 				nameof(hostOutcome));

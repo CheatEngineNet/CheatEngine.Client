@@ -356,7 +356,7 @@ README).
 Every Client-internal CheatEngine.SDK call (ports, `TargetMemory`, `EngineInspection`, `AobScanner`, Address List
 access and mutations, `CheatTableFiles`, protected Lua execution) runs behind `SdkBoundary`: an SDK
 exception becomes a classified `CheatEngineFailure` (by exception type and the SDK's own failure category, never by
-message text, with the known `CheatEngineHostEffect`), so no SDK exception type crosses a `Try*` method of the
+message text, with the known `CheatEngineHostEffect`), so no `Try*` method throws a CheatEngine.SDK exception in the
 Patterns, Memory, Inspection, Tables, or Unsafe Lua domains. Client lifecycle exceptions are never translated, and an SDK
 fault observed after the activation ended is reported as `CheatEngineActivationExpiredException`. A plain
 `InvalidOperationException` observed after CheatEngine.SDK detected an external Lua state reset is `RuntimeChanged`.

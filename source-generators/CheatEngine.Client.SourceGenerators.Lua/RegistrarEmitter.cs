@@ -58,8 +58,9 @@ internal static class RegistrarEmitter
 			private const string RegisterOperation = "Lua.RegisterModule";
 
 			/// <summary>Publishes a module's globals and keeps the registration lease in <paramref name="registration" />.</summary>
-			/// <exception cref="global::CheatEngine.Client.Results.CheatEngineOperationException">
-			///     CheatEngine.SDK refused the Lua admission, a global is already defined, or a protected operation failed.
+			/// <exception cref="global::CheatEngine.Client.Results.CheatEngineClientException">
+			///     CheatEngine.SDK refused the Lua admission, a global is already defined, or a protected operation failed;
+			///     the exception type follows the kind of the failure (<c>CheatEngineFailure.ToException</c>).
 			/// </exception>
 			internal static void Register(global::CheatEngine.Client.Lua.LuaModuleDescriptor descriptor, ref object? registration,
 				global::System.Func<global::CheatEngine.SDK.Lua.State.LuaState, global::CheatEngine.SDK.Lua.Registration.LuaRegistrationResult> publish)
@@ -70,7 +71,7 @@ internal static class RegistrarEmitter
 				if (admission != global::CheatEngine.SDK.Lua.Runtime.LuaAdmissionStatus.Admitted)
 				{
 					// Nothing ran: a registration the module already owned is still owned.
-					throw new global::CheatEngine.Client.Results.CheatEngineOperationException(Refused(admission));
+					throw Refused(admission).ToException();
 				}
 
 				CheatEngineLuaPublication publication;
@@ -89,8 +90,7 @@ internal static class RegistrarEmitter
 						{
 							// A global of the earlier registration may still hold the module's own function: publishing
 							// would report it as a third party's. Nothing is published, and the release is the failure.
-							throw new global::CheatEngine.Client.Results.CheatEngineOperationException(
-								NotReleased(descriptor.Name, previous));
+							throw NotReleased(descriptor.Name, previous).ToException();
 						}
 					}
 
@@ -114,8 +114,7 @@ internal static class RegistrarEmitter
 					return;
 				}
 
-				throw new global::CheatEngine.Client.Results.CheatEngineOperationException(
-					Failed(descriptor.Name, publication, previous, residual));
+				throw Failed(descriptor.Name, publication, previous, residual).ToException();
 			}
 
 			/// <summary>Releases the registration lease in <paramref name="registration" /> and reports what happened.</summary>

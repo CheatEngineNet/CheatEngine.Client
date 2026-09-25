@@ -9,20 +9,22 @@ namespace CheatEngine.Client.Tests.Architecture;
 
 /// <summary>
 ///     The enum charter of the 1.x public surface: every public enum of a shipped Client assembly is backed by
-///     <see cref="int" />, declares every value explicitly and defines zero; an outcome enum (a name ending in
-///     <c>Kind</c>, <c>Status</c>, <c>State</c>, <c>Effect</c> or <c>Scope</c>) has <c>Unknown = 0</c>, so a value that
-///     was never assigned never reads as an outcome.
+///     <see cref="int" />, declares every value explicitly and defines zero, and is exactly one of two kinds. An outcome
+///     enum reports what happened or was observed: its name ends in <c>Kind</c>, <c>Status</c>, <c>State</c>,
+///     <c>Effect</c> or <c>Scope</c> (or it is listed in <see cref="OutcomeEnumsWithoutSuffix" />) and it has
+///     <c>Unknown = 0</c>, so a value that was never assigned never reads as an outcome. An option enum is the caller's
+///     choice: it is listed in <see cref="OptionEnums" />, its zero is a valid default choice and its name never ends in
+///     an outcome suffix. No enum is named <c>*Outcome</c>: that suffix names a result object.
 /// </summary>
 /// <remarks>
 ///     <para>
 ///         The enum types are read from the compiled assemblies; whether a value is explicit is read from its
-///         declaration under <c>libs/</c> or <c>src/</c>.
+///         declaration under <c>libs/</c> or <c>src/</c>. The classification is total: a new enum that is neither
+///         fails until it is named or listed.
 ///     </para>
 ///     <para>
-///         <see cref="OptionEnums" /> documents the enums whose zero is a valid, documented choice instead of
-///         <c>Unknown</c>; an outcome suffix on such an enum does not require <c>Unknown = 0</c>.
 ///         <see cref="PendingCharterEnums" /> lists the enums that break the charter today, each with the rule it breaks
-///         and the lot that fixes it. The list may only shrink: fix the enum instead of adding it.
+///         and the lot that fixes it. It is empty and may only stay so: fix the enum instead of adding it.
 ///     </para>
 /// </remarks>
 public sealed partial class OutcomeEnumConventionTests
@@ -30,6 +32,15 @@ public sealed partial class OutcomeEnumConventionTests
 	private const int RegexTimeoutMilliseconds = 1000;
 
 	private static readonly string[] OutcomeSuffixes = ["Kind", "Status", "State", "Effect", "Scope"];
+
+	/// <summary>Outcome enums whose name does not end in an outcome suffix, with why the name stays.</summary>
+	private static readonly Dictionary<string, string> OutcomeEnumsWithoutSuffix = new(StringComparer.Ordinal)
+	{
+		["CheatEngine.Client.Runtime.ClientCapabilityEvidenceReasonCode"] =
+			"EffectiveReasonCode pairs with EffectiveReason: the code and the text of the same reason.",
+		["CheatEngine.Client.Scanning.PatternScanRouteReason"] =
+			"RouteReason says why a pattern scan took its route; a reason is not a kind of route."
+	};
 
 	/// <summary>Option enums: zero is a valid, documented choice, never <c>Unknown</c>.</summary>
 	private static readonly Dictionary<string, string> OptionEnums = new(StringComparer.Ordinal)
@@ -41,9 +52,14 @@ public sealed partial class OutcomeEnumConventionTests
 		["CheatEngine.Client.Inspection.AddressResolutionMode"] =
 			"Default (0) is Cheat Engine's ordinary address resolution.",
 		["CheatEngine.Client.Memory.MemoryStringEncoding"] = "Utf8 (0) is the default encoding of a string request.",
-		["CheatEngine.Client.Scanning.ScanAlignmentKind"] = "None (0) is the default alignment rule: every address is checked.",
+		["CheatEngine.Client.Scanning.ScanAlignmentMode"] =
+			"None (0) is the default alignment rule: every address is checked.",
 		["CheatEngine.Client.Scanning.ScanProtectionRequirement"] =
-			"Unspecified (0) leaves the flag out of the protection filter, the default of every flag."
+			"Unspecified (0) leaves the flag out of the protection filter, the default of every flag.",
+		["CheatEngine.Client.Scanning.ValueScanComparison"] =
+			"Exact (0) is a valid comparison; a request names its comparison through its factory.",
+		["CheatEngine.Client.Scanning.ValueScanValueType"] =
+			"Integer8 (0) is a valid value type; a request takes it from its value or its factory."
 	};
 
 	/// <summary>Enums that break the charter today, with the rule they break and the lot that fixes them.</summary>
@@ -79,6 +95,25 @@ public sealed partial class OutcomeEnumConventionTests
 		Assert.Contains("CheatEngine.Client.Results.CheatEngineHostEffect", names);
 		Assert.Contains("CheatEngine.Client.Results.LeaseReleaseKind", names);
 		Assert.All(PendingCharterEnums.Keys, name => Assert.Contains(name, names));
+	}
+
+	[Fact]
+	public void PendingCharterEnumsIsEmpty()
+	{
+		Assert.Empty(PendingCharterEnums);
+	}
+
+	[Fact]
+	public void OutcomeEnumsWithoutSuffixExistAndDefineUnknownZero()
+	{
+		Dictionary<string, Type> enums = PublicEnums().ToDictionary(static type => type.FullName!,
+			StringComparer.Ordinal);
+
+		foreach (string name in OutcomeEnumsWithoutSuffix.Keys)
+		{
+			Assert.True(enums.TryGetValue(name, out Type? type), $"The outcome enum {name} is not a shipped public enum.");
+			Assert.Equal("Unknown", Enum.GetName(type, Enum.ToObject(type, 0)));
+		}
 	}
 
 	[Fact]
@@ -134,8 +169,24 @@ public sealed partial class OutcomeEnumConventionTests
 				rules.Add("no zero value");
 			}
 
-			bool isOutcome = OutcomeSuffixes.Any(suffix => type.Name.EndsWith(suffix, StringComparison.Ordinal));
-			if (isOutcome && !OptionEnums.ContainsKey(type.FullName!) && zero != "Unknown")
+			bool hasOutcomeSuffix =
+				OutcomeSuffixes.Any(suffix => type.Name.EndsWith(suffix, StringComparison.Ordinal));
+			bool isOption = OptionEnums.ContainsKey(type.FullName!);
+			bool isOutcome = hasOutcomeSuffix || OutcomeEnumsWithoutSuffix.ContainsKey(type.FullName!);
+			if (type.Name.EndsWith("Outcome", StringComparison.Ordinal))
+			{
+				rules.Add("named *Outcome, which names a result object, never an enum");
+			}
+
+			if (isOption && isOutcome)
+			{
+				rules.Add("listed as an option enum, but its name or listing makes it an outcome enum");
+			}
+			else if (!isOption && !isOutcome)
+			{
+				rules.Add("neither an outcome enum (outcome suffix, Unknown = 0) nor a listed option enum");
+			}
+			else if (isOutcome && zero != "Unknown")
 			{
 				rules.Add(Enum.GetNames(type).Contains("Unknown", StringComparer.Ordinal)
 					? $"Unknown is {Convert.ToInt64(Enum.Parse(type, "Unknown"), CultureInfo.InvariantCulture)}, not 0"

@@ -14,9 +14,9 @@ public readonly record struct ScanAlignment
 {
 	private const int MaximumDigits = sizeof(ulong) * 2;
 
-	private ScanAlignment(ScanAlignmentKind kind, int divisor, string? digits)
+	private ScanAlignment(ScanAlignmentMode mode, int divisor, string? digits)
 	{
-		Kind = kind;
+		Mode = mode;
 		Divisor = divisor;
 		Digits = digits;
 	}
@@ -25,19 +25,19 @@ public readonly record struct ScanAlignment
 	public static ScanAlignment None => default;
 
 	/// <summary>Gets the kind of rule.</summary>
-	public ScanAlignmentKind Kind
+	public ScanAlignmentMode Mode
 	{
 		get;
 	}
 
-	/// <summary>Gets the divisor of <see cref="ScanAlignmentKind.AlignedTo" />; zero for any other rule.</summary>
+	/// <summary>Gets the divisor of <see cref="ScanAlignmentMode.AlignedTo" />; zero for any other rule.</summary>
 	public int Divisor
 	{
 		get;
 	}
 
 	/// <summary>
-	///     Gets the upper-case hexadecimal digits of <see cref="ScanAlignmentKind.LastDigits" />;
+	///     Gets the upper-case hexadecimal digits of <see cref="ScanAlignmentMode.LastDigits" />;
 	///     <see langword="null" /> for any other rule.
 	/// </summary>
 	public string? Digits
@@ -52,7 +52,7 @@ public readonly record struct ScanAlignment
 	public static ScanAlignment AlignedTo(int divisor)
 	{
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(divisor);
-		return new ScanAlignment(ScanAlignmentKind.AlignedTo, divisor, null);
+		return new ScanAlignment(ScanAlignmentMode.AlignedTo, divisor, null);
 	}
 
 	/// <summary>Returns the rule that checks only addresses whose hexadecimal text ends with <paramref name="digits" />.</summary>
@@ -82,6 +82,6 @@ public readonly record struct ScanAlignment
 			};
 		}
 
-		return new ScanAlignment(ScanAlignmentKind.LastDigits, 0, new string(normalized));
+		return new ScanAlignment(ScanAlignmentMode.LastDigits, 0, new string(normalized));
 	}
 }

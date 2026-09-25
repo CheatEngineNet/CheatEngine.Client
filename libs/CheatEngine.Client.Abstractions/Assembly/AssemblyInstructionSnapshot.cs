@@ -18,7 +18,7 @@ namespace CheatEngine.Client.Assembly;
 ///     </para>
 /// </remarks>
 [Experimental(ClientExperimentalDiagnostics.Instructions, UrlFormat = ClientExperimentalDiagnostics.UrlFormat)]
-public readonly record struct AssemblyInstructionSnapshot
+public readonly struct AssemblyInstructionSnapshot
 {
 	private readonly string? _addressText;
 	private readonly ImmutableArray<byte> _bytes;

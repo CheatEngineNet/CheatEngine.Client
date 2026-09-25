@@ -20,7 +20,7 @@ namespace CheatEngine.Client.Dispatching;
 ///         <b>Try is not "never throws".</b> The <c>TryInvoke</c> overloads return <see langword="false" /> only for a
 ///         pre-admission cancellation or a dispatcher admission/infrastructure failure. They <b>throw</b>
 ///         <see cref="CheatEngineActivationExpiredException" /> when the plugin activation has ended,
-///         <see cref="CheatEngineClientLifecycleException" /> when the activation is stopping and no new work is admitted,
+///         <see cref="CheatEngineInvalidStateException" /> when the activation is stopping and no new work is admitted,
 ///         and <see cref="ArgumentNullException" /> for a <see langword="null" /> callback. An exception thrown by the
 ///         callback is rethrown as the same instance with its original stack trace, never converted into a failure.
 ///     </para>
@@ -48,7 +48,7 @@ public interface ICheatEngineDispatcher
 	/// <remarks>Equivalent to <see cref="TryInvoke(Action, out CheatEngineFailure, CancellationToken)" /> without a token.</remarks>
 	/// <exception cref="ArgumentNullException"><paramref name="callback" /> is <see langword="null" />.</exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The plugin activation has ended.</exception>
-	/// <exception cref="CheatEngineClientLifecycleException">The activation is stopping and admits no new work.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping and admits no new work.</exception>
 	public bool TryInvoke(Action callback, out CheatEngineFailure failure)
 	{
 		return TryInvoke(callback, out failure, CancellationToken.None);
@@ -60,12 +60,12 @@ public interface ICheatEngineDispatcher
 	///     interrupt a callback or Lua primitive that has already begun on Cheat Engine's main thread.
 	///     A <see langword="false" /> result represents cancellation or a dispatcher admission/infrastructure failure.
 	///     Exceptions thrown by <paramref name="callback" /> are rethrown unchanged (same instance). Lifecycle faults throw
-	///     <see cref="CheatEngineActivationExpiredException" /> or <see cref="CheatEngineClientLifecycleException" />
+	///     <see cref="CheatEngineActivationExpiredException" /> or <see cref="CheatEngineInvalidStateException" />
 	///     instead of returning a failure.
 	/// </remarks>
 	/// <exception cref="ArgumentNullException"><paramref name="callback" /> is <see langword="null" />.</exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The plugin activation has ended.</exception>
-	/// <exception cref="CheatEngineClientLifecycleException">The activation is stopping and admits no new work.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping and admits no new work.</exception>
 	public bool TryInvoke(Action callback, out CheatEngineFailure failure, CancellationToken cancellationToken);
 
 	/// <summary>Runs a callback on the captured main thread and returns its managed result.</summary>
@@ -75,7 +75,7 @@ public interface ICheatEngineDispatcher
 	/// </remarks>
 	/// <exception cref="ArgumentNullException"><paramref name="callback" /> is <see langword="null" />.</exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The plugin activation has ended.</exception>
-	/// <exception cref="CheatEngineClientLifecycleException">The activation is stopping and admits no new work.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping and admits no new work.</exception>
 	public bool TryInvoke<T>(Func<T> callback, [MaybeNullWhen(false)] out T result, out CheatEngineFailure failure)
 	{
 		return TryInvoke(callback, out result, out failure, CancellationToken.None);
@@ -90,7 +90,7 @@ public interface ICheatEngineDispatcher
 	/// </remarks>
 	/// <exception cref="ArgumentNullException"><paramref name="callback" /> is <see langword="null" />.</exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The plugin activation has ended.</exception>
-	/// <exception cref="CheatEngineClientLifecycleException">The activation is stopping and admits no new work.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping and admits no new work.</exception>
 	public bool TryInvoke<T>(Func<T> callback, [MaybeNullWhen(false)] out T result, out CheatEngineFailure failure,
 		CancellationToken cancellationToken);
 

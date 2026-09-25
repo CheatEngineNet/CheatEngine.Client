@@ -205,7 +205,7 @@ public sealed class ValueScanContractTests
 	{
 		Assert.Equal(0, ScanAlignment.None.Divisor);
 		Assert.Null(ScanAlignment.None.Digits);
-		Assert.Equal(ScanAlignmentKind.None, ScanAlignment.None.Kind);
+		Assert.Equal(ScanAlignmentMode.None, ScanAlignment.None.Mode);
 		Assert.Equal("0A", ScanAlignment.LastDigits("0a").Digits);
 		Assert.Throws<ArgumentOutOfRangeException>(() => ScanAlignment.AlignedTo(0));
 		Assert.Throws<ArgumentException>(() => ScanAlignment.LastDigits("0x10"));

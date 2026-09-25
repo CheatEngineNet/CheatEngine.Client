@@ -23,15 +23,15 @@ namespace CheatEngine.Client.Allocations;
 ///         selects the original process again to free it. The allocation is also refused after a change of the Lua
 ///         runtime that made it (<see cref="LeaseReleaseKind.RefusedRuntimeChanged" />), and a free that Cheat Engine did
 ///         not confirm is <see cref="LeaseReleaseKind.CleanupUnconfirmed" />; it is never retried. In each of these cases
-///         the memory may remain in the target: <see cref="RequiresManualRecovery" /> is <see langword="true" />, and
-///         <see cref="Address" /> and <see cref="Size" /> stay readable.
+///         the memory may remain in the target: <see cref="ICheatEngineLease.RequiresManualRecovery" /> is
+///         <see langword="true" />, and <see cref="Address" /> and <see cref="Size" /> stay readable.
 ///     </para>
 ///     <para>
 ///         A release that cannot begin because CheatEngine.SDK detached its runtime is
 ///         <see cref="LeaseReleaseKind.CleanupUnavailable" />: nothing was freed and CheatEngine.SDK consumed the
-///         owner, yet <see cref="RequiresManualRecovery" /> and <see cref="ICheatEngineLease.IsReleased" /> stay
-///         <see langword="false" />. The lease stays registered, so the deactivation report carries it; retrying the
-///         release frees nothing.
+///         owner, yet <see cref="ICheatEngineLease.RequiresManualRecovery" /> and
+///         <see cref="ICheatEngineLease.IsReleased" /> stay <see langword="false" />. The lease stays registered, so
+///         the deactivation report carries it; retrying the release frees nothing.
 ///     </para>
 ///     <para>
 ///         The lease belongs to the activation and to its target selection: disabling the plugin releases it, and
@@ -67,15 +67,4 @@ public interface ITargetMemoryLease : ICheatEngineLease
 		get;
 	}
 
-	/// <summary>
-	///     Gets <see cref="LeaseReleaseOutcome.RequiresManualRecovery" /> of
-	///     <see cref="ICheatEngineLease.LastReleaseOutcome" />: whether the last release ended, refused or unconfirmed,
-	///     with an allocation that may remain in the target until the application frees it by other means or the process
-	///     ends. It is <see langword="false" /> before any release, after a confirmed release, and after a release that
-	///     could not begin (<see cref="LeaseReleaseKind.CleanupUnavailable" />), which frees nothing either.
-	/// </summary>
-	public bool RequiresManualRecovery
-	{
-		get;
-	}
 }

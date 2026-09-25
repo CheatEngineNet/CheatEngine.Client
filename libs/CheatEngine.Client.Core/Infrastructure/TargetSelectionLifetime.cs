@@ -1,5 +1,3 @@
-using CheatEngine.Client.Results;
-
 namespace CheatEngine.Client.Core.Infrastructure;
 
 /// <summary>
@@ -84,7 +82,7 @@ internal sealed class TargetSelectionLifetime(Action<string> activationGuard) : 
 				return;
 			}
 
-			throw new CheatEngineClientLifecycleException(operation,
+			throw ClientExceptions.InvalidState(operation,
 				"The target process selection changed, so this resource is no longer valid.");
 		}
 	}
@@ -122,7 +120,7 @@ internal sealed class TargetSelectionLifetime(Action<string> activationGuard) : 
 			return;
 		}
 
-		throw new CheatEngineClientLifecycleException(operation,
+		throw ClientExceptions.InvalidState(operation,
 			"The target process selection changed, so this resource is no longer valid.");
 	}
 

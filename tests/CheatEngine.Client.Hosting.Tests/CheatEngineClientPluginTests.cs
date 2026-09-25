@@ -45,8 +45,8 @@ public sealed class CheatEngineClientPluginTests
 	{
 		TestPlugin plugin = new();
 
-		CheatEngineClientLifecycleException exception =
-			Assert.Throws<CheatEngineClientLifecycleException>(plugin.GetRequiredClientForTest);
+		CheatEngineInvalidStateException exception =
+			Assert.Throws<CheatEngineInvalidStateException>(plugin.GetRequiredClientForTest);
 
 		Assert.Equal(CheatEngineFailureKind.InvalidState, exception.Failure.Kind);
 		Assert.Equal("GetClient", exception.Failure.Operation);
@@ -65,8 +65,8 @@ public sealed class CheatEngineClientPluginTests
 		plugin.EnableForTest();
 
 		Assert.Same(client, plugin.GetRequiredClientForTest());
-		CheatEngineClientLifecycleException duplicateEnable =
-			Assert.Throws<CheatEngineClientLifecycleException>(plugin.EnableForTest);
+		CheatEngineInvalidStateException duplicateEnable =
+			Assert.Throws<CheatEngineInvalidStateException>(plugin.EnableForTest);
 		Assert.Equal("EnableClient", duplicateEnable.Failure.Operation);
 
 		plugin.DisableForTest();
@@ -79,7 +79,7 @@ public sealed class CheatEngineClientPluginTests
 			events);
 		Assert.Equal(1, cleanup.DrainCount);
 		Assert.Equal(1, cleanup.ScopeDisposeCount);
-		Assert.Throws<CheatEngineClientLifecycleException>(plugin.GetRequiredClientForTest);
+		Assert.Throws<CheatEngineInvalidStateException>(plugin.GetRequiredClientForTest);
 	}
 
 	[Fact]
@@ -103,7 +103,7 @@ public sealed class CheatEngineClientPluginTests
 				"module.disabling", "cleanup.drain", "cleanup.exit"
 			],
 			events);
-		Assert.Throws<CheatEngineClientLifecycleException>(plugin.GetRequiredClientForTest);
+		Assert.Throws<CheatEngineInvalidStateException>(plugin.GetRequiredClientForTest);
 
 		plugin.DisableForTest();
 
@@ -144,7 +144,7 @@ public sealed class CheatEngineClientPluginTests
 
 		Assert.Equal("cleanup scope", exception.Message);
 		Assert.Equal(["configure", "client.enabled", "cleanup.enter"], events);
-		Assert.Throws<CheatEngineClientLifecycleException>(plugin.GetRequiredClientForTest);
+		Assert.Throws<CheatEngineInvalidStateException>(plugin.GetRequiredClientForTest);
 	}
 
 	[Fact]
@@ -220,7 +220,7 @@ public sealed class CheatEngineClientPluginTests
 
 		Assert.Equal("configuration", exception.Message);
 		Assert.Equal(1, configureCalls);
-		Assert.Throws<CheatEngineClientLifecycleException>(plugin.GetRequiredClientForTest);
+		Assert.Throws<CheatEngineInvalidStateException>(plugin.GetRequiredClientForTest);
 
 		plugin.DisableForTest();
 	}
@@ -257,7 +257,7 @@ public sealed class CheatEngineClientPluginTests
 		Assert.Equal(
 			["configure", "client.resolve", "scope.dispose", "provider.dispose", "configuration.dispose"],
 			events);
-		Assert.Throws<CheatEngineClientLifecycleException>(plugin.GetRequiredClientForTest);
+		Assert.Throws<CheatEngineInvalidStateException>(plugin.GetRequiredClientForTest);
 
 		plugin.DisableForTest();
 		plugin.EnableForTest();
@@ -285,7 +285,7 @@ public sealed class CheatEngineClientPluginTests
 			failure => Assert.Equal("configuration", failure.Message),
 			failure => Assert.Equal("configuration dispose", failure.Message));
 		Assert.Equal(["configuration.dispose"], events);
-		Assert.Throws<CheatEngineClientLifecycleException>(plugin.GetRequiredClientForTest);
+		Assert.Throws<CheatEngineInvalidStateException>(plugin.GetRequiredClientForTest);
 	}
 
 	[Fact]
@@ -310,7 +310,7 @@ public sealed class CheatEngineClientPluginTests
 				"configure", "module.enabled", "cleanup.enter", "module.disabling", "cleanup.drain", "cleanup.exit"
 			],
 			events);
-		Assert.Throws<CheatEngineClientLifecycleException>(plugin.GetRequiredClientForTest);
+		Assert.Throws<CheatEngineInvalidStateException>(plugin.GetRequiredClientForTest);
 
 		plugin.EnableForTest();
 		Assert.Same(client, plugin.GetRequiredClientForTest());
@@ -433,7 +433,7 @@ public sealed class CheatEngineClientPluginTests
 			],
 			events);
 		Assert.Equal(1, cleanup.DrainCount);
-		Assert.Throws<CheatEngineClientLifecycleException>(plugin.GetRequiredClientForTest);
+		Assert.Throws<CheatEngineInvalidStateException>(plugin.GetRequiredClientForTest);
 	}
 
 	[Fact]
@@ -1015,7 +1015,7 @@ public sealed class CheatEngineClientPluginTests
 		public IProcessClient Processes => null!;
 		public IMemoryClient Memory => null!;
 		public IPatternScanner Patterns => null!;
-		public IValueScanner Scans => null!;
+		public IValueScanner ValueScans => null!;
 		public IInspectionClient Inspection => null!;
 		public ITableClient Tables => null!;
 		public ILuaClient Lua => null!;

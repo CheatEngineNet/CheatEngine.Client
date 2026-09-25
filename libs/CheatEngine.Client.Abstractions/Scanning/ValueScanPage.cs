@@ -6,23 +6,23 @@ namespace CheatEngine.Client.Scanning;
 /// <summary>An immutable page of copied value-scan results.</summary>
 /// <remarks>
 ///     A page is copied in full or not at all: a read that fails publishes no page, never a prefix. A scan without
-///     results reads as an empty page whose <see cref="TotalCount" /> is zero.
+///     results reads as an empty page whose <see cref="ResultCount" /> is zero.
 /// </remarks>
 [Experimental(ClientExperimentalDiagnostics.ValueScans, UrlFormat = ClientExperimentalDiagnostics.UrlFormat)]
-public readonly record struct ValueScanPage
+public readonly struct ValueScanPage
 {
 	private readonly ImmutableArray<ValueScanMatch> _matches;
 
 	/// <summary>Creates a value-scan result page.</summary>
 	/// <param name="startIndex">The zero-based index of the first match of the page.</param>
-	/// <param name="totalCount">The number of results Cheat Engine reported when the page was copied.</param>
+	/// <param name="resultCount">The number of results Cheat Engine reported when the page was copied.</param>
 	/// <param name="matches">The copied matches; a <see langword="default" /> array is read as empty.</param>
 	/// <exception cref="ArgumentOutOfRangeException"><paramref name="startIndex" /> is negative.</exception>
-	public ValueScanPage(long startIndex, ulong totalCount, ImmutableArray<ValueScanMatch> matches)
+	public ValueScanPage(long startIndex, ulong resultCount, ImmutableArray<ValueScanMatch> matches)
 	{
 		ArgumentOutOfRangeException.ThrowIfNegative(startIndex);
 		StartIndex = startIndex;
-		TotalCount = totalCount;
+		ResultCount = resultCount;
 		_matches = matches.IsDefault ? [] : matches;
 	}
 
@@ -33,7 +33,7 @@ public readonly record struct ValueScanPage
 	}
 
 	/// <summary>Gets the number of results Cheat Engine reported when the page was copied.</summary>
-	public ulong TotalCount
+	public ulong ResultCount
 	{
 		get;
 	}
@@ -46,5 +46,5 @@ public readonly record struct ValueScanPage
 	public long NextStartIndex => StartIndex + Matches.Length;
 
 	/// <summary>Gets whether results follow this page.</summary>
-	public bool HasMore => (ulong) NextStartIndex < TotalCount;
+	public bool HasMore => (ulong) NextStartIndex < ResultCount;
 }

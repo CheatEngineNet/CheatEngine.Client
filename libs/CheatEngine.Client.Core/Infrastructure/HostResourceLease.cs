@@ -63,6 +63,16 @@ internal abstract class HostResourceLease : ICheatEngineLease, IOutcomeReporting
 
 	public bool IsReleased => Volatile.Read(ref _released) != 0;
 
+	public bool RequiresManualRecovery => LastReleaseOutcome is { RequiresManualRecovery: true } ||
+										  OwnerRequiresManualRecovery;
+
+	/// <summary>
+	///     Gets whether the owner reports that a release attempt consumed its only means of release although the recorded
+	///     outcome stays retryable: an Auto Assembler patch whose release returned a status this Client version does not
+	///     recognize. Only a release attempt sets it; it never anticipates one.
+	/// </summary>
+	protected virtual bool OwnerRequiresManualRecovery => false;
+
 	public LeaseReleaseOutcome? LastReleaseOutcome
 	{
 		get
@@ -293,10 +303,10 @@ internal abstract class HostResourceLease : ICheatEngineLease, IOutcomeReporting
 		return outcome;
 	}
 
-	private CheatEngineOperationException CreateReport(LeaseReleaseOutcome outcome)
+	private Exception CreateReport(LeaseReleaseOutcome outcome)
 	{
-		return new CheatEngineOperationException(new CheatEngineFailure(GetReportKind(outcome.Kind), Operation,
+		return new CheatEngineFailure(GetReportKind(outcome.Kind), Operation,
 			$"The lease release ended with {outcome.Kind} (host effect: {outcome.HostEffect}); the resource may " +
-			"remain in Cheat Engine or in the target.", null, CheatEngineHostEffect.CleanupUnconfirmed));
+			"remain in Cheat Engine or in the target.", null, CheatEngineHostEffect.CleanupUnconfirmed).ToException();
 	}
 }

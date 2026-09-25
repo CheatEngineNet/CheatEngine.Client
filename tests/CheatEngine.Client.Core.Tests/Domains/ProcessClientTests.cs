@@ -49,7 +49,7 @@ public sealed class ProcessClientTests
 		Assert.Equal(new TargetProcessId(43), refreshed.Id);
 		Assert.Equal(1, refreshed.SelectionEpoch);
 		Assert.Equal(1, lease.DisposeCount);
-		Assert.Throws<CheatEngineClientLifecycleException>(() =>
+		Assert.Throws<CheatEngineInvalidStateException>(() =>
 			selectionLifetime.ThrowIfExpired(initial.SelectionEpoch, "Test.TargetLease"));
 	}
 
@@ -96,7 +96,7 @@ public sealed class ProcessClientTests
 		Assert.Equal(CheatEngineFailureKind.TargetNotAttached, failure.Kind);
 		Assert.Equal("Processes.GetCurrent", failure.Operation);
 		Assert.Equal(1, selectionLifetime.Epoch);
-		Assert.Throws<CheatEngineClientLifecycleException>(() =>
+		Assert.Throws<CheatEngineInvalidStateException>(() =>
 			selectionLifetime.ThrowIfExpired(initial.SelectionEpoch, "Test.TargetLease"));
 
 		CheatEngineOperationException exception = Assert.Throws<CheatEngineOperationException>(() =>

@@ -48,7 +48,7 @@ public sealed class MemoryBoundedRequestTests
 	[InlineData(-1)]
 	public void StringReadRequestRejectsANonPositiveMaximumLength(int maximumLength)
 	{
-		Assert.Throws<ArgumentOutOfRangeException>(() => MemoryStringReadRequest.Create(
+		Assert.Throws<ArgumentOutOfRangeException>(() => new MemoryStringReadRequest(
 			0x401000, maximumLength, MemoryStringEncoding.Utf16));
 	}
 
@@ -57,7 +57,7 @@ public sealed class MemoryBoundedRequestTests
 	{
 		Address address = 0x402000;
 
-		MemoryStringReadRequest request = MemoryStringReadRequest.Create(address, 128, MemoryStringEncoding.Utf16);
+		MemoryStringReadRequest request = new MemoryStringReadRequest(address, 128, MemoryStringEncoding.Utf16);
 
 		Assert.Equal(address, request.Address);
 		Assert.Equal(128, request.MaximumLength);
@@ -70,7 +70,7 @@ public sealed class MemoryBoundedRequestTests
 		Address address = 0x402100;
 
 		MemoryStringWriteRequest request =
-			MemoryStringWriteRequest.CreateBounded(address, "Player one", 10, MemoryStringEncoding.Utf16);
+			new MemoryStringWriteRequest(address, "Player one", 10, MemoryStringEncoding.Utf16);
 
 		Assert.Equal(address, request.Address);
 		Assert.Equal("Player one", request.Value);
@@ -82,16 +82,16 @@ public sealed class MemoryBoundedRequestTests
 	public void StringWriteRequestRejectsNullText()
 	{
 		Assert.Throws<ArgumentNullException>(() =>
-			MemoryStringWriteRequest.CreateBounded(0x402200, null!, 1, MemoryStringEncoding.Utf8));
+			new MemoryStringWriteRequest(0x402200, null!, 1, MemoryStringEncoding.Utf8));
 		Assert.Throws<ArgumentOutOfRangeException>(() =>
-			MemoryStringWriteRequest.CreateBounded(0x402200, "A", 0, MemoryStringEncoding.Utf8));
+			new MemoryStringWriteRequest(0x402200, "A", 0, MemoryStringEncoding.Utf8));
 	}
 
 	[Fact]
 	public void ExplicitStringFactoriesPreserveTheRequestedEncodingAndBound()
 	{
-		MemoryStringReadRequest read = MemoryStringReadRequest.Create(0x402210, 64, MemoryStringEncoding.Utf16);
-		MemoryStringWriteRequest write = MemoryStringWriteRequest.CreateBounded(0x402220, "é", 2,
+		MemoryStringReadRequest read = new MemoryStringReadRequest(0x402210, 64, MemoryStringEncoding.Utf16);
+		MemoryStringWriteRequest write = new MemoryStringWriteRequest(0x402220, "é", 2,
 			MemoryStringEncoding.Utf8);
 
 		Assert.Equal(MemoryStringEncoding.Utf16, read.Encoding);
@@ -103,11 +103,11 @@ public sealed class MemoryBoundedRequestTests
 	[Fact]
 	public void ExplicitBoundedStringFactoryRejectsAnOverlongUtf8Payload()
 	{
-		Assert.Throws<ArgumentException>(() => MemoryStringWriteRequest.CreateBounded(0x402230, "é", 1,
+		Assert.Throws<ArgumentException>(() => new MemoryStringWriteRequest(0x402230, "é", 1,
 			MemoryStringEncoding.Utf8));
-		Assert.Throws<ArgumentOutOfRangeException>(() => MemoryStringReadRequest.Create(0x402240, 10,
+		Assert.Throws<ArgumentOutOfRangeException>(() => new MemoryStringReadRequest(0x402240, 10,
 			(MemoryStringEncoding) 42));
-		Assert.Throws<ArgumentOutOfRangeException>(() => MemoryStringWriteRequest.CreateBounded(0x402240, "A", 10,
+		Assert.Throws<ArgumentOutOfRangeException>(() => new MemoryStringWriteRequest(0x402240, "A", 10,
 			(MemoryStringEncoding) 42));
 	}
 
@@ -125,10 +125,10 @@ public sealed class MemoryBoundedRequestTests
 		Assert.Equal([0x403000UL, 0x403010UL], reads.Addresses);
 		Assert.Equal(0x403020UL, batchWrites.Values[0].Address);
 		Assert.Equal(12, batchWrites.Values[0].Value);
-		Assert.Equal(MemoryBatchLimits.MaximumOperations, 1024);
+		Assert.Equal(MemoryBatchLimits.MaximumOperationCount, 1024);
 		Assert.Throws<ArgumentException>(() => new MemoryPrimitiveBatchReadRequest<int>(Array.Empty<Address>()));
 		Assert.Throws<ArgumentOutOfRangeException>(() => new MemoryPrimitiveBatchWriteRequest<int>(
-			new MemoryAddressValue<int>[MemoryBatchLimits.MaximumOperations + 1]));
+			new MemoryAddressValue<int>[MemoryBatchLimits.MaximumOperationCount + 1]));
 	}
 
 	[Fact]

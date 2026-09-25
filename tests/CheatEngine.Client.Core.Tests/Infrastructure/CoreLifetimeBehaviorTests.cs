@@ -30,7 +30,7 @@ public sealed class CoreLifetimeBehaviorTests
 		using CoreLifetime lifetime = new(context);
 		context.Stop();
 
-		CheatEngineClientLifecycleException rejected = Assert.Throws<CheatEngineClientLifecycleException>(() =>
+		CheatEngineInvalidStateException rejected = Assert.Throws<CheatEngineInvalidStateException>(() =>
 			lifetime.ThrowIfInactive("Test.Work"));
 		Assert.Equal("Test.Work", rejected.Failure.Operation);
 		Assert.False(lifetime.CanDispatch);
@@ -53,7 +53,7 @@ public sealed class CoreLifetimeBehaviorTests
 		};
 		using CoreLifetime lifetime = new(context);
 
-		CheatEngineClientLifecycleException exception = Assert.Throws<CheatEngineClientLifecycleException>(
+		CheatEngineInvalidStateException exception = Assert.Throws<CheatEngineInvalidStateException>(
 			lifetime.EnterCleanupScope);
 
 		Assert.Equal("Client.EnterCleanupScope", exception.Failure.Operation);

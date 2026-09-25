@@ -37,16 +37,19 @@ public interface ILuaModule
 	/// <summary>Registers this module's exports for the current Cheat Engine activation.</summary>
 	/// <remarks>
 	///     <para>
-	///         Throw to refuse the registration; <see cref="ILuaClient.TryRegisterModule" /> returns the failure. A
-	///         <see cref="Results.CheatEngineOperationException" /> is reported with the failure it carries (one that
-	///         carries the <see langword="default" /> failure is reported as <c>Unknown</c>); any other exception is
-	///         classified by the Client like a CheatEngine.SDK fault, because a generated module surfaces the SDK faults
-	///         of its registration from this method.
+	///         Throw to refuse the registration; <see cref="ILuaClient.TryRegisterModule" /> returns the failure. To refuse
+	///         with a classified failure, throw the exception that <see cref="Results.CheatEngineFailure.Throw" /> raises
+	///         or <see cref="Results.CheatEngineFailure.ToException" /> creates: a
+	///         <see cref="Results.CheatEngineClientException" /> or a
+	///         <see cref="Results.CheatEngineOperationCanceledException" /> is reported with the failure it carries. Any
+	///         other exception is classified by the Client like a CheatEngine.SDK fault, because a generated module
+	///         surfaces the SDK faults of its registration from this method.
 	///     </para>
 	///     <para>
-	///         A generated module throws a <see cref="Results.CheatEngineOperationException" /> when CheatEngine.SDK
-	///         refuses the Lua admission (<c>ActivationExpired</c>, <c>RuntimeChanged</c> or <c>InvalidState</c>, with the
-	///         host effect <c>NotStarted</c>), when a global is already defined (<c>OperationRejected</c>,
+	///         A generated module throws the exception of its failure's kind
+	///         (<see cref="Results.CheatEngineFailure.ToException" />) when CheatEngine.SDK refuses the Lua admission
+	///         (<c>ActivationExpired</c>, <c>RuntimeChanged</c> or <c>InvalidState</c>, with the host effect
+	///         <c>NotStarted</c>), when a global is already defined (<c>OperationRejected</c>,
 	///         <c>NotApplied</c>: nothing was published), or when a protected lookup or publication failed
 	///         (<c>LuaError</c>; <c>NotApplied</c> when the SDK's rollback removed everything it published,
 	///         <c>CleanupUnconfirmed</c> otherwise). Registering a module that still owns a registration releases it

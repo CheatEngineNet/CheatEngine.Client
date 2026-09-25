@@ -5,7 +5,7 @@ using CheatEngine.SDK.Engine.Values;
 namespace CheatEngine.Client.Scanning;
 
 /// <summary>A copied, handle-free AOB scan result.</summary>
-public readonly record struct AobScanResult
+public readonly struct AobScanResult
 {
 	private readonly ImmutableArray<Address> _matches;
 

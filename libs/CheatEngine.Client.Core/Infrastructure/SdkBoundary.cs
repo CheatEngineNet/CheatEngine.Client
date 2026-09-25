@@ -24,8 +24,9 @@ namespace CheatEngine.Client.Core.Infrastructure;
 ///         consumer-supplied code (codecs, <c>ILuaOperation</c>, dispatcher callbacks) are not wrapped at all: the
 ///         dispatcher rethrows them unchanged by contract. A Lua module's <c>ILuaModule.Register</c> is the exception
 ///         to that rule: a generated module surfaces the CheatEngine.SDK faults of its registration from it (F15), so
-///         <c>LuaClient</c> reports the failure a <see cref="CheatEngineOperationException" /> carries and classifies
-///         any other exception with <see cref="Classify(string, Exception, CheatEngineHostEffect)" />.
+///         <c>LuaClient</c> reports the failure a <see cref="CheatEngineClientException" /> or a
+///         <see cref="CheatEngineOperationCanceledException" /> carries and classifies any other exception with
+///         <see cref="Classify(string, Exception, CheatEngineHostEffect)" />.
 ///     </para>
 ///     <para>
 ///         When the activation is no longer current, an SDK fault is reported as
@@ -119,7 +120,7 @@ internal static class SdkBoundary
 	/// <returns><see langword="true" /> when the work ran to completion without an SDK fault.</returns>
 	/// <remarks>
 	///     Lifecycle exceptions from the dispatcher (<see cref="CheatEngineActivationExpiredException" />,
-	///     <see cref="CheatEngineClientLifecycleException" />) and Client exceptions raised by <paramref name="work" />
+	///     <see cref="CheatEngineInvalidStateException" />) and Client exceptions raised by <paramref name="work" />
 	///     propagate unchanged.
 	/// </remarks>
 	internal static bool TryInvoke(ICheatEngineDispatcher dispatcher, string operation, Action work,
@@ -160,8 +161,8 @@ internal static class SdkBoundary
 	{
 		if (lifetime is { IsActivationCurrent: false })
 		{
-			throw new CheatEngineActivationExpiredException(operation,
-				"The Cheat Engine plugin lifecycle changed while Client work was calling the SDK.", exception);
+			new CheatEngineFailure(CheatEngineFailureKind.ActivationExpired, operation,
+				"The Cheat Engine plugin lifecycle changed while Client work was calling the SDK.", exception).Throw();
 		}
 	}
 }

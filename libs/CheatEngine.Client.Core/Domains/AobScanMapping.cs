@@ -358,20 +358,20 @@ internal static class AobScanMapping
 
 	/// <summary>Returns the public host outcome of a global scan.</summary>
 	/// <param name="kind">The SDK outcome.</param>
-	/// <returns>The same category; <see cref="PatternScanHostOutcome.Unknown" /> for an undefined value.</returns>
-	internal static PatternScanHostOutcome ToHostOutcome(AobScanOutcomeKind kind)
+	/// <returns>The same category; <see cref="PatternScanHostOutcomeKind.Unknown" /> for an undefined value.</returns>
+	internal static PatternScanHostOutcomeKind ToHostOutcome(AobScanOutcomeKind kind)
 	{
 		return kind switch
 		{
-			AobScanOutcomeKind.Unknown => PatternScanHostOutcome.Unknown,
-			AobScanOutcomeKind.Matches => PatternScanHostOutcome.Matches,
-			AobScanOutcomeKind.NoMatches => PatternScanHostOutcome.NoMatches,
-			AobScanOutcomeKind.GlobalUnavailable => PatternScanHostOutcome.GlobalUnavailable,
-			AobScanOutcomeKind.ProtectedLuaFailure => PatternScanHostOutcome.ProtectedLuaFailure,
-			AobScanOutcomeKind.NoResult => PatternScanHostOutcome.NoResult,
-			AobScanOutcomeKind.InvalidResult => PatternScanHostOutcome.InvalidResult,
-			AobScanOutcomeKind.ResultListCountUnavailable => PatternScanHostOutcome.ResultListCountUnavailable,
-			_ => PatternScanHostOutcome.Unknown
+			AobScanOutcomeKind.Unknown => PatternScanHostOutcomeKind.Unknown,
+			AobScanOutcomeKind.Matches => PatternScanHostOutcomeKind.Matches,
+			AobScanOutcomeKind.NoMatches => PatternScanHostOutcomeKind.NoMatches,
+			AobScanOutcomeKind.GlobalUnavailable => PatternScanHostOutcomeKind.GlobalUnavailable,
+			AobScanOutcomeKind.ProtectedLuaFailure => PatternScanHostOutcomeKind.ProtectedLuaFailure,
+			AobScanOutcomeKind.NoResult => PatternScanHostOutcomeKind.NoResult,
+			AobScanOutcomeKind.InvalidResult => PatternScanHostOutcomeKind.InvalidResult,
+			AobScanOutcomeKind.ResultListCountUnavailable => PatternScanHostOutcomeKind.ResultListCountUnavailable,
+			_ => PatternScanHostOutcomeKind.Unknown
 		};
 	}
 
@@ -380,26 +380,26 @@ internal static class AobScanMapping
 	/// <returns>
 	///     The same category. <c>InvalidBounds</c> (refused before any Cheat Engine call), <c>SessionCreationFailed</c>
 	///     (no scan ran; the request falls back) and <c>WaitTimedOut</c> (a deadline this Client never sets) have no host
-	///     outcome and are <see cref="PatternScanHostOutcome.Unknown" />, like an undefined value.
+	///     outcome and are <see cref="PatternScanHostOutcomeKind.Unknown" />, like an undefined value.
 	/// </returns>
-	internal static PatternScanHostOutcome ToHostOutcome(AobBoundedScanOutcomeKind kind)
+	internal static PatternScanHostOutcomeKind ToHostOutcome(AobBoundedScanOutcomeKind kind)
 	{
 		return kind switch
 		{
-			AobBoundedScanOutcomeKind.Unknown => PatternScanHostOutcome.Unknown,
-			AobBoundedScanOutcomeKind.Matches => PatternScanHostOutcome.Matches,
-			AobBoundedScanOutcomeKind.NoMatches => PatternScanHostOutcome.NoMatches,
-			AobBoundedScanOutcomeKind.InvalidBounds => PatternScanHostOutcome.Unknown,
-			AobBoundedScanOutcomeKind.SessionCreationFailed => PatternScanHostOutcome.Unknown,
-			AobBoundedScanOutcomeKind.ScanFailed => PatternScanHostOutcome.ScanFailed,
-			AobBoundedScanOutcomeKind.WaitTimedOut => PatternScanHostOutcome.Unknown,
-			AobBoundedScanOutcomeKind.HostReportedError => PatternScanHostOutcome.HostReportedError,
-			AobBoundedScanOutcomeKind.InvalidResult => PatternScanHostOutcome.InvalidResult,
-			AobBoundedScanOutcomeKind.TargetChanged => PatternScanHostOutcome.TargetChanged,
-			AobBoundedScanOutcomeKind.TargetIdentityUnavailable => PatternScanHostOutcome.TargetIdentityUnavailable,
-			AobBoundedScanOutcomeKind.RuntimeInvalidated => PatternScanHostOutcome.RuntimeInvalidated,
-			AobBoundedScanOutcomeKind.Cancelled => PatternScanHostOutcome.Cancelled,
-			_ => PatternScanHostOutcome.Unknown
+			AobBoundedScanOutcomeKind.Unknown => PatternScanHostOutcomeKind.Unknown,
+			AobBoundedScanOutcomeKind.Matches => PatternScanHostOutcomeKind.Matches,
+			AobBoundedScanOutcomeKind.NoMatches => PatternScanHostOutcomeKind.NoMatches,
+			AobBoundedScanOutcomeKind.InvalidBounds => PatternScanHostOutcomeKind.Unknown,
+			AobBoundedScanOutcomeKind.SessionCreationFailed => PatternScanHostOutcomeKind.Unknown,
+			AobBoundedScanOutcomeKind.ScanFailed => PatternScanHostOutcomeKind.ScanFailed,
+			AobBoundedScanOutcomeKind.WaitTimedOut => PatternScanHostOutcomeKind.Unknown,
+			AobBoundedScanOutcomeKind.HostReportedError => PatternScanHostOutcomeKind.HostReportedError,
+			AobBoundedScanOutcomeKind.InvalidResult => PatternScanHostOutcomeKind.InvalidResult,
+			AobBoundedScanOutcomeKind.TargetChanged => PatternScanHostOutcomeKind.TargetChanged,
+			AobBoundedScanOutcomeKind.TargetIdentityUnavailable => PatternScanHostOutcomeKind.TargetIdentityUnavailable,
+			AobBoundedScanOutcomeKind.RuntimeInvalidated => PatternScanHostOutcomeKind.RuntimeChanged,
+			AobBoundedScanOutcomeKind.Cancelled => PatternScanHostOutcomeKind.Cancelled,
+			_ => PatternScanHostOutcomeKind.Unknown
 		};
 	}
 

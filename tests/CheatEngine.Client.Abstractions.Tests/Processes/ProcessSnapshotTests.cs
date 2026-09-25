@@ -11,18 +11,18 @@ public sealed class ProcessSnapshotTests
 	[Fact]
 	public void ProcessEnumerationRequestRejectsZeroMaximumAndAnEmptyNameFilter()
 	{
-		Assert.Throws<ArgumentOutOfRangeException>(() => new ProcessEnumerationRequest(0));
-		Assert.Throws<ArgumentException>(() => new ProcessEnumerationRequest(1, string.Empty));
+		Assert.Throws<ArgumentOutOfRangeException>(() => new LocalProcessEnumerationRequest(0));
+		Assert.Throws<ArgumentException>(() => new LocalProcessEnumerationRequest(1, string.Empty));
 	}
 
 	[Fact]
 	public void ProcessEnumerationResultNormalizesTheDefaultArrayAndRejectsEmptyTruncation()
 	{
-		ProcessEnumerationResult result = new(default, false);
+		LocalProcessEnumerationResult result = new(default, false);
 
 		Assert.Empty(result.Processes);
 		Assert.False(result.IsTruncated);
-		Assert.Throws<ArgumentException>(() => new ProcessEnumerationResult([], true));
+		Assert.Throws<ArgumentException>(() => new LocalProcessEnumerationResult([], true));
 	}
 
 	[Fact]

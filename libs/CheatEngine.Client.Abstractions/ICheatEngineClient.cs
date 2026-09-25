@@ -36,15 +36,19 @@ namespace CheatEngine.Client;
 ///         expected condition. <c>Try</c> does not mean "never throws": both forms throw for an expired or stopping
 ///         activation and for an invalid argument (a programming error), and both rethrow, unchanged, an exception thrown
 ///         by application code that the client calls (a dispatcher callback, a memory codec, a Lua operation). No
-///         CheatEngine.SDK exception type crosses a <c>Try</c> form.
+///         CheatEngine.SDK exception is thrown by a <c>Try</c> form. Some operations also have an <c>XDetailed</c> form
+///         that returns an outcome (<c>IsSuccess</c>, <c>Failure</c> and the operation's facts) instead of throwing an
+///         expected failure; it throws exactly what the <c>Try</c> form throws.
 ///     </para>
 ///     <para>
 ///         <b>Exceptions.</b> The exception type depends only on <see cref="CheatEngineFailure.Kind" />:
 ///         <see cref="CheatEngineFailureKind.Cancelled" /> throws <see cref="CheatEngineOperationCanceledException" />, an
 ///         <see cref="OperationCanceledException" />; <see cref="CheatEngineFailureKind.ActivationExpired" /> throws
 ///         <see cref="CheatEngineActivationExpiredException" />; <see cref="CheatEngineFailureKind.InvalidState" /> throws
-///         <see cref="CheatEngineClientLifecycleException" />; every other kind throws
-///         <see cref="CheatEngineOperationException" />. Each exception keeps the complete failure. Classify a failure by
+///         <see cref="CheatEngineInvalidStateException" />; every other kind throws
+///         <see cref="CheatEngineOperationException" />. Each exception keeps the complete failure, and none has a public
+///         constructor: <see cref="CheatEngineFailure.Throw(CancellationToken)" /> throws one and
+///         <see cref="CheatEngineFailure.ToException(CancellationToken)" /> creates one. Classify a failure by
 ///         its <see cref="CheatEngineFailure.Kind" /> and <see cref="CheatEngineFailure.HostEffect" />, never by
 ///         <see cref="CheatEngineFailure.Message" /> or exception text, which are not contractual and may contain user
 ///         data. Releasing a lease never throws: <see cref="ICheatEngineLease.Release" /> returns an outcome.
@@ -66,7 +70,7 @@ namespace CheatEngine.Client;
 /// </remarks>
 public interface ICheatEngineClient
 {
-	/// <summary>Gets the SDK lifecycle epoch captured for this scoped client.</summary>
+	/// <summary>Gets the activation epoch captured for this scoped client.</summary>
 	public long Epoch
 	{
 		get;
@@ -111,7 +115,7 @@ public interface ICheatEngineClient
 	/// <summary>Gets value-scan operations over Cheat Engine's scanner.</summary>
 	/// <remarks>Experimental (<c>CECLIENT5001</c>): see the Abstractions README.</remarks>
 	[Experimental(ClientExperimentalDiagnostics.ValueScans, UrlFormat = ClientExperimentalDiagnostics.UrlFormat)]
-	public IValueScanner Scans
+	public IValueScanner ValueScans
 	{
 		get;
 	}

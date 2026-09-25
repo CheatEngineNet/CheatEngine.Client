@@ -6,11 +6,11 @@ namespace CheatEngine.Client.Memory;
 public sealed class MemoryPrimitiveBatchWriteOutcome
 {
 	/// <summary>Creates a write outcome with a known or explicitly unknown target effect state.</summary>
-	public MemoryPrimitiveBatchWriteOutcome(int attemptedCount, int completedCount, int? failedIndex,
+	public MemoryPrimitiveBatchWriteOutcome(int requestedCount, int completedCount, int? failedIndex,
 		CheatEngineFailure? failure, MemoryBatchWriteEffectState effectState)
 	{
-		Validate(attemptedCount, completedCount, failedIndex, failure, effectState);
-		AttemptedCount = attemptedCount;
+		Validate(requestedCount, completedCount, failedIndex, failure, effectState);
+		RequestedCount = requestedCount;
 		CompletedCount = completedCount;
 		FailedIndex = failedIndex;
 		Failure = failure;
@@ -18,7 +18,7 @@ public sealed class MemoryPrimitiveBatchWriteOutcome
 	}
 
 	/// <summary>Gets the number of operations requested by the batch.</summary>
-	public int AttemptedCount
+	public int RequestedCount
 	{
 		get;
 	}
@@ -48,13 +48,13 @@ public sealed class MemoryPrimitiveBatchWriteOutcome
 	}
 
 	/// <summary>Gets whether every requested write completed successfully.</summary>
-	public bool IsSuccess => Failure is null && EffectState == MemoryBatchWriteEffectState.Complete;
+	public bool IsSuccess => Failure is null && EffectState == MemoryBatchWriteEffectState.Completed;
 
-	private static void Validate(int attemptedCount, int completedCount, int? failedIndex,
+	private static void Validate(int requestedCount, int completedCount, int? failedIndex,
 		CheatEngineFailure? failure, MemoryBatchWriteEffectState effectState)
 	{
-		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(attemptedCount);
-		if (completedCount < 0 || completedCount > attemptedCount)
+		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(requestedCount);
+		if (completedCount < 0 || completedCount > requestedCount)
 		{
 			throw new ArgumentOutOfRangeException(nameof(completedCount));
 		}
@@ -64,18 +64,18 @@ public sealed class MemoryPrimitiveBatchWriteOutcome
 			throw new ArgumentOutOfRangeException(nameof(effectState));
 		}
 
-		if (failedIndex is { } index && (index < 0 || index >= attemptedCount || index != completedCount))
+		if (failedIndex is { } index && (index < 0 || index >= requestedCount || index != completedCount))
 		{
 			throw new ArgumentOutOfRangeException(nameof(failedIndex));
 		}
 
-		if (failure is null && (completedCount != attemptedCount || effectState != MemoryBatchWriteEffectState.Complete))
+		if (failure is null && (completedCount != requestedCount || effectState != MemoryBatchWriteEffectState.Completed))
 		{
 			throw new ArgumentException("An incomplete write outcome requires a failure.", nameof(failure));
 		}
 
 		if (failure is not null &&
-			(effectState == MemoryBatchWriteEffectState.Complete || completedCount == attemptedCount))
+			(effectState == MemoryBatchWriteEffectState.Completed || completedCount == requestedCount))
 		{
 			throw new ArgumentException("A completed write outcome cannot contain a failure.", nameof(failure));
 		}
@@ -87,7 +87,7 @@ public sealed class MemoryPrimitiveBatchWriteOutcome
 		}
 
 		if (effectState == MemoryBatchWriteEffectState.Partial &&
-			(completedCount == 0 || completedCount == attemptedCount))
+			(completedCount == 0 || completedCount == requestedCount))
 		{
 			throw new ArgumentException("A partial write outcome requires a strict completed prefix.",
 				nameof(effectState));

@@ -142,8 +142,8 @@ public sealed class AssemblyContractsTests
 	{
 		string[] expected =
 		[
-			"Assemble", "Disassemble", "GetInstructionLength", "GetPreviousInstruction", "TryAssemble",
-			"TryDisassemble", "TryGetInstructionLength", "TryGetPreviousInstruction"
+			"Assemble", "Disassemble", "GetInstructionLength", "GetPreviousInstructionAddress", "TryAssemble",
+			"TryDisassemble", "TryGetInstructionLength", "TryGetPreviousInstructionAddress"
 		];
 
 		Assert.Equal(expected,

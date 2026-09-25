@@ -131,7 +131,8 @@ public sealed class ModuleContractTests
 
 		// No CheatEngine.SDK runtime is attached in this process: the real generated adapter asks for admission, the SDK
 		// answers Detached, and the registrar refuses before any Lua call. A module that owns nothing releases nothing.
-		CheatEngineOperationException refused = Assert.Throws<CheatEngineOperationException>(module.Register);
+		CheatEngineActivationExpiredException refused =
+			Assert.Throws<CheatEngineActivationExpiredException>(module.Register);
 		LuaModuleReleaseOutcome outcome = module.Unregister();
 
 		Assert.Equal(CheatEngineFailureKind.ActivationExpired, refused.Failure.Kind);

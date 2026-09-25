@@ -52,7 +52,7 @@ public sealed class CheatEngineClientTests
 		Assert.Same(processes, client.Processes);
 		Assert.Same(memory, client.Memory);
 		Assert.Same(patterns, client.Patterns);
-		Assert.Same(scans, client.Scans);
+		Assert.Same(scans, client.ValueScans);
 		Assert.Same(inspection, client.Inspection);
 		Assert.Same(tables, client.Tables);
 		Assert.Same(lua, client.Lua);

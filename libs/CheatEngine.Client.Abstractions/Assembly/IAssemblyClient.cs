@@ -104,12 +104,12 @@ public interface IAssemblyClient
 	///     not a proof. An estimate wider than the target's address width is
 	///     <see cref="CheatEngineFailureKind.OperationRejected" /> with <see cref="CheatEngineHostEffect.Completed" />.
 	/// </remarks>
-	public bool TryGetPreviousInstruction(Address address, out Address previousAddress,
+	public bool TryGetPreviousInstructionAddress(Address address, out Address previousAddress,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default);
 
 	/// <summary>Gets Cheat Engine's estimate of the preceding instruction address or throws when it has none.</summary>
 	/// <param name="address">The address of the instruction that follows the one sought.</param>
 	/// <param name="cancellationToken">Observed before dispatch only.</param>
 	/// <returns>The estimated start address of the preceding instruction.</returns>
-	public Address GetPreviousInstruction(Address address, CancellationToken cancellationToken = default);
+	public Address GetPreviousInstructionAddress(Address address, CancellationToken cancellationToken = default);
 }

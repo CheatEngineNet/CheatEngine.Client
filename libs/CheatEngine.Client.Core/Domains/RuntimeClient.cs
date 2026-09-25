@@ -175,8 +175,13 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 				_sdkAssemblyVersion, _sdkIdentity.LoadedInformationalVersion, _sdkIdentity.ExactReviewedIdentity),
 			new CheatEngineRuntimePlatformInfo(
 				host.OperatingSystem,
-				host.CheatEngineIs64Bit,
 				host.SystemArchitecture,
+				host.CheatEngineIs64Bit switch
+				{
+					true => PointerSize.Bit64,
+					false => PointerSize.Bit32,
+					null => PointerSize.Unknown
+				},
 				target.Backend,
 				target.Architecture,
 				target.Bitness,

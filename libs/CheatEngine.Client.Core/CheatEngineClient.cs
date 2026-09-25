@@ -30,7 +30,7 @@ internal sealed class CheatEngineClient : ICheatEngineClient
 		Processes = domainServices.Processes ?? throw new ArgumentNullException(nameof(domainServices));
 		Memory = domainServices.Memory ?? throw new ArgumentNullException(nameof(domainServices));
 		Patterns = domainServices.Patterns ?? throw new ArgumentNullException(nameof(domainServices));
-		Scans = domainServices.Scans ?? throw new ArgumentNullException(nameof(domainServices));
+		ValueScans = domainServices.ValueScans ?? throw new ArgumentNullException(nameof(domainServices));
 		Inspection = domainServices.Inspection ?? throw new ArgumentNullException(nameof(domainServices));
 		Tables = domainServices.Tables ?? throw new ArgumentNullException(nameof(domainServices));
 		Lua = domainServices.Lua ?? throw new ArgumentNullException(nameof(domainServices));
@@ -66,7 +66,7 @@ internal sealed class CheatEngineClient : ICheatEngineClient
 		get;
 	}
 
-	public IValueScanner Scans
+	public IValueScanner ValueScans
 	{
 		get;
 	}

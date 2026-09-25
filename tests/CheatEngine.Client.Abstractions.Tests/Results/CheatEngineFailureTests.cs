@@ -82,8 +82,8 @@ public sealed class CheatEngineFailureTests
 			"The provider is stopping.",
 			innerException);
 
-		CheatEngineClientLifecycleException exception =
-			Assert.Throws<CheatEngineClientLifecycleException>(() => failure.Throw(CancellationToken.None));
+		CheatEngineInvalidStateException exception =
+			Assert.Throws<CheatEngineInvalidStateException>(() => failure.Throw(CancellationToken.None));
 
 		Assert.Equal(failure, exception.Failure);
 		Assert.Equal(failure.Message, exception.Message);
@@ -287,9 +287,8 @@ public sealed class CheatEngineFailureTests
 	[InlineData(CheatEngineFailureKind.Cancelled, typeof(CheatEngineOperationCanceledException))]
 	[InlineData(CheatEngineFailureKind.OperationRejected, typeof(CheatEngineOperationException))]
 	[InlineData(CheatEngineFailureKind.ActivationExpired, typeof(CheatEngineActivationExpiredException))]
-	[InlineData(CheatEngineFailureKind.InvalidState, typeof(CheatEngineClientLifecycleException))]
+	[InlineData(CheatEngineFailureKind.InvalidState, typeof(CheatEngineInvalidStateException))]
 	[InlineData(CheatEngineFailureKind.RuntimeChanged, typeof(CheatEngineOperationException))]
-	[InlineData((CheatEngineFailureKind) 1000, typeof(CheatEngineOperationException))]
 	public void ThrowMapsEachKindToOneExceptionType(CheatEngineFailureKind kind, Type expected)
 	{
 		using CancellationTokenSource source = new();
@@ -334,16 +333,69 @@ public sealed class CheatEngineFailureTests
 		Assert.Equal("Unknown in <no operation> (host effect: Unknown)", default(CheatEngineFailure).ToString());
 	}
 
-	/// <summary>Assigns each concrete lifecycle exception the stable failure kind it represents.</summary>
-	[Fact]
-	public void LifecycleExceptionsClassifyTheirSpecificLifecycleFailures()
+	/// <summary>
+	///     <see cref="CheatEngineFailure.ToException" /> creates, without throwing, the exception that
+	///     <see cref="CheatEngineFailure.Throw" /> throws: its type follows the kind and it keeps the complete failure.
+	/// </summary>
+	[Theory]
+	[InlineData(CheatEngineFailureKind.Cancelled, typeof(CheatEngineOperationCanceledException))]
+	[InlineData(CheatEngineFailureKind.ActivationExpired, typeof(CheatEngineActivationExpiredException))]
+	[InlineData(CheatEngineFailureKind.InvalidState, typeof(CheatEngineInvalidStateException))]
+	[InlineData(CheatEngineFailureKind.NotFound, typeof(CheatEngineOperationException))]
+	[InlineData(CheatEngineFailureKind.Unknown, typeof(CheatEngineOperationException))]
+	public void ToExceptionCreatesTheExceptionThatThrowThrows(CheatEngineFailureKind kind, Type expected)
 	{
-		CheatEngineActivationExpiredException expired = new("Table.Read", "The epoch changed.");
-		CheatEngineClientLifecycleException stopping = new("Client.Track", "The provider is stopping.");
+		CancellationToken token = TestContext.Current.CancellationToken;
+		CheatEngineFailure failure = new(kind, "Table.Read", "The operation failed.", null,
+			CheatEngineHostEffect.NotStarted);
 
-		Assert.Equal(CheatEngineFailureKind.ActivationExpired, expired.Failure.Kind);
-		Assert.Equal("Table.Read", expired.Failure.Operation);
-		Assert.Equal(CheatEngineFailureKind.InvalidState, stopping.Failure.Kind);
-		Assert.Equal("Client.Track", stopping.Failure.Operation);
+		Exception created = failure.ToException(token);
+		Exception thrown = Assert.ThrowsAny<Exception>(() => failure.Throw(token));
+
+		Assert.IsType(expected, created);
+		Assert.IsType(expected, thrown);
+		CheatEngineFailure carried = created is CheatEngineOperationCanceledException cancelled
+			? cancelled.Failure
+			: ((CheatEngineClientException) created).Failure;
+		Assert.Equal(failure, carried);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, carried.HostEffect);
+		if (created is OperationCanceledException canceled)
+		{
+			Assert.Equal(token, canceled.CancellationToken);
+		}
+	}
+
+	[Fact]
+	public void ADefaultFailureHasNoException()
+	{
+		Assert.Throws<InvalidOperationException>(() =>
+			default(CheatEngineFailure).ToException(TestContext.Current.CancellationToken));
+	}
+
+	[Fact]
+	public void AnUndefinedKindIsRejected()
+	{
+		ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(() =>
+			new CheatEngineFailure((CheatEngineFailureKind) 999, "Table.Read", "The operation failed."));
+
+		Assert.Equal("kind", exception.ParamName);
+	}
+
+	/// <summary>No Client exception has a public or protected constructor: a failure is the only way to one.</summary>
+	[Fact]
+	public void NoClientExceptionHasAPublicOrProtectedConstructor()
+	{
+		Type[] exceptions =
+		[
+			typeof(CheatEngineClientException), typeof(CheatEngineActivationExpiredException),
+			typeof(CheatEngineInvalidStateException), typeof(CheatEngineOperationException),
+			typeof(CheatEngineOperationCanceledException)
+		];
+
+		Assert.All(exceptions, static type => Assert.DoesNotContain(
+			type.GetConstructors(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic |
+								 System.Reflection.BindingFlags.Instance),
+			static constructor => constructor.IsPublic || constructor.IsFamily || constructor.IsFamilyOrAssembly));
+		Assert.True(typeof(CheatEngineClientException).IsAbstract);
 	}
 }

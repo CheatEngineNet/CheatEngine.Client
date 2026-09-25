@@ -155,7 +155,7 @@ public sealed class ClientActivationLifecycleTests
 		public IProcessClient Processes => null!;
 		public IMemoryClient Memory => null!;
 		public IPatternScanner Patterns => null!;
-		public IValueScanner Scans => null!;
+		public IValueScanner ValueScans => null!;
 		public IInspectionClient Inspection => null!;
 		public ITableClient Tables => null!;
 		public ILuaClient Lua => null!;

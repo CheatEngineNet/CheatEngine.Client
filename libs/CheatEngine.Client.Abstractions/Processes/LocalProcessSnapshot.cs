@@ -2,10 +2,10 @@ namespace CheatEngine.Client.Processes;
 
 /// <summary>Copied local-process metadata that is independent of Cheat Engine's selected target.</summary>
 /// <remarks>This data is local operating-system enrichment only; it neither selects nor identifies a Cheat Engine target.</remarks>
-public readonly record struct ProcessInfoSnapshot
+public readonly record struct LocalProcessSnapshot
 {
 	/// <summary>Creates copied local-process metadata.</summary>
-	public ProcessInfoSnapshot(LocalProcessId id, string? name, string? executablePath)
+	public LocalProcessSnapshot(LocalProcessId id, string? name, string? executablePath)
 	{
 		if (name is { Length: 0 })
 		{

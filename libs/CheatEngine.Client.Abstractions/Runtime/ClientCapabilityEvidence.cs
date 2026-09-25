@@ -66,7 +66,13 @@ public readonly record struct ClientCapabilityEvidence
 		get;
 	}
 
-	/// <summary>Gets the legacy availability projection without collapsing the underlying evidence dimensions.</summary>
+	/// <summary>
+	///     Gets the availability the gates establish: <see cref="ClientCapabilityAvailabilityState.Unavailable" /> when a
+	///     gate is <see cref="ClientCapabilityEvidenceState.Missing" />,
+	///     <see cref="ClientCapabilityAvailabilityState.Available" /> when every gate is
+	///     <see cref="ClientCapabilityEvidenceState.Satisfied" />, otherwise
+	///     <see cref="ClientCapabilityAvailabilityState.Unknown" />.
+	/// </summary>
 	public ClientCapabilityAvailabilityState AvailabilityState
 	{
 		get
@@ -81,9 +87,6 @@ public readonly record struct ClientCapabilityEvidence
 				: ClientCapabilityAvailabilityState.Unknown;
 		}
 	}
-
-	/// <summary>Gets whether every prerequisite has been independently established.</summary>
-	public bool IsExecutable => AllSatisfied;
 
 	/// <summary>
 	///     Gets the reason for the highest-priority missing, faulted, malformed, or unknown prerequisite; empty for the

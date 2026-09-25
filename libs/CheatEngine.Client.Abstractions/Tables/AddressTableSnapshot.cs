@@ -7,7 +7,7 @@ namespace CheatEngine.Client.Tables;
 ///     <see cref="ITableClient.GetSnapshot" /> copies it under an explicit materialization limit. Use
 ///     <see cref="ITableClient.GetRecordCount" /> to read the number of top-level records without copying them.
 /// </remarks>
-public readonly record struct AddressTableSnapshot
+public readonly struct AddressTableSnapshot
 {
 	private readonly ImmutableArray<MemoryRecordSnapshot> _records;
 

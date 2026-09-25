@@ -12,7 +12,7 @@ public readonly record struct CheatEngineRuntimeSnapshot
 	private readonly ClientCapabilities? _capabilities;
 
 	/// <summary>Creates a runtime snapshot from grouped observations.</summary>
-	/// <param name="epoch">The plugin activation epoch.</param>
+	/// <param name="epoch">The activation epoch.</param>
 	/// <param name="version">The version observations.</param>
 	/// <param name="platform">The host and target platform observations.</param>
 	/// <param name="capabilities">The Client capability observations.</param>
@@ -41,7 +41,7 @@ public readonly record struct CheatEngineRuntimeSnapshot
 		Lua = lua;
 	}
 
-	/// <summary>Gets the plugin activation epoch.</summary>
+	/// <summary>Gets the activation epoch the snapshot was captured in.</summary>
 	public long Epoch
 	{
 		get;

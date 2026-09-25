@@ -20,13 +20,13 @@ internal static class LocalProcessCatalog
 	/// <exception cref="ArgumentException">The request's name filter is empty.</exception>
 	internal static bool TryEnumerate(
 		IProcessHost host,
-		ProcessEnumerationRequest request,
-		out ProcessEnumerationResult result,
+		LocalProcessEnumerationRequest request,
+		out LocalProcessEnumerationResult result,
 		out CheatEngineFailure failure,
 		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(host);
-		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(request.MaximumItems);
+		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(request.MaximumResults);
 		if (request.NameContains is { Length: 0 })
 		{
 			throw new ArgumentException("A process-name filter must be null or non-empty.", nameof(request));
@@ -55,8 +55,8 @@ internal static class LocalProcessCatalog
 			}
 
 			matches.Sort(static (left, right) => left.Id.CompareTo(right.Id));
-			int count = Math.Min(matches.Count, request.MaximumItems);
-			ProcessInfoSnapshot[] snapshots = new ProcessInfoSnapshot[count];
+			int count = Math.Min(matches.Count, request.MaximumResults);
+			LocalProcessSnapshot[] snapshots = new LocalProcessSnapshot[count];
 			for (int index = 0; index < count; index++)
 			{
 				if (cancellationToken.IsCancellationRequested)
@@ -65,13 +65,13 @@ internal static class LocalProcessCatalog
 				}
 
 				LocalProcessInfo process = matches[index];
-				snapshots[index] = new ProcessInfoSnapshot(
+				snapshots[index] = new LocalProcessSnapshot(
 					new LocalProcessId(process.Id),
 					process.Name,
 					process.ExecutablePath);
 			}
 
-			result = new ProcessEnumerationResult(ImmutableArray.Create(snapshots), matches.Count > count);
+			result = new LocalProcessEnumerationResult(ImmutableArray.Create(snapshots), matches.Count > count);
 			failure = default;
 			return true;
 		}
@@ -89,14 +89,14 @@ internal static class LocalProcessCatalog
 		}
 	}
 
-	private static bool Matches(ProcessEnumerationRequest request, LocalProcessInfo process)
+	private static bool Matches(LocalProcessEnumerationRequest request, LocalProcessInfo process)
 	{
 		return request.NameContains is null ||
 			   process.Name?.Contains(request.NameContains, StringComparison.OrdinalIgnoreCase) == true;
 	}
 
 	/// <summary>No Cheat Engine work is ever dispatched here, so a cancellation always reports NotStarted.</summary>
-	private static bool Cancel(out ProcessEnumerationResult result, out CheatEngineFailure failure)
+	private static bool Cancel(out LocalProcessEnumerationResult result, out CheatEngineFailure failure)
 	{
 		result = default;
 		failure = CancellationMapping.BeforeNativeCall(Operation,

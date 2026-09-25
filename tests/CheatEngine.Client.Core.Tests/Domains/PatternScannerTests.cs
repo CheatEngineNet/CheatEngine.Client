@@ -136,9 +136,9 @@ public sealed class PatternScannerTests
 			: default;
 		ScanAlignment alignment = tampered switch
 		{
-			"AlignmentKind" => WithBackingField(ScanAlignment.None, nameof(ScanAlignment.Kind), (ScanAlignmentKind) 9),
-			"AlignmentDivisor" => WithBackingField(ScanAlignment.AlignedTo(4), nameof(ScanAlignment.Kind),
-				ScanAlignmentKind.None),
+			"AlignmentKind" => WithBackingField(ScanAlignment.None, nameof(ScanAlignment.Mode), (ScanAlignmentMode) 9),
+			"AlignmentDivisor" => WithBackingField(ScanAlignment.AlignedTo(4), nameof(ScanAlignment.Mode),
+				ScanAlignmentMode.None),
 			_ => default
 		};
 

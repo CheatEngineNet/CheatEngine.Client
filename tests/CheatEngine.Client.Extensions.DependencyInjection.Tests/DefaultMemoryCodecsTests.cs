@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Globalization;
 
 using CheatEngine.Client.Memory;
+using CheatEngine.Client.Results;
 using CheatEngine.SDK.Engine.Runtime;
 using CheatEngine.SDK.Engine.Values;
 
@@ -48,11 +49,11 @@ public sealed class DefaultMemoryCodecsTests
 		BufferMemoryContext context = new(8, [0x78, 0x56, 0x34, 0x12]);
 		Address address = 0x401000;
 
-		Assert.True(codec.TryRead(context, address, out int value));
+		Assert.True(codec.TryRead(context, address, out int value, out _));
 		Assert.Equal(0x12345678, value);
 		Assert.Equal(address, context.LastReadAddress);
 
-		Assert.True(codec.TryWrite(context, address, 0x0A0B0C0D));
+		Assert.True(codec.TryWrite(context, address, 0x0A0B0C0D, out _));
 		Assert.Equal(address, context.LastWriteAddress);
 		Assert.Equal([0x0D, 0x0C, 0x0B, 0x0A], context.LastWrittenBytes);
 	}
@@ -65,7 +66,7 @@ public sealed class DefaultMemoryCodecsTests
 		BufferMemoryContext context = new(8, [0x01, 0x02, 0x03, 0x04]);
 		Address address = 0x401080;
 
-		Assert.False(codec.TryRead(context, address, out long value));
+		Assert.False(codec.TryRead(context, address, out long value, out _));
 		Assert.Equal(0L, value);
 		Assert.Equal(address, context.LastReadAddress);
 	}
@@ -82,10 +83,10 @@ public sealed class DefaultMemoryCodecsTests
 			: [0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11]);
 		Address address = 0x401100;
 
-		Assert.True(codec.TryRead(context, address, out Address read));
+		Assert.True(codec.TryRead(context, address, out Address read, out _));
 		Assert.Equal(Address.FromUInt64(expectedValue), read);
 
-		Assert.True(codec.TryWrite(context, address, Address.FromUInt64(rawValue)));
+		Assert.True(codec.TryWrite(context, address, Address.FromUInt64(rawValue), out _));
 		Assert.Equal(pointerSize, context.LastWrittenBytes.Length);
 		Assert.Equal(pointerSize == 4
 			? [0xEF, 0xBE, 0xAD, 0xDE]
@@ -101,14 +102,14 @@ public sealed class DefaultMemoryCodecsTests
 		BufferMemoryContext malformedWidth = new(6, [0, 0, 0, 0, 0, 0]);
 		BufferMemoryContext narrowTarget = new(4, [0, 0, 0, 0]);
 
-		Assert.False(codec.TryRead(malformedWidth, address, out Address malformedRead));
+		Assert.False(codec.TryRead(malformedWidth, address, out Address malformedRead, out _));
 		Assert.Equal(Address.Zero, malformedRead);
 		Assert.Null(malformedWidth.LastReadAddress);
 
-		Assert.False(codec.TryWrite(malformedWidth, address, Address.FromUInt64(0x1234)));
+		Assert.False(codec.TryWrite(malformedWidth, address, Address.FromUInt64(0x1234), out _));
 		Assert.Null(malformedWidth.LastWriteAddress);
 
-		Assert.False(codec.TryWrite(narrowTarget, address, Address.FromUInt64(0x1_0000_0000)));
+		Assert.False(codec.TryWrite(narrowTarget, address, Address.FromUInt64(0x1_0000_0000), out _));
 		Assert.Null(narrowTarget.LastWriteAddress);
 	}
 
@@ -193,8 +194,8 @@ public sealed class DefaultMemoryCodecsTests
 		using ServiceProvider provider = CreateProvider();
 		BufferMemoryContext context = new(8, [0xFF, 0xFF, 0xFF, 0xFF]);
 
-		Assert.True(provider.GetRequiredService<IMemoryCodec<int>>().TryRead(context, 0x401000, out int signed));
-		Assert.True(provider.GetRequiredService<IMemoryCodec<uint>>().TryRead(context, 0x401000, out uint unsigned));
+		Assert.True(provider.GetRequiredService<IMemoryCodec<int>>().TryRead(context, 0x401000, out int signed, out _));
+		Assert.True(provider.GetRequiredService<IMemoryCodec<uint>>().TryRead(context, 0x401000, out uint unsigned, out _));
 
 		Assert.Equal(-1, signed);
 		Assert.Equal(4294967295u, unsigned);
@@ -227,9 +228,9 @@ public sealed class DefaultMemoryCodecsTests
 		BufferMemoryContext singleContext = new(8, LittleEndian(singleBits, 4));
 		BufferMemoryContext doubleContext = new(8, LittleEndian(doubleBits, 8));
 		Assert.True(provider.GetRequiredService<IMemoryCodec<float>>().TryRead(singleContext, 0x401000,
-			out float single));
+			out float single, out _));
 		Assert.True(provider.GetRequiredService<IMemoryCodec<double>>().TryRead(doubleContext, 0x401000,
-			out double @double));
+			out double @double, out _));
 		Assert.Equal(singleBits, BitConverter.SingleToUInt32Bits(single));
 		Assert.Equal(doubleBits, BitConverter.DoubleToUInt64Bits(@double));
 	}
@@ -243,8 +244,8 @@ public sealed class DefaultMemoryCodecsTests
 		IMemoryCodec<Address> codec = provider.GetRequiredService<IMemoryCodec<Address>>();
 		BufferMemoryContext context = new(8, [0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00]);
 
-		Assert.True(codec.TryRead(context, 0x401000, out Address read));
-		Assert.True(codec.TryWrite(context, 0x401000, Address.FromUInt64(0x1_0000_0000)));
+		Assert.True(codec.TryRead(context, 0x401000, out Address read, out _));
+		Assert.True(codec.TryWrite(context, 0x401000, Address.FromUInt64(0x1_0000_0000), out _));
 
 		Assert.Equal(Address.FromUInt64(0x1_0000_0000), read);
 		Assert.Equal([0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00], context.LastWrittenBytes);
@@ -258,8 +259,8 @@ public sealed class DefaultMemoryCodecsTests
 		IMemoryCodec<Address> codec = provider.GetRequiredService<IMemoryCodec<Address>>();
 		BufferMemoryContext context = new(4, [0, 0, 0, 0]);
 
-		Assert.False(codec.TryWrite(context, 0x401000, Address.FromUInt64(0x1_0000_0000)));
-		Assert.True(codec.TryWrite(context, 0x401000, Address.FromUInt64(uint.MaxValue)));
+		Assert.False(codec.TryWrite(context, 0x401000, Address.FromUInt64(0x1_0000_0000), out _));
+		Assert.True(codec.TryWrite(context, 0x401000, Address.FromUInt64(uint.MaxValue), out _));
 
 		Assert.Equal([0xFF, 0xFF, 0xFF, 0xFF], context.LastWrittenBytes);
 	}
@@ -274,9 +275,9 @@ public sealed class DefaultMemoryCodecsTests
 		WidthMemoryContext mismatch = new(8, 4);
 		WidthMemoryContext matching = new(8, 8);
 
-		Assert.False(codec.TryRead(mismatch, 0x401000, out Address refused));
-		Assert.False(codec.TryWrite(mismatch, 0x401000, Address.FromUInt64(0x401000)));
-		Assert.True(codec.TryRead(matching, 0x401000, out _));
+		Assert.False(codec.TryRead(mismatch, 0x401000, out Address refused, out _));
+		Assert.False(codec.TryWrite(mismatch, 0x401000, Address.FromUInt64(0x401000), out _));
+		Assert.True(codec.TryRead(matching, 0x401000, out _, out _));
 
 		Assert.Equal(Address.Zero, refused);
 		Assert.Equal(0, mismatch.Accesses);
@@ -289,11 +290,11 @@ public sealed class DefaultMemoryCodecsTests
 		IMemoryCodec<T> codec = provider.GetRequiredService<IMemoryCodec<T>>();
 		BufferMemoryContext writeContext = new(8, []);
 
-		Assert.True(codec.TryWrite(writeContext, 0x401000, value));
+		Assert.True(codec.TryWrite(writeContext, 0x401000, value, out _));
 		Assert.Equal(expected, writeContext.LastWrittenBytes);
 
 		BufferMemoryContext readContext = new(8, writeContext.LastWrittenBytes);
-		Assert.True(codec.TryRead(readContext, 0x401000, out T read));
+		Assert.True(codec.TryRead(readContext, 0x401000, out T read, out _));
 		Assert.Equal(value, read);
 	}
 
@@ -327,17 +328,19 @@ public sealed class DefaultMemoryCodecsTests
 
 		public PointerSize ConfiguredPointerSize => new(configuredBytes);
 
-		public bool ConfiguredPointerSizeDiffersFromBitness => configuredBytes != processBytes;
+		public bool? ConfiguredPointerSizeDiffersFromBitness => configuredBytes != processBytes;
 
-		public bool TryReadBytes(Address address, Span<byte> destination)
+		public bool TryReadBytes(Address address, Span<byte> destination, out CheatEngineFailure failure)
 		{
+			failure = default;
 			Accesses++;
 			destination.Clear();
 			return true;
 		}
 
-		public bool TryWriteBytes(Address address, ReadOnlySpan<byte> source)
+		public bool TryWriteBytes(Address address, ReadOnlySpan<byte> source, out CheatEngineFailure failure)
 		{
+			failure = default;
 			Accesses++;
 			return true;
 		}
@@ -375,10 +378,11 @@ public sealed class DefaultMemoryCodecsTests
 
 		public int? ConfiguredPointerSizeBytes => Bitness.IsKnown ? Bitness.Bytes : null;
 
-		public bool ConfiguredPointerSizeDiffersFromBitness => false;
+		public bool? ConfiguredPointerSizeDiffersFromBitness => false;
 
-		public bool TryReadBytes(Address address, Span<byte> destination)
+		public bool TryReadBytes(Address address, Span<byte> destination, out CheatEngineFailure failure)
 		{
+			failure = default;
 			LastReadAddress = address;
 			if (_bytes.Length < destination.Length)
 			{
@@ -389,8 +393,9 @@ public sealed class DefaultMemoryCodecsTests
 			return true;
 		}
 
-		public bool TryWriteBytes(Address address, ReadOnlySpan<byte> source)
+		public bool TryWriteBytes(Address address, ReadOnlySpan<byte> source, out CheatEngineFailure failure)
 		{
+			failure = default;
 			LastWriteAddress = address;
 			LastWrittenBytes = source.ToArray();
 			return true;

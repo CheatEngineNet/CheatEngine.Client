@@ -332,28 +332,32 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 
 	private sealed class FirstCustomCodec : IMemoryCodec<CustomValue>
 	{
-		public bool TryRead(IMemoryReadContext context, Address address, out CustomValue value)
+		public bool TryRead(IMemoryReadContext context, Address address, out CustomValue value, out CheatEngineFailure failure)
 		{
+			failure = default;
 			value = default;
 			return false;
 		}
 
-		public bool TryWrite(IMemoryWriteContext context, Address address, in CustomValue value)
+		public bool TryWrite(IMemoryWriteContext context, Address address, in CustomValue value, out CheatEngineFailure failure)
 		{
+			failure = default;
 			return false;
 		}
 	}
 
 	private sealed class SecondCustomCodec : IMemoryCodec<CustomValue>
 	{
-		public bool TryRead(IMemoryReadContext context, Address address, out CustomValue value)
+		public bool TryRead(IMemoryReadContext context, Address address, out CustomValue value, out CheatEngineFailure failure)
 		{
+			failure = default;
 			value = new CustomValue(2);
 			return true;
 		}
 
-		public bool TryWrite(IMemoryWriteContext context, Address address, in CustomValue value)
+		public bool TryWrite(IMemoryWriteContext context, Address address, in CustomValue value, out CheatEngineFailure failure)
 		{
+			failure = default;
 			return value.Value == 2;
 		}
 	}
@@ -516,9 +520,9 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 			private set;
 		}
 
-		public long Epoch => 1;
-
 		public bool IsReleased => DisposeCount != 0;
+
+		public bool RequiresManualRecovery => false;
 
 		public LeaseReleaseOutcome? LastReleaseOutcome => IsReleased
 			? new LeaseReleaseOutcome(LeaseReleaseKind.Released, CheatEngineHostEffect.Completed)
@@ -564,7 +568,7 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 
 		public IPatternScanner Patterns => null!;
 
-		public IValueScanner Scans => null!;
+		public IValueScanner ValueScans => null!;
 
 		public IInspectionClient Inspection => null!;
 

@@ -65,12 +65,8 @@ namespaces only:
 
 No public consumer should use `CheatEngine.Client.Abstractions` as a namespace.
 
-The documentation of every public interface says whether it is **Call-only** (the Client implements it and applications
-call it; a 1.x minor release can add members, so implement it only in a test double) or **Implementable** (applications
-implement it and the Client calls it: `ILuaModule`, `ILuaOperation<TResult>`, `ILuaResultMapper<TSource, TResult>`,
-`IMemoryCodec<T>` and `ICheatEngineClientModule`, whose members are frozen for 1.x). Public enums follow one charter
-for 1.0: `int` backing, explicit values, and `Unknown = 0` on an outcome enum (`...Kind`, `...Status`, `...State`,
-`...Effect`, `...Scope`); a new value can appear in a minor release.
+The "Public API charter" section below fixes the forms, the names and the vocabulary of every public type: which
+interfaces are Call-only or Implementable, the enum rules, and the CheatEngine.SDK types a public signature may use.
 
 ### Capability Boundary
 
@@ -147,10 +143,10 @@ exact host profile of the release; the documentation link of each diagnostic poi
 
 #### CECLIENT5001: value scans
 
-- **Scope:** `ICheatEngineClient.Scans`, `IValueScanner`, `IValueScanSession` and their types: `ValueScanFirstRequest`,
-  `ValueScanNextRequest`, `ValueScanValue`, `ValueScanValueType`, `ValueScanComparison`, `ValueScanReadRequest`,
-  `ValueScanPage`, `ValueScanMatch`, `ValueScanSessionState` and `ValueScanInvalidationKind`. The shared
-  `ScanProtectionFilter` and `ScanAlignment` options are stable.
+- **Scope:** `ICheatEngineClient.ValueScans`, `IValueScanner`, `IValueScanSession` and their types:
+  `ValueScanFirstRequest`, `ValueScanNextRequest`, `ValueScanValue`, `ValueScanValueType`, `ValueScanComparison`,
+  `ValueScanReadRequest`, `ValueScanPage`, `ValueScanMatch`, `ValueScanSessionState` and `ValueScanInvalidationKind`.
+  The shared `ScanProtectionFilter` and `ScanAlignment` options are stable.
 - **Behavior:** a session owns one Cheat Engine `MemScan` and its `FoundList`, created through CheatEngine.SDK's
   scan-session factory for a target whose identity it could establish. A first or next scan starts Cheat Engine's scan
   and waits for it in the same call, on Cheat Engine's main thread; a read copies one page of at most 1024 results, each
@@ -205,7 +201,7 @@ exact host profile of the release; the documentation link of each diagnostic poi
 #### CECLIENT5003: instructions
 
 - **Scope:** `IAssemblyClient` (`TryAssemble`/`Assemble`, `TryDisassemble`/`Disassemble`,
-  `TryGetInstructionLength`/`GetInstructionLength`, `TryGetPreviousInstruction`/`GetPreviousInstruction`),
+  `TryGetInstructionLength`/`GetInstructionLength`, `TryGetPreviousInstructionAddress`/`GetPreviousInstructionAddress`),
   `AssemblyInstructionRequest`, `InstructionEncodingPreference`, `AssemblyInstructionSnapshot` and the
   `ICheatEngineClient.Assembly` property. The capability id `Client.Assembly` is stable.
 - **Profile:** each call observes Cheat Engine's selected target and its instruction profile (x86, x64, ARM32 or ARM64
@@ -222,7 +218,7 @@ exact host profile of the release; the documentation link of each diagnostic poi
 - **Disassemble:** `AddressText`, `Opcode` and `Extra` are Cheat Engine's disassembler columns, copied and never
   parsed; `Text` is `Opcode`, followed by `Extra` when it is not blank. `Bytes` are read from target memory for the
   `Length` Cheat Engine reports, never parsed from the disassembler's byte column, so `Bytes.Length` equals `Length`.
-  `GetPreviousInstruction` returns Cheat Engine's estimate, which variable-length code cannot guarantee.
+  `GetPreviousInstructionAddress` returns Cheat Engine's estimate, which variable-length code cannot guarantee.
 - **Bounds:** an assembly is copied into a 16-byte buffer, with one retry at the exact length CheatEngine.SDK reports;
   assembled and disassembled bytes are bounded by `MemoryResourceLimits.MaximumReadBytes` and the disassembler's text by
   `MaximumStringBytes`. A larger result is `ResultLimitExceeded`. A cancellation token is observed only before dispatch.
@@ -348,11 +344,12 @@ Four scan limits are distinct and must not be confused:
 `Result`, `Failure`) plus:
 
 - `Metrics` (`PatternScanMetrics`): the scope, the host result count, the examined, filtered-out and copied counts, the
-  bounded route's below-start and at-or-after-stop skips, the unread rows, whether the in-request count is exact
+  bounded route's below-start and at-or-after-stop skips (`BelowStartSkippedCount`, `AtOrAfterStopSkippedCount`), the
+  unread rows (`UnreadHostRowCount`), whether the in-request count is exact
   (`InBoundsCountIsExact`), and the Cheat Engine scan time (`HostScanElapsed`) separately from the Client copy time
   (`MaterializationElapsed`). Counts and durations never contain addresses and are safe to log.
-- `HostOutcome` (`PatternScanHostOutcome`): what Cheat Engine reported for the scan that ran, before the Client decided
-  the result, for example `NoResult` for a global `nil` or `HostReportedError` for a bounded error text.
+- `HostOutcome` (`PatternScanHostOutcomeKind`): what Cheat Engine reported for the scan that ran, before the Client
+  decided the result, for example `NoResult` for a global `nil` or `HostReportedError` for a bounded error text.
 - `RouteReason` (`PatternScanRouteReason`): why the scan ran on its route.
 - `TargetIdentityVerified`: whether the copied addresses are attributed to one qualified local target incarnation for
   the whole scan; always on a successful bounded scan, only when the selection was the same qualified incarnation
@@ -425,8 +422,9 @@ groups them in `Version`, `Platform`, `Capabilities` and `Lua` and keeps separat
   (`getCheatEngineFileVersion`), compared with the qualified baseline component by component as integers; the loaded
   CheatEngine.SDK package version (`SdkPackageVersion`) and whether it is exactly the reviewed package
   (`IsReviewedSdkPackage`).
-- **Host** (`CheatEngineRuntimePlatformInfo`): the operating system, whether Cheat Engine itself is 64-bit and the host
-  architecture, each from its own global.
+- **Host** (`CheatEngineRuntimePlatformInfo`): the operating system (`HostOperatingSystem`), the host architecture
+  (`HostArchitecture`) and the bitness of Cheat Engine itself (`CheatEngineBitness`, a `PointerSize`, `Unknown` when not
+  observed), each from its own global.
 - **Target backend** (`TargetBackend`): a local process, CEServer, a file opened as a process, or unknown.
 - **Target architecture (ISA)**: CheatEngine.SDK's derivation from Cheat Engine's x86 and ARM family facts together with
   its 64-bit fact, never from the 64-bit fact alone; contradictory or missing facts give
@@ -435,7 +433,8 @@ groups them in `Version`, `Platform`, `Capabilities` and `Lua` and keeps separat
   (`targetIs64Bit`, the process width `readPointer` follows) as observed; it can be known while the ISA is unknown.
 - **Configured pointer size** (`ConfiguredPointerSizeBytes` and `ConfiguredPointerSize` on both types): the value Cheat
   Engine reports through `getPointerSize()`. It is per-attachment state, independent of the bitness, reset when a process
-  is opened, and can hold any integer. `ConfiguredPointerSizeDiffersFromBitness` reports a mismatch as a fact.
+  is opened, and can hold any integer. `ConfiguredPointerSizeDiffersFromBitness` reports a mismatch as a fact, or `null`
+  when either value is unknown.
 - **External Lua state reset** (`CheatEngineRuntimeLuaInfo.ExternalStateResetDetected`): CheatEngine.SDK detected that
   Cheat Engine replaced its Lua state outside the plugin's control; Lua work is then refused with `RuntimeChanged`.
 
@@ -496,18 +495,22 @@ atomic.
 - **Returned as `CheatEngineFailure`:** request refusals, policy refusals, budget refusals, pre-admission cancellation,
   Cheat Engine results that are false, absent, indeterminate, or malformed, and every CheatEngine.SDK exception raised by
   Client-internal SDK work (mapped by exception type and the SDK's own failure category, never by message text). No
-  SDK exception type crosses a `Try*`. A Lua admission that the Client asks for itself (for example unsafe Lua)
+  CheatEngine.SDK exception is thrown by a `Try*` form; `CheatEngineFailure.Exception` may hold one, whose type is not
+  part of the contract. A Lua admission that the Client asks for itself (for example unsafe Lua)
   and that CheatEngine.SDK refuses is `ActivationExpired`, `RuntimeChanged` or `InvalidState` with `NotStarted`,
   never `OperationRejected`. A CheatEngine.SDK call that acquires its own admission (Address List mutations, table
   files, memory, inspection, scans) raises a plain `InvalidOperationException` when it is refused: that is
   `OperationRejected` with `Unknown` while the activation is current, `RuntimeChanged` after CheatEngine.SDK
   detected an external Lua state reset, and a thrown `CheatEngineActivationExpiredException` once the activation
   ended.
-- **Thrown:** `CheatEngineActivationExpiredException` when the activation has ended, `CheatEngineClientLifecycleException`
+- **Thrown:** `CheatEngineActivationExpiredException` when the activation has ended, `CheatEngineInvalidStateException`
   when it is stopping, and `ArgumentException`/`ArgumentNullException`/`ArgumentOutOfRangeException` for invalid
   arguments (programming errors). An expired activation is never reported as `Cancelled` or `CapabilityUnavailable`.
 - **Consumer code:** exceptions thrown by application-supplied code (dispatcher callbacks, `IMemoryCodec<T>` codecs,
-  `ILuaOperation<T>` operations) are rethrown as the same instance, never converted into a failure.
+  `ILuaOperation<T>` operations) are rethrown as the same instance, never converted into a failure. A codec or an
+  operation reports an expected failure by returning `false` with its `out CheatEngineFailure failure`: a classified
+  failure is published unchanged, including its host effect, and the `default` failure lets the Client classify what it
+  observed.
 
 Every throwing convenience form (the method without `Try`, and the Fluent `Execute` terminals) returns the value of
 its `Try` form or throws that form's failure through `CheatEngineFailure.Throw(cancellationToken)`, passing the token it
@@ -518,9 +521,12 @@ including its `HostEffect`:
 |---|---|---|
 | `Cancelled` | `CheatEngineOperationCanceledException`, whose `CancellationToken` is the token the operation observed | `OperationCanceledException` |
 | `ActivationExpired` | `CheatEngineActivationExpiredException` | `CheatEngineClientException` |
-| `InvalidState` | `CheatEngineClientLifecycleException` | `CheatEngineClientException` |
+| `InvalidState` | `CheatEngineInvalidStateException` | `CheatEngineClientException` |
 | Any other kind, including a value this version does not define | `CheatEngineOperationException` | `CheatEngineClientException` |
 | None: the `default` failure, which no operation returns | `InvalidOperationException` (a programming error) | `Exception` |
+
+No Client exception has a public constructor: `CheatEngineFailure.Throw(token)` throws one and
+`CheatEngineFailure.ToException(token)` creates one, for code that needs an exception object without throwing it.
 
 A cancelled throwing call is therefore handled with `catch (OperationCanceledException)`, like any other .NET
 cancellation; read `CheatEngineOperationCanceledException.Failure.HostEffect` to learn whether Cheat Engine work had
@@ -613,7 +619,7 @@ category, never an address or a value.
 
 `IMemoryClient.ReadBytesDetailed` reads through CheatEngine.SDK's counted byte read and returns a
 `MemoryBytesReadOutcome`: `Bytes` is the contiguous prefix CheatEngine.SDK verified (`ConfirmedLength` of
-`RequestedLength`), `IsComplete` and `IsSuccess` say whether every byte arrived, and `Failure` says why not. A partial copy
+`RequestedLength`), `IsSuccess` says whether every byte arrived, and `Failure` says why not. A partial copy
 is therefore never confused with a host failure that copied nothing. `TryReadBytes` and `ReadBytes` report the same
 failure and publish all or nothing; a codec context read that does not fill its buffer returns `false` and leaves the
 buffer cleared.
@@ -622,7 +628,8 @@ buffer cleared.
 
 Every Client lease implements `ICheatEngineLease` (`IDisposable`): `Release()` releases the resource on Cheat Engine's
 main thread and returns a `LeaseReleaseOutcome`; `Dispose()` performs the same release, **never throws**, and discards
-the outcome; `LastReleaseOutcome` keeps the outcome of the attempt that ended the lease, and `IsReleased` says that no
+the outcome; `LastReleaseOutcome` keeps the outcome of the attempt that ended the lease, `RequiresManualRecovery` says
+that what the lease owns may remain and no later release of this lease can remove it, and `IsReleased` says that no
 later attempt will be made. A repeated release of an ended lease returns its `LastReleaseOutcome` unchanged, without a
 Cheat Engine call, so a refused or unconfirmed release never reads as complete the second time. The outcome's `Kind`
 says what happened and its `HostEffect` how far the release call got; exactly one of three flags is `true`:
@@ -682,11 +689,15 @@ activation and symbol outcomes, scan metrics, Lua durations, cleanup failures) f
   `double` and `Address` (a target pointer, read and written at the observed bitness). Any other `T` is refused with
   `OperationRejected` and `HostEffect.NotStarted` before dispatch, without a Cheat Engine call.
 - **Codecs** (`TryRead<T>`, `TryWrite<T>` and their throwing forms): the `MemoryReadRequest<T>` or `MemoryWriteRequest<T>`
-  carries the `IMemoryCodec<T>` the application built or resolved.
+  carries the `IMemoryCodec<T>` the application built or resolved. The codec's `TryRead` and `TryWrite`, and its
+  context's `TryReadBytes` and `TryWriteBytes`, report a classified `out CheatEngineFailure failure`: a codec can pass
+  the context's failure on unchanged, or return the `default` failure to let the Client classify it.
 
-String requests carry an explicit `MemoryStringEncoding` (`MemoryStringReadRequest.Create`,
-`MemoryStringWriteRequest.CreateBounded`). The primitive batch outcomes expose `Failure` and `IsSuccess`, and
-`MemoryBatchWriteEffectState` is `Unknown` (0), `NotStarted`, `Partial` or `Complete`.
+String requests carry an explicit `MemoryStringEncoding` in their constructors
+(`new MemoryStringReadRequest(address, maximumLength, encoding)`,
+`new MemoryStringWriteRequest(address, value, maximumLength, encoding)`). The primitive batch outcomes expose
+`RequestedCount`, `CompletedCount`, `Failure` and `IsSuccess`; a read outcome's `Values` holds the values read in order,
+and `MemoryBatchWriteEffectState` is `Unknown` (0), `NotStarted`, `Partial` or `Completed`.
 
 ### Memory limits and batch effects
 
@@ -698,18 +709,163 @@ access reaches Cheat Engine. The Client uses four terms for these limits:
   one byte, codec, or string operation may copy. A custom codec's context reads and writes are charged cumulatively
   against the same budgets during one codec call.
 - **Request count per batch**: `MaximumBatchOperationCount` can tighten, but never raise, the hard
-  `MemoryBatchLimits.MaximumOperations` (1024). `MaximumBatchPayloadBytes` also bounds the count multiplied by the
+  `MemoryBatchLimits.MaximumOperationCount` (1024). `MaximumBatchPayloadBytes` also bounds the count multiplied by the
   element size.
 - **Maximum scratch allocation**: the largest managed buffer the Client allocates for one operation is the byte array of a
   byte read (at most `MaximumReadBytes`) or the value array of a batch read (at most `MaximumBatchPayloadBytes`). These
   operations allocate nothing in the target process.
 - **Partial-effect state**: a batch write runs in order and is never rolled back.
   `MemoryPrimitiveBatchWriteOutcome.EffectState` reports `NotStarted`, `Partial` (with `CompletedCount` and
-  `FailedIndex`), `Complete`, or `Unknown`.
+  `FailedIndex`), `Completed`, or `Unknown`.
 
 `MemoryStringReadRequest.MaximumLength` is passed unchanged as Cheat Engine's `readString` `maxlength` argument. Cheat
 Engine 7.7 does not document whether it counts bytes or characters, so treat it as a host-side bound. This is still to be
 qualified on a live host (C3). For admission, the Client charges it as bytes for UTF-8 and as twice that for UTF-16.
+
+## Public API charter
+
+This charter is normative for every public type of the seven Client packages; the 1.x line only adds to it.
+`PublicApiCharterTests`, `OutcomeEnumConventionTests`, `PublicClientSignatureBoundaryTests`,
+`PublicSurfaceInventoryTests`, `DefaultOutputValueTests` and `OperationNameTests` check its mechanical rules.
+
+### Operation forms
+
+- **`TryX` and `X`.** An operation that can fail for an expected reason has a `TryX` form that returns `bool` with its
+  value in an `out` parameter and a classified `out CheatEngineFailure failure`, and a throwing `X` form with the same
+  inputs that returns the same value (or `void`) or throws that failure through `CheatEngineFailure.Throw(token)`.
+- **`XDetailed`.** Some operations also return an outcome instead of throwing an expected failure
+  (`IPatternScanner.ScanDetailed`, `IMemoryClient.ReadBytesDetailed`, `ReadPrimitiveBatchDetailed`,
+  `WritePrimitiveBatchDetailed`); a Detailed form throws exactly what its `Try` form throws.
+- **Parameter order.** Required inputs, then the inputs that are optional in the throwing form (required in the `Try`
+  form), then the `out` value, then `out CheatEngineFailure failure`, then `CancellationToken cancellationToken =
+  default`, always last. `ICheatEngineDispatcher` uses explicit overloads instead of an optional token.
+- **Outputs.** A failed `Try` leaves its value output `default`. A lease or session output is nullable and annotated
+  `[NotNullWhen(true)]`.
+- **Exemptions.** BCL-shaped pure lookups and parses (`ClientCapabilities.TryGet`, `AobPattern.TryParse`) have no
+  failure output and no throwing twin. Implementable callbacks (`ILuaOperation<TResult>.TryExecute`,
+  `IMemoryCodec<T>.TryRead`, `TryWrite`) and the codec contexts' `TryReadBytes` and `TryWriteBytes` keep the `Try`
+  shape, `out` failure included, without a token or a twin.
+
+### Registrations and leases
+
+- `RegisterX`/`TryRegisterX` installs a named resource that other code can also see, replace or remove (a symbol, a Lua
+  module) and returns the lease that owns it; its release never removes a resource the lease no longer owns
+  (`Replaced`, `Superseded`, `ExternallyRemoved`). A resource only its lease can reach is created by an action verb
+  (`Allocate`, `CreateSession`, `ApplyPatch`). A lease interface is named after the resource it owns.
+- Every lease is an `ICheatEngineLease`: `Release()` returns a `LeaseReleaseOutcome`, `Dispose()` never throws,
+  `IsReleased` says that no later attempt will be made, `LastReleaseOutcome` keeps the last recorded attempt, and
+  `RequiresManualRecovery` says that what the lease owns may remain and this lease can no longer remove it. A release
+  of an ended lease returns `LastReleaseOutcome` without calling Cheat Engine. `AlreadyReleased` means only that the
+  owner reported nothing left to release.
+- A target-bound lease (`ITargetMemoryLease`, `IValueScanSession`, `IAutoAssemblerPatchLease`) exposes `SelectionEpoch`.
+  No lease duplicates a fact of `ICheatEngineLease` or of its outcome.
+
+### Failures and exceptions
+
+- `CheatEngineFailure.Kind` says why and `HostEffect` how far the Cheat Engine primitive got. `InvalidState` is
+  reserved for Client-side state: the activation, a session or resource, or a target fact the operation requires. A
+  host rollback or release that was not confirmed is `IndeterminateHostResult` (or the kind of the failure that caused
+  it) with `CleanupUnconfirmed`.
+- The exception type depends only on the kind: `Cancelled` → `CheatEngineOperationCanceledException`;
+  `ActivationExpired` → `CheatEngineActivationExpiredException`; `InvalidState` →
+  `CheatEngineInvalidStateException`; any other kind → `CheatEngineOperationException`. No Client exception has a
+  public constructor: `CheatEngineFailure.Throw(token)` throws one and `CheatEngineFailure.ToException(token)` creates
+  one, so every exception keeps the complete failure, including `HostEffect` (`NotStarted` for an admission refusal).
+- `CheatEngineFailure.Operation` is `<Service>.<Member>`. `Service` is the `ICheatEngineClient` property that exposes
+  the service, `UnsafeLua` or `AutoAssembler` for the services only dependency injection registers, or `Client` for
+  the activation itself. `Member` is the public method the caller invoked, without `Try` or `Detailed`. A lease
+  release is `<Service>.Release`, and a failure raised inside a codec or a Lua operation context names the call that
+  runs it. `Operation` is safe to log; like `Message`, its text is not a compatibility contract.
+- No `Try` form throws a CheatEngine.SDK exception. `CheatEngineFailure.Exception` may hold one: its type is not part
+  of this contract and changes with the SDK, so never type-test it.
+- "Cancelled" is the Client's spelling for the failure kind and the host outcome; exception type names follow the BCL.
+
+### Value types and outcomes
+
+| Suffix | Meaning | Construction |
+|---|---|---|
+| `*Request`, `*Definition`, `*Update`, `*Search` | A validated input | One public constructor; named factories only for per-kind invariants (`ScanAlignment.AlignedTo`, `ValueScanFirstRequest.Exact`) |
+| `*Snapshot` | An immutable copy of host state | Never settable |
+| `*Info` | A group of facts inside `CheatEngineRuntimeSnapshot` | — |
+| `*Result` | The value a successful call returns | — |
+| `*Outcome` | What a Detailed form or a release reports; never an enum | — |
+| `*Metrics` | Counts and durations, safe to log | — |
+
+- A **Detailed outcome** exposes `IsSuccess` (`Failure` is `null`), `Failure`, the payload under the name of its `Try`
+  form's `out` value (`Result`, `Bytes`, `Values`) and its facts. The **release outcome** of a lease,
+  `LeaseReleaseOutcome`, exposes `Kind`, `HostEffect` and exactly one of `IsComplete`, `IsRetryable` and
+  `RequiresManualRecovery`; `IsComplete` belongs to release outcomes only. `LuaModuleReleaseOutcome` is the report an
+  `ILuaModule.Unregister` implementation returns: it carries `Kind`, `IsComplete` and the module's counts, and the
+  Client maps it into the `LeaseReleaseOutcome` of the module's lease.
+- Public value types are `readonly struct`s with get-only properties and an explicit constructor whose parameters are
+  camelCase; there are no `init` accessors and no positional records. A `record struct` is used only when member-wise
+  equality is meaningful. Each member compares with its own equality, so `CheatEngineFailure` compares its `Exception`
+  by reference; a type that holds an `ImmutableArray`, which also compares by reference, is a plain `readonly struct`.
+- Every value a public member returns or a `Try` form publishes is safe to read at `default`: reference members are
+  empty (never `null`) and `ImmutableArray` members are empty. BCL outputs (`ImmutableArray<T>`, `string?`) keep the
+  BCL's default.
+- Counts end in `Count` (`RecordCount`, `ResultCount`, `RequestedCount`, `CompletedCount`) and byte lengths in `Length`
+  (`RequestedLength`, `ConfirmedLength`). Bounds are `Maximum<Noun>`: `MaximumItems` fails with `ResultLimitExceeded`,
+  `MaximumResults` truncates and sets `IsTruncated`, `MaximumCount` bounds a page that reports `HasMore`,
+  `Maximum<X>Bytes` and `Maximum<X>Count` are budgets, and `MaximumLength` is a host string bound. A truncated host
+  text has a `<Member>Truncated` companion flag.
+
+### Width vocabulary
+
+- `PointerSize` is the only width type: `ProcessSnapshot.Bitness`, `CheatEngineRuntimePlatformInfo.TargetBitness` and
+  `CheatEngineBitness`, `IMemoryReadContext.Bitness` and `IMemoryWriteContext.Bitness`. It is `Unknown` when not
+  observed and is never inferred from the ISA or the configured size.
+- `ConfiguredPointerSizeBytes` (`int?`, the raw `getPointerSize()`) and `ConfiguredPointerSize` (its `PointerSize`
+  projection) are reported together; `ConfiguredPointerSizeDiffersFromBitness` is `bool?` everywhere, `null` when
+  either value is unknown.
+- The ISA is `CheatEngineArchitecture`. Platform facts name their subject: `Host*`, `CheatEngine*`, `Target*`.
+
+### Enums
+
+- Every public enum is backed by `int`, declares every value explicitly and defines zero. A value never changes
+  meaning and a minor release can add values: handle an unrecognized value like `Unknown`.
+- An **outcome enum** reports what happened or was observed: `Unknown = 0`, and its name ends in `Kind`, `Status`,
+  `State`, `Effect` or `Scope` (`PatternScanRouteReason` and `ClientCapabilityEvidenceReasonCode` are the listed
+  exceptions). An **option enum** is the caller's choice: its zero is the default choice and its name never ends in an
+  outcome suffix (`Mode`, `Preference`, `Protection`, `Encoding`, `Requirement`, `Comparison`, `Type`). No enum is
+  named `*Outcome`.
+
+### Call-only and Implementable interfaces
+
+The documentation of every public interface says whether it is **Call-only** (the Client implements it and applications
+call it; a 1.x minor release can add members, so implement it only in a test double) or **Implementable**
+(applications implement it and the Client calls it; its members are frozen for 1.x): `ILuaModule`,
+`ILuaOperation<TResult>`, `ILuaResultMapper<TSource, TResult>`, `IMemoryCodec<T>` and `ICheatEngineClientModule`.
+
+### CheatEngine.SDK types in public signatures
+
+Only these descriptive CheatEngine.SDK values appear in public signatures: `Address`, `TargetProcessId`, `ModuleName`,
+`ModuleInfo`, `ModuleSectionInfo`, `MemoryRegionInfo`, `SymbolExpression`, `SymbolInfo`, `MemoryRecordId`,
+`PointerSize`, `CheatEngineArchitecture`, `TargetAbi`, `CheatEngineVersion`, `VariableType`, `TargetBackend` and
+`CheatEngineOperatingSystem`. No SDK outcome, status or kind type and no SDK exception type appears in a public
+signature. Because these types are part of the Client's signatures, moving to CheatEngine.SDK 3.0 is a Client 2.0.
+
+### Shared vocabulary
+
+| Concept | Client name | Not |
+|---|---|---|
+| Activation epoch | `Epoch` (`ICheatEngineClient`, `ICheatEngineRuntime`, `CheatEngineRuntimeSnapshot`, `ILuaExecutionContext`) | "SDK lifecycle epoch", an epoch on a lease |
+| Target-selection epoch | `SelectionEpoch` (`ProcessSnapshot`, every target-bound lease) | — |
+| Lua runtime replaced | `RuntimeChanged`, `RefusedRuntimeChanged` | `RuntimeInvalidated` |
+| Another target selected | `TargetChanged`, `RefusedTargetChanged` | — |
+| Target identity not established | `TargetIdentityUnavailable` | — |
+| Effect ran to completion | `Completed` (`CheatEngineHostEffect`, `MemoryBatchWriteEffectState`) | `Complete` |
+| Size of the request | `RequestedCount`, `RequestedLength` | `AttemptedCount` |
+| Done so far | `CompletedCount`, `ConfirmedLength` | — |
+| Rows the host reported | `ResultCount` (value scans), `HostResultCount` (AOB), `RecordCount` (tables) | `TotalCount` |
+| Local operating-system catalog | `Local*` (`LocalProcessId`, `LocalProcessSnapshot`, `GetLocalProcesses`) | `ProcessInfo*` |
+| Cheat Engine's target | `Process*` (`ProcessSnapshot`, `IProcessClient`) | — |
+| AOB request data / scanner report | `Aob*` / `PatternScan*` | — |
+| Value scans | `ValueScan*`, `ICheatEngineClient.ValueScans` | `Scans` |
+| Cut result / cut host text / partial page | `IsTruncated` / `<Member>Truncated` / `HasMore` | — |
+| Host text (user data) | `Host<Text>` (`HostMessages`, `HostWarnings`) | — |
+| Why, as text / as a typed value | `Reason`, `EffectiveReason` / `EffectiveReasonCode`, `RouteReason` | — |
+| AOB range / value-scan range | `Start`–`End` (End is the last allowed match start) / `StartAddress`–`StopAddress` (Stop is exclusive) | — |
 
 ## Contribution and Validation
 

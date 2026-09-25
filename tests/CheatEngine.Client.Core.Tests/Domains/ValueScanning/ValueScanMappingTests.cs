@@ -15,7 +15,7 @@ namespace CheatEngine.Client.Core.Tests.Domains.ValueScanning;
 /// </summary>
 public sealed class ValueScanMappingTests
 {
-	private const string Operation = "Scans.Contract";
+	private const string Operation = "ValueScans.Contract";
 
 	private static Dictionary<MemoryScanCreationStatus, (CheatEngineFailureKind Kind, CheatEngineHostEffect Effect)>
 		ExpectedCreationFailures => new()

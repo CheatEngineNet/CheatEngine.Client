@@ -23,12 +23,12 @@ public sealed class ProcessClientLocalProcessesTests
 			new LocalProcessInfo(44, "beta", "C:\\fixtures\\beta.exe")
 		]);
 
-		ProcessEnumerationResult result = client.GetLocalProcesses(
-			new ProcessEnumerationRequest(1, "ALPHA"),
+		LocalProcessEnumerationResult result = client.GetLocalProcesses(
+			new LocalProcessEnumerationRequest(1, "ALPHA"),
 			TestContext.Current.CancellationToken);
 
 		Assert.True(result.IsTruncated);
-		ProcessInfoSnapshot snapshot = Assert.Single(result.Processes);
+		LocalProcessSnapshot snapshot = Assert.Single(result.Processes);
 		Assert.Equal(new LocalProcessId(43), snapshot.Id);
 		Assert.Equal("alpha-server", snapshot.Name);
 		Assert.Equal("C:\\fixtures\\alpha-server.exe", snapshot.ExecutablePath);
@@ -45,8 +45,8 @@ public sealed class ProcessClientLocalProcessesTests
 		cancellation.Cancel();
 
 		bool succeeded = client.TryGetLocalProcesses(
-			new ProcessEnumerationRequest(1),
-			out ProcessEnumerationResult result,
+			new LocalProcessEnumerationRequest(1),
+			out LocalProcessEnumerationResult result,
 			out CheatEngineFailure failure,
 			cancellation.Token);
 
@@ -57,7 +57,7 @@ public sealed class ProcessClientLocalProcessesTests
 		Assert.Equal("Processes.GetLocalProcesses", failure.Operation);
 		Assert.Equal(0, host.GetLocalProcessesCalls);
 		Assert.IsType<CheatEngineOperationCanceledException>(Assert.ThrowsAny<OperationCanceledException>(() =>
-			client.GetLocalProcesses(new ProcessEnumerationRequest(1), cancellation.Token)));
+			client.GetLocalProcesses(new LocalProcessEnumerationRequest(1), cancellation.Token)));
 	}
 
 	[Fact]
@@ -78,8 +78,8 @@ public sealed class ProcessClientLocalProcessesTests
 		host.GetLocalProcessesException = new InvalidOperationException("fixture enumeration failed");
 
 		bool succeeded = client.TryGetLocalProcesses(
-			new ProcessEnumerationRequest(1),
-			out ProcessEnumerationResult result,
+			new LocalProcessEnumerationRequest(1),
+			out LocalProcessEnumerationResult result,
 			out CheatEngineFailure failure,
 			TestContext.Current.CancellationToken);
 
@@ -101,8 +101,8 @@ public sealed class ProcessClientLocalProcessesTests
 		ProcessClient client = new(new RefusingDispatcher(), host, port, port, lifetime);
 		context.IsCurrent = false;
 
-		ProcessInfoSnapshot snapshot = Assert.Single(client.GetLocalProcesses(
-			new ProcessEnumerationRequest(1), TestContext.Current.CancellationToken).Processes);
+		LocalProcessSnapshot snapshot = Assert.Single(client.GetLocalProcesses(
+			new LocalProcessEnumerationRequest(1), TestContext.Current.CancellationToken).Processes);
 
 		Assert.Throws<CheatEngineActivationExpiredException>(() => lifetime.ThrowIfInactive("Test.Stale"));
 		Assert.Equal(new LocalProcessId(43), snapshot.Id);

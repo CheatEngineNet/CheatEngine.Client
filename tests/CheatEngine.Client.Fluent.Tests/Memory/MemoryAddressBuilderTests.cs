@@ -211,14 +211,16 @@ public sealed class MemoryAddressBuilderTests
 
 	private sealed class Int32Codec : IMemoryCodec<int>
 	{
-		public bool TryRead(IMemoryReadContext context, Address address, out int value)
+		public bool TryRead(IMemoryReadContext context, Address address, out int value, out CheatEngineFailure failure)
 		{
+			failure = default;
 			value = default;
 			return false;
 		}
 
-		public bool TryWrite(IMemoryWriteContext context, Address address, in int value)
+		public bool TryWrite(IMemoryWriteContext context, Address address, in int value, out CheatEngineFailure failure)
 		{
+			failure = default;
 			return false;
 		}
 	}
@@ -404,7 +406,7 @@ public sealed class MemoryAddressBuilderTests
 			where T : unmanaged
 		{
 			_ = TryReadPrimitiveBatch(request, out ImmutableArray<T> values, out _, cancellationToken);
-			return new MemoryPrimitiveBatchReadOutcome<T>(values.Length, values.Length, null, null, values.AsSpan());
+			return new MemoryPrimitiveBatchReadOutcome<T>(values.Length, values.AsSpan(), null, null);
 		}
 
 		public MemoryPrimitiveBatchWriteOutcome WritePrimitiveBatchDetailed<T>(
@@ -413,7 +415,7 @@ public sealed class MemoryAddressBuilderTests
 		{
 			_ = TryWritePrimitiveBatch(request, out _, cancellationToken);
 			return new MemoryPrimitiveBatchWriteOutcome(request.Values.Length, request.Values.Length, null, null,
-				MemoryBatchWriteEffectState.Complete);
+				MemoryBatchWriteEffectState.Completed);
 		}
 
 		public bool TryReadBytes(MemoryBytesReadRequest request, out ImmutableArray<byte> bytes,

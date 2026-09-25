@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 namespace CheatEngine.Client.Lua;
 
 /// <summary>Copied metadata that identifies one explicit Lua module and all global names it exports.</summary>
-public readonly record struct LuaModuleDescriptor
+public readonly struct LuaModuleDescriptor
 {
 	private readonly ImmutableArray<LuaExportDescriptor> _exports;
 	private readonly string? _name;

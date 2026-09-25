@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 
 using CheatEngine.Client.Core.Domains;
 using CheatEngine.Client.Memory;
+using CheatEngine.Client.Results;
 using CheatEngine.SDK.Engine.Runtime;
 using CheatEngine.SDK.Engine.Values;
 
@@ -39,11 +40,13 @@ internal static class DefaultMemoryCodecs
 			get;
 		} = new();
 
-		public bool TryRead(IMemoryReadContext context, Address address, out T value)
+		public bool TryRead(IMemoryReadContext context, Address address, out T value, out CheatEngineFailure failure)
 		{
 			ArgumentNullException.ThrowIfNull(context);
+			// The default failure lets the Client classify a refusal from what the context observed.
+			failure = default;
 			Span<byte> bytes = stackalloc byte[Unsafe.SizeOf<T>()];
-			if (context.TryReadBytes(address, bytes))
+			if (context.TryReadBytes(address, bytes, out _))
 			{
 				value = MemoryMarshal.Read<T>(bytes);
 				return true;
@@ -53,11 +56,12 @@ internal static class DefaultMemoryCodecs
 			return false;
 		}
 
-		public bool TryWrite(IMemoryWriteContext context, Address address, in T value)
+		public bool TryWrite(IMemoryWriteContext context, Address address, in T value, out CheatEngineFailure failure)
 		{
 			ArgumentNullException.ThrowIfNull(context);
+			failure = default;
 			ReadOnlySpan<T> values = MemoryMarshal.CreateReadOnlySpan(in value, 1);
-			return context.TryWriteBytes(address, MemoryMarshal.AsBytes(values));
+			return context.TryWriteBytes(address, MemoryMarshal.AsBytes(values), out _);
 		}
 	}
 
@@ -73,15 +77,17 @@ internal static class DefaultMemoryCodecs
 			get;
 		} = new();
 
-		public bool TryRead(IMemoryReadContext context, Address address, out Address value)
+		public bool TryRead(IMemoryReadContext context, Address address, out Address value,
+			out CheatEngineFailure failure)
 		{
 			ArgumentNullException.ThrowIfNull(context);
+			failure = default;
 			PointerSize width = context is ICorePointerCodecPolicy policy
 				? policy.TryAdmitPointerCodec() ? context.Bitness : PointerSize.Unknown
-				: context.ConfiguredPointerSizeDiffersFromBitness ? PointerSize.Unknown : context.Bitness;
+				: context.ConfiguredPointerSizeDiffersFromBitness == true ? PointerSize.Unknown : context.Bitness;
 			Span<byte> bytes = stackalloc byte[sizeof(ulong)];
 			Span<byte> target = bytes[..width.Bytes];
-			if (!width.IsKnown || !context.TryReadBytes(address, target))
+			if (!width.IsKnown || !context.TryReadBytes(address, target, out _))
 			{
 				value = default;
 				return false;
@@ -93,12 +99,14 @@ internal static class DefaultMemoryCodecs
 			return true;
 		}
 
-		public bool TryWrite(IMemoryWriteContext context, Address address, in Address value)
+		public bool TryWrite(IMemoryWriteContext context, Address address, in Address value,
+			out CheatEngineFailure failure)
 		{
 			ArgumentNullException.ThrowIfNull(context);
+			failure = default;
 			PointerSize width = context is ICorePointerCodecPolicy policy
 				? policy.TryAdmitPointerCodec() ? context.Bitness : PointerSize.Unknown
-				: context.ConfiguredPointerSizeDiffersFromBitness ? PointerSize.Unknown : context.Bitness;
+				: context.ConfiguredPointerSizeDiffersFromBitness == true ? PointerSize.Unknown : context.Bitness;
 			// A value wider than a 32-bit target is refused instead of truncated.
 			if (!width.IsKnown || (width == PointerSize.Bit32 && value.Value > uint.MaxValue))
 			{
@@ -116,7 +124,7 @@ internal static class DefaultMemoryCodecs
 				BinaryPrimitives.WriteUInt32LittleEndian(target, (uint) value.Value);
 			}
 
-			return context.TryWriteBytes(address, target);
+			return context.TryWriteBytes(address, target, out _);
 		}
 	}
 }

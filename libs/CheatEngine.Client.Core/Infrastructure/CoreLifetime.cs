@@ -1,4 +1,3 @@
-using CheatEngine.Client.Results;
 using CheatEngine.SDK.Hosting.Bootstrap;
 using CheatEngine.SDK.Hosting.Context;
 
@@ -88,7 +87,7 @@ internal sealed class CoreLifetime : IDisposable
 		ThrowIfActivationCurrent("Client.EnterCleanupScope");
 		if (!_context.IsMainThread)
 		{
-			throw new CheatEngineClientLifecycleException("Client.EnterCleanupScope",
+			throw ClientExceptions.InvalidState("Client.EnterCleanupScope",
 				"Cheat Engine cleanup must run on the plugin main thread.");
 		}
 
@@ -107,7 +106,7 @@ internal sealed class CoreLifetime : IDisposable
 	{
 		if (!IsInCleanupScopeOnMainThread)
 		{
-			throw new CheatEngineClientLifecycleException("Client.DrainResources",
+			throw ClientExceptions.InvalidState("Client.DrainResources",
 				"Client-owned Cheat Engine resources can only be drained by the active main-thread cleanup scope.");
 		}
 
@@ -170,7 +169,7 @@ internal sealed class CoreLifetime : IDisposable
 		PluginContext? context = PluginHost.Context;
 		if (context is null || !context.IsCurrent)
 		{
-			throw new CheatEngineClientLifecycleException(
+			throw ClientExceptions.InvalidState(
 				"Client.Activate",
 				"Cheat Engine has not enabled a plugin context for this client scope.");
 		}
@@ -206,7 +205,7 @@ internal sealed class CoreLifetime : IDisposable
 
 		if (Stopping.IsCancellationRequested)
 		{
-			throw new CheatEngineClientLifecycleException(operation,
+			throw ClientExceptions.InvalidState(operation,
 				"The Cheat Engine plugin lifecycle is stopping and no new client work is admitted.");
 		}
 	}
@@ -222,7 +221,7 @@ internal sealed class CoreLifetime : IDisposable
 			return;
 		}
 
-		throw new CheatEngineClientLifecycleException(operation,
+		throw ClientExceptions.InvalidState(operation,
 			"The Cheat Engine plugin lifecycle is stopping and no new client work is admitted.");
 	}
 
@@ -230,7 +229,7 @@ internal sealed class CoreLifetime : IDisposable
 	{
 		if (!IsActivationCurrent)
 		{
-			throw new CheatEngineActivationExpiredException(operation,
+			throw ClientExceptions.ActivationExpired(operation,
 				"The Cheat Engine plugin lifecycle changed, so this client epoch is stale.");
 		}
 	}

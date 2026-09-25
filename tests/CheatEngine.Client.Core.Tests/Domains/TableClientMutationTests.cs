@@ -211,13 +211,13 @@ public sealed class TableClientMutationTests
 	[Trait("Qualification", "Q34")]
 	public void AMutationRefusedDuringATableLoadThrowsTheLifecycleException()
 	{
-		// InvalidState maps to CheatEngineClientLifecycleException on the throwing form.
+		// InvalidState maps to CheatEngineInvalidStateException on the throwing form.
 		TableClient client = CreateClient(new FakeRecordMutationPort
 		{
 			DeleteOutcome = TableRecordMutationOutcome.NotAttempted(MemoryRecordMutationProblem.TableLoadInProgress)
 		});
 
-		CheatEngineClientLifecycleException exception = Assert.Throws<CheatEngineClientLifecycleException>(() =>
+		CheatEngineInvalidStateException exception = Assert.Throws<CheatEngineInvalidStateException>(() =>
 			client.Delete(new MemoryRecordId(41), TestContext.Current.CancellationToken));
 
 		Assert.Equal(CheatEngineFailureKind.InvalidState, exception.Failure.Kind);

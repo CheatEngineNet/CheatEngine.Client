@@ -10,7 +10,7 @@ namespace CheatEngine.Client.Core.Tests.Domains.ValueScanning;
 /// <summary>The Client value-scan requests become CheatEngine.SDK's positional requests, or are refused before dispatch.</summary>
 public sealed class ValueScanRequestsTests
 {
-	private const string Operation = "Scans.Contract";
+	private const string Operation = "ValueScans.Contract";
 
 	[Fact]
 	public void AnExactFirstScanUsesCheatEngineDefaultsOverTheWholeAddressSpace()

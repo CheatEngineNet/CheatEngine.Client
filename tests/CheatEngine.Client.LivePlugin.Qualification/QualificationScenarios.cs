@@ -137,7 +137,7 @@ internal static class QualificationScenarios
 				if (active.Client.Runtime.TryGetSnapshot(out CheatEngineRuntimeSnapshot snapshot, out failure))
 				{
 					observation.BeginObject("runtime")
-						.String("systemArchitecture", snapshot.Platform.SystemArchitecture.ToString())
+						.String("systemArchitecture", snapshot.Platform.HostArchitecture.ToString())
 						.String("targetArchitecture", snapshot.Platform.TargetArchitecture.ToString())
 						.Number("targetPointerSizeBytes", snapshot.Platform.TargetBitness.Bytes)
 						.String("targetAbi", snapshot.Platform.TargetAbi.ToString())
@@ -367,7 +367,7 @@ internal static class QualificationScenarios
 
 			observation.Boolean("ok", true)
 				.BeginObject("outcome")
-				.Number("attempted", outcome.AttemptedCount)
+				.Number("attempted", outcome.RequestedCount)
 				.Number("completed", outcome.CompletedCount)
 				.Number("failedIndex", outcome.FailedIndex ?? -1)
 				.String("effectState", outcome.EffectState.ToString());
@@ -376,7 +376,7 @@ internal static class QualificationScenarios
 				observation.Failure("cause", cause);
 			}
 
-			bool partialExposed = outcome.AttemptedCount == 4 && outcome.CompletedCount == 2 && outcome.FailedIndex == 2 &&
+			bool partialExposed = outcome.RequestedCount == 4 && outcome.CompletedCount == 2 && outcome.FailedIndex == 2 &&
 								  outcome.EffectState == MemoryBatchWriteEffectState.Partial;
 			bool readBackConfirms = readFirst && readSecond && readFourth && firstValue == values[0] &&
 									secondValue == values[1] && fourthValue == originalFourth;
@@ -694,7 +694,7 @@ internal static class QualificationScenarios
 				return true;
 			case "Client.ValueScanning":
 #pragma warning disable CECLIENT5001 // The harness exercises the experimental value scans; the source is compiled standalone.
-				succeeded = client.Scans.TryCreateSession(out IValueScanSession? session, out failure, client.Stopping);
+				succeeded = client.ValueScans.TryCreateSession(out IValueScanSession? session, out failure, client.Stopping);
 #pragma warning restore CECLIENT5001
 				session?.Dispose();
 				return true;
@@ -788,11 +788,11 @@ internal static class QualificationScenarios
 
 		MemoryStringEncoding encoding = wide ? MemoryStringEncoding.Utf16 : MemoryStringEncoding.Utf8;
 		bool written = active.Client.Memory.TryWriteString(
-			MemoryStringWriteRequest.CreateBounded(address, value, expected.Length, encoding), out CheatEngineFailure failure);
+			new MemoryStringWriteRequest(address, value, expected.Length, encoding), out CheatEngineFailure failure);
 		bool readBytes = active.Client.Memory.TryReadBytes(new MemoryBytesReadRequest(address, expected.Length),
 			out ImmutableArray<byte> readBack, out CheatEngineFailure readFailure);
 		bool readText = active.Client.Memory.TryReadString(
-			MemoryStringReadRequest.Create(address, value.Length, encoding), out string? text, out _);
+			new MemoryStringReadRequest(address, value.Length, encoding), out string? text, out _);
 		Restore(observation, active, address, original);
 		observation.Boolean("ok", written && readBytes)
 			.String("encoding", wide ? "Utf16" : "Utf8")

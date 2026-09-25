@@ -131,15 +131,15 @@ public sealed class TryContractTests
 		"Processes.Attach",
 		"Runtime.GetSnapshot",
 		"Lua.RegisterModule",
-		"Scans.CreateSession",
-		"Scans.GetResultCount",
+		"ValueScans.CreateSession",
+		"ValueScans.GetResultCount",
 		"Allocations.Allocate",
 		"AutoAssembler.ApplyPatch",
 		"AutoAssembler.Check",
 		"Assembly.Assemble",
 		"Assembly.Disassemble",
 		"Assembly.GetInstructionLength",
-		"Assembly.GetPreviousInstruction"
+		"Assembly.GetPreviousInstructionAddress"
 	];
 
 	[Theory]
@@ -202,10 +202,10 @@ public sealed class TryContractTests
 	}
 
 	[Theory]
-	[InlineData("Scans.FirstScan", false)]
-	[InlineData("Scans.FirstScan", true)]
-	[InlineData("Scans.Read", false)]
-	[InlineData("Scans.Read", true)]
+	[InlineData("ValueScans.FirstScan", false)]
+	[InlineData("ValueScans.FirstScan", true)]
+	[InlineData("ValueScans.Read", false)]
+	[InlineData("ValueScans.Read", true)]
 	public void AnEndedOrStoppingActivationThrowsBeforeAnInvalidValueScanRequestIsRefused(string entryPoint,
 		bool stopping)
 	{
@@ -226,13 +226,13 @@ public sealed class TryContractTests
 
 		Action invalid = entryPoint switch
 		{
-			"Scans.FirstScan" => () => _ = session.TryFirstScan(default, out _),
-			"Scans.Read" => () => _ = session.TryRead(default, out _, out _),
+			"ValueScans.FirstScan" => () => _ = session.TryFirstScan(default, out _),
+			"ValueScans.Read" => () => _ = session.TryRead(default, out _, out _),
 			_ => throw new ArgumentOutOfRangeException(nameof(entryPoint), entryPoint, null)
 		};
 
 		CheatEngineClientException thrown = stopping
-			? Assert.Throws<CheatEngineClientLifecycleException>(invalid)
+			? Assert.Throws<CheatEngineInvalidStateException>(invalid)
 			: Assert.Throws<CheatEngineActivationExpiredException>(invalid);
 		Assert.Equal(entryPoint, thrown.Failure.Operation);
 		Assert.Empty(port.Session.Calls);
@@ -247,7 +247,7 @@ public sealed class TryContractTests
 	[Trait("Qualification", "Q43")]
 	[InlineData("Inspection.RegisterSymbol")]
 	[InlineData("Lua.RegisterModule")]
-	[InlineData("Scans.CreateSession")]
+	[InlineData("ValueScans.CreateSession")]
 	[InlineData("Allocations.Allocate")]
 	[InlineData("AutoAssembler.ApplyPatch")]
 	public void NoLeaseIsCreatedFromTheDeactivationCleanupScope(string entryPoint)
@@ -266,7 +266,7 @@ public sealed class TryContractTests
 				.TryRegisterSymbol(new SymbolRegistration("contractSymbol", Target), out _, out _, token),
 			"Lua.RegisterModule" => () => new LuaClient(dispatcher, lifetime)
 				.TryRegisterModule(new PortBackedModule(ports), out _, out _, token),
-			"Scans.CreateSession" => () => new ValueScanner(dispatcher, Binder(dispatcher), scans)
+			"ValueScans.CreateSession" => () => new ValueScanner(dispatcher, Binder(dispatcher), scans)
 				.TryCreateSession(out _, out _, token),
 			"Allocations.Allocate" => () => new AllocationClient(dispatcher, Binder(dispatcher), allocations)
 				.TryAllocate(new AllocationRequest(4096), out _, out _, token),
@@ -279,7 +279,7 @@ public sealed class TryContractTests
 		context.Stop();
 		using (lifetime.EnterCleanupScope())
 		{
-			CheatEngineClientLifecycleException refused = Assert.Throws<CheatEngineClientLifecycleException>(create);
+			CheatEngineInvalidStateException refused = Assert.Throws<CheatEngineInvalidStateException>(create);
 			Assert.Equal(entryPoint, refused.Failure.Operation);
 		}
 
@@ -363,11 +363,11 @@ public sealed class TryContractTests
 			"Lua.RegisterModule" => Run(new LuaClient(dispatcher, lifetime), new PortBackedModule(ports),
 				static (client, module, t) => (client.TryRegisterModule(module, out _, out CheatEngineFailure f, t), f),
 				static (client, module, t) => client.RegisterModule(module, t), token),
-			"Scans.CreateSession" => Run(
+			"ValueScans.CreateSession" => Run(
 				new ValueScanner(dispatcher, Binder(dispatcher), new FakeValueScanPort { Fault = fault }), 0,
 				static (scanner, _, t) => (scanner.TryCreateSession(out IValueScanSession? _, out CheatEngineFailure f, t), f),
 				static (scanner, _, t) => scanner.CreateSession(t), token),
-			"Scans.GetResultCount" => Run(CreateScanSession(dispatcher, fault, token), 0,
+			"ValueScans.GetResultCount" => Run(CreateScanSession(dispatcher, fault, token), 0,
 				static (session, _, t) => (session.TryGetResultCount(out ulong _, out CheatEngineFailure f, t), f),
 				static (session, _, t) => session.GetResultCount(t), token),
 			"Allocations.Allocate" => Run(
@@ -399,11 +399,11 @@ public sealed class TryContractTests
 				static (client, address, t) =>
 					(client.TryGetInstructionLength(address, out _, out CheatEngineFailure f, t), f),
 				static (client, address, t) => client.GetInstructionLength(address, t), token),
-			"Assembly.GetPreviousInstruction" => Run(
+			"Assembly.GetPreviousInstructionAddress" => Run(
 				new AssemblyClient(dispatcher, lifetime, new MemoryResourceLimits(), ports), Target,
 				static (client, address, t) =>
-					(client.TryGetPreviousInstruction(address, out _, out CheatEngineFailure f, t), f),
-				static (client, address, t) => client.GetPreviousInstruction(address, t), token),
+					(client.TryGetPreviousInstructionAddress(address, out _, out CheatEngineFailure f, t), f),
+				static (client, address, t) => client.GetPreviousInstructionAddress(address, t), token),
 			_ => throw new ArgumentOutOfRangeException(nameof(entryPoint), entryPoint, null)
 		};
 
@@ -672,8 +672,8 @@ public sealed class TryContractTests
 		CoreLifetime lifetime = InertCoreLifetime.Create();
 		SdkMainThreadDispatcher dispatcher = new(lifetime, new InlineMainThreadInvoker());
 		ConsumerException codecFault = new("codec");
-		CheatEngineOperationException codecClientFault = new(new CheatEngineFailure(
-			CheatEngineFailureKind.OperationRejected, "Application.Codec", "application-owned client exception"));
+		Exception codecClientFault = new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, "Application.Codec",
+			"application-owned client exception").ToException(TestContext.Current.CancellationToken);
 		ConsumerException operationFault = new("operation");
 		ConsumerException callbackFault = new("callback");
 		MemoryClient memory = new(dispatcher, lifetime, new ThrowingPorts(new InvalidOperationException("unused")));
@@ -901,7 +901,7 @@ public sealed class TryContractTests
 			]), TestContext.Current.CancellationToken);
 
 		Assert.False(outcome.IsSuccess);
-		Assert.Equal(4, outcome.AttemptedCount);
+		Assert.Equal(4, outcome.RequestedCount);
 		Assert.Equal(2, outcome.CompletedCount);
 		Assert.Equal(2, outcome.FailedIndex);
 		Assert.Equal(MemoryBatchWriteEffectState.Partial, outcome.EffectState);
@@ -1394,13 +1394,15 @@ public sealed class TryContractTests
 
 	private sealed class ThrowingCodec(Exception fault) : IMemoryCodec<int>
 	{
-		public bool TryRead(IMemoryReadContext context, Address address, [MaybeNullWhen(false)] out int value)
+		public bool TryRead(IMemoryReadContext context, Address address, [MaybeNullWhen(false)] out int value, out CheatEngineFailure failure)
 		{
+			failure = default;
 			throw fault;
 		}
 
-		public bool TryWrite(IMemoryWriteContext context, Address address, in int value)
+		public bool TryWrite(IMemoryWriteContext context, Address address, in int value, out CheatEngineFailure failure)
 		{
+			failure = default;
 			throw fault;
 		}
 	}

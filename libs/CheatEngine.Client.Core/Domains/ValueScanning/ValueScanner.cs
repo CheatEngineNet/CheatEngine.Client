@@ -28,7 +28,7 @@ namespace CheatEngine.Client.Core.Domains.ValueScanning;
 internal sealed class ValueScanner : IValueScanner
 {
 	/// <summary>The public operation name of a session creation.</summary>
-	internal const string CreateOperation = "Scans.CreateSession";
+	internal const string CreateOperation = "ValueScans.CreateSession";
 
 	private readonly SdkMainThreadDispatcher _dispatcher;
 	private readonly IValueScanPort _port;
@@ -125,10 +125,10 @@ internal sealed class ValueScanner : IValueScanner
 		}
 
 		TargetSelectionBinding binding = default;
-		ValueScanSession session = new(_dispatcher, handle);
 		try
 		{
 			binding = _selection.BindOwner(handle.TargetIncarnation, CreateOperation);
+			ValueScanSession session = new(_dispatcher, handle, binding.SelectionEpoch);
 			session.Register(lifetime, binding.SelectionEpoch);
 			return new CreateOutcome(session, default)
 			{

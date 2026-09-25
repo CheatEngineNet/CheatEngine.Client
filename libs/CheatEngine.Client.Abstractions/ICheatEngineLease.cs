@@ -64,6 +64,24 @@ public interface ICheatEngineLease : IDisposable
 		get;
 	}
 
+	/// <summary>
+	///     Gets whether what the lease owns may remain in Cheat Engine or in the target and no later release of this lease
+	///     can remove it.
+	/// </summary>
+	/// <remarks>
+	///     It becomes <see langword="true" /> when a release attempt leaves the resource behind: the outcome that ended
+	///     the lease requires manual recovery (<see cref="LeaseReleaseOutcome.RequiresManualRecovery" />), or the attempt
+	///     consumed the owner's only means of release with an outcome this Client version does not recognize, which keeps
+	///     the lease active. It is <see langword="false" /> before any release, after a complete release, and after any
+	///     other retryable outcome. It never anticipates a release: an Auto Assembler patch lease whose <c>CanDisable</c>
+	///     is <see langword="false" /> before any release already signals that its release cannot run the patch's
+	///     <c>[DISABLE]</c> section.
+	/// </remarks>
+	public bool RequiresManualRecovery
+	{
+		get;
+	}
+
 	/// <summary>Releases the resource on Cheat Engine's main thread and returns what happened.</summary>
 	/// <returns>
 	///     The outcome of this attempt; when an earlier attempt already ended the lease, the outcome of that attempt

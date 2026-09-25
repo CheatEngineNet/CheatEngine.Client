@@ -31,7 +31,7 @@ namespace CheatEngine.Client.Memory;
 ///             <term>Request count per batch</term>
 ///             <description>
 ///                 <see cref="MaximumBatchOperationCount" />, which can tighten but never raise
-///                 <see cref="MemoryBatchLimits.MaximumOperations" />.
+///                 <see cref="MemoryBatchLimits.MaximumOperationCount" />.
 ///             </description>
 ///         </item>
 ///         <item>
@@ -48,7 +48,8 @@ namespace CheatEngine.Client.Memory;
 ///                 Not a budget: a batch write runs its operations in order and is never rolled back, so its outcome
 ///                 reports <see cref="MemoryBatchWriteEffectState.NotStarted" />,
 ///                 <see cref="MemoryBatchWriteEffectState.Partial" /> (with the completed prefix length),
-///                 <see cref="MemoryBatchWriteEffectState.Complete" /> or <see cref="MemoryBatchWriteEffectState.Unknown" />.
+///                 <see cref="MemoryBatchWriteEffectState.Completed" /> or
+///                 <see cref="MemoryBatchWriteEffectState.Unknown" />.
 ///             </description>
 ///         </item>
 ///     </list>
@@ -68,7 +69,7 @@ public sealed class MemoryResourceLimits
 	public const int DefaultMaximumBatchPayloadBytes = 65_536;
 
 	/// <summary>Gets the default maximum number of operations represented by one primitive batch.</summary>
-	public const int DefaultMaximumBatchOperationCount = MemoryBatchLimits.MaximumOperations;
+	public const int DefaultMaximumBatchOperationCount = MemoryBatchLimits.MaximumOperationCount;
 
 	/// <summary>Initializes the default activation memory budgets.</summary>
 	public MemoryResourceLimits()
@@ -127,19 +128,12 @@ public sealed class MemoryResourceLimits
 	} = DefaultMaximumBatchPayloadBytes;
 
 	/// <summary>Gets or sets the maximum primitive operations admitted for one batch.</summary>
-	/// <remarks>The value can tighten, but never raise, <see cref="MemoryBatchLimits.MaximumOperations" />.</remarks>
+	/// <remarks>The value can tighten, but never raise, <see cref="MemoryBatchLimits.MaximumOperationCount" />.</remarks>
 	public int MaximumBatchOperationCount
 	{
 		get;
 		set;
 	} = DefaultMaximumBatchOperationCount;
-
-	/// <summary>Creates an independently validated copy for an activation-bound client.</summary>
-	public MemoryResourceLimits CreateSnapshot()
-	{
-		return new MemoryResourceLimits(MaximumReadBytes, MaximumWriteBytes, MaximumStringBytes,
-			MaximumBatchPayloadBytes, MaximumBatchOperationCount);
-	}
 
 	private static void Validate(int value, string parameterName)
 	{
@@ -149,10 +143,10 @@ public sealed class MemoryResourceLimits
 	private static void ValidateBatchOperationCount(int value, string parameterName)
 	{
 		Validate(value, parameterName);
-		if (value > MemoryBatchLimits.MaximumOperations)
+		if (value > MemoryBatchLimits.MaximumOperationCount)
 		{
 			throw new ArgumentOutOfRangeException(parameterName,
-				$"A memory batch is limited to {MemoryBatchLimits.MaximumOperations} operations.");
+				$"A memory batch is limited to {MemoryBatchLimits.MaximumOperationCount} operations.");
 		}
 	}
 }

@@ -16,7 +16,7 @@ namespace CheatEngine.Client.Lua;
 /// </remarks>
 public interface ILuaExecutionContext
 {
-	/// <summary>Gets the plugin activation epoch captured for this operation.</summary>
+	/// <summary>Gets the activation epoch captured for this operation.</summary>
 	public long Epoch
 	{
 		get;

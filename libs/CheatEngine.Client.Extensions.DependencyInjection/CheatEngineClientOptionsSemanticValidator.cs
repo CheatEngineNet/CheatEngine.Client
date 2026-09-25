@@ -1,3 +1,5 @@
+using CheatEngine.Client.Core.Domains;
+
 using Microsoft.Extensions.Options;
 
 namespace CheatEngine.Client.Extensions.DependencyInjection;
@@ -27,7 +29,7 @@ public sealed class CheatEngineClientOptionsSemanticValidator : IValidateOptions
 
 		try
 		{
-			_ = options.MemoryResourceLimits.CreateSnapshot();
+			_ = MemoryResourceLimitsCopy.CreateValidated(options.MemoryResourceLimits);
 		}
 		catch (ArgumentOutOfRangeException exception)
 		{

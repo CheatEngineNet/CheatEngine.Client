@@ -705,12 +705,12 @@ public sealed class PatternScannerBoundedRouteTests
 	[Theory]
 	[Trait("Qualification", "Q29")]
 	[InlineData(AobBoundedScanOutcomeKind.SessionCreationFailed, false, CheatEngineHostEffect.NotStarted,
-		PatternScanHostOutcome.Unknown)]
+		PatternScanHostOutcomeKind.Unknown)]
 	[InlineData(AobBoundedScanOutcomeKind.TargetIdentityUnavailable, true, CheatEngineHostEffect.Completed,
-		PatternScanHostOutcome.TargetIdentityUnavailable)]
+		PatternScanHostOutcomeKind.TargetIdentityUnavailable)]
 	public void ACancellationBeforeTheFallbackStartsNoGlobalScanAndReportsTheBoundedAttempt(
 		AobBoundedScanOutcomeKind kind, bool scanCompleted, CheatEngineHostEffect expectedEffect,
-		PatternScanHostOutcome expectedHostOutcome)
+		PatternScanHostOutcomeKind expectedHostOutcome)
 	{
 		using CancellationTokenSource cancellation = new();
 		AobBoundedHostResult bounded = AobHosts.Bounded(kind, scanCompleted) with

@@ -66,8 +66,6 @@ internal sealed class TargetMemoryLease : HostResourceLease, ITargetMemoryLease
 		get;
 	}
 
-	public bool RequiresManualRecovery => LastReleaseOutcome is { RequiresManualRecovery: true };
-
 	protected override LeaseReleaseOutcome ReleaseOnMainThread()
 	{
 		return SdkReleaseOutcomes.FromTarget(_region.Release());

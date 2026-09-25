@@ -492,8 +492,9 @@ public sealed class LuaModuleOwnershipEndToEndTests
 
 	private static CheatEngineFailure RegisterFailure(ILuaModule module, FakeLuaGlobals globals)
 	{
-		CheatEngineOperationException exception =
-			Assert.Throws<CheatEngineOperationException>(() => ModuleHarness.Register(module, globals));
+		// The exception type follows the failure kind (CheatEngineFailure.ToException); the failure is the contract.
+		CheatEngineClientException exception =
+			Assert.ThrowsAny<CheatEngineClientException>(() => ModuleHarness.Register(module, globals));
 		return exception.Failure;
 	}
 

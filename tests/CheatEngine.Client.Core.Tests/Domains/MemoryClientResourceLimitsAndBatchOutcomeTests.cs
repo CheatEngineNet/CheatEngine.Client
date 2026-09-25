@@ -33,11 +33,11 @@ public sealed class MemoryClientResourceLimitsAndBatchOutcomeTests
 		Assert.False(byteClient.TryWriteBytes(new MemoryBytesWriteRequest(TestAddress, [1, 2]),
 			out CheatEngineFailure writeFailure, TestContext.Current.CancellationToken));
 		Assert.Equal(CheatEngineFailureKind.OperationRejected, writeFailure.Kind);
-		Assert.False(byteClient.TryReadString(MemoryStringReadRequest.Create(TestAddress, 1, MemoryStringEncoding.Utf16), out string? text,
+		Assert.False(byteClient.TryReadString(new MemoryStringReadRequest(TestAddress, 1, MemoryStringEncoding.Utf16), out string? text,
 			out CheatEngineFailure stringReadFailure, TestContext.Current.CancellationToken));
 		Assert.Null(text);
 		Assert.Equal(CheatEngineFailureKind.OperationRejected, stringReadFailure.Kind);
-		Assert.False(byteClient.TryWriteString(MemoryStringWriteRequest.CreateBounded(TestAddress, "A", 1, MemoryStringEncoding.Utf16),
+		Assert.False(byteClient.TryWriteString(new MemoryStringWriteRequest(TestAddress, "A", 1, MemoryStringEncoding.Utf16),
 			out CheatEngineFailure stringWriteFailure, TestContext.Current.CancellationToken));
 		Assert.Equal(CheatEngineFailureKind.OperationRejected, stringWriteFailure.Kind);
 		Assert.Equal(0, dispatcher.InvocationCount);
@@ -100,7 +100,7 @@ public sealed class MemoryClientResourceLimitsAndBatchOutcomeTests
 			TestContext.Current.CancellationToken);
 
 		Assert.False(outcome.IsSuccess);
-		Assert.Equal(1, outcome.AttemptedCount);
+		Assert.Equal(1, outcome.RequestedCount);
 		Assert.Equal(0, outcome.CompletedCount);
 		Assert.Equal(CheatEngineFailureKind.OperationRejected, outcome.Failure?.Kind);
 		Assert.Equal(MemoryBatchWriteEffectState.NotStarted, outcome.EffectState);
@@ -123,9 +123,9 @@ public sealed class MemoryClientResourceLimitsAndBatchOutcomeTests
 		Assert.False(client.TryWriteBytes(new MemoryBytesWriteRequest(TestAddress, [1, 2]),
 			out CheatEngineFailure byteWriteFailure,
 			TestContext.Current.CancellationToken));
-		Assert.False(client.TryReadString(MemoryStringReadRequest.Create(TestAddress, 1, MemoryStringEncoding.Utf16), out _,
+		Assert.False(client.TryReadString(new MemoryStringReadRequest(TestAddress, 1, MemoryStringEncoding.Utf16), out _,
 			out CheatEngineFailure stringReadFailure, TestContext.Current.CancellationToken));
-		Assert.False(client.TryWriteString(MemoryStringWriteRequest.CreateBounded(TestAddress, "A", 1, MemoryStringEncoding.Utf16),
+		Assert.False(client.TryWriteString(new MemoryStringWriteRequest(TestAddress, "A", 1, MemoryStringEncoding.Utf16),
 			out CheatEngineFailure stringWriteFailure, TestContext.Current.CancellationToken));
 
 		Assert.Equal(expected, byteReadFailure);
@@ -153,10 +153,10 @@ public sealed class MemoryClientResourceLimitsAndBatchOutcomeTests
 			TestContext.Current.CancellationToken);
 
 		Assert.False(outcome.IsSuccess);
-		Assert.Equal(3, outcome.AttemptedCount);
+		Assert.Equal(3, outcome.RequestedCount);
 		Assert.Equal(failedIndex, outcome.CompletedCount);
 		Assert.Equal(failedIndex, outcome.FailedIndex);
-		Assert.Equal(Enumerable.Range(0, failedIndex).Select(static index => 100 + index), outcome.ReadPrefix);
+		Assert.Equal(Enumerable.Range(0, failedIndex).Select(static index => 100 + index), outcome.Values);
 		Assert.Equal(CheatEngineFailureKind.MemoryReadFailed, outcome.Failure?.Kind);
 		Assert.Equal(failedIndex + 1, port.ReadInvocationCount);
 	}
@@ -182,7 +182,7 @@ public sealed class MemoryClientResourceLimitsAndBatchOutcomeTests
 			TestContext.Current.CancellationToken);
 
 		Assert.False(outcome.IsSuccess);
-		Assert.Equal(3, outcome.AttemptedCount);
+		Assert.Equal(3, outcome.RequestedCount);
 		Assert.Equal(failedIndex, outcome.CompletedCount);
 		Assert.Equal(failedIndex, outcome.FailedIndex);
 		Assert.Equal(expectedEffectState, outcome.EffectState);
@@ -207,7 +207,7 @@ public sealed class MemoryClientResourceLimitsAndBatchOutcomeTests
 
 		Assert.True(success.IsSuccess);
 		Assert.Equal(2, success.CompletedCount);
-		Assert.Equal(MemoryBatchWriteEffectState.Complete, success.EffectState);
+		Assert.Equal(MemoryBatchWriteEffectState.Completed, success.EffectState);
 		Assert.Null(success.Failure);
 		Assert.Equal([10, 20], successfulPort.CommittedValues);
 		Assert.Equal(2, successfulPort.WriteInvocationCount);
@@ -254,7 +254,7 @@ public sealed class MemoryClientResourceLimitsAndBatchOutcomeTests
 
 		Assert.True(read.IsSuccess);
 		Assert.Null(read.Failure);
-		Assert.Equal([100, 101], read.ReadPrefix);
+		Assert.Equal([100, 101], read.Values);
 		Assert.False(write.IsSuccess);
 		Assert.Equal(MemoryBatchWriteEffectState.Partial, write.EffectState);
 		Assert.Equal(CheatEngineFailureKind.MemoryWriteFailed, write.Failure!.Value.Kind);
@@ -305,7 +305,7 @@ public sealed class MemoryClientResourceLimitsAndBatchOutcomeTests
 			new MemoryPrimitiveBatchReadRequest<int>([TestAddress, TestAddress + 4]), TestContext.Current.CancellationToken);
 
 		Assert.True(defaultOutcome.IsSuccess);
-		Assert.Equal([100, 101], defaultOutcome.ReadPrefix);
+		Assert.Equal([100, 101], defaultOutcome.Values);
 
 		BatchPort constrainedPort = new();
 		MemoryClient constrainedClient = CreateClient(new CountingDispatcher(),
@@ -432,45 +432,51 @@ public sealed class MemoryClientResourceLimitsAndBatchOutcomeTests
 
 	private sealed class ThrowingCodec : IMemoryCodec<int>
 	{
-		public bool TryRead(IMemoryReadContext context, Address address, out int value)
+		public bool TryRead(IMemoryReadContext context, Address address, out int value, out CheatEngineFailure failure)
 		{
+			failure = default;
 			throw new InvalidOperationException("Codec programming failures must not be mapped.");
 		}
 
-		public bool TryWrite(IMemoryWriteContext context, Address address, in int value)
+		public bool TryWrite(IMemoryWriteContext context, Address address, in int value, out CheatEngineFailure failure)
 		{
+			failure = default;
 			throw new InvalidOperationException("Codec programming failures must not be mapped.");
 		}
 	}
 
 	private sealed class OversizedReadCodec : IMemoryCodec<int>
 	{
-		public bool TryRead(IMemoryReadContext context, Address address, out int value)
+		public bool TryRead(IMemoryReadContext context, Address address, out int value, out CheatEngineFailure failure)
 		{
+			failure = default;
 			Span<byte> destination = stackalloc byte[2];
-			bool succeeded = context.TryReadBytes(address, destination);
+			bool succeeded = context.TryReadBytes(address, destination, out _);
 			value = 0;
 			return succeeded;
 		}
 
-		public bool TryWrite(IMemoryWriteContext context, Address address, in int value)
+		public bool TryWrite(IMemoryWriteContext context, Address address, in int value, out CheatEngineFailure failure)
 		{
+			failure = default;
 			return false;
 		}
 	}
 
 	private sealed class OversizedWriteCodec : IMemoryCodec<int>
 	{
-		public bool TryRead(IMemoryReadContext context, Address address, out int value)
+		public bool TryRead(IMemoryReadContext context, Address address, out int value, out CheatEngineFailure failure)
 		{
+			failure = default;
 			value = default;
 			return false;
 		}
 
-		public bool TryWrite(IMemoryWriteContext context, Address address, in int value)
+		public bool TryWrite(IMemoryWriteContext context, Address address, in int value, out CheatEngineFailure failure)
 		{
+			failure = default;
 			Span<byte> source = stackalloc byte[2];
-			return context.TryWriteBytes(address, source);
+			return context.TryWriteBytes(address, source, out _);
 		}
 	}
 

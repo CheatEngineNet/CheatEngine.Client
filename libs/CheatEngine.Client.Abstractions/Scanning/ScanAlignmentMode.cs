@@ -4,7 +4,7 @@ namespace CheatEngine.Client.Scanning;
 /// <remarks>
 ///     An option, not an outcome: <see cref="None" /> (zero) is the valid default that checks every address.
 /// </remarks>
-public enum ScanAlignmentKind
+public enum ScanAlignmentMode
 {
 	/// <summary>Every address is checked (Cheat Engine's <c>fsmNotAligned</c>).</summary>
 	None = 0,

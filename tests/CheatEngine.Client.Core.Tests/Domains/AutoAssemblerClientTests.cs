@@ -162,7 +162,7 @@ public sealed class AutoAssemblerClientTests : IDisposable
 		Assert.False(lease.AppliedAfterTargetChange);
 		Assert.Equal("unused label", lease.HostWarnings);
 		Assert.True(lease.HostWarningsTruncated);
-		Assert.True(lease.IsEnabled);
+		Assert.True(lease.CanDisable);
 		Assert.False(lease.IsReleased);
 		Assert.False(lease.RequiresManualRecovery);
 		Assert.Empty(_diagnostics.TargetChangeWarnings);
@@ -175,7 +175,7 @@ public sealed class AutoAssemblerClientTests : IDisposable
 		Assert.Equal(1, _port.Owner!.ReleaseCalls);
 		Assert.Equal([true], _port.Owner.ReleasedOnMainThread);
 		Assert.True(lease.IsReleased);
-		Assert.False(lease.IsEnabled);
+		Assert.False(lease.CanDisable);
 		Assert.False(lease.RequiresManualRecovery);
 		Assert.Equal(outcome, lease.LastReleaseOutcome);
 	}
@@ -346,7 +346,7 @@ public sealed class AutoAssemblerClientTests : IDisposable
 		Assert.Null(lease);
 		Assert.Equal(CheatEngineFailureKind.TargetChanged, failure.Kind);
 		Assert.Equal(expectedEffect, failure.HostEffect);
-		Assert.IsType<CheatEngineClientLifecycleException>(failure.Exception);
+		Assert.IsType<CheatEngineInvalidStateException>(failure.Exception);
 		Assert.Contains(expected, failure.Message, StringComparison.Ordinal);
 		Assert.Equal(1, _port.Owner.ReleaseCalls);
 		Assert.Equal([true], _port.Owner.ReleasedOnMainThread);
@@ -361,7 +361,7 @@ public sealed class AutoAssemblerClientTests : IDisposable
 		_context.Stop();
 		using (_lifetime.EnterCleanupScope())
 		{
-			Assert.Throws<CheatEngineClientLifecycleException>(() =>
+			Assert.Throws<CheatEngineInvalidStateException>(() =>
 				client.TryApplyPatch(new AutoAssemblerScript(Script), out _, out _, Token));
 		}
 
@@ -374,7 +374,7 @@ public sealed class AutoAssemblerClientTests : IDisposable
 
 	[Theory]
 	[Trait("Qualification", "Q43")]
-	[InlineData(false, typeof(CheatEngineClientLifecycleException))]
+	[InlineData(false, typeof(CheatEngineInvalidStateException))]
 	[InlineData(true, typeof(CheatEngineActivationExpiredException))]
 	public void AnActivationThatStopsOrEndsAfterItsAdmissionIsRefusedBeforeCheatEngineApplies(bool ends,
 		Type expected)
@@ -415,7 +415,7 @@ public sealed class AutoAssemblerClientTests : IDisposable
 		_port.DuringApply = _context.Stop;
 		AutoAssemblerClient client = CreateClient();
 
-		CheatEngineClientLifecycleException stopping = Assert.Throws<CheatEngineClientLifecycleException>(() =>
+		CheatEngineInvalidStateException stopping = Assert.Throws<CheatEngineInvalidStateException>(() =>
 			client.TryApplyPatch(new AutoAssemblerScript(Script), out _, out _, Token));
 
 		Assert.Contains(expected, stopping.Message, StringComparison.Ordinal);
@@ -484,7 +484,7 @@ public sealed class AutoAssemblerClientTests : IDisposable
 		Assert.Equal(secondEpoch, observed.SelectionEpoch);
 		Assert.Equal(new TargetProcessId(43), observed.Id);
 		Assert.False(inSecond.IsReleased);
-		Assert.True(inSecond.IsEnabled);
+		Assert.True(inSecond.CanDisable);
 		Assert.Equal(0, second.ReleaseCalls);
 	}
 
@@ -522,7 +522,7 @@ public sealed class AutoAssemblerClientTests : IDisposable
 			lease.LastReleaseOutcome);
 		Assert.True(lease.IsReleased);
 		Assert.True(lease.RequiresManualRecovery);
-		Assert.False(lease.IsEnabled);
+		Assert.False(lease.CanDisable);
 		Assert.Equal(lease.LastReleaseOutcome, repeated);
 		Assert.Equal(1, _port.Owner.ReleaseCalls);
 	}
@@ -546,6 +546,56 @@ public sealed class AutoAssemblerClientTests : IDisposable
 		Assert.True(outcome.RequiresManualRecovery);
 		Assert.True(lease.RequiresManualRecovery);
 		Assert.True(lease.IsReleased);
+	}
+
+	/// <summary>
+	///     CheatEngine.SDK 2.0.0 sets its manual-recovery flag only inside a release attempt. After Cheat Engine replaced
+	///     its Lua state, the owner reports that it cannot disable and no flag: <c>CanDisable</c> is the early signal, and
+	///     only the refused release makes the lease require manual recovery.
+	/// </summary>
+	[Fact]
+	public void ALostDisableInformationClearsCanDisableAndOnlyItsRefusedReleaseRequiresManualRecovery()
+	{
+		AutoAssemblerClient client = CreateClient();
+		IAutoAssemblerPatchLease lease = client.ApplyPatch(new AutoAssemblerScript(Script), Token);
+		_port.Owner!.LostDisableInformation = true;
+		_port.Owner.ReleaseStatus = TargetReleaseStatus.RefusedRuntimeChanged;
+
+		bool canDisableBefore = lease.CanDisable;
+		bool manualRecoveryBefore = lease.RequiresManualRecovery;
+		LeaseReleaseOutcome outcome = lease.Release();
+
+		Assert.False(canDisableBefore);
+		Assert.False(manualRecoveryBefore);
+		Assert.Equal(new LeaseReleaseOutcome(LeaseReleaseKind.RefusedRuntimeChanged, CheatEngineHostEffect.NotStarted),
+			outcome);
+		Assert.True(lease.IsReleased);
+		Assert.True(lease.RequiresManualRecovery);
+		Assert.Equal(1, _port.Owner.ReleaseCalls);
+	}
+
+	/// <summary>
+	///     A release status this Client version does not recognize keeps the lease active, but CheatEngine.SDK consumed
+	///     the disable information and set its own flag: the lease requires manual recovery, and a later release reports
+	///     the recorded status again without another disable.
+	/// </summary>
+	[Fact]
+	public void AnUnrecognizedReleaseStatusKeepsTheLeaseActiveButRequiresManualRecovery()
+	{
+		AutoAssemblerClient client = CreateClient();
+		IAutoAssemblerPatchLease lease = client.ApplyPatch(new AutoAssemblerScript(Script), Token);
+		_port.Owner!.ReleaseStatus = (TargetReleaseStatus) 99;
+
+		LeaseReleaseOutcome first = lease.Release();
+		LeaseReleaseOutcome second = lease.Release();
+
+		Assert.True(first.IsRetryable);
+		Assert.False(first.RequiresManualRecovery);
+		Assert.Equal(first, second);
+		Assert.False(lease.IsReleased);
+		Assert.False(lease.CanDisable);
+		Assert.True(lease.RequiresManualRecovery);
+		Assert.Equal(1, _port.Owner.ReleaseCalls);
 	}
 
 	[Fact]
@@ -586,7 +636,7 @@ public sealed class AutoAssemblerClientTests : IDisposable
 		Assert.Equal(first, lease.LastReleaseOutcome);
 		Assert.True(lease.IsReleased);
 		Assert.True(lease.RequiresManualRecovery);
-		Assert.False(lease.IsEnabled);
+		Assert.False(lease.CanDisable);
 		Assert.Equal(CheatEngineFailureKind.RuntimeChanged,
 			Assert.IsType<CheatEngineOperationException>(report).Failure.Kind);
 		Assert.Equal(1, _port.Owner.ReleaseCalls);
@@ -876,7 +926,10 @@ public sealed class AutoAssemblerClientTests : IDisposable
 		}
 	}
 
-	/// <summary>Consumes its disable information on the first release, like CheatEngine.SDK's patch owner.</summary>
+	/// <summary>
+	///     Consumes its disable information on the first release, like CheatEngine.SDK's patch owner, which sets its
+	///     manual-recovery flag only there.
+	/// </summary>
 	private sealed class FakeOwner(TrackingInvoker invoker) : IAutoAssemblerPatchOwner
 	{
 		public TargetProcessIncarnation TargetIncarnation
@@ -885,7 +938,7 @@ public sealed class AutoAssemblerClientTests : IDisposable
 			init;
 		} = FakeSelectedTarget.FirstIncarnation;
 
-		public bool IsEnabled => !IsConsumed;
+		public bool IsEnabled => !IsConsumed && !LostDisableInformation;
 
 		public bool IsConsumed
 		{
@@ -897,6 +950,13 @@ public sealed class AutoAssemblerClientTests : IDisposable
 		{
 			get;
 			private set;
+		}
+
+		/// <summary>Gets or sets whether Cheat Engine's Lua state was detached or replaced since the activation.</summary>
+		internal bool LostDisableInformation
+		{
+			get;
+			set;
 		}
 
 		public TargetReleaseStatus LastReleaseStatus

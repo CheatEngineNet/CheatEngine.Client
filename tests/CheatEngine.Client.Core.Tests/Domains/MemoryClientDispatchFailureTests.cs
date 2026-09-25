@@ -62,9 +62,9 @@ public sealed class MemoryClientDispatchFailureTests
 		MemoryClient client = new(new RejectingDispatcher(expected), InertCoreLifetime.Create());
 		MemoryBytesReadRequest byteRead = new(Address, 2);
 		MemoryBytesWriteRequest byteWrite = new(Address, [0x10, 0x20]);
-		MemoryStringReadRequest stringRead = MemoryStringReadRequest.Create(Address, 12, MemoryStringEncoding.Utf16);
+		MemoryStringReadRequest stringRead = new MemoryStringReadRequest(Address, 12, MemoryStringEncoding.Utf16);
 		MemoryStringWriteRequest stringWrite =
-			MemoryStringWriteRequest.CreateBounded(Address, "health", 6, MemoryStringEncoding.Utf16);
+			new MemoryStringWriteRequest(Address, "health", 6, MemoryStringEncoding.Utf16);
 
 		Assert.False(client.TryReadBytes(byteRead, out ImmutableArray<byte> bytes,
 			out CheatEngineFailure byteReadFailure,
@@ -189,12 +189,12 @@ public sealed class MemoryClientDispatchFailureTests
 		MemoryReadRequest<int> read = new(Address, new NeverUsedCodec());
 		MemoryWriteRequest<int> write = new(Address, 42, new NeverUsedCodec());
 
-		CheatEngineClientLifecycleException primitiveException =
-			Assert.Throws<CheatEngineClientLifecycleException>(() =>
+		CheatEngineInvalidStateException primitiveException =
+			Assert.Throws<CheatEngineInvalidStateException>(() =>
 				client.ReadPrimitive<int>(Address, TestContext.Current.CancellationToken));
-		CheatEngineClientLifecycleException readException = Assert.Throws<CheatEngineClientLifecycleException>(() =>
+		CheatEngineInvalidStateException readException = Assert.Throws<CheatEngineInvalidStateException>(() =>
 			client.Read(read, TestContext.Current.CancellationToken));
-		CheatEngineClientLifecycleException writeException = Assert.Throws<CheatEngineClientLifecycleException>(() =>
+		CheatEngineInvalidStateException writeException = Assert.Throws<CheatEngineInvalidStateException>(() =>
 			client.Write(write, TestContext.Current.CancellationToken));
 
 		Assert.Equal("Test.Convenience", primitiveException.Failure.Operation);
@@ -274,13 +274,15 @@ public sealed class MemoryClientDispatchFailureTests
 
 	private sealed class NeverUsedCodec : IMemoryCodec<int>
 	{
-		public bool TryRead(IMemoryReadContext context, Address address, out int value)
+		public bool TryRead(IMemoryReadContext context, Address address, out int value, out CheatEngineFailure failure)
 		{
+			failure = default;
 			throw new InvalidOperationException("The rejecting dispatcher must prevent codec execution.");
 		}
 
-		public bool TryWrite(IMemoryWriteContext context, Address address, in int value)
+		public bool TryWrite(IMemoryWriteContext context, Address address, in int value, out CheatEngineFailure failure)
 		{
+			failure = default;
 			throw new InvalidOperationException("The rejecting dispatcher must prevent codec execution.");
 		}
 	}

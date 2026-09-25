@@ -8,8 +8,8 @@ public sealed class CoreLifetimeTests
 	[Fact]
 	public void CaptureRejectsClientConstructionOutsideAnEnabledPluginEpoch()
 	{
-		CheatEngineClientLifecycleException exception =
-			Assert.Throws<CheatEngineClientLifecycleException>(CoreLifetime.Capture);
+		CheatEngineInvalidStateException exception =
+			Assert.Throws<CheatEngineInvalidStateException>(CoreLifetime.Capture);
 
 		Assert.Equal(CheatEngineFailureKind.InvalidState, exception.Failure.Kind);
 		Assert.Equal("Client.Activate", exception.Failure.Operation);

@@ -88,7 +88,7 @@ public sealed class AobFluentBuilderTests
 		Assert.Equal(expected, actual);
 		AobScanRequest request = Assert.IsType<AobScanRequest>(scanner.LastRequest);
 		Assert.Equal(protection, request.Protection);
-		Assert.Equal(ScanAlignmentKind.LastDigits, request.Alignment.Kind);
+		Assert.Equal(ScanAlignmentMode.LastDigits, request.Alignment.Mode);
 		Assert.Equal("F0", request.Alignment.Digits);
 		Assert.Equal(new AobScanRange(0x400000, 0x4FFFFF), request.Range);
 	}
@@ -545,7 +545,7 @@ public sealed class AobFluentBuilderTests
 		public IProcessClient Processes => NotUsed<IProcessClient>();
 		public IMemoryClient Memory => NotUsed<IMemoryClient>();
 		public IPatternScanner Patterns => patterns;
-		public IValueScanner Scans => NotUsed<IValueScanner>();
+		public IValueScanner ValueScans => NotUsed<IValueScanner>();
 		public IInspectionClient Inspection => NotUsed<IInspectionClient>();
 		public ITableClient Tables => NotUsed<ITableClient>();
 		public ILuaClient Lua => NotUsed<ILuaClient>();

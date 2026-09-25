@@ -29,7 +29,7 @@ namespace CheatEngine.Client.Assembly;
 ///         only after Cheat Engine already targets the new process. It then ends the lease with
 ///         <see cref="LeaseReleaseKind.RefusedTargetChanged" />: CheatEngine.SDK refuses the disable on the new target
 ///         but consumes the disable information, so the patch stays in the previous process,
-///         <see cref="IAutoAssemblerPatchLease.RequiresManualRecovery" /> is <see langword="true" />, and selecting the
+///         <see cref="ICheatEngineLease.RequiresManualRecovery" /> is <see langword="true" />, and selecting the
 ///         previous process again cannot disable it.
 ///     </para>
 ///     <para>

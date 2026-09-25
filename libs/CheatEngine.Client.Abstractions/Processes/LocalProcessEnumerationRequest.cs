@@ -1,23 +1,26 @@
 namespace CheatEngine.Client.Processes;
 
 /// <summary>Defines a bounded, copied local-process enumeration.</summary>
-public readonly record struct ProcessEnumerationRequest
+public readonly record struct LocalProcessEnumerationRequest
 {
 	/// <summary>Creates a bounded process enumeration request.</summary>
-	public ProcessEnumerationRequest(int maximumItems, string? nameContains = null)
+	public LocalProcessEnumerationRequest(int maximumResults, string? nameContains = null)
 	{
-		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
+		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumResults);
 		if (nameContains is { Length: 0 })
 		{
 			throw new ArgumentException("A process-name filter must be null or non-empty.", nameof(nameContains));
 		}
 
-		MaximumItems = maximumItems;
+		MaximumResults = maximumResults;
 		NameContains = nameContains;
 	}
 
-	/// <summary>Gets the maximum number of copied process records the caller permits.</summary>
-	public int MaximumItems
+	/// <summary>
+	///     Gets the maximum number of process records copied: a longer catalog is truncated to it and reported with
+	///     <see cref="LocalProcessEnumerationResult.IsTruncated" />.
+	/// </summary>
+	public int MaximumResults
 	{
 		get;
 	}
