@@ -381,7 +381,6 @@ public sealed class MemoryPointerWidthTests
 	[InlineData("ReadBatch")]
 	[InlineData("WriteBatch")]
 	[InlineData("PointerChain")]
-	[InlineData("Codec")]
 	public void AnUnknownTargetBitnessRefusesEveryPointerPathBeforeAnyAccess(string path)
 	{
 		PointerWidthPort port = new()
@@ -404,14 +403,34 @@ public sealed class MemoryPointerWidthTests
 			]), token).Failure!.Value,
 			"PointerChain" => Refused(client.TryResolvePointerChain(new PointerChainRequest(TestAddress, [0x10L]),
 				out _, out CheatEngineFailure f, token), f),
-			// A codec that reads the context's bitness gets the same refusal, recorded before it can access memory.
-			_ => Refused(client.TryRead(new MemoryReadRequest<int>(TestAddress, new FactCodec { ReadBytes = true }),
-				out _, out CheatEngineFailure f, token), f)
+			_ => throw new ArgumentOutOfRangeException(nameof(path), path, null)
 		};
 
 		Assert.Equal(CheatEngineFailureKind.InvalidState, failure.Kind);
 		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
 		Assert.Equal(0, port.PointerReads + port.PointerWrites + port.ByteReads + port.ByteWrites);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q21")]
+	public void ACodecThatStopsOnAnUnknownTargetBitnessReportsTheRefusalItsContextRecorded()
+	{
+		// Core never refuses a codec: reading the context's unknown bitness records why the width is unknown, and a
+		// codec that then returns false with the default failure reports that refusal. Whether a codec still accesses
+		// memory is its own decision; this one stops, so nothing is read.
+		PointerWidthPort port = new()
+		{
+			UnknownBitness = true
+		};
+		FactCodec codec = new();
+
+		bool succeeded = CreateClient(port).TryRead(new MemoryReadRequest<int>(TestAddress, codec), out _,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(PointerSize.Unknown, codec.Bitness);
+		Assert.Equal(CheatEngineFailureKind.InvalidState, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
 	}
 
 	[Fact]

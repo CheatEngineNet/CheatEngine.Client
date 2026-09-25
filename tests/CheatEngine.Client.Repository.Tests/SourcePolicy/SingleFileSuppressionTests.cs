@@ -5,11 +5,12 @@ using CheatEngine.Client.Repository.Tests.Infrastructure;
 namespace CheatEngine.Client.Repository.Tests.SourcePolicy;
 
 /// <summary>
-///     The repository reads an assembly file location in exactly one place:
-///     <c>CheatEnginePluginBuilder.PluginDirectory</c> of Hosting, whose single-file warning (IL3000) is suppressed
-///     under ADR-02 (Cheat Engine loads a managed plugin from its deployment folder, never from a single-file bundle).
-///     The shipped code, the qualification harness, the fixtures and the tests all go through that property; any
-///     other file-location read must be designed, not suppressed.
+///     IL3000, the single-file warning on an assembly file location, is suppressed exactly once in the repository: on
+///     the getter of <c>CheatEnginePluginBuilder.PluginDirectory</c> in Hosting, under ADR-02 (Cheat Engine loads a
+///     managed plugin from its deployment folder, never from a single-file bundle). The shipped code, the template and
+///     the qualification harness find their plugin folder through that property, and any other file-location read that
+///     raises IL3000 must be designed, not suppressed. Test and fixture code, which is never trimmed or published as a
+///     single file, raises no IL3000 and may read <c>Assembly.Location</c> directly.
 /// </summary>
 public sealed partial class SingleFileSuppressionTests
 {
