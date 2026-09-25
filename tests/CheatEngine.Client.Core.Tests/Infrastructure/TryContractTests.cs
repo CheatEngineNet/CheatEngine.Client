@@ -238,6 +238,57 @@ public sealed class TryContractTests
 		Assert.Empty(port.Session.Calls);
 	}
 
+	/// <summary>
+	///     Creating a lease-owned resource is admitted only while the activation is active, never from the deactivation
+	///     cleanup scope that can still release an existing lease: every lease-creating operation throws there before it
+	///     dispatches anything.
+	/// </summary>
+	[Theory]
+	[Trait("Qualification", "Q43")]
+	[InlineData("Inspection.RegisterSymbol")]
+	[InlineData("Lua.RegisterModule")]
+	[InlineData("Scans.CreateSession")]
+	[InlineData("Allocations.Allocate")]
+	[InlineData("AutoAssembler.ApplyPatch")]
+	public void NoLeaseIsCreatedFromTheDeactivationCleanupScope(string entryPoint)
+	{
+		using ControlledCoreLifetimeContext context = new();
+		CoreLifetime lifetime = new(context);
+		CountingMainThreadInvoker invoker = new();
+		SdkMainThreadDispatcher dispatcher = new(lifetime, invoker);
+		ThrowingPorts ports = new(new InvalidOperationException("never reached"));
+		FakeValueScanPort scans = new();
+		FakeAllocationPort allocations = new();
+		CancellationToken token = TestContext.Current.CancellationToken;
+		Action create = entryPoint switch
+		{
+			"Inspection.RegisterSymbol" => () => new InspectionClient(dispatcher, lifetime, ports)
+				.TryRegisterSymbol(new SymbolRegistration("contractSymbol", Target), out _, out _, token),
+			"Lua.RegisterModule" => () => new LuaClient(dispatcher, lifetime)
+				.TryRegisterModule(new PortBackedModule(ports), out _, out _, token),
+			"Scans.CreateSession" => () => new ValueScanner(dispatcher, Binder(dispatcher), scans)
+				.TryCreateSession(out _, out _, token),
+			"Allocations.Allocate" => () => new AllocationClient(dispatcher, Binder(dispatcher), allocations)
+				.TryAllocate(new AllocationRequest(4096), out _, out _, token),
+			"AutoAssembler.ApplyPatch" => () => new AutoAssemblerClient(dispatcher, AutoAssemblerPolicy(), lifetime,
+					Binder(dispatcher), ports)
+				.TryApplyPatch(new AutoAssemblerScript("[ENABLE]"), out _, out _, token),
+			_ => throw new ArgumentOutOfRangeException(nameof(entryPoint), entryPoint, null)
+		};
+
+		context.Stop();
+		using (lifetime.EnterCleanupScope())
+		{
+			CheatEngineClientLifecycleException refused = Assert.Throws<CheatEngineClientLifecycleException>(create);
+			Assert.Equal(entryPoint, refused.Failure.Operation);
+		}
+
+		Assert.Equal(0, invoker.Calls);
+		Assert.Equal(0, ports.Calls);
+		Assert.Equal(0, scans.Creations);
+		Assert.Equal(0, allocations.Allocations);
+	}
+
 	[Theory]
 	[MemberData(nameof(SdkFaultCases))]
 	public void SdkExceptionsNeverCrossATryMethod(string faultType, string entryPoint)
@@ -1378,6 +1429,30 @@ public sealed class TryContractTests
 		public LuaModuleReleaseOutcome Unregister()
 		{
 			return LuaModuleReleaseOutcome.Released("contract", 1, 0, 0);
+		}
+	}
+
+	/// <summary>Runs every callback inline and counts the dispatches.</summary>
+	private sealed class CountingMainThreadInvoker : IMainThreadInvoker
+	{
+		private readonly InlineMainThreadInvoker _inner = new();
+
+		public int Calls
+		{
+			get;
+			private set;
+		}
+
+		public Exception? Invoke(Action callback)
+		{
+			Calls++;
+			return _inner.Invoke(callback);
+		}
+
+		public MainThreadInvocationResult<T> Invoke<T>(Func<T> callback)
+		{
+			Calls++;
+			return _inner.Invoke(callback);
 		}
 	}
 

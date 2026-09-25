@@ -50,8 +50,9 @@ internal sealed class AllocationClient : IAllocationClient
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
 		lease = null;
-		// An ended or stopping activation throws before a refusal or a cancellation is reported, never the reverse.
-		_dispatcher.Lifetime.ThrowIfDispatchAllowed(AllocateOperation);
+		// Creating a lease-owned resource is admitted only while the activation is active, never from the cleanup scope:
+		// an ended or stopping activation throws before a refusal or a cancellation is reported, never the reverse.
+		_dispatcher.Lifetime.ThrowIfInactive(AllocateOperation);
 		if (!AllocationMapping.TryCreateRequest(request, AllocateOperation, out TargetAllocationRequest sdkRequest,
 				out failure))
 		{

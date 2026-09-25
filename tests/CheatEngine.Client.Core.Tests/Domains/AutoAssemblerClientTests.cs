@@ -336,8 +336,8 @@ public sealed class AutoAssemblerClientTests : IDisposable
 				client.TryApplyPatch(new AutoAssemblerScript(Script), out _, out _, Token));
 		}
 
-		// Unlike an allocation, an activation is admitted with ThrowIfInactive, which makes no exception for a cleanup
-		// scope: the admission refuses it before anything is dispatched, and nothing is applied or released.
+		// Like every lease-creating operation, an activation is admitted with ThrowIfInactive, which makes no exception for
+		// a cleanup scope: the admission refuses it before anything is dispatched, and nothing is applied or released.
 		Assert.Equal(0, _invoker.Calls);
 		Assert.Equal(0, _port.ApplyCalls);
 		Assert.Equal(0, _port.Owner!.ReleaseCalls);

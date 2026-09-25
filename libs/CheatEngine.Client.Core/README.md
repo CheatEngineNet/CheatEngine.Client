@@ -41,7 +41,8 @@ Abstractions  ←  Fluent
 - Captures an SDK activation epoch and rejects stale work instead of letting a resource survive a
   disable/re-enable boundary.
 - Closes ordinary work admission during disable, then drains Client-owned resources on the CE main
-  thread in reverse creation order while the SDK context is still valid.
+  thread in reverse creation order while the SDK context is still valid. Creating a lease-owned
+  resource is admitted only while the activation is active, never from the cleanup scope.
 - Separates the plugin epoch from the selected-target epoch so target changes invalidate only
   target-bound resources.
 - Copies SDK-owned scan/list data into managed values before releasing the owner; the public API

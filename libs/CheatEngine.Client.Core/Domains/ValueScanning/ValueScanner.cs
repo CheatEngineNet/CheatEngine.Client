@@ -50,8 +50,9 @@ internal sealed class ValueScanner : IValueScanner
 		CancellationToken cancellationToken = default)
 	{
 		session = null;
-		// An ended or stopping activation throws before a cancellation is reported, never the reverse.
-		_dispatcher.Lifetime.ThrowIfDispatchAllowed(CreateOperation);
+		// Creating a lease-owned resource is admitted only while the activation is active, never from the cleanup scope:
+		// an ended or stopping activation throws before a cancellation is reported, never the reverse.
+		_dispatcher.Lifetime.ThrowIfInactive(CreateOperation);
 		if (cancellationToken.IsCancellationRequested)
 		{
 			failure = CancellationMapping.BeforeNativeCall(CreateOperation);

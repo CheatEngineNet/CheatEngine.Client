@@ -190,6 +190,15 @@ internal sealed class CoreLifetime : IDisposable
 		return _resources.Untrack(resource);
 	}
 
+	/// <summary>Rejects new work once the activation ends or starts stopping, the cleanup scope included.</summary>
+	/// <remarks>
+	///     Creating a lease-owned resource is admitted only while the activation is active, never from the cleanup scope:
+	///     every operation that creates a lease (a symbol registration, a Lua module, a value-scan session, an allocation,
+	///     an Auto Assembler patch) calls this before it dispatches and again in its dispatched callback, before
+	///     CheatEngine.SDK creates anything that no lease could own. Operations on an existing resource use
+	///     <see cref="ThrowIfDispatchAllowed" />, so the cleanup scope can still release it.
+	/// </remarks>
+	/// <param name="operation">The public operation name.</param>
 	internal void ThrowIfInactive(string operation)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(operation);
