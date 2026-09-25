@@ -308,6 +308,8 @@ internal sealed class ProcessClient : IProcessClient, ITargetSelectionBinder
 		out CheatEngineFailure failure,
 		CancellationToken cancellationToken)
 	{
+		// The read is admitted like any dispatch, under the name of the public call instead of the dispatcher's.
+		_lifetime?.ThrowIfDispatchRefused(operation);
 		CurrentProcessCapture captured = default;
 		bool invoked = _dispatcher.TryInvoke(() => captured = CaptureCurrent(operation), out failure,
 			cancellationToken);

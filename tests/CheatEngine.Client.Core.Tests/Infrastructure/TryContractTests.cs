@@ -23,6 +23,7 @@ using CheatEngine.Client.Runtime;
 using CheatEngine.Client.Scanning;
 using CheatEngine.Client.Tables;
 using CheatEngine.SDK.Engine.AddressList;
+using CheatEngine.SDK.Engine.Enums;
 using CheatEngine.SDK.Engine.Assembly;
 using CheatEngine.SDK.Engine.Errors;
 using CheatEngine.SDK.Engine.Inspection;
@@ -104,6 +105,22 @@ public sealed class TryContractTests
 		}
 	}
 
+	/// <summary>Gets every public operation that needs the activation, on an ended and a stopping activation.</summary>
+	public static TheoryData<string, bool> ActivationRefusalCases
+	{
+		get
+		{
+			TheoryData<string, bool> data = [];
+			foreach (string operation in ActivationOperations)
+			{
+				data.Add(operation, false);
+				data.Add(operation, true);
+			}
+
+			return data;
+		}
+	}
+
 	/// <summary>Gets each SDK fault type at each scoped-route SDK call that follows module resolution.</summary>
 	public static TheoryData<string, string> ScopedAobFaultCases
 	{
@@ -133,6 +150,25 @@ public sealed class TryContractTests
 	};
 
 	private static string[] ActivationStates => ["Active", "Ended", "Stopping"];
+
+	/// <summary>Gets every public operation that needs the activation, by its operation name.</summary>
+	private static string[] ActivationOperations =>
+	[
+		"Runtime.GetSnapshot", "Runtime.GetClientCapability", "Dispatcher.Invoke", "Processes.GetCurrentProcess",
+		"Processes.Refresh", "Processes.Attach", "Processes.AttachExactName", "Memory.ReadPrimitive",
+		"Memory.WritePrimitive", "Memory.ReadPrimitiveBatch", "Memory.WritePrimitiveBatch", "Memory.ReadBytes",
+		"Memory.WriteBytes", "Memory.ReadString", "Memory.WriteString", "Memory.ResolvePointerChain", "Memory.Read",
+		"Memory.Write", "Patterns.Scan", "ValueScans.CreateSession", "ValueScans.FirstScan", "ValueScans.NextScan",
+		"ValueScans.Reset", "ValueScans.GetResultCount", "ValueScans.Read", "Allocations.Allocate",
+		"Inspection.GetModules", "Inspection.GetModuleSections", "Inspection.GetMemoryRegions",
+		"Inspection.GetMemoryRegion", "Inspection.GetSymbol", "Inspection.ResolveName", "Inspection.RegisterSymbol",
+		"Inspection.ResolveAddress", "Tables.GetRecordCount", "Tables.GetSnapshot", "Tables.Find",
+		"Tables.GetRecordAt", "Tables.GetRecord", "Tables.GetSelectedRecord", "Tables.SelectRecord", "Tables.Create",
+		"Tables.Update", "Tables.Delete", "Tables.SetActive", "Tables.SetParent", "Tables.GetHierarchy",
+		"Tables.LoadTrustedTable", "Tables.SaveTable", "Lua.RegisterModule", "Lua.Execute", "UnsafeLua.Execute",
+		"AutoAssembler.Check", "AutoAssembler.ApplyPatch", "Assembly.Assemble", "Assembly.Disassemble",
+		"Assembly.GetInstructionLength", "Assembly.GetPreviousInstructionAddress"
+	];
 
 	private static string[] ArgumentEntryPoints =>
 	[
@@ -397,6 +433,51 @@ public sealed class TryContractTests
 		Assert.Equal(CheatEngineHostEffect.NotStarted, thrown.Failure.HostEffect);
 		Assert.Equal(0, ports.Calls);
 		Assert.Empty(scans.Session.Calls);
+	}
+
+	/// <summary>
+	///     Every public operation that needs the activation reports an ended activation with
+	///     <see cref="CheatEngineActivationExpiredException" /> and a stopping one with
+	///     <see cref="CheatEngineInvalidStateException" /> under its own <c>Service.Member</c> name, from its Try, its
+	///     throwing and its Detailed forms, before any Cheat Engine call: never under the dispatcher's name.
+	///     <c>IProcessClient.TryGetLocalProcesses</c> needs no activation.
+	/// </summary>
+	[Theory]
+	[MemberData(nameof(ActivationRefusalCases))]
+	public void EveryOperationNamesTheActivationRefusalAfterItself(string operation, bool stopping)
+	{
+		using ControlledCoreLifetimeContext context = new();
+		CoreLifetime lifetime = new(context);
+		SdkMainThreadDispatcher dispatcher = new(lifetime, new InlineMainThreadInvoker());
+		ThrowingPorts ports = new(new InvalidOperationException("never reached"));
+		FakeValueScanPort scans = new();
+		FakeAllocationPort allocations = new();
+		CancellationToken token = TestContext.Current.CancellationToken;
+		IValueScanSession session = new ValueScanner(dispatcher, Binder(dispatcher), scans).CreateSession(token);
+		Action[] forms = OperationForms(operation, new OperationClients(dispatcher, lifetime, ports, scans, allocations,
+			session), token);
+		if (stopping)
+		{
+			context.Stop();
+		}
+		else
+		{
+			context.IsCurrent = false;
+		}
+
+		Assert.NotEmpty(forms);
+		Assert.All(forms, form =>
+		{
+			CheatEngineClientException thrown = stopping
+				? Assert.Throws<CheatEngineInvalidStateException>(form)
+				: Assert.Throws<CheatEngineActivationExpiredException>(form);
+			Assert.Equal(operation, thrown.Failure.Operation);
+			Assert.Equal(CheatEngineHostEffect.NotStarted, thrown.Failure.HostEffect);
+		});
+		Assert.Equal(0, ports.Calls);
+		Assert.Equal(1, scans.Creations);
+		Assert.Empty(scans.Session.Calls);
+		Assert.Equal(0, allocations.Allocations);
 	}
 
 	/// <summary>
@@ -1145,6 +1226,289 @@ public sealed class TryContractTests
 		return new AobScanRequest(new AobPattern("90 90"), 1, null, new AobScanRange(top, top));
 	}
 
+	/// <summary>
+	///     Returns the Try, throwing and Detailed forms of one public operation, with well-formed arguments.
+	/// </summary>
+	private static Action[] OperationForms(string operation, OperationClients clients, CancellationToken token)
+	{
+		IValueScanSession session = clients.Session;
+		MemoryClient memory = clients.Memory;
+		InspectionClient inspection = clients.Inspection;
+		TableClient tables = clients.Tables;
+		AssemblyClient assembly = clients.Assembly;
+		MemoryRecordId record = new(7);
+		MemoryRecordCollectionRequest records = new(8);
+		InspectionCollectionRequest items = new(8);
+		ModuleName module = new("game.exe");
+		SymbolExpression expression = new("game.exe+10");
+		SymbolRegistration registration = new("contractSymbol", Target);
+		MemoryPrimitiveBatchReadRequest<int> batchRead = new([Target]);
+		MemoryPrimitiveBatchWriteRequest<int> batchWrite = new([new MemoryAddressValue<int>(Target, 1)]);
+		MemoryBytesReadRequest bytesRead = new(Target, 4);
+		MemoryBytesWriteRequest bytesWrite = new(Target, [1]);
+		MemoryStringReadRequest stringRead = new(Target, 16, MemoryStringEncoding.Utf8);
+		MemoryStringWriteRequest stringWrite = new(Target, "a", 16, MemoryStringEncoding.Utf8);
+		PointerChainRequest chain = new(Target, [0x10]);
+		ThrowingCodec codec = new(new InvalidOperationException("never reached"));
+		MemoryRecordDefinition definition = new("Ammo", "game.exe+10", "100", VariableType.Dword);
+		TrustedTableFile file = new(Path.Combine(Path.GetTempPath(), "contract.ct"));
+		AssemblyInstructionRequest instruction = new(Target, "nop");
+		AutoAssemblerScript script = new("[ENABLE]");
+		return operation switch
+		{
+			"Runtime.GetSnapshot" =>
+			[
+				() => clients.Runtime.TryGetSnapshot(out _, out _, token), () => clients.Runtime.GetSnapshot(token)
+			],
+			"Runtime.GetClientCapability" =>
+			[
+				() => clients.Runtime.TryGetClientCapability(ClientCapabilityId.Inspection, out _, out _, token),
+				() => clients.Runtime.GetClientCapability(ClientCapabilityId.Inspection, token)
+			],
+			"Dispatcher.Invoke" =>
+			[
+				() => clients.Dispatcher.TryInvoke(static () =>
+				{
+				}, out _, token),
+				() => clients.Dispatcher.Invoke(static () => 1, token)
+			],
+			"Processes.GetCurrentProcess" =>
+			[
+				() => clients.Processes.TryGetCurrentProcess(out _, out _, token),
+				() => clients.Processes.GetCurrentProcess(token)
+			],
+			"Processes.Refresh" =>
+				[() => clients.Processes.TryRefresh(out _, out _, token), () => clients.Processes.Refresh(token)],
+			"Processes.Attach" =>
+			[
+				() => clients.Processes.TryAttach(new TargetProcessId(42), out _, out _, token),
+				() => clients.Processes.Attach(new TargetProcessId(42), token)
+			],
+			"Processes.AttachExactName" =>
+			[
+				() => clients.Processes.TryAttachExactName("fixture.exe", out _, out _, token),
+				() => clients.Processes.AttachExactName("fixture.exe", token)
+			],
+			"Memory.ReadPrimitive" =>
+			[
+				() => memory.TryReadPrimitive(Target, out int _, out _, token),
+				() => memory.ReadPrimitive<int>(Target, token)
+			],
+			"Memory.WritePrimitive" =>
+			[
+				() => memory.TryWritePrimitive(Target, 1, out _, token),
+				() => memory.WritePrimitive(Target, 1, token)
+			],
+			"Memory.ReadPrimitiveBatch" =>
+			[
+				() => memory.TryReadPrimitiveBatch(batchRead, out _, out _, token),
+				() => memory.ReadPrimitiveBatch(batchRead, token),
+				() => memory.ReadPrimitiveBatchDetailed(batchRead, token)
+			],
+			"Memory.WritePrimitiveBatch" =>
+			[
+				() => memory.TryWritePrimitiveBatch(batchWrite, out _, token),
+				() => memory.WritePrimitiveBatch(batchWrite, token),
+				() => memory.WritePrimitiveBatchDetailed(batchWrite, token)
+			],
+			"Memory.ReadBytes" =>
+			[
+				() => memory.TryReadBytes(bytesRead, out _, out _, token), () => memory.ReadBytes(bytesRead, token),
+				() => memory.ReadBytesDetailed(bytesRead, token)
+			],
+			"Memory.WriteBytes" =>
+				[() => memory.TryWriteBytes(bytesWrite, out _, token), () => memory.WriteBytes(bytesWrite, token)],
+			"Memory.ReadString" =>
+			[
+				() => memory.TryReadString(stringRead, out _, out _, token),
+				() => memory.ReadString(stringRead, token)
+			],
+			"Memory.WriteString" =>
+				[() => memory.TryWriteString(stringWrite, out _, token), () => memory.WriteString(stringWrite, token)],
+			"Memory.ResolvePointerChain" =>
+			[
+				() => memory.TryResolvePointerChain(chain, out _, out _, token),
+				() => memory.ResolvePointerChain(chain, token)
+			],
+			"Memory.Read" =>
+			[
+				() => memory.TryRead(new MemoryReadRequest<int>(Target, codec), out _, out _, token),
+				() => memory.Read(new MemoryReadRequest<int>(Target, codec), token)
+			],
+			"Memory.Write" =>
+			[
+				() => memory.TryWrite(new MemoryWriteRequest<int>(Target, 1, codec), out _, token),
+				() => memory.Write(new MemoryWriteRequest<int>(Target, 1, codec), token)
+			],
+			"Patterns.Scan" =>
+			[
+				() => clients.Patterns.TryScan(Request(), out _, out _, token),
+				() => clients.Patterns.Scan(Request(), token), () => clients.Patterns.ScanDetailed(Request(), token)
+			],
+			"ValueScans.CreateSession" =>
+			[
+				() => clients.ValueScans.TryCreateSession(out _, out _, token),
+				() => clients.ValueScans.CreateSession(token)
+			],
+			"ValueScans.FirstScan" =>
+			[
+				() => session.TryFirstScan(ValueScanFirstRequest.Exact(ValueScanValue.FromInt32(1)), out _, token),
+				() => session.FirstScan(ValueScanFirstRequest.Exact(ValueScanValue.FromInt32(1)), token)
+			],
+			"ValueScans.NextScan" =>
+			[
+				() => session.TryNextScan(ValueScanNextRequest.Changed(), out _, token),
+				() => session.NextScan(ValueScanNextRequest.Changed(), token)
+			],
+			"ValueScans.Reset" => [() => session.TryReset(out _, token), () => session.Reset(token)],
+			"ValueScans.GetResultCount" =>
+				[() => session.TryGetResultCount(out _, out _, token), () => session.GetResultCount(token)],
+			"ValueScans.Read" =>
+			[
+				() => session.TryRead(new ValueScanReadRequest(0, 8), out _, out _, token),
+				() => session.Read(new ValueScanReadRequest(0, 8), token)
+			],
+			"Allocations.Allocate" =>
+			[
+				() => clients.Allocations.TryAllocate(new AllocationRequest(4096), out _, out _, token),
+				() => clients.Allocations.Allocate(new AllocationRequest(4096), token)
+			],
+			"Inspection.GetModules" =>
+			[
+				() => inspection.TryGetModules(items, null, out _, out _, token),
+				() => inspection.GetModules(items, null, token)
+			],
+			"Inspection.GetModuleSections" =>
+			[
+				() => inspection.TryGetModuleSections(module, items, out _, out _, token),
+				() => inspection.GetModuleSections(module, items, token)
+			],
+			"Inspection.GetMemoryRegions" =>
+			[
+				() => inspection.TryGetMemoryRegions(items, out _, out _, token),
+				() => inspection.GetMemoryRegions(items, token)
+			],
+			"Inspection.GetMemoryRegion" =>
+			[
+				() => inspection.TryGetMemoryRegion(Target, out _, out _, token),
+				() => inspection.GetMemoryRegion(Target, token)
+			],
+			"Inspection.GetSymbol" =>
+			[
+				() => inspection.TryGetSymbol(expression, out _, out _, token),
+				() => inspection.GetSymbol(expression, token)
+			],
+			"Inspection.ResolveName" =>
+			[
+				() => inspection.TryResolveName(Target, out _, out _, token),
+				() => inspection.ResolveName(Target, token)
+			],
+			"Inspection.RegisterSymbol" =>
+			[
+				() => inspection.TryRegisterSymbol(registration, out _, out _, token),
+				() => inspection.RegisterSymbol(registration, token)
+			],
+			"Inspection.ResolveAddress" =>
+			[
+				() => inspection.TryResolveAddress(expression, AddressResolutionMode.Default, out _, out _, token),
+				() => inspection.ResolveAddress(expression, AddressResolutionMode.Default, token)
+			],
+			"Tables.GetRecordCount" =>
+				[() => tables.TryGetRecordCount(out _, out _, token), () => tables.GetRecordCount(token)],
+			"Tables.GetSnapshot" =>
+				[() => tables.TryGetSnapshot(records, out _, out _, token), () => tables.GetSnapshot(records, token)],
+			"Tables.Find" =>
+			[
+				() => tables.TryFind(new MemoryRecordSearch("Ammo"), records, out _, out _, token),
+				() => tables.Find(new MemoryRecordSearch("Ammo"), records, token)
+			],
+			"Tables.GetRecordAt" =>
+				[() => tables.TryGetRecordAt(0, out _, out _, token), () => tables.GetRecordAt(0, token)],
+			"Tables.GetRecord" =>
+				[() => tables.TryGetRecord(record, out _, out _, token), () => tables.GetRecord(record, token)],
+			"Tables.GetSelectedRecord" =>
+				[() => tables.TryGetSelectedRecord(out _, out _, token), () => tables.GetSelectedRecord(token)],
+			"Tables.SelectRecord" =>
+				[() => tables.TrySelectRecord(record, out _, out _, token), () => tables.SelectRecord(record, token)],
+			"Tables.Create" =>
+				[() => tables.TryCreate(definition, out _, out _, token), () => tables.Create(definition, token)],
+			"Tables.Update" =>
+			[
+				() => tables.TryUpdate(record, new MemoryRecordUpdate("Ammo"), out _, out _, token),
+				() => tables.Update(record, new MemoryRecordUpdate("Ammo"), token)
+			],
+			"Tables.Delete" => [() => tables.TryDelete(record, out _, token), () => tables.Delete(record, token)],
+			"Tables.SetActive" =>
+			[
+				() => tables.TrySetActive(record, true, out _, out _, token),
+				() => tables.SetActive(record, true, token)
+			],
+			"Tables.SetParent" =>
+			[
+				() => tables.TrySetParent(record, null, out _, out _, token),
+				() => tables.SetParent(record, null, token)
+			],
+			"Tables.GetHierarchy" =>
+			[
+				() => tables.TryGetHierarchy(record, new MemoryRecordHierarchyRequest(8, 2), out _, out _, token),
+				() => tables.GetHierarchy(record, new MemoryRecordHierarchyRequest(8, 2), token)
+			],
+			"Tables.LoadTrustedTable" =>
+			[
+				() => tables.TryLoadTrustedTable(new TableLoadRequest(file), out _, token),
+				() => tables.LoadTrustedTable(new TableLoadRequest(file), token)
+			],
+			"Tables.SaveTable" =>
+			[
+				() => tables.TrySaveTable(new TableSaveRequest(file), out _, token),
+				() => tables.SaveTable(new TableSaveRequest(file), token)
+			],
+			"Lua.RegisterModule" =>
+			[
+				() => clients.Lua.TryRegisterModule(clients.Module, out _, out _, token),
+				() => clients.Lua.RegisterModule(clients.Module, token)
+			],
+			"Lua.Execute" =>
+			[
+				() => clients.Lua.TryExecute<ConstantOperation, int>(new ConstantOperation(), out _, out _, token),
+				() => clients.Lua.Execute<ConstantOperation, int>(new ConstantOperation(), token)
+			],
+			"UnsafeLua.Execute" =>
+			[
+				() => clients.UnsafeLua.TryExecute(new LuaScript("return 1"), out _, token),
+				() => clients.UnsafeLua.Execute(new LuaScript("return 1"), token)
+			],
+			"AutoAssembler.Check" =>
+			[
+				() => clients.AutoAssembler.TryCheck(script, out _, out _, token),
+				() => clients.AutoAssembler.Check(script, token)
+			],
+			"AutoAssembler.ApplyPatch" =>
+			[
+				() => clients.AutoAssembler.TryApplyPatch(script, out _, out _, token),
+				() => clients.AutoAssembler.ApplyPatch(script, token)
+			],
+			"Assembly.Assemble" =>
+			[
+				() => assembly.TryAssemble(instruction, out _, out _, token),
+				() => assembly.Assemble(instruction, token)
+			],
+			"Assembly.Disassemble" =>
+				[() => assembly.TryDisassemble(Target, out _, out _, token), () => assembly.Disassemble(Target, token)],
+			"Assembly.GetInstructionLength" =>
+			[
+				() => assembly.TryGetInstructionLength(Target, out _, out _, token),
+				() => assembly.GetInstructionLength(Target, token)
+			],
+			"Assembly.GetPreviousInstructionAddress" =>
+			[
+				() => assembly.TryGetPreviousInstructionAddress(Target, out _, out _, token),
+				() => assembly.GetPreviousInstructionAddress(Target, token)
+			],
+			_ => throw new ArgumentOutOfRangeException(nameof(operation), operation, null)
+		};
+	}
+
 	private static Exception CreateSdkFault(string faultType)
 	{
 		return faultType switch
@@ -1608,6 +1972,86 @@ public sealed class TryContractTests
 		{
 			return LuaModuleReleaseOutcome.Released("contract", 1, 0, 0);
 		}
+	}
+
+	/// <summary>One client of every family over the same activation and the same ports.</summary>
+	private sealed class OperationClients(SdkMainThreadDispatcher dispatcher, CoreLifetime lifetime,
+		ThrowingPorts ports, FakeValueScanPort scans, FakeAllocationPort allocations, IValueScanSession session)
+	{
+		internal SdkMainThreadDispatcher Dispatcher
+		{
+			get;
+		} = dispatcher;
+
+		internal RuntimeClient Runtime
+		{
+			get;
+		} = new(dispatcher, lifetime, CoreClientPolicy.SafeDefaults);
+
+		internal ProcessClient Processes
+		{
+			get;
+		} = new(dispatcher, ports, ports, ports, lifetime);
+
+		internal MemoryClient Memory
+		{
+			get;
+		} = new(dispatcher, lifetime, ports);
+
+		internal PatternScanner Patterns
+		{
+			get;
+		} = new(dispatcher, ports);
+
+		internal ValueScanner ValueScans
+		{
+			get;
+		} = new(dispatcher, Binder(dispatcher), scans);
+
+		internal IValueScanSession Session
+		{
+			get;
+		} = session;
+
+		internal AllocationClient Allocations
+		{
+			get;
+		} = new(dispatcher, Binder(dispatcher), allocations);
+
+		internal InspectionClient Inspection
+		{
+			get;
+		} = new(dispatcher, lifetime, ports);
+
+		internal TableClient Tables
+		{
+			get;
+		} = new(dispatcher, CoreClientPolicy.SafeDefaults, ports, lifetime, ports);
+
+		internal LuaClient Lua
+		{
+			get;
+		} = new(dispatcher, lifetime);
+
+		internal PortBackedModule Module
+		{
+			get;
+		} = new(ports);
+
+		internal UnsafeLuaClient UnsafeLua
+		{
+			get;
+		} = new(dispatcher, new CoreClientPolicy([], enableUnsafeLuaExecution: true), lifetime);
+
+		internal AutoAssemblerClient AutoAssembler
+		{
+			get;
+		} = new(dispatcher, AutoAssemblerPolicy(), lifetime, Binder(dispatcher), ports);
+
+		internal AssemblyClient Assembly
+		{
+			get;
+		} = new(dispatcher, lifetime, new MemoryResourceLimits(), ports);
 	}
 
 	/// <summary>Runs every callback inline and counts the dispatches.</summary>

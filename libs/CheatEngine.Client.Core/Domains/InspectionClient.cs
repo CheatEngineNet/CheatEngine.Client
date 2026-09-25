@@ -169,6 +169,7 @@ internal sealed class InspectionClient(
 	public bool TryGetMemoryRegion(Address address, out MemoryRegionInfo region,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
+		_lifetime.ThrowIfDispatchRefused("Inspection.GetMemoryRegion");
 		MemoryRegionInfo captured = default;
 		InspectionStatus status = InspectionStatus.InvalidResult;
 		if (!SdkBoundary.TryInvoke(_dispatcher, "Inspection.GetMemoryRegion",
@@ -198,6 +199,7 @@ internal sealed class InspectionClient(
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
 		ValidateExpression(expression);
+		_lifetime.ThrowIfDispatchRefused("Inspection.GetSymbol");
 		SymbolInfo captured = default;
 		InspectionStatus status = InspectionStatus.InvalidResult;
 		if (!SdkBoundary.TryInvoke(_dispatcher, "Inspection.GetSymbol",
@@ -226,6 +228,7 @@ internal sealed class InspectionClient(
 	public bool TryResolveName(Address address, [NotNullWhen(true)] out string? name, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
+		_lifetime.ThrowIfDispatchRefused(ResolveNameOperation);
 		string? captured = null;
 		LuaOperationStatus status = default;
 		if (!SdkBoundary.TryInvoke(_dispatcher, ResolveNameOperation,
@@ -339,6 +342,7 @@ internal sealed class InspectionClient(
 				"The address resolution mode must be a defined value.");
 		}
 
+		_lifetime.ThrowIfDispatchRefused("Inspection.ResolveAddress");
 		Address captured = Address.Zero;
 		InspectionStatus status = InspectionStatus.InvalidResult;
 		if (!SdkBoundary.TryInvoke(_dispatcher, "Inspection.ResolveAddress",

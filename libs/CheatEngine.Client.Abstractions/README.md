@@ -524,10 +524,10 @@ atomic.
   `default` (uninitialized) request, an undefined enum value or an out-of-range number (programming errors), from the
   `Try` form as from the throwing form, and first: before the activation check and before any Cheat Engine call, as
   the argument's own constructor or factory throws for the same value. Then `CheatEngineActivationExpiredException`
-  when the activation has ended and `CheatEngineInvalidStateException` when it is stopping: a `Try` form checks the
-  activation before it returns any failure, so a policy, budget or state refusal never hides an ended or stopping
-  activation (`IProcessClient.TryGetLocalProcesses` needs no activation), and an expired activation is never reported
-  as `Cancelled` or `CapabilityUnavailable`.
+  when the activation has ended and `CheatEngineInvalidStateException` when it is stopping, both named after the
+  operation that met them: a `Try` form checks the activation before it returns any failure, so a policy, budget or
+  state refusal never hides an ended or stopping activation (`IProcessClient.TryGetLocalProcesses` needs no
+  activation), and an expired activation is never reported as `Cancelled` or `CapabilityUnavailable`.
 - **Consumer code:** exceptions thrown by application-supplied code (dispatcher callbacks, `IMemoryCodec<T>` codecs,
   `ILuaOperation<T>` operations, the `ILuaResultMapper<TSource, TResult>` of a generated operation) are rethrown as the
   same instance, never converted into a failure. A codec or an operation reports an expected failure by returning
@@ -809,7 +809,9 @@ This charter is normative for every public type of the seven Client packages; th
   session's first scan, a module and range without room for a whole match).
 - A `Try` form that needs the activation checks it after its arguments and before it returns any failure: an ended
   activation throws `CheatEngineActivationExpiredException` and a stopping one `CheatEngineInvalidStateException`,
-  whatever refusal the request would meet.
+  whatever refusal the request would meet. That check is named after the operation: the exception's
+  `Failure.Operation` is the operation's own `<Service>.<Member>`, not the `Dispatcher.Invoke` of the dispatcher it
+  would have used.
 - `CheatEngineFailure.Operation` is `<Service>.<Member>`. `Service` is the `ICheatEngineClient` property that exposes
   the service, `UnsafeLua` or `AutoAssembler` for the services only dependency injection registers, or `Client` for
   the activation itself (`Client.Activate`, and `Client.GetRequiredClient` for the plugin member of that name).

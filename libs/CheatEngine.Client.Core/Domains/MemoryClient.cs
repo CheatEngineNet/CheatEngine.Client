@@ -358,6 +358,7 @@ internal sealed class MemoryClient : IMemoryClient
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
 		ValidateCodec(request.Codec, nameof(request));
+		ThrowIfDispatchRefused(ReadOperation);
 		T? captured = default;
 		CodecOutcome outcome = default;
 		if (!_dispatcher.TryInvoke(() => outcome = TryReadCore(request, out captured), out failure,
@@ -394,6 +395,7 @@ internal sealed class MemoryClient : IMemoryClient
 		CancellationToken cancellationToken = default)
 	{
 		ValidateCodec(request.Codec, nameof(request));
+		ThrowIfDispatchRefused(WriteOperation);
 		CodecOutcome outcome = default;
 		if (!_dispatcher.TryInvoke(() => outcome = TryWriteCore(request), out failure, cancellationToken))
 		{
@@ -619,6 +621,7 @@ internal sealed class MemoryClient : IMemoryClient
 			throw new ArgumentOutOfRangeException(nameof(request), "A pointer chain is limited to 64 hops.");
 		}
 
+		ThrowIfDispatchRefused("Memory.ResolvePointerChain");
 		Address captured = request.BaseAddress;
 		ObservedTarget? widthRefusal = null;
 		CheatEngineFailure? chainRefusal = null;
@@ -926,9 +929,9 @@ internal sealed class MemoryClient : IMemoryClient
 	}
 
 	/// <summary>
-	///     Throws when the activation refuses dispatch, before the refusals decided without Cheat Engine (an
-	///     unsupported type, a budget): an ended or stopping activation throws before a refusal is reported, never the
-	///     reverse.
+	///     Throws when the activation refuses dispatch, under the name of the public operation, after its arguments and
+	///     before the refusals decided without Cheat Engine (an unsupported type, a budget): an ended or stopping
+	///     activation throws before a refusal is reported, never the reverse.
 	/// </summary>
 	private void ThrowIfDispatchRefused(string operation)
 	{

@@ -73,6 +73,7 @@ internal sealed class TableClient(
 		CancellationToken cancellationToken = default)
 	{
 		const string Operation = "Tables.GetRecordCount";
+		ThrowIfDispatchRefused(Operation);
 		int count = 0;
 		bool available = false;
 		bool counted = false;
@@ -173,6 +174,7 @@ internal sealed class TableClient(
 		CancellationToken cancellationToken = default)
 	{
 		ArgumentOutOfRangeException.ThrowIfNegative(index);
+		ThrowIfDispatchRefused("Tables.GetRecordAt");
 		return TryRecord("Tables.GetRecordAt", null, (out result) =>
 			_recordLookups.TryGetRecord(index, out result), out record, out failure, cancellationToken);
 	}
@@ -216,6 +218,7 @@ internal sealed class TableClient(
 	public bool TryGetSelectedRecord(out MemoryRecordSnapshot record, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
+		ThrowIfDispatchRefused("Tables.GetSelectedRecord");
 		return TryRecord("Tables.GetSelectedRecord", null, _recordLookups.TryGetSelected, out record, out failure,
 			cancellationToken);
 	}

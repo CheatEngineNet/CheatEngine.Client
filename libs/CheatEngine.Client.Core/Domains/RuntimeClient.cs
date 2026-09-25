@@ -268,7 +268,9 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 		CancellationToken cancellationToken)
 	{
 		// The observations are read-only (Q45) and report their outcomes as statuses; an SDK fault (for example a
-		// detached runtime) is returned as a failure, never thrown across a Try method.
+		// detached runtime) is returned as a failure, never thrown across a Try method. The activation is admitted
+		// like any dispatch, under the name of the public call instead of the dispatcher's.
+		_lifetime?.ThrowIfDispatchRefused(operation);
 		CheatEngineRuntimeSnapshot captured = default;
 		if (!SdkBoundary.TryInvoke(_dispatcher, operation, () => captured = Capture(),
 				CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
