@@ -41,7 +41,12 @@ namespace CheatEngine.Client.Scanning;
 ///         error text, bounded to 1024 bytes, when it reported one; classify the failure by its kind, never by that text.
 ///         An operation after the session's target or Lua runtime changed is refused with
 ///         <see cref="CheatEngineFailureKind.TargetChanged" />, <see cref="CheatEngineFailureKind.TargetIdentityUnavailable" />
-///         or <see cref="CheatEngineFailureKind.RuntimeChanged" />; only the release remains.
+///         or <see cref="CheatEngineFailureKind.RuntimeChanged" />; only the release remains. After the release, an
+///         operation fails with <see cref="CheatEngineFailureKind.InvalidState" />, unless such a change refused the
+///         release (<see cref="LeaseReleaseKind.RefusedTargetChanged" />,
+///         <see cref="LeaseReleaseKind.RefusedTargetIdentityUnavailable" /> or
+///         <see cref="LeaseReleaseKind.RefusedRuntimeChanged" />): it then keeps failing with the kind of that change,
+///         which a throwing form throws as <see cref="CheatEngineOperationException" />.
 ///     </para>
 ///     <para>
 ///         <b>Release.</b> <see cref="ICheatEngineLease.Release" /> destroys the found list, then the scanner, on Cheat
@@ -112,8 +117,8 @@ public interface IValueScanSession : ICheatEngineLease
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
 	///     The activation is stopping, outside a deactivation callback, or the scan failed with
-	///     <see cref="CheatEngineFailureKind.InvalidState" />: a state the session does not accept, a released session
-	///     included, or a re-entrant call.
+	///     <see cref="CheatEngineFailureKind.InvalidState" />: a state the session does not accept, a re-entrant call,
+	///     or a released session, unless a target or Lua runtime change refused its release (see the remarks).
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     The scan observed the cancellation of <paramref name="cancellationToken" />.
@@ -155,8 +160,8 @@ public interface IValueScanSession : ICheatEngineLease
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
 	///     The activation is stopping, outside a deactivation callback, or the scan failed with
-	///     <see cref="CheatEngineFailureKind.InvalidState" />: a state the session does not accept, a released session
-	///     included, or a re-entrant call.
+	///     <see cref="CheatEngineFailureKind.InvalidState" />: a state the session does not accept, a re-entrant call,
+	///     or a released session, unless a target or Lua runtime change refused its release (see the remarks).
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     The scan observed the cancellation of <paramref name="cancellationToken" />.
@@ -185,8 +190,8 @@ public interface IValueScanSession : ICheatEngineLease
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
 	///     The activation is stopping, outside a deactivation callback, or the reset failed with
-	///     <see cref="CheatEngineFailureKind.InvalidState" />: a state the session does not accept, a released session
-	///     included, or a re-entrant call.
+	///     <see cref="CheatEngineFailureKind.InvalidState" />: a state the session does not accept, a re-entrant call,
+	///     or a released session, unless a target or Lua runtime change refused its release (see the remarks).
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     The reset observed the cancellation of <paramref name="cancellationToken" />.
@@ -214,8 +219,8 @@ public interface IValueScanSession : ICheatEngineLease
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
 	///     The activation is stopping, outside a deactivation callback, or the count failed with
-	///     <see cref="CheatEngineFailureKind.InvalidState" />: a state the session does not accept, a released session
-	///     included, or a re-entrant call.
+	///     <see cref="CheatEngineFailureKind.InvalidState" />: a state the session does not accept, a re-entrant call,
+	///     or a released session, unless a target or Lua runtime change refused its release (see the remarks).
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     The count observed the cancellation of <paramref name="cancellationToken" />.
@@ -256,8 +261,8 @@ public interface IValueScanSession : ICheatEngineLease
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
 	///     The activation is stopping, outside a deactivation callback, or the read failed with
-	///     <see cref="CheatEngineFailureKind.InvalidState" />: a state the session does not accept, a released session
-	///     included, or a re-entrant call.
+	///     <see cref="CheatEngineFailureKind.InvalidState" />: a state the session does not accept, a re-entrant call,
+	///     or a released session, unless a target or Lua runtime change refused its release (see the remarks).
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     The read observed the cancellation of <paramref name="cancellationToken" />.
