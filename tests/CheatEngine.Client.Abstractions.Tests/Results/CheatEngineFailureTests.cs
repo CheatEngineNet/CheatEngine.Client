@@ -259,7 +259,7 @@ public sealed class CheatEngineFailureTests
 		CheatEngineOperationCanceledException exception =
 			Assert.Throws<CheatEngineOperationCanceledException>(() => failure.Throw(source.Token));
 
-		Assert.IsAssignableFrom<OperationCanceledException>(exception);
+		Assert.IsType<OperationCanceledException>(exception, exactMatch: false);
 		Assert.Equal(failure, exception.Failure);
 		Assert.Equal(hostEffect, exception.Failure.HostEffect);
 		Assert.Equal(source.Token, exception.CancellationToken);

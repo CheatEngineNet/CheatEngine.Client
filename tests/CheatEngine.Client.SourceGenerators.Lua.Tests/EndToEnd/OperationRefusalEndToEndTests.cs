@@ -95,7 +95,7 @@ public sealed class OperationRefusalEndToEndTests
 	{
 		object operation = SGlobals.Value.GetMethod(factory, BindingFlags.Public | BindingFlags.Static)!
 			.Invoke(null, [9007199254740992L])!;
-		ILuaOperation<long> typed = Assert.IsAssignableFrom<ILuaOperation<long>>(operation);
+		ILuaOperation<long> typed = Assert.IsType<ILuaOperation<long>>(operation, exactMatch: false);
 		bool succeeded = typed.TryExecute(new ActiveContext(), out long result, out CheatEngineFailure failure);
 		return (succeeded, result, failure);
 	}

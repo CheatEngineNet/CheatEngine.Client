@@ -454,7 +454,7 @@ public sealed class AobFluentBuilderTests
 		CheatEngineOperationCanceledException exception = Assert.Throws<CheatEngineOperationCanceledException>(() =>
 			Execute(builder, terminal, cancellation.Token));
 
-		Assert.IsAssignableFrom<OperationCanceledException>(exception);
+		Assert.IsType<OperationCanceledException>(exception, exactMatch: false);
 		Assert.Equal(cancelled, exception.Failure);
 		Assert.Equal(cancellation.Token, exception.CancellationToken);
 		Assert.Equal(cancellation.Token, scanner.LastCancellationToken);

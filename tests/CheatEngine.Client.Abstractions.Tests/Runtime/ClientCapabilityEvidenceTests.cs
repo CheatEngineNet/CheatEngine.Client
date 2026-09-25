@@ -4,10 +4,13 @@ namespace CheatEngine.Client.Abstractions.Tests.Runtime;
 
 public sealed class ClientCapabilityEvidenceTests
 {
-	public static IEnumerable<object[]> EffectiveReasonPriorityCases
+	public static TheoryData<ClientCapabilityEvidenceState, ClientCapabilityEvidenceReasonCode,
+		ClientCapabilityAvailabilityState> EffectiveReasonPriorityCases
 	{
 		get
 		{
+			TheoryData<ClientCapabilityEvidenceState, ClientCapabilityEvidenceReasonCode,
+				ClientCapabilityAvailabilityState> cases = [];
 			foreach (ClientCapabilityEvidenceState state in new[]
 					 {
 						 ClientCapabilityEvidenceState.Missing, ClientCapabilityEvidenceState.Faulted,
@@ -21,9 +24,11 @@ public sealed class ClientCapabilityEvidenceTests
 
 				foreach (ClientCapabilityEvidenceReasonCode expectedReasonCode in GetPriority(state))
 				{
-					yield return [state, expectedReasonCode, expectedAvailabilityState];
+					cases.Add(state, expectedReasonCode, expectedAvailabilityState);
 				}
 			}
+
+			return cases;
 		}
 	}
 

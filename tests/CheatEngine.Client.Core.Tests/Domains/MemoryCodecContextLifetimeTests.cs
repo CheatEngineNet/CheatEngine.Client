@@ -98,8 +98,8 @@ public sealed class MemoryCodecContextLifetimeTests
 		Assert.True(client.TryWrite(new MemoryWriteRequest<int>(TestAddress, 456, codec), out _,
 			TestContext.Current.CancellationToken));
 
-		IMemoryReadContext readContext = Assert.IsAssignableFrom<IMemoryReadContext>(codec.ReadContext);
-		IMemoryWriteContext writeContext = Assert.IsAssignableFrom<IMemoryWriteContext>(codec.WriteContext);
+		IMemoryReadContext readContext = Assert.IsType<IMemoryReadContext>(codec.ReadContext, exactMatch: false);
+		IMemoryWriteContext writeContext = Assert.IsType<IMemoryWriteContext>(codec.WriteContext, exactMatch: false);
 		AssertExpired(ReadOperation, () => _ = readContext.Bitness);
 		AssertExpired(ReadOperation, () => readContext.TryReadBytes(TestAddress, new byte[1], out _));
 		AssertExpired(WriteOperation, () => _ = writeContext.Bitness);
@@ -201,7 +201,7 @@ public sealed class MemoryCodecContextLifetimeTests
 
 		Assert.True(client.TryRead(new MemoryReadRequest<int>(TestAddress, firstCodec), out _, out _,
 			TestContext.Current.CancellationToken));
-		IMemoryReadContext firstContext = Assert.IsAssignableFrom<IMemoryReadContext>(firstCodec.ReadContext);
+		IMemoryReadContext firstContext = Assert.IsType<IMemoryReadContext>(firstCodec.ReadContext, exactMatch: false);
 		CapturingCodec secondCodec = new()
 		{
 			ReadAction = _ => AssertExpired(ReadOperation, () => ConsumeBitness(firstContext))

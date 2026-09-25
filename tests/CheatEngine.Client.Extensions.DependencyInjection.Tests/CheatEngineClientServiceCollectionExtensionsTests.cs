@@ -69,7 +69,7 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		object viaScanner = scanner.ImplementationFactory!(provider);
 
 		Assert.Equal(ServiceLifetime.Singleton, scanner.Lifetime);
-		Assert.IsAssignableFrom<IPatternScanner>(viaScanner);
+		Assert.IsType<IPatternScanner>(viaScanner, exactMatch: false);
 		Type requested = Assert.Single(provider.RequestedTypes);
 		Assert.Equal("CheatEngine.Client.Core.Domains.PatternScanner", requested.FullName);
 		Assert.DoesNotContain(services, static descriptor =>
@@ -90,7 +90,7 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		object scanner = descriptor.ImplementationFactory!(provider);
 
 		Assert.Equal(ServiceLifetime.Singleton, descriptor.Lifetime);
-		Assert.IsAssignableFrom<IValueScanner>(scanner);
+		Assert.IsType<IValueScanner>(scanner, exactMatch: false);
 		Type requested = Assert.Single(provider.RequestedTypes);
 		Assert.Equal("CheatEngine.Client.Core.Domains.ValueScanning.ValueScanner", requested.FullName);
 	}
@@ -108,7 +108,7 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		object allocations = descriptor.ImplementationFactory!(provider);
 
 		Assert.Equal(ServiceLifetime.Singleton, descriptor.Lifetime);
-		Assert.IsAssignableFrom<IAllocationClient>(allocations);
+		Assert.IsType<IAllocationClient>(allocations, exactMatch: false);
 		Type requested = Assert.Single(provider.RequestedTypes);
 		Assert.Equal("CheatEngine.Client.Core.Domains.Allocations.AllocationClient", requested.FullName);
 	}
@@ -125,7 +125,7 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		object implementation = descriptor.ImplementationFactory!(provider);
 
 		Assert.Equal(ServiceLifetime.Singleton, descriptor.Lifetime);
-		Assert.IsAssignableFrom<IAssemblyClient>(implementation);
+		Assert.IsType<IAssemblyClient>(implementation, exactMatch: false);
 		Type requested = Assert.Single(provider.RequestedTypes);
 		Assert.Equal("CheatEngine.Client.Core.Domains.Assembly.AssemblyClient", requested.FullName);
 		Assert.DoesNotContain("Unavailable", implementation.GetType().FullName!, StringComparison.Ordinal);

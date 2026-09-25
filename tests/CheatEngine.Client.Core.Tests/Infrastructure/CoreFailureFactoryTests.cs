@@ -117,8 +117,8 @@ public sealed class CoreFailureFactoryTests
 		Exception state = CreateSdkTwoException("memory-scan-state");
 		MemoryScanException scan = CreateMemoryScanException(MemoryScanFailureKind.RuntimeInvalidated);
 
-		Assert.IsAssignableFrom<InvalidOperationException>(state);
-		Assert.IsAssignableFrom<InvalidOperationException>(scan);
+		Assert.IsType<InvalidOperationException>(state, exactMatch: false);
+		Assert.IsType<InvalidOperationException>(scan, exactMatch: false);
 		Assert.Equal(CheatEngineFailureKind.InvalidState, CoreFailureFactory.GetKind(state));
 		Assert.Equal(CheatEngineFailureKind.RuntimeChanged, CoreFailureFactory.GetKind(scan));
 		Assert.Equal(CheatEngineFailureKind.OperationRejected,
