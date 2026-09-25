@@ -24,7 +24,14 @@ that `PluginDirectory` is the folder of the plugin assembly (and refuses an asse
 a provider added through `Logging` receives the Core diagnostic events; `CheatEngineClientPluginTests` shows the same
 provider receiving the Hosting lifecycle events. The `appsettings.json` of this project is copied next to the test
 assembly and read from `PluginDirectory`, the way a plugin reads its own file; a small JSON stand-in replaces
-`Microsoft.Extensions.Configuration.Json`, which only the plugin project references.
+`Microsoft.Extensions.Configuration.Json`, which only the plugin project references. `CheatEngineClientPluginTests`
+also proves that cleanup warns once (event 8) when the runtime snapshot reports an external Lua state reset, and that a
+missing or failing snapshot changes nothing.
+
+`CheatEngineHostLogProviderTests` replace CheatEngine.SDK's process-wide `HostLog` sink with a fake one, in a serial
+collection: the provider writes message templates and exception type names only by default (Q46), the formatted message
+and the exception on request, maps every `LogLevel` to a host level (`Critical` to `Error`, `None` never written),
+respects `HostLog.IsEnabled`, and is registered once.
 
 ## Run
 

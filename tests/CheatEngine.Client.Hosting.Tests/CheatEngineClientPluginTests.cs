@@ -15,6 +15,7 @@ using CheatEngine.Client.Results;
 using CheatEngine.Client.Runtime;
 using CheatEngine.Client.Scanning;
 using CheatEngine.Client.Tables;
+using CheatEngine.SDK.Engine.Runtime;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -512,6 +513,54 @@ public sealed class CheatEngineClientPluginTests
 		plugin.DisableForTest();
 
 		Assert.Equal([20, 1, 3, 7, 4], logs.Entries.Select(static entry => entry.EventId));
+	}
+
+	[Fact]
+	public void CleanupWarnsOnceWhenTheRuntimeSnapshotReportsAnExternalLuaStateReset()
+	{
+		List<string> events = [];
+		CapturingLoggerProvider logs = new();
+		FakeClient client = new(58, new FakeRuntime(events, externalStateResetDetected: true));
+		RecordingCleanup cleanup = new(events);
+		TestPlugin plugin = CreatePlugin(events, client, cleanup, builder =>
+			builder.Logging.SetMinimumLevel(LogLevel.Trace).AddProvider(logs));
+
+		plugin.EnableForTest();
+		plugin.DisableForTest();
+
+		LogEntry warning = Assert.Single(logs.Entries, static entry => entry.EventId == 8);
+		Assert.Equal(LogLevel.Warning, warning.Level);
+		Assert.Equal(
+			"Cheat Engine Client activation 58: Cheat Engine replaced its Lua state outside the plugin's control. Lua " +
+			"work is refused until the next enable, and Lua-bound resources are not released into the new state.",
+			warning.Message);
+		Assert.Equal(
+			[
+				"configure", "client.enabled", "cleanup.enter", "runtime.snapshot", "client.disabling", "cleanup.drain",
+				"cleanup.exit"
+			],
+			events);
+	}
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(null)]
+	public void CleanupDoesNotWarnWithoutAReportedExternalLuaStateReset(bool? externalStateResetDetected)
+	{
+		List<string> events = [];
+		CapturingLoggerProvider logs = new();
+		FakeClient client = new(59, new FakeRuntime(events, externalStateResetDetected));
+		RecordingCleanup cleanup = new(events);
+		TestPlugin plugin = CreatePlugin(events, client, cleanup, builder =>
+			builder.Logging.SetMinimumLevel(LogLevel.Trace).AddProvider(logs));
+
+		plugin.EnableForTest();
+		plugin.DisableForTest();
+
+		Assert.DoesNotContain(logs.Entries, static entry => entry.EventId == 8);
+		Assert.Equal(1, cleanup.DrainCount);
+		Assert.Contains("runtime.snapshot", events);
+		Assert.Contains(logs.Entries, static entry => entry.EventId == 4);
 	}
 
 	[Fact]
@@ -1140,11 +1189,53 @@ public sealed class CheatEngineClientPluginTests
 		}
 	}
 
-	private sealed class FakeClient(long epoch) : ICheatEngineClient
+	private sealed class FakeRuntime(List<string> events, bool? externalStateResetDetected) : ICheatEngineRuntime
+	{
+		public long Epoch => 1;
+
+		public bool TryGetSnapshot(out CheatEngineRuntimeSnapshot snapshot, out CheatEngineFailure failure,
+			CancellationToken cancellationToken = default)
+		{
+			events.Add("runtime.snapshot");
+			if (externalStateResetDetected is not { } reset)
+			{
+				snapshot = default;
+				failure = new CheatEngineFailure(CheatEngineFailureKind.CapabilityUnavailable, "Runtime.GetSnapshot",
+					"The test host has no runtime.");
+				return false;
+			}
+
+			snapshot = new CheatEngineRuntimeSnapshot(Epoch,
+				new CheatEngineRuntimeVersionInfo(null, CheatEngineVersion.Ce77010621, new Version(1, 0),
+					new Version(2, 0), null, false),
+				default, ClientCapabilities.Empty, new CheatEngineRuntimeLuaInfo(reset));
+			failure = default;
+			return true;
+		}
+
+		public CheatEngineRuntimeSnapshot GetSnapshot(CancellationToken cancellationToken = default)
+		{
+			throw new NotSupportedException();
+		}
+
+		public bool TryGetClientCapability(ClientCapabilityId capability, out ClientCapabilityAvailability availability,
+			out CheatEngineFailure failure, CancellationToken cancellationToken = default)
+		{
+			throw new NotSupportedException();
+		}
+
+		public ClientCapabilityAvailability GetClientCapability(ClientCapabilityId capability,
+			CancellationToken cancellationToken = default)
+		{
+			throw new NotSupportedException();
+		}
+	}
+
+	private sealed class FakeClient(long epoch, ICheatEngineRuntime? runtime = null) : ICheatEngineClient
 	{
 		public long Epoch => epoch;
 		public CancellationToken Stopping => CancellationToken.None;
-		public ICheatEngineRuntime Runtime => null!;
+		public ICheatEngineRuntime Runtime => runtime!;
 		public ICheatEngineDispatcher Dispatcher => null!;
 		public IProcessClient Processes => null!;
 		public IMemoryClient Memory => null!;

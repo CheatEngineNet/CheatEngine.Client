@@ -5,6 +5,7 @@ using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Extensions.DependencyInjection;
 using CheatEngine.Client.Modules;
 using CheatEngine.Client.Results;
+using CheatEngine.Client.Runtime;
 using CheatEngine.SDK.Hosting.Plugin;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -219,6 +220,7 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 			report.Attempt(CleanupStage.CleanupScope);
 			using (activation.Cleanup.EnterCleanupScope())
 			{
+				LogExternalLuaStateReset(activation);
 				report.Record(CleanupStage.ModuleCallbacks, activation.Lifecycle.Cleanup(OnClientDisabling));
 				report.Run(CleanupStage.ClientResources, activation.Cleanup.DrainOwnedResourcesForDisable);
 			}
@@ -253,6 +255,33 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 				identity.LoadedInformationalVersion ?? NotDeclared, identity.IdentityLabel,
 				identity.PackageGate.State, ConsumedSdkIdentity.SupportedHostProfileId);
 		});
+	}
+
+	/// <summary>
+	///     Warns (event 8) when the runtime snapshot reports that CheatEngine.SDK detected an external Lua state reset during
+	///     this activation (A8).
+	/// </summary>
+	/// <remarks>
+	///     The fact is sticky until the next enable. It is read once per cleanup, inside the main-thread cleanup scope
+	///     where the snapshot may still dispatch, before the modules and the Client-owned resources are released: with the
+	///     reset, their Lua-bound releases are refused rather than made into the replacement state. The read is
+	///     diagnostics only: a snapshot that fails or throws, or a logging provider that throws, changes no cleanup
+	///     outcome.
+	/// </remarks>
+	private static void LogExternalLuaStateReset(Activation activation)
+	{
+		try
+		{
+			if (activation.Client.Runtime.TryGetSnapshot(out CheatEngineRuntimeSnapshot snapshot, out _) &&
+				snapshot.Lua.ExternalStateResetDetected)
+			{
+				SafeLog(activation, static (logger, epoch) => ClientHostingLog.ExternalLuaStateResetDetected(logger, epoch));
+			}
+		}
+		catch (Exception)
+		{
+			// Deliberately ignored: diagnostics must never change the lifecycle outcome.
+		}
 	}
 
 	/// <summary>Writes a lifecycle event without letting a logging provider fault escape the plugin callback.</summary>

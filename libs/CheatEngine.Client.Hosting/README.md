@@ -165,3 +165,36 @@ name only; event 7 reports how many stages were attempted and how many failed; e
 Hosting never logs exception messages, addresses, values, symbol expressions, file paths, or Lua text: those are user
 data and belong to the application's explicit opt-in; `CheatEngineFailure.ToString()` follows the same rule. Logging is
 best effort: a logging provider that throws cannot abort enable, disable, or any remaining cleanup stage.
+
+At the start of cleanup, inside the main-thread cleanup scope, Hosting reads the runtime snapshot once. When its
+`Lua.ExternalStateResetDetected` reports that Cheat Engine replaced its Lua state outside the plugin's control during
+the activation, event 8 (`ExternalLuaStateResetDetected`, Warning, epoch only) says so: Lua work is refused until the
+next enable, and the Lua-bound releases that follow are refused rather than made into the replacement state. A snapshot
+that fails changes nothing.
+
+## Cheat Engine host log (opt-in)
+
+`builder.Logging.AddCheatEngineHostLog()` adds a logging provider that writes to CheatEngine.SDK's host log
+(`CheatEngine.SDK.Hosting.Diagnostics.HostLog`), whose default sink is the Windows debug output of the Cheat Engine
+process, shown by an attached debugger or a debug-output viewer. Nothing is added by default.
+
+- Levels map to the four host log levels: `Trace` and `Debug` to `Trace`, `Information` to `Information`, `Warning` to
+  `Warning`, and `Error` and `Critical` to `Error`; `None` is never written. An entry is written only when the logging
+  filters admit it **and** `HostLog.IsEnabled` accepts its host level. `HostLog.MinimumLevel` is `Information` by
+  default, so `Debug` and `Trace` entries need `HostLog.MinimumLevel = HostLogLevel.Trace`.
+- By default an entry is `category[event id]: template`, the **message template** of the entry (for example
+  `Cheat Engine Client activation {Epoch} enabled.`), followed by the exception type name. Argument values and exception
+  messages are never written, because they can hold addresses, values, symbol expressions, paths, or Lua text (Q46).
+  `AddCheatEngineHostLog(options => options.IncludeFormattedMessages = true)` writes the formatted message and the
+  exception instead; use it only to troubleshoot on a machine you control.
+- The provider is added once: a later call adds nothing and keeps the options of the first call.
+- The host log, its sink, and its minimum level belong to CheatEngine.SDK and are shared by every plugin that loads the
+  same SDK assemblies. A sink that routes host log entries back into `ILogger` is contained: the host log drops the
+  re-entrant entry instead of recursing.
+
+CheatEngine.SDK can also write its own bounded identification line, `CheatEngineSdkIdentification` (SDK version, native
+bridge fingerprint, bound Lua module hash, Cheat Engine and runtime versions, never a user path), at the start of every
+enable attempt. It is off by default. Set `HostLog.IdentifyOnEnable = true` from a `[ModuleInitializer]` method, which
+runs before any plugin code, so that it also covers the first enable; or set the environment variable
+`CHEATENGINE_SDK_IDENTIFY_ON_ENABLE=1` for the Cheat Engine process, without rebuilding the plugin. Either one is
+enough. The Client's own identification is event 20 above.

@@ -15,6 +15,7 @@ using CheatEngine.SDK.Engine.Targets;
 using CheatEngine.SDK.Engine.Values;
 using CheatEngine.SDK.Hosting.Bootstrap;
 using CheatEngine.SDK.Hosting.Context;
+using CheatEngine.SDK.Hosting.Diagnostics;
 using CheatEngine.SDK.Hosting.Plugin;
 using CheatEngine.SDK.Hosting.Threading;
 using CheatEngine.SDK.Lua.Calls;
@@ -309,6 +310,8 @@ internal static class SdkApiUsage
 		_ = MainThread.Invoke(static (int state) => state, 1);
 		_ = MainThread.IsMainThread;
 		_ = new CompileOnlyPlugin();
+		_ = HostLog.IsEnabled(HostLogLevel.Trace);
+		HostLog.Write(HostLogLevel.Error, string.Empty, null);
 	}
 
 	internal static void AutoAssemblerSurface(AutoAssemblerApplyOutcome applied, AutoAssemblerCheckOutcome checkedScript,
