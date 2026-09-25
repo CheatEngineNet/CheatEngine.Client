@@ -125,6 +125,45 @@ public sealed class ValueScanRequestsTests
 		Assert.Equal("request", thrown.ParamName);
 	}
 
+	/// <summary>
+	///     A value whose type no factory creates is tampered: a first or a next scan throws for it before the
+	///     comparison rules, which would report it as another type than the request's or the session's.
+	/// </summary>
+	[Theory]
+	[InlineData("First.Value")]
+	[InlineData("First.UpperValue")]
+	[InlineData("Next.Value")]
+	[InlineData("Next.UpperValue")]
+	public void AValueOfAnUndefinedTypeThrows(string tampered)
+	{
+		const ValueScanValueType undefinedType = (ValueScanValueType) 99;
+		ValueScanValue? undefined = TamperedValues.WithBackingField(ValueScanValue.FromInt32(2),
+			nameof(ValueScanValue.ValueType), undefinedType);
+		ValueScanFirstRequest firstRange =
+			ValueScanFirstRequest.Between(ValueScanValue.FromInt32(1), ValueScanValue.FromInt32(2));
+		ValueScanNextRequest nextRange =
+			ValueScanNextRequest.Between(ValueScanValue.FromInt32(1), ValueScanValue.FromInt32(2));
+		Action validate = tampered switch
+		{
+			"First.Value" => () => _ = ValueScanRequests.CreateFirst(TamperedValues.WithBackingField(
+				ValueScanFirstRequest.Exact(ValueScanValue.FromInt32(1)), nameof(ValueScanFirstRequest.Value),
+				undefined)),
+			"First.UpperValue" => () => _ = ValueScanRequests.CreateFirst(TamperedValues.WithBackingField(firstRange,
+				nameof(ValueScanFirstRequest.UpperValue), undefined)),
+			"Next.Value" => () => ValueScanRequests.ValidateNext(TamperedValues.WithBackingField(
+				ValueScanNextRequest.Exact(ValueScanValue.FromInt32(1)), nameof(ValueScanNextRequest.Value),
+				undefined)),
+			"Next.UpperValue" => () => ValueScanRequests.ValidateNext(TamperedValues.WithBackingField(nextRange,
+				nameof(ValueScanNextRequest.UpperValue), undefined)),
+			_ => throw new ArgumentOutOfRangeException(nameof(tampered), tampered, null)
+		};
+
+		ArgumentOutOfRangeException thrown = Assert.Throws<ArgumentOutOfRangeException>(validate);
+
+		Assert.Equal("request", thrown.ParamName);
+		Assert.Equal(undefinedType, thrown.ActualValue);
+	}
+
 	[Fact]
 	public void ANextScanValueMustHaveTheTypeOfTheFirstScan()
 	{

@@ -240,6 +240,43 @@ public sealed class MemoryClientDispatchFailureTests
 			client.TryWriteString(default, out _, TestContext.Current.CancellationToken));
 	}
 
+	/// <summary>
+	///     A string request tampered past its constructor throws what that constructor throws for the same value, from
+	///     both forms and before dispatch: an undefined encoding would otherwise be read or written as UTF-8.
+	/// </summary>
+	[Theory]
+	[InlineData("Read.Encoding", "request")]
+	[InlineData("Write.Encoding", "request")]
+	[InlineData("Write.MaximumLength", "request.MaximumLength")]
+	public void ATamperedStringRequestThrowsBeforeDispatch(string tampered, string parameter)
+	{
+		MemoryClient client = new(new RejectingDispatcher(Failure("Test.ShouldNotDispatch")),
+			InertCoreLifetime.Create());
+		CancellationToken token = TestContext.Current.CancellationToken;
+		MemoryStringReadRequest read = TamperedValues.WithBackingField(
+			new MemoryStringReadRequest(Address, 16, MemoryStringEncoding.Utf8),
+			nameof(MemoryStringReadRequest.Encoding), (MemoryStringEncoding) 7);
+		MemoryStringWriteRequest write = new(Address, string.Empty, 16, MemoryStringEncoding.Utf8);
+		MemoryStringWriteRequest tamperedWrite = tampered == "Write.MaximumLength"
+			? TamperedValues.WithBackingField(write, nameof(MemoryStringWriteRequest.MaximumLength), 0)
+			: TamperedValues.WithBackingField(write, nameof(MemoryStringWriteRequest.Encoding),
+				(MemoryStringEncoding) 7);
+		(Action TryForm, Action ThrowingForm) forms = tampered switch
+		{
+			"Read.Encoding" => (() => client.TryReadString(read, out _, out _, token),
+				() => client.ReadString(read, token)),
+			"Write.Encoding" or "Write.MaximumLength" => (() => client.TryWriteString(tamperedWrite, out _, token),
+				() => client.WriteString(tamperedWrite, token)),
+			_ => throw new ArgumentOutOfRangeException(nameof(tampered), tampered, null)
+		};
+
+		ArgumentOutOfRangeException thrown = Assert.Throws<ArgumentOutOfRangeException>(forms.TryForm);
+		ArgumentOutOfRangeException throwingForm = Assert.Throws<ArgumentOutOfRangeException>(forms.ThrowingForm);
+
+		Assert.Equal(parameter, thrown.ParamName);
+		Assert.Equal(thrown.Message, throwingForm.Message);
+	}
+
 	private static void AssertRefusedBeforeDispatch<T>(MemoryClient client, T sample)
 		where T : unmanaged
 	{

@@ -703,6 +703,39 @@ public sealed class ValueScannerTests : IDisposable
 		Assert.Empty(Handle.Calls);
 	}
 
+	/// <summary>
+	///     A next-scan value of an undefined type is tampered, not of another type than the first scan: both forms
+	///     throw for it before dispatch, with or without a first scan, instead of an <c>OperationRejected</c>
+	///     failure or an exception on Cheat Engine's main thread.
+	/// </summary>
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public void ANextScanValueOfAnUndefinedTypeThrowsBeforeDispatch(bool afterFirstScan)
+	{
+		IValueScanSession session = CreateSession();
+		if (afterFirstScan)
+		{
+			session.FirstScan(ValueScanFirstRequest.Exact(ValueScanValue.FromInt32(1)), Token);
+		}
+
+		int calls = Handle.Calls.Count;
+		ValueScanNextRequest request = TamperedValues.WithBackingField(
+			ValueScanNextRequest.Exact(ValueScanValue.FromInt32(1)), nameof(ValueScanNextRequest.Value),
+			(ValueScanValue?) TamperedValues.WithBackingField(ValueScanValue.FromInt32(1),
+				nameof(ValueScanValue.ValueType), (ValueScanValueType) 99));
+
+		ArgumentOutOfRangeException thrown =
+			Assert.Throws<ArgumentOutOfRangeException>(() => session.TryNextScan(request, out _, Token));
+		_ = Assert.Throws<ArgumentOutOfRangeException>(() => session.NextScan(request, Token));
+
+		Assert.Equal("request", thrown.ParamName);
+		Assert.Equal((ValueScanValueType) 99, thrown.ActualValue);
+		Assert.Equal(calls, Handle.Calls.Count);
+		Assert.Equal(afterFirstScan ? ValueScanSessionState.ResultsReady : ValueScanSessionState.Created,
+			session.State);
+	}
+
 	[Fact]
 	public void AScanFaultBeforeCheatEngineIsCalledCarriesNoHostText()
 	{

@@ -536,6 +536,7 @@ internal sealed class MemoryClient : IMemoryClient
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(request.MaximumLength);
+		ValidateEncoding(request.Encoding, nameof(request));
 		ThrowIfDispatchRefused("Memory.ReadString");
 		if (!TryAdmitPayload(GetEncodedByteLength(request.MaximumLength, request.Encoding == MemoryStringEncoding.Utf16),
 				_limits.MaximumStringBytes, false, "Memory.ReadString", "string read", out failure))
@@ -574,6 +575,8 @@ internal sealed class MemoryClient : IMemoryClient
 		CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(request.Value);
+		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(request.MaximumLength);
+		ValidateEncoding(request.Encoding, nameof(request));
 		bool wideCharacter = request.Encoding == MemoryStringEncoding.Utf16;
 		int encodedLength = GetEncodedLength(request.Value, wideCharacter);
 		if (encodedLength > request.MaximumLength)
@@ -911,6 +914,20 @@ internal sealed class MemoryClient : IMemoryClient
 		{
 			throw new ArgumentException("A codec request must carry its codec; the default request has none.",
 				parameterName);
+		}
+	}
+
+	/// <summary>
+	///     Throws for a tampered string request whose encoding is not a defined value, as its constructor does; without
+	///     this check any value other than UTF-16 would be read or written as UTF-8.
+	/// </summary>
+	/// <exception cref="ArgumentOutOfRangeException">The encoding is not a defined value.</exception>
+	private static void ValidateEncoding(MemoryStringEncoding encoding, string parameterName)
+	{
+		if (!Enum.IsDefined(encoding))
+		{
+			throw new ArgumentOutOfRangeException(parameterName, encoding,
+				"A string request uses a defined encoding.");
 		}
 	}
 

@@ -23,8 +23,8 @@ internal static class ValueScanRequests
 	///     The request has no value (the <see langword="default" /> request) or a value its comparison refuses.
 	/// </exception>
 	/// <exception cref="ArgumentOutOfRangeException">
-	///     Its comparison or value type is not a defined value, its range is empty, or its protection filter or
-	///     alignment rule is not a defined value.
+	///     Its comparison, its value type or the type of a value it carries is not a defined value, its range is empty,
+	///     or its protection filter or alignment rule is not a defined value.
 	/// </exception>
 	internal static FirstScanRequest CreateFirst(ValueScanFirstRequest request)
 	{
@@ -55,7 +55,9 @@ internal static class ValueScanRequests
 	///     The request has no value (the <see langword="default" /> request), a value its comparison refuses, or bounds
 	///     of two types.
 	/// </exception>
-	/// <exception cref="ArgumentOutOfRangeException">Its comparison is not a defined value.</exception>
+	/// <exception cref="ArgumentOutOfRangeException">
+	///     Its comparison, or the type of a value it carries, is not a defined value.
+	/// </exception>
 	internal static void ValidateNext(ValueScanNextRequest request)
 	{
 		if (!Enum.IsDefined(request.Comparison))
@@ -63,6 +65,9 @@ internal static class ValueScanRequests
 			throw new ArgumentOutOfRangeException(nameof(request), request.Comparison,
 				"A next value scan request has a comparison that is not a defined value.");
 		}
+
+		ValidateValueType(request.Value, nameof(request));
+		ValidateValueType(request.UpperValue, nameof(request));
 
 		string? problem = request.Comparison switch
 		{
@@ -182,6 +187,9 @@ internal static class ValueScanRequests
 				"A first value scan request has a comparison or a value type that is not a defined value.");
 		}
 
+		ValidateValueType(request.Value, nameof(request));
+		ValidateValueType(request.UpperValue, nameof(request));
+
 		string? problem = request.Comparison switch
 		{
 			ValueScanComparison.Exact => ValidateValue(request.Value, request.ValueType, requireNumeric: false),
@@ -217,6 +225,20 @@ internal static class ValueScanRequests
 		{
 			throw new ArgumentOutOfRangeException(nameof(request),
 				"A value scan alignment must be created by a ScanAlignment factory.");
+		}
+	}
+
+	/// <summary>
+	///     Throws for a value whose type no <see cref="ValueScanValue" /> factory creates (a tampered value), before
+	///     the comparison rules, which would report it as a type mismatch or leave it to Cheat Engine's main thread.
+	/// </summary>
+	/// <exception cref="ArgumentOutOfRangeException">The value's type is not a defined value.</exception>
+	private static void ValidateValueType(ValueScanValue? value, string parameterName)
+	{
+		if (value is { } present && !Enum.IsDefined(present.ValueType))
+		{
+			throw new ArgumentOutOfRangeException(parameterName, present.ValueType,
+				"A value scan request carries a value whose type is not a defined value.");
 		}
 	}
 

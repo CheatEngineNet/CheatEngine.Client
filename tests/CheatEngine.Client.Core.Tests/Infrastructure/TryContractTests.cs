@@ -177,11 +177,14 @@ public sealed class TryContractTests
 		"Processes.Attach",
 		"Processes.AttachExactName",
 		"Memory.ReadBytes",
+		"Memory.ReadString.UndefinedEncoding",
+		"Memory.WriteString.UndefinedEncoding",
 		"Memory.Read",
 		"Memory.WritePrimitiveBatch",
 		"Patterns.Scan",
 		"ValueScans.FirstScan",
 		"ValueScans.NextScan",
+		"ValueScans.NextScan.UndefinedValueType",
 		"ValueScans.Read",
 		"Allocations.Allocate",
 		"Inspection.GetModules",
@@ -317,12 +320,22 @@ public sealed class TryContractTests
 			"Processes.Attach" => () => _ = processes.TryAttach(default, out _, out _, token),
 			"Processes.AttachExactName" => () => _ = processes.TryAttachExactName(" ", out _, out _, token),
 			"Memory.ReadBytes" => () => _ = memory.TryReadBytes(default, out _, out _, token),
+			"Memory.ReadString.UndefinedEncoding" => () => _ = memory.TryReadString(TamperedValues.WithBackingField(
+				new MemoryStringReadRequest(Target, 16, MemoryStringEncoding.Utf8),
+				nameof(MemoryStringReadRequest.Encoding), (MemoryStringEncoding) 7), out _, out _, token),
+			"Memory.WriteString.UndefinedEncoding" => () => _ = memory.TryWriteString(TamperedValues.WithBackingField(
+				new MemoryStringWriteRequest(Target, "a", 16, MemoryStringEncoding.Utf8),
+				nameof(MemoryStringWriteRequest.Encoding), (MemoryStringEncoding) 7), out _, token),
 			"Memory.Read" => () => _ = memory.TryRead(default(MemoryReadRequest<int>), out _, out _, token),
 			"Memory.WritePrimitiveBatch" => () =>
 				_ = memory.WritePrimitiveBatchDetailed(default(MemoryPrimitiveBatchWriteRequest<int>), token),
 			"Patterns.Scan" => () => _ = new PatternScanner(dispatcher, ports).TryScan(default, out _, out _, token),
 			"ValueScans.FirstScan" => () => _ = session.TryFirstScan(default, out _, token),
 			"ValueScans.NextScan" => () => _ = session.TryNextScan(default, out _, token),
+			"ValueScans.NextScan.UndefinedValueType" => () => _ = session.TryNextScan(TamperedValues.WithBackingField(
+				ValueScanNextRequest.Exact(ValueScanValue.FromInt32(1)), nameof(ValueScanNextRequest.Value),
+				(ValueScanValue?) TamperedValues.WithBackingField(ValueScanValue.FromInt32(1),
+					nameof(ValueScanValue.ValueType), (ValueScanValueType) 99)), out _, token),
 			"ValueScans.Read" => () => _ = session.TryRead(default, out _, out _, token),
 			"Allocations.Allocate" => () => _ = new AllocationClient(dispatcher, Binder(dispatcher), allocations)
 				.TryAllocate(default, out _, out _, token),
