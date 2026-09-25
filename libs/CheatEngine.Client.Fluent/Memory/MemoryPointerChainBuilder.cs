@@ -4,11 +4,29 @@ using CheatEngine.SDK.Engine.Values;
 namespace CheatEngine.Client.Memory;
 
 /// <summary>An immutable, handle-free fluent operation for one finite target-aware pointer chain.</summary>
+/// <remarks>
+///     <para>
+///         Start it with <see cref="MemoryAddressBuilder.Follow" />, for example
+///         <c>client.Memory.At(address).Follow(offsets)</c>: the chain is bound to that memory service and never rebound.
+///         It is a plain value that declares no <c>Equals</c>, <c>GetHashCode</c>, <c>ToString</c> or equality operators
+///         (only those inherited from <see cref="ValueType" />): compare <see cref="Request" /> values, not builders.
+///     </para>
+///     <para>
+///         Its only constructor is the implicit parameterless one, which yields the <see langword="default" /> value:
+///         that value has no target-memory service, and <see cref="Resolve" /> and <see cref="TryResolve" /> throw
+///         <see cref="InvalidOperationException" /> on it.
+///     </para>
+///     <para>
+///         <see cref="Resolve" /> calls the throwing member of the bound memory service, which the Client implements with
+///         <see cref="CheatEngineFailure.Throw(CancellationToken)" />: the exception type follows
+///         <see cref="CheatEngineFailure.Kind" />, and <see cref="TryResolve" /> returns the same failure instead.
+///     </para>
+/// </remarks>
 public readonly struct MemoryPointerChainBuilder
 {
 	private readonly IMemoryClient? _memory;
 
-	internal MemoryPointerChainBuilder(PointerChainRequest request, IMemoryClient? memory)
+	internal MemoryPointerChainBuilder(PointerChainRequest request, IMemoryClient memory)
 	{
 		Request = request;
 		_memory = memory;
@@ -26,7 +44,22 @@ public readonly struct MemoryPointerChainBuilder
 	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
 	/// </param>
 	/// <returns>The copied final target address.</returns>
-	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
+	/// <exception cref="InvalidOperationException">
+	///     This builder is the <see langword="default" /> value, which has no target-memory service.
+	/// </exception>
+	/// <exception cref="CheatEngineOperationException">
+	///     The bound memory service refused or failed the resolution.
+	/// </exception>
+	/// <exception cref="CheatEngineOperationCanceledException">
+	///     <paramref name="cancellationToken" /> was observed before dispatch or between Client-managed steps.
+	/// </exception>
+	/// <exception cref="CheatEngineActivationExpiredException">
+	///     The Client activation that owns the memory service has ended.
+	/// </exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The Client activation is stopping and admits no new work, or the resolution failed with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />.
+	/// </exception>
 	public Address Resolve(CancellationToken cancellationToken = default)
 	{
 		return RequireMemory().ResolvePointerChain(Request, cancellationToken);
@@ -40,7 +73,15 @@ public readonly struct MemoryPointerChainBuilder
 	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
 	/// </param>
 	/// <returns><see langword="true" /> when the chain was resolved.</returns>
-	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
+	/// <exception cref="InvalidOperationException">
+	///     This builder is the <see langword="default" /> value, which has no target-memory service.
+	/// </exception>
+	/// <exception cref="CheatEngineActivationExpiredException">
+	///     The Client activation that owns the memory service has ended.
+	/// </exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The Client activation is stopping and admits no new work.
+	/// </exception>
 	public bool TryResolve(out Address address, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{

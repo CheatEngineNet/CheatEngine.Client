@@ -46,11 +46,11 @@ public sealed partial class OperationNameTests
 
 	/// <summary>
 	///     The Client libraries checked, read as metadata. Abstractions and dependency injection write no operation
-	///     name: their <c>Word.Word</c> literals are capability ids and option paths. Fluent's pattern builders still
-	///     name their failures after the builder method (<c>Aob.RequireSingle</c>), so Fluent joins this list once they
-	///     report the scan they run.
+	///     name: their <c>Word.Word</c> literals are capability ids and option paths. Fluent's pattern terminals report
+	///     the scan they run (<c>Patterns.Scan</c>).
 	/// </summary>
-	private static readonly string[] CheckedAssemblies = ["CheatEngine.Client.Core", "CheatEngine.Client.Hosting"];
+	private static readonly string[] CheckedAssemblies =
+		["CheatEngine.Client.Core", "CheatEngine.Client.Fluent", "CheatEngine.Client.Hosting"];
 
 	/// <summary>The services, by the name their failures carry, with the public contracts whose methods they report.</summary>
 	private static readonly Dictionary<string, Type[]> Services = new(StringComparer.Ordinal)

@@ -184,8 +184,8 @@ public sealed class MemoryAddressBuilderTests
 		MemoryAddressBuilder builder = memory.At(0x40D000);
 
 		ImmutableArray<byte> bytes = builder.ReadBytes(2, TestContext.Current.CancellationToken);
-		builder.WriteUtf8("é", 2, TestContext.Current.CancellationToken);
-		string text = builder.ReadUtf16(32, TestContext.Current.CancellationToken);
+		builder.WriteString("é", 2, MemoryStringEncoding.Utf8, TestContext.Current.CancellationToken);
+		string text = builder.ReadString(32, MemoryStringEncoding.Utf16, TestContext.Current.CancellationToken);
 
 		Assert.Equal([0x10, 0x20], bytes);
 		Assert.Equal(2, memory.LastBytesReadRequest.Length);
@@ -211,6 +211,41 @@ public sealed class MemoryAddressBuilderTests
 		Assert.Equal([0x10L, -0x20L], chain.Request.Offsets);
 		Assert.Equal([1337, 1337], values);
 		Assert.Equal(2, memory.LastPrimitiveBatchReadCount);
+	}
+
+	/// <summary>
+	///     Every memory terminal passes the caller's token unchanged, so the service's cancellation surfaces as an
+	///     <see cref="OperationCanceledException" /> carrying that token.
+	/// </summary>
+	[Theory]
+	[InlineData("Read")]
+	[InlineData("Resolve")]
+	[InlineData("Batch")]
+	public void ACancelledTokenReachesTheServiceAndSurfacesAsOperationCanceledException(string terminal)
+	{
+		using CancellationTokenSource cancellation = new();
+		cancellation.Cancel();
+		FakeMemoryClient memory = new(1337);
+		Address address = 0x40F000;
+
+		OperationCanceledException exception = Assert.ThrowsAny<OperationCanceledException>(() =>
+		{
+			switch (terminal)
+			{
+				case "Read":
+					_ = memory.At(address).Read<int>(cancellation.Token);
+					break;
+				case "Resolve":
+					_ = memory.At(address).Follow([0x10L]).Resolve(cancellation.Token);
+					break;
+				default:
+					_ = memory.Batch<int>().Read([address], cancellation.Token);
+					break;
+			}
+		});
+
+		Assert.IsType<CheatEngineOperationCanceledException>(exception);
+		Assert.Equal(cancellation.Token, exception.CancellationToken);
 	}
 
 	private sealed class Int32Codec : IMemoryCodec<int>
@@ -329,6 +364,7 @@ public sealed class MemoryAddressBuilderTests
 		public T ReadPrimitive<T>(Address address, CancellationToken cancellationToken = default)
 			where T : unmanaged
 		{
+			ThrowIfCancelled("Memory.ReadPrimitive", cancellationToken);
 			_ = TryReadPrimitive(address, out T value, out _, cancellationToken);
 			return value;
 		}
@@ -377,6 +413,7 @@ public sealed class MemoryAddressBuilderTests
 			CancellationToken cancellationToken = default)
 			where T : unmanaged
 		{
+			ThrowIfCancelled("Memory.ReadPrimitiveBatch", cancellationToken);
 			_ = TryReadPrimitiveBatch(request, out ImmutableArray<T> values, out _, cancellationToken);
 			return values;
 		}
@@ -495,6 +532,7 @@ public sealed class MemoryAddressBuilderTests
 
 		public Address ResolvePointerChain(PointerChainRequest request, CancellationToken cancellationToken = default)
 		{
+			ThrowIfCancelled("Memory.ResolvePointerChain", cancellationToken);
 			_ = TryResolvePointerChain(request, out Address address, out _, cancellationToken);
 			return address;
 		}
@@ -528,6 +566,17 @@ public sealed class MemoryAddressBuilderTests
 		public void Write<T>(MemoryWriteRequest<T> request, CancellationToken cancellationToken = default)
 		{
 			_ = TryWrite(request, out _, cancellationToken);
+		}
+
+		/// <summary>Reports a cancellation observed before dispatch as Core does: through the failure's Throw.</summary>
+		private static void ThrowIfCancelled(string operation, CancellationToken cancellationToken)
+		{
+			if (cancellationToken.IsCancellationRequested)
+			{
+				new CheatEngineFailure(CheatEngineFailureKind.Cancelled, operation,
+					"The operation was cancelled before Cheat Engine work began.", null,
+					CheatEngineHostEffect.NotStarted).Throw(cancellationToken);
+			}
 		}
 	}
 }

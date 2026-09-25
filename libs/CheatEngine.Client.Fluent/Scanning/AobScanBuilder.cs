@@ -6,31 +6,68 @@ namespace CheatEngine.Client.Scanning;
 /// <summary>An immutable, handle-free AOB scan builder before its result cardinality is selected.</summary>
 /// <remarks>
 ///     <para>
+///         Start it with <see cref="CheatEngineAobFluentExtensions.Aob(IPatternScanner, string)" />, for example
+///         <c>client.Patterns.Aob(pattern)</c>: the builder is bound to that scanner and never rebound. It is a plain
+///         value that declares no <c>Equals</c>, <c>GetHashCode</c>, <c>ToString</c> or equality operators (only those
+///         inherited from <see cref="ValueType" />): compare the requests it builds, not the builders. Its only
+///         constructor is the implicit parameterless one, which yields the <see langword="default" /> value: that value
+///         has no pattern scanner, and <see cref="RequireSingle" />, <see cref="FirstOrNone" /> and <see cref="Take" />
+///         throw <see cref="InvalidOperationException" /> on it.
+///     </para>
+///     <para>
 ///         <see cref="InModule(string)" /> and <see cref="InRange" /> scope the scan with one rule on every route: a match
 ///         must lie entirely inside the module, and its start must lie in the range. On a qualified local target Cheat
 ///         Engine scans only the module intersected with the range (a bounded MemScan that blocks Cheat Engine's main
 ///         thread and cannot be interrupted once started); otherwise Cheat Engine runs one global <c>AOBScan</c> and Core
 ///         applies the same rule while copying, which does not reduce Cheat Engine's scan time or memory.
 ///         <see cref="Take" />, <see cref="FirstOrNone" /> (1) and <see cref="RequireSingle" /> (2) bound only how many
-///         addresses Core copies; they never stop Cheat Engine early.
+///         addresses Core copies (never more than 65,535, a cut reported as <see cref="AobScanResult.IsTruncated" />);
+///         they never stop Cheat Engine early.
 ///     </para>
 ///     <para>
 ///         <see cref="FirstOrNone" /> returns the first element in Cheat Engine's result-list order, which Cheat Engine
 ///         does not specify: not the lowest address and not the first logical region. <see cref="RequireSingle" /> copies
-///         up to two matches from an exhaustive scan (global, or bounded and exhaustive), so a truncated result is
-///         reported as ambiguous; it is never backed by a "first found" scan.
+///         up to two matches from an exhaustive scan (global, or bounded and exhaustive): two copied matches are
+///         ambiguous, and one copied match is unique only when every row Cheat Engine returned was read and the copy is
+///         not truncated; it is never backed by a "first found" scan.
 ///     </para>
 ///     <para>
-///         <see langword="null" /> and <see cref="CheatEngine.Client.Results.CheatEngineFailureKind.NotFound" /> mean
-///         that the scan succeeded without a match inside the request: a factual zero of the bounded route, or a global
-///         result list without any address inside the module or range. A global scan for which Cheat Engine returns no
-///         result list is reported as
-///         <see cref="CheatEngine.Client.Results.CheatEngineFailureKind.IndeterminateHostResult" />, never as
-///         <see langword="null" /> or <see cref="CheatEngine.Client.Results.CheatEngineFailureKind.NotFound" />. A
-///         cancellation token cannot interrupt a scan that Cheat Engine has started.
+///         <see langword="null" />, <see cref="CheatEngine.Client.Results.CheatEngineFailureKind.NotFound" /> and an
+///         empty <see cref="Take" /> result are factual zeros: the scan succeeded, every row Cheat Engine returned was read
+///         (<see cref="PatternScanMetrics.InBoundsCountIsExact" />), and none lay inside the request. Each route answers
+///         as follows:
+///     </para>
+///     <list type="bullet">
+///         <item>
+///             <description>
+///                 <see cref="PatternScanScope.HostBoundedRange" /> (a module or range on a qualified local target): its
+///                 empty in-bounds result is a factual zero.
+///             </description>
+///         </item>
+///         <item>
+///             <description>
+///                 <see cref="PatternScanScope.GlobalHostScanWithManagedFilter" /> (a module or range on a CEServer or
+///                 file-as-process target): a result list whose rows all lie outside the module or range is a factual
+///                 zero.
+///             </description>
+///         </item>
+///         <item>
+///             <description>
+///                 <see cref="PatternScanScope.GlobalHostScan" /> (no module or range): only an empty list that Cheat
+///                 Engine does return is a factual zero. On Cheat Engine 7.7 <c>AOBScan</c> returns <c>nil</c> for zero
+///                 matches and for some host failures alike, which the scanner reports as
+///                 <see cref="CheatEngine.Client.Results.CheatEngineFailureKind.IndeterminateHostResult" />.
+///             </description>
+///         </item>
+///     </list>
+///     <para>
+///         A <c>nil</c> result and an empty copy that did not read every row are both
+///         <see cref="CheatEngine.Client.Results.CheatEngineFailureKind.IndeterminateHostResult" />: neither is ever
+///         <see langword="null" />, <see cref="CheatEngine.Client.Results.CheatEngineFailureKind.NotFound" /> or an empty
+///         result. A cancellation token cannot interrupt a scan that Cheat Engine has started.
 ///     </para>
 /// </remarks>
-public readonly record struct AobScanBuilder
+public readonly struct AobScanBuilder
 {
 	private readonly IPatternScanner? _scanner;
 
@@ -78,6 +115,9 @@ public readonly record struct AobScanBuilder
 	/// <summary>Returns an equivalent builder scoped to a named module.</summary>
 	/// <param name="moduleName">The non-empty module name that Core resolves before any scan.</param>
 	/// <returns>A new immutable builder.</returns>
+	/// <exception cref="ArgumentException">
+	///     <paramref name="moduleName" /> is <see langword="null" />, empty or white space.
+	/// </exception>
 	/// <remarks>
 	///     A match is kept only when all of its pattern bytes lie inside the module, on every route. On a qualified local
 	///     target Cheat Engine scans only the module; otherwise Cheat Engine scans the whole target and Core applies the
@@ -91,6 +131,7 @@ public readonly record struct AobScanBuilder
 	/// <summary>Returns an equivalent builder scoped to a target module.</summary>
 	/// <param name="module">The module name Core resolves before any scan.</param>
 	/// <returns>A new immutable builder.</returns>
+	/// <exception cref="ArgumentException"><paramref name="module" /> is the empty default value.</exception>
 	/// <remarks>
 	///     A match is kept only when all of its pattern bytes lie inside the module, on every route. On a qualified local
 	///     target Cheat Engine scans only the module; otherwise Cheat Engine scans the whole target and Core applies the
@@ -110,6 +151,7 @@ public readonly record struct AobScanBuilder
 	/// <param name="start">The first allowed match start.</param>
 	/// <param name="end">The last allowed match start.</param>
 	/// <returns>A new immutable builder.</returns>
+	/// <exception cref="ArgumentOutOfRangeException"><paramref name="end" /> precedes <paramref name="start" />.</exception>
 	/// <remarks>
 	///     A match is kept when its start lies in the range, on every route (and, with a module, when it also fits entirely
 	///     inside the module). On a qualified local target Cheat Engine scans only <c>[start, end + pattern length)</c>,
@@ -176,23 +218,35 @@ public readonly record struct AobScanBuilder
 	}
 
 	/// <summary>Selects an operation that succeeds only when exactly one AOB match exists.</summary>
-	/// <returns>An immutable single-match terminal builder.</returns>
+	/// <returns>An immutable single-match terminal builder bound to this builder's scanner.</returns>
+	/// <exception cref="InvalidOperationException">
+	///     This builder is the <see langword="default" /> value, which has no pattern scanner.
+	/// </exception>
 	/// <remarks>
 	///     Core copies up to two matches from an exhaustive scan (the global scan or the exhaustive bounded scan): a second
-	///     match (a truncated copy) is reported as ambiguous. Uniqueness is never inferred from a "unique" or
-	///     "first found" scan.
+	///     copied match is reported as ambiguous, and one copied match is unique only when every row Cheat Engine returned
+	///     was read and the copy is not truncated; otherwise whether a second match exists is unknown, which is reported
+	///     as <see cref="CheatEngine.Client.Results.CheatEngineFailureKind.IndeterminateHostResult" />. Uniqueness is never
+	///     inferred from a "unique" or "first found" scan.
 	/// </remarks>
 	public AobSingleMatchBuilder RequireSingle()
 	{
 		return new AobSingleMatchBuilder(RequireScanner(), BuildRequest(2));
 	}
 
-	/// <summary>Selects an operation that returns the first copied match or <see langword="null" /> when there is none.</summary>
-	/// <returns>An immutable first-match terminal builder.</returns>
+	/// <summary>
+	///     Selects an operation that returns the first copied match, or <see langword="null" /> when the scan proves that
+	///     no match lies inside the request.
+	/// </summary>
+	/// <returns>An immutable first-match terminal builder bound to this builder's scanner.</returns>
+	/// <exception cref="InvalidOperationException">
+	///     This builder is the <see langword="default" /> value, which has no pattern scanner.
+	/// </exception>
 	/// <remarks>
 	///     "First" means the first element in Cheat Engine's result-list order, which Cheat Engine does not specify; it is
 	///     not guaranteed to be the lowest address or the first logical region. The copy limit of one never stops Cheat
-	///     Engine's scan early.
+	///     Engine's scan early, and the operation never uses a "first found" scan. <see langword="null" /> is returned only
+	///     for a factual zero (see the remarks of <see cref="AobScanBuilder" />).
 	/// </remarks>
 	public AobFirstMatchBuilder FirstOrNone()
 	{
@@ -201,11 +255,16 @@ public readonly record struct AobScanBuilder
 
 	/// <summary>Selects an operation that materializes no more than the requested number of matches.</summary>
 	/// <param name="maximumResults">The positive maximum number of copied addresses.</param>
-	/// <returns>An immutable bounded-result terminal builder.</returns>
+	/// <returns>An immutable bounded-result terminal builder bound to this builder's scanner.</returns>
 	/// <exception cref="ArgumentOutOfRangeException"><paramref name="maximumResults" /> is zero or negative.</exception>
+	/// <exception cref="InvalidOperationException">
+	///     This builder is the <see langword="default" /> value, which has no pattern scanner.
+	/// </exception>
 	/// <remarks>
 	///     This bound applies only while Core materializes the result. It is not pushed into Cheat Engine, does not
-	///     request early termination, and does not reduce scan work; every route copies at most 65,535 addresses.
+	///     request early termination, and does not reduce scan work. It is forwarded unchanged as
+	///     <see cref="AobScanRequest.MaximumResults" />: every route copies at most 65,535 addresses, whatever this limit,
+	///     and a result cut by that cap reports <see cref="AobScanResult.IsTruncated" />.
 	/// </remarks>
 	public AobManyMatchBuilder Take(int maximumResults)
 	{

@@ -727,7 +727,7 @@ qualified on a live host (C3). For admission, the Client charges it as bytes for
 This charter is normative for every public type of the seven Client packages; the 1.x line only adds to it.
 `PublicApiCharterTests`, `OutcomeEnumConventionTests`, `PublicClientSignatureBoundaryTests`,
 `PublicSurfaceInventoryTests`, `DefaultOutputValueTests` and `OperationNameTests` check its mechanical rules;
-`OperationNameTests` reads the operation names that Core and Hosting write.
+`OperationNameTests` reads the operation names that Core, Fluent and Hosting write.
 
 ### Operation forms
 

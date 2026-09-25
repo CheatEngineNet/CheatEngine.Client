@@ -31,14 +31,28 @@ module, and its start must lie in the range. On a qualified local target Cheat E
 limited to the module intersected with the range; it blocks Cheat Engine's main thread and cannot be interrupted once
 started. On a CEServer or file-as-process target, Cheat Engine runs one global `AOBScan` over the whole target and Core
 applies the same rule while copying, which does not reduce Cheat Engine's scan time or memory.
-`Take(n)`, `FirstOrNone()` (1) and `RequireSingle()` (2) bound only how many addresses Core copies (never more than
-65,535); they never stop Cheat Engine early. `FirstOrNone()` returns the first element in Cheat Engine's result-list
-order, which Cheat Engine does not specify (not the lowest address, not the first logical region). `RequireSingle()`
-copies up to two matches from an exhaustive scan, so a truncated copy is reported as ambiguous. `null` and `NotFound`
-mean that the scan succeeded without a match inside the request: a factual zero of the bounded route, or a global
-result list without any address inside the module or range. A global scan for which Cheat Engine returns no result
-list is reported as `IndeterminateHostResult` (on Cheat Engine 7.7 `AOBScan` returns `nil` for zero matches and for
-some host failures alike). A cancellation token cannot interrupt a scan that Cheat Engine has started.
+`Take(n)`, `FirstOrNone()` (1) and `RequireSingle()` (2) bound only how many addresses Core copies; they never stop
+Cheat Engine early. Every route copies at most 65,535 addresses, whatever `n`, and a result cut by that cap reports
+`IsTruncated`, as `AobScanRequest.MaximumResults` documents. `FirstOrNone()` returns the first element in Cheat
+Engine's result-list order, which Cheat Engine does not specify (not the lowest address, not the first logical
+region), and never uses a "first found" scan. `RequireSingle()` copies up to two matches from an exhaustive scan: two
+copied matches are `AmbiguousMatch`, and one copied match is unique only when every row Cheat Engine returned was read
+and the copy is not truncated. Otherwise whether a second match exists is unknown, which is `IndeterminateHostResult`,
+never `AmbiguousMatch`.
+
+The terminals read `IPatternScanner.ScanDetailed`, whose metrics say whether every row Cheat Engine returned was
+read. `null`, `NotFound` and an empty `Take` result are factual zeros only: the scan succeeded, every row was read,
+and none lay inside the request.
+
+| Route (`PatternScanScope`)        | Factual zero                            | Never a zero             |
+|-----------------------------------|-----------------------------------------|--------------------------|
+| `HostBoundedRange`                | No in-bounds row (error text readable)  | A failed scan            |
+| `GlobalHostScanWithManagedFilter` | Every listed row outside the request    | `nil`, an unread row     |
+| `GlobalHostScan`                  | An empty list that Cheat Engine returns | `nil` (Cheat Engine 7.7) |
+
+A global scan for which Cheat Engine returns no result list is reported as `IndeterminateHostResult` (on Cheat
+Engine 7.7 `AOBScan` returns `nil` for zero matches and for some host failures alike), and so is an empty copy that
+did not read every row. A cancellation token cannot interrupt a scan that Cheat Engine has started.
 `IPatternScanner.ScanDetailed` reports the route, the host outcome, the host result count, the examined, filtered and
 copied counts, and the Cheat Engine scan time separately from the copy time.
 
@@ -60,8 +74,12 @@ Abstractions  ←  Fluent
 
 ## How It Improves CheatEngine.Client
 
-- Represents operation configuration as immutable `readonly record struct` values rather than CE
-  handles or mutable builders.
+- Represents operation configuration as immutable, plain `readonly struct` builders rather than CE
+  handles or mutable builders. A builder declares no `Equals`, `GetHashCode`, `ToString` or equality
+  operators (only `System.ValueType`'s): compare the requests or addresses it carries. It has no
+  constructor beyond the implicit parameterless one, which yields the `default` value: that value has
+  no service, and every operation that runs or selects a terminal throws a documented
+  `InvalidOperationException` on it.
 - Validates and normalizes an AOB pattern and its options before a terminal operation is selected:
   `Executable()`, `Writable()` and `WithProtection(...)` set the protection filter, `AlignedTo(...)` and
   `WithLastDigits(...)` the alignment rule.
@@ -69,12 +87,16 @@ Abstractions  ←  Fluent
 - Preserves materialization-bounded copies: the limit bounds only the number of copied addresses, never Cheat
   Engine's scan. Callers inspect `AobScanResult.IsTruncated` when a copy is intentionally incomplete.
 - Provides `memory.At(...)` and `memory.Batch<T>()` builders for primitive and codec-based reads and
-  writes without retaining a live target handle, including exact byte copies, explicit UTF-8/UTF-16
-  bounds, finite pointer chains, and bounded homogeneous primitive batches. The primitive terminals
+  writes without retaining a live target handle, including exact byte copies, strings with an explicit
+  `MemoryStringEncoding` and length bound (`ReadString`/`TryReadString`, `WriteString`/`TryWriteString`),
+  finite pointer chains, and bounded homogeneous primitive batches. The primitive terminals
   and `Batch<T>` take `where T : unmanaged`, like `IMemoryClient`, which supports the 8- to 64-bit
   integers, `float`, `double` and `Address`; other types go through `ReadWith`/`WriteWith` and a codec.
 - Uses the normal `Try...` plus `CheatEngineFailure` pattern and leaves the actual lifecycle,
-  dispatch, and SDK translation to the supplied contract implementation.
+  dispatch, and SDK translation to the supplied contract implementation. A throwing terminal raises
+  the exception that `CheatEngineFailure.Throw(CancellationToken)` maps from the failure kind; both
+  forms throw `CheatEngineActivationExpiredException` or `CheatEngineInvalidStateException` when
+  the activation has ended or is stopping, and every terminal documents these exceptions.
 
 ## Public Namespaces and Boundaries
 

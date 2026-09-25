@@ -105,21 +105,6 @@ public sealed class AobFluentBuilderTests
 	}
 
 	[Fact]
-	public void RequireSingleReportsAmbiguousMatchWhenTheBoundedResultIsTruncated()
-	{
-		Address expected = 0x401000;
-		FakePatternScanner scanner = new(new AobScanResult([expected], true));
-
-		bool succeeded = scanner.Aob("90").RequireSingle().TryExecute(
-			out Address address, out CheatEngineFailure failure, TestContext.Current.CancellationToken);
-
-		Assert.False(succeeded);
-		Assert.Equal(default, address);
-		Assert.Equal(CheatEngineFailureKind.AmbiguousMatch, failure.Kind);
-		Assert.Equal("Aob.RequireSingle", failure.Operation);
-	}
-
-	[Fact]
 	public void FirstOrNoneUsesOneResultLimitAndTreatsNoMatchAsSuccess()
 	{
 		FakePatternScanner scanner = new(new AobScanResult(ImmutableArray<Address>.Empty, false));
@@ -146,7 +131,7 @@ public sealed class AobFluentBuilderTests
 		Assert.False(succeeded);
 		Assert.Null(address);
 		Assert.Equal(CheatEngineFailureKind.InvalidHostResult, failure.Kind);
-		Assert.Equal("Aob.FirstOrNone", failure.Operation);
+		Assert.Equal("Patterns.Scan", failure.Operation);
 	}
 
 	[Fact]
@@ -160,7 +145,7 @@ public sealed class AobFluentBuilderTests
 		Assert.False(succeeded);
 		Assert.Equal(default, address);
 		Assert.Equal(CheatEngineFailureKind.InvalidHostResult, failure.Kind);
-		Assert.Equal("Aob.RequireSingle", failure.Operation);
+		Assert.Equal("Patterns.Scan", failure.Operation);
 	}
 
 	[Fact]
@@ -176,7 +161,7 @@ public sealed class AobFluentBuilderTests
 		Assert.False(succeeded);
 		Assert.Equal(default, result);
 		Assert.Equal(CheatEngineFailureKind.InvalidHostResult, failure.Kind);
-		Assert.Equal("Aob.Take", failure.Operation);
+		Assert.Equal("Patterns.Scan", failure.Operation);
 		AobScanRequest? request = scanner.LastRequest;
 		Assert.NotNull(request);
 		Assert.Equal(1, request.Value.MaximumResults);
@@ -307,7 +292,7 @@ public sealed class AobFluentBuilderTests
 		Assert.False(succeeded);
 		Assert.Equal(default, address);
 		Assert.Equal(CheatEngineFailureKind.NotFound, failure.Kind);
-		Assert.Equal("Aob.RequireSingle", failure.Operation);
+		Assert.Equal("Patterns.Scan", failure.Operation);
 	}
 
 	[Fact]
@@ -336,7 +321,7 @@ public sealed class AobFluentBuilderTests
 			scanner.Aob("90").RequireSingle().Execute(TestContext.Current.CancellationToken));
 
 		Assert.Equal(CheatEngineFailureKind.NotFound, exception.Failure.Kind);
-		Assert.Equal("Aob.RequireSingle", exception.Failure.Operation);
+		Assert.Equal("Patterns.Scan", exception.Failure.Operation);
 	}
 
 	[Fact]
@@ -388,11 +373,15 @@ public sealed class AobFluentBuilderTests
 		Assert.Null(bound.LastRequest);
 	}
 
+	/// <summary>
+	///     Core's shape when a third in-request match proves the copy incomplete: two copied matches, truncated. The
+	///     second copied match makes the result ambiguous.
+	/// </summary>
 	[Fact]
 	[Trait("Qualification", "Q28")]
 	public void RequireSingleReportsAmbiguousWhenASecondHostMatchExists()
 	{
-		FakePatternScanner scanner = new(new AobScanResult([0x401000], true));
+		FakePatternScanner scanner = new(new AobScanResult([0x401000, 0x402000], true));
 
 		bool succeeded = scanner.Aob("90").RequireSingle().TryExecute(out Address address,
 			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
@@ -400,7 +389,7 @@ public sealed class AobFluentBuilderTests
 		Assert.False(succeeded);
 		Assert.Equal(default, address);
 		Assert.Equal(CheatEngineFailureKind.AmbiguousMatch, failure.Kind);
-		Assert.Equal("Aob.RequireSingle", failure.Operation);
+		Assert.Equal("Patterns.Scan", failure.Operation);
 		Assert.Equal(2, scanner.LastRequest!.Value.MaximumResults);
 	}
 
@@ -446,13 +435,16 @@ public sealed class AobFluentBuilderTests
 		cancellation.Cancel();
 		CheatEngineFailure cancelled = new(CheatEngineFailureKind.Cancelled, "Patterns.Scan",
 			"The operation was cancelled before Cheat Engine work began.", null, CheatEngineHostEffect.NotStarted);
-		AobScanBuilder builder = new FakePatternScanner(cancelled).Aob("90");
+		FakePatternScanner scanner = new(cancelled);
+		AobScanBuilder builder = scanner.Aob("90");
 
 		CheatEngineOperationCanceledException exception = Assert.Throws<CheatEngineOperationCanceledException>(() =>
 			Execute(builder, terminal, cancellation.Token));
 
+		Assert.IsAssignableFrom<OperationCanceledException>(exception);
 		Assert.Equal(cancelled, exception.Failure);
 		Assert.Equal(cancellation.Token, exception.CancellationToken);
+		Assert.Equal(cancellation.Token, scanner.LastCancellationToken);
 	}
 
 	/// <summary>Every throwing terminal keeps the dedicated activation-expired exception instead of a generic one.</summary>
@@ -472,6 +464,171 @@ public sealed class AobFluentBuilderTests
 		Assert.Equal(expired, exception.Failure);
 	}
 
+	/// <summary>
+	///     A factual zero on each route: the bounded route's empty in-bounds result (with or without rows the Client's
+	///     own scope check dropped), a managed-filter global list whose rows all lie outside the request, and an empty
+	///     list that an unscoped global scan does return. Every row was read in each case.
+	/// </summary>
+	[Theory]
+	[InlineData(PatternScanScope.HostBoundedRange, 0UL)]
+	[InlineData(PatternScanScope.HostBoundedRange, 2UL)]
+	[InlineData(PatternScanScope.GlobalHostScanWithManagedFilter, 3UL)]
+	[InlineData(PatternScanScope.GlobalHostScan, 0UL)]
+	public void FirstOrNoneReturnsNullForTheFactualZeroOfEveryRoute(PatternScanScope scope, ulong filteredOut)
+	{
+		FakePatternScanner scanner = new(new AobScanResult(ImmutableArray<Address>.Empty, false), scope, filteredOut);
+
+		bool succeeded = scanner.Aob("90").FirstOrNone().TryExecute(out Address? address,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.True(succeeded);
+		Assert.Null(address);
+		Assert.True(failure.IsDefault);
+		Assert.Equal(1, scanner.LastRequest!.Value.MaximumResults);
+	}
+
+	/// <summary>
+	///     An empty copy that left rows unread proves nothing: no terminal turns it into <see langword="null" />,
+	///     <see cref="CheatEngineFailureKind.NotFound" /> or an empty result. Core never publishes this shape (it fails a
+	///     bounded destination filled with rows outside the request itself, and the global route reads every row of an
+	///     empty copy), so this is the terminals' own guard.
+	/// </summary>
+	[Theory]
+	[InlineData("FirstOrNone", PatternScanScope.HostBoundedRange)]
+	[InlineData("FirstOrNone", PatternScanScope.GlobalHostScanWithManagedFilter)]
+	[InlineData("RequireSingle", PatternScanScope.GlobalHostScanWithManagedFilter)]
+	[InlineData("Take", PatternScanScope.GlobalHostScan)]
+	public void AnEmptyCopyThatLeftRowsUnreadIsIndeterminate(string terminal, PatternScanScope scope)
+	{
+		FakePatternScanner scanner = new(new AobScanResult(ImmutableArray<Address>.Empty, false), scope, 4, 5);
+		AobScanBuilder builder = scanner.Aob("90");
+
+		bool succeeded;
+		CheatEngineFailure failure;
+		switch (terminal)
+		{
+			case "FirstOrNone":
+				succeeded = builder.FirstOrNone().TryExecute(out Address? address, out failure,
+					TestContext.Current.CancellationToken);
+				Assert.Null(address);
+				break;
+			case "RequireSingle":
+				succeeded = builder.RequireSingle().TryExecute(out _, out failure,
+					TestContext.Current.CancellationToken);
+				break;
+			default:
+				succeeded = builder.Take(3).TryExecute(out AobScanResult result, out failure,
+					TestContext.Current.CancellationToken);
+				Assert.Equal(default, result);
+				break;
+		}
+
+		Assert.False(succeeded);
+		Assert.Equal(CheatEngineFailureKind.IndeterminateHostResult, failure.Kind);
+		Assert.Equal("Patterns.Scan", failure.Operation);
+		Assert.Equal(CheatEngineHostEffect.Completed, failure.HostEffect);
+		CheatEngineOperationException thrown = Assert.Throws<CheatEngineOperationException>(() =>
+			Execute(builder, terminal, TestContext.Current.CancellationToken));
+		Assert.Equal(failure, thrown.Failure);
+	}
+
+	[Fact]
+	public void FirstOrNoneReturnsTheFirstCopiedMatchEvenWhenRowsRemainUnread()
+	{
+		Address expected = 0x401000;
+		FakePatternScanner scanner = new(new AobScanResult([expected], true),
+			PatternScanScope.GlobalHostScanWithManagedFilter, 1, 7);
+
+		Address? actual = scanner.Aob("90").InModule("game.exe").FirstOrNone()
+			.Execute(TestContext.Current.CancellationToken);
+
+		Assert.Equal(expected, actual);
+	}
+
+	/// <summary>
+	///     One copied match with unread rows never proves uniqueness, and never proves a second match either.
+	///     <c>true</c> is the shape Core's bounded route publishes when its full destination (three slots for a limit of
+	///     two) held one match inside the request and two rows the Client dropped, with a row left unread: one copied
+	///     match, truncated, not exhaustive. <c>false</c> is a guard: a shape Core never publishes.
+	/// </summary>
+	[Theory]
+	[InlineData(true)]
+	[InlineData(false)]
+	public void RequireSingleNeedsEveryRowReadToProveUniqueness(bool truncated)
+	{
+		PatternScanMetrics metrics = truncated
+			? new PatternScanMetrics(PatternScanScope.HostBoundedRange, 4, 3, 2, 1, 0, 0, 1, false,
+				TimeSpan.FromMilliseconds(3), TimeSpan.FromMilliseconds(1))
+			: new PatternScanMetrics(PatternScanScope.GlobalHostScanWithManagedFilter, 3, 1, 0, 1, 0, 0, 2, false,
+				TimeSpan.FromMilliseconds(3), TimeSpan.FromMilliseconds(1));
+		FakePatternScanner scanner = new(new AobScanResult([0x40FC], truncated), metrics);
+
+		bool succeeded = scanner.Aob("90 90 90 90").InModule("game.exe").RequireSingle().TryExecute(
+			out Address address, out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(default, address);
+		Assert.Equal(CheatEngineFailureKind.IndeterminateHostResult, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.Completed, failure.HostEffect);
+		Assert.Equal("Patterns.Scan", failure.Operation);
+		Assert.Equal(2, scanner.LastRequest!.Value.MaximumResults);
+	}
+
+	[Fact]
+	public void CardinalityFailuresFollowACompletedScan()
+	{
+		FakePatternScanner none = new(new AobScanResult(ImmutableArray<Address>.Empty, false));
+		FakePatternScanner two = new(new AobScanResult([0x401000, 0x402000], false));
+
+		_ = none.Aob("90").RequireSingle().TryExecute(out _, out CheatEngineFailure notFound,
+			TestContext.Current.CancellationToken);
+		_ = two.Aob("90").RequireSingle().TryExecute(out _, out CheatEngineFailure ambiguous,
+			TestContext.Current.CancellationToken);
+		_ = two.Aob("90").FirstOrNone().TryExecute(out _, out CheatEngineFailure beyondLimit,
+			TestContext.Current.CancellationToken);
+
+		Assert.Equal((CheatEngineFailureKind.NotFound, CheatEngineHostEffect.Completed),
+			(notFound.Kind, notFound.HostEffect));
+		Assert.Equal((CheatEngineFailureKind.AmbiguousMatch, CheatEngineHostEffect.Completed),
+			(ambiguous.Kind, ambiguous.HostEffect));
+		Assert.Equal((CheatEngineFailureKind.InvalidHostResult, CheatEngineHostEffect.Completed),
+			(beyondLimit.Kind, beyondLimit.HostEffect));
+	}
+
+	/// <summary>
+	///     <c>Take</c> follows <see cref="AobScanRequest.MaximumResults" />: any positive limit is forwarded unchanged,
+	///     and Core's copy cap of 65,535 addresses is reported through <see cref="AobScanResult.IsTruncated" />.
+	/// </summary>
+	[Theory]
+	[InlineData(65_535)]
+	[InlineData(65_536)]
+	[InlineData(int.MaxValue)]
+	public void TakeForwardsAPositiveLimitUnchangedWhateverTheCopyCap(int maximumResults)
+	{
+		Address match = 0x401000;
+		FakePatternScanner scanner = new(new AobScanResult([match], true));
+
+		AobScanResult result = scanner.Aob("90").Take(maximumResults).Execute(TestContext.Current.CancellationToken);
+
+		Assert.Equal(maximumResults, scanner.LastRequest!.Value.MaximumResults);
+		Assert.Equal([match], result.Matches);
+		Assert.True(result.IsTruncated);
+	}
+
+	[Theory]
+	[InlineData(0)]
+	[InlineData(-1)]
+	public void TakeRejectsALimitThatIsNotPositiveBeforeAnyScan(int maximumResults)
+	{
+		FakePatternScanner scanner = new();
+
+		ArgumentOutOfRangeException exception =
+			Assert.Throws<ArgumentOutOfRangeException>(() => scanner.Aob("90").Take(maximumResults));
+
+		Assert.Equal("maximumResults", exception.ParamName);
+		Assert.Null(scanner.LastRequest);
+	}
+
 	private static void Execute(AobScanBuilder builder, string terminal, CancellationToken cancellationToken)
 	{
 		switch (terminal)
@@ -488,26 +645,55 @@ public sealed class AobFluentBuilderTests
 		}
 	}
 
+	/// <summary>
+	///     A scanner that answers every request with one detailed outcome whose metrics are consistent with its copied
+	///     result. Fluent terminals read <see cref="IPatternScanner.ScanDetailed" /> only. Its default accounting follows
+	///     the global route (a truncated copy examined one row beyond it); a test of another Core shape passes its
+	///     metrics, and <c>FluentAobTerminalCompositionTests</c> in Core.Tests runs the terminals against Core's real
+	///     scanner on every route.
+	/// </summary>
 	private sealed class FakePatternScanner : IPatternScanner
 	{
-		private readonly CheatEngineFailure _failure;
-		private readonly AobScanResult _result;
-		private readonly bool _succeeds;
+		private readonly PatternScanOutcome _outcome;
 
 		internal FakePatternScanner()
 			: this(new AobScanResult(ImmutableArray<Address>.Empty, false))
 		{
 		}
 
-		internal FakePatternScanner(AobScanResult result)
+		/// <summary>Creates a scanner whose scan succeeds, with the global route's accounting.</summary>
+		/// <param name="result">The copied result.</param>
+		/// <param name="scope">The route that ran.</param>
+		/// <param name="filteredOut">The rows read that lay outside the request.</param>
+		/// <param name="unreadRows">The rows left unread; any makes the in-request count inexact.</param>
+		internal FakePatternScanner(AobScanResult result, PatternScanScope scope = PatternScanScope.HostBoundedRange,
+			ulong filteredOut = 0, ulong unreadRows = 0)
+			: this(result, GlobalAccounting(result, scope, filteredOut, unreadRows))
 		{
-			_result = result;
-			_succeeds = true;
 		}
 
+		/// <summary>Creates a scanner whose scan succeeds with explicit metrics.</summary>
+		/// <param name="result">The copied result.</param>
+		/// <param name="metrics">The metrics Core publishes with that result.</param>
+		internal FakePatternScanner(AobScanResult result, PatternScanMetrics metrics)
+		{
+			PatternScanRouteReason reason = metrics.Scope switch
+			{
+				PatternScanScope.GlobalHostScan => PatternScanRouteReason.UnscopedRequest,
+				PatternScanScope.HostBoundedRange => PatternScanRouteReason.ScopedRequestOnQualifiedTarget,
+				_ => PatternScanRouteReason.TargetIdentityNotQualified
+			};
+			_outcome = new PatternScanOutcome(result, null, metrics,
+				metrics.HostResultCount == 0 ? PatternScanHostOutcomeKind.NoMatches : PatternScanHostOutcomeKind.Matches,
+				reason, false);
+		}
+
+		/// <summary>Creates a scanner whose scan fails.</summary>
+		/// <param name="failure">The classified failure.</param>
 		internal FakePatternScanner(CheatEngineFailure failure)
 		{
-			_failure = failure;
+			_outcome = new PatternScanOutcome(null, failure, null, PatternScanHostOutcomeKind.Unknown,
+				PatternScanRouteReason.Unknown, false);
 		}
 
 		internal AobScanRequest? LastRequest
@@ -516,29 +702,40 @@ public sealed class AobFluentBuilderTests
 			private set;
 		}
 
+		internal CancellationToken LastCancellationToken
+		{
+			get;
+			private set;
+		}
+
 		public bool TryScan(AobScanRequest request, out AobScanResult result, out CheatEngineFailure failure,
 			CancellationToken cancellationToken = default)
 		{
-			LastRequest = request;
-			result = _result;
-			failure = _failure;
-			return _succeeds;
+			throw new NotSupportedException("Fluent terminals read ScanDetailed only.");
 		}
 
 		public AobScanResult Scan(AobScanRequest request, CancellationToken cancellationToken = default)
 		{
-			if (TryScan(request, out AobScanResult result, out CheatEngineFailure failure, cancellationToken))
-			{
-				return result;
-			}
-
-			failure.Throw(cancellationToken);
-			return default;
+			throw new NotSupportedException("Fluent terminals read ScanDetailed only.");
 		}
 
 		public PatternScanOutcome ScanDetailed(AobScanRequest request, CancellationToken cancellationToken = default)
 		{
-			throw new NotSupportedException("Fluent terminals use TryScan only.");
+			LastRequest = request;
+			LastCancellationToken = cancellationToken;
+			return _outcome;
+		}
+
+		/// <summary>
+		///     Builds the global route's accounting: every copied and filtered row was examined, a truncated copy also
+		///     examined the in-request row that proved the cut, and the unread rows follow.
+		/// </summary>
+		private static PatternScanMetrics GlobalAccounting(AobScanResult result, PatternScanScope scope,
+			ulong filteredOut, ulong unreadRows)
+		{
+			ulong examined = (ulong) result.Matches.Length + filteredOut + (result.IsTruncated ? 1UL : 0UL);
+			return new PatternScanMetrics(scope, examined + unreadRows, examined, filteredOut, result.Matches.Length,
+				0, 0, unreadRows, unreadRows == 0, TimeSpan.FromMilliseconds(3), TimeSpan.FromMilliseconds(1));
 		}
 	}
 }

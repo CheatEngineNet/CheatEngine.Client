@@ -6,22 +6,36 @@ namespace CheatEngine.Client.Scanning;
 /// <summary>An immutable terminal builder for an AOB scan that must have exactly one match.</summary>
 /// <remarks>
 ///     <para>
-///         Uniqueness is proven from an exhaustive scan (the global scan, or the exhaustive bounded scan of a module or
-///         range): Core copies up to two matches, and a truncated copy (a second match exists) is reported as
-///         <see cref="CheatEngineFailureKind.AmbiguousMatch" />. This operation is never backed by a "unique" or
-///         "first found" scan, and a copy limit of one is never treated as proof of uniqueness.
+///         Create it with <see cref="AobScanBuilder.RequireSingle" />. It is a plain value that declares no
+///         <c>Equals</c>, <c>GetHashCode</c>, <c>ToString</c> or equality operators (only those inherited from
+///         <see cref="ValueType" />): compare the requests it runs, not the builders. Its only constructor is the implicit
+///         parameterless one, which yields the <see langword="default" /> value: that value has no pattern scanner, and
+///         its terminals throw <see cref="InvalidOperationException" />.
 ///     </para>
 ///     <para>
-///         <see cref="CheatEngineFailureKind.NotFound" /> is reported only when the scan succeeded without a match inside
-///         the request (a factual zero of the bounded route, or a global result list without any address inside the
-///         module or range). A global scan for which Cheat Engine returns no result list is reported as
+///         Uniqueness is proven from an exhaustive scan (the global scan, or the exhaustive bounded scan of a module or
+///         range) of which Core copies up to two matches. Two copied matches are reported as
+///         <see cref="CheatEngineFailureKind.AmbiguousMatch" />: a second match was observed. One copied match counts as
+///         unique only when every row Cheat Engine returned was read and the copy is not truncated. Otherwise whether a
+///         second match lies inside the request is unknown (for example when the bounded route filled its destination
+///         with rows that lie outside the request and left rows unread), and the terminal reports
+///         <see cref="CheatEngineFailureKind.IndeterminateHostResult" />, never
+///         <see cref="CheatEngineFailureKind.AmbiguousMatch" />. This operation is never backed by a "unique" or "first
+///         found" scan, and a copy limit of one is never treated as proof of uniqueness.
+///     </para>
+///     <para>
+///         <see cref="CheatEngineFailureKind.NotFound" /> is a factual zero: the scan succeeded, every row Cheat Engine
+///         returned was read, and none lay inside the request (the bounded route's empty in-bounds result, a global result
+///         list whose rows all lie outside the module or range, or an empty list that a global scan does return). A
+///         global scan for which Cheat Engine returns no result list is reported as
 ///         <see cref="CheatEngineFailureKind.IndeterminateHostResult" /> (on Cheat Engine 7.7 <c>AOBScan</c> returns
-///         <c>nil</c> for zero matches and for some host failures alike), never as
-///         <see cref="CheatEngineFailureKind.NotFound" />.
+///         <c>nil</c> for zero matches and for some host failures alike), and so is a copy that did not read every row:
+///         neither is ever <see cref="CheatEngineFailureKind.NotFound" />.
 ///     </para>
 /// </remarks>
-public readonly record struct AobSingleMatchBuilder
+public readonly struct AobSingleMatchBuilder
 {
+	private const string Operation = "Patterns.Scan";
 	private readonly AobScanRequest _request;
 	private readonly IPatternScanner? _scanner;
 
@@ -37,14 +51,21 @@ public readonly record struct AobSingleMatchBuilder
 	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
 	/// </param>
 	/// <returns>The sole target address.</returns>
+	/// <exception cref="InvalidOperationException">
+	///     This builder is the <see langword="default" /> value, which has no pattern scanner.
+	/// </exception>
 	/// <exception cref="CheatEngineOperationException">
-	///     The scan failed (including the indeterminate <c>nil</c> outcome), its returned list had no
-	///     post-filtered match, or several post-filtered matches exist.
+	///     The scan failed (including the indeterminate <c>nil</c> outcome), it proved that no match lies inside the
+	///     request, it copied two matches, or it copied one match without proving that no second one exists.
 	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">
 	///     <paramref name="cancellationToken" /> was observed before the scan started or while Core copied its result.
 	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The Client activation that owns the scanner has ended.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The Client activation is stopping and admits no new work, or the scan failed with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />.
+	/// </exception>
 	/// <remarks>
 	///     Failures are thrown through <see cref="CheatEngineFailure.Throw(CancellationToken)" />, so the exception type
 	///     follows <see cref="CheatEngineFailure.Kind" />; <see cref="TryExecute" /> returns the same failure instead.
@@ -67,42 +88,49 @@ public readonly record struct AobSingleMatchBuilder
 	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
 	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
 	/// </param>
-	/// <returns><see langword="true" /> when the exhaustive result list holds exactly one post-filtered match.</returns>
+	/// <returns>
+	///     <see langword="true" /> when the scan read every row Cheat Engine returned and exactly one lay inside the
+	///     request.
+	/// </returns>
+	/// <exception cref="InvalidOperationException">
+	///     This builder is the <see langword="default" /> value, which has no pattern scanner.
+	/// </exception>
+	/// <exception cref="CheatEngineActivationExpiredException">The Client activation that owns the scanner has ended.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The Client activation is stopping and admits no new work.
+	/// </exception>
 	public bool TryExecute(out Address address, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
-		if (!RequireScanner().TryScan(_request, out AobScanResult result, out failure, cancellationToken))
+		address = default;
+		if (!AobTerminal.TryScan(RequireScanner(), _request, Operation, out AobScanResult result,
+				out bool isExhaustive, out failure, cancellationToken))
 		{
-			address = default;
 			return false;
 		}
 
-		if (result.Matches.Length > _request.MaximumResults)
+		if (result.Matches.IsEmpty)
 		{
-			address = default;
-			failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult, "Aob.RequireSingle",
-				"The pattern scanner returned more matches than the single-match materialization limit.");
+			failure = AobTerminal.Fail(CheatEngineFailureKind.NotFound, Operation, "The AOB scan did not find a match.");
 			return false;
 		}
 
-		if (result.Matches.Length == 0)
+		if (result.Matches.Length > 1)
 		{
-			address = default;
-			failure = new CheatEngineFailure(CheatEngineFailureKind.NotFound, "Aob.RequireSingle",
-				"The AOB scan did not find a match.");
-			return false;
-		}
-
-		if (result.Matches.Length != 1 || result.IsTruncated)
-		{
-			address = default;
-			failure = new CheatEngineFailure(CheatEngineFailureKind.AmbiguousMatch, "Aob.RequireSingle",
+			failure = AobTerminal.Fail(CheatEngineFailureKind.AmbiguousMatch, Operation,
 				"The AOB scan found more than one match.");
 			return false;
 		}
 
+		// With a copy limit of two, one copied match never proves a second one: a truncated single-match copy (the
+		// bounded route's full destination of dropped rows) or unread rows leave uniqueness unknown.
+		if (result.IsTruncated || !isExhaustive)
+		{
+			failure = AobTerminal.Unread(Operation);
+			return false;
+		}
+
 		address = result.Matches[0];
-		failure = default;
 		return true;
 	}
 

@@ -47,6 +47,11 @@ and the mapping of every SDK release kind onto a lease whose `Dispose` never thr
 proves that diagnostic events are never emitted inside a dispatched callback, carry only closed names, counts and
 epochs (Q46), and that a throwing sink changes no result.
 
+`Composition/FluentAobTerminalCompositionTests` compiles in the Fluent AOB terminals (`libs/CheatEngine.Client.Fluent/Scanning`)
+and runs `FirstOrNone`, `RequireSingle` and `Take` against the real `PatternScanner` on the bounded, managed-filter and
+unscoped routes: factual zeros, `nil` results, a bounded destination full of rows outside the request, and a match next
+to rows that straddle the module end, which `RequireSingle` never reports as ambiguous.
+
 Tests that serve as qualification evidence carry a `Qualification` trait (Q16, Q16.b, Q21, Q27, Q28, Q29, Q31, Q32, Q33, Q34,
 Q35, Q43, Q44, Q45, Q46, Q48), so a Q filter selects them. They are C1 evidence (managed tests with doubles), never a
 Cheat Engine host result.
