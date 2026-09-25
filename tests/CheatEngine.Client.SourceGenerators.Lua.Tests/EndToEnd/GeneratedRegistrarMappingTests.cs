@@ -29,7 +29,7 @@ public sealed class GeneratedRegistrarMappingTests
 
 	private static readonly Dictionary<LuaAdmissionStatus, CheatEngineFailureKind> Admissions = new()
 	{
-		[LuaAdmissionStatus.Unknown] = CheatEngineFailureKind.InvalidState,
+		[LuaAdmissionStatus.Unknown] = CheatEngineFailureKind.IndeterminateHostResult,
 		[LuaAdmissionStatus.Detached] = CheatEngineFailureKind.ActivationExpired,
 		[LuaAdmissionStatus.TransitionInProgress] = CheatEngineFailureKind.ActivationExpired,
 		[LuaAdmissionStatus.NoStateForThread] = CheatEngineFailureKind.InvalidState,
@@ -39,9 +39,9 @@ public sealed class GeneratedRegistrarMappingTests
 
 	private static readonly Dictionary<LuaRegistrationResultKind, CheatEngineFailureKind> ResultKinds = new()
 	{
-		[LuaRegistrationResultKind.Unspecified] = CheatEngineFailureKind.InvalidHostResult,
+		[LuaRegistrationResultKind.Unspecified] = CheatEngineFailureKind.IndeterminateHostResult,
 		// Reached only for a success that carries no registration lease.
-		[LuaRegistrationResultKind.Succeeded] = CheatEngineFailureKind.InvalidHostResult,
+		[LuaRegistrationResultKind.Succeeded] = CheatEngineFailureKind.IndeterminateHostResult,
 		[LuaRegistrationResultKind.Collision] = CheatEngineFailureKind.OperationRejected,
 		[LuaRegistrationResultKind.PreflightFailed] = CheatEngineFailureKind.LuaError,
 		[LuaRegistrationResultKind.PublicationFailed] = CheatEngineFailureKind.LuaError
@@ -64,14 +64,14 @@ public sealed class GeneratedRegistrarMappingTests
 	[Fact]
 	public void EveryRefusedLuaAdmissionIsClassifiedAndAnUnknownStatusFailsClosed()
 	{
-		AssertTotal(Admissions, "MapAdmission", CheatEngineFailureKind.InvalidState,
+		AssertTotal(Admissions, "MapAdmission", CheatEngineFailureKind.IndeterminateHostResult,
 			LuaAdmissionStatus.Admitted);
 	}
 
 	[Fact]
 	public void EveryLuaRegistrationResultKindIsClassifiedAndAnUnknownKindFailsClosed()
 	{
-		AssertTotal(ResultKinds, "MapResultKind", CheatEngineFailureKind.InvalidHostResult);
+		AssertTotal(ResultKinds, "MapResultKind", CheatEngineFailureKind.IndeterminateHostResult);
 	}
 
 	private static void AssertTotal<TSdk, TClient>(Dictionary<TSdk, TClient> expected, string method,

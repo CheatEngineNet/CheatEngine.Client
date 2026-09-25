@@ -202,9 +202,11 @@ internal static class RegistrarEmitter
 						return global::CheatEngine.Client.Results.CheatEngineFailureKind.RuntimeChanged;
 					case global::CheatEngine.SDK.Lua.Runtime.LuaAdmissionStatus.ThreadNotAdmitted:
 					case global::CheatEngine.SDK.Lua.Runtime.LuaAdmissionStatus.NoStateForThread:
+						return global::CheatEngine.Client.Results.CheatEngineFailureKind.InvalidState;
 					case global::CheatEngine.SDK.Lua.Runtime.LuaAdmissionStatus.Unknown:
 					default:
-						return global::CheatEngine.Client.Results.CheatEngineFailureKind.InvalidState;
+						// A status the Client does not recognize fails closed, like every other SDK outcome.
+						return global::CheatEngine.Client.Results.CheatEngineFailureKind.IndeterminateHostResult;
 				}
 			}
 
@@ -222,8 +224,9 @@ internal static class RegistrarEmitter
 					case global::CheatEngine.SDK.Lua.Registration.LuaRegistrationResultKind.Unspecified:
 					case global::CheatEngine.SDK.Lua.Registration.LuaRegistrationResultKind.Succeeded:
 					default:
-						// No result, or a success without a registration lease: outside the documented result shape.
-						return global::CheatEngine.Client.Results.CheatEngineFailureKind.InvalidHostResult;
+						// No result, a success without a registration lease, or a kind the Client does not
+						// recognize: a result CheatEngine.SDK cannot attribute, never a success.
+						return global::CheatEngine.Client.Results.CheatEngineFailureKind.IndeterminateHostResult;
 				}
 			}
 
@@ -285,7 +288,7 @@ internal static class RegistrarEmitter
 				return new global::CheatEngine.Client.Results.CheatEngineFailure(
 					previous.Kind == global::CheatEngine.SDK.Lua.Registration.LuaRegistrationReleaseKind.PartiallyReleased
 						? global::CheatEngine.Client.Results.CheatEngineFailureKind.LuaError
-						: global::CheatEngine.Client.Results.CheatEngineFailureKind.InvalidHostResult,
+						: global::CheatEngine.Client.Results.CheatEngineFailureKind.IndeterminateHostResult,
 					RegisterOperation,
 					"Client Lua module '" + moduleName + "' could not release its earlier registration before registering " +
 					"again; nothing was published. " + Describe("The release", previous),
@@ -298,6 +301,11 @@ internal static class RegistrarEmitter
 				string name = publication.FailedExport ?? "(unnamed)";
 				string status = publication.FailedStatus ?? "(unknown)";
 				global::CheatEngine.Client.Results.CheatEngineFailureKind kind = MapResultKind(publication.Kind);
+				// Outside the documented shape, a success without its lease may have published globals that no lease
+				// can remove, like an Auto Assembler script applied without its owner; any other such result says
+				// nothing of what was published.
+				bool unowned = publication.Kind ==
+					global::CheatEngine.SDK.Lua.Registration.LuaRegistrationResultKind.Succeeded;
 				switch (publication.Kind)
 				{
 					case global::CheatEngine.SDK.Lua.Registration.LuaRegistrationResultKind.Collision:
@@ -329,7 +337,9 @@ internal static class RegistrarEmitter
 						return new global::CheatEngine.Client.Results.CheatEngineFailure(kind, RegisterOperation,
 							"Client Lua module '" + moduleName + "' received the registration result " +
 							publication.Kind.ToString() + " without a registration lease from CheatEngine.SDK.",
-							null, global::CheatEngine.Client.Results.CheatEngineHostEffect.Unknown);
+							null, unowned
+								? global::CheatEngine.Client.Results.CheatEngineHostEffect.CleanupUnconfirmed
+								: global::CheatEngine.Client.Results.CheatEngineHostEffect.Unknown);
 				}
 			}
 

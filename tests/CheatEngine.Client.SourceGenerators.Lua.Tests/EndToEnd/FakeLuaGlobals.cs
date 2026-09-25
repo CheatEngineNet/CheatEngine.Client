@@ -198,6 +198,16 @@ public sealed class FakeLuaGlobals
 		set;
 	}
 
+	/// <summary>
+	///     Gets or sets what the next registration reports instead of publishing: it reads and writes nothing, and returns
+	///     this value once (a result outside the documented shape, or a kind a later SDK adds).
+	/// </summary>
+	public FakePublication? NextPublication
+	{
+		get;
+		set;
+	}
+
 	/// <summary>Gets the current value of a global, or <see langword="null" /> for <c>nil</c>.</summary>
 	public FakeLuaValue? this[string name] => _globals.GetValueOrDefault(name);
 
@@ -280,6 +290,12 @@ public sealed class FakeLuaGlobals
 	public FakePublication Publish()
 	{
 		RequireOpenOperation();
+		if (NextPublication is { } scripted)
+		{
+			NextPublication = null;
+			return scripted;
+		}
+
 		for (int index = 0; index < Exports.Count; index++)
 		{
 			string name = Exports[index];

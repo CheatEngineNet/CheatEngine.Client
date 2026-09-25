@@ -137,7 +137,7 @@ public sealed class SdkMappingContractTests
 	{
 		MappingTotality.AssertTotal<LuaAdmissionStatus>(IsClassifiedAdmission, static status =>
 			!LuaAdmission.TryClassify(status, "Lua.Contract", out CheatEngineFailure failure) &&
-			failure.Kind == CheatEngineFailureKind.InvalidState &&
+			failure.Kind == CheatEngineFailureKind.IndeterminateHostResult &&
 			failure.HostEffect == CheatEngineHostEffect.NotStarted);
 	}
 
@@ -245,7 +245,7 @@ public sealed class SdkMappingContractTests
 	}
 
 	/// <summary>
-	///     Admitted is the only success; every refusal is NotStarted and one of the three admission kinds, never a
+	///     Admitted is the only success; every refusal is NotStarted and one of the four admission kinds, never a
 	///     rejection.
 	/// </summary>
 	private static bool IsClassifiedAdmission(LuaAdmissionStatus status)
@@ -258,7 +258,7 @@ public sealed class SdkMappingContractTests
 
 		return !admitted &&
 			   failure.Kind is CheatEngineFailureKind.ActivationExpired or CheatEngineFailureKind.InvalidState
-				   or CheatEngineFailureKind.RuntimeChanged &&
+				   or CheatEngineFailureKind.RuntimeChanged or CheatEngineFailureKind.IndeterminateHostResult &&
 			   failure.HostEffect == CheatEngineHostEffect.NotStarted &&
 			   failure.Operation == "Lua.Contract";
 	}

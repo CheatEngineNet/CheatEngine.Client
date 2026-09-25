@@ -21,8 +21,8 @@ public sealed class LuaAdmissionTests
 	[InlineData(LuaAdmissionStatus.ExternalStateReset, CheatEngineFailureKind.RuntimeChanged)]
 	[InlineData(LuaAdmissionStatus.ThreadNotAdmitted, CheatEngineFailureKind.InvalidState)]
 	[InlineData(LuaAdmissionStatus.NoStateForThread, CheatEngineFailureKind.InvalidState)]
-	[InlineData(LuaAdmissionStatus.Unknown, CheatEngineFailureKind.InvalidState)]
-	[InlineData((LuaAdmissionStatus) 99, CheatEngineFailureKind.InvalidState)]
+	[InlineData(LuaAdmissionStatus.Unknown, CheatEngineFailureKind.IndeterminateHostResult)]
+	[InlineData((LuaAdmissionStatus) 99, CheatEngineFailureKind.IndeterminateHostResult)]
 	public void EachRefusalIsClassifiedAsNotStarted(LuaAdmissionStatus status, CheatEngineFailureKind expectedKind)
 	{
 		bool admitted = LuaAdmission.TryClassify(status, "UnsafeLua.Execute", out CheatEngineFailure failure);

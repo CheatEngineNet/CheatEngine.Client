@@ -37,7 +37,8 @@ namespace CheatEngine.Client.Core.Infrastructure;
 ///         <item>
 ///             <description>
 ///                 <c>Unknown</c> and any value this Client version does not know:
-///                 <see cref="CheatEngineFailureKind.InvalidState" />, never a success.
+///                 <see cref="CheatEngineFailureKind.IndeterminateHostResult" />, never a success, like every other
+///                 SDK outcome the Client does not recognize.
 ///             </description>
 ///         </item>
 ///     </list>
@@ -110,8 +111,9 @@ internal static class LuaAdmission
 				ThreadNotAdmittedMessage),
 			LuaAdmissionStatus.NoStateForThread => Refused(CheatEngineFailureKind.InvalidState, operation,
 				NoStateForThreadMessage),
-			LuaAdmissionStatus.Unknown => Refused(CheatEngineFailureKind.InvalidState, operation, UnknownMessage),
-			_ => Refused(CheatEngineFailureKind.InvalidState, operation, UnknownMessage)
+			LuaAdmissionStatus.Unknown => Refused(CheatEngineFailureKind.IndeterminateHostResult, operation,
+				UnknownMessage),
+			_ => Refused(CheatEngineFailureKind.IndeterminateHostResult, operation, UnknownMessage)
 		};
 		return status == LuaAdmissionStatus.Admitted;
 	}

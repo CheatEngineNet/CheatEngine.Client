@@ -352,12 +352,35 @@ public sealed class LuaModuleOwnershipEndToEndTests
 	}
 
 	[Theory]
+	[InlineData(LuaRegistrationResultKind.Succeeded, CheatEngineHostEffect.CleanupUnconfirmed)]
+	[InlineData(LuaRegistrationResultKind.Unspecified, CheatEngineHostEffect.Unknown)]
+	[InlineData((LuaRegistrationResultKind) 99, CheatEngineHostEffect.Unknown)]
+	public void RegisterFailsClosedOnAResultWithoutALease(LuaRegistrationResultKind reported,
+		CheatEngineHostEffect expectedEffect)
+	{
+		ILuaModule module = Harness.CreateModule();
+		FakeLuaGlobals globals = ModuleHarness.CreateGlobals();
+		globals.NextPublication = new FakePublication(reported, null, null, null,
+			new FakeRelease(LuaRegistrationReleaseKind.NotAttempted, 0, 0, 0, 0, []));
+
+		CheatEngineFailure failure = RegisterFailure(module, globals);
+
+		// A success without its lease may have published globals that no lease can remove.
+		Assert.Equal(CheatEngineFailureKind.IndeterminateHostResult, failure.Kind);
+		Assert.Equal(expectedEffect, failure.HostEffect);
+		Assert.Equal("Lua.RegisterModule", failure.Operation);
+		Assert.Equal(0, globals.OpenOperationCount);
+		Assert.Equal(LeaseReleaseKind.AlreadyReleased, ModuleHarness.Unregister(module, globals).Kind);
+	}
+
+	[Theory]
 	[InlineData(LuaAdmissionStatus.Detached, CheatEngineFailureKind.ActivationExpired)]
 	[InlineData(LuaAdmissionStatus.TransitionInProgress, CheatEngineFailureKind.ActivationExpired)]
 	[InlineData(LuaAdmissionStatus.ExternalStateReset, CheatEngineFailureKind.RuntimeChanged)]
 	[InlineData(LuaAdmissionStatus.ThreadNotAdmitted, CheatEngineFailureKind.InvalidState)]
 	[InlineData(LuaAdmissionStatus.NoStateForThread, CheatEngineFailureKind.InvalidState)]
-	[InlineData(LuaAdmissionStatus.Unknown, CheatEngineFailureKind.InvalidState)]
+	[InlineData(LuaAdmissionStatus.Unknown, CheatEngineFailureKind.IndeterminateHostResult)]
+	[InlineData((LuaAdmissionStatus) 99, CheatEngineFailureKind.IndeterminateHostResult)]
 	public void RegisterWithoutAdmissionIsRefusedBeforeAnyLuaCall(LuaAdmissionStatus admission,
 		CheatEngineFailureKind expected)
 	{
@@ -411,6 +434,24 @@ public sealed class LuaModuleOwnershipEndToEndTests
 		Assert.Same(kept, globals[Ping]);
 		Assert.Equal(0, globals.OpenOperationCount);
 		// The earlier lease was consumed by that release: nothing is left for Unregister to retry.
+		Assert.Equal(LeaseReleaseKind.AlreadyReleased, ModuleHarness.Unregister(module, globals).Kind);
+	}
+
+	[Theory]
+	[InlineData(LuaRegistrationReleaseKind.NotAttempted)]
+	[InlineData((LuaRegistrationReleaseKind) 99)]
+	public void RegisterAgainPublishesNothingWhenTheEarlierReleaseIsNotUnderstood(LuaRegistrationReleaseKind reported)
+	{
+		(ILuaModule module, FakeLuaGlobals globals) = Registered();
+		globals.NextRelease = new FakeRelease(reported, 0, 0, 0, 3, []);
+
+		CheatEngineFailure failure = RegisterFailure(module, globals);
+
+		// A release CheatEngine.SDK reports outside its documented shape is not confirmed: nothing is published.
+		Assert.Equal(CheatEngineFailureKind.IndeterminateHostResult, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.CleanupUnconfirmed, failure.HostEffect);
+		Assert.Equal(0, globals.CountOf("write"));
+		Assert.Equal(0, globals.OpenOperationCount);
 		Assert.Equal(LeaseReleaseKind.AlreadyReleased, ModuleHarness.Unregister(module, globals).Kind);
 	}
 

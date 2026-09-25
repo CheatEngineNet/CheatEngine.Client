@@ -48,13 +48,15 @@ public interface ILuaModule
 	///     <para>
 	///         A generated module throws the exception of its failure's kind
 	///         (<see cref="Results.CheatEngineFailure.ToException" />) when CheatEngine.SDK refuses the Lua admission
-	///         (<c>ActivationExpired</c>, <c>RuntimeChanged</c> or <c>InvalidState</c>, with the host effect
+	///         (<c>ActivationExpired</c>, <c>RuntimeChanged</c>, <c>InvalidState</c>, or
+	///         <c>IndeterminateHostResult</c> for a status the Client does not recognize, with the host effect
 	///         <c>NotStarted</c>), when a global is already defined (<c>OperationRejected</c>,
 	///         <c>NotApplied</c>: nothing was published), or when a protected lookup or publication failed
 	///         (<c>LuaError</c>; <c>NotApplied</c> when the SDK's rollback removed everything it published,
-	///         <c>CleanupUnconfirmed</c> otherwise). Registering a module that still owns a registration releases it
-	///         first; when that release may leave one of its globals, nothing is published and the failure is
-	///         <c>CleanupUnconfirmed</c>.
+	///         <c>CleanupUnconfirmed</c> otherwise). A registration result outside the documented shape fails closed
+	///         as <c>IndeterminateHostResult</c>, with <c>CleanupUnconfirmed</c> for a success without a lease.
+	///         Registering a module that still owns a registration releases it first; when that release may leave one
+	///         of its globals, nothing is published and the failure is <c>CleanupUnconfirmed</c>.
 	///     </para>
 	/// </remarks>
 	public void Register();

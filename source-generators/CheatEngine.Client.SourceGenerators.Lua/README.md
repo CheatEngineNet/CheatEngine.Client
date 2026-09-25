@@ -54,22 +54,23 @@ returning. An `Unregister` that CheatEngine.SDK refuses with `Detached` or `Exte
 |---|---|
 | Admission `Detached` or `TransitionInProgress` | `ActivationExpired`, `NotStarted`; nothing ran |
 | Admission `ExternalStateReset` | `RuntimeChanged`, `NotStarted` |
-| Admission `ThreadNotAdmitted`, `NoStateForThread`, `Unknown` or an unknown status | `InvalidState`, `NotStarted` |
+| Admission `ThreadNotAdmitted` or `NoStateForThread` | `InvalidState`, `NotStarted`: called off the main thread |
+| Admission `Unknown` or an unknown status | `IndeterminateHostResult`, `NotStarted`: fails closed |
 | `Succeeded` with a lease | nothing: the module keeps the lease |
 | `Collision` | `OperationRejected`, `NotApplied`: `Lua global '<name>' is already defined and cannot be replaced by Client module '<module>'.` |
 | `PreflightFailed` | `LuaError`, `NotApplied`: a protected lookup failed before anything was published |
 | `PublicationFailed` | `LuaError`; `NotApplied` when the SDK rollback, or the release of the residual lease the rollback left, removed everything, `CleanupUnconfirmed` otherwise. The message carries the rollback counts. |
-| `Unspecified`, a success without a lease, or an unknown kind | `InvalidHostResult`, `Unknown` |
+| `Unspecified`, a success without a lease, or an unknown kind | `IndeterminateHostResult`: fails closed. `CleanupUnconfirmed` for a success without a lease, whose globals may remain with no lease to remove them; `Unknown` otherwise |
 
 A registration that the module still owns from an earlier call is released first, inside the same admitted operation;
 a lease of an earlier attachment or Lua state is only forgotten. When that release may leave one of the module's own
 globals (`PartiallyReleased`, or a result outside the documented shape), `Register` publishes nothing and throws
-`LuaError` (`InvalidHostResult` for an unrecognized result) with `CleanupUnconfirmed` and the release counts, instead of
-reporting the module's leftover global as a third party's. A `Collision` after a stale earlier registration names that
-release in its message, because the global may be the module's function of an earlier attachment. When a publication
-fails and the SDK compensation leaves a residual lease, the registrar releases that lease once more in the same
-operation. Any other exception is an SDK fault (F15): it propagates, and `ILuaClient` classifies it through its SDK
-boundary.
+`LuaError` (`IndeterminateHostResult` for an unrecognized result) with `CleanupUnconfirmed` and the release counts,
+instead of reporting the module's leftover global as a third party's. A `Collision` after a stale earlier registration
+names that release in its message, because the global may be the module's function of an earlier attachment. When a
+publication fails and the SDK compensation leaves a residual lease, the registrar releases that lease once more in the
+same operation. Any other exception is an SDK fault (F15): it propagates, and `ILuaClient` classifies it through its
+SDK boundary.
 
 ### Release
 
