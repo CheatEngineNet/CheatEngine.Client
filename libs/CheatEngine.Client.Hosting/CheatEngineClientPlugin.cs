@@ -72,7 +72,7 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 	{
 		if (Volatile.Read(ref _activation) is not null)
 		{
-			throw new CheatEngineFailure(CheatEngineFailureKind.InvalidState, "EnableClient",
+			throw new CheatEngineFailure(CheatEngineFailureKind.InvalidState, "Client.Activate",
 				"The Cheat Engine client is already active for this plugin instance.", null,
 				CheatEngineHostEffect.NotStarted).ToException();
 		}
@@ -313,7 +313,7 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 			return activation.Client;
 		}
 
-		throw new CheatEngineFailure(CheatEngineFailureKind.InvalidState, "GetClient",
+		throw new CheatEngineFailure(CheatEngineFailureKind.InvalidState, "Client.GetRequiredClient",
 			"The Cheat Engine client is available only while the plugin is enabled.", null,
 			CheatEngineHostEffect.NotStarted).ToException();
 	}

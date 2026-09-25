@@ -726,7 +726,8 @@ qualified on a live host (C3). For admission, the Client charges it as bytes for
 
 This charter is normative for every public type of the seven Client packages; the 1.x line only adds to it.
 `PublicApiCharterTests`, `OutcomeEnumConventionTests`, `PublicClientSignatureBoundaryTests`,
-`PublicSurfaceInventoryTests`, `DefaultOutputValueTests` and `OperationNameTests` check its mechanical rules.
+`PublicSurfaceInventoryTests`, `DefaultOutputValueTests` and `OperationNameTests` check its mechanical rules;
+`OperationNameTests` reads the operation names that Core and Hosting write.
 
 ### Operation forms
 
@@ -773,9 +774,10 @@ This charter is normative for every public type of the seven Client packages; th
   one, so every exception keeps the complete failure, including `HostEffect` (`NotStarted` for an admission refusal).
 - `CheatEngineFailure.Operation` is `<Service>.<Member>`. `Service` is the `ICheatEngineClient` property that exposes
   the service, `UnsafeLua` or `AutoAssembler` for the services only dependency injection registers, or `Client` for
-  the activation itself. `Member` is the public method the caller invoked, without `Try` or `Detailed`. A lease
-  release is `<Service>.Release`, and a failure raised inside a codec or a Lua operation context names the call that
-  runs it. `Operation` is safe to log; like `Message`, its text is not a compatibility contract.
+  the activation itself (`Client.Activate`, and `Client.GetRequiredClient` for the plugin member of that name).
+  `Member` is the public method the caller invoked, without `Try` or `Detailed`. A lease release is
+  `<Service>.Release`, and a failure raised inside a codec or a Lua operation context names the call that runs it.
+  `Operation` is safe to log; like `Message`, its text is not a compatibility contract.
 - No `Try` form throws a CheatEngine.SDK exception. `CheatEngineFailure.Exception` may hold one: its type is not part
   of this contract and changes with the SDK, so never type-test it.
 - "Cancelled" is the Client's spelling for the failure kind and the host outcome; exception type names follow the BCL.

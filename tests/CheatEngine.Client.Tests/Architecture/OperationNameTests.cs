@@ -4,13 +4,12 @@
 using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
-using System.Reflection.PortableExecutable;
 using System.Text.RegularExpressions;
 
 using CheatEngine.Client.Allocations;
 using CheatEngine.Client.Assembly;
-using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Dispatching;
+using CheatEngine.Client.Hosting;
 using CheatEngine.Client.Inspection;
 using CheatEngine.Client.Lua;
 using CheatEngine.Client.Memory;
@@ -19,18 +18,18 @@ using CheatEngine.Client.Runtime;
 using CheatEngine.Client.Scanning;
 using CheatEngine.Client.Tables;
 
-namespace CheatEngine.Client.Core.Tests.Infrastructure;
+namespace CheatEngine.Client.Tests.Architecture;
 
 /// <summary>
-///     Every failure operation name that Core writes is <c>&lt;Service&gt;.&lt;Member&gt;</c>, as
+///     Every failure operation name that a checked Client library writes is <c>&lt;Service&gt;.&lt;Member&gt;</c>, as
 ///     <see cref="Results.CheatEngineFailure.Operation" /> documents: <c>Service</c> is the
 ///     <see cref="ICheatEngineClient" /> property that exposes the service (<c>UnsafeLua</c> or <c>AutoAssembler</c> for
 ///     the services only dependency injection registers, <c>Client</c> for the activation itself), and <c>Member</c> is
 ///     one of its public methods without <c>Try</c> or <c>Detailed</c>, or <c>Release</c> for a lease.
 /// </summary>
 /// <remarks>
-///     The names are read from the metadata of the Core assembly: every string literal of its code (the user-string
-///     heap) and every string constant, so a name written inline or through a constant is checked alike, and no Core
+///     The names are read from the metadata of each checked library: every string literal of its code (the user-string
+///     heap) and every string constant, so a name written inline or through a constant is checked alike, and no Client
 ///     code runs. Any literal of the shape <c>Word.Word</c> is an operation name.
 /// </remarks>
 public sealed partial class OperationNameTests
@@ -39,6 +38,19 @@ public sealed partial class OperationNameTests
 	private const string ReleaseMember = "Release";
 	private const string TryPrefix = "Try";
 	private const string DetailedSuffix = "Detailed";
+
+	/// <summary>
+	///     The member of <see cref="CheatEngineClientPlugin" /> whose refusal is reported under <c>Client</c>.
+	/// </summary>
+	private const string PluginClientMember = "GetRequiredClient";
+
+	/// <summary>
+	///     The Client libraries checked, read as metadata. Abstractions and dependency injection write no operation
+	///     name: their <c>Word.Word</c> literals are capability ids and option paths. Fluent's pattern builders still
+	///     name their failures after the builder method (<c>Aob.RequireSingle</c>), so Fluent joins this list once they
+	///     report the scan they run.
+	/// </summary>
+	private static readonly string[] CheckedAssemblies = ["CheatEngine.Client.Core", "CheatEngine.Client.Hosting"];
 
 	/// <summary>The services, by the name their failures carry, with the public contracts whose methods they report.</summary>
 	private static readonly Dictionary<string, Type[]> Services = new(StringComparer.Ordinal)
@@ -61,9 +73,12 @@ public sealed partial class OperationNameTests
 	/// <summary>The services that only dependency injection registers: no <see cref="ICheatEngineClient" /> property.</summary>
 	private static readonly string[] RegisteredOnly = ["UnsafeLua", "AutoAssembler"];
 
-	/// <summary>The steps of the activation itself, reported under <c>Client</c>.</summary>
-	private static readonly string[] ActivationSteps =
-		["Activate", "DrainResources", "EnterCleanupScope", "TrackResource"];
+	/// <summary>
+	///     The operations of the activation itself, reported under <c>Client</c>: its steps, and the plugin member that
+	///     hands out the client of the active activation.
+	/// </summary>
+	private static readonly string[] ClientOperations =
+		["Activate", "DrainResources", "EnterCleanupScope", PluginClientMember, "TrackResource"];
 
 	[Fact]
 	public void EveryServiceNameIsTheClientPropertyThatExposesIt()
@@ -83,31 +98,40 @@ public sealed partial class OperationNameTests
 	}
 
 	[Fact]
-	public void EveryCoreOperationNameIsAServiceAndOneOfItsPublicMembers()
+	public void ThePluginMemberReportedUnderClientIsTheOneAPluginCalls()
 	{
-		string[] names = ReadCoreOperationNames();
+		MethodInfo? method = typeof(CheatEngineClientPlugin).GetMethod(PluginClientMember,
+			BindingFlags.Instance | BindingFlags.NonPublic);
+
+		Assert.NotNull(method);
+		Assert.True(method.IsFamily);
+	}
+
+	[Fact]
+	public void EveryOperationNameIsAServiceAndOneOfItsPublicMembers()
+	{
+		List<string> names = [];
 		List<string> offenders = [];
-		foreach (string name in names)
+		foreach (string assembly in CheckedAssemblies)
 		{
-			Match match = OperationName().Match(name);
-			string service = match.Groups["service"].Value;
-			string member = match.Groups["member"].Value;
-			bool valid = service == ClientService
-				? ActivationSteps.Contains(member, StringComparer.Ordinal)
-				: Services.TryGetValue(service, out Type[]? contracts) &&
-				  (member == ReleaseMember || contracts.Any(contract => PublicMembers(contract).Contains(member)));
-			if (!valid)
+			foreach (string name in ReadOperationNames(assembly))
 			{
-				offenders.Add(name);
+				names.Add(name);
+				if (!IsValid(name))
+				{
+					offenders.Add($"{assembly}: {name}");
+				}
 			}
 		}
 
-		// The scan cannot pass vacuously: names written inline and through constants are both present.
+		// The scan cannot pass vacuously: Core names written inline and through constants are present, and so is the
+		// Hosting name.
 		Assert.Contains("Patterns.Scan", names);
 		Assert.Contains("Memory.Read", names);
 		Assert.Contains("Allocations.Release", names);
+		Assert.Contains("Client.GetRequiredClient", names);
 		Assert.True(offenders.Count == 0,
-			"A Core operation name must be <Service>.<Member>: a service of ICheatEngineClient (or UnsafeLua, " +
+			"A Client operation name must be <Service>.<Member>: a service of ICheatEngineClient (or UnsafeLua, " +
 			"AutoAssembler, Client) and one of its public methods without Try or Detailed, or Release:" +
 			Environment.NewLine + string.Join(Environment.NewLine, offenders));
 	}
@@ -121,32 +145,45 @@ public sealed partial class OperationNameTests
 		Assert.Equal(expected, MemberName(method));
 	}
 
-	/// <summary>Reads every string literal and string constant of Core that has the shape of an operation name.</summary>
-	private static string[] ReadCoreOperationNames()
+	private static bool IsValid(string name)
+	{
+		Match match = OperationName().Match(name);
+		string service = match.Groups["service"].Value;
+		string member = match.Groups["member"].Value;
+		return service == ClientService
+			? ClientOperations.Contains(member, StringComparer.Ordinal)
+			: Services.TryGetValue(service, out Type[]? contracts) &&
+			  (member == ReleaseMember || contracts.Any(contract => PublicMembers(contract).Contains(member)));
+	}
+
+	/// <summary>
+	///     Reads every string literal and string constant of one library that has the shape of an operation name.
+	/// </summary>
+	private static string[] ReadOperationNames(string assembly)
 	{
 		HashSet<string> names = new(StringComparer.Ordinal);
-		using FileStream stream = File.OpenRead(typeof(CoreLifetime).Assembly.Location);
-		using PEReader pe = new(stream);
-		MetadataReader reader = pe.GetMetadataReader();
-		if (reader.GetHeapSize(HeapIndex.UserString) > 1)
+		ClientAssemblyCatalog.ReadMetadata(assembly, (reader, _) =>
 		{
-			for (UserStringHandle handle = MetadataTokens.UserStringHandle(1);
-				 !handle.IsNil;
-				 handle = reader.GetNextHandle(handle))
+			if (reader.GetHeapSize(HeapIndex.UserString) > 1)
 			{
-				Add(reader.GetUserString(handle));
+				for (UserStringHandle handle = MetadataTokens.UserStringHandle(1);
+					 !handle.IsNil;
+					 handle = reader.GetNextHandle(handle))
+				{
+					Add(reader.GetUserString(handle));
+				}
 			}
-		}
 
-		for (int row = 1; row <= reader.GetTableRowCount(TableIndex.Constant); row++)
-		{
-			Constant constant = reader.GetConstant(MetadataTokens.ConstantHandle(row));
-			if (constant.TypeCode == ConstantTypeCode.String)
+			for (int row = 1; row <= reader.GetTableRowCount(TableIndex.Constant); row++)
 			{
-				BlobReader value = reader.GetBlobReader(constant.Value);
-				Add(value.ReadConstant(ConstantTypeCode.String) as string);
+				Constant constant = reader.GetConstant(MetadataTokens.ConstantHandle(row));
+				if (constant.TypeCode == ConstantTypeCode.String)
+				{
+					BlobReader value = reader.GetBlobReader(constant.Value);
+					Add(value.ReadConstant(ConstantTypeCode.String) as string);
+				}
 			}
-		}
+		});
 
 		return [.. names.Order(StringComparer.Ordinal)];
 

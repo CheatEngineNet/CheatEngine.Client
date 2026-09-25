@@ -41,7 +41,7 @@ public sealed class CheatEngineClientPluginTests
 	}
 
 	[Fact]
-	public void GetRequiredClientWithoutAnActiveEnableEpochThrowsLifecycleException()
+	public void GetRequiredClientWithoutAnActiveEnableEpochThrowsInvalidStateException()
 	{
 		TestPlugin plugin = new();
 
@@ -49,7 +49,7 @@ public sealed class CheatEngineClientPluginTests
 			Assert.Throws<CheatEngineInvalidStateException>(plugin.GetRequiredClientForTest);
 
 		Assert.Equal(CheatEngineFailureKind.InvalidState, exception.Failure.Kind);
-		Assert.Equal("GetClient", exception.Failure.Operation);
+		Assert.Equal("Client.GetRequiredClient", exception.Failure.Operation);
 		Assert.Contains("only while the plugin is enabled", exception.Message, StringComparison.Ordinal);
 	}
 
@@ -67,7 +67,7 @@ public sealed class CheatEngineClientPluginTests
 		Assert.Same(client, plugin.GetRequiredClientForTest());
 		CheatEngineInvalidStateException duplicateEnable =
 			Assert.Throws<CheatEngineInvalidStateException>(plugin.EnableForTest);
-		Assert.Equal("EnableClient", duplicateEnable.Failure.Operation);
+		Assert.Equal("Client.Activate", duplicateEnable.Failure.Operation);
 
 		plugin.DisableForTest();
 
