@@ -203,13 +203,9 @@ internal static class ScenarioEvaluators
 				static observed => observed.Is("scanned") && observed.Is("results.containsMarker"),
 				"scanned", "results.resultCount", "results.containsMarker", "session.state"));
 		Add("Q25", "S1", "decimal-tolerance",
-			"3.14159 is found by its 5, 3, 2 and 0 decimal texts (rounded comparison) and not by 3.2 or 3.15",
-			static evidence => evidence.Observe("value-scan-decimals", static observed =>
-			{
-				IReadOnlyList<Observed> cases = observed.Items("cases");
-				return cases.Count == 12 && cases.All(static item => item.Is("scanned") &&
-																	 item.Bool("found") == item.Bool("expectedFound"));
-			}, "ok", "sessionRelease.kind"));
+			"3.14159 is found by its 5, 2 and 0 decimal texts and not by 3.2 or 3.15, as float and as double; its " +
+			"3-decimal text 3.142 gives one verdict for both, which names the rounding rule Cheat Engine applies",
+			DecimalTolerance);
 		Add("Q26", "S1", "next-scan-finds-marker", "a next scan finds the new marker",
 			static evidence => evidence.Observe("value-scan-next",
 				static observed => observed.Is("scanned") && observed.Is("results.containsMarker"),
@@ -473,6 +469,45 @@ internal static class ScenarioEvaluators
 		}
 
 		return checks;
+	}
+
+	/// <summary>
+	///     Q25: every case with an expectation meets it, and the two discriminating cases (the 3-decimal text 3.142 of
+	///     3.14159, as float and as double) agree. Their verdict names the rule: ordinary rounding finds the probe, the
+	///     range of the <c>rtRounded</c> documentation (up to half a unit above the text) does not. Either rule passes;
+	///     the receipt names it, so the remarks of <c>ValueScanValue</c> can follow the recorded run.
+	/// </summary>
+	private static CheckResult DecimalTolerance(SessionEvidence evidence)
+	{
+		if (!evidence.TryObserve("value-scan-decimals", out Observed? observed, out CheckResult notUsable))
+		{
+			return notUsable;
+		}
+
+		IReadOnlyList<Observed> cases = observed.Items("cases");
+		Observed[] discriminating = [.. cases.Where(static item => item.Is("discriminating"))];
+		if (cases.Count != 12 || discriminating.Length != 2 ||
+			!cases.All(static item => item.Is("scanned") && item.Bool("found") is not null))
+		{
+			return CheckResult.Failed($"value-scan-decimals: {cases.Count} cases, {discriminating.Length} discriminating; " +
+									  "every case must be scanned and read back");
+		}
+
+		string[] unmet =
+		[
+			.. cases.Where(static item => !item.Is("discriminating") &&
+										  (item.Bool("expectedFound") is not { } expected || item.Bool("found") != expected))
+				.Select(static item => $"{item.Text("type")} with {item.Number("decimals")} decimals")
+		];
+		bool? found = discriminating[0].Bool("found");
+		bool agree = discriminating[1].Bool("found") == found;
+		string rule = !agree
+			? "float and double disagree on 3.142"
+			: found == true
+				? "ordinary rounding (3.142 finds 3.14159)"
+				: "the documented range up to half a unit above the text (3.142 does not find 3.14159)";
+		string expectations = unmet.Length == 0 ? "every expectation met" : "unmet: " + string.Join(", ", unmet);
+		return CheckResult.From(unmet.Length == 0 && agree, $"value-scan-decimals: {expectations}; rule: {rule}");
 	}
 
 	private static bool Assembled(Observed observed, string id, string bytesPrefix)

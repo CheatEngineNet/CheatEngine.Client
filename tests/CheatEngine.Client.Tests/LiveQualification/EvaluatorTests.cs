@@ -35,27 +35,43 @@ public sealed class EvaluatorTests
 			Exact.Replace("HostBoundedRange", "GlobalHostScanWithManagedFilter", StringComparison.Ordinal)))).Status);
 	}
 
-	[Fact]
-	public void TheDecimalToleranceNeedsEveryCaseAsExpected()
+	[Theory]
+	[InlineData(true, true, false, 12, true, "rule: ordinary rounding")]
+	[InlineData(false, false, false, 12, true, "rule: the documented range")]
+	[InlineData(true, false, false, 12, false, "float and double disagree")]
+	[InlineData(true, true, true, 12, false, "unmet: DoubleFloat with 2 decimals")]
+	[InlineData(true, true, false, 11, false, "11 cases")]
+	public void TheDecimalToleranceMeetsEveryExpectationAndNamesTheRoundingRule(bool singleFound, bool doubleFound,
+		bool lastFound, int count, bool passes, string observation)
 	{
 		QualificationCheck check = Check("Q25", "S1", "decimal-tolerance");
-		static string Cases(bool lastFound)
+		StringBuilder cases = new("""{"ok":true,"cases":[""");
+		for (int index = 0; index < count; index++)
 		{
-			StringBuilder cases = new("""{"ok":true,"cases":[""");
-			for (int index = 0; index < 12; index++)
+			// Per type: 5 decimals, the discriminating 3 decimals, 2, 0, then 3.2 and 3.15, which must not match.
+			string type = index < 6 ? "SingleFloat" : "DoubleFloat";
+			string decimals = (index % 6) switch
 			{
-				bool expected = index % 6 < 4;
-				bool found = index == 11 ? lastFound : expected;
-				string item = "{\"scanned\":true,\"expectedFound\":" + (expected ? "true" : "false") + ",\"found\":" +
-							  (found ? "true" : "false") + "}";
-				cases.Append(index == 0 ? string.Empty : ",").Append(item);
-			}
-
-			return cases.Append("]}").ToString();
+				0 => "5",
+				1 => "3",
+				2 => "2",
+				3 => "0",
+				4 => "1",
+				_ => "2"
+			};
+			string item = index % 6 == 1
+				? "{\"type\":\"" + type + "\",\"decimals\":3,\"discriminating\":true,\"expectedFound\":null,\"scanned\":true," +
+				  "\"found\":" + ((index < 6 ? singleFound : doubleFound) ? "true" : "false") + "}"
+				: "{\"type\":\"" + type + "\",\"decimals\":" + decimals + ",\"discriminating\":false,\"expectedFound\":" +
+				  (index % 6 < 4 ? "true" : "false") + ",\"scanned\":true,\"found\":" +
+				  ((index == 11 ? lastFound : index % 6 < 4) ? "true" : "false") + "}";
+			cases.Append(index == 0 ? string.Empty : ",").Append(item);
 		}
 
-		Assert.Equal(ReceiptStatus.Passed, check.Evaluate(Evidence(("value-scan-decimals", Cases(false)))).Status);
-		Assert.Equal(ReceiptStatus.Failed, check.Evaluate(Evidence(("value-scan-decimals", Cases(true)))).Status);
+		CheckResult result = check.Evaluate(Evidence(("value-scan-decimals", cases.Append("]}").ToString())));
+
+		Assert.Equal(passes ? ReceiptStatus.Passed : ReceiptStatus.Failed, result.Status);
+		Assert.Contains(observation, result.Observation, StringComparison.Ordinal);
 	}
 
 	[Fact]

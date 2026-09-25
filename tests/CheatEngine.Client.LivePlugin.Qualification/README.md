@@ -120,9 +120,10 @@ Client's own counts (`checks.truncationExplicit`), and the harness holds no copy
 
 `value_scan` actions: `first` and `next` write the int32 marker `value` into its scratch slot and scan the scratch region
 for it, `reset`, `state`, `release` (also after a target change), `decimals` (Q25: the probe 3.14159 written as a float
-and a double must be found by the texts of `FromSingle`/`FromDouble` with 5, 3, 2 and 0 decimals, which relies on
-Cheat Engine's rounded comparison, and must not be found by 3.2 or 3.15) and `create-unidentified` (a file opened as a
-process). `allocation` actions: `allocate`, `state`, `release` and `allocate-unidentified`. `aa_patch` actions: `check`,
+and a double must be found by the texts of `FromSingle`/`FromDouble` with 5, 2 and 0 decimals and must not be found by
+3.2 or 3.15, under either rule that fits Cheat Engine's `rtRounded` documentation; the 3-decimal text 3.142 is recorded
+without an expectation, because ordinary rounding finds the probe with it and the documented range, which reaches only
+half a unit above the text, does not) and `create-unidentified` (a file opened as a process). `allocation` actions: `allocate`, `state`, `release` and `allocate-unidentified`. `aa_patch` actions: `check`,
 `apply` (variant `benign`: an allocation and a registered symbol that its `[DISABLE]` section unregisters and frees;
 variant `failing`: a write to an undefined label), `state` and `release`. The driver selects every target through
 Cheat Engine itself (`openProcess`), never through the Client, so a patch always applies to a process that Cheat Engine's

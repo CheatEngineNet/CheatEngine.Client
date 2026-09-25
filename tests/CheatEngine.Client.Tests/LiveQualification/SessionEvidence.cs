@@ -102,6 +102,24 @@ internal sealed record SessionEvidence(
 		return CheckResult.From(passes(observed), description);
 	}
 
+	/// <summary>The harness JSON observation of a driver step, or the result that says why it cannot be used.</summary>
+	internal bool TryObserve(string step, [NotNullWhen(true)] out Observed? observed, out CheckResult notUsable)
+	{
+		observed = null;
+		if (!TryRecord(step, out TranscriptRecord? record, out notUsable))
+		{
+			return false;
+		}
+
+		if (Observed.TryParse(record.Value, out observed))
+		{
+			return true;
+		}
+
+		notUsable = CheckResult.Failed($"{step}: not a JSON observation: {Shorten(record.Value)}");
+		return false;
+	}
+
 	/// <summary>The plain value of a driver step (a Lua setup or check step).</summary>
 	internal CheckResult Value(string step, Func<string, bool> passes)
 	{

@@ -41,7 +41,7 @@ internal static partial class QualificationScenarios
 	/// <summary>How many value-scan matches the harness reads back; the scan range is the 4096-byte scratch region.</summary>
 	private const int ValueScanPageSize = 64;
 
-	/// <summary>The value Q25 scans for, and the decimal texts that must, or must not, find it.</summary>
+	/// <summary>The value Q25 scans for with texts of several decimals (<see cref="ValueScanDecimals" />).</summary>
 	private const float SingleProbe = 3.14159f;
 
 	private const double DoubleProbe = 3.14159;
@@ -292,8 +292,12 @@ internal static partial class QualificationScenarios
 		return DescribeValueScan(observation);
 	}
 
-	// Q25: Cheat Engine compares a float scan with the decimals of its text (rtRounded). The probe value 3.14159 must be
-	// found by its own 5 decimals, by 3.142 (rounded up), 3.14 and 3; it must not be found by 3.2 or 3.15.
+	// Q25: Cheat Engine compares a float scan with the decimals of its text (rtRounded). Two rules fit its Lua
+	// documentation, and both find the probe 3.14159 by its own 5 decimals, by 3.14 and by 3, and not by 3.2 or 3.15:
+	// those cases carry an expectation. The 3-decimal text 3.142 is the discriminating case, recorded without one:
+	// ordinary rounding to 3 decimals (3.14159 rounds to 3.142) finds the probe, while the range the documentation
+	// states ("3" matches 3.0 to 3.4999, the text up to half a unit above it) stops below it. The evaluator names the
+	// rule the host applied, and ValueScanValue's remarks follow the recorded run.
 	private static string ValueScanDecimals(QualificationObservation observation,
 		QualificationSession.ActiveClient active, int processId, Address scratch)
 	{
@@ -321,17 +325,18 @@ internal static partial class QualificationScenarios
 		}
 
 		observation.BeginArray("cases");
-		foreach ((ValueScanValue scanned, Address slot, int decimals, bool expectedFound) in
-				 (ReadOnlySpan<(ValueScanValue, Address, int, bool)>)
+		// A null expectation marks the discriminating case (3.142), whose result names the rounding rule.
+		foreach ((ValueScanValue scanned, Address slot, int decimals, bool? expectedFound) in
+				 (ReadOnlySpan<(ValueScanValue, Address, int, bool?)>)
 				 [
 					 (ValueScanValue.FromSingle(SingleProbe, 5), singleSlot, 5, true),
-					 (ValueScanValue.FromSingle(SingleProbe, 3), singleSlot, 3, true),
+					 (ValueScanValue.FromSingle(SingleProbe, 3), singleSlot, 3, null),
 					 (ValueScanValue.FromSingle(SingleProbe, 2), singleSlot, 2, true),
 					 (ValueScanValue.FromSingle(SingleProbe, 0), singleSlot, 0, true),
 					 (ValueScanValue.FromSingle(3.2f, 1), singleSlot, 1, false),
 					 (ValueScanValue.FromSingle(3.15f, 2), singleSlot, 2, false),
 					 (ValueScanValue.FromDouble(DoubleProbe, 5), doubleSlot, 5, true),
-					 (ValueScanValue.FromDouble(DoubleProbe, 3), doubleSlot, 3, true),
+					 (ValueScanValue.FromDouble(DoubleProbe, 3), doubleSlot, 3, null),
 					 (ValueScanValue.FromDouble(DoubleProbe, 2), doubleSlot, 2, true),
 					 (ValueScanValue.FromDouble(DoubleProbe, 0), doubleSlot, 0, true),
 					 (ValueScanValue.FromDouble(3.2, 1), doubleSlot, 1, false),
@@ -344,7 +349,8 @@ internal static partial class QualificationScenarios
 				.String("type", scanned.Type.ToString())
 				.String("text", scanned.Text)
 				.Number("decimals", decimals)
-				.Boolean("expectedFound", expectedFound)
+				.Boolean("discriminating", expectedFound is null)
+				.OptionalBoolean("expectedFound", expectedFound)
 				.Boolean("scanned", scannedOk);
 			if (scannedOk && session.TryRead(new ValueScanReadRequest(0, ValueScanPageSize), out ValueScanPage page, out _))
 			{

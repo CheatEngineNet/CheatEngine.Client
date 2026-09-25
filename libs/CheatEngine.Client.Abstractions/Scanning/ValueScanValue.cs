@@ -18,8 +18,10 @@ namespace CheatEngine.Client.Scanning;
 ///         fixed-point notation, never in exponent notation, rounded to the number of decimals the caller passes, with a
 ///         <c>.</c> separator: <c>FromDouble(100, 2)</c> is <c>100.00</c>. Cheat Engine's rounded exact comparison takes
 ///         its precision from the digits of that text: its Lua documentation (<c>rtRounded</c>) states that <c>3</c>
-///         matches 3.0 to 3.4999 and <c>3.0</c> matches 3.00 to 3.0499. Choose the decimals the scan needs, knowing that
-///         each one fewer widens the match tenfold. No Client receipt covers this tolerance yet (Q25).
+///         matches 3.0 to 3.4999 and <c>3.0</c> matches 3.00 to 3.0499, and does not say whether a value just below the
+///         text (2.6 for <c>3</c>) matches as well, as ordinary rounding to that many decimals would. Choose the decimals
+///         the scan needs, knowing that each one fewer widens the match tenfold. No Client receipt covers this tolerance
+///         yet: Q25 records which of the two rules the host applies.
 ///     </para>
 ///     <para>
 ///         A <see langword="default" /> value has no <see cref="Text" /> and every scan request refuses it. The text is user
