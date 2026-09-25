@@ -683,9 +683,10 @@ public sealed class AobFluentBuilderTests
 				PatternScanScope.HostBoundedRange => PatternScanRouteReason.ScopedRequestOnQualifiedTarget,
 				_ => PatternScanRouteReason.TargetIdentityNotQualified
 			};
-			_outcome = new PatternScanOutcome(result, null, metrics,
-				metrics.HostResultCount == 0 ? PatternScanHostOutcomeKind.NoMatches : PatternScanHostOutcomeKind.Matches,
-				reason, false);
+			PatternScanHostOutcomeKind hostOutcome = metrics.HostResultCount == 0
+				? PatternScanHostOutcomeKind.NoMatches
+				: PatternScanHostOutcomeKind.Matches;
+			_outcome = new PatternScanOutcome(result, null, metrics, hostOutcome, reason, false);
 		}
 
 		/// <summary>Creates a scanner whose scan fails.</summary>
