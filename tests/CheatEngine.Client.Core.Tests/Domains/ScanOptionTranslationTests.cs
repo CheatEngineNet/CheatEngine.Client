@@ -12,8 +12,6 @@ namespace CheatEngine.Client.Core.Tests.Domains;
 /// </summary>
 public sealed class ScanOptionTranslationTests
 {
-	private const string Operation = "ValueScans.FirstScan";
-
 	[Fact]
 	public void BothScanRoutesWriteTheSameOptionsForEveryFilterAndAlignment()
 	{
@@ -30,9 +28,9 @@ public sealed class ScanOptionTranslationTests
 					{
 						ScanProtectionFilter protection = new(executable, copyOnWrite, writable);
 						AobScanOptions aob = AobScanMapping.ToSdkOptions(protection, alignment);
-						Assert.True(ValueScanRequests.TryCreateFirst(
+						FirstScanRequest values = ValueScanRequests.CreateFirst(
 							ValueScanFirstRequest.Exact(ValueScanValue.FromInt32(1)).WithProtection(protection)
-								.WithAlignment(alignment), Operation, out FirstScanRequest values, out _));
+								.WithAlignment(alignment));
 
 						Assert.Equal(aob.ProtectionFlags, values.ProtectionFlags);
 						Assert.Equal(aob.AlignmentMethod, values.FastScanMethod);
@@ -51,7 +49,7 @@ public sealed class ScanOptionTranslationTests
 	public void BothScanRoutesAcceptEveryOptionThePublicFactoriesCreate()
 	{
 		// One check serves both routes: every value a public constructor or factory creates is defined, and so are the
-		// default filter and alignment; only a tampered value is refused, by the AOB and value-scan validation alike
+		// default filter and alignment; only a tampered value throws, in the AOB and value-scan validation alike
 		// (PatternScannerTests and ValueScannerTests tamper one on each route).
 		foreach (ScanProtectionRequirement requirement in Enum.GetValues<ScanProtectionRequirement>())
 		{

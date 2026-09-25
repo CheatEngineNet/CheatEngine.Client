@@ -377,18 +377,18 @@ public sealed class AllocationClientTests : IDisposable
 		Assert.Same(fault, failure.Exception);
 	}
 
+	/// <summary>
+	///     The default request is a programming error: both forms throw, as its constructor does, before dispatch.
+	/// </summary>
 	[Fact]
-	public void TheDefaultRequestIsRefusedBeforeDispatch()
+	public void TheDefaultRequestThrowsBeforeDispatch()
 	{
-		bool allocated = _client.TryAllocate(default, out ITargetMemoryLease? lease, out CheatEngineFailure failure,
-			Token);
+		ArgumentOutOfRangeException thrown =
+			Assert.Throws<ArgumentOutOfRangeException>(() => _client.TryAllocate(default, out _, out _, Token));
 
-		Assert.False(allocated);
-		Assert.Null(lease);
-		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
-		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
+		Assert.Equal("request", thrown.ParamName);
+		Assert.Throws<ArgumentOutOfRangeException>(() => _client.Allocate(default, Token));
 		Assert.Equal(0, _port.Allocations);
-		Assert.Throws<CheatEngineOperationException>(() => _client.Allocate(default, Token));
 	}
 
 	[Fact]

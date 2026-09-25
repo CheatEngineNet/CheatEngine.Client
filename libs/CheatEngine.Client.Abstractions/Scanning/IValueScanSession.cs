@@ -87,12 +87,24 @@ public interface IValueScanSession : ICheatEngineLease
 	/// <param name="failure">The classified failure when the method returns <see langword="false" />.</param>
 	/// <param name="cancellationToken">Observed before the scan starts, before the wait, and after it.</param>
 	/// <returns><see langword="true" /> when the results are ready.</returns>
+	/// <exception cref="ArgumentException">
+	///     <paramref name="request" /> did not come from a <see cref="ValueScanFirstRequest" /> factory: the
+	///     <see langword="default" /> request, or a tampered one (an <see cref="ArgumentOutOfRangeException" /> for a
+	///     comparison, a range or an option its factories would refuse). It is thrown before the activation check and
+	///     before any Cheat Engine call.
+	/// </exception>
 	public bool TryFirstScan(ValueScanFirstRequest request, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
 	/// <summary>Runs a first scan and waits for its results, or throws the failure.</summary>
 	/// <param name="request">The first scan.</param>
 	/// <param name="cancellationToken">Observed before the scan starts, before the wait, and after it.</param>
+	/// <exception cref="ArgumentException">
+	///     <paramref name="request" /> did not come from a <see cref="ValueScanFirstRequest" /> factory: the
+	///     <see langword="default" /> request, or a tampered one (an <see cref="ArgumentOutOfRangeException" /> for a
+	///     comparison, a range or an option its factories would refuse). It is thrown before the activation check and
+	///     before any Cheat Engine call.
+	/// </exception>
 	public void FirstScan(ValueScanFirstRequest request, CancellationToken cancellationToken = default);
 
 	/// <summary>Tries to run a next scan over the current results and wait for its results.</summary>
@@ -100,12 +112,24 @@ public interface IValueScanSession : ICheatEngineLease
 	/// <param name="failure">The classified failure when the method returns <see langword="false" />.</param>
 	/// <param name="cancellationToken">Observed before the scan starts, before the wait, and after it.</param>
 	/// <returns><see langword="true" /> when the new results are ready.</returns>
+	/// <exception cref="ArgumentException">
+	///     <paramref name="request" /> did not come from a <see cref="ValueScanNextRequest" /> factory: the
+	///     <see langword="default" /> request, or a tampered one. It is thrown before the activation check and before
+	///     any Cheat Engine call; a value of another type than the session's first scan is refused with
+	///     <see cref="CheatEngineFailureKind.OperationRejected" /> instead.
+	/// </exception>
 	public bool TryNextScan(ValueScanNextRequest request, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
 	/// <summary>Runs a next scan over the current results and waits for its results, or throws the failure.</summary>
 	/// <param name="request">The next scan.</param>
 	/// <param name="cancellationToken">Observed before the scan starts, before the wait, and after it.</param>
+	/// <exception cref="ArgumentException">
+	///     <paramref name="request" /> did not come from a <see cref="ValueScanNextRequest" /> factory: the
+	///     <see langword="default" /> request, or a tampered one. It is thrown before the activation check and before
+	///     any Cheat Engine call; a value of another type than the session's first scan is refused with
+	///     <see cref="CheatEngineFailureKind.OperationRejected" /> instead.
+	/// </exception>
 	public void NextScan(ValueScanNextRequest request, CancellationToken cancellationToken = default);
 
 	/// <summary>Tries to clear the results so that the session accepts a new first scan.</summary>
@@ -144,6 +168,10 @@ public interface IValueScanSession : ICheatEngineLease
 	///     <see langword="true" /> when the page was copied; a scan without results reads as an empty page. A start index
 	///     at or beyond a non-zero result count is refused with <see cref="CheatEngineFailureKind.OperationRejected" />.
 	/// </returns>
+	/// <exception cref="ArgumentOutOfRangeException">
+	///     <paramref name="request" /> is the <see langword="default" /> request, which allows no result, or a tampered
+	///     one: it is thrown before the activation check and before any Cheat Engine call.
+	/// </exception>
 	public bool TryRead(ValueScanReadRequest request, out ValueScanPage page, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
@@ -151,5 +179,9 @@ public interface IValueScanSession : ICheatEngineLease
 	/// <param name="request">The first index and the maximum number of results to copy.</param>
 	/// <param name="cancellationToken">Observed before the copy and between the copied results.</param>
 	/// <returns>The copied page.</returns>
+	/// <exception cref="ArgumentOutOfRangeException">
+	///     <paramref name="request" /> is the <see langword="default" /> request, which allows no result, or a tampered
+	///     one: it is thrown before the activation check and before any Cheat Engine call.
+	/// </exception>
 	public ValueScanPage Read(ValueScanReadRequest request, CancellationToken cancellationToken = default);
 }

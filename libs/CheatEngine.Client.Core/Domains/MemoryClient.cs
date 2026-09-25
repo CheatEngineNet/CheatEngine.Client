@@ -357,6 +357,7 @@ internal sealed class MemoryClient : IMemoryClient
 	public bool TryRead<T>(MemoryReadRequest<T> request, [MaybeNullWhen(false)] out T value,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
+		ValidateCodec(request.Codec, nameof(request));
 		T? captured = default;
 		CodecOutcome outcome = default;
 		if (!_dispatcher.TryInvoke(() => outcome = TryReadCore(request, out captured), out failure,
@@ -392,6 +393,7 @@ internal sealed class MemoryClient : IMemoryClient
 	public bool TryWrite<T>(MemoryWriteRequest<T> request, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
+		ValidateCodec(request.Codec, nameof(request));
 		CodecOutcome outcome = default;
 		if (!_dispatcher.TryInvoke(() => outcome = TryWriteCore(request), out failure, cancellationToken))
 		{
@@ -893,6 +895,20 @@ internal sealed class MemoryClient : IMemoryClient
 
 		return new MemoryPrimitiveBatchWriteOutcome(requestedCount, 0, null, dispatchFailure,
 			MemoryBatchWriteEffectState.Unknown);
+	}
+
+	/// <summary>
+	///     Throws for the default codec request, which carries no codec, as its constructor throws for a null codec;
+	///     without this check the codec call would fail on Cheat Engine's main thread.
+	/// </summary>
+	/// <exception cref="ArgumentException">The request carries no codec.</exception>
+	private static void ValidateCodec<T>(IMemoryCodec<T>? codec, string parameterName)
+	{
+		if (codec is null)
+		{
+			throw new ArgumentException("A codec request must carry its codec; the default request has none.",
+				parameterName);
+		}
 	}
 
 	private static void ValidateBatch<T>(ImmutableArray<T> values, string parameterName)

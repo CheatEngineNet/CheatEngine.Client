@@ -171,21 +171,45 @@ public sealed class AllocationMappingTests
 	}
 
 	[Fact]
-	public void TheDefaultRequestIsRejectedAndAValidRequestKeepsItsFacts()
+	public void AValidRequestKeepsItsFacts()
 	{
 		Address preferred = new(0x1000_0000);
 
-		bool rejected = AllocationMapping.TryCreateRequest(default, Operation, out _, out CheatEngineFailure failure);
-		bool accepted = AllocationMapping.TryCreateRequest(
-			new AllocationRequest(4096, AllocationProtection.ExecuteReadWrite, preferred), Operation,
-			out TargetAllocationRequest request, out _);
+		TargetAllocationRequest request = AllocationMapping.CreateRequest(
+			new AllocationRequest(4096, AllocationProtection.ExecuteReadWrite, preferred));
 
-		Assert.False(rejected);
-		Assert.Equal((CheatEngineFailureKind.OperationRejected, CheatEngineHostEffect.NotStarted), Describe(failure));
-		Assert.True(accepted);
 		Assert.Equal(4096, request.Size.Value);
 		Assert.Equal(MemoryProtection.ExecuteReadWrite, request.Protection);
 		Assert.Equal(preferred, request.PreferredBaseAddress);
+	}
+
+	/// <summary>
+	///     The default request and a tampered one are programming errors: they throw what the request's constructor
+	///     throws for the same value, and no SDK request is built from them.
+	/// </summary>
+	[Theory]
+	[InlineData("Default")]
+	[InlineData("NegativeSize")]
+	[InlineData("UndefinedProtection")]
+	[InlineData("NullPreferredAddress")]
+	public void AnInvalidRequestThrowsWhatItsConstructorThrows(string invalid)
+	{
+		AllocationRequest valid = new(4096);
+		AllocationRequest request = invalid switch
+		{
+			"Default" => default,
+			"NegativeSize" => TamperedValues.WithBackingField(valid, nameof(AllocationRequest.Size), -1L),
+			"UndefinedProtection" => TamperedValues.WithBackingField(valid, nameof(AllocationRequest.Protection),
+				(AllocationProtection) 9),
+			"NullPreferredAddress" => TamperedValues.WithBackingField(valid,
+				nameof(AllocationRequest.PreferredAddress), (Address?) Address.Zero),
+			_ => throw new ArgumentOutOfRangeException(nameof(invalid), invalid, null)
+		};
+
+		ArgumentOutOfRangeException thrown =
+			Assert.Throws<ArgumentOutOfRangeException>(() => AllocationMapping.CreateRequest(request));
+
+		Assert.Equal("request", thrown.ParamName);
 	}
 
 	private static (CheatEngineFailureKind Kind, CheatEngineHostEffect Effect) Describe(CheatEngineFailure failure)

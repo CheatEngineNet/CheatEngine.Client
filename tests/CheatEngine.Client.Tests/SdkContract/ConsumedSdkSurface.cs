@@ -155,6 +155,7 @@ internal static class ConsumedSdkSurface
 		"CheatEngine.Client.Core M CheatEngine.SDK.Engine.Inspection.ModuleInfo::get_Name()->string",
 		"CheatEngine.Client.Core M CheatEngine.SDK.Engine.Inspection.ModuleName::get_Value()->string",
 		"CheatEngine.Client.Core M CheatEngine.SDK.Engine.Inspection.SymbolExpression::.ctor(string)->void",
+		"CheatEngine.Client.Core M CheatEngine.SDK.Engine.Inspection.SymbolExpression::get_Value()->string",
 		"CheatEngine.Client.Core M CheatEngine.SDK.Engine.Inspection.SymbolName::.ctor(string)->void",
 		"CheatEngine.Client.Core M CheatEngine.SDK.Engine.Inspection.SymbolRegistrationAcquireOutcome::get_Lease()->CheatEngine.SDK.Engine.Inspection.SymbolRegistrationLease",
 		"CheatEngine.Client.Core M CheatEngine.SDK.Engine.Inspection.SymbolRegistrationAcquireOutcome::get_Status()->CheatEngine.SDK.Lua.Calls.LuaOperationStatus",

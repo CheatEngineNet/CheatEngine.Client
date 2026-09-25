@@ -623,8 +623,22 @@ public sealed class InspectionClientBehaviorTests
 		Assert.False(port.Symbols.ContainsKey("fixture-symbol"));
 	}
 
-	[Fact]
-	public void DefaultCollectionRequestsAndRegistrationsAreRefusedBeforeDispatch()
+	/// <summary>
+	///     A default or out-of-range argument is a programming error: the Try and the throwing forms throw what the
+	///     argument's constructor throws for the same value, before any dispatch, including the default module name and
+	///     symbol expression that CheatEngine.SDK would otherwise refuse on Cheat Engine's main thread.
+	/// </summary>
+	[Theory]
+	[InlineData("GetModules.DefaultRequest", "request", typeof(ArgumentOutOfRangeException))]
+	[InlineData("GetModules.DefaultProcessId", "processId", typeof(ArgumentOutOfRangeException))]
+	[InlineData("GetModuleSections.DefaultModuleName", "moduleName", typeof(ArgumentException))]
+	[InlineData("GetModuleSections.DefaultRequest", "request", typeof(ArgumentOutOfRangeException))]
+	[InlineData("GetMemoryRegions.DefaultRequest", "request", typeof(ArgumentOutOfRangeException))]
+	[InlineData("GetSymbol.DefaultExpression", "expression", typeof(ArgumentException))]
+	[InlineData("RegisterSymbol.DefaultRegistration", "registration", typeof(ArgumentException))]
+	[InlineData("ResolveAddress.DefaultExpression", "expression", typeof(ArgumentException))]
+	[InlineData("ResolveAddress.UndefinedMode", "mode", typeof(ArgumentOutOfRangeException))]
+	public void ADefaultOrOutOfRangeArgumentThrowsBeforeDispatch(string entryPoint, string parameter, Type expected)
 	{
 		using ControlledCoreLifetimeContext context = new();
 		using CoreLifetime lifetime = new(context);
@@ -632,29 +646,41 @@ public sealed class InspectionClientBehaviorTests
 		CountingMainThreadInvoker invoker = new();
 		InspectionClient client = new(new SdkMainThreadDispatcher(lifetime, invoker), lifetime, port);
 		CancellationToken token = TestContext.Current.CancellationToken;
-
-		Assert.False(client.TryGetModules(default, null, out ImmutableArray<ModuleInfo> modules,
-			out CheatEngineFailure modulesFailure, token));
-		Assert.False(client.TryGetModuleSections(new ModuleName("game.exe"), default,
-			out ImmutableArray<ModuleSectionInfo> sections, out CheatEngineFailure sectionsFailure, token));
-		Assert.False(client.TryGetMemoryRegions(default, out ImmutableArray<MemoryRegionInfo> regions,
-			out CheatEngineFailure regionsFailure, token));
-		Assert.False(client.TryRegisterSymbol(default, out ISymbolRegistrationLease? lease,
-			out CheatEngineFailure registrationFailure, token));
-
-		Assert.Empty(modules);
-		Assert.Empty(sections);
-		Assert.Empty(regions);
-		Assert.Null(lease);
-		Assert.Equal(("Inspection.GetModules", "Inspection.GetModuleSections", "Inspection.GetMemoryRegions",
-				"Inspection.RegisterSymbol"),
-			(modulesFailure.Operation, sectionsFailure.Operation, regionsFailure.Operation,
-				registrationFailure.Operation));
-		Assert.All([modulesFailure, sectionsFailure, regionsFailure, registrationFailure], static failure =>
+		InspectionCollectionRequest request = new(8);
+		SymbolExpression expression = new("game.exe+10");
+		(Action TryForm, Action ThrowingForm) forms = entryPoint switch
 		{
-			Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
-			Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
-		});
+			"GetModules.DefaultRequest" => (() => client.TryGetModules(default, null, out _, out _, token),
+				() => client.GetModules(default, null, token)),
+			"GetModules.DefaultProcessId" => (() => client.TryGetModules(request, default(TargetProcessId), out _,
+				out _, token), () => client.GetModules(request, default(TargetProcessId), token)),
+			"GetModuleSections.DefaultModuleName" => (
+				() => client.TryGetModuleSections(default, request, out _, out _, token),
+				() => client.GetModuleSections(default, request, token)),
+			"GetModuleSections.DefaultRequest" => (
+				() => client.TryGetModuleSections(new ModuleName("game.exe"), default, out _, out _, token),
+				() => client.GetModuleSections(new ModuleName("game.exe"), default, token)),
+			"GetMemoryRegions.DefaultRequest" => (() => client.TryGetMemoryRegions(default, out _, out _, token),
+				() => client.GetMemoryRegions(default, token)),
+			"GetSymbol.DefaultExpression" => (() => client.TryGetSymbol(default, out _, out _, token),
+				() => client.GetSymbol(default, token)),
+			"RegisterSymbol.DefaultRegistration" => (() => client.TryRegisterSymbol(default, out _, out _, token),
+				() => client.RegisterSymbol(default, token)),
+			"ResolveAddress.DefaultExpression" => (
+				() => client.TryResolveAddress(default, AddressResolutionMode.Default, out _, out _, token),
+				() => client.ResolveAddress(default, AddressResolutionMode.Default, token)),
+			"ResolveAddress.UndefinedMode" => (
+				() => client.TryResolveAddress(expression, (AddressResolutionMode) 99, out _, out _, token),
+				() => client.ResolveAddress(expression, (AddressResolutionMode) 99, token)),
+			_ => throw new ArgumentOutOfRangeException(nameof(entryPoint), entryPoint, null)
+		};
+
+		ArgumentException tryForm = Assert.ThrowsAny<ArgumentException>(forms.TryForm);
+		ArgumentException throwingForm = Assert.ThrowsAny<ArgumentException>(forms.ThrowingForm);
+
+		Assert.IsType(expected, tryForm);
+		Assert.IsType(expected, throwingForm);
+		Assert.Equal(parameter, tryForm.ParamName);
 		Assert.Equal(0, invoker.Invocations);
 		Assert.Equal(0, port.RegisterCalls);
 	}

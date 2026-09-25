@@ -36,14 +36,15 @@ internal sealed class InspectionClient(
 		out ImmutableArray<ModuleInfo> modules, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
-		// An ended or stopping activation throws before a refusal is reported, never the reverse.
-		_lifetime.ThrowIfDispatchRefused("Inspection.GetModules");
-		if (IsDefault(request, "Inspection.GetModules", out failure))
+		// Arguments first, then the activation: an ended or stopping activation throws before any failure.
+		ValidateCollectionRequest(request);
+		if (processId is { Value: <= 0 } invalidProcessId)
 		{
-			modules = [];
-			return false;
+			throw new ArgumentOutOfRangeException(nameof(processId), invalidProcessId.Value,
+				"A target process identifier must be positive.");
 		}
 
+		_lifetime.ThrowIfDispatchRefused("Inspection.GetModules");
 		ImmutableArray<ModuleInfo> result = ImmutableArray<ModuleInfo>.Empty;
 		InspectionStatus status = InspectionStatus.InvalidResult;
 		if (!SdkBoundary.TryInvoke(_dispatcher, "Inspection.GetModules", () =>
@@ -83,14 +84,15 @@ internal sealed class InspectionClient(
 		out ImmutableArray<ModuleSectionInfo> sections, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
-		// An ended or stopping activation throws before a refusal is reported, never the reverse.
-		_lifetime.ThrowIfDispatchRefused("Inspection.GetModuleSections");
-		if (IsDefault(request, "Inspection.GetModuleSections", out failure))
+		// Arguments first, then the activation: an ended or stopping activation throws before any failure.
+		if (string.IsNullOrWhiteSpace(moduleName.Value))
 		{
-			sections = [];
-			return false;
+			throw new ArgumentException("A module name must not be empty; the default module name has none.",
+				nameof(moduleName));
 		}
 
+		ValidateCollectionRequest(request);
+		_lifetime.ThrowIfDispatchRefused("Inspection.GetModuleSections");
 		ImmutableArray<ModuleSectionInfo> result = ImmutableArray<ModuleSectionInfo>.Empty;
 		InspectionStatus status = InspectionStatus.InvalidResult;
 		if (!SdkBoundary.TryInvoke(_dispatcher, "Inspection.GetModuleSections", () =>
@@ -128,14 +130,9 @@ internal sealed class InspectionClient(
 		out ImmutableArray<MemoryRegionInfo> regions, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
-		// An ended or stopping activation throws before a refusal is reported, never the reverse.
+		// Arguments first, then the activation: an ended or stopping activation throws before any failure.
+		ValidateCollectionRequest(request);
 		_lifetime.ThrowIfDispatchRefused("Inspection.GetMemoryRegions");
-		if (IsDefault(request, "Inspection.GetMemoryRegions", out failure))
-		{
-			regions = [];
-			return false;
-		}
-
 		ImmutableArray<MemoryRegionInfo> result = [];
 		InspectionStatus status = InspectionStatus.InvalidResult;
 		if (!SdkBoundary.TryInvoke(_dispatcher, "Inspection.GetMemoryRegions", () =>
@@ -200,6 +197,7 @@ internal sealed class InspectionClient(
 	public bool TryGetSymbol(SymbolExpression expression, out SymbolInfo symbol,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
+		ValidateExpression(expression);
 		SymbolInfo captured = default;
 		InspectionStatus status = InspectionStatus.InvalidResult;
 		if (!SdkBoundary.TryInvoke(_dispatcher, "Inspection.GetSymbol",
@@ -265,16 +263,15 @@ internal sealed class InspectionClient(
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
 		lease = null;
-		_lifetime.ThrowIfInactive(RegisterOperation);
-		if (registration.Name is null)
+		if (string.IsNullOrWhiteSpace(registration.Name))
 		{
-			// Only the default registration has no name: its constructor refuses an empty one.
-			failure = new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, RegisterOperation,
-				"A symbol registration must name the symbol; the default registration has no name.", null,
-				CheatEngineHostEffect.NotStarted);
-			return false;
+			// Only the default registration has no name: its constructor throws for an empty one.
+			throw new ArgumentException(
+				"A symbol registration must name the symbol; the default registration has no name.",
+				nameof(registration));
 		}
 
+		_lifetime.ThrowIfInactive(RegisterOperation);
 		if (!TryReserveSymbolName(registration.Name, out failure))
 		{
 			return false;
@@ -335,6 +332,7 @@ internal sealed class InspectionClient(
 	public bool TryResolveAddress(SymbolExpression expression, AddressResolutionMode mode,
 		out Address address, out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
+		ValidateExpression(expression);
 		if (!Enum.IsDefined(mode))
 		{
 			throw new ArgumentOutOfRangeException(nameof(mode), mode,
@@ -369,21 +367,31 @@ internal sealed class InspectionClient(
 	}
 
 	/// <summary>
-	///     Refuses the default collection request, which allows no item, before dispatch: its constructor refuses a
-	///     limit below one, and a copy into no room would otherwise reach Cheat Engine only to exceed it.
+	///     Throws for the default collection request, which allows no item, as its constructor throws for a limit below
+	///     one: a copy into no room would otherwise reach Cheat Engine only to exceed it.
 	/// </summary>
-	private static bool IsDefault(InspectionCollectionRequest request, string operation, out CheatEngineFailure failure)
+	/// <exception cref="ArgumentOutOfRangeException">The request allows no item.</exception>
+	private static void ValidateCollectionRequest(InspectionCollectionRequest request)
 	{
-		if (request.MaximumItems > 0)
+		if (request.MaximumItems <= 0)
 		{
-			failure = default;
-			return false;
+			throw new ArgumentOutOfRangeException(nameof(request), request.MaximumItems,
+				"An inspection collection request must allow at least one item; the default request allows none.");
 		}
+	}
 
-		failure = new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, operation,
-			"An inspection collection request must allow at least one item; the default request allows none.", null,
-			CheatEngineHostEffect.NotStarted);
-		return true;
+	/// <summary>
+	///     Throws for the default symbol expression, as its constructor throws for an empty one, before CheatEngine.SDK
+	///     would refuse it on Cheat Engine's main thread.
+	/// </summary>
+	/// <exception cref="ArgumentException">The expression is empty.</exception>
+	private static void ValidateExpression(SymbolExpression expression)
+	{
+		if (string.IsNullOrWhiteSpace(expression.Value))
+		{
+			throw new ArgumentException("A symbol expression must not be empty; the default expression has none.",
+				nameof(expression));
+		}
 	}
 
 	/// <summary>Maps an SDK inspection status by value; internal so the Q48 contract tests can prove it is total.</summary>

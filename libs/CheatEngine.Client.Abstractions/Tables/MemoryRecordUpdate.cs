@@ -7,7 +7,8 @@ namespace CheatEngine.Client.Tables;
 /// <remarks>
 ///     The record it changes is the <see cref="MemoryRecordId" /> passed to <see cref="ITableClient.TryUpdate" />,
 ///     first like every record-targeting operation. The <see langword="default" /> value changes nothing, and
-///     <see cref="ITableClient.TryUpdate" /> refuses it before any Cheat Engine call.
+///     <see cref="ITableClient.TryUpdate" /> throws <see cref="ArgumentException" /> for it before the activation check
+///     and before any Cheat Engine call.
 /// </remarks>
 public readonly record struct MemoryRecordUpdate
 {
@@ -19,12 +20,21 @@ public readonly record struct MemoryRecordUpdate
 	/// <exception cref="ArgumentException">
 	///     Every field is <see langword="null" />, or <paramref name="addressExpression" /> is empty.
 	/// </exception>
+	/// <exception cref="ArgumentOutOfRangeException">
+	///     <paramref name="variableType" /> is not a defined value.
+	/// </exception>
 	public MemoryRecordUpdate(
 		string? description = null,
 		string? addressExpression = null,
 		string? value = null,
 		VariableType? variableType = null)
 	{
+		if (variableType is { } type && !Enum.IsDefined(type))
+		{
+			throw new ArgumentOutOfRangeException(nameof(variableType), type,
+				"A memory-record update assigns a defined value type.");
+		}
+
 		if (description is null && addressExpression is null && value is null && variableType is null)
 		{
 			throw new ArgumentException("A memory-record update must change at least one field.", nameof(description));

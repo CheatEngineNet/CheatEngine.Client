@@ -35,6 +35,10 @@ public interface IAllocationClient
 	/// <remarks>
 	///     A cancellation observed after Cheat Engine allocated frees the allocation at once and publishes nothing.
 	/// </remarks>
+	/// <exception cref="ArgumentOutOfRangeException">
+	///     <paramref name="request" /> is the <see langword="default" /> request, which has no size, or a tampered one;
+	///     it is thrown before the activation check and before any Cheat Engine call.
+	/// </exception>
 	public bool TryAllocate(
 		AllocationRequest request,
 		[NotNullWhen(true)] out ITargetMemoryLease? lease,
@@ -45,6 +49,10 @@ public interface IAllocationClient
 	/// <param name="request">The allocation.</param>
 	/// <param name="cancellationToken">Observed before Cheat Engine allocates, and after.</param>
 	/// <returns>The lease of the allocation; release it when done.</returns>
+	/// <exception cref="ArgumentOutOfRangeException">
+	///     <paramref name="request" /> is the <see langword="default" /> request, which has no size, or a tampered one;
+	///     it is thrown before the activation check and before any Cheat Engine call.
+	/// </exception>
 	public ITargetMemoryLease Allocate(
 		AllocationRequest request,
 		CancellationToken cancellationToken = default);

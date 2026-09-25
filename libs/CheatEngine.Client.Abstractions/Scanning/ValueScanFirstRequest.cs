@@ -16,8 +16,8 @@ namespace CheatEngine.Client.Scanning;
 ///         On the pinned Cheat Engine 7.7 profile the stop address is exclusive: a match is reported only when it fits
 ///         entirely below <see cref="StopAddress" />. The start address is not byte-exact: a match that begins slightly
 ///         before <see cref="StartAddress" /> can be reported, so check <see cref="ValueScanMatch.Address" /> when an exact
-///         start matters. A <see langword="default" /> request has no value and an empty range; every session refuses it
-///         with <see cref="Results.CheatEngineFailureKind.OperationRejected" />.
+///         start matters. A <see langword="default" /> request has no value and an empty range: every session throws an
+///         <see cref="ArgumentException" /> for it, before the activation check and before any Cheat Engine call.
 ///     </para>
 /// </remarks>
 [Experimental(ClientExperimentalDiagnostics.ValueScans, UrlFormat = ClientExperimentalDiagnostics.UrlFormat)]

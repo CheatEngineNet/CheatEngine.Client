@@ -50,15 +50,10 @@ internal sealed class AllocationClient : IAllocationClient
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
 		lease = null;
-		// Creating a lease-owned resource is admitted only while the activation is active, never from the cleanup scope:
-		// an ended or stopping activation throws before a refusal or a cancellation is reported, never the reverse.
+		// Arguments first. Creating a lease-owned resource is then admitted only while the activation is active, never
+		// from the cleanup scope: an ended or stopping activation throws before a cancellation is reported.
+		TargetAllocationRequest sdkRequest = AllocationMapping.CreateRequest(request);
 		_dispatcher.Lifetime.ThrowIfInactive(AllocateOperation);
-		if (!AllocationMapping.TryCreateRequest(request, AllocateOperation, out TargetAllocationRequest sdkRequest,
-				out failure))
-		{
-			return false;
-		}
-
 		if (cancellationToken.IsCancellationRequested)
 		{
 			failure = CancellationMapping.BeforeNativeCall(AllocateOperation);

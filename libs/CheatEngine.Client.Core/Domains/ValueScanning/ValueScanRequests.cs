@@ -7,33 +7,32 @@ namespace CheatEngine.Client.Core.Domains.ValueScanning;
 
 /// <summary>Validates Client value-scan requests and builds the positional CheatEngine.SDK requests from them.</summary>
 /// <remarks>
-///     Every refusal is <see cref="CheatEngineFailureKind.OperationRejected" /> with
-///     <see cref="CheatEngineHostEffect.NotStarted" />: it is decided before any Cheat Engine work is dispatched. The
-///     protection filter and the alignment rule are written by <see cref="ScanOptionTranslation" />, the translation
-///     the AOB options use; without alignment the positional SDK request carries an empty parameter.
+///     A request that its factories would refuse (the <see langword="default" /> request, or a tampered one) throws an
+///     <see cref="ArgumentException" /> before the activation check and before any Cheat Engine work is dispatched.
+///     The one refusal returned as a failure is a next-scan value of another type than the session's first scan:
+///     <see cref="CheatEngineFailureKind.OperationRejected" /> with <see cref="CheatEngineHostEffect.NotStarted" />.
+///     The protection filter and the alignment rule are written by <see cref="ScanOptionTranslation" />, the
+///     translation the AOB options use; without alignment the positional SDK request carries an empty parameter.
 /// </remarks>
 internal static class ValueScanRequests
 {
-	/// <summary>Builds the SDK first-scan request.</summary>
+	/// <summary>Validates a first-scan request and builds the SDK first-scan request from it.</summary>
 	/// <param name="request">The Client request.</param>
-	/// <param name="operation">The public Client operation name.</param>
-	/// <param name="sdkRequest">The SDK request when the method returns <see langword="true" />.</param>
-	/// <param name="failure">The refusal when the method returns <see langword="false" />.</param>
-	/// <returns><see langword="true" /> when the request is valid.</returns>
-	internal static bool TryCreateFirst(ValueScanFirstRequest request, string operation,
-		out FirstScanRequest sdkRequest, out CheatEngineFailure failure)
+	/// <returns>The SDK request.</returns>
+	/// <exception cref="ArgumentException">
+	///     The request has no value (the <see langword="default" /> request) or a value its comparison refuses.
+	/// </exception>
+	/// <exception cref="ArgumentOutOfRangeException">
+	///     Its comparison or value type is not a defined value, its range is empty, or its protection filter or
+	///     alignment rule is not a defined value.
+	/// </exception>
+	internal static FirstScanRequest CreateFirst(ValueScanFirstRequest request)
 	{
-		sdkRequest = default;
-		if (!TryValidateFirst(request, out string? refusal))
-		{
-			failure = Rejected(operation, refusal);
-			return false;
-		}
-
+		ValidateFirst(request);
 		ScanValueFlags flags = GetFlags(request.ValueType);
 		(FastScanMethod alignmentMethod, string? alignmentParameter) =
 			ScanOptionTranslation.ToFastScan(request.Alignment, string.Empty);
-		sdkRequest = new FirstScanRequest(
+		return new FirstScanRequest(
 			ToScanOption(request.Comparison),
 			flags.VariableType,
 			RoundingType.Rounded,
@@ -48,28 +47,69 @@ internal static class ValueScanRequests
 			false,
 			flags.IsUnicodeScan,
 			flags.IsCaseSensitive);
-		failure = default;
-		return true;
 	}
 
-	/// <summary>Builds the SDK next-scan request for a session whose first scan compared <paramref name="valueType" />.</summary>
+	/// <summary>Throws for a next-scan request that its factories would refuse, whatever the session.</summary>
 	/// <param name="request">The Client request.</param>
+	/// <exception cref="ArgumentException">
+	///     The request has no value (the <see langword="default" /> request), a value its comparison refuses, or bounds
+	///     of two types.
+	/// </exception>
+	/// <exception cref="ArgumentOutOfRangeException">Its comparison is not a defined value.</exception>
+	internal static void ValidateNext(ValueScanNextRequest request)
+	{
+		if (!Enum.IsDefined(request.Comparison))
+		{
+			throw new ArgumentOutOfRangeException(nameof(request), request.Comparison,
+				"A next value scan request has a comparison that is not a defined value.");
+		}
+
+		string? problem = request.Comparison switch
+		{
+			ValueScanComparison.Exact => ValidateValue(request.Value, requireNumeric: false),
+			ValueScanComparison.BiggerThan or ValueScanComparison.SmallerThan or ValueScanComparison.IncreasedBy
+				or ValueScanComparison.DecreasedBy => ValidateValue(request.Value, requireNumeric: true),
+			ValueScanComparison.Between => ValidateValue(request.Value, requireNumeric: true) ??
+										   ValidateValue(request.UpperValue, requireNumeric: true) ??
+										   ValidateSameType(request.Value, request.UpperValue),
+			ValueScanComparison.Increased or ValueScanComparison.Decreased or ValueScanComparison.Changed
+				or ValueScanComparison.Unchanged => request.Value is null && request.UpperValue is null
+					? null
+					: "A comparison with the previous scan carries no value.",
+			_ => "A next value scan compares a value, a range, a bound or the previous scan."
+		};
+		if (problem is not null)
+		{
+			throw new ArgumentException(problem, nameof(request));
+		}
+	}
+
+	/// <summary>
+	///     Builds the SDK next-scan request of a validated request (<see cref="ValidateNext" />) for a session whose
+	///     first scan compared <paramref name="valueType" />.
+	/// </summary>
+	/// <param name="request">The validated Client request.</param>
 	/// <param name="valueType">The value type of the session's first scan, or <see langword="null" /> without one.</param>
 	/// <param name="operation">The public Client operation name.</param>
 	/// <param name="sdkRequest">The SDK request when the method returns <see langword="true" />.</param>
 	/// <param name="failure">The refusal when the method returns <see langword="false" />.</param>
-	/// <returns><see langword="true" /> when the request is valid for the session.</returns>
+	/// <returns>
+	///     <see langword="true" /> unless the request carries a value of another type than the session's.
+	/// </returns>
 	/// <remarks>
-	///     Without a first scan the request is built with integer flags: CheatEngine.SDK then refuses the next scan by the
-	///     session state before any Cheat Engine call.
+	///     Without a first scan the request is built with the type of its value, or with integer flags: CheatEngine.SDK
+	///     then refuses the next scan by the session state before any Cheat Engine call.
 	/// </remarks>
 	internal static bool TryCreateNext(ValueScanNextRequest request, ValueScanValueType? valueType, string operation,
 		out NextScanRequest sdkRequest, out CheatEngineFailure failure)
 	{
 		sdkRequest = default;
-		if (!TryValidateNext(request, valueType, out string? refusal))
+		if (valueType is { } expected && request.Value is { } value && value.ValueType != expected)
 		{
-			failure = Rejected(operation, refusal);
+			// Both bounds of a validated range have the same type: the lower one stands for the pair.
+			failure = new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, operation,
+				$"The scanned value is a {value.ValueType} value; the session scans {expected} values.", null,
+				CheatEngineHostEffect.NotStarted);
 			return false;
 		}
 
@@ -134,9 +174,15 @@ internal static class ValueScanRequests
 		};
 	}
 
-	private static bool TryValidateFirst(ValueScanFirstRequest request, out string? refusal)
+	private static void ValidateFirst(ValueScanFirstRequest request)
 	{
-		refusal = request.Comparison switch
+		if (!Enum.IsDefined(request.Comparison) || !Enum.IsDefined(request.ValueType))
+		{
+			throw new ArgumentOutOfRangeException(nameof(request),
+				"A first value scan request has a comparison or a value type that is not a defined value.");
+		}
+
+		string? problem = request.Comparison switch
 		{
 			ValueScanComparison.Exact => ValidateValue(request.Value, request.ValueType, requireNumeric: false),
 			ValueScanComparison.BiggerThan or ValueScanComparison.SmallerThan => ValidateValue(request.Value,
@@ -148,62 +194,57 @@ internal static class ValueScanRequests
 				: "An unknown initial value scan requires a numeric value type and no value.",
 			_ => "A first value scan compares an exact value, a range, a bound or an unknown initial value."
 		};
-		refusal ??= request.StopAddress > request.StartAddress
-			? null
-			: "A value scan range must be non-empty: the exclusive stop address must be greater than the start address.";
-		refusal ??= ScanOptionTranslation.IsDefined(request.Protection)
-			? null
-			: "A value scan protection filter must use defined requirements.";
-		refusal ??= ScanOptionTranslation.IsDefined(request.Alignment)
-			? null
-			: "A value scan alignment must be created by a ScanAlignment factory.";
-		return refusal is null;
-	}
-
-	private static bool TryValidateNext(ValueScanNextRequest request, ValueScanValueType? valueType,
-		out string? refusal)
-	{
-		ValueScanValueType expected = valueType ?? request.Value?.ValueType ?? ValueScanValueType.Integer32;
-		refusal = request.Comparison switch
+		if (problem is not null)
 		{
-			ValueScanComparison.Exact => ValidateValue(request.Value, expected, requireNumeric: false),
-			ValueScanComparison.BiggerThan or ValueScanComparison.SmallerThan or ValueScanComparison.IncreasedBy
-				or ValueScanComparison.DecreasedBy => ValidateValue(request.Value, expected, requireNumeric: true),
-			ValueScanComparison.Between => ValidateValue(request.Value, expected, requireNumeric: true) ??
-										   ValidateValue(request.UpperValue, expected, requireNumeric: true),
-			ValueScanComparison.Increased or ValueScanComparison.Decreased or ValueScanComparison.Changed
-				or ValueScanComparison.Unchanged => request.Value is null && request.UpperValue is null
-					? null
-					: "A comparison with the previous scan carries no value.",
-			_ => "A next value scan compares a value, a range, a bound or the previous scan."
-		};
-		return refusal is null;
+			throw new ArgumentException(problem, nameof(request));
+		}
+
+		bool nonEmptyRange = request.StopAddress > request.StartAddress;
+		if (!nonEmptyRange)
+		{
+			throw new ArgumentOutOfRangeException(nameof(request), request.StopAddress,
+				"A value scan range must be non-empty: the exclusive stop address must be greater than the start " +
+				"address.");
+		}
+
+		if (!ScanOptionTranslation.IsDefined(request.Protection))
+		{
+			throw new ArgumentOutOfRangeException(nameof(request),
+				"A value scan protection filter must use defined requirements.");
+		}
+
+		if (!ScanOptionTranslation.IsDefined(request.Alignment))
+		{
+			throw new ArgumentOutOfRangeException(nameof(request),
+				"A value scan alignment must be created by a ScanAlignment factory.");
+		}
 	}
 
 	private static string? ValidateValue(ValueScanValue? value, ValueScanValueType expected, bool requireNumeric)
+	{
+		return ValidateValue(value, requireNumeric) ?? (value!.Value.ValueType == expected
+			? null
+			: $"The scanned value is a {value.Value.ValueType} value; the request scans {expected} values.");
+	}
+
+	private static string? ValidateValue(ValueScanValue? value, bool requireNumeric)
 	{
 		if (value is not { Text: not null } present)
 		{
 			return "A value scan comparison requires a value created by a ValueScanValue factory.";
 		}
 
-		if (present.ValueType != expected)
-		{
-			return $"The scanned value is a {present.ValueType} value; the session scans {expected} values.";
-		}
-
 		return requireNumeric && !IsNumeric(present.ValueType) ? "This comparison accepts only a numeric value." : null;
+	}
+
+	private static string? ValidateSameType(ValueScanValue? lowest, ValueScanValue? highest)
+	{
+		return lowest?.ValueType == highest?.ValueType ? null : "Both bounds of a value scan must have the same type.";
 	}
 
 	private static bool IsNumeric(ValueScanValueType valueType)
 	{
 		return valueType is >= ValueScanValueType.Integer8 and <= ValueScanValueType.DoubleFloat;
-	}
-
-	private static CheatEngineFailure Rejected(string operation, string? refusal)
-	{
-		return new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, operation,
-			refusal ?? "The value-scan request is not valid.", null, CheatEngineHostEffect.NotStarted);
 	}
 
 	/// <summary>Cheat Engine's variable type and the input flags of one scanned value type.</summary>

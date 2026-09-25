@@ -6,6 +6,7 @@ using CheatEngine.Client.Scanning;
 using CheatEngine.SDK.Engine.Enums;
 using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Engine.Scanning.Aob;
+using CheatEngine.SDK.Engine.Values;
 
 namespace CheatEngine.Client.Core.Tests.Domains;
 
@@ -17,24 +18,21 @@ public sealed class PatternScannerTests
 	private const ScanProtectionRequirement Any = ScanProtectionRequirement.Any;
 
 	[Fact]
-	public void TryValidateRequestRejectsTheDefaultStructBeforeAnyDispatcherOrSdkOperation()
+	public void ValidateRequestThrowsForTheDefaultStructBeforeAnyDispatcherOrSdkOperation()
 	{
-		bool valid = PatternScanner.TryValidateRequest(default, out CheatEngineFailure failure);
+		ArgumentException thrown = Assert.Throws<ArgumentException>(() => PatternScanner.ValidateRequest(default));
 
-		Assert.False(valid);
-		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
-		Assert.Equal("Patterns.Scan", failure.Operation);
+		Assert.Equal("request", thrown.ParamName);
 	}
 
 	[Fact]
-	public void TryValidateRequestAcceptsAConstructedBoundedRequest()
+	public void ValidateRequestAcceptsAConstructedBoundedRequest()
 	{
 		AobScanRequest request = new(new AobPattern("90"), 1);
 
-		bool valid = PatternScanner.TryValidateRequest(request, out CheatEngineFailure failure);
+		Exception? thrown = Record.Exception(() => PatternScanner.ValidateRequest(request));
 
-		Assert.True(valid);
-		Assert.Equal(default, failure);
+		Assert.Null(thrown);
 	}
 
 	/// <summary>
@@ -121,32 +119,64 @@ public sealed class PatternScannerTests
 		Assert.Equal(bounded ? 1 : 0, port.BoundedCalls);
 	}
 
-	/// <summary>Only a tampered value can be undefined; it is refused before dispatch instead of reaching Cheat Engine.</summary>
+	/// <summary>
+	///     The default request, and a request whose field or option was tampered with, are programming errors: every
+	///     entry point throws what the request's constructor throws for the same value, before any Cheat Engine call.
+	/// </summary>
 	[Theory]
-	[InlineData("Protection")]
-	[InlineData("AlignmentKind")]
-	[InlineData("AlignmentDivisor")]
-	public void TryValidateRequestRefusesATamperedOptionValue(string tampered)
+	[InlineData("Default", typeof(ArgumentException))]
+	[InlineData("NegativeLimit", typeof(ArgumentOutOfRangeException))]
+	[InlineData("EmptyModule", typeof(ArgumentException))]
+	[InlineData("InvertedRange", typeof(ArgumentOutOfRangeException))]
+	[InlineData("Protection", typeof(ArgumentOutOfRangeException))]
+	[InlineData("AlignmentKind", typeof(ArgumentOutOfRangeException))]
+	[InlineData("AlignmentDivisor", typeof(ArgumentOutOfRangeException))]
+	public void AnInvalidRequestThrowsFromEveryEntryPointBeforeAnyCheatEngineCall(string invalid, Type expected)
 	{
-		ScanProtectionFilter protection = tampered == "Protection"
-			? TamperedValues.WithBackingField(default(ScanProtectionFilter), nameof(ScanProtectionFilter.Writable),
-				(ScanProtectionRequirement) 9)
-			: default;
-		ScanAlignment alignment = tampered switch
+		FakeAobScanPort port = new(new RecordingAobMatchList(["4010"]));
+		PatternScanner scanner = new(
+			new SdkMainThreadDispatcher(InertCoreLifetime.Create(), new InlineMainThreadInvoker()), port);
+		AobScanRequest request = CreateInvalidRequest(invalid);
+		CancellationToken token = TestContext.Current.CancellationToken;
+
+		Exception[] thrown =
+		[
+			Assert.ThrowsAny<ArgumentException>(() => scanner.TryScan(request, out _, out _, token)),
+			Assert.ThrowsAny<ArgumentException>(() => scanner.Scan(request, token)),
+			Assert.ThrowsAny<ArgumentException>(() => scanner.ScanDetailed(request, token))
+		];
+
+		Assert.All(thrown, exception =>
 		{
-			"AlignmentKind" => TamperedValues.WithBackingField(ScanAlignment.None, nameof(ScanAlignment.Mode),
-				(ScanAlignmentMode) 9),
-			"AlignmentDivisor" => TamperedValues.WithBackingField(ScanAlignment.AlignedTo(4),
-				nameof(ScanAlignment.Mode), ScanAlignmentMode.None),
-			_ => default
+			Assert.IsType(expected, exception);
+			Assert.Equal("request", ((ArgumentException) exception).ParamName);
+		});
+		Assert.Equal(0, port.EnumerationCalls);
+		Assert.Equal(0, port.SelectionCalls);
+		Assert.Equal(0, port.ScanCalls);
+	}
+
+	private static AobScanRequest CreateInvalidRequest(string invalid)
+	{
+		AobScanRequest valid = new(new AobPattern("90"), 1);
+		return invalid switch
+		{
+			"Default" => default,
+			"NegativeLimit" => TamperedValues.WithBackingField(valid, nameof(AobScanRequest.MaximumResults), -1),
+			"EmptyModule" => TamperedValues.WithBackingField(valid, nameof(AobScanRequest.Module),
+				(ModuleName?) default(ModuleName)),
+			"InvertedRange" => TamperedValues.WithBackingField(valid, nameof(AobScanRequest.Range),
+				(AobScanRange?) TamperedValues.WithBackingField(new AobScanRange(new Address(0x10), new Address(0x10)),
+					nameof(AobScanRange.Start), new Address(0x20))),
+			"Protection" => TamperedValues.WithBackingField(valid, nameof(AobScanRequest.Protection),
+				TamperedValues.WithBackingField(default(ScanProtectionFilter), nameof(ScanProtectionFilter.Writable),
+					(ScanProtectionRequirement) 9)),
+			"AlignmentKind" => TamperedValues.WithBackingField(valid, nameof(AobScanRequest.Alignment),
+				TamperedValues.WithBackingField(ScanAlignment.None, nameof(ScanAlignment.Mode), (ScanAlignmentMode) 9)),
+			"AlignmentDivisor" => TamperedValues.WithBackingField(valid, nameof(AobScanRequest.Alignment),
+				TamperedValues.WithBackingField(ScanAlignment.AlignedTo(4), nameof(ScanAlignment.Mode),
+					ScanAlignmentMode.None)),
+			_ => throw new ArgumentOutOfRangeException(nameof(invalid), invalid, null)
 		};
-
-		bool valid = PatternScanner.TryValidateRequest(
-			new AobScanRequest(new AobPattern("90"), 1, null, null, protection, alignment),
-			out CheatEngineFailure failure);
-
-		Assert.False(valid);
-		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
-		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
 	}
 }

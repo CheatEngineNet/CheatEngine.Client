@@ -24,8 +24,8 @@ namespace CheatEngine.Client.Scanning;
 ///         yet: Q25 records which of the two rules the host applies.
 ///     </para>
 ///     <para>
-///         A <see langword="default" /> value has no <see cref="Text" /> and every scan request refuses it. The text is user
-///         data: log it only on an explicit opt-in.
+///         A <see langword="default" /> value has no <see cref="Text" />: every scan request factory throws an
+///         <see cref="ArgumentException" /> for it. The text is user data: log it only on an explicit opt-in.
 ///     </para>
 /// </remarks>
 [Experimental(ClientExperimentalDiagnostics.ValueScans, UrlFormat = ClientExperimentalDiagnostics.UrlFormat)]

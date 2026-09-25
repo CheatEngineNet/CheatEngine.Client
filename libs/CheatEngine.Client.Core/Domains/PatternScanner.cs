@@ -92,40 +92,48 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 				false);
 	}
 
-	internal static bool TryValidateRequest(AobScanRequest request, out CheatEngineFailure failure)
+	/// <summary>
+	///     Throws for a request that its constructor would refuse: the <see langword="default" /> request, or one whose
+	///     option was tampered with. Called before the activation check and before any Cheat Engine call.
+	/// </summary>
+	/// <param name="request">The request of the public call.</param>
+	/// <exception cref="ArgumentException">
+	///     The request has no pattern (the <see langword="default" /> request), or its module filter is empty.
+	/// </exception>
+	/// <exception cref="ArgumentOutOfRangeException">
+	///     Its materialization limit is not positive, its range ends before it starts, or its protection filter or
+	///     alignment rule is not a defined value.
+	/// </exception>
+	internal static void ValidateRequest(AobScanRequest request)
 	{
 		if (string.IsNullOrWhiteSpace(request.Pattern.Value))
 		{
-			failure = Rejected("An AOB scan requires a normalized, non-empty pattern.");
-			return false;
+			throw new ArgumentException(
+				"An AOB scan requires a normalized, non-empty pattern; the default request has none.", nameof(request));
 		}
 
 		if (request.MaximumResults <= 0)
 		{
-			failure = Rejected("An AOB scan requires a positive materialization limit.");
-			return false;
+			throw new ArgumentOutOfRangeException(nameof(request), request.MaximumResults,
+				"An AOB scan requires a positive materialization limit.");
 		}
 
-		if (request.Module.HasValue && string.IsNullOrWhiteSpace(request.Module.Value.Value))
+		if (request.Module is { } module && string.IsNullOrWhiteSpace(module.Value))
 		{
-			failure = Rejected("An AOB module filter must be non-empty.");
-			return false;
+			throw new ArgumentException("An AOB module filter must be non-empty.", nameof(request));
 		}
 
-		if (request.Range.HasValue && request.Range.Value.End < request.Range.Value.Start)
+		if (request.Range is { } range && range.End < range.Start)
 		{
-			failure = Rejected("An AOB range end address must not precede its start address.");
-			return false;
+			throw new ArgumentOutOfRangeException(nameof(request), range.End,
+				"An AOB range end address must not precede its start address.");
 		}
 
 		if (!ScanOptionTranslation.IsDefined(request.Protection) || !ScanOptionTranslation.IsDefined(request.Alignment))
 		{
-			failure = Rejected("An AOB protection filter or alignment rule is not a defined value.");
-			return false;
+			throw new ArgumentOutOfRangeException(nameof(request),
+				"An AOB protection filter or alignment rule is not a defined value.");
 		}
-
-		failure = default;
-		return true;
 	}
 
 	/// <summary>
@@ -258,16 +266,12 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 	/// <summary>Validates, dispatches, and classifies one scan identically for every public entry point.</summary>
 	private ScanOutcome Execute(AobScanRequest request, CancellationToken cancellationToken)
 	{
-		// An ended or stopping activation throws before a refusal is reported, never the reverse.
+		// Arguments first, then the activation: an ended or stopping activation throws before a refusal is reported.
+		ValidateRequest(request);
 		_dispatcher.Lifetime.ThrowIfDispatchRefused(ScanOperation);
-		if (!TryValidateRequest(request, out CheatEngineFailure failure))
-		{
-			return ScanOutcome.Failed(failure, null);
-		}
-
 		ScanInput input = new(this, request, cancellationToken);
 		if (!_dispatcher.TryInvoke(input, static current => current.Scanner.ScanOnDispatchThread(current),
-				out ScanOutcome outcome, out failure, cancellationToken))
+				out ScanOutcome outcome, out CheatEngineFailure failure, cancellationToken))
 		{
 			return ScanOutcome.Failed(failure, null);
 		}

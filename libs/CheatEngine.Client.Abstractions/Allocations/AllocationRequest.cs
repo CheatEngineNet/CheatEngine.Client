@@ -11,8 +11,9 @@ namespace CheatEngine.Client.Allocations;
 ///         scenarios pass; see the Abstractions README.
 ///     </para>
 ///     <para>
-///         The <see langword="default" /> value has a size of zero: <see cref="IAllocationClient" /> refuses it with
-///         <see cref="Results.CheatEngineFailureKind.OperationRejected" /> before any Cheat Engine call.
+///         The <see langword="default" /> value has a size of zero: <see cref="IAllocationClient" /> throws an
+///         <see cref="ArgumentOutOfRangeException" /> for it, as this constructor does, before the activation check and
+///         before any Cheat Engine call.
 ///     </para>
 /// </remarks>
 [Experimental(ClientExperimentalDiagnostics.Allocations, UrlFormat = ClientExperimentalDiagnostics.UrlFormat)]

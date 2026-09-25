@@ -31,16 +31,18 @@ namespace CheatEngine.Client;
 ///         CheatEngine.SDK contract instead.
 ///     </para>
 ///     <para>
-///         <b>Try and throwing forms.</b> An operation that can fail for an expected reason has a <c>TryX</c> form, which
-///         returns <see langword="false" /> with a classified <see cref="CheatEngineFailure" />, and a throwing <c>X</c>
-///         form, which returns the same value or throws that same failure through
+///         <b>Try and throwing forms.</b> An operation that can fail for an expected reason has a <c>TryX</c> form,
+///         which returns <see langword="false" /> with a classified <see cref="CheatEngineFailure" />, and a throwing
+///         <c>X</c> form, which returns the same value or throws that same failure through
 ///         <see cref="CheatEngineFailure.Throw(CancellationToken)" />. Use the <c>Try</c> form when the failure is an
-///         expected condition. <c>Try</c> does not mean "never throws": both forms throw for an expired or stopping
-///         activation and for an invalid argument (a programming error), and both rethrow, unchanged, an exception thrown
-///         by application code that the client calls (a dispatcher callback, a memory codec, a Lua operation). No
-///         CheatEngine.SDK exception is thrown by a <c>Try</c> form. Some operations also have an <c>XDetailed</c> form
-///         that returns an outcome (<c>IsSuccess</c>, <c>Failure</c> and the operation's facts) instead of throwing an
-///         expected failure; it throws exactly what the <c>Try</c> form throws.
+///         expected condition. <c>Try</c> does not mean "never throws": both forms throw an
+///         <see cref="ArgumentException" /> for a null argument, a <see langword="default" /> request, an undefined
+///         enum value or an out-of-range number (a programming error, checked before the activation and before any
+///         Cheat Engine call), then throw for an expired or stopping activation, and both rethrow, unchanged, an
+///         exception thrown by application code that the client calls (a dispatcher callback, a memory codec, a Lua
+///         operation). No CheatEngine.SDK exception is thrown by a <c>Try</c> form. Some operations also have an
+///         <c>XDetailed</c> form that returns an outcome (<c>IsSuccess</c>, <c>Failure</c> and the operation's facts)
+///         instead of throwing an expected failure; it throws exactly what the <c>Try</c> form throws.
 ///     </para>
 ///     <para>
 ///         <b>Exceptions.</b> The exception type depends only on <see cref="CheatEngineFailure.Kind" />:

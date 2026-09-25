@@ -97,10 +97,20 @@ public interface IPatternScanner
 	///     faults throw <see cref="CheatEngineActivationExpiredException" /> or
 	///     <see cref="CheatEngineInvalidStateException" />.
 	/// </remarks>
+	/// <exception cref="ArgumentException">
+	///     <paramref name="request" /> is the <see langword="default" /> request, or a tampered one: an
+	///     <see cref="ArgumentOutOfRangeException" /> for a limit, a range or an option its constructor would refuse.
+	///     It is thrown before the activation check and before any Cheat Engine call.
+	/// </exception>
 	public bool TryScan(AobScanRequest request, out AobScanResult result, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
 	/// <summary>Runs one scan and copies its matches, or throws when it fails.</summary>
+	/// <exception cref="ArgumentException">
+	///     <paramref name="request" /> is the <see langword="default" /> request, or a tampered one: an
+	///     <see cref="ArgumentOutOfRangeException" /> for a limit, a range or an option its constructor would refuse.
+	///     It is thrown before the activation check and before any Cheat Engine call.
+	/// </exception>
 	public AobScanResult Scan(AobScanRequest request, CancellationToken cancellationToken = default);
 
 	/// <summary>Runs one scan and returns its detailed outcome.</summary>
@@ -114,6 +124,10 @@ public interface IPatternScanner
 	///     outcome, the route reason and whether the target identity was verified. Expected failures are returned in
 	///     <see cref="PatternScanOutcome.Failure" />.
 	/// </returns>
+	/// <exception cref="ArgumentException">
+	///     <paramref name="request" /> is the <see langword="default" /> request, or a tampered one, as
+	///     <see cref="TryScan" /> throws.
+	/// </exception>
 	/// <exception cref="CheatEngineActivationExpiredException">The client activation has expired.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">The client activation is stopping.</exception>
 	public PatternScanOutcome ScanDetailed(AobScanRequest request, CancellationToken cancellationToken = default);

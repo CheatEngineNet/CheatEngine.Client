@@ -345,8 +345,9 @@ internal static class AobScanMapping
 	///         instead of an omitted or <c>nil</c> argument, whose meaning the SDK does not document.
 	///     </para>
 	///     <para>
-	///         The public values validate themselves when they are created; <see cref="PatternScanner.TryValidateRequest" />
-	///         refuses an undefined value before dispatch, so this translation never sees one.
+	///         The public values validate themselves when they are created;
+	///         <see cref="PatternScanner.ValidateRequest" /> throws for an undefined value before dispatch, so this
+	///         translation never sees one.
 	///     </para>
 	/// </remarks>
 	internal static AobScanOptions ToSdkOptions(ScanProtectionFilter protection, ScanAlignment alignment)

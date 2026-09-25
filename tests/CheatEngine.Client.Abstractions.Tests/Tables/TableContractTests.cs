@@ -59,6 +59,23 @@ public sealed class TableContractTests
 		Assert.Throws<ArgumentException>(() => new MemoryRecordSearch(addressExpression: string.Empty));
 	}
 
+	/// <summary>An undefined value type is a programming error in a search, a definition and an update alike.</summary>
+	[Fact]
+	public void EveryRecordRequestRejectsAnUndefinedValueType()
+	{
+		const VariableType undefined = (VariableType) 99;
+
+		ArgumentOutOfRangeException search =
+			Assert.Throws<ArgumentOutOfRangeException>(() => new MemoryRecordSearch(variableType: undefined));
+		ArgumentOutOfRangeException definition = Assert.Throws<ArgumentOutOfRangeException>(() =>
+			new MemoryRecordDefinition("health", "game.exe+20", "100", undefined));
+		ArgumentOutOfRangeException update =
+			Assert.Throws<ArgumentOutOfRangeException>(() => new MemoryRecordUpdate(variableType: undefined));
+
+		Assert.All([search, definition, update],
+			static exception => Assert.Equal("variableType", exception.ParamName));
+	}
+
 	/// <summary>Retains every supplied record-search predicate as one conjunctive request.</summary>
 	[Fact]
 	public void MemoryRecordSearchPreservesConjunctivePredicates()

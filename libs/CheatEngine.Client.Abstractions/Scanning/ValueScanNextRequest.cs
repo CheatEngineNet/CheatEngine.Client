@@ -5,8 +5,9 @@ namespace CheatEngine.Client.Scanning;
 /// <summary>A next value scan: a comparison over the results of the previous scan of the same session.</summary>
 /// <remarks>
 ///     A next scan compares the value type of the session's first scan. A value it carries must have that type: another
-///     type is refused with <see cref="Results.CheatEngineFailureKind.OperationRejected" /> before any Cheat Engine call.
-///     A <see langword="default" /> request has no value and is refused the same way.
+///     type is refused with <see cref="Results.CheatEngineFailureKind.OperationRejected" /> before any Cheat Engine
+///     call. A <see langword="default" /> request has no value: every session throws an
+///     <see cref="ArgumentException" /> for it, before the activation check and before any Cheat Engine call.
 /// </remarks>
 [Experimental(ClientExperimentalDiagnostics.ValueScans, UrlFormat = ClientExperimentalDiagnostics.UrlFormat)]
 public readonly record struct ValueScanNextRequest

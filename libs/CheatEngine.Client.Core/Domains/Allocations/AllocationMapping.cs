@@ -28,44 +28,35 @@ namespace CheatEngine.Client.Core.Domains.Allocations;
 /// </remarks>
 internal static class AllocationMapping
 {
-	/// <summary>Validates a Client request and converts it to the SDK request.</summary>
+	/// <summary>Validates a Client request, as its constructor does, and converts it to the SDK request.</summary>
 	/// <param name="request">The Client request.</param>
-	/// <param name="operation">The public Client operation name.</param>
-	/// <param name="sdkRequest">The SDK request, with an explicit protection, when the method returns <see langword="true" />.</param>
-	/// <param name="failure">
-	///     An <see cref="CheatEngineFailureKind.OperationRejected" /> failure with
-	///     <see cref="CheatEngineHostEffect.NotStarted" /> when the method returns <see langword="false" />.
-	/// </param>
-	/// <returns><see langword="true" /> when the request can be sent to Cheat Engine.</returns>
-	internal static bool TryCreateRequest(AllocationRequest request, string operation,
-		out TargetAllocationRequest sdkRequest, out CheatEngineFailure failure)
+	/// <returns>The SDK request, with an explicit protection.</returns>
+	/// <exception cref="ArgumentOutOfRangeException">
+	///     The size is not positive (the <see langword="default" /> request), the protection is not a value this Client
+	///     version defines, or the preferred address is the null address.
+	/// </exception>
+	internal static TargetAllocationRequest CreateRequest(AllocationRequest request)
 	{
-		sdkRequest = default;
 		if (request.Size <= 0)
 		{
-			failure = Failure(CheatEngineFailureKind.OperationRejected, operation, CheatEngineHostEffect.NotStarted,
+			throw new ArgumentOutOfRangeException(nameof(request), request.Size,
 				"An allocation request requires a positive size; the default request has none.");
-			return false;
 		}
 
 		if (!TryGetSdkProtection(request.Protection, out MemoryProtection protection))
 		{
-			failure = Failure(CheatEngineFailureKind.OperationRejected, operation, CheatEngineHostEffect.NotStarted,
+			throw new ArgumentOutOfRangeException(nameof(request), request.Protection,
 				"The allocation protection is not a value this Client version defines.");
-			return false;
 		}
 
 		if (request.PreferredAddress is { IsZero: true })
 		{
-			failure = Failure(CheatEngineFailureKind.OperationRejected, operation, CheatEngineHostEffect.NotStarted,
+			throw new ArgumentOutOfRangeException(nameof(request), request.PreferredAddress,
 				"A preferred allocation address must be nonzero.");
-			return false;
 		}
 
-		sdkRequest = new TargetAllocationRequest(new TargetAllocationSize(request.Size), request.PreferredAddress,
+		return new TargetAllocationRequest(new TargetAllocationSize(request.Size), request.PreferredAddress,
 			protection);
-		failure = default;
-		return true;
 	}
 
 	/// <summary>Maps a Client protection to the Cheat Engine <c>PAGE_*</c> value passed to <c>allocateMemory</c>.</summary>

@@ -111,6 +111,7 @@ internal sealed class TableClient(
 	public bool TryGetSnapshot(MemoryRecordCollectionRequest request, out AddressTableSnapshot table,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
+		ValidateCollectionRequest(request);
 		ThrowIfDispatchRefused("Tables.GetSnapshot");
 		return TryCopyTopLevel("Tables.GetSnapshot", request, out table, out failure, cancellationToken);
 	}
@@ -131,15 +132,9 @@ internal sealed class TableClient(
 		out ImmutableArray<MemoryRecordSnapshot> records, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
+		ValidateSearch(search);
+		ValidateCollectionRequest(request);
 		ThrowIfDispatchRefused("Tables.Find");
-		if (!HasPredicate(search))
-		{
-			records = [];
-			failure = new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, "Tables.Find",
-				"A memory-record search must specify at least one predicate.", null, CheatEngineHostEffect.NotStarted);
-			return false;
-		}
-
 		if (!TryCopyTopLevel("Tables.Find", request, out AddressTableSnapshot snapshot, out failure,
 				cancellationToken))
 		{
@@ -283,6 +278,7 @@ internal sealed class TableClient(
 	public bool TryCreate(MemoryRecordDefinition definition, out MemoryRecordSnapshot record,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
+		ValidateDefinition(definition);
 		ThrowIfDispatchRefused("Tables.Create");
 		if (definition.ParentId is { } parentId && IsStale("Tables.Create", parentId, out failure))
 		{
@@ -329,18 +325,8 @@ internal sealed class TableClient(
 	public bool TryUpdate(MemoryRecordId id, MemoryRecordUpdate update, out MemoryRecordSnapshot record,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
+		ValidateUpdate(update);
 		ThrowIfDispatchRefused("Tables.Update");
-		// The default update is the only one without a change (its constructor refuses an empty change set): it is
-		// refused before dispatch, like the default search of TryFind.
-		if (update.Description is null && update.AddressExpression is null && update.Value is null &&
-			update.VariableType is null)
-		{
-			record = default;
-			failure = new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, "Tables.Update",
-				"A memory-record update must change at least one field.", null, CheatEngineHostEffect.NotStarted);
-			return false;
-		}
-
 		if (IsStale("Tables.Update", id, out failure))
 		{
 			record = default;
@@ -533,15 +519,15 @@ internal sealed class TableClient(
 		out MemoryRecordHierarchySnapshot hierarchy, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
-		ThrowIfDispatchRefused(GetHierarchyOperation);
 		if (request.MaximumItems <= 0 || request.MaximumDepth <= 0)
 		{
-			// Only the default request allows no record and no level: its constructor refuses both.
-			hierarchy = default;
-			failure = DefaultRequestFailure(GetHierarchyOperation);
-			return false;
+			// Only the default request allows no record and no level: its constructor throws for both.
+			throw new ArgumentOutOfRangeException(nameof(request),
+				"A memory-record hierarchy request must allow at least one record and one level; the default request " +
+				"allows none.");
 		}
 
+		ThrowIfDispatchRefused(GetHierarchyOperation);
 		if (IsStale(GetHierarchyOperation, rootId, out failure))
 		{
 			hierarchy = default;
@@ -602,6 +588,7 @@ internal sealed class TableClient(
 	public bool TryLoadTrustedTable(TableLoadRequest request, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
+		ValidateFile(request.File, nameof(request));
 		_lifetime?.ThrowIfInactive("Tables.LoadTrustedTable");
 		if (!TryAuthorize(request.File.FullPath, "Tables.LoadTrustedTable", out failure))
 		{
@@ -661,6 +648,7 @@ internal sealed class TableClient(
 	public bool TrySaveTable(TableSaveRequest request, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
+		ValidateFile(request.File, nameof(request));
 		_lifetime?.ThrowIfInactive("Tables.SaveTable");
 		if (!TryAuthorize(request.File.FullPath, "Tables.SaveTable", out failure))
 		{
@@ -706,7 +694,7 @@ internal sealed class TableClient(
 	}
 
 	/// <summary>
-	///     Copies every top-level record under the caller's limit for <see cref="TryGetSnapshot" /> and
+	///     Copies every top-level record under the caller's validated limit for <see cref="TryGetSnapshot" /> and
 	///     <see cref="TryFind" />, each failure named after the public operation that ran it.
 	/// </summary>
 	/// <remarks>
@@ -717,14 +705,6 @@ internal sealed class TableClient(
 	private bool TryCopyTopLevel(string operation, MemoryRecordCollectionRequest request,
 		out AddressTableSnapshot table, out CheatEngineFailure failure, CancellationToken cancellationToken)
 	{
-		if (request.MaximumItems <= 0)
-		{
-			// Only the default request allows no record: its constructor refuses a limit below one.
-			table = default;
-			failure = DefaultRequestFailure(operation);
-			return false;
-		}
-
 		AddressTableSnapshot captured = default;
 		RecordLookupStatus status = RecordLookupStatus.InvalidRecord;
 		if (!TryDispatch(operation, null, null,
@@ -792,13 +772,111 @@ internal sealed class TableClient(
 	}
 
 	/// <summary>
-	///     Throws when the activation refuses dispatch, before the refusals decided without Cheat Engine (a default
-	///     request or search, an empty update, a stale identifier, a self-parent): an ended or stopping activation
-	///     throws before a refusal is reported, never the reverse.
+	///     Throws when the activation refuses dispatch, after the arguments were validated and before the refusals
+	///     decided without Cheat Engine (a stale identifier, a self-parent): an ended or stopping activation throws
+	///     before a refusal is reported, never the reverse.
 	/// </summary>
 	private void ThrowIfDispatchRefused(string operation)
 	{
 		_lifetime?.ThrowIfDispatchRefused(operation);
+	}
+
+	/// <summary>
+	///     Throws for the default collection request, which allows no record, as its constructor throws for a limit
+	///     below one.
+	/// </summary>
+	/// <exception cref="ArgumentOutOfRangeException">The request allows no record.</exception>
+	private static void ValidateCollectionRequest(MemoryRecordCollectionRequest request)
+	{
+		if (request.MaximumItems <= 0)
+		{
+			throw new ArgumentOutOfRangeException(nameof(request), request.MaximumItems,
+				"A memory-record request must allow at least one record; the default request allows none.");
+		}
+	}
+
+	/// <summary>Throws for a search its constructor would refuse: the default search, which has no predicate.</summary>
+	/// <exception cref="ArgumentException">The search has no predicate, or an empty text predicate.</exception>
+	/// <exception cref="ArgumentOutOfRangeException">Its value type is not a defined value.</exception>
+	private static void ValidateSearch(MemoryRecordSearch search)
+	{
+		if (!HasPredicate(search))
+		{
+			throw new ArgumentException(
+				"A memory-record search must specify at least one predicate; the default search has none.",
+				nameof(search));
+		}
+
+		if (search.DescriptionContains is { Length: 0 } || search.AddressExpression is { Length: 0 })
+		{
+			throw new ArgumentException("A memory-record search text must be null or non-empty.", nameof(search));
+		}
+
+		if (search.VariableType is { } variableType && !Enum.IsDefined(variableType))
+		{
+			throw new ArgumentOutOfRangeException(nameof(search), variableType,
+				"A memory-record search compares a defined value type.");
+		}
+	}
+
+	/// <summary>
+	///     Throws for a definition its constructor would refuse: the default definition, which has no field.
+	/// </summary>
+	/// <exception cref="ArgumentException">The definition has no description, address expression or value.</exception>
+	/// <exception cref="ArgumentOutOfRangeException">Its value type is not a defined value.</exception>
+	private static void ValidateDefinition(MemoryRecordDefinition definition)
+	{
+		if (definition.Description is null || string.IsNullOrWhiteSpace(definition.AddressExpression) ||
+			definition.Value is null)
+		{
+			throw new ArgumentException(
+				"A memory-record definition requires a description, an address expression and a value; the default " +
+				"definition has none.", nameof(definition));
+		}
+
+		if (!Enum.IsDefined(definition.VariableType))
+		{
+			throw new ArgumentOutOfRangeException(nameof(definition), definition.VariableType,
+				"A memory-record definition assigns a defined value type.");
+		}
+	}
+
+	/// <summary>Throws for an update its constructor would refuse: the default update, which changes nothing.</summary>
+	/// <exception cref="ArgumentException">The update changes nothing, or sets an empty address expression.</exception>
+	/// <exception cref="ArgumentOutOfRangeException">Its value type is not a defined value.</exception>
+	private static void ValidateUpdate(MemoryRecordUpdate update)
+	{
+		if (update.Description is null && update.AddressExpression is null && update.Value is null &&
+			update.VariableType is null)
+		{
+			throw new ArgumentException(
+				"A memory-record update must change at least one field; the default update changes none.",
+				nameof(update));
+		}
+
+		if (update.AddressExpression is { Length: 0 })
+		{
+			throw new ArgumentException("An address expression must be null or non-empty.", nameof(update));
+		}
+
+		if (update.VariableType is { } variableType && !Enum.IsDefined(variableType))
+		{
+			throw new ArgumentOutOfRangeException(nameof(update), variableType,
+				"A memory-record update assigns a defined value type.");
+		}
+	}
+
+	/// <summary>Throws for the default table file request, which names no file.</summary>
+	/// <param name="file">The file of the request.</param>
+	/// <param name="parameterName">The name of the request parameter of the public call.</param>
+	/// <exception cref="ArgumentException">The request names no file.</exception>
+	private static void ValidateFile(TrustedTableFile file, string parameterName)
+	{
+		if (string.IsNullOrWhiteSpace(file.FullPath))
+		{
+			throw new ArgumentException(
+				"A table file request must name a trusted table file; the default request names none.", parameterName);
+		}
 	}
 
 	/// <summary>Refuses, before any dispatch, an identifier captured before the last trusted table load.</summary>
@@ -1057,14 +1135,6 @@ internal sealed class TableClient(
 			RecordLookupStatus.InvalidRecord => HostFailure(operation),
 			_ => HostFailure(operation)
 		};
-	}
-
-	/// <summary>Creates the refusal of a default collection or hierarchy request, made before dispatch.</summary>
-	private static CheatEngineFailure DefaultRequestFailure(string operation)
-	{
-		return new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, operation,
-			"A memory-record request must allow at least one record; the default request allows none.", null,
-			CheatEngineHostEffect.NotStarted);
 	}
 
 	private static CheatEngineFailure ResultLimitFailure(string operation, int maximumItems)

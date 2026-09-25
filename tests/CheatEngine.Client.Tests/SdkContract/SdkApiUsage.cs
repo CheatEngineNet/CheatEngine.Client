@@ -125,6 +125,7 @@ internal static class SdkApiUsage
 		_ = moduleName.Value;
 		_ = new ModuleName("module");
 		_ = new SymbolExpression("symbol");
+		_ = expression.Value;
 		_ = new TargetProcessId(1);
 		_ = processId.Value;
 		_ = processId != otherProcessId;

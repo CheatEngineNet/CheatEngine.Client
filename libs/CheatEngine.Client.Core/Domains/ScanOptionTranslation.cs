@@ -11,8 +11,10 @@ namespace CheatEngine.Client.Core.Domains;
 /// </summary>
 /// <remarks>
 ///     The public values validate themselves when they are created; only a tampered value can be undefined. Each route
-///     refuses one with <see cref="IsDefined(ScanProtectionFilter)" /> and <see cref="IsDefined(ScanAlignment)" />
-///     before dispatch, so the translation never sees one; an undefined requirement or alignment writes nothing.
+///     throws <see cref="ArgumentOutOfRangeException" /> for one, found with
+///     <see cref="IsDefined(ScanProtectionFilter)" /> and <see cref="IsDefined(ScanAlignment)" />, before the
+///     activation check and before dispatch, so the translation never sees one; an undefined requirement or alignment
+///     writes nothing.
 /// </remarks>
 internal static class ScanOptionTranslation
 {

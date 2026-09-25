@@ -633,37 +633,51 @@ public sealed class ValueScannerTests : IDisposable
 		Assert.Throws<CheatEngineInvalidStateException>(() => session.Reset(Token));
 	}
 
+	/// <summary>
+	///     A default request is a programming error: the Try and the throwing forms throw what its factories or its
+	///     constructor throw, before any Cheat Engine call.
+	/// </summary>
 	[Fact]
-	public void InvalidRequestsAreRefusedBeforeDispatch()
+	public void DefaultRequestsThrowBeforeDispatch()
 	{
 		IValueScanSession session = CreateSession();
 
-		bool first = session.TryFirstScan(default, out CheatEngineFailure firstFailure, Token);
-		bool wide = session.TryRead(new ValueScanReadRequest((long) int.MaxValue + 1, 1), out _,
-			out CheatEngineFailure wideFailure, Token);
-		bool empty = session.TryRead(default, out _, out CheatEngineFailure emptyFailure, Token);
-
-		Assert.False(first);
-		Assert.Equal(CheatEngineFailureKind.OperationRejected, firstFailure.Kind);
-		Assert.Equal(CheatEngineHostEffect.NotStarted, firstFailure.HostEffect);
-		Assert.False(wide);
-		Assert.Equal(CheatEngineFailureKind.ResultLimitExceeded, wideFailure.Kind);
-		Assert.Equal(CheatEngineHostEffect.NotStarted, wideFailure.HostEffect);
-		Assert.False(empty);
-		Assert.Equal(CheatEngineFailureKind.OperationRejected, emptyFailure.Kind);
+		Assert.Throws<ArgumentException>(() => session.TryFirstScan(default, out _, Token));
+		Assert.Throws<ArgumentException>(() => session.FirstScan(default, Token));
+		Assert.Throws<ArgumentException>(() => session.TryNextScan(default, out _, Token));
+		Assert.Throws<ArgumentException>(() => session.NextScan(default, Token));
+		Assert.Throws<ArgumentOutOfRangeException>(() => session.TryRead(default, out _, out _, Token));
+		Assert.Throws<ArgumentOutOfRangeException>(() => session.Read(default, Token));
 		Assert.Empty(Handle.Calls);
-		Assert.Throws<CheatEngineOperationException>(() => session.FirstScan(default, Token));
 	}
 
 	/// <summary>
-	///     Only a tampered value can be undefined: a first scan refuses it before dispatch through the option check it
-	///     shares with the AOB validation, as <c>PatternScannerTests</c> proves for the AOB route.
+	///     A well-formed read beyond Cheat Engine's 32-bit result index is a limit, refused before dispatch.
+	/// </summary>
+	[Fact]
+	public void AReadBeyondCheatEngineResultIndexIsRefusedBeforeDispatch()
+	{
+		IValueScanSession session = CreateSession();
+
+		bool wide = session.TryRead(new ValueScanReadRequest((long) int.MaxValue + 1, 1), out _,
+			out CheatEngineFailure wideFailure, Token);
+
+		Assert.False(wide);
+		Assert.Equal(CheatEngineFailureKind.ResultLimitExceeded, wideFailure.Kind);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, wideFailure.HostEffect);
+		Assert.Equal(ValueScanSession.ReadOperation, wideFailure.Operation);
+		Assert.Empty(Handle.Calls);
+	}
+
+	/// <summary>
+	///     Only a tampered value can be undefined: a first scan throws for it before dispatch through the option check
+	///     it shares with the AOB validation, as <c>PatternScannerTests</c> proves for the AOB route.
 	/// </summary>
 	[Theory]
 	[InlineData("Protection", "A value scan protection filter must use defined requirements.")]
 	[InlineData("AlignmentKind", "A value scan alignment must be created by a ScanAlignment factory.")]
 	[InlineData("AlignmentDivisor", "A value scan alignment must be created by a ScanAlignment factory.")]
-	public void ATamperedScanOptionIsRefusedBeforeDispatch(string tampered, string message)
+	public void ATamperedScanOptionThrowsBeforeDispatch(string tampered, string message)
 	{
 		IValueScanSession session = CreateSession();
 		ValueScanFirstRequest valid = ValueScanFirstRequest.Exact(ValueScanValue.FromInt32(1));
@@ -678,12 +692,14 @@ public sealed class ValueScannerTests : IDisposable
 			_ => throw new ArgumentOutOfRangeException(nameof(tampered), tampered, null)
 		};
 
-		bool scanned = session.TryFirstScan(request, out CheatEngineFailure failure, Token);
+		ArgumentOutOfRangeException thrown =
+			Assert.Throws<ArgumentOutOfRangeException>(() => session.TryFirstScan(request, out _, Token));
+		ArgumentOutOfRangeException throwingForm =
+			Assert.Throws<ArgumentOutOfRangeException>(() => session.FirstScan(request, Token));
 
-		Assert.False(scanned);
-		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
-		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
-		Assert.Equal(message, failure.Message);
+		Assert.StartsWith(message, thrown.Message, StringComparison.Ordinal);
+		Assert.Equal("request", thrown.ParamName);
+		Assert.Equal(thrown.Message, throwingForm.Message);
 		Assert.Empty(Handle.Calls);
 	}
 

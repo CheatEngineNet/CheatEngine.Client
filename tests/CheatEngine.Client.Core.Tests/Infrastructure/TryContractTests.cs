@@ -86,6 +86,24 @@ public sealed class TryContractTests
 		}
 	}
 
+	/// <summary>Gets each entry point that validates an argument, in each activation state.</summary>
+	public static TheoryData<string, string> ArgumentCases
+	{
+		get
+		{
+			TheoryData<string, string> data = [];
+			foreach (string entryPoint in ArgumentEntryPoints)
+			{
+				foreach (string state in ActivationStates)
+				{
+					data.Add(entryPoint, state);
+				}
+			}
+
+			return data;
+		}
+	}
+
 	/// <summary>Gets each SDK fault type at each scoped-route SDK call that follows module resolution.</summary>
 	public static TheoryData<string, string> ScopedAobFaultCases
 	{
@@ -113,6 +131,36 @@ public sealed class TryContractTests
 		[nameof(LuaException)] = CheatEngineFailureKind.LuaError,
 		[nameof(InvalidOperationException)] = CheatEngineFailureKind.OperationRejected
 	};
+
+	private static string[] ActivationStates => ["Active", "Ended", "Stopping"];
+
+	private static string[] ArgumentEntryPoints =>
+	[
+		"Dispatcher.Invoke",
+		"Runtime.GetClientCapability",
+		"Processes.Attach",
+		"Processes.AttachExactName",
+		"Memory.ReadBytes",
+		"Memory.Read",
+		"Memory.WritePrimitiveBatch",
+		"Patterns.Scan",
+		"ValueScans.FirstScan",
+		"ValueScans.NextScan",
+		"ValueScans.Read",
+		"Allocations.Allocate",
+		"Inspection.GetModules",
+		"Inspection.GetSymbol",
+		"Inspection.RegisterSymbol",
+		"Tables.Find",
+		"Tables.Create",
+		"Tables.Update",
+		"Tables.GetHierarchy",
+		"Tables.LoadTrustedTable",
+		"Lua.RegisterModule",
+		"UnsafeLua.Execute",
+		"AutoAssembler.ApplyPatch",
+		"Assembly.Assemble"
+	];
 
 	private static string[] SdkFaultEntryPoints =>
 	[
@@ -201,71 +249,116 @@ public sealed class TryContractTests
 		Assert.Equal(0, allocations.Allocations);
 	}
 
+	/// <summary>
+	///     A null, default or malformed argument is a programming error, checked first like the BCL checks its
+	///     arguments: every family throws its argument exception whatever the activation state (active, ended or
+	///     stopping), before the activation check and before any Cheat Engine call.
+	/// </summary>
 	[Theory]
-	[InlineData("ValueScans.FirstScan", false)]
-	[InlineData("ValueScans.FirstScan", true)]
-	[InlineData("ValueScans.Read", false)]
-	[InlineData("ValueScans.Read", true)]
-	public void AnEndedOrStoppingActivationThrowsBeforeAnInvalidValueScanRequestIsRefused(string entryPoint,
-		bool stopping)
+	[MemberData(nameof(ArgumentCases))]
+	public void AnInvalidArgumentThrowsBeforeTheActivationIsChecked(string entryPoint, string state)
 	{
 		using ControlledCoreLifetimeContext context = new();
 		CoreLifetime lifetime = new(context);
-		SdkMainThreadDispatcher dispatcher = new(lifetime, new InlineMainThreadInvoker());
-		FakeValueScanPort port = new();
-		IValueScanSession session = new ValueScanner(dispatcher, Binder(dispatcher), port)
-			.CreateSession(TestContext.Current.CancellationToken);
-		if (stopping)
-		{
-			context.Stop();
-		}
-		else
-		{
-			context.IsCurrent = false;
-		}
-
+		CountingMainThreadInvoker invoker = new();
+		SdkMainThreadDispatcher dispatcher = new(lifetime, invoker);
+		ThrowingPorts ports = new(new InvalidOperationException("never reached"));
+		FakeValueScanPort scans = new();
+		FakeAllocationPort allocations = new();
+		CancellationToken token = TestContext.Current.CancellationToken;
+		IValueScanSession session = new ValueScanner(dispatcher, Binder(dispatcher), scans).CreateSession(token);
+		MemoryClient memory = new(dispatcher, lifetime, ports);
+		InspectionClient inspection = new(dispatcher, lifetime, ports);
+		TableClient tables = new(dispatcher, new CoreClientPolicy([], enableUnsafeLuaExecution: false), ports,
+			lifetime, ports);
+		ProcessClient processes = new(dispatcher, ports, ports, ports, lifetime);
+		MemoryRecordId record = new(7);
 		Action invalid = entryPoint switch
 		{
-			"ValueScans.FirstScan" => () => _ = session.TryFirstScan(default, out _),
-			"ValueScans.Read" => () => _ = session.TryRead(default, out _, out _),
+			"Dispatcher.Invoke" => () => _ = dispatcher.TryInvoke((Action) null!, out _, token),
+			"Runtime.GetClientCapability" => () => _ = new RuntimeClient(dispatcher, ports, static () => 1)
+				.TryGetClientCapability(default, out _, out _, token),
+			"Processes.Attach" => () => _ = processes.TryAttach(default, out _, out _, token),
+			"Processes.AttachExactName" => () => _ = processes.TryAttachExactName(" ", out _, out _, token),
+			"Memory.ReadBytes" => () => _ = memory.TryReadBytes(default, out _, out _, token),
+			"Memory.Read" => () => _ = memory.TryRead(default(MemoryReadRequest<int>), out _, out _, token),
+			"Memory.WritePrimitiveBatch" => () =>
+				_ = memory.WritePrimitiveBatchDetailed(default(MemoryPrimitiveBatchWriteRequest<int>), token),
+			"Patterns.Scan" => () => _ = new PatternScanner(dispatcher, ports).TryScan(default, out _, out _, token),
+			"ValueScans.FirstScan" => () => _ = session.TryFirstScan(default, out _, token),
+			"ValueScans.NextScan" => () => _ = session.TryNextScan(default, out _, token),
+			"ValueScans.Read" => () => _ = session.TryRead(default, out _, out _, token),
+			"Allocations.Allocate" => () => _ = new AllocationClient(dispatcher, Binder(dispatcher), allocations)
+				.TryAllocate(default, out _, out _, token),
+			"Inspection.GetModules" => () => _ = inspection.TryGetModules(default, null, out _, out _, token),
+			"Inspection.GetSymbol" => () => _ = inspection.TryGetSymbol(default, out _, out _, token),
+			"Inspection.RegisterSymbol" => () => _ = inspection.TryRegisterSymbol(default, out _, out _, token),
+			"Tables.Find" => () => _ = tables.TryFind(default, new MemoryRecordCollectionRequest(8), out _, out _,
+				token),
+			"Tables.Create" => () => _ = tables.TryCreate(default, out _, out _, token),
+			"Tables.Update" => () => _ = tables.TryUpdate(record, default, out _, out _, token),
+			"Tables.GetHierarchy" => () => _ = tables.TryGetHierarchy(record, default, out _, out _, token),
+			"Tables.LoadTrustedTable" => () => _ = tables.TryLoadTrustedTable(default, out _, token),
+			"Lua.RegisterModule" => () => _ = new LuaClient(dispatcher, lifetime)
+				.TryRegisterModule(null!, out _, out _, token),
+			"UnsafeLua.Execute" => () => _ = new UnsafeLuaClient(dispatcher,
+					new CoreClientPolicy([], enableUnsafeLuaExecution: true), lifetime)
+				.TryExecute(default, out _, token),
+			"AutoAssembler.ApplyPatch" => () => _ = new AutoAssemblerClient(dispatcher, AutoAssemblerPolicy(),
+					lifetime, Binder(dispatcher), ports)
+				.TryApplyPatch(default, out _, out _, token),
+			"Assembly.Assemble" => () => _ = new AssemblyClient(dispatcher, lifetime, new MemoryResourceLimits(), ports)
+				.TryAssemble(default, out _, out _, token),
 			_ => throw new ArgumentOutOfRangeException(nameof(entryPoint), entryPoint, null)
 		};
+		int dispatches = invoker.Calls;
+		switch (state)
+		{
+			case "Ended":
+				context.IsCurrent = false;
+				break;
+			case "Stopping":
+				context.Stop();
+				break;
+		}
 
-		CheatEngineClientException thrown = stopping
-			? Assert.Throws<CheatEngineInvalidStateException>(invalid)
-			: Assert.Throws<CheatEngineActivationExpiredException>(invalid);
-		Assert.Equal(entryPoint, thrown.Failure.Operation);
-		Assert.Empty(port.Session.Calls);
+		_ = Assert.ThrowsAny<ArgumentException>(invalid);
+
+		Assert.Equal(dispatches, invoker.Calls);
+		Assert.Equal(0, ports.Calls);
+		Assert.Empty(scans.Session.Calls);
+		Assert.Equal(0, allocations.Allocations);
 	}
 
 	/// <summary>
-	///     A refusal that the Client decides without calling Cheat Engine (an invalid pattern, an unsupported type, a
-	///     budget, a default request or search, an update that changes nothing, a self-parent) never hides an ended or
-	///     stopping activation: every family checks the activation first, like the value-scan requests above.
+	///     A refusal of a well-formed request that the Client decides without calling Cheat Engine (a budget, an
+	///     unsupported type, a policy, a limit of Cheat Engine's own indexes, a range without room for a match, a
+	///     self-parent) never hides an ended or stopping activation: every family checks the activation first, under
+	///     the name of its own operation.
 	/// </summary>
 	[Theory]
 	[InlineData("Patterns.Scan", false)]
 	[InlineData("Patterns.Scan", true)]
 	[InlineData("Memory.ReadPrimitive", false)]
 	[InlineData("Memory.ReadBytes", true)]
-	[InlineData("Inspection.GetModules", false)]
-	[InlineData("Inspection.GetModuleSections", true)]
-	[InlineData("Inspection.GetMemoryRegions", false)]
-	[InlineData("Tables.GetSnapshot", true)]
-	[InlineData("Tables.Find", false)]
-	[InlineData("Tables.Update", true)]
-	[InlineData("Tables.GetHierarchy", false)]
-	[InlineData("Tables.SetParent", true)]
+	[InlineData("Tables.SetParent", false)]
+	[InlineData("Tables.LoadTrustedTable", true)]
+	[InlineData("ValueScans.Read", false)]
+	[InlineData("ValueScans.Read", true)]
+	[InlineData("UnsafeLua.Execute", false)]
+	[InlineData("AutoAssembler.ApplyPatch", true)]
 	public void AnEndedOrStoppingActivationThrowsBeforeARequestIsRefused(string entryPoint, bool stopping)
 	{
 		using ControlledCoreLifetimeContext context = new();
 		CoreLifetime lifetime = new(context);
 		SdkMainThreadDispatcher dispatcher = new(lifetime, new InlineMainThreadInvoker());
 		ThrowingPorts ports = new(new InvalidOperationException("never reached"));
+		FakeValueScanPort scans = new();
+		CancellationToken token = TestContext.Current.CancellationToken;
+		IValueScanSession session = new ValueScanner(dispatcher, Binder(dispatcher), scans).CreateSession(token);
 		MemoryClient memory = new(dispatcher, lifetime, ports);
-		InspectionClient inspection = new(dispatcher, lifetime, ports);
-		TableClient tables = new(dispatcher, new CoreClientPolicy([], enableUnsafeLuaExecution: false), ports,
-			lifetime, ports);
+		CoreClientPolicy withoutOptIns = new([], enableUnsafeLuaExecution: false);
+		TableClient tables = new(dispatcher, withoutOptIns, ports, lifetime, ports);
 		MemoryRecordId record = new(7);
 		if (stopping)
 		{
@@ -278,19 +371,22 @@ public sealed class TryContractTests
 
 		Action refused = entryPoint switch
 		{
-			"Patterns.Scan" => () => _ = new PatternScanner(dispatcher, ports).TryScan(default, out _, out _),
-			"Memory.ReadPrimitive" => () => _ = memory.TryReadPrimitive(Target, out decimal _, out _),
+			"Patterns.Scan" => () => _ = new PatternScanner(dispatcher, ports).TryScan(NoRoomForAMatch(), out _,
+				out _, token),
+			"Memory.ReadPrimitive" => () => _ = memory.TryReadPrimitive(Target, out decimal _, out _, token),
 			"Memory.ReadBytes" => () => _ = memory.TryReadBytes(
-				new MemoryBytesReadRequest(Target, MemoryResourceLimits.DefaultMaximumReadBytes + 1), out _, out _),
-			"Inspection.GetModules" => () => _ = inspection.TryGetModules(default, null, out _, out _),
-			"Inspection.GetModuleSections" => () =>
-				_ = inspection.TryGetModuleSections(new ModuleName("game.exe"), default, out _, out _),
-			"Inspection.GetMemoryRegions" => () => _ = inspection.TryGetMemoryRegions(default, out _, out _),
-			"Tables.GetSnapshot" => () => _ = tables.TryGetSnapshot(default, out _, out _),
-			"Tables.Find" => () => _ = tables.TryFind(default, new MemoryRecordCollectionRequest(8), out _, out _),
-			"Tables.Update" => () => _ = tables.TryUpdate(record, default, out _, out _),
-			"Tables.GetHierarchy" => () => _ = tables.TryGetHierarchy(record, default, out _, out _),
-			"Tables.SetParent" => () => _ = tables.TrySetParent(record, record, out _, out _),
+				new MemoryBytesReadRequest(Target, MemoryResourceLimits.DefaultMaximumReadBytes + 1), out _, out _,
+				token),
+			"Tables.SetParent" => () => _ = tables.TrySetParent(record, record, out _, out _, token),
+			"Tables.LoadTrustedTable" => () => _ = tables.TryLoadTrustedTable(new TableLoadRequest(
+				new TrustedTableFile(Path.Combine(Path.GetTempPath(), "untrusted.ct"))), out _, token),
+			"ValueScans.Read" => () => _ = session.TryRead(new ValueScanReadRequest((long) int.MaxValue + 1, 1),
+				out _, out _, token),
+			"UnsafeLua.Execute" => () => _ = new UnsafeLuaClient(dispatcher, withoutOptIns, lifetime)
+				.TryExecute(new LuaScript("return 1"), out _, token),
+			"AutoAssembler.ApplyPatch" => () => _ = new AutoAssemblerClient(dispatcher, withoutOptIns, lifetime,
+					Binder(dispatcher), ports)
+				.TryApplyPatch(new AutoAssemblerScript("[ENABLE]"), out _, out _, token),
 			_ => throw new ArgumentOutOfRangeException(nameof(entryPoint), entryPoint, null)
 		};
 
@@ -300,6 +396,7 @@ public sealed class TryContractTests
 		Assert.Equal(entryPoint, thrown.Failure.Operation);
 		Assert.Equal(CheatEngineHostEffect.NotStarted, thrown.Failure.HostEffect);
 		Assert.Equal(0, ports.Calls);
+		Assert.Empty(scans.Session.Calls);
 	}
 
 	/// <summary>
@@ -766,7 +863,7 @@ public sealed class TryContractTests
 
 	[Theory]
 	[InlineData("PatternsPreDispatchCancellation")]
-	[InlineData("PatternsInvalidRequest")]
+	[InlineData("PatternsNoRoomForAMatch")]
 	[InlineData("MemoryBudget")]
 	[InlineData("MemoryBatchPreDispatchCancellation")]
 	[InlineData("MemoryBytesDetailedBudget")]
@@ -776,9 +873,8 @@ public sealed class TryContractTests
 	[InlineData("ProcessesAttachExactNameCancellation")]
 	[InlineData("LuaModuleRegistrationPreDispatchCancellation")]
 	[InlineData("ValueScansPreDispatchCancellation")]
-	[InlineData("ValueScansInvalidRequest")]
+	[InlineData("ValueScansResultIndexLimit")]
 	[InlineData("AllocationsPreDispatchCancellation")]
-	[InlineData("AllocationsInvalidRequest")]
 	[InlineData("AutoAssemblerPolicy")]
 	[InlineData("AutoAssemblerPreDispatchCancellation")]
 	[InlineData("InstructionsPreDispatchCancellation")]
@@ -794,8 +890,8 @@ public sealed class TryContractTests
 		{
 			"PatternsPreDispatchCancellation" => TryFailure(() =>
 				(new PatternScanner(dispatcher, ports).TryScan(Request(), out _, out CheatEngineFailure f, cancelled), f)),
-			"PatternsInvalidRequest" => TryFailure(() =>
-				(new PatternScanner(dispatcher, ports).TryScan(default, out _, out CheatEngineFailure f, token), f)),
+			"PatternsNoRoomForAMatch" => TryFailure(() => (new PatternScanner(dispatcher, ports).TryScan(
+				NoRoomForAMatch(), out _, out CheatEngineFailure f, token), f)),
 			"MemoryBudget" => TryFailure(() =>
 				(new MemoryClient(dispatcher, lifetime, ports, new MemoryResourceLimits(1, 1, 1, 64, 2))
 					.TryReadBytes(new MemoryBytesReadRequest(Target, 2), out _, out CheatEngineFailure f, token), f)),
@@ -824,15 +920,13 @@ public sealed class TryContractTests
 			"ValueScansPreDispatchCancellation" => TryFailure(() =>
 				(new ValueScanner(dispatcher, Binder(dispatcher), new FakeValueScanPort()).TryCreateSession(out _,
 					out CheatEngineFailure f, cancelled), f)),
-			"ValueScansInvalidRequest" => TryFailure(() =>
+			"ValueScansResultIndexLimit" => TryFailure(() =>
 				(new ValueScanner(dispatcher, Binder(dispatcher), new FakeValueScanPort()).CreateSession(token)
-					.TryFirstScan(default, out CheatEngineFailure f, token), f)),
+					.TryRead(new ValueScanReadRequest((long) int.MaxValue + 1, 1), out _, out CheatEngineFailure f,
+						token), f)),
 			"AllocationsPreDispatchCancellation" => TryFailure(() =>
 				(new AllocationClient(dispatcher, Binder(dispatcher), new FakeAllocationPort())
 					.TryAllocate(new AllocationRequest(4096), out _, out CheatEngineFailure f, cancelled), f)),
-			"AllocationsInvalidRequest" => TryFailure(() =>
-				(new AllocationClient(dispatcher, Binder(dispatcher), new FakeAllocationPort()).TryAllocate(default, out _,
-					out CheatEngineFailure f, token), f)),
 			"AutoAssemblerPolicy" => TryFailure(() =>
 				(new AutoAssemblerClient(dispatcher, new CoreClientPolicy([], false), lifetime, Binder(dispatcher),
 						ports)
@@ -1039,6 +1133,16 @@ public sealed class TryContractTests
 	private static AobScanRequest Request(ModuleName? module = null)
 	{
 		return new AobScanRequest(new AobPattern("90"), 2, module);
+	}
+
+	/// <summary>
+	///     Creates a well-formed range request whose range leaves no room for a whole match below the top of the
+	///     address space: the scanner refuses it without calling Cheat Engine.
+	/// </summary>
+	private static AobScanRequest NoRoomForAMatch()
+	{
+		Address top = new(ulong.MaxValue);
+		return new AobScanRequest(new AobPattern("90 90"), 1, null, new AobScanRange(top, top));
 	}
 
 	private static Exception CreateSdkFault(string faultType)

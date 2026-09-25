@@ -28,11 +28,14 @@ namespace CheatEngine.Client.Tables;
 ///         in-flight load is checked again on the main thread and refused without calling Cheat Engine.
 ///     </para>
 ///     <para>
-///         A <see langword="default" /> <see cref="MemoryRecordCollectionRequest" /> or
-///         <see cref="MemoryRecordHierarchyRequest" />, which allows no record, is refused with
-///         <see cref="CheatEngineFailureKind.OperationRejected" /> and <see cref="CheatEngineHostEffect.NotStarted" />
-///         before any Cheat Engine call, like a <see langword="default" /> <see cref="MemoryRecordSearch" /> or
-///         <see cref="MemoryRecordUpdate" />.
+///         A <see langword="default" /> argument is a programming error, thrown before the activation check and before
+///         any Cheat Engine call, as its constructor throws for the same value: an
+///         <see cref="ArgumentOutOfRangeException" /> for a <see cref="MemoryRecordCollectionRequest" /> or
+///         <see cref="MemoryRecordHierarchyRequest" />, which allows no record, and an <see cref="ArgumentException" />
+///         for a <see cref="MemoryRecordSearch" />, <see cref="MemoryRecordDefinition" />,
+///         <see cref="MemoryRecordUpdate" />, <see cref="TableLoadRequest" /> or <see cref="TableSaveRequest" />, which
+///         searches, creates, changes or names nothing. A value type that is not a defined value throws an
+///         <see cref="ArgumentOutOfRangeException" />.
 ///     </para>
 ///     <para>
 ///         Trusted table files follow the Client path policy. Cheat Engine's file form of <c>loadTable</c> offers no
@@ -51,24 +54,41 @@ public interface ITableClient
 	public int GetRecordCount(CancellationToken cancellationToken = default);
 
 	/// <summary>Copies every top-level record only when the caller supplies a materialization limit.</summary>
+	/// <exception cref="ArgumentOutOfRangeException">
+	///     <paramref name="request" /> is the <see langword="default" /> request, which allows no record.
+	/// </exception>
 	public bool TryGetSnapshot(MemoryRecordCollectionRequest request, out AddressTableSnapshot table,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default);
 
 	/// <summary>Copies a bounded top-level record snapshot or throws when the table exceeds the limit.</summary>
+	/// <exception cref="ArgumentOutOfRangeException">
+	///     <paramref name="request" /> is the <see langword="default" /> request, which allows no record.
+	/// </exception>
 	public AddressTableSnapshot GetSnapshot(MemoryRecordCollectionRequest request,
 		CancellationToken cancellationToken = default);
 
 	/// <summary>Searches a bounded copied top-level record snapshot with conjunctive managed predicates.</summary>
+	/// <exception cref="ArgumentException">
+	///     <paramref name="search" /> is the <see langword="default" /> search, which has no predicate, or
+	///     <paramref name="request" /> is the <see langword="default" /> request (an
+	///     <see cref="ArgumentOutOfRangeException" />, as for a value type that is not a defined value).
+	/// </exception>
 	public bool TryFind(MemoryRecordSearch search, MemoryRecordCollectionRequest request,
 		out ImmutableArray<MemoryRecordSnapshot> records, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
 	/// <summary>Searches a bounded top-level record snapshot or throws when it cannot be materialized.</summary>
+	/// <exception cref="ArgumentException">
+	///     <paramref name="search" /> is the <see langword="default" /> search, which has no predicate, or
+	///     <paramref name="request" /> is the <see langword="default" /> request (an
+	///     <see cref="ArgumentOutOfRangeException" />, as for a value type that is not a defined value).
+	/// </exception>
 	public ImmutableArray<MemoryRecordSnapshot> Find(MemoryRecordSearch search, MemoryRecordCollectionRequest request,
 		CancellationToken cancellationToken = default);
 
 	/// <summary>Gets one record by its current zero-based address-list index.</summary>
 	/// <remarks>An index is positional and changes when records are added, removed or moved; prefer an identifier.</remarks>
+	/// <exception cref="ArgumentOutOfRangeException"><paramref name="index" /> is negative.</exception>
 	public bool TryGetRecordAt(int index, out MemoryRecordSnapshot record, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
@@ -77,6 +97,7 @@ public interface ITableClient
 		CancellationToken cancellationToken = default);
 
 	/// <summary>Gets one record by its current zero-based address-list index or throws when it is unavailable.</summary>
+	/// <exception cref="ArgumentOutOfRangeException"><paramref name="index" /> is negative.</exception>
 	public MemoryRecordSnapshot GetRecordAt(int index, CancellationToken cancellationToken = default);
 
 	/// <summary>Gets one record by identifier or throws when it is unavailable.</summary>
@@ -104,11 +125,19 @@ public interface ITableClient
 
 	/// <summary>Creates a memory record, assigns its defined fields, and returns a copied snapshot.</summary>
 	/// <remarks>Refused during a trusted table load, like every mutation (see <see cref="TryDelete" />).</remarks>
+	/// <exception cref="ArgumentException">
+	///     <paramref name="definition" /> is the <see langword="default" /> definition, which has no field, or its
+	///     value type is not a defined value (an <see cref="ArgumentOutOfRangeException" />).
+	/// </exception>
 	public bool TryCreate(MemoryRecordDefinition definition, out MemoryRecordSnapshot record,
 		out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
 	/// <summary>Creates a record or throws when the host rejects it.</summary>
+	/// <exception cref="ArgumentException">
+	///     <paramref name="definition" /> is the <see langword="default" /> definition, which has no field, or its
+	///     value type is not a defined value (an <see cref="ArgumentOutOfRangeException" />).
+	/// </exception>
 	public MemoryRecordSnapshot Create(MemoryRecordDefinition definition,
 		CancellationToken cancellationToken = default);
 
@@ -119,12 +148,11 @@ public interface ITableClient
 	/// <param name="failure">The classified failure when the method returns <see langword="false" />.</param>
 	/// <param name="cancellationToken">Observed before dispatch.</param>
 	/// <returns><see langword="true" /> when every requested field was applied and the record was copied.</returns>
-	/// <remarks>
-	///     The default <paramref name="update" />, which changes nothing, is refused with
-	///     <see cref="CheatEngineFailureKind.OperationRejected" /> and <see cref="CheatEngineHostEffect.NotStarted" />,
-	///     like the default search of <see cref="TryFind" />. Refused during a trusted table load, like every mutation
-	///     (see <see cref="TryDelete" />).
-	/// </remarks>
+	/// <remarks>Refused during a trusted table load, like every mutation (see <see cref="TryDelete" />).</remarks>
+	/// <exception cref="ArgumentException">
+	///     <paramref name="update" /> is the <see langword="default" /> update, which changes nothing, or its value
+	///     type is not a defined value (an <see cref="ArgumentOutOfRangeException" />).
+	/// </exception>
 	public bool TryUpdate(MemoryRecordId id, MemoryRecordUpdate update, out MemoryRecordSnapshot record,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default);
 
@@ -133,6 +161,10 @@ public interface ITableClient
 	/// <param name="update">The fields to change.</param>
 	/// <param name="cancellationToken">Observed before dispatch.</param>
 	/// <returns>The copied snapshot of the changed record.</returns>
+	/// <exception cref="ArgumentException">
+	///     <paramref name="update" /> is the <see langword="default" /> update, which changes nothing, or its value
+	///     type is not a defined value (an <see cref="ArgumentOutOfRangeException" />).
+	/// </exception>
 	public MemoryRecordSnapshot Update(MemoryRecordId id, MemoryRecordUpdate update,
 		CancellationToken cancellationToken = default);
 
@@ -208,11 +240,17 @@ public interface ITableClient
 	///     below that count is <see cref="CheatEngineFailureKind.InvalidHostResult" />, and the message names the record
 	///     identifier and the position.
 	/// </remarks>
+	/// <exception cref="ArgumentOutOfRangeException">
+	///     <paramref name="request" /> is the <see langword="default" /> request, which allows no record and no level.
+	/// </exception>
 	public bool TryGetHierarchy(MemoryRecordId rootId, MemoryRecordHierarchyRequest request,
 		out MemoryRecordHierarchySnapshot hierarchy, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
 	/// <summary>Copies a bounded hierarchy or throws when its depth, cardinality, or host shape is invalid.</summary>
+	/// <exception cref="ArgumentOutOfRangeException">
+	///     <paramref name="request" /> is the <see langword="default" /> request, which allows no record and no level.
+	/// </exception>
 	public MemoryRecordHierarchySnapshot GetHierarchy(MemoryRecordId rootId, MemoryRecordHierarchyRequest request,
 		CancellationToken cancellationToken = default);
 
@@ -231,10 +269,16 @@ public interface ITableClient
 	///         <see cref="CheatEngineHostEffect.NotStarted" />. Failure messages never contain the path.
 	///     </para>
 	/// </remarks>
+	/// <exception cref="ArgumentException">
+	///     <paramref name="request" /> is the <see langword="default" /> request, which names no file.
+	/// </exception>
 	public bool TryLoadTrustedTable(TableLoadRequest request, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
 	/// <summary>Loads a trusted table or throws when policy or host execution rejects it.</summary>
+	/// <exception cref="ArgumentException">
+	///     <paramref name="request" /> is the <see langword="default" /> request, which names no file.
+	/// </exception>
 	public void LoadTrustedTable(TableLoadRequest request, CancellationToken cancellationToken = default);
 
 	/// <summary>Tries to save the current table to an explicitly allowed path.</summary>
@@ -243,9 +287,15 @@ public interface ITableClient
 	///     <see cref="CheatEngineFailureKind.LuaError" /> with <see cref="CheatEngineHostEffect.Started" />: the file may be
 	///     partially written. Failure messages never contain the path.
 	/// </remarks>
+	/// <exception cref="ArgumentException">
+	///     <paramref name="request" /> is the <see langword="default" /> request, which names no file.
+	/// </exception>
 	public bool TrySaveTable(TableSaveRequest request, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
 	/// <summary>Saves the current table or throws when policy or host execution rejects it.</summary>
+	/// <exception cref="ArgumentException">
+	///     <paramref name="request" /> is the <see langword="default" /> request, which names no file.
+	/// </exception>
 	public void SaveTable(TableSaveRequest request, CancellationToken cancellationToken = default);
 }

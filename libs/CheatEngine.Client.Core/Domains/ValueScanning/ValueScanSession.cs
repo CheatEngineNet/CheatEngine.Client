@@ -80,13 +80,8 @@ internal sealed class ValueScanSession : HostResourceLease, IValueScanSession
 	public bool TryFirstScan(ValueScanFirstRequest request, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
-		// An ended or stopping activation throws before a refusal is reported, never the reverse.
-		_dispatcher.Lifetime.ThrowIfDispatchRefused(FirstScanOperation);
-		if (!ValueScanRequests.TryCreateFirst(request, FirstScanOperation, out FirstScanRequest sdkRequest, out failure))
-		{
-			return false;
-		}
-
+		// Arguments first, then the activation (TryRun), then the refusals.
+		FirstScanRequest sdkRequest = ValueScanRequests.CreateFirst(request);
 		return TryRun(FirstScanOperation,
 			token => FirstScanOnMainThread(sdkRequest, request.ValueType, token), out failure, cancellationToken);
 	}
@@ -102,6 +97,8 @@ internal sealed class ValueScanSession : HostResourceLease, IValueScanSession
 	public bool TryNextScan(ValueScanNextRequest request, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
+		// Arguments first; a value of another type than the session's first scan is refused on the main thread.
+		ValueScanRequests.ValidateNext(request);
 		return TryRun(NextScanOperation, token => NextScanOnMainThread(request, token), out failure,
 			cancellationToken);
 	}
@@ -152,15 +149,21 @@ internal sealed class ValueScanSession : HostResourceLease, IValueScanSession
 		CancellationToken cancellationToken = default)
 	{
 		page = default;
-		// An ended or stopping activation throws before a refusal is reported, never the reverse.
-		_dispatcher.Lifetime.ThrowIfDispatchRefused(ReadOperation);
+		// Arguments first, as the request's constructor checks them: the default request allows no result.
 		if (request.MaximumCount <= 0)
 		{
-			failure = new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, ReadOperation,
-				"A value-scan read requires a positive maximum count.", null, CheatEngineHostEffect.NotStarted);
-			return false;
+			throw new ArgumentOutOfRangeException(nameof(request), request.MaximumCount,
+				"A value-scan read requires a positive maximum count; the default request has none.");
 		}
 
+		if (request.StartIndex < 0)
+		{
+			throw new ArgumentOutOfRangeException(nameof(request), request.StartIndex,
+				"A value-scan read requires a non-negative start index.");
+		}
+
+		// An ended or stopping activation throws before a refusal is reported, never the reverse.
+		_dispatcher.Lifetime.ThrowIfDispatchRefused(ReadOperation);
 		if (request.StartIndex > int.MaxValue)
 		{
 			failure = new CheatEngineFailure(CheatEngineFailureKind.ResultLimitExceeded, ReadOperation,

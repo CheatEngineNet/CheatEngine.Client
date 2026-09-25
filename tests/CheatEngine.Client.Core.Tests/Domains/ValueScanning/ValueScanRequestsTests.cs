@@ -1,4 +1,5 @@
 using CheatEngine.Client.Core.Domains.ValueScanning;
+using CheatEngine.Client.Core.Tests.TestSupport;
 using CheatEngine.Client.Results;
 using CheatEngine.Client.Scanning;
 using CheatEngine.SDK.Engine.Enums;
@@ -7,7 +8,9 @@ using CheatEngine.SDK.Engine.Values;
 
 namespace CheatEngine.Client.Core.Tests.Domains.ValueScanning;
 
-/// <summary>The Client value-scan requests become CheatEngine.SDK's positional requests, or are refused before dispatch.</summary>
+/// <summary>
+///     The Client value-scan requests become CheatEngine.SDK's positional requests, or throw before dispatch.
+/// </summary>
 public sealed class ValueScanRequestsTests
 {
 	private const string Operation = "ValueScans.Contract";
@@ -15,10 +18,9 @@ public sealed class ValueScanRequestsTests
 	[Fact]
 	public void AnExactFirstScanUsesCheatEngineDefaultsOverTheWholeAddressSpace()
 	{
-		Assert.True(ValueScanRequests.TryCreateFirst(ValueScanFirstRequest.Exact(ValueScanValue.FromInt32(100)),
-			Operation, out FirstScanRequest request, out CheatEngineFailure failure));
+		FirstScanRequest request =
+			ValueScanRequests.CreateFirst(ValueScanFirstRequest.Exact(ValueScanValue.FromInt32(100)));
 
-		Assert.Equal(default, failure);
 		Assert.Equal(ScanOption.ExactValue, request.ScanOption);
 		Assert.Equal(VariableType.Dword, request.VariableType);
 		Assert.Equal(RoundingType.Rounded, request.RoundingType);
@@ -45,9 +47,9 @@ public sealed class ValueScanRequestsTests
 				ScanProtectionRequirement.Required))
 			.WithAlignment(ScanAlignment.AlignedTo(8));
 
-		Assert.True(ValueScanRequests.TryCreateFirst(client, Operation, out FirstScanRequest request, out _));
-		Assert.True(ValueScanRequests.TryCreateFirst(client.WithAlignment(ScanAlignment.LastDigits("0c")), Operation,
-			out FirstScanRequest lastDigits, out _));
+		FirstScanRequest request = ValueScanRequests.CreateFirst(client);
+		FirstScanRequest lastDigits =
+			ValueScanRequests.CreateFirst(client.WithAlignment(ScanAlignment.LastDigits("0c")));
 
 		Assert.Equal(ScanOption.ValueBetween, request.ScanOption);
 		Assert.Equal(VariableType.Double, request.VariableType);
@@ -60,8 +62,7 @@ public sealed class ValueScanRequestsTests
 		Assert.Equal("8", request.AlignmentParameter);
 		Assert.Equal(FastScanMethod.LastDigits, lastDigits.FastScanMethod);
 		Assert.Equal("0C", lastDigits.AlignmentParameter);
-		Assert.True(ValueScanRequests.TryCreateFirst(client.WithAlignment(ScanAlignment.None), Operation,
-			out FirstScanRequest none, out _));
+		FirstScanRequest none = ValueScanRequests.CreateFirst(client.WithAlignment(ScanAlignment.None));
 		Assert.Equal(FastScanMethod.NotAligned, none.FastScanMethod);
 		Assert.Equal(string.Empty, none.AlignmentParameter);
 	}
@@ -96,17 +97,32 @@ public sealed class ValueScanRequestsTests
 		Assert.Throws<ArgumentOutOfRangeException>(() => ValueScanRequests.ToScanOption((ValueScanComparison) 99));
 	}
 
+	/// <summary>
+	///     A default request is a programming error: it throws, whatever the session, and builds no SDK request.
+	/// </summary>
 	[Fact]
-	public void ADefaultOrMalformedRequestIsRefusedWithoutACheatEngineCall()
+	public void ADefaultRequestThrowsWithoutACheatEngineCall()
 	{
-		Assert.False(ValueScanRequests.TryCreateFirst(default, Operation, out _, out CheatEngineFailure defaultFailure));
-		Assert.False(ValueScanRequests.TryCreateNext(default, ValueScanValueType.Integer32, Operation, out _,
-			out CheatEngineFailure nextFailure));
+		ArgumentException first = Assert.Throws<ArgumentException>(() => ValueScanRequests.CreateFirst(default));
+		ArgumentException next = Assert.Throws<ArgumentException>(() => ValueScanRequests.ValidateNext(default));
 
-		Assert.Equal(CheatEngineFailureKind.OperationRejected, defaultFailure.Kind);
-		Assert.Equal(CheatEngineHostEffect.NotStarted, defaultFailure.HostEffect);
-		Assert.Equal(Operation, defaultFailure.Operation);
-		Assert.Equal(CheatEngineFailureKind.OperationRejected, nextFailure.Kind);
+		Assert.Equal("request", first.ParamName);
+		Assert.Equal("request", next.ParamName);
+	}
+
+	/// <summary>
+	///     A next scan whose bounds were tampered with to have two types throws before the session is asked.
+	/// </summary>
+	[Fact]
+	public void ANextScanRangeOfTwoTypesThrows()
+	{
+		ValueScanNextRequest tampered = TamperedValues.WithBackingField(
+			ValueScanNextRequest.Between(ValueScanValue.FromInt32(1), ValueScanValue.FromInt32(2)),
+			nameof(ValueScanNextRequest.UpperValue), (ValueScanValue?) ValueScanValue.FromInt16(2));
+
+		ArgumentException thrown = Assert.Throws<ArgumentException>(() => ValueScanRequests.ValidateNext(tampered));
+
+		Assert.Equal("request", thrown.ParamName);
 	}
 
 	[Fact]
