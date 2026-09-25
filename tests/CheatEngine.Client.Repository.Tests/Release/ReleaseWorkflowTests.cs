@@ -327,7 +327,7 @@ public sealed partial class ReleaseWorkflowTests
 			Assert.Contains(value, verification, StringComparison.Ordinal);
 		}
 
-		Assert.DoesNotContain(steps, static step => Regex.IsMatch(Run(step), @"\bgh api\b"));
+		Assert.DoesNotContain(steps, static step => GhApi().IsMatch(Run(step)));
 		string text = File.ReadAllText(Path.Combine(RepositoryRoot.Path, WorkflowPath));
 		Assert.DoesNotContain("releases/tags/", text, StringComparison.Ordinal);
 	}
@@ -485,7 +485,7 @@ public sealed partial class ReleaseWorkflowTests
 	{
 		string script = Run(Assert.Single(Steps("draft-release"), static step => Run(step).Contains("gh release create", StringComparison.Ordinal)));
 		int list = script.IndexOf("gh release list", StringComparison.Ordinal);
-		Match delete = Regex.Match(script, @"(?m)^\s*gh release delete \$env:TAG --yes\s*$");
+		Match delete = GhReleaseDelete().Match(script);
 		int create = script.IndexOf("gh release create", StringComparison.Ordinal);
 
 		Assert.True(list >= 0 && delete.Success && list < delete.Index && delete.Index < create,
@@ -681,4 +681,10 @@ public sealed partial class ReleaseWorkflowTests
 
 	[GeneratedRegex(@"CheatEngine\.Client(\.[A-Za-z]+)*\.(\$|\{\{|[0-9])", RegexOptions.CultureInvariant, 1000)]
 	private static partial Regex PackageFileName();
+
+	[GeneratedRegex(@"\bgh api\b")]
+	private static partial Regex GhApi();
+
+	[GeneratedRegex(@"(?m)^\s*gh release delete \$env:TAG --yes\s*$")]
+	private static partial Regex GhReleaseDelete();
 }

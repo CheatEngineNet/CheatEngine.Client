@@ -75,9 +75,6 @@ public sealed partial class WorkflowContractTests
 		"scorecard-results"
 	};
 
-	/// <summary>Binary logs: binlogs-&lt;job&gt; or binlogs-&lt;job&gt;-&lt;configuration&gt;.</summary>
-	private static readonly Regex BinlogArtifact = new("^binlogs-[a-z0-9-]+?(-(Debug|Release))?$");
-
 	/// <summary>Names the old pipeline used; reusing one would silently feed an obsolete consumer.</summary>
 	private static readonly string[] RetiredArtifacts = ["test-results", "sonar-coverage", "native-aot-probe"];
 
@@ -311,9 +308,9 @@ public sealed partial class WorkflowContractTests
 	public void SonarRestoresLockedBeforeScannerBegin()
 	{
 		IReadOnlyList<WorkflowStep> steps = WorkflowFile.Load(SonarWorkflow).Job("analyze").Steps;
-		WorkflowStep restore = Assert.Single(steps, static step => Regex.IsMatch(step.Run, @"\bdotnet restore\b"));
+		WorkflowStep restore = Assert.Single(steps, static step => DotnetRestore().IsMatch(step.Run));
 		WorkflowStep begin = Assert.Single(steps, static step => step.Run.Contains("dotnet-sonarscanner.exe\" begin", StringComparison.Ordinal));
-		WorkflowStep build = Assert.Single(steps, static step => Regex.IsMatch(step.Run, @"\bdotnet build\b"));
+		WorkflowStep build = Assert.Single(steps, static step => DotnetBuild().IsMatch(step.Run));
 
 		Assert.Contains("--locked-mode", restore.Run, StringComparison.Ordinal);
 		Assert.Contains("--configfile", restore.Run, StringComparison.Ordinal);
@@ -331,9 +328,9 @@ public sealed partial class WorkflowContractTests
 	{
 		WorkflowJob buildTest = WorkflowFile.Load(CiWorkflow).Job("build-test");
 		IReadOnlyList<WorkflowStep> steps = buildTest.Steps;
-		WorkflowStep build = Assert.Single(steps, static step => Regex.IsMatch(step.Run, @"\bdotnet build\b"));
-		WorkflowStep pack = Assert.Single(steps, static step => Regex.IsMatch(step.Run, @"\bdotnet pack\b"));
-		WorkflowStep test = Assert.Single(steps, static step => Regex.IsMatch(step.Run, @"\bdotnet test\b"));
+		WorkflowStep build = Assert.Single(steps, static step => DotnetBuild().IsMatch(step.Run));
+		WorkflowStep pack = Assert.Single(steps, static step => DotnetPack().IsMatch(step.Run));
+		WorkflowStep test = Assert.Single(steps, static step => DotnetTest().IsMatch(step.Run));
 
 		Assert.True(build.Index < pack.Index && pack.Index < test.Index, "build-test must run Build, then Pack, then Test.");
 		Assert.Equal("pack", pack.Id);
@@ -383,7 +380,7 @@ public sealed partial class WorkflowContractTests
 		{
 			Assert.DoesNotContain("CHEATENGINE_CLIENT_LIVE_QUALIFICATION", workflow.Text, StringComparison.Ordinal);
 			foreach (WorkflowStep step in workflow.Jobs.SelectMany(static job => job.Steps).Concat(workflow.CompositeSteps)
-						 .Where(static step => Regex.IsMatch(step.Run, @"\bdotnet test\b")))
+						 .Where(static step => DotnetTest().IsMatch(step.Run)))
 			{
 				IReadOnlyList<string> tokens = Yaml.Tokens(step.Run);
 				Assert.True(TraitExclusions(tokens).Contains("Category=LiveQualification"),
@@ -404,7 +401,7 @@ public sealed partial class WorkflowContractTests
 		Assert.Contains("--crashdump", tokens);
 
 		string timeout = TokenAfter(tokens, "--hangdump-timeout");
-		Match duration = Regex.Match(timeout, @"^(?<value>\d+(\.\d+)?)(?<unit>m|min|s|h)$");
+		Match duration = HangDumpDuration().Match(timeout);
 		Assert.True(duration.Success, $"--hangdump-timeout '{timeout}' must use m, min, s or h.");
 		double minutes = double.Parse(duration.Groups["value"].Value, CultureInfo.InvariantCulture) *
 						 duration.Groups["unit"].Value switch
@@ -425,7 +422,7 @@ public sealed partial class WorkflowContractTests
 		{
 			foreach (WorkflowStep step in workflow.Jobs.SelectMany(static job => job.Steps).Concat(workflow.CompositeSteps))
 			{
-				Assert.False(Regex.IsMatch(step.Run, @"(--|-|/)warnaserror\b", RegexOptions.IgnoreCase),
+				Assert.False(WarnAsErrorSwitch().IsMatch(step.Run),
 					$"{workflow.RelativePath} step '{step.Name}' passes -warnaserror, which also promotes the NU1901/NU1902 audit warnings and overrides the NuGet audit policy; TreatWarningsAsErrors already covers compiler and analyzer warnings.");
 			}
 		}
@@ -439,7 +436,7 @@ public sealed partial class WorkflowContractTests
 			static project => (string?) project.Attribute("Path") == "tests/CheatEngine.Client.Benchmarks/CheatEngine.Client.Benchmarks.csproj");
 
 		IReadOnlyList<WorkflowStep> steps = WorkflowFile.Load(CiWorkflow).Job("build-test").Steps;
-		WorkflowStep build = Assert.Single(steps, static step => Regex.IsMatch(step.Run, @"\bdotnet build\b"));
+		WorkflowStep build = Assert.Single(steps, static step => DotnetBuild().IsMatch(step.Run));
 		Assert.Contains("CheatEngine.Client.slnx", build.Run, StringComparison.Ordinal);
 		Assert.Contains(steps, static step => step.Run.Contains("CheatEngine.Client.Benchmarks.csproj", StringComparison.Ordinal) &&
 											  step.Run.Contains("--list", StringComparison.Ordinal));
@@ -455,7 +452,7 @@ public sealed partial class WorkflowContractTests
 		WorkflowStep setup = Assert.Single(aot.Steps, static step => step.Uses == SetupActionReference);
 		Assert.Contains("tests/CheatEngine.Client.AotProbe/CheatEngine.Client.AotProbe.csproj", setup.With("restore") ?? string.Empty, StringComparison.Ordinal);
 
-		WorkflowStep publish = Assert.Single(aot.Steps, static step => Regex.IsMatch(step.Run, @"\bdotnet publish\b"));
+		WorkflowStep publish = Assert.Single(aot.Steps, static step => DotnetPublish().IsMatch(step.Run));
 		Assert.Contains("tests/CheatEngine.Client.AotProbe/CheatEngine.Client.AotProbe.csproj", publish.Run, StringComparison.Ordinal);
 		Assert.Contains("--no-restore", publish.Run, StringComparison.Ordinal);
 		Assert.DoesNotContain("--runtime", publish.Run, StringComparison.Ordinal);
@@ -497,11 +494,11 @@ public sealed partial class WorkflowContractTests
 	{
 		WorkflowJob lint = WorkflowFile.Load(CiWorkflow).Job("lint");
 		YamlMappingNode? env = Yaml.Mapping(lint.Node, "env");
-		Assert.Matches(new Regex(@"^\d+\.\d+\.\d+$"), Yaml.Scalar(env, "ACTIONLINT_VERSION") ?? string.Empty);
-		Assert.Matches(new Regex("^[0-9a-f]{64}$"), Yaml.Scalar(env, "ACTIONLINT_SHA256") ?? string.Empty);
+		Assert.Matches(ThreePartVersion(), Yaml.Scalar(env, "ACTIONLINT_VERSION") ?? string.Empty);
+		Assert.Matches(Sha256Hex(), Yaml.Scalar(env, "ACTIONLINT_SHA256") ?? string.Empty);
 
 		WorkflowStep zizmor = Assert.Single(lint.Steps, static step => step.UsesAction("zizmorcore/zizmor-action"));
-		Assert.Matches(new Regex(@"^\d+\.\d+\.\d+$"), zizmor.With("version") ?? "latest");
+		Assert.Matches(ThreePartVersion(), zizmor.With("version") ?? "latest");
 	}
 
 	[Fact]
@@ -571,7 +568,7 @@ public sealed partial class WorkflowContractTests
 		Assert.Equal("whitespace", TokenAfter(tokens, "format"));
 		Assert.Contains("--folder", tokens);
 		Assert.Contains("--verify-no-changes", tokens);
-		Assert.DoesNotContain(format.Steps, static step => Regex.IsMatch(step.Run, @"\bdotnet restore\b"));
+		Assert.DoesNotContain(format.Steps, static step => DotnetRestore().IsMatch(step.Run));
 	}
 
 	[Fact]
@@ -600,7 +597,7 @@ public sealed partial class WorkflowContractTests
 
 		WorkflowStep setup = Assert.Single(lockFiles.Steps, static step => step.Uses == SetupActionReference);
 		Assert.Null(setup.With("restore"));
-		Assert.Contains(lockFiles.Steps, static step => Regex.IsMatch(step.Run, @"\bdotnet restore CheatEngine\.Client\.slnx --locked-mode\b"));
+		Assert.Contains(lockFiles.Steps, static step => LockedSolutionRestore().IsMatch(step.Run));
 	}
 
 	// ---- Setup, caches and restores ------------------------------------------------------------------------------------
@@ -618,9 +615,9 @@ public sealed partial class WorkflowContractTests
 		Assert.Equal("global.json", install.With("global-json-file"));
 		Assert.Equal("inputs.cache", Yaml.NormalizeExpression(install.With("cache")));
 
-		WorkflowStep restore = Assert.Single(steps, static step => Regex.IsMatch(step.Run, @"\bdotnet restore\b"));
+		WorkflowStep restore = Assert.Single(steps, static step => DotnetRestore().IsMatch(step.Run));
 		Assert.Contains("--locked-mode", restore.Run, StringComparison.Ordinal);
-		string restoreLine = Assert.Single(restore.Run.Split('\n'), static line => Regex.IsMatch(line, @"\bdotnet restore \$target\b"));
+		string restoreLine = Assert.Single(restore.Run.Split('\n'), static line => TargetRestore().IsMatch(line));
 		Assert.DoesNotContain("--force-evaluate", restoreLine, StringComparison.Ordinal);
 		Assert.Contains("$LASTEXITCODE", restore.Run, StringComparison.Ordinal);
 		Assert.Contains("dotnet restore <project> --force-evaluate", restore.Run, StringComparison.Ordinal);
@@ -701,7 +698,7 @@ public sealed partial class WorkflowContractTests
 	{
 		foreach (WorkflowFile workflow in WorkflowFile.WorkflowsAndActions())
 		{
-			Assert.False(Regex.IsMatch(workflow.Text, @"\bvars\."),
+			Assert.False(RepositoryVariable().IsMatch(workflow.Text),
 				$"{workflow.RelativePath} reads a repository variable (vars.*); a setting that is not in the commit cannot be reviewed or reproduced.");
 		}
 	}
@@ -858,7 +855,7 @@ public sealed partial class WorkflowContractTests
 			foreach (WorkflowJob job in workflow.Jobs)
 			{
 				WorkflowStep[] versioned = job.Steps.Where(static step =>
-					Regex.IsMatch(step.Run, @"\bdotnet (build|pack|test|publish)\b") ||
+					VersionedDotnetCommand().IsMatch(step.Run) ||
 					step.Run.Contains("dotnet-sonarscanner", StringComparison.Ordinal)).ToArray();
 				// A job that never needs the package version may opt out explicitly with MinVerSkip instead.
 				if (versioned.Length == 0 || versioned.All(static step => step.Run.Contains("MinVerSkip=true", StringComparison.Ordinal)))
@@ -893,7 +890,7 @@ public sealed partial class WorkflowContractTests
 					foreach (string expanded in job.ExpandMatrix(name!))
 					{
 						Assert.DoesNotContain(expanded, RetiredArtifacts);
-						Assert.True(ReservedArtifacts.Contains(expanded) || BinlogArtifact.IsMatch(expanded),
+						Assert.True(ReservedArtifacts.Contains(expanded) || BinlogArtifact().IsMatch(expanded),
 							$"{workflow.RelativePath} job '{job.Id}' uploads '{expanded}', which is not a reserved artifact name.");
 						Assert.True(names.Add(expanded), $"{workflow.RelativePath} uploads '{expanded}' twice in one run.");
 					}
@@ -925,7 +922,7 @@ public sealed partial class WorkflowContractTests
 		foreach (string path in new[] { SonarWorkflow, ReleaseWorkflow }.Where(WorkflowFile.Exists))
 		{
 			string text = WorkflowFile.Load(path).Text;
-			Assert.False(Regex.IsMatch(text, @"(-bl\b|-bl:|/bl\b|\.binlog|binlogs-)"),
+			Assert.False(BinaryLog().IsMatch(text),
 				$"{path} must not write or upload binary logs: they capture the environment of a credentialed job.");
 		}
 	}
@@ -933,7 +930,7 @@ public sealed partial class WorkflowContractTests
 	private static WorkflowStep TestStep()
 	{
 		return Assert.Single(WorkflowFile.Load(CiWorkflow).Job("build-test").Steps,
-			static step => Regex.IsMatch(step.Run, @"\bdotnet test\b"));
+			static step => DotnetTest().IsMatch(step.Run));
 	}
 
 	/// <summary>Every value passed to <c>--filter-not-trait</c>, in order; the option may be repeated.</summary>
@@ -954,8 +951,7 @@ public sealed partial class WorkflowContractTests
 	/// <summary>The literal of the <c>$options = @( ... )</c> array the Debug and Release legs both pass to dotnet test.</summary>
 	private static string SharedTestOptions(string run)
 	{
-		Match options = Regex.Match(run, @"^\s*\$options\s*=\s*@\((?<body>.*?)^\s*\)\s*$",
-			RegexOptions.Multiline | RegexOptions.Singleline, TimeSpan.FromSeconds(1));
+		Match options = SharedOptionArray().Match(run);
 		Assert.True(options.Success, "The Test step no longer declares its shared option array as $options = @( ... ).");
 		return options.Groups["body"].Value;
 	}
@@ -987,15 +983,15 @@ public sealed partial class WorkflowContractTests
 	/// <summary>True when a script runs dotnet directly or through a repository script that does.</summary>
 	private static bool RunsDotnet(string run)
 	{
-		if (Regex.IsMatch(run, @"(^|[\s;&(])dotnet\s", RegexOptions.Multiline))
+		if (DotnetInvocation().IsMatch(run))
 		{
 			return true;
 		}
 
-		foreach (Match script in Regex.Matches(run, @"eng/[\w./-]+\.ps1"))
+		foreach (Match script in EngScript().Matches(run))
 		{
 			string path = Path.Combine(RepositoryRoot.Path, script.Value);
-			if (File.Exists(path) && Regex.IsMatch(File.ReadAllText(path), @"&\s*dotnet\b|^\s*dotnet\s", RegexOptions.Multiline))
+			if (File.Exists(path) && ScriptDotnetInvocation().IsMatch(File.ReadAllText(path)))
 			{
 				return true;
 			}
@@ -1029,4 +1025,63 @@ public sealed partial class WorkflowContractTests
 
 	[GeneratedRegex(@"^  [a-z][a-z0-9-]*:\s*$")]
 	private static partial Regex RuleEntry();
+
+	/// <summary>Binary logs: binlogs-&lt;job&gt; or binlogs-&lt;job&gt;-&lt;configuration&gt;.</summary>
+	[GeneratedRegex("^binlogs-[a-z0-9-]+?(-(Debug|Release))?$")]
+	private static partial Regex BinlogArtifact();
+
+	[GeneratedRegex(@"\bdotnet restore\b")]
+	private static partial Regex DotnetRestore();
+
+	[GeneratedRegex(@"\bdotnet build\b")]
+	private static partial Regex DotnetBuild();
+
+	[GeneratedRegex(@"\bdotnet pack\b")]
+	private static partial Regex DotnetPack();
+
+	[GeneratedRegex(@"\bdotnet test\b")]
+	private static partial Regex DotnetTest();
+
+	[GeneratedRegex(@"\bdotnet publish\b")]
+	private static partial Regex DotnetPublish();
+
+	[GeneratedRegex(@"\bdotnet (build|pack|test|publish)\b")]
+	private static partial Regex VersionedDotnetCommand();
+
+	[GeneratedRegex(@"\bdotnet restore CheatEngine\.Client\.slnx --locked-mode\b")]
+	private static partial Regex LockedSolutionRestore();
+
+	[GeneratedRegex(@"\bdotnet restore \$target\b")]
+	private static partial Regex TargetRestore();
+
+	[GeneratedRegex(@"^(?<value>\d+(\.\d+)?)(?<unit>m|min|s|h)$")]
+	private static partial Regex HangDumpDuration();
+
+	[GeneratedRegex(@"(--|-|/)warnaserror\b", RegexOptions.IgnoreCase)]
+	private static partial Regex WarnAsErrorSwitch();
+
+	[GeneratedRegex(@"^\d+\.\d+\.\d+$")]
+	private static partial Regex ThreePartVersion();
+
+	[GeneratedRegex("^[0-9a-f]{64}$")]
+	private static partial Regex Sha256Hex();
+
+	[GeneratedRegex(@"\bvars\.")]
+	private static partial Regex RepositoryVariable();
+
+	[GeneratedRegex(@"(-bl\b|-bl:|/bl\b|\.binlog|binlogs-)")]
+	private static partial Regex BinaryLog();
+
+	[GeneratedRegex(@"^\s*\$options\s*=\s*@\((?<body>.*?)^\s*\)\s*$", RegexOptions.Multiline | RegexOptions.Singleline,
+		1000)]
+	private static partial Regex SharedOptionArray();
+
+	[GeneratedRegex(@"(^|[\s;&(])dotnet\s", RegexOptions.Multiline)]
+	private static partial Regex DotnetInvocation();
+
+	[GeneratedRegex(@"eng/[\w./-]+\.ps1")]
+	private static partial Regex EngScript();
+
+	[GeneratedRegex(@"&\s*dotnet\b|^\s*dotnet\s", RegexOptions.Multiline)]
+	private static partial Regex ScriptDotnetInvocation();
 }

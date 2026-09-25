@@ -10,7 +10,7 @@ namespace CheatEngine.Client.Repository.Tests.Toolchain;
 /// SDK-implicit packages), the analysis level (a newer SDK band must not add CA/IDE errors) and the NuGet audit policy.
 /// The MSBuild guards CHEATENGINECLIENT9030-9032 catch overrides at build time; these tests catch edits of the pins.
 /// </summary>
-public sealed class ToolchainPinTests
+public sealed partial class ToolchainPinTests
 {
 	private const string SupplyChainTargetName = "CheatEngineClientValidateSupplyChainSettings";
 
@@ -31,7 +31,7 @@ public sealed class ToolchainPinTests
 		JsonElement sdk = globalJson.RootElement.GetProperty("sdk");
 
 		string version = sdk.GetProperty("version").GetString() ?? string.Empty;
-		Assert.Matches(new Regex(@"^\d+\.\d+\.\d{3}$"), version);
+		Assert.Matches(SdkVersion(), version);
 		Assert.Equal("disable", sdk.GetProperty("rollForward").GetString());
 		Assert.Equal(JsonValueKind.False, sdk.GetProperty("allowPrerelease").ValueKind);
 		Assert.Equal("Microsoft.Testing.Platform",
@@ -58,7 +58,7 @@ public sealed class ToolchainPinTests
 		XDocument props = LoadXml("Directory.Build.props");
 		string pin = SingleUnconditionalProperty(props, "_CheatEngineClientPinnedAnalysisLevel");
 
-		Assert.Matches(new Regex(@"^\d+\.\d+-recommended$"), pin);
+		Assert.Matches(RecommendedAnalysisLevel(), pin);
 		Assert.Equal("$(_CheatEngineClientPinnedAnalysisLevel)", SingleUnconditionalProperty(props, "AnalysisLevel"));
 
 		using JsonDocument globalJson = ReadGlobalJson();
@@ -121,7 +121,7 @@ public sealed class ToolchainPinTests
 		foreach (XElement error in guard.Elements("Error"))
 		{
 			string code = (string?) error.Attribute("Code") ?? string.Empty;
-			Assert.Matches(new Regex("^CHEATENGINECLIENT903[0-9]$"), code);
+			Assert.Matches(ToolchainGuardCode(), code);
 			guardCodes.Add(code);
 		}
 
@@ -172,4 +172,13 @@ public sealed class ToolchainPinTests
 			}
 		}
 	}
+
+	[GeneratedRegex(@"^\d+\.\d+\.\d{3}$")]
+	private static partial Regex SdkVersion();
+
+	[GeneratedRegex(@"^\d+\.\d+-recommended$")]
+	private static partial Regex RecommendedAnalysisLevel();
+
+	[GeneratedRegex("^CHEATENGINECLIENT903[0-9]$")]
+	private static partial Regex ToolchainGuardCode();
 }
