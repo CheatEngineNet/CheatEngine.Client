@@ -764,12 +764,8 @@ internal static partial class QualificationScenarios
 	private static bool TryResolveDeclaredScratch(QualificationObservation observation,
 		QualificationSession.ActiveClient active, string symbolName, int processId, out Address scratch)
 	{
-		if (!TryResolveScratch(observation, active, symbolName, out scratch, out _))
-		{
-			return false;
-		}
-
-		return GuardWrite(observation, processId, scratch, ScratchLength);
+		return TryResolveScratch(observation, active, symbolName, out scratch, out _) &&
+			   GuardWrite(observation, processId, scratch, ScratchLength);
 	}
 
 	private static bool GuardWrite(QualificationObservation observation, int processId, Address address, int length)

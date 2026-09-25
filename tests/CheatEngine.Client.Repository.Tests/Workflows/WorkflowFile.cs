@@ -257,12 +257,9 @@ internal sealed class WorkflowStep(int index, YamlMappingNode node)
 	/// <summary>Wraps the items of a <c>steps</c> sequence.</summary>
 	public static IReadOnlyList<WorkflowStep> From(YamlSequenceNode? steps)
 	{
-		if (steps is null)
-		{
-			return [];
-		}
-
-		return steps.Children.Select(static (step, index) => new WorkflowStep(index, (YamlMappingNode) step)).ToArray();
+		return steps is null
+			? []
+			: steps.Children.Select(static (step, index) => new WorkflowStep(index, (YamlMappingNode) step)).ToArray();
 	}
 }
 
@@ -272,12 +269,9 @@ internal static partial class Yaml
 	/// <summary>The value of a key, or null.</summary>
 	public static YamlNode? Get(YamlMappingNode? mapping, string key)
 	{
-		if (mapping is null)
-		{
-			return null;
-		}
-
-		return mapping.Children.TryGetValue(new YamlScalarNode(key), out YamlNode? value) ? value : null;
+		return mapping is not null && mapping.Children.TryGetValue(new YamlScalarNode(key), out YamlNode? value)
+			? value
+			: null;
 	}
 
 	/// <summary>A scalar value, or null.</summary>

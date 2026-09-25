@@ -561,12 +561,7 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 	private static bool IsFrameworkOrApprovedSdkValue(INamedTypeSymbol type)
 	{
 		string metadataName = type.OriginalDefinition.ToDisplayString();
-		if (ApprovedSdkClientResultTypes.Contains(metadataName))
-		{
-			return true;
-		}
-
-		return IsApprovedFrameworkClientBoundaryType(type);
+		return ApprovedSdkClientResultTypes.Contains(metadataName) || IsApprovedFrameworkClientBoundaryType(type);
 	}
 
 	private static bool IsApprovedFrameworkClientBoundaryType(INamedTypeSymbol type)
