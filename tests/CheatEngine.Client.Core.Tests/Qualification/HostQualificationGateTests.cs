@@ -17,8 +17,9 @@ public sealed class HostQualificationGateTests
 	private const string RunId = "20260930T101530Z-a1b2";
 	private const string SdkIdentity = "2.0.0+325c47b573f8bd39a247f1d0101f110fa36c1696";
 
-	private static readonly HostQualificationContext Exact = new(true, SdkIdentity, CheatEngineVersion.Ce77010621, true,
-		CheatEngineOperatingSystem.Windows, TargetBackend.LocalProcess, CheatEngineArchitecture.X64, "1.0.0");
+	private static readonly HostQualificationContext Exact = new(true, SdkIdentity, CheatEngineVersion.Ce77010621,
+		PointerSize.Bit64, CheatEngineOperatingSystem.Windows, TargetBackend.LocalProcess, CheatEngineArchitecture.X64,
+		"1.0.0");
 
 	private static ClientCapabilityDescriptor TypedMemory =>
 		ClientCapabilityCatalog.Entries.Single(static entry => entry.Id == ClientCapabilityId.TypedMemory);
@@ -65,7 +66,8 @@ public sealed class HostQualificationGateTests
 	[InlineData("no-loaded-identity", "not the loaded CheatEngine.SDK.Engine (no informational version)")]
 	[InlineData("version", "is not Cheat Engine 7.7.0.10621 64-bit on Windows")]
 	[InlineData("unknown-version", "is not Cheat Engine 7.7.0.10621 64-bit on Windows")]
-	[InlineData("bitness", "is not Cheat Engine 7.7.0.10621 64-bit on Windows")]
+	[InlineData("bitness", "(observed 7.7.0.10621, an unknown width, Windows)")]
+	[InlineData("32-bit", "(observed 7.7.0.10621, 32-bit, Windows)")]
 	[InlineData("operating-system", "is not Cheat Engine 7.7.0.10621 64-bit on Windows")]
 	[InlineData("backend", "reached through FileAsProcess")]
 	[InlineData("client-version", "is not the Client 1.0.0")]
@@ -93,7 +95,11 @@ public sealed class HostQualificationGateTests
 			},
 			"bitness" => Exact with
 			{
-				CheatEngine64Bit = null
+				CheatEngineBitness = PointerSize.Unknown
+			},
+			"32-bit" => Exact with
+			{
+				CheatEngineBitness = PointerSize.Bit32
 			},
 			"operating-system" => Exact with
 			{

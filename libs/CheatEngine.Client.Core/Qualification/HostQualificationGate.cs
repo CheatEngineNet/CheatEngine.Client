@@ -43,7 +43,9 @@ internal sealed record HostQualificationRecord(
 ///     <see langword="null" />.
 /// </param>
 /// <param name="CheatEngineVersion">The observed Cheat Engine file version, or <see langword="null" />.</param>
-/// <param name="CheatEngine64Bit">Whether Cheat Engine is 64-bit, or <see langword="null" /> when unknown.</param>
+/// <param name="CheatEngineBitness">
+///     The width of Cheat Engine's own process, <see cref="PointerSize.Unknown" /> when it was not observed.
+/// </param>
 /// <param name="OperatingSystem">The observed host operating system.</param>
 /// <param name="Backend">How Cheat Engine reaches the selected target.</param>
 /// <param name="TargetArchitecture">The architecture of the selected target.</param>
@@ -52,7 +54,7 @@ internal readonly record struct HostQualificationContext(
 	bool ExactReviewedIdentity,
 	string? SdkInformationalVersion,
 	CheatEngineVersion? CheatEngineVersion,
-	bool? CheatEngine64Bit,
+	PointerSize CheatEngineBitness,
 	CheatEngineOperatingSystem OperatingSystem,
 	TargetBackend Backend,
 	CheatEngineArchitecture TargetArchitecture,
@@ -131,12 +133,16 @@ internal static class HostQualificationGate
 						   $"supports {ConsumedSdkIdentity.SupportedHostProfileId} only.");
 		}
 
-		if (context.CheatEngineVersion != QualifiedCheatEngineVersion || context.CheatEngine64Bit != true ||
+		if (context.CheatEngineVersion != QualifiedCheatEngineVersion ||
+			context.CheatEngineBitness != PointerSize.Bit64 ||
 			context.OperatingSystem != CheatEngineOperatingSystem.Windows)
 		{
+			string bitness = context.CheatEngineBitness.IsKnown
+				? $"{context.CheatEngineBitness.Bytes * 8}-bit"
+				: "an unknown width";
 			return Unknown($"The host is not Cheat Engine {QualifiedCheatEngineVersion} 64-bit on Windows (observed " +
-						   $"{context.CheatEngineVersion?.ToString() ?? "an unknown version"}, 64-bit " +
-						   $"{context.CheatEngine64Bit?.ToString() ?? "unknown"}, {context.OperatingSystem}).");
+						   $"{context.CheatEngineVersion?.ToString() ?? "an unknown version"}, {bitness}, " +
+						   $"{context.OperatingSystem}).");
 		}
 
 		if (context.Backend != TargetBackend.LocalProcess)

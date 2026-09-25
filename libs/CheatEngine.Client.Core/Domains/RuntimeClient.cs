@@ -188,6 +188,12 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 		ObservedRuntime observed = RuntimeObserver.Observe(_port);
 		CheatEngineHostObservation host = observed.Host;
 		ObservedTarget target = observed.Target;
+		PointerSize cheatEngineBitness = host.CheatEngineIs64Bit switch
+		{
+			true => PointerSize.Bit64,
+			false => PointerSize.Bit32,
+			null => PointerSize.Unknown
+		};
 		return new CheatEngineRuntimeSnapshot(
 			Epoch,
 			new CheatEngineRuntimeVersionInfo(host.FileVersion, CheatEngineVersion.Ce77010621, _clientAssemblyVersion,
@@ -195,12 +201,7 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 			new CheatEngineRuntimePlatformInfo(
 				host.OperatingSystem,
 				host.SystemArchitecture,
-				host.CheatEngineIs64Bit switch
-				{
-					true => PointerSize.Bit64,
-					false => PointerSize.Bit32,
-					null => PointerSize.Unknown
-				},
+				cheatEngineBitness,
 				target.Backend,
 				target.Architecture,
 				target.Bitness,
@@ -209,7 +210,7 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 				target.ConfiguredPointerSizeBytes),
 			CreateClientCapabilities(observed.ProcessSelectionHost, new HostQualificationContext(
 				_sdkIdentity.ExactReviewedIdentity, _sdkIdentity.LoadedInformationalVersion, host.FileVersion,
-				host.CheatEngineIs64Bit, host.OperatingSystem, target.Backend, target.Architecture, _clientVersion)));
+				cheatEngineBitness, host.OperatingSystem, target.Backend, target.Architecture, _clientVersion)));
 	}
 
 	private ClientCapabilities CreateClientCapabilities(ClientCapabilityEvidenceGate selectedProcess,
