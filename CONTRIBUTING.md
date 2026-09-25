@@ -199,6 +199,177 @@ pull request that finds it; there is no scheduled job that re-runs threading-sen
   the Client uses is an exact, reasoned inventory of its own, and no Client code references or suppresses an
   `[Experimental]` SDK member (`CESDK5xxx`).
 
+## Package READMEs and implementation notes
+
+The README next to each packed project is its nuget.org page, written for plugin authors: installation, requirements,
+what the package offers and its contracts, with absolute `https://` links only (`PackedReadmesContainNoRelativeLinks`).
+What only a contributor needs lives here instead.
+
+### Changing a package
+
+- **Abstractions:** every change is a public API change. Keep request and value types immutable, preserve the
+  functional namespaces, add XML documentation, declare the change in `PublicAPI.Unshipped.txt` and add focused
+  contract tests in `tests/CheatEngine.Client.Abstractions.Tests`.
+- **Fluent:** add a fluent surface only when it preserves an existing explicit contract and has a bounded terminal
+  operation. Never store a Cheat Engine resource in a builder, add a Core dependency or introduce an assembly-derived
+  namespace; add behavior tests in `tests/CheatEngine.Client.Fluent.Tests` for every public member or terminal
+  condition.
+- **Core:** treat lifetime, dispatch and disposal changes as host-safety changes. Keep SDK handles internal, route new
+  Cheat Engine work through the dispatcher, add a capability observation for an optional binding, and test target and
+  activation invalidation and reverse-order cleanup in `tests/CheatEngine.Client.Core.Tests`. Core's public baseline is
+  intentionally empty: a public type there needs an explicit product-surface decision. The ordinary test suite uses
+  SDK-facing ports and fakes; it does not replace the opt-in live qualification.
+
+### Core internals
+
+The public behavior below is specified in the Abstractions README; this is how Core implements it.
+
+#### Capabilities and gates
+
+Every capability composes one operational adapter, so every implementation gate is satisfied, and
+`CapabilityRatchetTests` keeps it that way on the supported SDK major (`_CheatEngineClientSupportedSdkMajor` in
+`eng/CheatEngineSdk.props`). The value scans (`CECLIENT5001`) are sessions over CheatEngine.SDK's `MemoryScanSessions`
+owners and the target allocations (`CECLIENT5002`) leases over its `TargetMemoryAllocator` regions, released on Cheat
+Engine's main thread before the SDK detaches and never through another target.
+
+Every capability is described once, in the internal `ClientCapabilityCatalog`: its implementation gate, where its
+policy and host gates come from, and the live scenarios its qualification gate requires. `RuntimeClient` composes the
+snapshot from that catalog, and `CapabilityDocumentationTests` keeps the capability tables of the READMEs in step with
+it. The qualification gate comes from the internal `HostQualificationGate`: it is `Satisfied` only when the host
+evidence this build embeds (`HostQualificationEvidence`, empty until a live run is recorded, and excluded from the
+qualified source digest) names exactly the loaded CheatEngine.SDK package, which must be the reviewed one, Cheat Engine
+7.7.0.10621 and the supported host profile, when the observed host is Cheat Engine 7.7.0.10621 64-bit on Windows with a
+local target of an architecture the run covered, when the evidence names this Client version, and when every scenario
+of the capability passed without a waiver; otherwise it is `Unknown` and names the first condition that does not hold.
+
+The package gate compares the CheatEngine.SDK identity embedded in the Core assembly at build time (version, source
+commit and NuGet content hash, as `AssemblyMetadata`, taken from the locked and restored package, and the supported
+major of `eng/CheatEngineSdk.props`) with the informational version of the `CheatEngine.SDK.Engine` assembly actually
+loaded; it reads assembly attributes only. Its reason says whether the loaded assembly is exactly the reviewed package,
+a distinction the qualification gate needs (a receipt covers only the tuple it was produced with). A build that cannot
+embed that identity fails with `CHEATENGINECLIENT9050`.
+
+**Instructions** (`CECLIENT5003`): the internal `AssemblyClient` runs each call in one dispatched callback behind one
+`LuaAdmission`, observes the instruction profile once (`InstructionProfiles.TryObserveCurrent`), refuses an address
+wider than that profile before any instruction function of Cheat Engine is called, and passes the same profile to
+`SdkInstructionPort` (`InstructionAssembler`, `InstructionDisassembler`, `InstructionNavigator` and the counted
+`TargetMemory.TryReadBytes`). Assembly uses a 16-byte buffer bounded by `MemoryResourceLimits.MaximumReadBytes`, with
+one retry at the exact length the SDK reports, and refuses an empty result; a disassembly reads its bytes from target
+memory for the reported length, between two SDK target checks, and never parses the disassembler's byte column.
+`InstructionMapping` maps every `InstructionOperationStatus` totally, and a step that follows an earlier instruction
+call of the same Client call is never `NotStarted`.
+
+**Auto Assembler patches** (`CECLIENT5004`): the internal `AutoAssemblerClient` is registered only by
+`EnableAutoAssemblerPatches()`, which also sets `CoreClientPolicy.EnableAutoAssemblerPatches`, and it refuses every call
+without that policy (`CapabilityUnavailable`, `NotStarted`, no dispatch). Its only Cheat Engine calls go through
+`SdkAutoAssemblerPort` (`AutoAssemblerPatcher.TryApplyWithOutcome` and `TryCheck` with bounded options, behind
+`LuaAdmission`); `AutoAssemblerMapping` maps every SDK outcome category totally. The applied patch is handed to
+`AutoAssemblerPatchLease`, a target-bound `HostResourceLease` registered inside the same dispatched callback under the
+selection of the process incarnation the SDK bound the patch to (`ITargetSelectionBinder`, as for allocations and value
+scans), which releases through the SDK owner's `ReleaseWithTargetOutcome` and never rebuilds a `[DISABLE]` section; a
+refused registration is reported by `LeaseRegistration`. That owner consumes its disable information on every release
+status, so `AutoAssemblerMapping.ToReleaseOutcome` reports `NotInvoked` as `RefusedRuntimeChanged` (manual recovery)
+instead of the shared retryable `CleanupUnavailable`.
+
+#### Runtime facts, target selection and pointer width
+
+Every runtime and target fact is a read-only CheatEngine.SDK call through `SdkRuntimeObservationPort`:
+`RuntimeObservations.TryObserveRuntimeInfo` for the snapshot, `RuntimeHostOperations` for the host facts,
+`RuntimeProcessOperations` (`ObserveCurrent`, `ObserveTargetArchitecture`, `TryGetConfiguredPointerSize`) for the target
+and `TargetSelection` (`ObserveCurrent`, `ValidateCurrent`) for its identity; the architecture ratchet keeps the port
+to that exact read-only list (Q45). The SDK reads the selected process identifier before and after the target facts and
+reads none of them when no target, or a file opened as a process, is selected. The SDK reports every outcome as a
+status, never through Lua error text, and `RuntimeObservationMapping` maps each status value explicitly. When the
+aggregate snapshot cannot be produced, the Client reads the host facts on their own, and each fact alone when that
+fails, and observes the target through `TargetArchitectureObserver`. A target fact that raises or is malformed narrows
+the observation to the PID, the bitness and the configured pointer size, which it keeps only when two selected-PID
+reads agree; the ISA, the backend and the ABI then stay `Unknown`.
+
+The one call that changes Cheat Engine's selection is `RuntimeProcessOperations.SelectAndObserve`, behind
+`SdkProcessSelectionPort`, and `ProcessClient.TryAttach` is its only caller (architecture ratchet). A refused attach
+keeps the SDK status as its kind with an `Unknown` host effect, and the selection is observed again after a refusal, so
+the epoch follows what Cheat Engine now selects. For a local process the selection identity is the PID and its
+incarnation, the creation time CheatEngine.SDK observed together with the local backend; a known incarnation is checked
+with `TargetSelection.ValidateCurrent`. `ProcessClient` advances the target-selection epoch, and ends the target-bound
+leases of the earlier selection, when the PID changes, when the same PID denotes another incarnation, when a known
+backend, ISA or process width changes to another known value, or when Cheat Engine reports no target or a file opened
+as a process; a fact that is transiently unknown keeps the epoch and the last known value.
+
+Every pointer read and write goes through the width-qualified `TargetMemory.TryReadPointer` and `TryWritePointer`
+overloads with the observed bitness, and every `MemoryAccessFailure` reaches the caller through
+`MemoryAccessFailureMapping`, value by value and never as text.
+
+#### Address List records and symbols
+
+Every trusted table load that reaches Cheat Engine advances the table generation of the activation inside the
+dispatched load; each snapshot is judged by the generation read when it was copied. Table files load and save through
+CheatEngine.SDK's `CheatTableFiles`, only after the `AllowedTableRoots` policy admitted the path, and `TableMapping`
+classifies its `LuaOperationStatus` value by value; the Client binds no Cheat Engine global itself. Delete, parent
+assignment and activation are CheatEngine.SDK `AddressListMutations` commands (`Delete`, `SetParent` with the Client's
+explicit traversal limit of 4096 records, `SetActive`), also classified by `TableMapping`; the record is copied again
+after a completed command and a failed copy is never merged with the command's result. Snapshots read the record
+through CheatEngine.SDK's typed `MemoryRecord` getters (`TryGetActive`, `TryGetAsync`, `TryGetAsyncProcessing`,
+`TryGetScript`, `TryGetOffsetCount`); the child count alone is still Cheat Engine's `Count` property, because the SDK
+has no child-count getter and `TryGetChild` cannot tell a missing child from a failed read (`FrozenLuaUsage`,
+`AwaitingSdkPrimitive`). `TryGetScript` cannot tell a record without a script from a failed read either; a getter that
+tells them apart is awaited from the SDK. A failed `Create` is rolled back once through `AddressListMutations.Delete`.
+
+Symbol registration refuses a name that already resolves (`EngineInspection.ResolveAddress`), then registers through
+CheatEngine.SDK's ownership coordinator (`SymbolRegistry.TryRegisterOwned`) and registers the lease with the
+activation in the same main-thread callback.
+
+#### AOB scans
+
+`PatternScanner` runs a request without a module or range as one global Cheat Engine `AOBScan`. A module and/or range
+request resolves the module, builds the SDK's `AobScanBounds` (the module intersected with the range, whose inclusive
+end becomes `End + pattern length`, checked and saturated) and, when the port's `TargetSelection.ObserveCurrent`
+observation qualifies the target, runs the stable `AobScanner.TryScanWithinBounds` overload with a destination of
+`min(MaximumResults + 1, ScanResourceLimits.MaximumPatternMatches)` addresses and the caller's token. An unqualified
+target, or a session the SDK could not create or attach to one target, falls back to the global scan with the module
+and range applied while copying; the fallback never reports a verified target identity. Both routes copy through one
+scope predicate (`PatternScanner.IsInsideRequest`), copy at most `ScanResourceLimits.MaximumPatternMatches - 1`
+addresses, and send the empty protection text for the default filter.
+`tests/CheatEngine.Client.Benchmarks/AobRouteComparisonBenchmarks.cs` compares the Client cost of the two routes over a
+fake port, and `PatternScannerMaterializationBenchmarks.cs` measures the copy cost alone; the Cheat Engine scan cost is
+a live-host measurement.
+
+The SDK owner of the result list is handed to the Client wrapper through `OwnershipHandoff`, so a failure between
+acquisition and publication releases the Cheat Engine list exactly once; when that release is not confirmed, the typed
+`OwnershipHandoffException` carries its kind and the scan fails with `CleanupUnconfirmed`. The scanner then releases
+the list exactly once on every path, inside the dispatched callback, through the SDK owner's never-throwing
+`ReleaseWithOutcome`, mapped with `SdkReleaseOutcomes`. The AOB port calls `AobScanner.TryScanOutcome` with its target
+context, and `AobScanMapping` classifies every outcome from SDK outcome values only, never from Cheat Engine or Lua
+error text.
+
+#### Leases and release outcomes
+
+Every Client lease derives from the internal `HostResourceLease`, which implements `ICheatEngineLease` once: the
+release runs on Cheat Engine's main thread through the activation dispatcher, attempts are serialized and idempotent,
+`Dispose` never throws, and each attempt is logged with its operation name, kind and effect only (event 1701). A lease
+registers with the activation registry and, when it is bound to the selected target, with the target-selection lifetime
+too. A complete outcome unregisters it; a retryable or incomplete one keeps it registered, and the activation drain
+retries or reports it (Q43).
+
+`SdkReleaseOutcomes` maps the CheatEngine.SDK release statuses totally (`TargetReleaseStatus`,
+`SymbolRegistrationReleaseKind`; an unknown value is `Unknown` with an unknown effect) and combines the parts of one
+lease by keeping the outcome that leaves the most to do. The Lua module lease (`Lua.Release`) maps the kind its module
+reports with `LuaModuleReleaseMapping`; `LuaRegistrationReleaseKind` is mapped by the generated Lua registrar, which
+owns the SDK registration lease (see the generator README). Every lease release is named `<Service>.Release`, and every
+failure operation `<Service>.<Member>` after the public call that produced it (`OperationNameTests`).
+
+#### SDK boundary and the Try contract
+
+Every Client-internal CheatEngine.SDK call (ports, `TargetMemory`, `EngineInspection`, `AobScanner`, Address List
+access and mutations, `CheatTableFiles`, protected Lua execution) runs behind `SdkBoundary`: an SDK exception becomes a
+classified `CheatEngineFailure` by exception type and the SDK's own failure category, never by message text. Client
+lifecycle exceptions are never translated, and an SDK fault observed after the activation ended is reported as
+`CheatEngineActivationExpiredException`. Lua work that Core runs itself asks for its admission through `LuaAdmission`
+(`LuaRuntime.TryAcquireOperationWithOutcome`), and a refusal is classified from the SDK's admission status. A
+CheatEngine.SDK call that acquires its own admission (`AddressListMutations`, `CheatTableFiles`, `SymbolRegistry`,
+`TargetMemory`, scans) raises a plain `InvalidOperationException` when it is refused, which `SdkBoundary` reports as
+`OperationRejected` with `Unknown`, unless the activation ended or the SDK detected an external Lua state reset
+(`RuntimeChanged`). Consumer-supplied code (dispatcher callbacks, codecs, typed Lua operations) is never wrapped.
+
 ## Evidence and qualification levels
 
 State the qualification level of every validation you report: **C0** static contract, **C1** managed tests or test

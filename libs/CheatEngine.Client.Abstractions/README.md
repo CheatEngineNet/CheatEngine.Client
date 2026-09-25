@@ -11,6 +11,23 @@ It defines the public contracts used by the product facade, implementations, flu
 hosting, extensions, and application code. It is intentionally synchronous: an attached Cheat
 Engine Lua runtime and its main-thread work must not be retained across an `await` boundary.
 
+This README is the reference of every contract: its failures, its limits, the experimental APIs and the public API
+charter.
+
+## Installation
+
+A plugin references [`CheatEngine.Client`](https://www.nuget.org/packages/CheatEngine.Client), which brings this
+package at exactly its own version. The
+[CheatEngine.Client README](https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/src/CheatEngine.Client/README.md)
+gives the plugin project, the requirements (`net10.0`, C# 14, a .NET SDK 10.0.401 or later, Cheat Engine 7.7.0.10621
+x64, a direct `CheatEngine.SDK` reference in `[2.0.0, 3.0.0)`), a minimal plugin and the supported host profile.
+
+Reference `CheatEngine.Client.Abstractions` on its own only for code that depends on the contracts without an
+implementation, such as a library of Client modules or a test double, and at the same version as every other Client
+package: the seven packages ship in lockstep. This package depends on `CheatEngine.SDK` `[2.0.0, 3.0.0)` for its value
+types only; the SDK's build, native and analyzer assets do not flow through it, so a plugin still references the SDK
+directly.
+
 ## Why This Project Exists
 
 The SDK correctly exposes the Cheat Engine runtime, Lua bridge, ownership wrappers, and ABI-level
@@ -208,9 +225,9 @@ exact host profile of the release; the documentation link of each diagnostic poi
 - **Profile:** each call observes Cheat Engine's selected target and its instruction profile (x86, x64, ARM32 or ARM64
   with its address width) once, through CheatEngine.SDK, in the same dispatched callback as its Cheat Engine calls. An
   address above 4 GiB on a 32-bit profile is `OperationRejected` with `NotStarted`, before any instruction function of
-  Cheat Engine is called. CheatEngine.SDK checks the selected process again before and after every Cheat Engine call: a target that changed
-  meanwhile is `TargetChanged` and nothing is returned. The check is an observation, not a lock, and the Client never
-  selects a process or changes Cheat Engine's assembler mode.
+  Cheat Engine is called. CheatEngine.SDK checks the selected process again before and after every Cheat Engine call:
+  a target that changed meanwhile is `TargetChanged` and nothing is returned. The check is an observation, not a lock,
+  and the Client never selects a process or changes Cheat Engine's assembler mode.
 - **Assemble:** the request carries the origin address, an `InstructionEncodingPreference` (`None`, `Short`, `Long`,
   `Far`, passed to Cheat Engine's `assemble` unchanged) and `SkipRangeCheck`; with `SkipRangeCheck`, Cheat Engine emits
   bytes even when a relative operand cannot reach its target. The bytes are valid only at that origin. A rejected
@@ -568,7 +585,56 @@ No Client exception has a public constructor: `CheatEngineFailure.Throw(token)` 
 
 A cancelled throwing call is therefore handled with `catch (OperationCanceledException)`, like any other .NET
 cancellation; read `CheatEngineOperationCanceledException.Failure.HostEffect` to learn whether Cheat Engine work had
-started. The `Try` form of the same call returns the same failure instead of throwing it.
+started. The `Try` form of the same call returns the same failure instead of throwing it:
+
+```csharp
+using CheatEngine.Client;
+using CheatEngine.Client.Modules;
+using CheatEngine.Client.Processes;
+using CheatEngine.Client.Results;
+using CheatEngine.SDK.Engine.Runtime;
+
+namespace MyPlugin;
+
+public sealed class TargetWidthModule : ICheatEngineClientModule
+{
+    public PointerSize TargetWidth { get; private set; }
+
+    public void OnEnabled(ICheatEngineClient client)
+    {
+        // The Try form returns the expected failures of a well-formed request: classify them by Kind and HostEffect,
+        // never by Message.
+        if (client.Processes.TryGetCurrentProcess(out ProcessSnapshot process, out CheatEngineFailure failure))
+        {
+            TargetWidth = process.Bitness;
+        }
+        else if (failure.Kind != CheatEngineFailureKind.TargetNotAttached)
+        {
+            // Throws exactly what the throwing form would have thrown.
+            failure.Throw(client.Stopping);
+        }
+
+        // The throwing form returns the same value or throws the same failure.
+        try
+        {
+            TargetWidth = client.Processes.GetCurrentProcess(client.Stopping).Bitness;
+        }
+        catch (OperationCanceledException)
+        {
+            // The activation began stopping.
+        }
+        catch (CheatEngineClientException exception)
+            when (exception.Failure.HostEffect == CheatEngineHostEffect.NotStarted)
+        {
+            // Cheat Engine was not called: there is nothing to undo.
+        }
+    }
+
+    public void OnDisabling(ICheatEngineClient client)
+    {
+    }
+}
+```
 
 A `Try` method leaves its `failure` output `default` only when it returns `true`. The `default` failure is safe to
 read: `IsDefault` is `true`, `Operation` and `Message` are empty strings (never `null`), `Kind` and `HostEffect` are
@@ -704,6 +770,28 @@ process.
 
 `LeaseReleaseOutcome.ToString()` returns only the kind and the effect.
 
+#### Lua module leases
+
+A module generated from `[CheatEngineLuaModule]` registers through its bindings' SDK-generated
+`TryRegisterLuaFunctions` with the `RejectExisting` collision policy and keeps the CheatEngine.SDK registration lease.
+`ILuaModule.Unregister()` releases that lease: CheatEngine.SDK writes an exported Lua global only while it still holds
+the value the module installed, compared by primitive identity, and never overwrites a value a third party put there
+(audit finding F12, qualification scenario Q16). The returned `LuaModuleReleaseOutcome` copies what the SDK observed:
+`Kind` in the Client lease vocabulary (`Released`, `PartiallyReleased`, `RefusedRuntimeChanged` for a registration of an
+earlier Lua attachment or state or an admission refused with `Detached` or `ExternalStateReset`, which consumes it,
+`AlreadyReleased` when nothing was owned, `CleanupUnavailable` when CheatEngine.SDK refused the Lua admission for another
+reason and the module kept its registration, `CleanupUnconfirmed` when CheatEngine.SDK consumed the registration but
+reported a release outside its documented shape), `RemovedCount`, `ReplacementCount` (a replaced or
+already-`nil` global, left untouched), `RestoredCount` (always `0` for a generated module), `RemainingCount` and the
+`FailedExports` of a partial release, which is never retried. A manual `ILuaModule` reports its release with the
+`LuaModuleReleaseOutcome` factories. The outcome holds copied names and counts only. `ILuaModuleLease` is an
+`ICheatEngineLease`: its `Release()` calls `Unregister()` on Cheat Engine's main thread, keeps the reported outcome in
+`LastModuleReleaseOutcome` next to the lease's `LastReleaseOutcome`, and returns the same kind with its host effect
+(`Completed` for `Released`, `Started` for `PartiallyReleased` and `CleanupUnconfirmed`, `NotStarted` for a release that
+wrote nothing); an exception thrown by a module is `CleanupUnconfirmed`. Only `CleanupUnavailable` and `Unknown` keep
+the lease active for a retry. This behavior is covered by managed tests against a double of the SDK registration set
+(C1); it is not a host qualification.
+
 ### Diagnostics and redaction
 
 `CheatEngineFailure.Kind`, `Operation`, and `HostEffect`, together with counts and durations such as
@@ -713,10 +801,12 @@ explicit opt-in chosen by the application. `CheatEngineFailure.ToString()` retur
 `"{Kind} in {Operation} (host effect: {HostEffect})"`, so a structured logger that formats the failure object emits no
 user data by default. Client libraries never log user data themselves: Hosting events carry epochs, stage names,
 counts, and exception type names only, and a test rejects any Client `LoggerMessage` event whose parameters could carry
-an address, expression, path, script, message, exception, or failure object. The Core diagnostic events (runtime
-snapshots, capability refusals, target-selection changes, pointer-width refusals, batch counts, table generations,
-activation and symbol outcomes, scan metrics, Lua durations, cleanup failures) follow the same rule; the
-`CheatEngine.Client.Core` README lists them.
+an address, expression, path, script, message, exception, or failure object. The Core diagnostic events 1000 to 1800
+(runtime snapshots, capability refusals, target-selection changes, pointer-width refusals, batch counts, table
+generations, activation and symbol outcomes, scan metrics, Lua durations, cleanup failures, lease releases, and the
+warning for an Auto Assembler patch applied after a target change) follow the same rule; the
+[`CheatEngine.Client.Core` README](https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/libs/CheatEngine.Client.Core/README.md#diagnostics-events)
+lists them.
 
 ### Typed memory routes
 
@@ -934,40 +1024,3 @@ signature. Because these types are part of the Client's signatures, moving to Ch
 | Host text (user data) | `Host<Text>` (`HostMessages`, `HostWarnings`) | — |
 | Why, as text / as a typed value | `Reason`, `EffectiveReason` / `EffectiveReasonCode`, `RouteReason` | — |
 | AOB range / value-scan range | `Start`–`End` (End is the last allowed match start) / `StartAddress`–`StopAddress` (Stop is exclusive) | — |
-
-## Contribution and Validation
-
-Changes here are public API changes. Keep request/value types immutable, preserve functional
-namespaces, add XML documentation, update `PublicAPI.Unshipped.txt`, and add focused contract
-tests in `tests/CheatEngine.Client.Abstractions.Tests` before moving an entry to
-`PublicAPI.Shipped.txt`.
-
-From the repository root, validate the complete package graph:
-
-```powershell
-dotnet restore CheatEngine.Client.slnx --locked-mode
-dotnet build CheatEngine.Client.slnx --configuration Release --no-restore
-dotnet test --solution CheatEngine.Client.slnx --configuration Release --no-build --no-restore
-```
-
-## Lua module release outcomes
-
-A module generated from `[CheatEngineLuaModule]` registers through its bindings' SDK-generated
-`TryRegisterLuaFunctions` with the `RejectExisting` collision policy and keeps the CheatEngine.SDK registration lease.
-`ILuaModule.Unregister()` releases that lease: CheatEngine.SDK writes an exported Lua global only while it still holds
-the value the module installed, compared by primitive identity, and never overwrites a value a third party put there
-(audit finding F12, qualification scenario Q16). The returned `LuaModuleReleaseOutcome` copies what the SDK observed:
-`Kind` in the Client lease vocabulary (`Released`, `PartiallyReleased`, `RefusedRuntimeChanged` for a registration of an
-earlier Lua attachment or state or an admission refused with `Detached` or `ExternalStateReset`, which consumes it,
-`AlreadyReleased` when nothing was owned, `CleanupUnavailable` when CheatEngine.SDK refused the Lua admission for another
-reason and the module kept its registration, `CleanupUnconfirmed` when CheatEngine.SDK consumed the registration but
-reported a release outside its documented shape), `RemovedCount`, `ReplacementCount` (a replaced or
-already-`nil` global, left untouched), `RestoredCount` (always `0` for a generated module), `RemainingCount` and the
-`FailedExports` of a partial release, which is never retried. A manual `ILuaModule` reports its release with the
-`LuaModuleReleaseOutcome` factories. The outcome holds copied names and counts only. `ILuaModuleLease` is an
-`ICheatEngineLease`: its `Release()` calls `Unregister()` on Cheat Engine's main thread, keeps the reported outcome in
-`LastModuleReleaseOutcome` next to the lease's `LastReleaseOutcome`, and returns the same kind with its host effect
-(`Completed` for `Released`, `Started` for `PartiallyReleased` and `CleanupUnconfirmed`, `NotStarted` for a release that
-wrote nothing); an exception thrown by a module is `CleanupUnconfirmed`. Only `CleanupUnavailable` and `Unknown` keep
-the lease active for a retry. This behavior is covered by managed tests against a double of the SDK registration set
-(C1); it is not a host qualification.

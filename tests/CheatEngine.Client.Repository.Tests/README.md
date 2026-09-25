@@ -72,8 +72,26 @@ read committed files: the project never builds, packs, restores or starts a proc
   `dotnet test` step excludes `Category=LiveQualification` by trait (in `ci.yml`, in the option array both legs share),
   with no positive filter and no workflow that sets the live qualification opt-in. `Workflows/WorkflowFile` loads the
   YAML with YamlDotNet.
+- `Workflows/SonarWorkflowTests` freezes the analysis scope of `sonar.yml`: every excluded path exists, and shipping
+  code leaves the coverage metric file by file (`ShippingCodeIsExcludedFromCoverageFileByFile`), never by a folder
+  pattern.
 - `Toolchain/TestProfileTests` prove that every `*.Tests` project references the Microsoft.Testing.Platform extension
   of every option the CI test command passes (a missing one fails the module with exit code 5).
+- `Capabilities/CapabilityDocumentationTests` keeps every capability table (the Markdown table between
+  `<!-- capability-table:start -->` and `<!-- capability-table:end -->`, in any README) equal to the Client's capability
+  catalog: each `ClientCapabilityId` listed once, the catalog's operational adapter and experimental id in the
+  Implementation column, and exactly the live scenarios its qualification gate requires in the Qualification column.
+  `InstallGuidesStateTheQualifiedHostProfile` proves that the three install guides state the supported host profile,
+  the host executable and runtime configuration hashes and the NuGet content hash that Core's lock file records.
+- `SourcePolicy/` holds the source rules no analyzer expresses:
+  - `ErrorTextClassificationPolicyTests`: Client libraries never classify a failure by Cheat Engine or Lua error text
+    (A07-22, A24-24), only by type and status;
+  - `InterfaceStabilityRemarkTests`: every public interface states whether it is Call-only or Implementable, and the
+    versioning sections of the root and `CheatEngine.Client` READMEs name exactly the Implementable ones;
+  - `SingleFileSuppressionTests`: IL3000 is suppressed exactly once, on the getter of
+    `CheatEnginePluginBuilder.PluginDirectory`, under ADR-02;
+  - `TemplateLoggingPolicyTests`: the template's log events carry no address, value or raw failure (Q46), checked from
+    the committed text because the template compiles only after `dotnet new`.
 - `Qualification/QualificationEvidenceTests` keeps the evidence discipline of the live qualification:
   `NoQualificationClaimWithoutCommittedEvidence` refuses, while
   `tests/CheatEngine.Client.Tests/LiveQualification/Evidence/` holds no committed run summary, any README, CHANGELOG,

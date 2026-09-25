@@ -12,18 +12,51 @@ domain has one entry point, an extension method on the service that runs its ter
 `IMemoryClient`, usually `client.Patterns` and `client.Memory` of an activation-scoped
 `ICheatEngineClient`. A builder is bound to that service when it is created and is never rebound.
 
+## Installation
+
+A plugin references [`CheatEngine.Client`](https://www.nuget.org/packages/CheatEngine.Client), which brings this
+package at exactly its own version. The
+[CheatEngine.Client README](https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/src/CheatEngine.Client/README.md)
+gives the plugin project, the requirements (`net10.0`, C# 14, a .NET SDK 10.0.401 or later, Cheat Engine 7.7.0.10621
+x64, a direct `CheatEngine.SDK` reference in `[2.0.0, 3.0.0)`) and a minimal plugin. Reference
+`CheatEngine.Client.Fluent` on its own only for code that builds requests against the contracts without Hosting, at the
+same version as every other Client package: the seven packages ship in lockstep.
+
+## Example
+
 ```csharp
+using System.Collections.Immutable;
+
+using CheatEngine.Client;
 using CheatEngine.Client.Memory;
+using CheatEngine.Client.Modules;
 using CheatEngine.Client.Scanning;
 using CheatEngine.SDK.Engine.Values;
 
-Address address = client.Patterns.Aob("48 8B ?? ?? ?? 89")
-    .InModule("game.exe")
-    .Executable()
-    .RequireSingle()
-    .Execute();
+namespace MyPlugin;
 
-client.Memory.At(address + 0x14).Write(999);
+public sealed class ScoreModule : ICheatEngineClientModule
+{
+    public void OnEnabled(ICheatEngineClient client)
+    {
+        Address address = client.Patterns.Aob("48 8B ?? ?? ?? 89")
+            .InModule("game.exe")
+            .Executable()
+            .RequireSingle()
+            .Execute();
+
+        client.Memory.At(address + 0x14).Write(999);
+
+        // Take(n) copies at most n addresses, and IsTruncated says whether more may exist; a batch then reads one
+        // primitive at each address in one dispatched call.
+        AobScanResult writers = client.Patterns.Aob("89 05 ?? ?? ?? ??").InModule("game.exe").Take(16).Execute();
+        ImmutableArray<int> operands = client.Memory.Batch<int>().Read(writers.Matches.AsSpan());
+    }
+
+    public void OnDisabling(ICheatEngineClient client)
+    {
+    }
+}
 ```
 
 `InModule(...)` and `InRange(...)` scope the scan with one rule on every route: a match must lie entirely inside the
@@ -118,18 +151,3 @@ Fluent does not make a capability available. For example, it has no builder for 
 value scans (`CECLIENT5001`): use `IValueScanner` directly. A builder remains valid as a
 managed value, but executing it through a stale scoped service still follows the implementation's
 activation and target-epoch rules.
-
-## Contribution and Validation
-
-Add a fluent surface only when it preserves an existing explicit contract and has a bounded terminal
-operation. Do not store CE resources in a builder, add Core dependencies, or introduce
-assembly-derived namespaces. Update `PublicAPI.Unshipped.txt` and add focused behavior tests in
-`tests/CheatEngine.Client.Fluent.Tests` for every public member or terminal-condition change.
-
-Validate the complete graph from the repository root:
-
-```powershell
-dotnet restore CheatEngine.Client.slnx --locked-mode
-dotnet build CheatEngine.Client.slnx --configuration Release --no-restore
-dotnet test --solution CheatEngine.Client.slnx --configuration Release --no-build --no-restore
-```

@@ -1,29 +1,52 @@
 # CheatEngine.Client
 
-## Context
+High-level, lifecycle-safe C# APIs for in-process Cheat Engine plugins, built on
+[CheatEngine.SDK](https://www.nuget.org/packages/CheatEngine.SDK).
 
-`CheatEngine.Client` is the umbrella package for a normal in-process Cheat Engine plugin. It is the composition root
-of the Client delivery graph: it combines Hosting and Fluent APIs over the public Client contracts, while keeping the
-SDK-facing Core implementation behind the DI registration boundary. The package itself intentionally contains no
+`CheatEngine.Client` is the package a plugin references. It brings the activation-scoped host
+([`CheatEngine.Client.Hosting`](https://www.nuget.org/packages/CheatEngine.Client.Hosting)), the fluent memory and AOB
+builders ([`CheatEngine.Client.Fluent`](https://www.nuget.org/packages/CheatEngine.Client.Fluent)) and, through them,
+the public contracts and the SDK-facing implementation, at exactly its own version. The package itself contains no
 Cheat Engine host logic.
 
-CheatEngine.Client runs in process inside an enabled Cheat Engine plugin; it is neither Cheat Engine's `luaclient`
-library nor an RPC client of `ceserver`.
+The Client runs in process inside an enabled Cheat Engine plugin. It is not a standalone executable, not Cheat Engine's
+`luaclient` library and not an RPC client of `ceserver`.
 
-## Why this project exists
+## Requirements
 
-Most plugin projects should take one Client package rather than recreate the Client package graph. This façade is that
-stable installation point: Hosting supplies the activation-scoped DI lifecycle, Fluent supplies immutable request
-builders, and Core is composed internally through Hosting's DI registration.
+| Plugin project requirement | Value |
+|---|---|
+| Target framework | `net10.0` (`CECLIENT005`) |
+| Language | C# 14, `<LangVersion>14.0</LangVersion>` (`CECLIENT006`) |
+| .NET SDK | 10.0.401 or later: the Lua generator packed in Hosting is compiled against Roslyn 5.9.0 (CS9057 below it) |
+| Platform | Windows x64; `PlatformTarget` is `x64` or `AnyCPU` (`CECLIENT007`) |
+| Cheat Engine | 7.7.0.10621 x64 (`cheatengine-x86_64.exe`), loading the plugin through its managed .NET host |
+| `CheatEngine.SDK` | A direct `PackageReference` in `[2.0.0, 3.0.0)` (`CECLIENT001`, `CECLIENT017`, `NU1605`) |
+| Other Client packages | None: `CheatEngine.Client` brings them, each at exactly its own version |
 
-It deliberately does not replace `CheatEngine.SDK`. A plugin must reference the SDK **directly** so its build assets
-can generate the Cheat Engine entry point and copy the native Lua bridge. Those host-bound assets do not flow through
-an ordinary transitive NuGet dependency.
+The codes in parentheses are the build or restore errors that enforce a row; the
+[Hosting README](https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/libs/CheatEngine.Client.Hosting/README.md)
+lists every `CECLIENT` build diagnostic.
+
+## Installation
+
+Start from the `ceplugin` template, which writes the project below and a complete example plugin:
+
+```powershell
+dotnet new install CheatEngine.Client.Templates
+dotnet new ceplugin --name MyPlugin
+cd MyPlugin
+dotnet build --configuration Release
+```
+
+To add the Client to an existing plugin project, keep these properties and direct references:
 
 ```xml
 <PropertyGroup>
   <TargetFramework>net10.0</TargetFramework>
   <LangVersion>14.0</LangVersion>
+  <Nullable>enable</Nullable>
+  <ImplicitUsings>enable</ImplicitUsings>
   <PlatformTarget>x64</PlatformTarget>
   <CheatEngineClientPluginProject>true</CheatEngineClientPluginProject>
 </PropertyGroup>
@@ -31,22 +54,130 @@ an ordinary transitive NuGet dependency.
 <ItemGroup>
   <PackageReference Include="CheatEngine.Client" Version="X.Y.Z" />
   <PackageReference Include="CheatEngine.SDK" Version="2.0.0" />
+  <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.12" />
 </ItemGroup>
 ```
 
-Replace `X.Y.Z` with the CheatEngine.Client version you install; the `ceplugin` template writes it for you. Keep
-`CheatEngine.SDK` on 2.x: this Client release is built and tested against CheatEngine.SDK 2.0.0 and declares
-`[2.0.0, 3.0.0)`. A 3.x SDK fails the build with `CECLIENT017`, and a version below 2.0.0 fails the restore with
-`NU1605`. Do not upgrade to 3.x until a Client release says so.
+Replace `X.Y.Z` with the CheatEngine.Client version you install; the template writes it for you.
+`Microsoft.Extensions.Configuration.Json` is needed only to load an `appsettings.json` file, as below.
 
-When `CheatEngineClientPluginProject` is enabled, the Hosting build target emits `CECLIENT001` if that direct SDK
-reference is missing.
+`CheatEngine.SDK` must be referenced **directly** by the plugin project: its build assets generate the Cheat Engine
+entry point and copy the native Lua bridge, and they do not flow through a transitive NuGet dependency.
+`CheatEngineClientPluginProject` turns on the Hosting build checks of the plugin profile, which fail the build when that
+reference is missing (`CECLIENT001`). Keep `CheatEngine.SDK` on 2.x: this Client release is built and tested against
+CheatEngine.SDK 2.0.0 and declares `[2.0.0, 3.0.0)`. A 3.x SDK fails the build with `CECLIENT017`, and a version below
+2.0.0 fails the restore with `NU1605`. Do not upgrade to 3.x until a Client release says so.
+
+Deploy the complete framework-dependent build output as one folder: the plugin assembly, its `.deps.json` and
+`.runtimeconfig.json`, the Client and SDK assemblies and the SDK's `cheatengine-sdk-lua-bridge.dll`. A Native AOT
+plugin DLL is not a supported Cheat Engine plugin.
+
+## A minimal plugin
+
+The SDK owns the plugin annotation; `CheatEngineClientPlugin` builds a new, validated service provider for every enable
+and gives each module the activation-scoped `ICheatEngineClient`:
+
+```csharp
+using CheatEngine.Client;
+using CheatEngine.Client.Hosting;
+using CheatEngine.Client.Memory;
+using CheatEngine.Client.Modules;
+using CheatEngine.Client.Results;
+using CheatEngine.Client.Scanning;
+using CheatEngine.SDK.Annotations.Plugin;
+using CheatEngine.SDK.Engine.Values;
+
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+
+namespace MyPlugin;
+
+[CheatEnginePlugin("My Plugin")]
+public sealed class Plugin : CheatEngineClientPlugin
+{
+    protected override void Configure(CheatEnginePluginBuilder builder)
+    {
+        builder.Configuration
+            .SetBasePath(builder.PluginDirectory)
+            .AddJsonFile("appsettings.json", optional: true, reloadOnChange: false);
+
+        builder.Client.AddModule<ScoreModule>();
+    }
+}
+
+public sealed class ScoreModule(ILogger<ScoreModule> logger) : ICheatEngineClientModule
+{
+    public void OnEnabled(ICheatEngineClient client)
+    {
+        // A Try form returns an expected failure, such as no selected process, instead of throwing it.
+        if (!client.Patterns.Aob("48 8B ?? ?? ?? 89")
+                .InModule("game.exe")
+                .Executable()
+                .FirstOrNone()
+                .TryExecute(out Address? match, out CheatEngineFailure failure))
+        {
+            logger.LogDebug("Score probe skipped: {Failure}", failure);
+            return;
+        }
+
+        if (match is { } address)
+        {
+            client.Memory.At(address + 0x14).Write(999);
+        }
+    }
+
+    public void OnDisabling(ICheatEngineClient client)
+    {
+    }
+}
+```
+
+`CheatEngineFailure.ToString()` names the kind, the operation and the host effect only: never an address, a value or a
+path. Never keep the client, a lease or a target-bound value after `OnDisabling`: every enable creates a new client.
+The [repository README](https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/README.md#the-plugin-lifecycle)
+describes the lifecycle.
+
+## What 1.0 offers
+
+**Available** means a stable 1.x API with an operational implementation. **Experimental** APIs are operational too, but
+they carry an `[Experimental("CECLIENT500x")]` diagnostic and can change in a minor release until their live scenarios
+pass; suppressing the diagnostic is the opt-in. At run time, `ICheatEngineRuntime.TryGetClientCapability` reports each
+capability with its evidence, and none reports the runtime state `Available` before Client qualification receipts
+exist for the scenarios named below.
+
+<!-- capability-table:start -->
+| Capability id | Implementation | 1.0 status | What you get | Qualification |
+|---|---|---|---|---|
+| `Client.ProcessSelection` | Operational adapter | Available | `client.Processes`: the selected target, attach, the local process catalog | Unknown until Client receipts for Q30.a, Q31 and Q32 exist |
+| `Client.TypedMemory` | Operational adapter | Available | `client.Memory`: primitives, codecs, bytes, strings, pointer chains, batches | Unknown until Client receipts for Q20, Q21 and Q33 exist |
+| `Client.PatternScanning` | Operational adapter | Available | `client.Patterns`: AOB scans with a bounded copy | Unknown until Client receipts for Q27, Q28 and Q29 exist |
+| `Client.Inspection` | Operational adapter | Available | `client.Inspection`: modules, regions, symbols and symbol leases | Unknown until Client receipts for Q16.b and Q28 exist |
+| `Client.Tables` | Operational adapter | Available | `client.Tables`: Address List records and trusted table files | Unknown until Client receipts for Q34 exist |
+| `Client.ProtectedLua` | Operational adapter | Available | `client.Lua`: typed Lua operations and generated Lua modules | Unknown until Client receipts for Q05, Q16 and Q19 exist |
+| `Client.UnsafeLuaExecution` | Operational, policy opt-in | Available with `EnableUnsafeLuaExecution()` | `IUnsafeLuaClient`: trusted Lua source, never a Lua state | Stays `Unknown`: no scenario covers arbitrary Lua |
+| `Client.ValueScanning` | Operational adapter, experimental (CECLIENT5001) | Experimental | `client.ValueScans`: first and next scans, bounded pages | Unknown until Client receipts for Q25 and Q26 exist |
+| `Client.Allocations` | Operational adapter, experimental (CECLIENT5002) | Experimental | `client.Allocations`: target allocations owned by leases | Unknown until Client receipts for Q30.a exist |
+| `Client.Assembly` | Operational adapter, experimental (CECLIENT5003) | Experimental | `client.Assembly`: single-instruction assembly and disassembly | Unknown until Client receipts for Q32 exist |
+| `Client.AutoAssemblerPatches` | Operational, policy opt-in, experimental (CECLIENT5004) | Experimental, with `EnableAutoAssemblerPatches()` | `IAutoAssemblerClient`: Auto Assembler patches owned by leases | Unknown until Client receipts for Q35 and Q44 exist |
+<!-- capability-table:end -->
+
+The activation lifecycle, main-thread dispatch (`client.Dispatcher`), runtime facts (`client.Runtime`), dependency
+injection, options and modules are always available. The
+[Abstractions README](https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/libs/CheatEngine.Client.Abstractions/README.md)
+is the reference for every contract, its failures and its limits, and describes each experimental API under its
+diagnostic id.
+
+**Not offered in 1.0**, not even as a gated placeholder: timers and hotkeys; the debugger and breakpoints; the speed
+hack; target-memory and file hashing; DBVM; remote execution and DLL injection; pausing, resuming or creating a process,
+and attaching to the foreground process; assembly comments; and detaching from a process. No CheatEngine.SDK primitive
+backs these yet; they may arrive in a 1.x minor release once the SDK provides an owner. IPC and remote clients, UI and
+forms, structures, Mono and IL2CPP, and advanced ABI hooks are outside the scope of 1.0 and have no public API either.
 
 ## Supported host profile
 
 This Client release consumes CheatEngine.SDK 2.0.0 and names one Cheat Engine host profile, the qualifiable profile
-that CheatEngine.SDK 2.0.0 names. A profile is what a qualification result can name; it is not itself a qualification
-result.
+that CheatEngine.SDK 2.0.0 names: this tuple is what a plugin deploys against. A profile is what a qualification result
+can name; it is not itself a qualification result.
 
 | Item | Value |
 |---|---|
@@ -61,25 +192,6 @@ result.
 Never edit an installed Cheat Engine to match this profile: its runtime configuration applies to every managed plugin of
 the installation, and CheatEngine.Client never treats such an edit as a setup step. A stock installation is not a
 qualified profile, and a result on this profile authorizes no x86 or ARM64 plugin claim.
-
-## How it helps improve CheatEngine.Client
-
-The package gives plugin authors a small, intentional composition boundary without exposing implementation or SDK
-ownership types. It brings together:
-
-- `CheatEngine.Client.Hosting` for the enable-epoch DI container and plugin lifecycle;
-- `CheatEngine.Client.Fluent` for immutable memory and AOB request builders;
-- `CheatEngine.Client.Core`, composed through Hosting, as the only SDK mapper;
-- functional public namespaces such as `CheatEngine.Client.Memory`, `.Scanning`, `.Tables`, and `.Lua`.
-
-Use the generated `ceplugin` template for a complete, buildable plugin shape. The client and all Client-created
-resources are valid only for one enable epoch; do not retain them across disable/re-enable. See the
-[repository README](https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/README.md) for installation and
-deployment guidance, its
-[package architecture](https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/README.md#packages-and-direct-sdk-reference)
-section, and its
-[plugin lifecycle](https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/README.md#the-plugin-lifecycle)
-rules.
 
 ## Versioning and compatibility
 
@@ -119,8 +231,21 @@ dependency of `CheatEngine.Client.Extensions.DependencyInjection`.
   CheatEngine.SDK major version means a new Client major version, never a Client minor release.
 - Removing or changing a stable public member, or changing the meaning of a value, happens only in a new major version.
 
-## Rules
+The package's assembly and root namespace are both `CheatEngine.Client`; public types live in functional namespaces
+such as `CheatEngine.Client.Memory`, `.Scanning`, `.Tables`, `.Lua`, `.Processes`, `.Runtime` and `.Hosting`.
 
-- This is the only public package where Hosting, Core, and Fluent meet.
-- The assembly and root namespace are both `CheatEngine.Client`; do not declare a `CheatEngine` or `Client` type in
-  this namespace because CA1724 matches each namespace segment.
+## Documentation
+
+| Package | Read it for |
+|---|---|
+| [`CheatEngine.Client.Hosting`](https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/libs/CheatEngine.Client.Hosting/README.md) | The plugin base class, the per-enable provider, logging, deployment and every `CECLIENT` build diagnostic |
+| [`CheatEngine.Client.Extensions.DependencyInjection`](https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/libs/CheatEngine.Client.Extensions.DependencyInjection/README.md) | `builder.Client`, options, opt-ins, memory codecs and memory budgets |
+| [`CheatEngine.Client.Fluent`](https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/libs/CheatEngine.Client.Fluent/README.md) | `Aob(...)`, `At(...)` and `Batch<T>()` builders |
+| [`CheatEngine.Client.Abstractions`](https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/libs/CheatEngine.Client.Abstractions/README.md) | Every contract, failure and limit, the experimental APIs and the public API charter |
+| [`CheatEngine.Client.Core`](https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/libs/CheatEngine.Client.Core/README.md) | The diagnostic events and the cost of Cheat Engine calls |
+| [`CheatEngine.Client.Templates`](https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/templates/CheatEngine.Client.Templates/README.md) | `dotnet new ceplugin` |
+
+Changes are listed in the [CHANGELOG](https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/CHANGELOG.md).
+Report vulnerabilities privately, as
+[SECURITY.md](https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/SECURITY.md) describes. Use the Client
+only on local processes you are authorized to inspect or modify.
