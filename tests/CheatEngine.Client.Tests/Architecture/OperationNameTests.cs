@@ -110,13 +110,14 @@ public sealed partial class OperationNameTests
 	[Fact]
 	public void EveryOperationNameIsAServiceAndOneOfItsPublicMembers()
 	{
-		List<string> names = [];
+		Dictionary<string, List<string>> names = new(StringComparer.Ordinal);
 		List<string> offenders = [];
 		foreach (string assembly in CheckedAssemblies)
 		{
+			names[assembly] = [];
 			foreach (string name in ReadOperationNames(assembly))
 			{
-				names.Add(name);
+				names[assembly].Add(name);
 				if (!IsValid(name))
 				{
 					offenders.Add($"{assembly}: {name}");
@@ -124,12 +125,13 @@ public sealed partial class OperationNameTests
 			}
 		}
 
-		// The scan cannot pass vacuously: Core names written inline and through constants are present, and so is the
-		// Hosting name.
-		Assert.Contains("Patterns.Scan", names);
-		Assert.Contains("Memory.Read", names);
-		Assert.Contains("Allocations.Release", names);
-		Assert.Contains("Client.GetRequiredClient", names);
+		// The scan cannot pass vacuously, library by library: Core names written inline and through constants are
+		// present, and so are the Fluent and Hosting names.
+		Assert.Contains("Patterns.Scan", names["CheatEngine.Client.Core"]);
+		Assert.Contains("Memory.Read", names["CheatEngine.Client.Core"]);
+		Assert.Contains("Allocations.Release", names["CheatEngine.Client.Core"]);
+		Assert.Contains("Patterns.Scan", names["CheatEngine.Client.Fluent"]);
+		Assert.Contains("Client.GetRequiredClient", names["CheatEngine.Client.Hosting"]);
 		Assert.True(offenders.Count == 0,
 			"A Client operation name must be <Service>.<Member>: a service of ICheatEngineClient (or UnsafeLua, " +
 			"AutoAssembler, Client) and one of its public methods without Try or Detailed, or Release:" +
