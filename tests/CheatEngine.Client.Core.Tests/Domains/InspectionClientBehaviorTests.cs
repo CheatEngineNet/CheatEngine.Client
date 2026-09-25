@@ -603,6 +603,27 @@ public sealed class InspectionClientBehaviorTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q43")]
+	public void ARegistrationWhoseActivationStopsBeforeItsCallbackRegistersNothing()
+	{
+		// The activation was active when the registration was admitted and began stopping before the dispatched
+		// callback ran: the callback refuses before the collision check, so Cheat Engine registers nothing.
+		using ControlledCoreLifetimeContext context = new();
+		using CoreLifetime lifetime = new(context);
+		FakeInspectionPort port = new();
+		InspectionClient client = new(new SdkMainThreadDispatcher(lifetime, new StoppingMainThreadInvoker(context)),
+			lifetime, port);
+
+		CheatEngineInvalidStateException exception = Assert.Throws<CheatEngineInvalidStateException>(() =>
+			client.TryRegisterSymbol(new SymbolRegistration("fixture-symbol", new Address(0x401000)), out _, out _,
+				TestContext.Current.CancellationToken));
+
+		Assert.Equal("Inspection.RegisterSymbol", exception.Failure.Operation);
+		Assert.Equal(0, port.RegisterCalls);
+		Assert.False(port.Symbols.ContainsKey("fixture-symbol"));
+	}
+
+	[Fact]
 	public void DefaultCollectionRequestsAndRegistrationsAreRefusedBeforeDispatch()
 	{
 		using ControlledCoreLifetimeContext context = new();
@@ -658,6 +679,24 @@ public sealed class InspectionClientBehaviorTests
 			LuaOperationStatusKind.ResultCapacityExceeded => LuaOperationStatus.ResultCapacityExceeded,
 			_ => default
 		};
+	}
+
+	/// <summary>Stops the activation after the dispatch admission, then runs the callback inline.</summary>
+	private sealed class StoppingMainThreadInvoker(ControlledCoreLifetimeContext context) : IMainThreadInvoker
+	{
+		private readonly InlineMainThreadInvoker _inner = new();
+
+		public Exception? Invoke(Action callback)
+		{
+			context.Stop();
+			return _inner.Invoke(callback);
+		}
+
+		public MainThreadInvocationResult<T> Invoke<T>(Func<T> callback)
+		{
+			context.Stop();
+			return _inner.Invoke(callback);
+		}
 	}
 
 	/// <summary>Runs every callback inline and counts the dispatches.</summary>

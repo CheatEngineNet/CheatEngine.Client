@@ -281,8 +281,21 @@ internal sealed class InspectionClient(
 		// unregistration by name. A registration CheatEngine.SDK could not hand over (SymbolRegistrationHandoffException)
 		// was compensated once by the SDK, and SdkBoundary reports it CleanupUnconfirmed.
 		RegistrationStep step = default;
-		if (!SdkBoundary.TryInvoke(_dispatcher, RegisterOperation, () => step = RegisterOnMainThread(registration),
-				CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
+		bool dispatched;
+		try
+		{
+			dispatched = SdkBoundary.TryInvoke(_dispatcher, RegisterOperation,
+				() => step = RegisterOnMainThread(registration), CheatEngineHostEffect.Unknown, _lifetime, out failure,
+				cancellationToken);
+		}
+		catch (Exception)
+		{
+			// A lifecycle exception of the dispatch or of the callback's admission registered nothing.
+			ReleaseSymbolName(registration.Name);
+			throw;
+		}
+
+		if (!dispatched)
 		{
 			ReleaseSymbolName(registration.Name);
 			return false;
@@ -429,6 +442,9 @@ internal sealed class InspectionClient(
 	/// </remarks>
 	private RegistrationStep RegisterOnMainThread(SymbolRegistration registration)
 	{
+		// No lease can be registered once the activation stops or ends: refuse before Cheat Engine registers a name that
+		// no lease could own, as every other lease-creating operation does in its callback.
+		_lifetime.ThrowIfInactive(RegisterOperation);
 		InspectionStatus preflight = _inspection.ResolveAddress(new SymbolExpression(registration.Name),
 			AddressResolutionMode.Default, out _);
 		if (preflight != InspectionStatus.NotFound)
