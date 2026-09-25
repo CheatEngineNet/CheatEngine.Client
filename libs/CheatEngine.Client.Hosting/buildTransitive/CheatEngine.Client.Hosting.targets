@@ -4,6 +4,19 @@
     packages: the Client describes the high-level activation contract while the SDK supplies the entry point generator and
     the native Lua protection bridge.  Neither responsibility may depend on NuGet asset transitivity.
   -->
+
+  <!--
+    Every CECLIENT diagnostic links to its row of the "Build diagnostics" table in the Hosting README: its HelpLink is
+    this property followed by the code. ConsumerDiagnosticCatalogTests keeps the emitted codes, that table and these
+    links equal. The link is composed in steps only to keep each line short.
+  -->
+  <PropertyGroup>
+    <_CheatEngineClientHelpLink>https://github.com/CheatEngineNet/CheatEngine.Client</_CheatEngineClientHelpLink>
+    <_CheatEngineClientHelpLink>$(_CheatEngineClientHelpLink)/blob/main/libs</_CheatEngineClientHelpLink>
+    <_CheatEngineClientHelpLink>$(_CheatEngineClientHelpLink)/CheatEngine.Client.Hosting</_CheatEngineClientHelpLink>
+    <_CheatEngineClientHelpLink>$(_CheatEngineClientHelpLink)/README.md#</_CheatEngineClientHelpLink>
+  </PropertyGroup>
+
   <Target Name="CheatEngineClientValidatePluginProjectProfile"
           BeforeTargets="CheatEngineSdkRequireX64Platform;BeforeBuild;PrepareForBuild;CoreCompile"
           Condition="'$(CheatEngineClientPluginProject)' == 'true' and '$(CheatEngineClientSkipPluginProjectValidation)' != 'true'">
@@ -17,21 +30,27 @@
 
     <Error Condition="'@(_CheatEngineClientDirectSdkReference)' == '' and '$(CheatEngineClientSkipDirectSdkReferenceCheck)' != 'true'"
            Code="CECLIENT001"
+           HelpLink="$(_CheatEngineClientHelpLink)CECLIENT001"
            Text="Cheat Engine plugin projects must reference CheatEngine.SDK directly so its entry-point generator and native bridge assets are active."/>
     <Error Condition="'@(_CheatEngineClientDirectClientReference)' == ''"
            Code="CECLIENT002"
+           HelpLink="$(_CheatEngineClientHelpLink)CECLIENT002"
            Text="Cheat Engine plugin projects must reference CheatEngine.Client directly so the supported high-level plugin contract is explicit."/>
     <Error Condition="'$(TargetFramework)' != 'net10.0'"
            Code="CECLIENT005"
+           HelpLink="$(_CheatEngineClientHelpLink)CECLIENT005"
            Text="Cheat Engine Client plugin projects must target net10.0."/>
     <Error Condition="'$(LangVersion)' != '14.0'"
            Code="CECLIENT006"
+           HelpLink="$(_CheatEngineClientHelpLink)CECLIENT006"
            Text="Cheat Engine Client plugin projects must use C# 14 (LangVersion 14.0)."/>
     <Error Condition="'$(PlatformTarget)' != 'x64' and '$(PlatformTarget)' != 'AnyCPU'"
            Code="CECLIENT007"
+           HelpLink="$(_CheatEngineClientHelpLink)CECLIENT007"
            Text="Cheat Engine Client plugin projects must set PlatformTarget to x64 or AnyCPU because Cheat Engine hosts the managed plugin in an x64 process."/>
     <Error Condition="'$(CheatEngineSdkGenerateEntryPoint)' == 'false' and '$(CheatEngineClientManualBootstrap)' != 'true'"
            Code="CECLIENT008"
+           HelpLink="$(_CheatEngineClientHelpLink)CECLIENT008"
            Text="CheatEngineSdkGenerateEntryPoint=false requires CheatEngineClientManualBootstrap=true and the exact SDK-validated CESDK.CESDK.CEPluginInitialize manual bootstrap."/>
   </Target>
 
@@ -69,9 +88,11 @@
     </PropertyGroup>
     <Error Condition="'$(_CheatEngineClientUnsupportedSdk)' == 'true' and '$(CheatEngineClientAllowUnsupportedSdk)' != 'true'"
            Code="CECLIENT017"
+           HelpLink="$(_CheatEngineClientHelpLink)CECLIENT017"
            Text="This plugin resolves CheatEngine.SDK $(_CheatEngineClientResolvedSdkVersion), but CheatEngine.Client is built and tested against CheatEngine.SDK below $(_CheatEngineClientSdkUpperMajor).0 and will break at run time. Reference the CheatEngine.SDK version the Client documents, or a Client release that supports this SDK. CheatEngineClientAllowUnsupportedSdk=true turns this error into a warning for an unsupported combination."/>
     <Warning Condition="'$(_CheatEngineClientUnsupportedSdk)' == 'true' and '$(CheatEngineClientAllowUnsupportedSdk)' == 'true'"
              Code="CECLIENT017"
+             HelpLink="$(_CheatEngineClientHelpLink)CECLIENT017"
              Text="This plugin resolves CheatEngine.SDK $(_CheatEngineClientResolvedSdkVersion), which CheatEngine.Client does not support (below $(_CheatEngineClientSdkUpperMajor).0 only). CheatEngineClientAllowUnsupportedSdk=true keeps building; expect run-time failures."/>
   </Target>
 
@@ -86,6 +107,7 @@
              AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
     <ParameterGroup>
       <AssemblyPath ParameterType="System.String" Required="true"/>
+      <HelpLink ParameterType="System.String" Required="true"/>
     </ParameterGroup>
     <Task>
       <Reference Include="$(MSBuildToolsPath)\Microsoft.Build.Framework.dll"/>
@@ -118,6 +140,9 @@ public sealed class CheatEngineClientValidatePluginMetadata : Task
     [Required]
     public string AssemblyPath { get; set; } = String.Empty;
 
+    [Required]
+    public string HelpLink { get; set; } = String.Empty;
+
     public override bool Execute()
     {
         try
@@ -138,18 +163,18 @@ public sealed class CheatEngineClientValidatePluginMetadata : Task
 
             if (validPluginCount == 0)
             {
-                Log.LogError(null, "CECLIENT003", null, AssemblyPath, 0, 0, 0, 0,
+                Log.LogError(null, "CECLIENT003", null, HelpLink + "CECLIENT003", AssemblyPath, 0, 0, 0, 0,
                     "Cheat Engine Client plugin projects must declare exactly one valid [CheatEnginePlugin] type derived from CheatEngineClientPlugin.");
             }
             else if (validPluginCount > 1)
             {
-                Log.LogError(null, "CECLIENT004", null, AssemblyPath, 0, 0, 0, 0,
+                Log.LogError(null, "CECLIENT004", null, HelpLink + "CECLIENT004", AssemblyPath, 0, 0, 0, 0,
                     "Cheat Engine Client plugin projects declare more than one valid [CheatEnginePlugin] type derived from CheatEngineClientPlugin.");
             }
         }
         catch (Exception exception)
         {
-            Log.LogError(null, "CECLIENT009", null, AssemblyPath, 0, 0, 0, 0,
+            Log.LogError(null, "CECLIENT009", null, HelpLink + "CECLIENT009", AssemblyPath, 0, 0, 0, 0,
                 "Cheat Engine Client could not validate plugin metadata: {0}", exception.Message);
         }
 
@@ -229,7 +254,8 @@ public sealed class CheatEngineClientValidatePluginMetadata : Task
           AfterTargets="CoreCompile"
           BeforeTargets="CopyFilesToOutputDirectory"
           Condition="'$(CheatEngineClientPluginProject)' == 'true' and '$(CheatEngineClientSkipPluginProjectValidation)' != 'true' and '$(DesignTimeBuild)' != 'true'">
-    <CheatEngineClientValidatePluginMetadata AssemblyPath="$(IntermediateOutputPath)$(TargetFileName)"/>
+    <CheatEngineClientValidatePluginMetadata AssemblyPath="$(IntermediateOutputPath)$(TargetFileName)"
+                                             HelpLink="$(_CheatEngineClientHelpLink)"/>
   </Target>
 
   <!--
@@ -244,6 +270,7 @@ public sealed class CheatEngineClientValidatePluginMetadata : Task
     <ParameterGroup>
       <Files ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true"/>
       <Destination ParameterType="System.String" Required="true"/>
+      <HelpLink ParameterType="System.String" Required="true"/>
     </ParameterGroup>
     <Task>
       <Reference Include="$(MSBuildToolsPath)\Microsoft.Build.Framework.dll"/>
@@ -277,6 +304,9 @@ public sealed class CheatEngineClientAtomicPluginDeployment : Task
 
     [Required]
     public string Destination { get; set; } = String.Empty;
+
+    [Required]
+    public string HelpLink { get; set; } = String.Empty;
 
     public override bool Execute()
     {
@@ -332,7 +362,7 @@ public sealed class CheatEngineClientAtomicPluginDeployment : Task
         }
         catch (Exception exception)
         {
-            Log.LogError(null, "CECLIENT016", null, Destination, 0, 0, 0, 0,
+            Log.LogError(null, "CECLIENT016", null, HelpLink + "CECLIENT016", Destination, 0, 0, 0, 0,
                 "Cheat Engine plugin deployment failed: {0}", exception.Message);
             return false;
         }
@@ -358,21 +388,27 @@ public sealed class CheatEngineClientAtomicPluginDeployment : Task
           Condition="'$(CheatEngineClientPluginProject)' == 'true' and '$(CheatEnginePluginOutputPath)' != ''">
     <Error Condition="!Exists('$(TargetPath)')"
            Code="CECLIENT010"
+           HelpLink="$(_CheatEngineClientHelpLink)CECLIENT010"
            Text="The plugin assembly was not produced before deployment: $(TargetPath)."/>
     <Error Condition="!Exists('$(TargetDir)$(AssemblyName).deps.json')"
            Code="CECLIENT011"
+           HelpLink="$(_CheatEngineClientHelpLink)CECLIENT011"
            Text="The plugin deployment requires $(AssemblyName).deps.json next to the managed plugin assembly."/>
     <Error Condition="!Exists('$(TargetDir)$(AssemblyName).runtimeconfig.json')"
            Code="CECLIENT012"
+           HelpLink="$(_CheatEngineClientHelpLink)CECLIENT012"
            Text="The plugin deployment requires $(AssemblyName).runtimeconfig.json next to the managed plugin assembly."/>
     <Error Condition="!Exists('$(TargetDir)CheatEngine.SDK.dll')"
            Code="CECLIENT013"
+           HelpLink="$(_CheatEngineClientHelpLink)CECLIENT013"
            Text="The plugin deployment requires the direct CheatEngine.SDK managed assembly in the build output."/>
     <Error Condition="!Exists('$(TargetDir)CheatEngine.Client.Hosting.dll')"
            Code="CECLIENT014"
+           HelpLink="$(_CheatEngineClientHelpLink)CECLIENT014"
            Text="The plugin deployment requires CheatEngine.Client.Hosting.dll in the build output."/>
     <Error Condition="!Exists('$(TargetDir)cheatengine-sdk-lua-bridge.dll')"
            Code="CECLIENT015"
+           HelpLink="$(_CheatEngineClientHelpLink)CECLIENT015"
            Text="The plugin deployment requires cheatengine-sdk-lua-bridge.dll from the direct CheatEngine.SDK build asset."/>
 
     <ItemGroup>
@@ -385,8 +421,10 @@ public sealed class CheatEngineClientAtomicPluginDeployment : Task
     </RemoveDuplicates>
     <Error Condition="'@(_CheatEngineClientDistinctDeploymentFile)' == ''"
            Code="CECLIENT016"
+           HelpLink="$(_CheatEngineClientHelpLink)CECLIENT016"
            Text="No managed deployment files were found in $(TargetDir)."/>
     <CheatEngineClientAtomicPluginDeployment Files="@(_CheatEngineClientDistinctDeploymentFile)"
-                                             Destination="$(CheatEnginePluginOutputPath)"/>
+                                             Destination="$(CheatEnginePluginOutputPath)"
+                                             HelpLink="$(_CheatEngineClientHelpLink)"/>
   </Target>
 </Project>

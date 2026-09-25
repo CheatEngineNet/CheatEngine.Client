@@ -121,7 +121,8 @@ Replace `X.Y.Z` with the CheatEngine.Client version you install; the `ceplugin` 
 entry point and provide the native Lua bridge; NuGet transitivity is not sufficient at that host boundary. Setting
 `CheatEngineClientPluginProject` opts the project into the Hosting package's plugin profile checks, which fail the
 build if the direct SDK reference is removed (`CECLIENT001`); the
-[Hosting README](libs/CheatEngine.Client.Hosting/README.md) lists every `CECLIENT` build diagnostic.
+[Hosting README](libs/CheatEngine.Client.Hosting/README.md#build-diagnostics) lists every `CECLIENT` build
+diagnostic.
 
 Start with the template rather than copying this fragment into an existing plugin: it also demonstrates module
 registration, generated Lua exports, validated options, bounded AOB and typed-memory access, and an Address List

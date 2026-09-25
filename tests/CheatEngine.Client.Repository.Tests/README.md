@@ -26,6 +26,12 @@ read committed files: the project never builds, packs, restores or starts a proc
   - `RetiredSdkIdentityLiteralsAppearNowhere`: no text file keeps the content hash, signed-file hash, bridge hash or
     source commit of an SDK package the Client no longer consumes;
   - `SdkPinIsAStableVersionOfTheSupportedMajor` and `CoexistenceFixturesDeriveTheirSdkVersionFromThePin`.
+- `Packaging/ConsumerDiagnosticCatalogTests` catalogs the `CECLIENT` build diagnostics that the Hosting package's
+  `buildTransitive` targets bring to a plugin project: the codes the targets emit (MSBuild `Error` and `Warning`
+  elements and the `Log.LogError` calls of their inline tasks) are exactly `CECLIENT001` to `CECLIENT017` and the rows
+  of the "Build diagnostics" table of the Hosting README, each row has its anchor once, its Severity cell names how the
+  targets emit the code (`Error`, `Warning`, or `Error; Warning with ...` for a code emitted as both), and every
+  emission carries the help link of its row (`_CheatEngineClientHelpLink` followed by the code).
 - `Packaging/PackageVersioningTests` and `Packaging/PackageMetadataTests` pin the package versioning and metadata:
   MinVer configured once for every package (`MinVerIsConfiguredOnceForEveryPackage`), the Roslyn pin of the packed
   generator equal to its floor (`RoslynPinsEqualTheDeclaredComponentFloor`,

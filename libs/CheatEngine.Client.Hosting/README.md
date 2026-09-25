@@ -159,20 +159,42 @@ public sealed class MyClientModule : ICheatEngineClientModule
 }
 ```
 
-## Plugin profile build checks
+## Build diagnostics
 
 Plugin projects must reference `CheatEngine.SDK` directly as well as `CheatEngine.Client`. The SDK's plugin entry-point
 generator and native bridge build assets cannot be supplied through a transitive NuGet dependency. Set
-`CheatEngineClientPluginProject` to `true` to opt into the Hosting profile, whose build targets report:
+`CheatEngineClientPluginProject` to `true` to opt into the Hosting plugin profile: the build targets this package
+brings (`buildTransitive`) then report the diagnostics below, and nothing else. Every diagnostic's help link points to
+its row. The profile checks run before compilation, the plugin type check right after it, the SDK major check once
+package assets are resolved, and the deployment checks only when `CheatEnginePluginOutputPath` is set (see "Managed
+deployment folder"). `CheatEngineClientSkipPluginProjectValidation=true` skips the profile and plugin type checks, and
+`CheatEngineClientSkipDirectSdkReferenceCheck=true` skips `CECLIENT001` alone; neither is needed by a normal plugin.
 
-- the two direct references (`CECLIENT001`/`CECLIENT002`);
-- exactly one attributed `CheatEngineClientPlugin` (`CECLIENT003`/`CECLIENT004`, and `CECLIENT009` when the plugin
-  metadata cannot be read);
-- `net10.0`, C# 14, and an x64 or AnyCPU target (`CECLIENT005`–`CECLIENT007`);
-- a disabled SDK generator without the explicit `CheatEngineClientManualBootstrap=true` acknowledgement
-  (`CECLIENT008`); the SDK then validates the exact manual entry point (`CESDK0003`);
-- a `CheatEngine.SDK` of a major this release does not support (`CECLIENT017`);
-- an incomplete managed deployment folder (`CECLIENT010`–`CECLIENT016`, see below).
+| Code | Severity | Reported when | Fix |
+|---|---|---|---|
+| <a id="CECLIENT001"></a>`CECLIENT001` | Error | The plugin project has no direct `PackageReference` to `CheatEngine.SDK` | Reference `CheatEngine.SDK` 2.x directly: its entry-point generator and Lua bridge run only for a direct reference |
+| <a id="CECLIENT002"></a>`CECLIENT002` | Error | The plugin project has no direct `PackageReference` to `CheatEngine.Client`, for example when it references `CheatEngine.Client.Hosting` only | Reference `CheatEngine.Client` directly |
+| <a id="CECLIENT003"></a>`CECLIENT003` | Error | The compiled assembly declares no `[CheatEnginePlugin]` type derived from `CheatEngineClientPlugin` | Declare exactly one |
+| <a id="CECLIENT004"></a>`CECLIENT004` | Error | The compiled assembly declares more than one such type | Keep one plugin type per assembly |
+| <a id="CECLIENT005"></a>`CECLIENT005` | Error | `TargetFramework` is not exactly `net10.0`, for example `net10.0-windows` | Target `net10.0` |
+| <a id="CECLIENT006"></a>`CECLIENT006` | Error | `LangVersion` is not exactly `14.0` | Set `<LangVersion>14.0</LangVersion>` |
+| <a id="CECLIENT007"></a>`CECLIENT007` | Error | `PlatformTarget` is neither `x64` nor `AnyCPU`: Cheat Engine hosts the plugin in an x64 process | Set `x64` or `AnyCPU` |
+| <a id="CECLIENT008"></a>`CECLIENT008` | Error | `CheatEngineSdkGenerateEntryPoint=false` without `CheatEngineClientManualBootstrap=true` | Keep the generated entry point, or write the exact `CESDK.CESDK.CEPluginInitialize` bootstrap that `CESDK0003` validates and set `CheatEngineClientManualBootstrap=true` |
+| <a id="CECLIENT009"></a>`CECLIENT009` | Error | The plugin type check could not read the compiled assembly's metadata; the message gives the reason | Rebuild; report the message if it persists |
+| <a id="CECLIENT010"></a>`CECLIENT010` | Error | Deployment: the plugin assembly was not produced | Fix the build errors reported before it |
+| <a id="CECLIENT011"></a>`CECLIENT011` | Error | Deployment: no `<AssemblyName>.deps.json` next to the plugin assembly, for example with `GenerateDependencyFile=false` | Let the build generate the dependency manifest |
+| <a id="CECLIENT012"></a>`CECLIENT012` | Error | Deployment: no `<AssemblyName>.runtimeconfig.json` next to the plugin assembly, for example with `GenerateRuntimeConfigurationFiles=false` | Let the build generate the runtime configuration |
+| <a id="CECLIENT013"></a>`CECLIENT013` | Error | Deployment: `CheatEngine.SDK.dll` is not in the build output, for example with `CopyLocalLockFileAssemblies=false` | Reference `CheatEngine.SDK` directly and keep package assemblies copied to the output |
+| <a id="CECLIENT014"></a>`CECLIENT014` | Error | Deployment: `CheatEngine.Client.Hosting.dll` is not in the build output | Reference `CheatEngine.Client` and keep package assemblies copied to the output |
+| <a id="CECLIENT015"></a>`CECLIENT015` | Error | Deployment: `cheatengine-sdk-lua-bridge.dll` is not in the build output, because the direct `CheatEngine.SDK` build asset did not copy it | Reference `CheatEngine.SDK` directly and keep its bridge `Content` item |
+| <a id="CECLIENT016"></a>`CECLIENT016` | Error | Deployment: the output holds no managed file, or staging or replacing a destination file failed; the message gives the reason | Check the destination folder and deploy while the plugin is disabled |
+| <a id="CECLIENT017"></a>`CECLIENT017` | Error; Warning with `CheatEngineClientAllowUnsupportedSdk=true` | The plugin resolves a `CheatEngine.SDK` major this release does not support (3.x or later) | Reference `CheatEngine.SDK` 2.x, or a Client release that supports that SDK |
+
+A `CheatEngine.SDK` below 2.0.0 never reaches these checks: the restore fails with `NU1605`. The SDK's own build and
+analyzer diagnostics (`CESDK...`) are documented in the
+[CheatEngine.SDK repository](https://github.com/CheatEngineNet/CheatEngine.SDK/tree/main/analyzers/docs), and those of
+the Lua module generator this package carries (`CECLUA...`) in its
+[README](https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/source-generators/CheatEngine.Client.SourceGenerators.Lua/README.md#diagnostics).
 
 ## Managed deployment folder
 
@@ -184,11 +206,11 @@ dotnet build .\MyPlugin.csproj --configuration Release `
 ```
 
 `PrepareCheatEnginePluginDeployment` runs only for the marked plugin profile and only when that property is non-empty.
-It validates the plugin DLL, manifests, Client/SDK managed closure, and the SDK Lua bridge, stages the complete output,
-then replaces each destination file with Windows write-through replacement semantics. It does not inspect or change a
-Cheat Engine installation, runtime configuration, or plugin list. Windows cannot atomically replace a non-empty
-directory, so deploy while the plugin is disabled; destination files are individually never copied in a partially
-written state.
+It validates the plugin DLL, manifests, Client/SDK managed closure, and the SDK Lua bridge before anything is written
+(`CECLIENT010` to `CECLIENT015`), stages the complete output, then replaces each destination file with Windows
+write-through replacement semantics (`CECLIENT016` when that fails). It does not inspect or change a Cheat Engine
+installation, runtime configuration, or plugin list. Windows cannot atomically replace a non-empty directory, so deploy
+while the plugin is disabled; destination files are individually never copied in a partially written state.
 
 ## Cleanup diagnostics and redaction
 

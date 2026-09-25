@@ -25,7 +25,7 @@ The Client runs in process inside an enabled Cheat Engine plugin. It is not a st
 | Other Client packages | None: `CheatEngine.Client` brings them, each at exactly its own version |
 
 The codes in parentheses are the build or restore errors that enforce a row; the
-[Hosting README](https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/libs/CheatEngine.Client.Hosting/README.md)
+[Hosting README](https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/libs/CheatEngine.Client.Hosting/README.md#build-diagnostics)
 lists every `CECLIENT` build diagnostic.
 
 ## Installation

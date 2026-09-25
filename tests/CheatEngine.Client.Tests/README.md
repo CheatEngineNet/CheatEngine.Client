@@ -74,6 +74,17 @@ block rules themselves (`ReadmeCodeBlocks`: a C# block is labelled `csharp`, a `
 `<!-- nocompile: reason -->` on the line above it) are proven on fixed Markdown by `ReadmeCodeBlocksTests`, which has
 no category.
 
+`ConsumerDiagnosticsTests` (`Category=PackageConsumption`, same fixture and serial collection) restores and builds, for
+each case, a plugin project that consumes the packed packages and breaks one rule of the Hosting plugin profile, and
+proves that the build fails with that rule's diagnostic and no other `CECLIENT` error: `CECLIENT002` (a plugin that
+references `CheatEngine.Client.Hosting` instead of `CheatEngine.Client`), `CECLIENT005` (`net10.0-windows`),
+`CECLIENT006` (C# 13), `CECLIENT007` (x86), `CECLIENT008` (the SDK entry point turned off without the manual bootstrap
+acknowledgement), and the deployment prerequisites `CECLIENT011` (no `.deps.json`), `CECLIENT012` (no
+`.runtimeconfig.json`), `CECLIENT013` (no `CheatEngine.SDK.dll` in the output) and `CECLIENT015` (no Lua bridge), each
+of which leaves the deployment folder empty. `CECLIENT001` and `CECLIENT017` are the smoke facts above; the
+repository test `ConsumerDiagnosticCatalogTests` keeps every emitted code, its help link and the Hosting README table
+equal.
+
 `SymbolPackagesCarrySourceLinkToTheRepositoryCommit` expects Source Link URLs of
 `https://raw.githubusercontent.com/CheatEngineNet/CheatEngine.Client/<commit>/`, which the .NET SDK derives from the
 `origin` remote of the checkout that packs. CI checks out this repository, so it holds there; a local run in a clone
