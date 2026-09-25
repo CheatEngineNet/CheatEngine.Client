@@ -501,28 +501,25 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 	/// </summary>
 	private sealed class FakeTarget : FakeRuntimeObservationPort, IProcessHost, IMemoryCodecContextPort
 	{
-		private int _configuredPointerSize = sizeof(ulong);
-		private long _processId;
-
 		internal long ProcessId
 		{
-			get => _processId;
+			get;
 			set
 			{
-				_processId = value;
+				field = value;
 				Synchronize();
 			}
 		}
 
 		internal int ConfiguredPointerSize
 		{
-			get => _configuredPointerSize;
+			get;
 			set
 			{
-				_configuredPointerSize = value;
+				field = value;
 				Synchronize();
 			}
-		}
+		} = sizeof(ulong);
 
 		public bool TryGetLocalProcess(int processId, out LocalProcessInfo process)
 		{
@@ -585,9 +582,9 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 
 		private void Synchronize()
 		{
-			TargetStatus = _processId == 0 ? ProcessOperationStatus.TargetNotAttached : ProcessOperationStatus.Success;
-			Target = TargetObservations.Create((int) Math.Max(_processId, 1),
-				configuredPointerSizeBytes: _configuredPointerSize);
+			TargetStatus = ProcessId == 0 ? ProcessOperationStatus.TargetNotAttached : ProcessOperationStatus.Success;
+			Target = TargetObservations.Create((int) Math.Max(ProcessId, 1),
+				configuredPointerSizeBytes: ConfiguredPointerSize);
 		}
 	}
 

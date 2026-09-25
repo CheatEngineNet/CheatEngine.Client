@@ -21,8 +21,6 @@ namespace CheatEngine.Client.Core.Tests.TestSupport;
 /// </remarks>
 internal class FakeRuntimeObservationPort : TargetObservationDouble, IRuntimeObservationPort, IProcessSelectionPort
 {
-	private Exception? _fault;
-
 	/// <summary>Gets the host facts of Cheat Engine 7.7.0.10621 x64 on Windows.</summary>
 	internal static CheatEngineHostObservation DefaultHost => new(CheatEngineVersion.Ce77010621,
 		CheatEngineArchitecture.X64, true, CheatEngineOperatingSystem.Windows);
@@ -86,10 +84,10 @@ internal class FakeRuntimeObservationPort : TargetObservationDouble, IRuntimeObs
 	/// <summary>Gets or sets an exception every member, target observations included, throws.</summary>
 	internal Exception? Fault
 	{
-		get => _fault;
+		get;
 		set
 		{
-			_fault = value;
+			field = value;
 			TargetFault = value;
 		}
 	}

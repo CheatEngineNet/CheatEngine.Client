@@ -14,7 +14,6 @@ internal sealed class SdkMainThreadDispatcher : ICheatEngineDispatcher, IStatefu
 {
 	private const string InvokeOperation = "Dispatcher.Invoke";
 
-	private readonly CoreLifetime _lifetime;
 	private readonly IMainThreadInvoker _mainThread;
 
 	internal SdkMainThreadDispatcher(CoreLifetime lifetime)
@@ -24,20 +23,23 @@ internal sealed class SdkMainThreadDispatcher : ICheatEngineDispatcher, IStatefu
 
 	internal SdkMainThreadDispatcher(CoreLifetime lifetime, IMainThreadInvoker mainThread)
 	{
-		_lifetime = lifetime ?? throw new ArgumentNullException(nameof(lifetime));
+		Lifetime = lifetime ?? throw new ArgumentNullException(nameof(lifetime));
 		_mainThread = mainThread ?? throw new ArgumentNullException(nameof(mainThread));
 	}
 
-	public bool IsMainThread => _lifetime.CanDispatch && MainThread.IsMainThread;
+	public bool IsMainThread => Lifetime.CanDispatch && MainThread.IsMainThread;
 
 	/// <summary>Gets the activation lifetime that admits this dispatcher's work.</summary>
-	internal CoreLifetime Lifetime => _lifetime;
+	internal CoreLifetime Lifetime
+	{
+		get;
+	}
 
 	public bool TryInvoke(Action callback, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(callback);
-		_lifetime.ThrowIfDispatchRefused(InvokeOperation);
+		Lifetime.ThrowIfDispatchRefused(InvokeOperation);
 		if (cancellationToken.IsCancellationRequested)
 		{
 			failure = CoreFailureFactory.Cancelled(InvokeOperation);
@@ -53,7 +55,7 @@ internal sealed class SdkMainThreadDispatcher : ICheatEngineDispatcher, IStatefu
 		{
 			throw;
 		}
-		catch (Exception exception) when (!_lifetime.IsActivationCurrent)
+		catch (Exception exception) when (!Lifetime.IsActivationCurrent)
 		{
 			throw ClientExceptions.ActivationExpired(InvokeOperation,
 				"The Cheat Engine plugin lifecycle changed while dispatching work.", exception,
@@ -78,7 +80,7 @@ internal sealed class SdkMainThreadDispatcher : ICheatEngineDispatcher, IStatefu
 		CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(callback);
-		_lifetime.ThrowIfDispatchRefused(InvokeOperation);
+		Lifetime.ThrowIfDispatchRefused(InvokeOperation);
 		if (cancellationToken.IsCancellationRequested)
 		{
 			result = default;
@@ -95,7 +97,7 @@ internal sealed class SdkMainThreadDispatcher : ICheatEngineDispatcher, IStatefu
 		{
 			throw;
 		}
-		catch (Exception exception) when (!_lifetime.IsActivationCurrent)
+		catch (Exception exception) when (!Lifetime.IsActivationCurrent)
 		{
 			result = default;
 			throw ClientExceptions.ActivationExpired(InvokeOperation,
@@ -142,7 +144,7 @@ internal sealed class SdkMainThreadDispatcher : ICheatEngineDispatcher, IStatefu
 		CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(callback);
-		_lifetime.ThrowIfDispatchRefused(InvokeOperation);
+		Lifetime.ThrowIfDispatchRefused(InvokeOperation);
 		if (cancellationToken.IsCancellationRequested)
 		{
 			result = default;
@@ -160,7 +162,7 @@ internal sealed class SdkMainThreadDispatcher : ICheatEngineDispatcher, IStatefu
 			result = default;
 			throw;
 		}
-		catch (Exception exception) when (!_lifetime.IsActivationCurrent)
+		catch (Exception exception) when (!Lifetime.IsActivationCurrent)
 		{
 			result = default;
 			throw ClientExceptions.ActivationExpired(InvokeOperation,
@@ -189,7 +191,7 @@ internal sealed class SdkMainThreadDispatcher : ICheatEngineDispatcher, IStatefu
 		CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(callback);
-		_lifetime.ThrowIfDispatchRefused(InvokeOperation);
+		Lifetime.ThrowIfDispatchRefused(InvokeOperation);
 		if (cancellationToken.IsCancellationRequested)
 		{
 			failure = CoreFailureFactory.Cancelled(InvokeOperation);
@@ -205,7 +207,7 @@ internal sealed class SdkMainThreadDispatcher : ICheatEngineDispatcher, IStatefu
 		{
 			throw;
 		}
-		catch (Exception exception) when (!_lifetime.IsActivationCurrent)
+		catch (Exception exception) when (!Lifetime.IsActivationCurrent)
 		{
 			throw ClientExceptions.ActivationExpired(InvokeOperation,
 				"The Cheat Engine plugin lifecycle changed while dispatching work.", exception,

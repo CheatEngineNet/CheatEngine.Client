@@ -955,11 +955,9 @@ public sealed class ProcessClientTests
 	/// </summary>
 	private sealed class FakeProcessHost : IProcessHost
 	{
-		private TargetBackend _backend = TargetBackend.LocalProcess;
 		private bool _is64Bit;
 		private bool? _isArm;
 		private bool? _isX86;
-		private long _openedProcessId;
 
 		internal FakeRuntimeObservationPort Port
 		{
@@ -998,10 +996,10 @@ public sealed class ProcessClientTests
 		/// <summary>Gets or sets Cheat Engine's selected PID; zero means that no target is selected.</summary>
 		internal long OpenedProcessId
 		{
-			get => _openedProcessId;
+			get;
 			set
 			{
-				_openedProcessId = value;
+				field = value;
 				Synchronize();
 			}
 		}
@@ -1015,13 +1013,13 @@ public sealed class ProcessClientTests
 		/// <summary>Gets or sets how Cheat Engine reaches the selected target (a local process by default).</summary>
 		internal TargetBackend Backend
 		{
-			get => _backend;
+			get;
 			set
 			{
-				_backend = value;
+				field = value;
 				Synchronize();
 			}
-		}
+		} = TargetBackend.LocalProcess;
 
 		/// <summary>Sets the ISA-family and 64-bit facts that Cheat Engine reports for the architecture.</summary>
 		internal CheatEngineArchitecture TargetArchitecture
@@ -1112,10 +1110,10 @@ public sealed class ProcessClientTests
 
 		private void Synchronize()
 		{
-			Port.TargetStatus = _openedProcessId == 0
+			Port.TargetStatus = OpenedProcessId == 0
 				? ProcessOperationStatus.TargetNotAttached
 				: ProcessOperationStatus.Success;
-			Port.Target = TargetObservations.Create((int) Math.Max(_openedProcessId, 1), _is64Bit, _isX86, _isArm,
+			Port.Target = TargetObservations.Create((int) Math.Max(OpenedProcessId, 1), _is64Bit, _isX86, _isArm,
 				backend: Backend);
 		}
 	}
