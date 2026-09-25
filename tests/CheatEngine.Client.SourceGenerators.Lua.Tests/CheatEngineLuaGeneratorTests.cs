@@ -103,6 +103,13 @@ public sealed class CheatEngineLuaGeneratorTests
 
 	private static readonly string[] InvalidModuleDiagnosticIds = ["CECLUA1001", "CECLUA1005"];
 
+	/// <summary>
+	///     The compiler's documentation diagnostics for malformed XML, a parameter or type parameter reference that
+	///     names nothing, and a cref that is malformed or does not resolve.
+	/// </summary>
+	private static readonly string[] DocumentationDiagnosticIds =
+		["CS1570", "CS1572", "CS1573", "CS1574", "CS1580", "CS1581", "CS1584", "CS1658", "CS1723", "CS1734"];
+
 	[Fact]
 	public void ModuleAdapterWithMultipleExportsCompilesAgainstTheSdkRegistrationContract()
 	{
@@ -266,6 +273,42 @@ public sealed class CheatEngineLuaGeneratorTests
 		string generated = run.GeneratedText("ReadSnapshot.CheatEngineLuaOperation.g.cs");
 		Assert.Contains("ILuaOperation<global::TestPlugin.Snapshot>", generated, StringComparison.Ordinal);
 		Assert.Contains("global::TestPlugin.SnapshotMapper.Map(source)", generated, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void GeneratedOperationExtensionsDocumentTheExceptionsOfTheLuaClientPair()
+	{
+		GeneratorRun scalar = GeneratorRun.Execute(ScalarOperationSource);
+		GeneratorRun mapped = GeneratorRun.Execute(MappedOperationSource);
+		Assert.Empty(scalar.Diagnostics);
+		Assert.Empty(mapped.Diagnostics);
+		string generated = scalar.GeneratedText("ReadVersion.CheatEngineLuaOperation.g.cs");
+		string generatedWithMapper = mapped.GeneratedText("ReadSnapshot.CheatEngineLuaOperation.g.cs");
+
+		// ILuaClient.Execute and TryExecute document the same Client exceptions; the extension also checks its client.
+		const string Results = "global::CheatEngine.Client.Results.";
+		Assert.Equal(
+			[
+				"global::System.ArgumentNullException", Results + "CheatEngineActivationExpiredException",
+				Results + "CheatEngineInvalidStateException", Results + "CheatEngineOperationCanceledException",
+				Results + "CheatEngineOperationException"
+			],
+			DocumentedExceptions(generated, " Execute(this "));
+		Assert.Equal(
+			[
+				"global::System.ArgumentNullException", Results + "CheatEngineActivationExpiredException",
+				Results + "CheatEngineInvalidStateException"
+			],
+			DocumentedExceptions(generated, " TryExecute(this "));
+		Assert.Contains("/// <exception cref=\"global::System.ArgumentNullException\"><paramref name=\"client\" />",
+			generated, StringComparison.Ordinal);
+		Assert.DoesNotContain("result mapper", generated, StringComparison.Ordinal);
+		Assert.Equal(2,
+			generatedWithMapper.Split("/// <remarks>An exception that the result mapper throws").Length - 1);
+
+		// Every cref and paramref of the generated documentation resolves.
+		AssertNoDocumentationDiagnostics(scalar);
+		AssertNoDocumentationDiagnostics(mapped);
 	}
 
 	[Fact]
@@ -702,6 +745,44 @@ public sealed class CheatEngineLuaGeneratorTests
 			"\tpublic static " + resultType + " Map(" + sourceType + " source) => default;", "}",
 			"internal static partial class Globals", "{", "\t[CheatEngineLuaOperation(typeof(UnsafeMapper))]",
 			"\t[LuaGlobal(\"unsafe\")]", "\tpublic static partial " + sourceType + " GetUnsafe();", "}");
+	}
+
+	/// <summary>The exception crefs documented right above the first declaration that contains a marker.</summary>
+	private static string[] DocumentedExceptions(string generated, string declarationMarker)
+	{
+		const string Prefix = "/// <exception cref=\"";
+		string[] lines = [.. generated.Split('\n').Select(static line => line.Trim())];
+		int index = Array.FindIndex(lines, line => line.Contains(declarationMarker, StringComparison.Ordinal));
+		Assert.True(index > 0, generated);
+		List<string> crefs = [];
+		while (--index >= 0 && lines[index].StartsWith("///", StringComparison.Ordinal))
+		{
+			if (lines[index].StartsWith(Prefix, StringComparison.Ordinal))
+			{
+				crefs.Insert(0, lines[index][Prefix.Length..lines[index].IndexOf('"', Prefix.Length)]);
+			}
+		}
+
+		return [.. crefs];
+	}
+
+	/// <summary>
+	///     Compiles the generator's output with documentation diagnostics on, as a consumer that generates its XML
+	///     documentation does, and asserts that no documentation comment is malformed or refers to nothing.
+	/// </summary>
+	private static void AssertNoDocumentationDiagnostics(GeneratorRun run)
+	{
+		CSharpParseOptions options = new(LanguageVersion.CSharp14, DocumentationMode.Diagnose);
+		Compilation compilation = run.OutputCompilation.RemoveAllSyntaxTrees().AddSyntaxTrees(
+			run.OutputCompilation.SyntaxTrees.Select(tree => CSharpSyntaxTree.ParseText(
+				tree.GetText(TestContext.Current.CancellationToken), options, tree.FilePath,
+				TestContext.Current.CancellationToken)));
+		Diagnostic[] diagnostics =
+		[
+			.. compilation.GetDiagnostics(TestContext.Current.CancellationToken)
+				.Where(static diagnostic => DocumentationDiagnosticIds.Contains(diagnostic.Id, StringComparer.Ordinal))
+		];
+		Assert.Empty(diagnostics);
 	}
 
 	private static void AssertNoCompilerDiagnostics(Compilation compilation)

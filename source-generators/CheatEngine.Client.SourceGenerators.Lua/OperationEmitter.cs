@@ -10,6 +10,8 @@ internal static class OperationEmitter
 {
 	private const string LuaClient = "global::CheatEngine.Client.Lua.ILuaClient";
 
+	private const string ResultsNamespace = "global::CheatEngine.Client.Results.";
+
 	private const string CancellationTokenParameter =
 		"global::System.Threading.CancellationToken cancellationToken = default";
 
@@ -119,6 +121,7 @@ internal static class OperationEmitter
 		source.WriteLine("/// <param name=\"operation\">The operation to execute.</param>");
 		source.WriteLine("/// <param name=\"cancellationToken\">Cancellation observed before dispatch admission.</param>");
 		source.WriteLine("/// <returns>The copied result.</returns>");
+		EmitExtensionExceptions(source, model, true);
 		source.WriteLine("public static " + model.ResultType + " Execute(this " + LuaClient + " client, in " +
 						 model.OperationTypeName + " operation,");
 		source.Indent();
@@ -137,6 +140,7 @@ internal static class OperationEmitter
 		source.WriteLine("/// <param name=\"failure\">The mapped Client failure on failure.</param>");
 		source.WriteLine("/// <param name=\"cancellationToken\">Cancellation observed before dispatch admission.</param>");
 		source.WriteLine("/// <returns><see langword=\"true\" /> when the operation completed successfully.</returns>");
+		EmitExtensionExceptions(source, model, false);
 		source.WriteLine("public static bool TryExecute(this " + LuaClient + " client, in " + model.OperationTypeName +
 						 " operation,");
 		source.Indent();
@@ -150,6 +154,37 @@ internal static class OperationEmitter
 						 "(in operation, out result, out failure, cancellationToken);");
 		source.CloseBlock();
 		source.WriteLine();
+	}
+
+	// The exceptions ILuaClient.Execute and TryExecute document, and the null client these extensions check first. The
+	// operation is a value type, so it is never null; a mapper exception leaves the operation unchanged (see Emit).
+	private static void EmitExtensionExceptions(SourceBuilder source, OperationModel model, bool throwing)
+	{
+		if (model.MapperType is not null)
+		{
+			source.WriteLine("/// <remarks>An exception that the result mapper throws propagates unchanged, as the " +
+							 "same instance.</remarks>");
+		}
+
+		source.WriteLine("/// <exception cref=\"global::System.ArgumentNullException\"><paramref name=\"client\" />" +
+						 " is <see langword=\"null\" />.</exception>");
+		source.WriteLine("/// <exception cref=\"" + ResultsNamespace + "CheatEngineActivationExpiredException\">" +
+						 "The activation has ended.</exception>");
+		if (!throwing)
+		{
+			source.WriteLine("/// <exception cref=\"" + ResultsNamespace + "CheatEngineInvalidStateException\">" +
+							 "The activation is stopping.</exception>");
+			return;
+		}
+
+		source.WriteLine("/// <exception cref=\"" + ResultsNamespace + "CheatEngineInvalidStateException\">" +
+						 "The activation is stopping, or the operation failed with <see cref=\"" + ResultsNamespace +
+						 "CheatEngineFailureKind.InvalidState\" />.</exception>");
+		source.WriteLine("/// <exception cref=\"" + ResultsNamespace + "CheatEngineOperationCanceledException\">" +
+						 "The operation observed the cancellation of <paramref name=\"cancellationToken\" />." +
+						 "</exception>");
+		source.WriteLine("/// <exception cref=\"" + ResultsNamespace + "CheatEngineOperationException\">" +
+						 "The operation failed with any other failure kind.</exception>");
 	}
 
 	private static string EmitParameterList(EquatableArray<OperationParameter> parameters)
