@@ -126,10 +126,13 @@ exact surface.
   diagnostic carries a help link to its entry.
 - **Template.** `dotnet new ceplugin` derives the plugin's display name and its Lua status global (ASCII
   lower_snake_case with a `_status` suffix) from the project name, creates a folder named after the project, honors
-  `--no-restore` and ships a `.gitignore`. The generated plugin adds the host log provider and reads its configuration
-  from `PluginDirectory`.
+  `--no-restore` and ships a `.gitignore`. Different project names can derive the same global, which only one plugin
+  can own. The generated plugin reads its configuration from `PluginDirectory` and adds no logging provider; its README
+  documents the opt-in `AddCheatEngineHostLog()`.
 - **Documentation.** Every public member documents its parameters, return value and exceptions, which a test checks.
-  The packed READMEs are written for plugin authors, and their C# snippets compile against the packed packages.
+  The packed READMEs are written for plugin authors, and their C# snippets compile against the packed packages. Tests
+  also tie the READMEs' 1.0 status columns to the experimental APIs, the diagnostic catalog's severities to the
+  diagnostics and each documented `PackageReference` version to the compiled one.
 
 ### Changed
 
@@ -289,7 +292,9 @@ exact surface.
   referenced assembly, and a Native AOT probe publishes the whole Client graph and calls every Fluent member. Cheat
   Engine still loads the framework-dependent managed plugin folder.
 - **Template.** The `ceplugin` template references the exact `CheatEngine.Client` version it was packed with and the
-  pinned `CheatEngine.SDK`, is validated when it is built, and its instances restore with a lock file.
+  pinned `CheatEngine.SDK`, is validated when it is built, and its instances restore with a lock file. The lock also
+  records the `Microsoft.NET.ILLink.Tasks` version that the .NET SDK bundles, so pin the .NET SDK or regenerate the
+  lock after an SDK update.
 - **Release chain.** `release.yml` releases the seven packages from a `v*` tag: it verifies the tag and takes the
   release notes from this file, builds and tests the tag commit, stages the SBOMs and `SHA256SUMS`, attests the build
   provenance and the SBOMs, drafts the GitHub release, publishes to nuget.org through trusted publishing from the
