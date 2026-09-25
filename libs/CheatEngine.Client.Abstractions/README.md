@@ -508,26 +508,29 @@ atomic.
 
 `Try*` does not mean "never throws". Every family follows three rules, then the per-family details below:
 
-- **Returned as `CheatEngineFailure`:** refusals of well-formed requests (policy, budget and state refusals),
-  pre-admission cancellation, Cheat Engine results that are false, absent, indeterminate, or malformed, and every
-  CheatEngine.SDK exception raised by Client-internal SDK work (mapped by exception type and the SDK's own failure
-  category, never by message text). No CheatEngine.SDK exception is thrown by a `Try*` form;
-  `CheatEngineFailure.Exception` may hold one, whose type is not part of the contract. A Lua admission that the Client
-  asks for itself (for example unsafe Lua or a generated Lua module) and that CheatEngine.SDK refuses is
-  `ActivationExpired`, `RuntimeChanged`, `InvalidState` (called off the main thread) or `IndeterminateHostResult` (a
-  status the Client does not recognize) with `NotStarted`, never `OperationRejected`. A CheatEngine.SDK call that
-  acquires its own admission (Address List mutations, table files, memory, inspection, scans) raises a plain
-  `InvalidOperationException` when it is refused: that is `OperationRejected` with `Unknown` while the activation is
-  current, `RuntimeChanged` after CheatEngine.SDK detected an external Lua state reset, and a thrown
-  `CheatEngineActivationExpiredException` once the activation ended.
-- **Thrown:** `ArgumentNullException`, `ArgumentException` or `ArgumentOutOfRangeException` for a null argument, a
-  `default` (uninitialized) request, an undefined enum value or an out-of-range number (programming errors), from the
-  `Try` form as from the throwing form, and first: before the activation check and before any Cheat Engine call, as
-  the argument's own constructor or factory throws for the same value. Then `CheatEngineActivationExpiredException`
-  when the activation has ended and `CheatEngineInvalidStateException` when it is stopping, both named after the
-  operation that met them: a `Try` form checks the activation before it returns any failure, so a policy, budget or
-  state refusal never hides an ended or stopping activation (`IProcessClient.TryGetLocalProcesses` needs no
-  activation), and an expired activation is never reported as `Cancelled` or `CapabilityUnavailable`.
+- **Returned as `CheatEngineFailure`:** refusals of well-formed requests (by a policy, a budget or the state they
+  meet, or because their values cannot be served together), pre-admission cancellation, Cheat Engine results that are
+  false, absent, indeterminate, or malformed, and every CheatEngine.SDK exception raised by Client-internal SDK work
+  (mapped by exception type and the SDK's own failure category, never by message text). No CheatEngine.SDK exception
+  is thrown by a `Try*` form; `CheatEngineFailure.Exception` may hold one, whose type is not part of the contract. A
+  Lua admission that the Client asks for itself (for example unsafe Lua or a generated Lua module) and that
+  CheatEngine.SDK refuses is `ActivationExpired`, `RuntimeChanged`, `InvalidState` (called off the main thread) or
+  `IndeterminateHostResult` (a status the Client does not recognize) with `NotStarted`, never `OperationRejected`. A
+  CheatEngine.SDK call that acquires its own admission (Address List mutations, table files, memory, inspection,
+  scans) raises a plain `InvalidOperationException` when it is refused: that is `OperationRejected` with `Unknown`
+  while the activation is current, `RuntimeChanged` after CheatEngine.SDK detected an external Lua state reset, and a
+  thrown `CheatEngineActivationExpiredException` once the activation ended.
+- **Thrown:** an `ArgumentException` for a null argument, a `default` (uninitialized) request, an undefined enum value
+  or an out-of-range number (programming errors), from the `Try` form as from the throwing form, and first: before the
+  activation check and before any Cheat Engine call. A null argument throws `ArgumentNullException` and an undefined
+  enum value or an out-of-range number `ArgumentOutOfRangeException`, as the argument's own constructor or factory
+  does; a `default` request throws `ArgumentException` or one of these two, depending on the first field its check
+  meets. Then `CheatEngineActivationExpiredException` when the activation has ended and
+  `CheatEngineInvalidStateException` when it is stopping: a `Try` form checks the activation under its own operation
+  name before it returns any failure, so a refusal of a well-formed request never hides an ended or stopping
+  activation (`IProcessClient.TryGetLocalProcesses` needs no activation), and an expired activation is never reported
+  as `Cancelled` or `CapabilityUnavailable`. An activation that ends while the work is being dispatched to Cheat
+  Engine's main thread is reported by the dispatcher, under the operation name `Dispatcher.Invoke`.
 - **Consumer code:** exceptions thrown by application-supplied code (dispatcher callbacks, `IMemoryCodec<T>` codecs,
   `ILuaOperation<T>` operations, the `ILuaResultMapper<TSource, TResult>` of a generated operation) are rethrown as the
   same instance, never converted into a failure. A codec or an operation reports an expected failure by returning
@@ -799,14 +802,19 @@ This charter is normative for every public type of the seven Client packages; th
   public constructor: `CheatEngineFailure.Throw(token)` throws one and `CheatEngineFailure.ToException(token)` creates
   one, so every exception keeps the complete failure, including `HostEffect` (`NotStarted` for an admission refusal).
 - A null argument, a `default` (uninitialized) request, an undefined enum value or an out-of-range number is a
-  programming error. The `Try` form and the throwing form both throw `ArgumentNullException`, `ArgumentException` or
-  `ArgumentOutOfRangeException` for it (the exception the argument's own constructor or factory throws for the same
-  value), before the activation check and before any Cheat Engine call, as the BCL validates arguments first. It is
-  never returned as a failure.
-- `OperationRejected` with `NotStarted` is reserved for a well-formed request that the Client's policy or budgets
-  refuse (an opt-in that is not enabled, a path outside the trusted table roots, a resource limit, an unsupported
-  primitive `T`) or that the state it meets refuses (a self-parent, a next-scan value of another type than the
-  session's first scan, a module and range without room for a whole match).
+  programming error. The `Try` form and the throwing form both throw an `ArgumentException` for it, before the
+  activation check and before any Cheat Engine call, as the BCL validates arguments first; it is never returned as a
+  failure. A null argument throws `ArgumentNullException` and an undefined enum value or an out-of-range number
+  `ArgumentOutOfRangeException`, as the argument's own constructor or factory does; a `default` request throws
+  `ArgumentException` or one of these two, depending on the first field its check meets.
+- A well-formed request that the Client refuses before calling Cheat Engine fails with `NotStarted`:
+  `CapabilityUnavailable` when the activation did not enable the capability (unsafe Lua or Auto Assembler patches
+  without their opt-in, table files without an allowed root), and `OperationRejected` when a policy or a budget
+  refuses the request (a path outside the trusted table roots, a resource limit, an unsupported primitive `T`), when
+  the state it meets refuses it (a next-scan value of another type than the session's first scan, a module smaller
+  than the pattern), or when its values, each valid, cannot be served together (a self-parent, a range without room
+  for a whole match). A limit of Cheat Engine's own, such as a page beyond its 32-bit result index, is
+  `ResultLimitExceeded`.
 - A `Try` form that needs the activation checks it after its arguments and before it returns any failure: an ended
   activation throws `CheatEngineActivationExpiredException` and a stopping one `CheatEngineInvalidStateException`,
   whatever refusal the request would meet. That check is named after the operation: the exception's
@@ -817,7 +825,9 @@ This charter is normative for every public type of the seven Client packages; th
   the activation itself (`Client.Activate`, and `Client.GetRequiredClient` for the plugin member of that name).
   `Member` is the public method the caller invoked, without `Try` or `Detailed`. A lease release is
   `<Service>.Release`, and a failure raised inside a codec or a Lua operation context names the call that runs it.
-  `Operation` is safe to log; like `Message`, its text is not a compatibility contract.
+  `Operation` is safe to log; like `Message`, its text is not a compatibility contract. A failure that the dispatcher
+  itself reports while it runs an operation's work (a cancellation observed at dispatch admission, a main-thread
+  invocation that failed, an activation that ended meanwhile) can still carry the dispatcher's `Dispatcher.Invoke`.
 - No `Try` form throws a CheatEngine.SDK exception. `CheatEngineFailure.Exception` may hold one: its type is not part
   of this contract and changes with the SDK, so never type-test it.
 - "Cancelled" is the Client's spelling for the failure kind and the host outcome; exception type names follow the BCL.

@@ -198,9 +198,9 @@ Services that touch Cheat Engine must preserve this activation-lifecycle contrac
 
 ### Failures, exceptions and cancellation
 
-`Try...` methods return a `CheatEngineFailure` for the policy, budget and state refusals of a well-formed request,
-cancellation before dispatch, and Cheat Engine results that are false, absent, indeterminate or malformed; no `Try...`
-method throws a CheatEngine.SDK exception. They still throw an argument exception for a null argument, a `default`
+`Try...` methods return a `CheatEngineFailure` for the refusals of a well-formed request, cancellation before dispatch,
+and Cheat Engine results that are false, absent, indeterminate or malformed; no `Try...` method throws a
+CheatEngine.SDK exception. They still throw an argument exception for a null argument, a `default`
 request, an undefined enum value or an out-of-range number (checked first, before the activation and before any Cheat
 Engine call), `CheatEngineActivationExpiredException` and `CheatEngineInvalidStateException`, and they rethrow
 exceptions from your own callbacks, codecs and Lua operations unchanged.

@@ -29,7 +29,7 @@ namespace CheatEngine.Client.Tables;
 ///     </para>
 ///     <para>
 ///         A <see langword="default" /> argument is a programming error, thrown before the activation check and before
-///         any Cheat Engine call, as its constructor throws for the same value: an
+///         any Cheat Engine call for the first field its check meets: an
 ///         <see cref="ArgumentOutOfRangeException" /> for a <see cref="MemoryRecordCollectionRequest" /> or
 ///         <see cref="MemoryRecordHierarchyRequest" />, which allows no record, and an <see cref="ArgumentException" />
 ///         for a <see cref="MemoryRecordSearch" />, <see cref="MemoryRecordDefinition" />,

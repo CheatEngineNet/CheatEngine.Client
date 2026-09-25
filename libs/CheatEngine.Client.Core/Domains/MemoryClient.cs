@@ -904,8 +904,9 @@ internal sealed class MemoryClient : IMemoryClient
 	}
 
 	/// <summary>
-	///     Throws for the default codec request, which carries no codec, as its constructor throws for a null codec;
-	///     without this check the codec call would fail on Cheat Engine's main thread.
+	///     Throws for the default codec request, which carries no codec; without this check the codec call would fail
+	///     on Cheat Engine's main thread. Its constructor throws <see cref="ArgumentNullException" /> for a null codec
+	///     argument, but the request argument is not null: its missing codec is an <see cref="ArgumentException" />.
 	/// </summary>
 	/// <exception cref="ArgumentException">The request carries no codec.</exception>
 	private static void ValidateCodec<T>(IMemoryCodec<T>? codec, string parameterName)
