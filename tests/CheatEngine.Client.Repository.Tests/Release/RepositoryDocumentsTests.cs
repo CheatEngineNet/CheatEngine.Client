@@ -49,9 +49,104 @@ public sealed partial class RepositoryDocumentsTests
 	public void ChangelogReleasesAreDatedInIsoFormatNewestFirstAndHaveEntries()
 	{
 		string[] changelog = File.ReadAllLines(Path.Combine(RepositoryRoot.Path, "CHANGELOG.md"));
+		string[] offenders = FindReleaseSectionOffenders(changelog);
+
+		Assert.True(offenders.Length == 0,
+			"CHANGELOG.md releases are '## [X.Y.Z] - YYYY-MM-DD' sections in ISO 8601, newest first, each with " +
+			$"entries:{Environment.NewLine}{string.Join(Environment.NewLine, offenders)}");
+	}
+
+	[Fact]
+	public void TheReleaseSectionRulesSeeOrderDatesHeadingsAndEmptySections()
+	{
+		// The CHANGELOG holds one release, so its fact never compares two; these lines exercise every rule.
+		Assert.Empty(FindReleaseSectionOffenders(
+		[
+			"# Changelog", "## [Unreleased]", "### Added", "## [1.1.0] - 2027-01-04", "- 1.1",
+			"## [1.1.0-rc.1] - 2027-01-02", "- candidate", "## [1.0.0] - 2026-09-25", "### Added", "- first"
+		]));
+
+		Assert.Equal(
+			["line 4: [1.1.0] - 2026-09-25 is not older than the release above it; the newest release comes first"],
+			FindReleaseSectionOffenders(
+				["## [Unreleased]", "## [1.0.0] - 2026-09-25", "- a", "## [1.1.0] - 2026-09-25", "- b"]));
+		Assert.Equal(
+			["line 4: [1.1.0] - 2027-01-01 is not older than the release above it; the newest release comes first"],
+			FindReleaseSectionOffenders(
+				["## [Unreleased]", "## [1.1.0-rc.1] - 2027-01-02", "- rc", "## [1.1.0] - 2027-01-01", "- b"]));
+		Assert.Equal(["line 4: [1.0.0] - 2027-02-01 is dated after the newer release above it"],
+			FindReleaseSectionOffenders(
+				["## [Unreleased]", "## [1.1.0] - 2027-01-04", "- a", "## [1.0.0] - 2027-02-01", "- b"]));
+		Assert.Equal(
+			[
+				"line 2: '2027-02-30' is not an ISO 8601 calendar date (YYYY-MM-DD)",
+				"line 4: '## 1.1.0' is not '## [X.Y.Z] - YYYY-MM-DD'; the release workflow reads every level-2 " +
+				"heading as the end of the section above it",
+				"line 6: [1.0.0] - 2026-09-25 has no entry; its body becomes the GitHub release notes"
+			],
+			FindReleaseSectionOffenders(
+			[
+				"## [Unreleased]", "## [1.2.0] - 2027-02-30", "- a", "## 1.1.0", "- b", "## [1.0.0] - 2026-09-25",
+				"### Added", ""
+			]));
+		Assert.Equal(
+			[
+				"line 3: '## [Unreleased]' must appear once, above every release",
+				"line 4: '## [Unreleased]' must appear once, above every release"
+			],
+			FindReleaseSectionOffenders(["## [1.0.0] - 2026-09-25", "- a", "## [Unreleased]", "## [Unreleased]"]));
+		Assert.Equal(["no '## [Unreleased]' heading; the release workflow reads that exact syntax"],
+			FindReleaseSectionOffenders(["# Changelog", "## [1.0.0] - 2026-09-25", "- a"]));
+	}
+
+	[Fact]
+	public void ReleasingDocumentsTheTrustedPublishingPolicyForTheClientPackageGlob()
+	{
+		string releasing = File.ReadAllText(Path.Combine(RepositoryRoot.Path, "RELEASING.md"));
+		string[] required = ["`CheatEngine.Client*`", "`release.yml`", "`nuget`", "`NUGET_USER`", "`CheatEngineNet`", "`CheatEngine.Client`"];
+		List<string> missing = [];
+		foreach (string value in required)
+		{
+			if (!releasing.Contains(value, StringComparison.Ordinal))
+			{
+				missing.Add(value);
+			}
+		}
+
+		Assert.True(missing.Count == 0,
+			$"RELEASING.md must document the nuget.org trusted publishing policy; it does not mention: {string.Join(", ", missing)}.");
+	}
+
+	[Fact]
+	public void ReleasingNamesTheOrganizationAsPolicyOwnerAndItsMemberAsNuGetUser()
+	{
+		string[] releasing = File.ReadAllLines(Path.Combine(RepositoryRoot.Path, "RELEASING.md"));
+		string[] owners = [.. releasing.Select(static line => PolicyOwnerRow().Match(line))
+			.Where(static match => match.Success).Select(static match => match.Groups["owner"].Value)];
+		string[] users = [.. releasing.Select(static line => NuGetUserSecret().Match(line))
+			.Where(static match => match.Success).Select(static match => match.Groups["user"].Value)];
+
+		// The policy belongs to the nuget.org organization, so it survives a change of maintainer; NuGet/login still
+		// needs the profile name of the member who created it, never the organization name or an e-mail address.
+		Assert.True(owners.SequenceEqual(["`CheatEngine` (organization)"], StringComparer.Ordinal),
+			"RELEASING.md must have one trusted publishing row '| Policy owner | `CheatEngine` (organization) |', " +
+			$"found: {string.Join(", ", owners)}.");
+		Assert.True(users.SequenceEqual(["AriusII"], StringComparer.Ordinal),
+			"RELEASING.md must set the environment secret `NUGET_USER` to `AriusII` once, found: " +
+			$"{string.Join(", ", users)}.");
+	}
+
+	/// <summary>
+	///     The breaches of the release section rules in <paramref name="changelog" />: one <c>## [Unreleased]</c> above
+	///     every release; each release a <c>## [X.Y.Z] - YYYY-MM-DD</c> heading with a real ISO 8601 date, older than
+	///     the release above it (a prerelease precedes the release of its version) and not dated after it; and each
+	///     release section with an entry.
+	/// </summary>
+	private static string[] FindReleaseSectionOffenders(string[] changelog)
+	{
 		List<string> offenders = [];
 		bool unreleasedSeen = false;
-		(Version Core, bool IsPrerelease, DateOnly Date)? newer = null;
+		(Version Core, DateOnly Date)? newer = null;
 		for (int index = 0; index < changelog.Length; index++)
 		{
 			string line = changelog[index];
@@ -110,50 +205,15 @@ public sealed partial class RepositoryDocumentsTests
 				offenders.Add($"line {index + 1}: {line[3..]} has no entry; its body becomes the GitHub release notes");
 			}
 
-			newer = (core, isPrerelease, released);
+			newer = (core, released);
 		}
 
-		Assert.True(unreleasedSeen, "CHANGELOG.md has no '## [Unreleased]' heading.");
-		Assert.True(offenders.Count == 0,
-			"CHANGELOG.md releases are '## [X.Y.Z] - YYYY-MM-DD' sections in ISO 8601, newest first, each with " +
-			$"entries:{Environment.NewLine}{string.Join(Environment.NewLine, offenders)}");
-	}
-
-	[Fact]
-	public void ReleasingDocumentsTheTrustedPublishingPolicyForTheClientPackageGlob()
-	{
-		string releasing = File.ReadAllText(Path.Combine(RepositoryRoot.Path, "RELEASING.md"));
-		string[] required = ["`CheatEngine.Client*`", "`release.yml`", "`nuget`", "`NUGET_USER`", "`CheatEngineNet`", "`CheatEngine.Client`"];
-		List<string> missing = [];
-		foreach (string value in required)
+		if (!unreleasedSeen)
 		{
-			if (!releasing.Contains(value, StringComparison.Ordinal))
-			{
-				missing.Add(value);
-			}
+			offenders.Add("no '## [Unreleased]' heading; the release workflow reads that exact syntax");
 		}
 
-		Assert.True(missing.Count == 0,
-			$"RELEASING.md must document the nuget.org trusted publishing policy; it does not mention: {string.Join(", ", missing)}.");
-	}
-
-	[Fact]
-	public void ReleasingNamesTheOrganizationAsPolicyOwnerAndItsMemberAsNuGetUser()
-	{
-		string[] releasing = File.ReadAllLines(Path.Combine(RepositoryRoot.Path, "RELEASING.md"));
-		string[] owners = [.. releasing.Select(static line => PolicyOwnerRow().Match(line))
-			.Where(static match => match.Success).Select(static match => match.Groups["owner"].Value)];
-		string[] users = [.. releasing.Select(static line => NuGetUserSecret().Match(line))
-			.Where(static match => match.Success).Select(static match => match.Groups["user"].Value)];
-
-		// The policy belongs to the nuget.org organization, so it survives a change of maintainer; NuGet/login still
-		// needs the profile name of the member who created it, never the organization name or an e-mail address.
-		Assert.True(owners.SequenceEqual(["`CheatEngine` (organization)"], StringComparer.Ordinal),
-			"RELEASING.md must have one trusted publishing row '| Policy owner | `CheatEngine` (organization) |', " +
-			$"found: {string.Join(", ", owners)}.");
-		Assert.True(users.SequenceEqual(["AriusII"], StringComparer.Ordinal),
-			"RELEASING.md must set the environment secret `NUGET_USER` to `AriusII` once, found: " +
-			$"{string.Join(", ", users)}.");
+		return [.. offenders];
 	}
 
 	/// <summary>Whether a release section holds a line other than a blank line or a category heading.</summary>
