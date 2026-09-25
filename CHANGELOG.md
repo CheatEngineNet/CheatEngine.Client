@@ -36,27 +36,32 @@ ship.
 The first release of CheatEngine.Client: high-level, activation-scoped C# APIs for Cheat Engine 7.7 x64 plugins, built
 on CheatEngine.SDK 2.0.0. It fixes the public API for the 1.x line, under the versioning rules of the
 [README](https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/README.md#versioning-and-compatibility) and the
-public API charter of the `CheatEngine.Client.Abstractions` README; the experimental APIs `CECLIENT5001` to
-`CECLIENT5004` stay outside that promise. **Changed** and **Removed** compare this release with the `0.1.0` builds of
-the repository, which were never published.
+public API charter of the `CheatEngine.Client.Abstractions` README; an API that carries an experimental diagnostic id
+(`CECLIENT5001` to `CECLIENT5004`) stays outside that promise until the id is lifted. **Changed** and **Removed**
+compare this release with the `0.1.0` builds of the repository, which were never published. They summarize by contract
+the changes a consumer of those builds meets, not every renamed member: the `PublicAPI` files of each project list the
+exact surface.
 
 ### Added
 
 - **One client per activation.** `CheatEngineClientPlugin` builds a new DI provider, scope and `ICheatEngineClient` on
   every enable, starts the `ICheatEngineClientModule`s in registration order, stops them in reverse order and releases
   every Client-owned Cheat Engine resource while the SDK context is still valid. `ICheatEngineClient` exposes
-  `Dispatcher`, `Runtime`, `Processes`, `Memory`, `Patterns`, `Inspection`, `Tables` and `Lua`, and the experimental
-  `ValueScans`, `Allocations` and `Assembly`; `Epoch` and `Stopping` identify the activation.
+  `Dispatcher`, `Runtime`, `Processes`, `Memory`, `Patterns`, `Inspection`, `Tables`, `Lua`, `ValueScans`,
+  `Allocations` and `Assembly`; `Epoch` and `Stopping` identify the activation.
 - **Capability matrix.** `ICheatEngineRuntime.TryGetClientCapability` reports each of the eleven `ClientCapabilityId`s
   with its `Evidence`: separate implementation, package, host, live qualification, policy and lifetime gates, and a
-  typed `EffectiveReasonCode`. Every capability has an operational adapter. The package gate accepts a loaded
-  CheatEngine.SDK 2.x at or above 2.0.0, and the qualification gate stays `Unknown` until committed Client receipts
-  exist for the capability's live scenarios, so no capability reports `Available` in this release. The README
+  typed `EffectiveReasonCode`; a capability reports `Available` only when all six gates are satisfied. Every capability
+  has an operational adapter. The package gate accepts a loaded CheatEngine.SDK 2.x at or above 2.0.0, and the
+  qualification gate stays `Unknown` until the Client embeds committed evidence that every live scenario of the
+  capability succeeded, none waived (`Client.UnsafeLuaExecution` has no scenario, so it stays `Unknown`). The README
   capability tables state the same matrix, and the features Cheat Engine offers without a CheatEngine.SDK primitive are
   listed as not offered.
-- **Experimental APIs.** Four operational adapters are marked `[Experimental]`. Suppressing the diagnostic is the
-  opt-in, each diagnostic links to its section of the Abstractions README (scope, behavior, known limits and exit
-  criteria), and each id is lifted only when its capability's live scenarios succeed:
+- **Value scans, allocations, instructions and Auto Assembler patches.** Four operational adapters, each assigned an
+  experimental diagnostic id that keeps its API `[Experimental]` until the live scenarios of its capability succeed and
+  the id is lifted; the README capability tables say which of these ids this release carries. While an API carries its
+  id, suppressing the diagnostic is the opt-in, and the diagnostic links to its section of the Abstractions README
+  (scope, behavior, known limits and exit criteria):
   - `CECLIENT5001`, value scans: `ICheatEngineClient.ValueScans` creates `IValueScanSession`s over CheatEngine.SDK's
     owned `MemScan` and `FoundList`, with first and next scans and pages of at most 1024 copied results;
     `ValueScanValue.FromSingle` and `FromDouble` write the value in fixed point with the decimals the caller passes;
@@ -97,8 +102,9 @@ the repository, which were never published.
   CheatEngine.SDK version and whether it is the reviewed package (`Version`), and the host operating system and
   architecture, `CheatEngineBitness`, the `TargetBackend`, the target architecture, `TargetBitness` and the configured
   pointer size (`Platform`); a fact CheatEngine.SDK could not establish stays unknown. `ProcessSnapshot` adds `Backend`,
-  `Bitness`, `StartTimeUtc` and `SelectionEpoch`, and `IProcessClient.TryGetLocalProcesses` reads the local process
-  catalog offline, without an activation.
+  `StartTimeUtc` and the configured pointer size next to its `Bitness` (`ConfiguredPointerSize`,
+  `ConfiguredPointerSizeBytes`, `ConfiguredPointerSizeDiffersFromBitness`), and `IProcessClient.TryGetLocalProcesses`
+  reads the local process catalog offline, without an activation.
 - **Address List and symbols.** `ITableClient` counts records (`GetRecordCount`), reads one by index (`GetRecordAt`),
   reads the selected record and selects one (`GetSelectedRecord`, `SelectRecord`), and loads and saves trusted tables
   through CheatEngine.SDK's `CheatTableFiles`; a trusted load makes every earlier `MemoryRecordId` stale.
@@ -191,15 +197,22 @@ the repository, which were never published.
   `TryNextScan`), and `TryResolveAddress` an `AddressResolutionMode`, instead of CheatEngine.SDK request and option
   types. `ICheatEngineDispatcher` has explicit overloads instead of an optional token, and `ILuaClient` one
   `TryExecute<TOperation, TResult>(in TOperation ...)` design.
-- **Facts renamed.** `CheatEngineRuntimePlatformInfo.SystemArchitecture` is `HostArchitecture` and
+- **Facts renamed or regrouped.** `CheatEngineRuntimePlatformInfo.SystemArchitecture` is `HostArchitecture` and
   `TargetPointerSize` is `TargetBitness`; `ProcessSnapshot.TargetArchitecture` is `Architecture` and
   `TargetPointerSize` is `Bitness`; `IMemoryReadContext.PointerSize` gives way to `Bitness` and the configured pointer
-  size. The runtime snapshot groups its facts in `Version` and `Platform`.
+  size. The runtime snapshot groups its facts in `Version` and `Platform`, and its `ClientCapabilities` is
+  `Capabilities`; `CheatEngineRuntimeVersionInfo.ObservedCheatEngineVersion`, a `double?`, is the four-part
+  `CheatEngineVersion`. `MemoryRecordSnapshot` keeps a record's facts only in `Content` and `State`, without their
+  top-level copies. The batch outcomes report `RequestedCount`, `IsSuccess`, `Failure` and `Values` instead of
+  `AttemptedCount`, `Succeeded`, `Cause` and `ReadPrefix`, and `MemoryBatchLimits.MaximumOperations` is
+  `MaximumOperationCount`. The local process catalog types are `LocalProcessEnumerationRequest`,
+  `LocalProcessEnumerationResult` and `LocalProcessSnapshot`, formerly `ProcessEnumerationRequest`,
+  `ProcessEnumerationResult` and `ProcessInfoSnapshot`.
 - **Enum values.** Every public enum is an `int` enum with explicit values, and every outcome enum has `Unknown = 0`.
   This shifts the values of `ClientCapabilityEvidenceReasonCode`, `MemoryBatchWriteEffectState` (whose `Complete` is
   `Completed`) and `ValueScanSessionState` (whose `Disposed` is `Closed`).
 - **Capabilities that were contracts.** Value scans, target allocations and instructions, which always reported
-  `CapabilityUnavailable` before 1.0.0, are operational adapters, experimental (`CECLIENT5001` to `CECLIENT5003`).
+  `CapabilityUnavailable` before 1.0.0, are operational adapters; **Added** gives their experimental ids.
 - **Lua.** A Lua module or export name that the activation already reserved is refused with `OperationRejected`, and
   a generated module whose registration is refused throws the exception of its failure's kind.
 - **Composition.** `CheatEngineClientOptions.AllowedTableRoots` is an `IList<string>` and `MemoryResourceLimits` is
@@ -223,9 +236,9 @@ the repository, which were never published.
   into `ILuaModule`), `ILocalProcessDiagnostics` (replaced by `IProcessClient.TryGetLocalProcesses`),
   `CheatEngineClientBuilder.AddMemoryCodec` and the implicit codec resolution, `ITableClient.GetCurrent` (use
   `GetSnapshot`), `ICheatEngineRuntime.GetSdkCapability` and `CheatEngineRuntimeSnapshot.SdkCapabilities`,
-  `ILuaModuleLease.Epoch`, the `ILuaClient` overloads that took an `ILuaOperation<TResult>` interface, and the
-  `MemoryStringReadRequest.Create` and `MemoryStringWriteRequest.CreateBounded` factories with their `WideCharacter`
-  flag.
+  `ClientCapabilityEvidence.IsExecutable` (read `AvailabilityState`), `ILuaModuleLease.Epoch`, the `ILuaClient`
+  overloads that took an `ILuaOperation<TResult>` interface, and the `MemoryStringReadRequest.Create` and
+  `MemoryStringWriteRequest.CreateBounded` factories with their `WideCharacter` flag.
 - **Public constructors that bypassed the contracts:** those of every Client exception, of the options validators
   (`CheatEngineClientOptionsSemanticValidator`, `ValidateCheatEngineClientOptions`, now internal), and the constructor
   and `BuildServiceProvider` of `CheatEnginePluginBuilder`.
@@ -237,10 +250,10 @@ the repository, which were never published.
 ### Security
 
 - **Opt-ins.** `IUnsafeLuaClient` exists only after `EnableUnsafeLuaExecution()`, and `IAutoAssemblerClient` only
-  after `EnableAutoAssemblerPatches()` (`CECLIENT5004`): without its opt-in, each capability reports `Unavailable` and
-  every call is refused with `CapabilityUnavailable` and `NotStarted` before any Cheat Engine call (scenario Q44).
-  Table files need an allowed root: without one they are `CapabilityUnavailable`, and a path outside every
-  `AllowedTableRoots` entry is `OperationRejected`.
+  after `EnableAutoAssemblerPatches()`: without its opt-in, each capability reports `Unavailable` and every call is
+  refused with `CapabilityUnavailable` and `NotStarted` before any Cheat Engine call (scenario Q44). Table files need an
+  allowed root: without one they are `CapabilityUnavailable`, and a path outside every `AllowedTableRoots` entry is
+  `OperationRejected`.
 - **Registrations.** `IInspectionClient.TryRegisterSymbol` refuses a name that already resolves (a registered symbol,
   a module or an address expression) with `OperationRejected` and `NotStarted`, and a symbol or Lua module release
   never removes a name that another owner replaced.
