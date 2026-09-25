@@ -69,20 +69,3 @@ result.
 Never edit an installed Cheat Engine to match this profile: its runtime configuration applies to every managed plugin of
 the installation, and CheatEngine.Client never treats such an edit as a setup step. A stock installation is not a
 qualified profile, and a result on this profile authorizes no x86 or ARM64 plugin claim.
-
-## Validate the template from this repository
-
-Build the repository, pack it, and point the C# consumer smoke tests at the exact package directory:
-
-```powershell
-dotnet build CheatEngine.Client.slnx --configuration Release
-dotnet pack CheatEngine.Client.slnx --configuration Release --no-build --output ./artifacts/nuget
-$env:CHEATENGINE_CLIENT_PACKAGE_SOURCE = (Resolve-Path ./artifacts/nuget).Path
-dotnet test --project ./tests/CheatEngine.Client.Tests/CheatEngine.Client.Tests.csproj --configuration Release --no-build --fail-skips on
-```
-
-The smoke tests install this template package in an isolated template home, run `dotnet new ceplugin --dry-run`,
-instantiate it into a temporary directory outside the repository, restore it against the packed Client packages and
-nuget.org only, and build it in Release configuration. They check that the generated project references the co-packed
-`CheatEngine.Client` version and the pinned `CheatEngine.SDK` directly, and that the build output holds the complete
-deployment closure next to the plugin.

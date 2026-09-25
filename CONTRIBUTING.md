@@ -49,6 +49,19 @@ dotnet publish tests/CheatEngine.Client.AotProbe/CheatEngine.Client.AotProbe.csp
 Without `CHEATENGINE_CLIENT_PACKAGE_SOURCE`, the package consumption tests pack the repository themselves, which is
 slower.
 
+They include the template smoke tests: they install the packed `CheatEngine.Client.Templates` package in an isolated
+template home, run `dotnet new ceplugin --dry-run`, instantiate the template into a temporary directory outside the
+repository, restore it against the packed Client packages and nuget.org only, and build it in Release configuration.
+They check that the generated project references the co-packed `CheatEngine.Client` version and the pinned
+`CheatEngine.SDK` directly, and that the build output holds the complete deployment closure next to the plugin. To run
+only the project that holds them, after the pack above:
+
+```powershell
+$env:CHEATENGINE_CLIENT_PACKAGE_SOURCE = (Resolve-Path artifacts/nuget).Path
+dotnet test --project tests/CheatEngine.Client.Tests/CheatEngine.Client.Tests.csproj -c Release --no-build --fail-skips on --filter-not-trait "Category=LiveQualification"
+Remove-Item Env:CHEATENGINE_CLIENT_PACKAGE_SOURCE
+```
+
 ### Lock files
 
 Never edit a `packages.lock.json` by hand, and never let an IDE restore rewrite them. After a dependency change,
