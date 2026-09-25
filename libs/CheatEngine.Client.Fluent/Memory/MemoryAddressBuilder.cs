@@ -23,16 +23,6 @@ public readonly record struct MemoryAddressBuilder
 		get;
 	}
 
-	/// <summary>Returns an equivalent builder bound to a scoped target-memory service.</summary>
-	/// <param name="memory">The scoped target-memory service used by terminal operations.</param>
-	/// <returns>A new immutable builder.</returns>
-	/// <exception cref="ArgumentNullException"><paramref name="memory" /> is <see langword="null" />.</exception>
-	public MemoryAddressBuilder Using(IMemoryClient memory)
-	{
-		ArgumentNullException.ThrowIfNull(memory);
-		return new MemoryAddressBuilder(Address, memory);
-	}
-
 	/// <summary>Reads one built-in scalar or pointer type through the bound memory service.</summary>
 	/// <typeparam name="T">The built-in scalar or pointer type to read.</typeparam>
 	/// <param name="cancellationToken">
@@ -374,7 +364,7 @@ public readonly record struct MemoryAddressBuilder
 	private IMemoryClient RequireMemory()
 	{
 		return _memory ?? throw new InvalidOperationException(
-			"This memory builder has no bound target-memory service. Use Memory.At(memory, address), " +
-			"memory.At(address), or bind the builder with Using(memory) before a terminal operation.");
+			"This memory builder is a default value without a target-memory service. Start it with " +
+			"memory.At(address), for example client.Memory.At(address).");
 	}
 }

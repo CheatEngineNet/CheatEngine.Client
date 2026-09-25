@@ -15,7 +15,9 @@ the Client facade.
 
 The tests prove builder immutability, correct forwarding, invalid-argument rejection, and the bounded semantics of
 `FirstOrNone`, `RequireSingle`, and `Take`. This keeps ergonomic calls such as `client.Patterns.Aob(...).Take(...)`
-predictable without making a live scan part of a unit test.
+predictable without making a live scan part of a unit test. `FluentSurfaceTests` pins the surface itself: each domain
+has one entry point bound to its service (`IPatternScanner.Aob`, `IMemoryClient.At` and `IMemoryClient.Batch<T>`), and
+a builder has no public constructor, factory or rebinding method.
 
 ## Run
 

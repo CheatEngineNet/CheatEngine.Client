@@ -6,16 +6,18 @@
 operations. It enriches the contracts in `CheatEngine.Client.Abstractions`; it does not execute
 Cheat Engine calls by itself.
 
-The package currently provides AOB request builders and typed target-memory address builders. A
-terminal builder delegates work to a caller-supplied `IPatternScanner` or `IMemoryClient`, usually
-the services available from an activation-scoped `ICheatEngineClient`.
+The package currently provides AOB request builders and typed target-memory address builders. Each
+domain has one entry point, an extension method on the service that runs its terminal operations:
+`scanner.Aob(pattern)` on an `IPatternScanner`, and `memory.At(address)` or `memory.Batch<T>()` on an
+`IMemoryClient`, usually `client.Patterns` and `client.Memory` of an activation-scoped
+`ICheatEngineClient`. A builder is bound to that service when it is created and is never rebound.
 
 ```csharp
 using CheatEngine.Client.Memory;
 using CheatEngine.Client.Scanning;
 using CheatEngine.SDK.Engine.Values;
 
-Address address = client.Aob("48 8B ?? ?? ?? 89")
+Address address = client.Patterns.Aob("48 8B ?? ?? ?? 89")
     .InModule("game.exe")
     .Executable()
     .RequireSingle()
@@ -66,7 +68,7 @@ Abstractions  ←  Fluent
 - Forces explicit result cardinality: `RequireSingle()`, `FirstOrNone()`, or `Take(maximumResults)`.
 - Preserves materialization-bounded copies: the limit bounds only the number of copied addresses, never Cheat
   Engine's scan. Callers inspect `AobScanResult.IsTruncated` when a copy is intentionally incomplete.
-- Provides `Memory.At(...)` and `memory.At(...)` builders for primitive and codec-based reads and
+- Provides `memory.At(...)` and `memory.Batch<T>()` builders for primitive and codec-based reads and
   writes without retaining a live target handle, including exact byte copies, explicit UTF-8/UTF-16
   bounds, finite pointer chains, and bounded homogeneous primitive batches. The primitive terminals
   and `Batch<T>` take `where T : unmanaged`, like `IMemoryClient`, which supports the 8- to 64-bit
@@ -78,10 +80,10 @@ Abstractions  ←  Fluent
 
 The package publishes functional namespaces only:
 
-| Namespace                     | Entry points                                                          |
-|-------------------------------|-----------------------------------------------------------------------|
-| `CheatEngine.Client.Scanning` | `Aob(...)`, AOB module and range scopes, and copy-bounded terminals   |
-| `CheatEngine.Client.Memory`   | `Memory.At(...)`, `IMemoryClient.At(...)`, and `MemoryAddressBuilder` |
+| Namespace                     | Entry points                                                                    |
+|-------------------------------|---------------------------------------------------------------------------------|
+| `CheatEngine.Client.Scanning` | `IPatternScanner.Aob(...)`, AOB module and range scopes, copy-bounded terminals |
+| `CheatEngine.Client.Memory`   | `IMemoryClient.At(...)`, `IMemoryClient.Batch<T>()`, and `MemoryAddressBuilder` |
 
 `CheatEngine.Client.Fluent` is a package/assembly name, never a consumer namespace. The builders
 may expose stable SDK value types already present in the Abstractions vocabulary, notably `Address`

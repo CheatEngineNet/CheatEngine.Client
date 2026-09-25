@@ -80,7 +80,7 @@ public readonly struct MemoryPrimitiveBatchBuilder<T>
 	private IMemoryClient RequireMemory()
 	{
 		return _memory ?? throw new InvalidOperationException(
-			"This primitive-batch builder has no bound target-memory service. Use Memory.Batch<T>(memory) or " +
-			"memory.Batch<T>() before a terminal operation.");
+			"This primitive-batch builder is a default value without a target-memory service. Start it with " +
+			"memory.Batch<T>(), for example client.Memory.Batch<T>().");
 	}
 }

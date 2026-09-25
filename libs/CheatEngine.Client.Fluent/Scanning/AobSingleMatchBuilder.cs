@@ -109,6 +109,7 @@ public readonly record struct AobSingleMatchBuilder
 	private IPatternScanner RequireScanner()
 	{
 		return _scanner ?? throw new InvalidOperationException(
-			"This AOB terminal builder has no bound pattern scanner. Create it through Aob(pattern).");
+			"This AOB terminal builder is a default value without a pattern scanner. Select it from " +
+			"scanner.Aob(pattern), for example client.Patterns.Aob(pattern).RequireSingle().");
 	}
 }

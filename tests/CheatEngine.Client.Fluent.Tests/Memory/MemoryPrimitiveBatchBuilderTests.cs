@@ -30,8 +30,8 @@ public sealed class MemoryPrimitiveBatchBuilderTests
 					 readException, tryReadException, writeException, tryWriteException
 				 })
 		{
-			Assert.Contains("Memory.Batch<T>(memory)", exception.Message);
 			Assert.Contains("memory.Batch<T>()", exception.Message);
+			Assert.DoesNotContain("Memory.Batch<T>(memory)", exception.Message);
 		}
 	}
 }

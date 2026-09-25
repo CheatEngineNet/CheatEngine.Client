@@ -20,16 +20,6 @@ public readonly struct MemoryPointerChainBuilder
 		get;
 	}
 
-	/// <summary>Returns an equivalent pointer-chain builder bound to a scoped target-memory service.</summary>
-	/// <param name="memory">The scoped target-memory service used by terminal operations.</param>
-	/// <returns>A new immutable builder.</returns>
-	/// <exception cref="ArgumentNullException"><paramref name="memory" /> is <see langword="null" />.</exception>
-	public MemoryPointerChainBuilder Using(IMemoryClient memory)
-	{
-		ArgumentNullException.ThrowIfNull(memory);
-		return new MemoryPointerChainBuilder(Request, memory);
-	}
-
 	/// <summary>Resolves every pointer dereference and offset in the chain.</summary>
 	/// <param name="cancellationToken">
 	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
@@ -60,7 +50,7 @@ public readonly struct MemoryPointerChainBuilder
 	private IMemoryClient RequireMemory()
 	{
 		return _memory ?? throw new InvalidOperationException(
-			"This pointer-chain builder has no bound target-memory service. Use Memory.At(memory, address), " +
-			"memory.At(address), or bind the chain with Using(memory) before a terminal operation.");
+			"This pointer-chain builder is a default value without a target-memory service. Start the chain with " +
+			"memory.At(address).Follow(offsets), for example client.Memory.At(address).Follow(offsets).");
 	}
 }

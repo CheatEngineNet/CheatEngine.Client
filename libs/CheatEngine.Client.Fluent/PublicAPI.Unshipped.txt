@@ -1,6 +1,5 @@
 #nullable enable
 CheatEngine.Client.Memory.CheatEngineMemoryFluentExtensions
-CheatEngine.Client.Memory.Memory
 CheatEngine.Client.Memory.MemoryAddressBuilder
 CheatEngine.Client.Memory.MemoryAddressBuilder.Address.get -> CheatEngine.SDK.Engine.Values.Address
 CheatEngine.Client.Memory.MemoryAddressBuilder.Equals(CheatEngine.Client.Memory.MemoryAddressBuilder other) -> bool
@@ -20,7 +19,6 @@ CheatEngine.Client.Memory.MemoryAddressBuilder.TryWrite<T>(T value, out CheatEng
 CheatEngine.Client.Memory.MemoryAddressBuilder.TryWriteBytes(System.ReadOnlySpan<byte> bytes, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
 CheatEngine.Client.Memory.MemoryAddressBuilder.TryWriteString(string! value, int maximumLength, CheatEngine.Client.Memory.MemoryStringEncoding encoding, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
 CheatEngine.Client.Memory.MemoryAddressBuilder.TryWriteWith<T>(T value, CheatEngine.Client.Memory.IMemoryCodec<T>! codec, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
-CheatEngine.Client.Memory.MemoryAddressBuilder.Using(CheatEngine.Client.Memory.IMemoryClient! memory) -> CheatEngine.Client.Memory.MemoryAddressBuilder
 CheatEngine.Client.Memory.MemoryAddressBuilder.Write<T>(T value, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> void
 CheatEngine.Client.Memory.MemoryAddressBuilder.WriteBytes(System.ReadOnlySpan<byte> bytes, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> void
 CheatEngine.Client.Memory.MemoryAddressBuilder.WriteString(string! value, int maximumLength, CheatEngine.Client.Memory.MemoryStringEncoding encoding, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> void
@@ -32,7 +30,6 @@ CheatEngine.Client.Memory.MemoryPointerChainBuilder.MemoryPointerChainBuilder() 
 CheatEngine.Client.Memory.MemoryPointerChainBuilder.Request.get -> CheatEngine.Client.Memory.PointerChainRequest
 CheatEngine.Client.Memory.MemoryPointerChainBuilder.Resolve(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> CheatEngine.SDK.Engine.Values.Address
 CheatEngine.Client.Memory.MemoryPointerChainBuilder.TryResolve(out CheatEngine.SDK.Engine.Values.Address address, out CheatEngine.Client.Results.CheatEngineFailure failure, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
-CheatEngine.Client.Memory.MemoryPointerChainBuilder.Using(CheatEngine.Client.Memory.IMemoryClient! memory) -> CheatEngine.Client.Memory.MemoryPointerChainBuilder
 CheatEngine.Client.Memory.MemoryPrimitiveBatchBuilder<T>
 CheatEngine.Client.Memory.MemoryPrimitiveBatchBuilder<T>.MemoryPrimitiveBatchBuilder() -> void
 CheatEngine.Client.Memory.MemoryPrimitiveBatchBuilder<T>.Read(System.ReadOnlySpan<CheatEngine.SDK.Engine.Values.Address> addresses, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Immutable.ImmutableArray<T>
@@ -81,9 +78,6 @@ override CheatEngine.Client.Scanning.AobScanBuilder.GetHashCode() -> int
 override CheatEngine.Client.Scanning.AobSingleMatchBuilder.GetHashCode() -> int
 static CheatEngine.Client.Memory.CheatEngineMemoryFluentExtensions.At(this CheatEngine.Client.Memory.IMemoryClient! memory, CheatEngine.SDK.Engine.Values.Address address) -> CheatEngine.Client.Memory.MemoryAddressBuilder
 static CheatEngine.Client.Memory.CheatEngineMemoryFluentExtensions.Batch<T>(this CheatEngine.Client.Memory.IMemoryClient! memory) -> CheatEngine.Client.Memory.MemoryPrimitiveBatchBuilder<T>
-static CheatEngine.Client.Memory.Memory.At(CheatEngine.Client.Memory.IMemoryClient! memory, CheatEngine.SDK.Engine.Values.Address address) -> CheatEngine.Client.Memory.MemoryAddressBuilder
-static CheatEngine.Client.Memory.Memory.At(CheatEngine.SDK.Engine.Values.Address address) -> CheatEngine.Client.Memory.MemoryAddressBuilder
-static CheatEngine.Client.Memory.Memory.Batch<T>(CheatEngine.Client.Memory.IMemoryClient! memory) -> CheatEngine.Client.Memory.MemoryPrimitiveBatchBuilder<T>
 static CheatEngine.Client.Memory.MemoryAddressBuilder.operator !=(CheatEngine.Client.Memory.MemoryAddressBuilder left, CheatEngine.Client.Memory.MemoryAddressBuilder right) -> bool
 static CheatEngine.Client.Memory.MemoryAddressBuilder.operator ==(CheatEngine.Client.Memory.MemoryAddressBuilder left, CheatEngine.Client.Memory.MemoryAddressBuilder right) -> bool
 static CheatEngine.Client.Scanning.AobFirstMatchBuilder.operator !=(CheatEngine.Client.Scanning.AobFirstMatchBuilder left, CheatEngine.Client.Scanning.AobFirstMatchBuilder right) -> bool
@@ -94,7 +88,7 @@ static CheatEngine.Client.Scanning.AobScanBuilder.operator !=(CheatEngine.Client
 static CheatEngine.Client.Scanning.AobScanBuilder.operator ==(CheatEngine.Client.Scanning.AobScanBuilder left, CheatEngine.Client.Scanning.AobScanBuilder right) -> bool
 static CheatEngine.Client.Scanning.AobSingleMatchBuilder.operator !=(CheatEngine.Client.Scanning.AobSingleMatchBuilder left, CheatEngine.Client.Scanning.AobSingleMatchBuilder right) -> bool
 static CheatEngine.Client.Scanning.AobSingleMatchBuilder.operator ==(CheatEngine.Client.Scanning.AobSingleMatchBuilder left, CheatEngine.Client.Scanning.AobSingleMatchBuilder right) -> bool
-static CheatEngine.Client.Scanning.CheatEngineAobFluentExtensions.Aob(this CheatEngine.Client.ICheatEngineClient! client, string! pattern) -> CheatEngine.Client.Scanning.AobScanBuilder
+static CheatEngine.Client.Scanning.CheatEngineAobFluentExtensions.Aob(this CheatEngine.Client.Scanning.IPatternScanner! scanner, CheatEngine.Client.Scanning.AobPattern pattern) -> CheatEngine.Client.Scanning.AobScanBuilder
 static CheatEngine.Client.Scanning.CheatEngineAobFluentExtensions.Aob(this CheatEngine.Client.Scanning.IPatternScanner! scanner, string! pattern) -> CheatEngine.Client.Scanning.AobScanBuilder
 ~override CheatEngine.Client.Memory.MemoryAddressBuilder.Equals(object obj) -> bool
 ~override CheatEngine.Client.Memory.MemoryAddressBuilder.ToString() -> string

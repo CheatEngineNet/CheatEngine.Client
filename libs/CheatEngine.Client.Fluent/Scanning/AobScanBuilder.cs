@@ -216,7 +216,8 @@ public readonly record struct AobScanBuilder
 	private IPatternScanner RequireScanner()
 	{
 		return _scanner ?? throw new InvalidOperationException(
-			"This AOB builder has no bound pattern scanner. Start the operation with client.Aob(pattern) or scanner.Aob(pattern).");
+			"This AOB builder is a default value without a pattern scanner. Start it with scanner.Aob(pattern), " +
+			"for example client.Patterns.Aob(pattern).");
 	}
 
 	private AobScanRequest BuildRequest(int maximumResults)

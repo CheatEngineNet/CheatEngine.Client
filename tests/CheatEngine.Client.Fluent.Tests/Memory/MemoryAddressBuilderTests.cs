@@ -5,39 +5,43 @@ using CheatEngine.Client.Memory;
 using CheatEngine.Client.Results;
 using CheatEngine.SDK.Engine.Values;
 
-using MemoryFluent = CheatEngine.Client.Memory.Memory;
-
 namespace CheatEngine.Client.Fluent.Tests.Memory;
 
 public sealed class MemoryAddressBuilderTests
 {
 	[Fact]
-	public void AtWithoutServiceRejectsABuiltInTerminalOperation()
+	public void DefaultBuilderRejectsABuiltInTerminalOperationAndNamesTheBoundEntryPoint()
 	{
-		MemoryAddressBuilder builder = MemoryFluent.At(0x401000UL);
+		MemoryAddressBuilder builder = default;
 
 		InvalidOperationException exception =
 			Assert.Throws<InvalidOperationException>(() => builder.Read<int>(TestContext.Current.CancellationToken));
 
-		Assert.Contains("Memory.At(memory, address)", exception.Message);
 		Assert.Contains("memory.At(address)", exception.Message);
-		Assert.Contains("Using(memory)", exception.Message);
-		Assert.DoesNotContain("pass the service to Read/Write", exception.Message);
+		Assert.DoesNotContain("Memory.At(memory, address)", exception.Message);
+		Assert.DoesNotContain("Using(", exception.Message);
 	}
 
 	[Fact]
-	public void UsingCreatesABoundBuilderAndForwardsBuiltInReads()
+	public void AtBindsTheBuilderToTheMemoryServiceAndForwardsBuiltInReads()
 	{
 		Address address = 0x401000;
 		FakeMemoryClient memory = new(1337);
-		MemoryAddressBuilder unbound = MemoryFluent.At(address);
 
-		int value = unbound.Using(memory).Read<int>(TestContext.Current.CancellationToken);
+		int value = memory.At(address).Read<int>(TestContext.Current.CancellationToken);
 
 		Assert.Equal(1337, value);
 		Assert.Equal(address, memory.LastPrimitiveReadAddress);
 		Assert.Equal(typeof(int), memory.LastPrimitiveReadType);
-		Assert.Throws<InvalidOperationException>(() => unbound.Read<int>(TestContext.Current.CancellationToken));
+	}
+
+	[Fact]
+	public void TheMemoryEntryPointsRejectANullService()
+	{
+		IMemoryClient memory = null!;
+
+		Assert.Throws<ArgumentNullException>(() => memory.At(0x401000UL));
+		Assert.Throws<ArgumentNullException>(() => memory.Batch<int>());
 	}
 
 	[Fact]
@@ -63,7 +67,7 @@ public sealed class MemoryAddressBuilderTests
 		Int32Codec codec = new();
 		FakeMemoryClient memory = new(42);
 
-		int value = MemoryFluent.At(address).Using(memory).ReadWith(codec, TestContext.Current.CancellationToken);
+		int value = memory.At(address).ReadWith(codec, TestContext.Current.CancellationToken);
 
 		Assert.Equal(42, value);
 		Assert.Equal(address, memory.LastCustomReadAddress);
@@ -77,7 +81,7 @@ public sealed class MemoryAddressBuilderTests
 		Int32Codec codec = new();
 		FakeMemoryClient memory = new(0);
 
-		bool succeeded = MemoryFluent.At(address).Using(memory).TryWriteWith(
+		bool succeeded = memory.At(address).TryWriteWith(
 			77, codec, out CheatEngineFailure failure, TestContext.Current.CancellationToken);
 
 		Assert.True(succeeded);
@@ -93,7 +97,7 @@ public sealed class MemoryAddressBuilderTests
 		Address address = 0x405000;
 		FakeMemoryClient memory = new(1337);
 
-		bool succeeded = MemoryFluent.At(address).Using(memory).TryRead(
+		bool succeeded = memory.At(address).TryRead(
 			out int value, out CheatEngineFailure failure, TestContext.Current.CancellationToken);
 
 		Assert.True(succeeded);
@@ -109,7 +113,7 @@ public sealed class MemoryAddressBuilderTests
 		Address address = 0x406000;
 		FakeMemoryClient memory = new(0);
 
-		MemoryFluent.At(address).Using(memory).Write(77, TestContext.Current.CancellationToken);
+		memory.At(address).Write(77, TestContext.Current.CancellationToken);
 
 		Assert.Equal(address, memory.LastPrimitiveWriteAddress);
 		Assert.Equal(typeof(int), memory.LastPrimitiveWriteType);
@@ -123,7 +127,7 @@ public sealed class MemoryAddressBuilderTests
 		Int32Codec codec = new();
 		FakeMemoryClient memory = new(42);
 
-		bool succeeded = MemoryFluent.At(address).Using(memory).TryReadWith(
+		bool succeeded = memory.At(address).TryReadWith(
 			codec, out int value, out CheatEngineFailure failure, TestContext.Current.CancellationToken);
 
 		Assert.True(succeeded);
@@ -134,10 +138,10 @@ public sealed class MemoryAddressBuilderTests
 	}
 
 	[Fact]
-	public void TryReadWithRejectsMissingBoundMemoryAndANullCodec()
+	public void TryReadWithRejectsADefaultBuilderAndANullCodec()
 	{
-		MemoryAddressBuilder unbound = MemoryFluent.At(0x409000UL);
-		MemoryAddressBuilder bound = unbound.Using(new FakeMemoryClient(0));
+		MemoryAddressBuilder unbound = default;
+		MemoryAddressBuilder bound = new FakeMemoryClient(0).At(0x409000UL);
 		Int32Codec codec = new();
 
 		Assert.Throws<InvalidOperationException>(() => unbound.TryReadWith(
@@ -153,7 +157,7 @@ public sealed class MemoryAddressBuilderTests
 		Int32Codec codec = new();
 		FakeMemoryClient memory = new(0);
 
-		MemoryFluent.At(address).Using(memory).WriteWith(77, codec, TestContext.Current.CancellationToken);
+		memory.At(address).WriteWith(77, codec, TestContext.Current.CancellationToken);
 
 		Assert.Equal(address, memory.LastCustomWriteAddress);
 		Assert.Equal(77, memory.LastCustomWriteValue);
@@ -161,10 +165,10 @@ public sealed class MemoryAddressBuilderTests
 	}
 
 	[Fact]
-	public void WriteWithRejectsMissingBoundMemoryAndANullCodec()
+	public void WriteWithRejectsADefaultBuilderAndANullCodec()
 	{
-		MemoryAddressBuilder unbound = MemoryFluent.At(0x40C000UL);
-		MemoryAddressBuilder bound = unbound.Using(new FakeMemoryClient(0));
+		MemoryAddressBuilder unbound = default;
+		MemoryAddressBuilder bound = new FakeMemoryClient(0).At(0x40C000UL);
 		Int32Codec codec = new();
 
 		Assert.Throws<InvalidOperationException>(() =>

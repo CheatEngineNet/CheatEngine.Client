@@ -1,16 +1,7 @@
 using System.Collections.Immutable;
 
-using CheatEngine.Client.Allocations;
-using CheatEngine.Client.Assembly;
-using CheatEngine.Client.Dispatching;
-using CheatEngine.Client.Inspection;
-using CheatEngine.Client.Lua;
-using CheatEngine.Client.Memory;
-using CheatEngine.Client.Processes;
 using CheatEngine.Client.Results;
-using CheatEngine.Client.Runtime;
 using CheatEngine.Client.Scanning;
-using CheatEngine.Client.Tables;
 using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Engine.Values;
 
@@ -370,16 +361,31 @@ public sealed class AobFluentBuilderTests
 	}
 
 	[Fact]
-	public void ClientAobExtensionUsesTheClientPatternScanner()
+	public void TheParsedPatternEntryPointForwardsTheNormalizedPatternUnchanged()
 	{
 		Address expected = 0x401000;
 		FakePatternScanner scanner = new(new AobScanResult([expected], false));
-		ICheatEngineClient client = new FakeCheatEngineClient(scanner);
+		Assert.True(AobPattern.TryParse("48 8b ?? 89", out AobPattern pattern));
 
-		Address actual = client.Aob("90").RequireSingle().Execute(TestContext.Current.CancellationToken);
+		AobScanBuilder builder = scanner.Aob(pattern);
+		Address actual = builder.RequireSingle().Execute(TestContext.Current.CancellationToken);
 
+		Assert.Equal(pattern, builder.Pattern);
 		Assert.Equal(expected, actual);
-		Assert.Equal(2, Assert.IsType<AobScanRequest>(scanner.LastRequest).MaximumResults);
+		Assert.Equal("48 8B ?? 89", Assert.IsType<AobScanRequest>(scanner.LastRequest).Pattern.Value);
+	}
+
+	[Fact]
+	public void TheAobEntryPointsRejectANullScannerAndAnEmptyPattern()
+	{
+		IPatternScanner scanner = null!;
+		FakePatternScanner bound = new();
+
+		Assert.Throws<ArgumentNullException>(() => scanner.Aob("90"));
+		Assert.Throws<ArgumentNullException>(() => scanner.Aob(new AobPattern("90")));
+		Assert.Throws<ArgumentNullException>(() => bound.Aob((string) null!));
+		Assert.Throws<ArgumentException>(() => bound.Aob(default(AobPattern)));
+		Assert.Null(bound.LastRequest);
 	}
 
 	[Fact]
@@ -533,31 +539,6 @@ public sealed class AobFluentBuilderTests
 		public PatternScanOutcome ScanDetailed(AobScanRequest request, CancellationToken cancellationToken = default)
 		{
 			throw new NotSupportedException("Fluent terminals use TryScan only.");
-		}
-	}
-
-	private sealed class FakeCheatEngineClient(IPatternScanner patterns) : ICheatEngineClient
-	{
-		public long Epoch => 0;
-		public CancellationToken Stopping => CancellationToken.None;
-		public ICheatEngineRuntime Runtime => NotUsed<ICheatEngineRuntime>();
-		public ICheatEngineDispatcher Dispatcher => NotUsed<ICheatEngineDispatcher>();
-		public IProcessClient Processes => NotUsed<IProcessClient>();
-		public IMemoryClient Memory => NotUsed<IMemoryClient>();
-		public IPatternScanner Patterns => patterns;
-		public IValueScanner ValueScans => NotUsed<IValueScanner>();
-		public IInspectionClient Inspection => NotUsed<IInspectionClient>();
-		public ITableClient Tables => NotUsed<ITableClient>();
-		public ILuaClient Lua => NotUsed<ILuaClient>();
-		public IAllocationClient Allocations => NotUsed<IAllocationClient>();
-#pragma warning disable CECLIENT5003 // The test client implements the experimental instruction property.
-		public IAssemblyClient Assembly => NotUsed<IAssemblyClient>();
-#pragma warning restore CECLIENT5003
-
-		private static T NotUsed<T>()
-			where T : class
-		{
-			throw new InvalidOperationException("This test client only provides a pattern scanner.");
 		}
 	}
 }
