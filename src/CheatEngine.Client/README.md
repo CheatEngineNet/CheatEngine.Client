@@ -18,7 +18,7 @@ The Client runs in process inside an enabled Cheat Engine plugin. It is not a st
 |---|---|
 | Target framework | `net10.0` (`CECLIENT005`) |
 | Language | C# 14, `<LangVersion>14.0</LangVersion>` (`CECLIENT006`) |
-| .NET SDK | 10.0.401 or later: the Lua generator packed in Hosting is compiled against Roslyn 5.9.0 (CS9057 below it) |
+| .NET SDK | 10.0.401 or later: the Lua generator packed in Hosting is compiled against Roslyn 5.9.0 |
 | Platform | Windows x64; `PlatformTarget` is `x64` or `AnyCPU` (`CECLIENT007`) |
 | Cheat Engine | 7.7.0.10621 x64 (`cheatengine-x86_64.exe`), loading the plugin through its managed .NET host |
 | `CheatEngine.SDK` | A direct `PackageReference` in `[2.0.0, 3.0.0)` (`CECLIENT001`, `CECLIENT017`, `NU1605`) |
@@ -26,7 +26,8 @@ The Client runs in process inside an enabled Cheat Engine plugin. It is not a st
 
 The codes in parentheses are the build or restore errors that enforce a row; the
 [Hosting README](https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/libs/CheatEngine.Client.Hosting/README.md#build-diagnostics)
-lists every `CECLIENT` build diagnostic.
+lists every `CECLIENT` build diagnostic. No build error enforces the .NET SDK row: an older compiler does not run the
+Lua generator and reports only warning CS9057, and only `dotnet new ceplugin` refuses an older SDK.
 
 ## Installation
 
@@ -231,8 +232,11 @@ dependency of `CheatEngine.Client.Extensions.DependencyInjection`.
   CheatEngine.SDK major version means a new Client major version, never a Client minor release.
 - Removing or changing a stable public member, or changing the meaning of a value, happens only in a new major version.
 
-The package's assembly and root namespace are both `CheatEngine.Client`; public types live in functional namespaces
-such as `CheatEngine.Client.Memory`, `.Scanning`, `.Tables`, `.Lua`, `.Processes`, `.Runtime` and `.Hosting`.
+The package contains no assembly of its own: its public types come from the Abstractions,
+Extensions.DependencyInjection, Hosting and Fluent assemblies it brings. They live in the root namespace
+`CheatEngine.Client` (`ICheatEngineClient`, `ICheatEngineLease`) and in functional namespaces such as
+`CheatEngine.Client.Memory`, `.Scanning`, `.Tables`, `.Lua`, `.Processes`, `.Runtime`, `.Hosting` and
+`.Extensions.DependencyInjection`.
 
 ## Documentation
 

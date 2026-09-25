@@ -26,7 +26,7 @@ package at exactly its own version, and `CheatEngine.SDK` directly:
 |---|---|
 | Target framework | `net10.0` |
 | Language | C# 14 (`<LangVersion>14.0</LangVersion>`) |
-| .NET SDK | 10.0.401 or later: the Lua generator packed in this package is compiled against Roslyn 5.9.0 (CS9057 below it) |
+| .NET SDK | 10.0.401 or later: the Lua generator packed in this package is compiled against Roslyn 5.9.0; an older compiler does not run it and reports only warning CS9057 |
 | Platform | Windows x64; `PlatformTarget` is `x64` or `AnyCPU` |
 | Cheat Engine | 7.7.0.10621 x64 (`cheatengine-x86_64.exe`), loading the plugin through its managed .NET host |
 | `CheatEngine.SDK` | A direct `PackageReference` in `[2.0.0, 3.0.0)` |

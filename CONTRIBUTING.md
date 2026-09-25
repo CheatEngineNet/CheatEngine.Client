@@ -226,6 +226,9 @@ on purpose is labelled `csharp nocompile`, and the line right above its opening 
 
 ### Changing a package
 
+Whatever its assembly, a public type lives in the root namespace `CheatEngine.Client` or in a functional namespace
+below it. Never declare a type named `CheatEngine` or `Client`: CA1724 matches each namespace segment.
+
 - **Abstractions:** every change is a public API change. Keep request and value types immutable, preserve the
   functional namespaces, add XML documentation, declare the change in `PublicAPI.Unshipped.txt` and add focused
   contract tests in `tests/CheatEngine.Client.Abstractions.Tests`.
@@ -238,6 +241,9 @@ on purpose is labelled `csharp nocompile`, and the line right above its opening 
   activation invalidation and reverse-order cleanup in `tests/CheatEngine.Client.Core.Tests`. Core's public baseline is
   intentionally empty: a public type there needs an explicit product-surface decision. The ordinary test suite uses
   SDK-facing ports and fakes; it does not replace the opt-in live qualification.
+- **CheatEngine.Client:** the package plugins reference is a facade. It packs no assembly (`IncludeBuildOutput` is
+  `false`) and declares no PublicAPI files; it only brings Fluent and Hosting at exactly its own version. Never add
+  source to it: a public type belongs to the library that owns its contract.
 
 ### Core internals
 
