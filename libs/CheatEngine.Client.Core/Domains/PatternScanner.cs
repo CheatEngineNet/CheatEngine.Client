@@ -258,6 +258,8 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 	/// <summary>Validates, dispatches, and classifies one scan identically for every public entry point.</summary>
 	private ScanOutcome Execute(AobScanRequest request, CancellationToken cancellationToken)
 	{
+		// An ended or stopping activation throws before a refusal is reported, never the reverse.
+		_dispatcher.Lifetime.ThrowIfDispatchRefused(ScanOperation);
 		if (!TryValidateRequest(request, out CheatEngineFailure failure))
 		{
 			return ScanOutcome.Failed(failure, null);

@@ -239,6 +239,70 @@ public sealed class TryContractTests
 	}
 
 	/// <summary>
+	///     A refusal that the Client decides without calling Cheat Engine (an invalid pattern, an unsupported type, a
+	///     budget, a default request or search, an update that changes nothing, a self-parent) never hides an ended or
+	///     stopping activation: every family checks the activation first, like the value-scan requests above.
+	/// </summary>
+	[Theory]
+	[InlineData("Patterns.Scan", false)]
+	[InlineData("Patterns.Scan", true)]
+	[InlineData("Memory.ReadPrimitive", false)]
+	[InlineData("Memory.ReadBytes", true)]
+	[InlineData("Inspection.GetModules", false)]
+	[InlineData("Inspection.GetModuleSections", true)]
+	[InlineData("Inspection.GetMemoryRegions", false)]
+	[InlineData("Tables.GetSnapshot", true)]
+	[InlineData("Tables.Find", false)]
+	[InlineData("Tables.Update", true)]
+	[InlineData("Tables.GetHierarchy", false)]
+	[InlineData("Tables.SetParent", true)]
+	public void AnEndedOrStoppingActivationThrowsBeforeARequestIsRefused(string entryPoint, bool stopping)
+	{
+		using ControlledCoreLifetimeContext context = new();
+		CoreLifetime lifetime = new(context);
+		SdkMainThreadDispatcher dispatcher = new(lifetime, new InlineMainThreadInvoker());
+		ThrowingPorts ports = new(new InvalidOperationException("never reached"));
+		MemoryClient memory = new(dispatcher, lifetime, ports);
+		InspectionClient inspection = new(dispatcher, lifetime, ports);
+		TableClient tables = new(dispatcher, new CoreClientPolicy([], enableUnsafeLuaExecution: false), ports,
+			lifetime, ports);
+		MemoryRecordId record = new(7);
+		if (stopping)
+		{
+			context.Stop();
+		}
+		else
+		{
+			context.IsCurrent = false;
+		}
+
+		Action refused = entryPoint switch
+		{
+			"Patterns.Scan" => () => _ = new PatternScanner(dispatcher, ports).TryScan(default, out _, out _),
+			"Memory.ReadPrimitive" => () => _ = memory.TryReadPrimitive(Target, out decimal _, out _),
+			"Memory.ReadBytes" => () => _ = memory.TryReadBytes(
+				new MemoryBytesReadRequest(Target, MemoryResourceLimits.DefaultMaximumReadBytes + 1), out _, out _),
+			"Inspection.GetModules" => () => _ = inspection.TryGetModules(default, null, out _, out _),
+			"Inspection.GetModuleSections" => () =>
+				_ = inspection.TryGetModuleSections(new ModuleName("game.exe"), default, out _, out _),
+			"Inspection.GetMemoryRegions" => () => _ = inspection.TryGetMemoryRegions(default, out _, out _),
+			"Tables.GetSnapshot" => () => _ = tables.TryGetSnapshot(default, out _, out _),
+			"Tables.Find" => () => _ = tables.TryFind(default, new MemoryRecordCollectionRequest(8), out _, out _),
+			"Tables.Update" => () => _ = tables.TryUpdate(record, default, out _, out _),
+			"Tables.GetHierarchy" => () => _ = tables.TryGetHierarchy(record, default, out _, out _),
+			"Tables.SetParent" => () => _ = tables.TrySetParent(record, record, out _, out _),
+			_ => throw new ArgumentOutOfRangeException(nameof(entryPoint), entryPoint, null)
+		};
+
+		CheatEngineClientException thrown = stopping
+			? Assert.Throws<CheatEngineInvalidStateException>(refused)
+			: Assert.Throws<CheatEngineActivationExpiredException>(refused);
+		Assert.Equal(entryPoint, thrown.Failure.Operation);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, thrown.Failure.HostEffect);
+		Assert.Equal(0, ports.Calls);
+	}
+
+	/// <summary>
 	///     Creating a lease-owned resource is admitted only while the activation is active, never from the deactivation
 	///     cleanup scope that can still release an existing lease: every lease-creating operation throws there before it
 	///     dispatches anything.

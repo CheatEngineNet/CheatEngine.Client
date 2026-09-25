@@ -521,7 +521,9 @@ atomic.
   ended.
 - **Thrown:** `CheatEngineActivationExpiredException` when the activation has ended, `CheatEngineInvalidStateException`
   when it is stopping, and `ArgumentException`/`ArgumentNullException`/`ArgumentOutOfRangeException` for invalid
-  arguments (programming errors). An expired activation is never reported as `Cancelled` or `CapabilityUnavailable`.
+  arguments (programming errors). A `Try` form checks the activation before it returns any failure, so a request,
+  budget or state refusal never hides an ended or stopping activation (`IProcessClient.TryGetLocalProcesses` needs no
+  activation), and an expired activation is never reported as `Cancelled` or `CapabilityUnavailable`.
 - **Consumer code:** exceptions thrown by application-supplied code (dispatcher callbacks, `IMemoryCodec<T>` codecs,
   `ILuaOperation<T>` operations, the `ILuaResultMapper<TSource, TResult>` of a generated operation) are rethrown as the
   same instance, never converted into a failure. A codec or an operation reports an expected failure by returning
@@ -792,6 +794,8 @@ This charter is normative for every public type of the seven Client packages; th
   `CheatEngineInvalidStateException`; any other kind → `CheatEngineOperationException`. No Client exception has a
   public constructor: `CheatEngineFailure.Throw(token)` throws one and `CheatEngineFailure.ToException(token)` creates
   one, so every exception keeps the complete failure, including `HostEffect` (`NotStarted` for an admission refusal).
+- A `Try` form that needs the activation checks it before it returns any failure: an ended activation throws
+  `CheatEngineActivationExpiredException` and a stopping one `CheatEngineInvalidStateException`, whatever the request.
 - `CheatEngineFailure.Operation` is `<Service>.<Member>`. `Service` is the `ICheatEngineClient` property that exposes
   the service, `UnsafeLua` or `AutoAssembler` for the services only dependency injection registers, or `Client` for
   the activation itself (`Client.Activate`, and `Client.GetRequiredClient` for the plugin member of that name).

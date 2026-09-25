@@ -111,6 +111,7 @@ internal sealed class TableClient(
 	public bool TryGetSnapshot(MemoryRecordCollectionRequest request, out AddressTableSnapshot table,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
+		ThrowIfDispatchRefused("Tables.GetSnapshot");
 		return TryCopyTopLevel("Tables.GetSnapshot", request, out table, out failure, cancellationToken);
 	}
 
@@ -130,6 +131,7 @@ internal sealed class TableClient(
 		out ImmutableArray<MemoryRecordSnapshot> records, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
+		ThrowIfDispatchRefused("Tables.Find");
 		if (!HasPredicate(search))
 		{
 			records = [];
@@ -183,6 +185,7 @@ internal sealed class TableClient(
 	public bool TryGetRecord(MemoryRecordId id, out MemoryRecordSnapshot record,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
+		ThrowIfDispatchRefused("Tables.GetRecord");
 		if (IsStale("Tables.GetRecord", id, out failure))
 		{
 			record = default;
@@ -236,6 +239,7 @@ internal sealed class TableClient(
 	public bool TrySelectRecord(MemoryRecordId id, out MemoryRecordSnapshot record, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
+		ThrowIfDispatchRefused("Tables.SelectRecord");
 		if (IsStale("Tables.SelectRecord", id, out failure))
 		{
 			record = default;
@@ -279,6 +283,7 @@ internal sealed class TableClient(
 	public bool TryCreate(MemoryRecordDefinition definition, out MemoryRecordSnapshot record,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
+		ThrowIfDispatchRefused("Tables.Create");
 		if (definition.ParentId is { } parentId && IsStale("Tables.Create", parentId, out failure))
 		{
 			record = default;
@@ -324,6 +329,7 @@ internal sealed class TableClient(
 	public bool TryUpdate(MemoryRecordId id, MemoryRecordUpdate update, out MemoryRecordSnapshot record,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
+		ThrowIfDispatchRefused("Tables.Update");
 		// The default update is the only one without a change (its constructor refuses an empty change set): it is
 		// refused before dispatch, like the default search of TryFind.
 		if (update.Description is null && update.AddressExpression is null && update.Value is null &&
@@ -388,6 +394,7 @@ internal sealed class TableClient(
 	public bool TryDelete(MemoryRecordId id, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
+		ThrowIfDispatchRefused("Tables.Delete");
 		if (IsStale("Tables.Delete", id, out failure))
 		{
 			return false;
@@ -423,6 +430,7 @@ internal sealed class TableClient(
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
 		const string Operation = "Tables.SetActive";
+		ThrowIfDispatchRefused(Operation);
 		if (IsStale(Operation, id, out failure))
 		{
 			record = default;
@@ -468,6 +476,7 @@ internal sealed class TableClient(
 	public bool TrySetParent(MemoryRecordId childId, MemoryRecordId? parentId, out MemoryRecordSnapshot record,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
+		ThrowIfDispatchRefused("Tables.SetParent");
 		if (IsStale("Tables.SetParent", childId, out failure) ||
 			(parentId is { } parentToCheck && IsStale("Tables.SetParent", parentToCheck, out failure)))
 		{
@@ -524,6 +533,7 @@ internal sealed class TableClient(
 		out MemoryRecordHierarchySnapshot hierarchy, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
+		ThrowIfDispatchRefused(GetHierarchyOperation);
 		if (request.MaximumItems <= 0 || request.MaximumDepth <= 0)
 		{
 			// Only the default request allows no record and no level: its constructor refuses both.
@@ -779,6 +789,16 @@ internal sealed class TableClient(
 		}
 
 		return true;
+	}
+
+	/// <summary>
+	///     Throws when the activation refuses dispatch, before the refusals decided without Cheat Engine (a default
+	///     request or search, an empty update, a stale identifier, a self-parent): an ended or stopping activation
+	///     throws before a refusal is reported, never the reverse.
+	/// </summary>
+	private void ThrowIfDispatchRefused(string operation)
+	{
+		_lifetime?.ThrowIfDispatchRefused(operation);
 	}
 
 	/// <summary>Refuses, before any dispatch, an identifier captured before the last trusted table load.</summary>

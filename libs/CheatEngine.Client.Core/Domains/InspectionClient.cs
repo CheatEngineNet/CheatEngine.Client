@@ -36,6 +36,8 @@ internal sealed class InspectionClient(
 		out ImmutableArray<ModuleInfo> modules, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
+		// An ended or stopping activation throws before a refusal is reported, never the reverse.
+		_lifetime.ThrowIfDispatchRefused("Inspection.GetModules");
 		if (IsDefault(request, "Inspection.GetModules", out failure))
 		{
 			modules = [];
@@ -81,6 +83,8 @@ internal sealed class InspectionClient(
 		out ImmutableArray<ModuleSectionInfo> sections, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
+		// An ended or stopping activation throws before a refusal is reported, never the reverse.
+		_lifetime.ThrowIfDispatchRefused("Inspection.GetModuleSections");
 		if (IsDefault(request, "Inspection.GetModuleSections", out failure))
 		{
 			sections = [];
@@ -124,6 +128,8 @@ internal sealed class InspectionClient(
 		out ImmutableArray<MemoryRegionInfo> regions, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
+		// An ended or stopping activation throws before a refusal is reported, never the reverse.
+		_lifetime.ThrowIfDispatchRefused("Inspection.GetMemoryRegions");
 		if (IsDefault(request, "Inspection.GetMemoryRegions", out failure))
 		{
 			regions = [];

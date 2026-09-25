@@ -89,6 +89,7 @@ internal sealed class MemoryClient : IMemoryClient
 	{
 		ValidateBatch(request.Addresses, nameof(request));
 		int requestedCount = request.Addresses.Length;
+		ThrowIfDispatchRefused("Memory.ReadPrimitiveBatch");
 		if (!PrimitiveMemoryCodec<T>.IsSupported)
 		{
 			return new MemoryPrimitiveBatchReadOutcome<T>(requestedCount, [], null,
@@ -141,6 +142,7 @@ internal sealed class MemoryClient : IMemoryClient
 	{
 		ValidateBatch(request.Values, nameof(request));
 		int requestedCount = request.Values.Length;
+		ThrowIfDispatchRefused("Memory.WritePrimitiveBatch");
 		if (!PrimitiveMemoryCodec<T>.IsSupported)
 		{
 			return new MemoryPrimitiveBatchWriteOutcome(requestedCount, 0, null,
@@ -210,6 +212,7 @@ internal sealed class MemoryClient : IMemoryClient
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 		where T : unmanaged
 	{
+		ThrowIfDispatchRefused("Memory.ReadPrimitive");
 		if (!PrimitiveMemoryCodec<T>.IsSupported)
 		{
 			value = default;
@@ -257,6 +260,7 @@ internal sealed class MemoryClient : IMemoryClient
 		CancellationToken cancellationToken = default)
 		where T : unmanaged
 	{
+		ThrowIfDispatchRefused("Memory.WritePrimitive");
 		if (!PrimitiveMemoryCodec<T>.IsSupported)
 		{
 			failure = UnsupportedPrimitive<T>("Memory.WritePrimitive");
@@ -449,6 +453,7 @@ internal sealed class MemoryClient : IMemoryClient
 		CancellationToken cancellationToken = default)
 	{
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(request.Length);
+		ThrowIfDispatchRefused("Memory.ReadBytes");
 		if (!TryAdmitPayload(request.Length, _limits.MaximumReadBytes, false, "Memory.ReadBytes", "byte read",
 				out CheatEngineFailure failure))
 		{
@@ -496,6 +501,7 @@ internal sealed class MemoryClient : IMemoryClient
 			throw new ArgumentException("At least one byte is required.", nameof(request));
 		}
 
+		ThrowIfDispatchRefused("Memory.WriteBytes");
 		if (!TryAdmitPayload(request.Bytes.Length, _limits.MaximumWriteBytes, true, "Memory.WriteBytes", "byte write",
 				out failure))
 		{
@@ -526,6 +532,7 @@ internal sealed class MemoryClient : IMemoryClient
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(request.MaximumLength);
+		ThrowIfDispatchRefused("Memory.ReadString");
 		if (!TryAdmitPayload(GetEncodedByteLength(request.MaximumLength, request.Encoding == MemoryStringEncoding.Utf16),
 				_limits.MaximumStringBytes, false, "Memory.ReadString", "string read", out failure))
 		{
@@ -570,6 +577,7 @@ internal sealed class MemoryClient : IMemoryClient
 			throw new ArgumentException("The encoded text exceeds the explicit maximum length.", nameof(request));
 		}
 
+		ThrowIfDispatchRefused("Memory.WriteString");
 		if (!TryAdmitPayload(GetEncodedByteLength(request.Value, wideCharacter), _limits.MaximumStringBytes,
 				true, "Memory.WriteString", "string write", out failure))
 		{
@@ -899,6 +907,16 @@ internal sealed class MemoryClient : IMemoryClient
 			throw new ArgumentOutOfRangeException(parameterName,
 				$"A memory batch is limited to {MemoryBatchLimits.MaximumOperationCount} operations.");
 		}
+	}
+
+	/// <summary>
+	///     Throws when the activation refuses dispatch, before the refusals decided without Cheat Engine (an
+	///     unsupported type, a budget): an ended or stopping activation throws before a refusal is reported, never the
+	///     reverse.
+	/// </summary>
+	private void ThrowIfDispatchRefused(string operation)
+	{
+		_lifetime.ThrowIfDispatchRefused(operation);
 	}
 
 	private bool TryAdmitBatch<T>(int requestedCount, bool isWrite, string operation, out CheatEngineFailure failure)
