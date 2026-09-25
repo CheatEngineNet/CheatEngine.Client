@@ -40,9 +40,11 @@ public sealed class CheatEnginePluginBuilder
 	/// <remarks>
 	///     No source is loaded implicitly. Callers can add an optional <c>appsettings.json</c> or other explicit sources
 	///     during <see cref="CheatEngineClientPlugin.Configure" />, resolving file sources against
-	///     <see cref="PluginDirectory" /> (for example with <c>SetBasePath(builder.PluginDirectory)</c>). Reloading should
-	///     remain disabled because an activation's ownership, capabilities, and cancellation boundary cannot safely be
-	///     reconfigured while attached to CE.
+	///     <see cref="PluginDirectory" /> (for example with <c>SetBasePath(builder.PluginDirectory)</c>). Hosting cannot
+	///     set that base itself, and a file source added without it resolves against
+	///     <see cref="AppContext.BaseDirectory" />, which under Cheat Engine's .NET host is not the plugin folder: an
+	///     optional file then silently loads nothing. Reloading should remain disabled because an activation's ownership,
+	///     capabilities, and cancellation boundary cannot safely be reconfigured while attached to CE.
 	/// </remarks>
 	public ConfigurationManager Configuration
 	{

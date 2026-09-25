@@ -43,7 +43,8 @@ public sealed partial class SingleFileSuppressionTests
 		string source = File.ReadAllText(Path.Combine(RepositoryRoot.Path, PluginBuilderSource));
 		int property = source.IndexOf("public string PluginDirectory", StringComparison.Ordinal);
 		int suppression = source.IndexOf("IL3000", StringComparison.Ordinal);
-		int getter = source.IndexOf("get", suppression, StringComparison.Ordinal);
+		Match getterBody = GetterBody().Match(source, Math.Max(suppression, 0));
+		int getter = getterBody.Success ? getterBody.Index : -1;
 		int nextMember = source.IndexOf("internal ServiceProvider BuildServiceProvider", StringComparison.Ordinal);
 
 		Assert.True(property >= 0 && property < suppression && suppression < getter && getter < nextMember,
@@ -53,4 +54,8 @@ public sealed partial class SingleFileSuppressionTests
 
 	[GeneratedRegex(@"\bIL3000\b")]
 	private static partial Regex Il3000();
+
+	/// <summary>The body of an accessor; a word of the justification such as "target" never matches it.</summary>
+	[GeneratedRegex(@"\bget\s*\{")]
+	private static partial Regex GetterBody();
 }
