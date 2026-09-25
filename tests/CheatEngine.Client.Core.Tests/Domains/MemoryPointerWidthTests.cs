@@ -145,36 +145,6 @@ public sealed class MemoryPointerWidthTests
 
 	[Fact]
 	[Trait("Qualification", "Q31")]
-	public void PointerCodecPolicyRefusalIsReportedAsOperationRejectedBeforeAnyRead()
-	{
-		// The built-in Address codec (dependency-injection package) asks the Core context to admit it first.
-		PointerWidthPort port = new()
-		{
-			ConfiguredPointerSize = 4
-		};
-		PolicyCodec codec = new();
-
-		bool readSucceeded = CreateClient(port).TryRead(new MemoryReadRequest<Address>(TestAddress, codec), out _,
-			out CheatEngineFailure readFailure, TestContext.Current.CancellationToken);
-		bool writeSucceeded = CreateClient(port).TryWrite(new MemoryWriteRequest<Address>(TestAddress, TestAddress, codec),
-			out CheatEngineFailure writeFailure, TestContext.Current.CancellationToken);
-
-		Assert.False(readSucceeded);
-		Assert.False(writeSucceeded);
-		foreach (CheatEngineFailure failure in (CheatEngineFailure[]) [readFailure, writeFailure])
-		{
-			Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
-			Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
-			Assert.Contains("configured pointer size (4 bytes)", failure.Message, StringComparison.Ordinal);
-			Assert.Contains("process width (8 bytes)", failure.Message, StringComparison.Ordinal);
-		}
-
-		Assert.Equal(0, port.ByteReads);
-		Assert.Equal(0, port.ByteWrites);
-	}
-
-	[Fact]
-	[Trait("Qualification", "Q31")]
 	public void ReadPrimitiveAddressIsRefusedBeforeAnyHostReadOnPointerWidthMismatch()
 	{
 		PointerWidthPort port = new()
@@ -411,7 +381,7 @@ public sealed class MemoryPointerWidthTests
 	[InlineData("ReadBatch")]
 	[InlineData("WriteBatch")]
 	[InlineData("PointerChain")]
-	[InlineData("AddressCodec")]
+	[InlineData("Codec")]
 	public void AnUnknownTargetBitnessRefusesEveryPointerPathBeforeAnyAccess(string path)
 	{
 		PointerWidthPort port = new()
@@ -434,8 +404,9 @@ public sealed class MemoryPointerWidthTests
 			]), token).Failure!.Value,
 			"PointerChain" => Refused(client.TryResolvePointerChain(new PointerChainRequest(TestAddress, [0x10L]),
 				out _, out CheatEngineFailure f, token), f),
-			_ => Refused(client.TryRead(new MemoryReadRequest<Address>(TestAddress, new PolicyCodec()), out _,
-				out CheatEngineFailure f, token), f)
+			// A codec that reads the context's bitness gets the same refusal, recorded before it can access memory.
+			_ => Refused(client.TryRead(new MemoryReadRequest<int>(TestAddress, new FactCodec { ReadBytes = true }),
+				out _, out CheatEngineFailure f, token), f)
 		};
 
 		Assert.Equal(CheatEngineFailureKind.InvalidState, failure.Kind);
@@ -592,25 +563,6 @@ public sealed class MemoryPointerWidthTests
 		{
 			failure = default;
 			return true;
-		}
-	}
-
-	/// <summary>Behaves like the built-in Address codec: it asks the Core context to admit it before any access.</summary>
-	private sealed class PolicyCodec : IMemoryCodec<Address>
-	{
-		public bool TryRead(IMemoryReadContext context, Address address, out Address value, out CheatEngineFailure failure)
-		{
-			failure = default;
-			value = default;
-			return ((ICorePointerCodecPolicy) context).TryAdmitPointerCodec() &&
-				   context.TryReadBytes(address, new byte[context.Bitness.Bytes], out _);
-		}
-
-		public bool TryWrite(IMemoryWriteContext context, Address address, in Address value, out CheatEngineFailure failure)
-		{
-			failure = default;
-			return ((ICorePointerCodecPolicy) context).TryAdmitPointerCodec() &&
-				   context.TryWriteBytes(address, new byte[context.Bitness.Bytes], out _);
 		}
 	}
 

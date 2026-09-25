@@ -113,20 +113,3 @@ internal static class PointerWidthPolicy
 			   "configured size or read explicit 32/64-bit integers.";
 	}
 }
-
-/// <summary>
-///     Lets a built-in pointer codec ask the Core codec context to admit a pointer-typed operation under
-///     <see cref="PointerWidthPolicy" />.
-/// </summary>
-/// <remarks>
-///     Implemented by the Core codec context and called by the built-in Address codec of the dependency-injection
-///     package, which sees Core internals. A refusal is recorded on the context and reported with its own failure kind.
-/// </remarks>
-internal interface ICorePointerCodecPolicy
-{
-	/// <summary>
-	///     Observes the target facts once and returns <see langword="false" /> when the bitness is unknown or when the
-	///     configured pointer size is known and differs from it; the reason is recorded on the context.
-	/// </summary>
-	public bool TryAdmitPointerCodec();
-}

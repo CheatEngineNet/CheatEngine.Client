@@ -736,7 +736,7 @@ internal sealed class MemoryClient : IMemoryClient
 			// returned the default failure is classified from what the context observed.
 			return codecFailure.IsDefault
 				? context.CreateFailureOutcome($"The codec for '{typeof(T).Name}' rejected the target-memory read.")
-				: context.CreateClassifiedOutcome(codecFailure);
+				: CodecOutcome.FromCodecFailure(codecFailure);
 		}
 		catch (Exception exception) when (context.IsContextFault(exception))
 		{
@@ -765,7 +765,7 @@ internal sealed class MemoryClient : IMemoryClient
 
 			return codecFailure.IsDefault
 				? context.CreateFailureOutcome($"The codec for '{typeof(T).Name}' rejected the target-memory write.")
-				: context.CreateClassifiedOutcome(codecFailure);
+				: CodecOutcome.FromCodecFailure(codecFailure);
 		}
 		catch (Exception exception) when (context.IsContextFault(exception))
 		{
@@ -781,11 +781,6 @@ internal sealed class MemoryClient : IMemoryClient
 	{
 		if (outcome.Classified is { } classified)
 		{
-			if (outcome.WidthRefusal is { } refused)
-			{
-				ReportWidthRefusal(operation, refused);
-			}
-
 			return classified;
 		}
 
@@ -799,12 +794,7 @@ internal sealed class MemoryClient : IMemoryClient
 			: "Cheat Engine rejected the target-memory read.");
 		if (outcome.Kind is { } kind)
 		{
-			// A refusal recorded by the codec context itself (pointer-width policy, no target): nothing was accessed.
-			if (outcome.WidthRefusal is { } facts)
-			{
-				ReportWidthRefusal(operation, facts);
-			}
-
+			// A refusal recorded by the codec context itself (an unknown width, no target): nothing was accessed.
 			return new CheatEngineFailure(kind, operation, message, null, CheatEngineHostEffect.NotStarted);
 		}
 
@@ -1065,11 +1055,17 @@ internal sealed class MemoryClient : IMemoryClient
 		string? Message,
 		Exception? Fault,
 		CheatEngineFailureKind? Kind = null,
-		ObservedTarget? WidthRefusal = null,
 		MemoryAccessFailure? AccessFailure = null,
 		CheatEngineFailure? Classified = null)
 	{
 		internal static CodecOutcome Success => new(true, null, null);
+
+		/// <summary>Creates the outcome of a codec that returned <see langword="false" /> with its own failure.</summary>
+		/// <param name="failure">The codec's classified failure, published unchanged.</param>
+		internal static CodecOutcome FromCodecFailure(CheatEngineFailure failure)
+		{
+			return new CodecOutcome(false, null, null, Classified: failure);
+		}
 	}
 
 	private readonly record struct PrimitiveBatchReadInput<T>(
@@ -1288,7 +1284,7 @@ internal sealed class MemoryClient : IMemoryClient
 	}
 
 	private sealed class TargetMemoryCodecContext
-		: IMemoryReadContext, IMemoryWriteContext, ICorePointerCodecPolicy
+		: IMemoryReadContext, IMemoryWriteContext
 	{
 		private readonly long _activationEpoch;
 		private readonly ICheatEngineDispatcher _dispatcher;
@@ -1335,13 +1331,6 @@ internal sealed class MemoryClient : IMemoryClient
 
 		/// <summary>Gets the failure kind of a refusal recorded by this context itself, if any.</summary>
 		internal CheatEngineFailureKind? FailureKind
-		{
-			get;
-			private set;
-		}
-
-		/// <summary>Gets the facts of a pointer-width mismatch refusal recorded by this context, if any.</summary>
-		internal ObservedTarget? WidthRefusal
 		{
 			get;
 			private set;
@@ -1403,28 +1392,6 @@ internal sealed class MemoryClient : IMemoryClient
 					? configured != facts.Bitness.Bytes
 					: null;
 			}
-		}
-
-		/// <inheritdoc />
-		public bool TryAdmitPointerCodec()
-		{
-			ThrowIfUnusable();
-			ObservedTarget facts = ObserveFacts();
-			if (!facts.Bitness.IsKnown)
-			{
-				RecordRefusal(PointerWidthPolicy.GetUnknownWidthKind(facts),
-					PointerWidthPolicy.CreateUnknownWidthMessage(facts));
-				return false;
-			}
-
-			if (facts.ConfiguredPointerSizeDiffersFromBitness)
-			{
-				RecordRefusal(CheatEngineFailureKind.OperationRejected, PointerWidthPolicy.CreateMismatchMessage(facts));
-				WidthRefusal = facts;
-				return false;
-			}
-
-			return true;
 		}
 
 		public bool TryReadBytes(Address address, Span<byte> destination, out CheatEngineFailure failure)
@@ -1502,14 +1469,7 @@ internal sealed class MemoryClient : IMemoryClient
 		/// <summary>Creates the failure outcome of a codec that returned <see langword="false" /> or threw a context fault.</summary>
 		internal CodecOutcome CreateFailureOutcome(string defaultMessage)
 		{
-			return new CodecOutcome(false, Failure ?? defaultMessage, Fault, FailureKind, WidthRefusal, AccessFailure);
-		}
-
-		/// <summary>Creates the outcome of a codec that returned <see langword="false" /> with its own failure.</summary>
-		/// <param name="failure">The codec's classified failure, published unchanged.</param>
-		internal CodecOutcome CreateClassifiedOutcome(CheatEngineFailure failure)
-		{
-			return new CodecOutcome(false, null, null, WidthRefusal: WidthRefusal, Classified: failure);
+			return new CodecOutcome(false, Failure ?? defaultMessage, Fault, FailureKind, AccessFailure);
 		}
 
 		/// <summary>
@@ -1581,7 +1541,6 @@ internal sealed class MemoryClient : IMemoryClient
 			Failure = message;
 			Fault = null;
 			FailureKind = kind;
-			WidthRefusal = null;
 			AccessFailure = null;
 		}
 
@@ -1590,7 +1549,6 @@ internal sealed class MemoryClient : IMemoryClient
 			Failure = failure ?? (fault is null ? null : "Cheat Engine raised an SDK fault during the codec operation.");
 			Fault = fault;
 			FailureKind = null;
-			WidthRefusal = null;
 			AccessFailure = null;
 		}
 
@@ -1606,7 +1564,6 @@ internal sealed class MemoryClient : IMemoryClient
 			Failure = null;
 			Fault = null;
 			FailureKind = null;
-			WidthRefusal = null;
 			AccessFailure = null;
 		}
 
