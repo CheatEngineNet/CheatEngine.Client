@@ -60,6 +60,35 @@ public sealed class QualificationWriteGuardTests
 	}
 
 	[Fact]
+	public void MutationScopesNeverRelaxTheGateAndNameTheirOwnTarget()
+	{
+		const int Target = FakeQualificationEnvironment.TargetProcessId;
+		FakeQualificationEnvironment unauthorized = new();
+		unauthorized.SetVariable(QualificationAuthorization.AcknowledgementVariable, null);
+		AuthorizationDecision denied = QualificationAuthorization.Evaluate(unauthorized);
+
+		foreach (MutationScope scope in Enum.GetValues<MutationScope>())
+		{
+			Assert.Equal(WriteRefusal.NotAuthorized, QualificationWriteGuard.EvaluateScope(denied, scope, Target, true));
+		}
+
+		Assert.Equal(WriteRefusal.None,
+			QualificationWriteGuard.EvaluateScope(Allowed, MutationScope.AuthorizedTarget, Target, false));
+		Assert.Equal(WriteRefusal.TargetNotAuthorized,
+			QualificationWriteGuard.EvaluateScope(Allowed, MutationScope.AuthorizedTarget, Target + 1, false));
+		Assert.Equal(WriteRefusal.TargetNotAuthorized,
+			QualificationWriteGuard.EvaluateScope(Allowed, MutationScope.AuthorizedTarget, 0, true));
+		Assert.Equal(WriteRefusal.None,
+			QualificationWriteGuard.EvaluateScope(Allowed, MutationScope.OwnedResource, Target + 1, false));
+		Assert.Equal(WriteRefusal.None,
+			QualificationWriteGuard.EvaluateScope(Allowed, MutationScope.FileAsProcessTarget, 0, true));
+		Assert.Equal(WriteRefusal.TargetNotFileAsProcess,
+			QualificationWriteGuard.EvaluateScope(Allowed, MutationScope.FileAsProcessTarget, Target, false));
+		Assert.Equal(WriteRefusal.NotAuthorized,
+			QualificationWriteGuard.EvaluateScope(Allowed, (MutationScope) 99, Target, false));
+	}
+
+	[Fact]
 	public void AbsentDeclarationRefusesEveryWrite()
 	{
 		const int Target = FakeQualificationEnvironment.TargetProcessId;

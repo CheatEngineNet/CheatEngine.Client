@@ -4,7 +4,8 @@ namespace LivePlugin.Qualification.Harness;
 ///     The harness's record of its own lifecycle, kept in static state because Cheat Engine never unloads a managed
 ///     plugin: after a failed enable (Q06) or a faulty disable (Q43), the next enable reports what the previous one did.
 ///     Every entry is <c>#&lt;enable number&gt; &lt;stage&gt;[ &lt;exception type&gt;]</c>: stage names and exception
-///     type names only, never a message. The record is bounded; the oldest entries are dropped and counted.
+///     type names only, never a message. The record is bounded; the oldest entries are dropped and counted. Every entry is
+///     also appended to the lifecycle receipt sink when the runner configured one (<see cref="QualificationLifecycleSink" />).
 /// </summary>
 internal static class QualificationLedger
 {
@@ -141,6 +142,8 @@ internal static class QualificationLedger
 			_dropped++;
 		}
 
-		RecordedEntries.Add("#" + _enableAttempts.ToString(System.Globalization.CultureInfo.InvariantCulture) + " " + entry);
+		string recorded = "#" + _enableAttempts.ToString(System.Globalization.CultureInfo.InvariantCulture) + " " + entry;
+		RecordedEntries.Add(recorded);
+		QualificationLifecycleSink.Ledger(recorded);
 	}
 }

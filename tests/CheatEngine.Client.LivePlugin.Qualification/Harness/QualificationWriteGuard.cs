@@ -46,7 +46,30 @@ internal enum WriteRefusal
 	DeclarationForAnotherProcess,
 
 	/// <summary>The range is empty or outside every declared region.</summary>
-	OutsideDeclaredRegion
+	OutsideDeclaredRegion,
+
+	/// <summary>The step is allowed only while Cheat Engine targets a file opened as a process, and it does not.</summary>
+	TargetNotFileAsProcess
+}
+
+/// <summary>Which target a mutating harness step may run against.</summary>
+internal enum MutationScope
+{
+	/// <summary>The step runs only while the Client observes exactly the authorized target (the default).</summary>
+	AuthorizedTarget = 0,
+
+	/// <summary>
+	///     The step only releases or inspects a resource the harness created on the authorized target, so it runs after a
+	///     target change too: the Client must refuse to free anything in another process, and that refusal is what S3
+	///     observes.
+	/// </summary>
+	OwnedResource,
+
+	/// <summary>
+	///     The step runs only while Cheat Engine targets a file opened as a process (S3), where no process exists that a
+	///     write could reach; it checks that the Client refuses target-bound resources there.
+	/// </summary>
+	FileAsProcessTarget
 }
 
 /// <summary>
@@ -66,6 +89,33 @@ internal static class QualificationWriteGuard
 	internal static bool IsNeverMapped(ulong address)
 	{
 		return address < NeverMappedLimit;
+	}
+
+	/// <summary>
+	///     Evaluates which target a mutating step may run against: an authorized run always, and then the scope's own
+	///     target rule.
+	/// </summary>
+	/// <param name="authorization">The gate decision of the enable.</param>
+	/// <param name="scope">The step's scope.</param>
+	/// <param name="clientProcessId">The process the Client observes, or 0.</param>
+	/// <param name="fileAsProcess">Whether the Client observes a file opened as a process.</param>
+	internal static WriteRefusal EvaluateScope(AuthorizationDecision authorization, MutationScope scope,
+		int clientProcessId, bool fileAsProcess)
+	{
+		ArgumentNullException.ThrowIfNull(authorization);
+		if (!authorization.IsAllowed)
+		{
+			return WriteRefusal.NotAuthorized;
+		}
+
+		return scope switch
+		{
+			MutationScope.AuthorizedTarget when !authorization.Allows(clientProcessId) => WriteRefusal.TargetNotAuthorized,
+			MutationScope.FileAsProcessTarget when !fileAsProcess => WriteRefusal.TargetNotFileAsProcess,
+			MutationScope.AuthorizedTarget or MutationScope.OwnedResource or MutationScope.FileAsProcessTarget =>
+				WriteRefusal.None,
+			_ => WriteRefusal.NotAuthorized
+		};
 	}
 
 	/// <summary>Evaluates one intended write of <paramref name="length" /> bytes at <paramref name="address" />.</summary>

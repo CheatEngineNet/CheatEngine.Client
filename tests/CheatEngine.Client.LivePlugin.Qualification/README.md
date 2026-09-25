@@ -13,9 +13,10 @@ rots; it is **never packed, never a test module and never loaded by CI**.
 
 A C1 success never counts as a C3 success (audit `analyses/20`). The Client needs a plugin that exercises its own public
 API on the exact host, with the exact CI packages, to produce Client receipts: plugin lifecycle and rollback (Q05, Q06,
-Q43), memory codecs (Q20, Q21, Q33), AOB scans (Q27–Q29), runtime and target facts (Q31, Q32), tables and symbols
-(Q16.b, Q34), capabilities (Q44, Q45) and logs (Q46). The SDK harnesses cannot stand in for it: they do not go through
-the Client.
+Q43), worker admission (Q19), memory codecs (Q20, Q21, Q33), value scans (Q25, Q26), AOB scans (Q27–Q29), allocations
+(Q30.a, Q30.b), runtime, target and instruction facts (Q31, Q32), tables and symbols (Q16.b, Q34), Auto Assembler
+patches (Q35), capabilities (Q44, Q45), logs (Q46) and the Lua marshalling rules of CRIT-07. The SDK harnesses cannot
+stand in for it: they do not go through the Client.
 
 ## How it helps improve CheatEngine.Client
 
@@ -44,19 +45,34 @@ and tested there.
   the pinned `cheatengine-x86_64.exe` 7.7.0.10621 (SHA-256 and file version), and the declared target is alive with the
   declared image hash. The runner's `AuthorizationManifestWriter` writes that manifest for every session.
 - **Target check.** A mutating function also requires the process the Client observes to be exactly the authorized
-  target; the gate never authorizes Cheat Engine itself.
+  target; the gate never authorizes Cheat Engine itself. Two narrower scopes exist (`MutationScope`), still behind the
+  gate: `OwnedResource` only releases a lease the harness created on the authorized target, after a target change too,
+  because what the Client does then (refuse to free anything in another process) is what S3 observes; and
+  `FileAsProcessTarget` runs only while Cheat Engine targets a file opened as a process, where no process exists, to
+  check that the Client creates no allocation or scan session there (anything created by mistake is released at once
+  and reported).
 - **Write guard** (`Harness/QualificationWriteGuard.cs`). Writes go only into the scratch region the driver allocated
   (`alloc(cheatengine_client_qualification_scratch,4096)` with `registersymbol`) and `target_declare` verified through
   the Client inspection API (a committed, private, writable region that holds 4096 bytes). Every written range must lie
-  inside it; the original bytes are read first and restored. The partial-batch scenario writes one element at `0x10`
-  on purpose, an address of the never-mapped first 64 KiB.
+  inside it; the original bytes are read first and restored (the value-scan marker slot when its session is released,
+  in the authorized target only). The partial-batch scenario writes one element at `0x10` on purpose, an address of
+  the never-mapped first 64 KiB. Allocations and Auto Assembler patches write nothing through the harness: Cheat Engine
+  allocates their memory in the authorized target, and the harness releases them.
 - **Fault switch** (`Harness/QualificationFaultSwitch.cs`). The runner writes `liveprobe.fault.json`
   (`ce77-live-probe-fault-v1`) next to the plugin for a session with a fault stage, and removes it when the session plan
   says so. It is read once per enable and honored only when the gate allowed the run: `Configure`,
   `ModuleOnEnabled`, `ModuleOnDisabling`, `ResourceCleanup` or `ModuleOnDisablingAndResourceCleanup`.
 - **Log sink** (`Harness/CapturingLoggerProvider.cs`). It records category, event id, level and message template of
-  every event, never the formatted message, and counts the events whose formatted text carries a declared scenario
-  value, a target address or the script marker (Q46).
+  every event (Debug included), never the formatted message, and counts the events whose formatted text carries a
+  declared scenario value, a target address or the script marker (Q46). The plugin also composes the Hosting host log
+  provider (`AddCheatEngineHostLog`, message templates only), so the Cheat Engine debug output that Q46 reads carries
+  the templates of the events the host log admits (`Information` and above by default).
+- **Session inputs** (`Harness/QualificationInputs.cs`). The runner's `CECLIENT_QUALIFICATION_*` variables are honored
+  only when the gate allowed the run: `CECLIENT_QUALIFICATION_ENABLE_AA=1` composes `EnableAutoAssemblerPatches()` (Q35;
+  without it `aa_patch` is refused and Q44 observes the policy refusal), `CECLIENT_QUALIFICATION_TABLE_ROOT` is the one
+  allowed table root (Q34), and `CECLIENT_QUALIFICATION_LIFECYCLE_FILE` names the lifecycle receipt sink
+  (`Harness/QualificationLifecycleSink.cs`, Q43): every lifecycle record entry and the template of every captured log
+  event is appended there, so the runner reads what the disable at `closeCE` did after the last Lua call.
 
 ## Lua functions
 
@@ -78,6 +94,15 @@ state and runs only behind the gate and the target check (`QualificationScenario
 | `symbol_release(name)`                                   | yes                       | Q16.b              | Whether the lease released its registration                                                          |
 | `symbol_state(name)`                                     | no                        | Q16.b              | The lease and what the name resolves to now                                                          |
 | `logs()`                                                 | no                        | Q46                | Captured templates and event ids, and the sensitive-data hit count; never a formatted message        |
+| `value_scan(action, symbolName, value)`                  | yes, except `state`       | Q25, Q26           | Session state, result count and whether the scratch marker is found; the decimal tolerance cases     |
+| `allocation(action, name, size)`                         | yes, except `state`       | Q30.a, Q30.b       | The lease, its region through the inspection API, and every release outcome                          |
+| `instructions(symbolName)`                               | yes                       | Q32                | Assembled bytes of a fixed list and both jump encodings, and a disassembly round trip in the scratch |
+| `aa_patch(action, variant)`                              | yes, except `state`       | Q35, Q44           | Check result, the patch lease or the failure, whether its symbol resolves, and its release outcome   |
+| `worker_admission(action)`                               | `start`                   | Q19                | `"pending":true`, then the marshalled call and the refused direct registration from the worker      |
+| `table_save(fileName, outsideRoot)`                      | yes                       | Q34                | Whether the table was saved below the table root, or refused outside it                              |
+| `table_load(fileName)`                                   | yes                       | Q34                | Whether the table was loaded (which ends every earlier record id)                                    |
+| `integer_echo(value)`                                    | no                        | CRIT-07            | The integer CheatEngine.SDK marshalled                                                               |
+| `address_echo(address)`                                  | no                        | CRIT-07            | The address CheatEngine.SDK marshalled                                                               |
 
 `memory_roundtrip` kinds: `bytes-with-nul`, `utf8-multibyte`, `utf16-with-nul`, `int32-minus-one`, `uint32-max`,
 `int64-limits`, `address-above-4gib`.
@@ -92,6 +117,23 @@ unknown is written as `null`.
 indeterminate (`checks.globalZeroIsIndeterminate`: `IndeterminateHostResult` with the host outcome `NoResult`); a
 bounded scan that finds nothing is a factual empty result (`checks.boundedZeroIsNoMatches`). Truncation is proven by the
 Client's own counts (`checks.truncationExplicit`), and the harness holds no copy of the Client's copy cap.
+
+`value_scan` actions: `first` and `next` write the int32 marker `value` into its scratch slot and scan the scratch region
+for it, `reset`, `state`, `release` (also after a target change), `decimals` (Q25: the probe 3.14159 written as a float
+and a double must be found by the texts of `FromSingle`/`FromDouble` with 5, 3, 2 and 0 decimals, which relies on
+Cheat Engine's rounded comparison, and must not be found by 3.2 or 3.15) and `create-unidentified` (a file opened as a
+process). `allocation` actions: `allocate`, `state`, `release` and `allocate-unidentified`. `aa_patch` actions: `check`,
+`apply` (variant `benign`: an allocation and a registered symbol that its `[DISABLE]` section unregisters and frees;
+variant `failing`: a write to an undefined label), `state` and `release`. The driver selects every target through
+Cheat Engine itself (`openProcess`), never through the Client, so a patch always applies to a process that Cheat Engine's
+own selection chose.
+
+`worker_admission` never blocks Cheat Engine's main thread: `start` returns at once, and the worker's marshalled call
+completes while the driver polls `result`. The probe module of the direct registration
+(`QualificationWorkerProbe.cs`) is never added to the activation; its global must stay absent.
+
+`integer_echo` and `address_echo` exist for CRIT-07: CheatEngine.SDK's marshallers accept an integer exactly and refuse a
+float from 2^53 on with a Lua error, which the driver records.
 
 `capabilities(0)` is the Q44 observation: without `EnableAutoAssemblerPatches` the activation registers no
 `IAutoAssemblerClient` (and without `EnableUnsafeLuaExecution` no `IUnsafeLuaClient`), so no call can reach Cheat Engine,

@@ -19,6 +19,7 @@ using CheatEngine.Client.Tables;
 using CheatEngine.SDK.Engine.AddressList;
 using CheatEngine.SDK.Engine.Enums;
 using CheatEngine.SDK.Engine.Inspection;
+using CheatEngine.SDK.Engine.Runtime;
 using CheatEngine.SDK.Engine.Values;
 
 using LivePlugin.Qualification.Harness;
@@ -32,7 +33,7 @@ namespace LivePlugin.Qualification;
 ///     Lua, never to this plugin. Each function returns one bounded, redacted JSON observation
 ///     (<see cref="QualificationObservation" />); an exception is reported by its type name only.
 /// </summary>
-internal static class QualificationScenarios
+internal static partial class QualificationScenarios
 {
 	/// <summary>Every name the driver and the harness create in Cheat Engine starts with this prefix.</summary>
 	internal const string NamePrefix = "cheatengine_client_qualification_";
@@ -604,11 +605,13 @@ internal static class QualificationScenarios
 	}
 
 	/// <summary>
-	///     Runs a function that changes the target or Cheat Engine state: only for an enabled activation, a gate that
-	///     authorized the run, and a Client that observes exactly the authorized target.
+	///     Runs a function that changes the target or Cheat Engine state: only for an enabled activation and a gate that
+	///     authorized the run, and by default only while the Client observes exactly the authorized target
+	///     (<see cref="MutationScope" /> names the two narrower exceptions).
 	/// </summary>
 	internal static string RunMutating(string function,
-		Func<QualificationObservation, QualificationSession.ActiveClient, int, string> body)
+		Func<QualificationObservation, QualificationSession.ActiveClient, int, string> body,
+		MutationScope scope = MutationScope.AuthorizedTarget)
 	{
 		return Guarded(function, observation =>
 		{
@@ -618,20 +621,19 @@ internal static class QualificationScenarios
 			}
 
 			AuthorizationDecision gate = QualificationSession.Authorization;
-			int processId = ClientProcessId(active);
-			if (!gate.IsAllowed)
+			bool observed = active.Client.Processes.TryRefresh(out ProcessSnapshot process, out _);
+			int processId = observed ? process.Id.Value : 0;
+			bool fileAsProcess = observed && process.Backend == TargetBackend.FileAsProcess;
+			WriteRefusal refusal = QualificationWriteGuard.EvaluateScope(gate, scope, processId, fileAsProcess);
+			if (refusal == WriteRefusal.NotAuthorized)
 			{
 				return observation.Boolean("ok", false).String("refusal", nameof(WriteRefusal.NotAuthorized))
 					.String("denial", gate.Denial.ToString()).Complete();
 			}
 
-			if (!gate.Allows(processId))
-			{
-				return observation.Boolean("ok", false).String("refusal", nameof(WriteRefusal.TargetNotAuthorized))
-					.Complete();
-			}
-
-			return body(observation, active, processId);
+			return refusal == WriteRefusal.None
+				? body(observation, active, processId)
+				: observation.Boolean("ok", false).String("refusal", refusal.ToString()).Complete();
 		});
 	}
 

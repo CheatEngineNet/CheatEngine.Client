@@ -8,6 +8,8 @@ namespace CheatEngine.Client.LivePlugin.Qualification.Tests;
 ///     The Q46 log sink of the harness keeps what a log reader may see (category, event id, level, message template) and
 ///     never the formatted message; it counts every event whose formatted text or exception carries scenario data.
 /// </summary>
+/// <remarks>The provider also feeds the process-wide lifecycle sink, so these tests share its serial collection.</remarks>
+[Collection(QualificationLifecycleSinkGroup.Name)]
 public sealed partial class CapturingLoggerProviderTests
 {
 	[Fact]

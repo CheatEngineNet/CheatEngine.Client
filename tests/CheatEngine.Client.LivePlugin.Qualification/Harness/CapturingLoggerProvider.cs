@@ -87,9 +87,13 @@ internal sealed partial class CapturingLoggerProvider : ILoggerProvider
 		}
 	}
 
-	/// <summary>Records one event: its template always, a hit when the formatted text carries sensitive data.</summary>
+	/// <summary>
+	///     Records one event: its template always, a hit when the formatted text carries sensitive data. The template is
+	///     also appended to the lifecycle receipt sink when the runner configured one (Q43).
+	/// </summary>
 	internal void Record(CapturedLogEvent captured, string formatted, string? exceptionText)
 	{
+		QualificationLifecycleSink.Log(captured);
 		lock (_gate)
 		{
 			if (IsSensitive(formatted) || (exceptionText is not null && IsSensitive(exceptionText)))

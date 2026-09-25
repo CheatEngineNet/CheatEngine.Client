@@ -21,8 +21,15 @@ module referencing an x64 project is a processor-architecture mismatch.
   `AuthorizationIsDeniedWhenTheManifestExpired`, `AuthorizationIsDeniedWhenTheHostHashDiffers`,
   `AuthorizationIsDeniedForAnotherProcessId`, `AuthorizedManifestAllowsOnlyTheDeclaredTarget`).
 - `QualificationWriteGuardTests`: a write outside the declared region, for another process or without a declaration is
-  refused (`WritesOutsideADeclaredRegionAreRefused`, `WritesAreRefusedWhenTheDeclarationOrTheClientTargetNamesAnotherProcess`,
-  `AbsentDeclarationRefusesEveryWrite`).
+  refused, and no mutation scope relaxes the gate (`WritesOutsideADeclaredRegionAreRefused`,
+  `WritesAreRefusedWhenTheDeclarationOrTheClientTargetNamesAnotherProcess`,
+  `MutationScopesNeverRelaxTheGateAndNameTheirOwnTarget`, `AbsentDeclarationRefusesEveryWrite`).
+- `QualificationInputsTests`: the runner's `CECLIENT_QUALIFICATION_*` inputs are ignored without authorization, the
+  Auto Assembler opt-in needs the exact value `1`, and only absolute paths count
+  (`InputsAreIgnoredWhenTheGateDeniedTheRun`, `OnlyTheExactValueOneComposesTheAutoAssemblerOptIn`).
+- `QualificationLifecycleSinkTests`: the Q43 sink appends one line per lifecycle entry and log template, never a
+  formatted message, and counts a failed write instead of throwing
+  (`LedgerEntriesAndLogTemplatesAreAppendedOneLineEach`, `AFailedWriteIsCountedNeverThrown`).
 - `QualificationFaultInjectionTests`: the runner's fault switch selects exactly one stage and is ignored without
   authorization or with another schema (`FaultFileIsIgnoredWhenAuthorizationIsDenied`,
   `FaultFileWithAnUnknownSchemaIsIgnoredAndReported`, `FaultFileSelectsExactlyTheRequestedStage`,
@@ -34,7 +41,7 @@ module referencing an x64 project is a processor-architecture mismatch.
   (`CapturedEventsKeepTemplatesButNeverFormattedMessages`, `SensitiveHitsCountAddressesAndDeclaredValues`).
 - `QualificationPluginSourceComplianceTests`: a source scan of the plugin's own files proves it never touches the SDK's
   native Lua stack or interop directly (ADR-01) and that every Lua function the harness README marks mutating routes
-  through `QualificationScenarios.RunMutating`
+  through `QualificationScenarios.RunMutating` (every `QualificationScenarios*.cs` file of the partial class is read)
   (`QualificationPluginUsesOnlyTheClientApiForCheatEngineAccess`, `MutatingLuaFunctionsRouteThroughTheAuthorizationGate`).
 
 ## Run

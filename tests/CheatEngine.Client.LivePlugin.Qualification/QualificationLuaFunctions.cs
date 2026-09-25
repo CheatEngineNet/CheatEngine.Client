@@ -4,11 +4,9 @@ namespace LivePlugin.Qualification;
 
 /// <summary>
 ///     The Lua functions of the qualification harness, one per Client C3/C4 scenario step (see the project README).
-///     Every function returns one JSON observation. The functions that change the target or Cheat Engine state
-///     (<c>capabilities(0)</c>, <c>target_declare</c>, <c>memory_roundtrip</c>, <c>memory_batch_partial</c>,
-///     <c>table_create</c>, <c>symbol_register</c>, <c>symbol_release</c>) run through
-///     <see cref="QualificationScenarios.RunMutating" />, which refuses them unless the qualification gate authorized the
-///     run and the Client observes exactly the authorized target.
+///     Every function returns one JSON observation. The functions that change the target or Cheat Engine state (the
+///     README marks them) run through <see cref="QualificationScenarios.RunMutating" />, which refuses them unless the
+///     qualification gate authorized the run and, by default, the Client observes exactly the authorized target.
 /// </summary>
 internal static partial class QualificationLuaFunctions
 {
@@ -101,5 +99,68 @@ internal static partial class QualificationLuaFunctions
 	public static string Logs()
 	{
 		return QualificationScenarios.Logs();
+	}
+
+	/// <summary>One value-scan step on the scratch region (Q25, Q26).</summary>
+	[LuaFunction("cheatengine_client_qualification_value_scan")]
+	public static string ValueScan(string action, string symbolName, long value)
+	{
+		return QualificationScenarios.ValueScan(action, symbolName, value);
+	}
+
+	/// <summary>One allocation step under a harness-prefixed name (Q30.a, Q30.b).</summary>
+	[LuaFunction("cheatengine_client_qualification_allocation")]
+	public static string Allocation(string action, string name, long size)
+	{
+		return QualificationScenarios.Allocation(action, name, size);
+	}
+
+	/// <summary>The instruction profile of the selected target, with a round trip in the scratch region (Q32).</summary>
+	[LuaFunction("cheatengine_client_qualification_instructions")]
+	public static string Instructions(string symbolName)
+	{
+		return QualificationScenarios.Instructions(symbolName);
+	}
+
+	/// <summary>One Auto Assembler patch step, only when the run composed the opt-in (Q35, Q44).</summary>
+	[LuaFunction("cheatengine_client_qualification_aa_patch")]
+	public static string AaPatch(string action, string variant)
+	{
+		return QualificationScenarios.AutoAssemblerPatch(action, variant);
+	}
+
+	/// <summary>Starts the worker admission probe, or reads its result (Q19).</summary>
+	[LuaFunction("cheatengine_client_qualification_worker_admission")]
+	public static string WorkerAdmission(string action)
+	{
+		return QualificationScenarios.WorkerAdmission(action);
+	}
+
+	/// <summary>Saves the current table below the runner's table root, or outside it to observe the refusal (Q34).</summary>
+	[LuaFunction("cheatengine_client_qualification_table_save")]
+	public static string TableSave(string fileName, long outsideRoot)
+	{
+		return QualificationScenarios.TableSave(fileName, outsideRoot);
+	}
+
+	/// <summary>Loads a table from the runner's table root (Q34).</summary>
+	[LuaFunction("cheatengine_client_qualification_table_load")]
+	public static string TableLoad(string fileName)
+	{
+		return QualificationScenarios.TableLoad(fileName);
+	}
+
+	/// <summary>Returns the integer CheatEngine.SDK marshalled (CRIT-07: floats from 2^53 on are refused).</summary>
+	[LuaFunction("cheatengine_client_qualification_integer_echo")]
+	public static string IntegerEcho(long value)
+	{
+		return QualificationScenarios.IntegerEcho(value);
+	}
+
+	/// <summary>Returns the target address (<see cref="nuint" />) CheatEngine.SDK marshalled (CRIT-07).</summary>
+	[LuaFunction("cheatengine_client_qualification_address_echo")]
+	public static string AddressEcho(nuint address)
+	{
+		return QualificationScenarios.AddressEcho(address);
 	}
 }

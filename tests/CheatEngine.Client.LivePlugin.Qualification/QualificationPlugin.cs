@@ -17,8 +17,10 @@ namespace LivePlugin.Qualification;
 /// <summary>
 ///     The Client qualification harness: a real <see cref="CheatEngineClientPlugin" /> composed like an application, whose
 ///     Lua functions run one Client C3/C4 scenario each through the public Client API only. It evaluates the
-///     qualification gate and the fault switch once per enable, registers the Q46 log sink, and records its own lifecycle
-///     so that a re-enable can report what a failed enable or a faulty disable did.
+///     qualification gate, the fault switch and the session inputs once per enable, registers the Q46 log sink and the
+///     Hosting host log provider, composes the Auto Assembler opt-in and the table root only when the runner asked for
+///     them in an authorized run, and records its own lifecycle (also into the Q43 lifecycle sink) so that a re-enable,
+///     or the runner after <c>closeCE</c>, can report what a failed enable or a faulty disable did.
 /// </summary>
 [CheatEnginePlugin(DisplayName)]
 public sealed class QualificationPlugin : CheatEngineClientPlugin
@@ -42,7 +44,9 @@ public sealed class QualificationPlugin : CheatEngineClientPlugin
 		AuthorizationDecision authorization = QualificationAuthorization.Evaluate(QualificationEnvironment.Instance);
 		FaultDecision fault = QualificationFaultSwitch.Read(PluginDirectory(), authorization,
 			QualificationEnvironment.Instance);
-		QualificationSession.BeginEnable(Context.PluginId, authorization);
+		QualificationInputs inputs = QualificationInputs.Read(authorization, QualificationEnvironment.Instance);
+		QualificationLifecycleSink.Configure(inputs.LifecycleFile);
+		QualificationSession.BeginEnable(Context.PluginId, authorization, inputs);
 		QualificationLedger.BeginEnable(fault);
 		if (fault.Stage == FaultStage.Configure)
 		{
@@ -51,7 +55,10 @@ public sealed class QualificationPlugin : CheatEngineClientPlugin
 			throw failure;
 		}
 
-		builder.Services.AddLogging(static logging => logging.AddProvider(QualificationSession.Logs));
+		// Debug events included, so the Q46 sink sees every template the Client and Hosting write. The Hosting host log
+		// provider writes those templates to the Cheat Engine debug output, which Q46 also reads.
+		builder.Services.AddLogging(static logging =>
+			logging.SetMinimumLevel(LogLevel.Debug).AddProvider(QualificationSession.Logs).AddCheatEngineHostLog());
 		builder.Services.AddSingleton(fault);
 		builder.Services.AddScoped<QualificationScopedResource>();
 		builder.Client
@@ -60,6 +67,22 @@ public sealed class QualificationPlugin : CheatEngineClientPlugin
 			.AddModule<QualificationFaultModule>()
 			.AddModule<QualificationScenarioModule>()
 			.AddModule<QualificationLastModule>();
+		if (inputs.TableRoot is { } tableRoot)
+		{
+			builder.Client.Configure(options =>
+			{
+				options.AllowedTableRoots.Clear();
+				options.AllowedTableRoots.Add(tableRoot);
+			});
+		}
+
+		if (inputs.EnableAutoAssembler)
+		{
+#pragma warning disable CECLIENT5004 // Q35 composes the experimental Auto Assembler opt-in only for an authorized run that asked for it.
+			builder.Client.EnableAutoAssemblerPatches();
+#pragma warning restore CECLIENT5004
+			QualificationLedger.Record("configure.auto-assembler-opt-in");
+		}
 	}
 
 	/// <inheritdoc />
@@ -67,6 +90,13 @@ public sealed class QualificationPlugin : CheatEngineClientPlugin
 	{
 		ArgumentNullException.ThrowIfNull(client);
 		QualificationLedger.RecordActivated(client.Epoch);
+	}
+
+	/// <inheritdoc />
+	protected override void OnClientDisabling(ICheatEngineClient client)
+	{
+		ArgumentNullException.ThrowIfNull(client);
+		QualificationLedger.Record("plugin.disabling");
 	}
 }
 

@@ -144,9 +144,12 @@ public sealed class QualificationPluginSourceComplianceTests
 		return File.ReadAllText(Path.Combine(PluginProjectDirectory(), "QualificationLuaFunctions.cs"));
 	}
 
+	/// <summary>Every file of the partial <c>QualificationScenarios</c> class, concatenated in ordinal order.</summary>
 	private static string ScenariosText()
 	{
-		return File.ReadAllText(Path.Combine(PluginProjectDirectory(), "QualificationScenarios.cs"));
+		return string.Concat(Directory.EnumerateFiles(PluginProjectDirectory(), "QualificationScenarios*.cs")
+			.Order(StringComparer.Ordinal)
+			.Select(File.ReadAllText));
 	}
 
 	private static string PluginProjectDirectory()
