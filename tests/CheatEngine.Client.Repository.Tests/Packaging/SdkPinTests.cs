@@ -7,11 +7,46 @@ namespace CheatEngine.Client.Repository.Tests.Packaging;
 
 /// <summary>
 /// The Client consumes exactly one reviewed CheatEngine.SDK package (audit ADR-10, A21-01, A21-02): one source for the
-/// pin, and lock files, project files and documentation that agree with it.
+/// pin, and lock files, project files and documentation that agree with it. The documentation checks (version
+/// mentions, version ranges and the hashes of a CheatEngine.SDK tuple line) cover the shipped sources and templates,
+/// the template content project, the governance documents, everything under <c>.github/</c> and the CHANGELOG except
+/// its released history.
 /// </summary>
 public sealed partial class SdkPinTests
 {
 	private const int RegexTimeoutMilliseconds = 1000;
+
+	private const string ChangelogPath = "CHANGELOG.md";
+
+	/// <summary>The test fixture that holds the reviewed identity of the pinned package.</summary>
+	private const string IdentityFixturePath = "tests/CheatEngine.Client.Tests/Packaging/PackagedClientFeedFixture.cs";
+
+	/// <summary>
+	/// Hashes of the host profile that a tuple line may state next to the CheatEngine.SDK identity: the SHA-256 of
+	/// <c>cheatengine-x86_64.exe</c> 7.7.0.10621 and of the qualification host's <c>ce.runtimeconfig.json</c>. They are
+	/// not CheatEngine.SDK values and do not move with the pin.
+	/// </summary>
+	private static readonly string[] HostProfileHashes =
+	[
+		"9727076da50924e4a097b49a02155e4b34759269c3017ff31375364b8826eb4d",
+		"68f5d81c0a17cc5bdac40bb3d5d88a624f4d31b414f7195ad847d57b0126ac2b"
+	];
+
+	/// <summary>
+	/// Documents outside the shipped folders whose CheatEngine.SDK facts are guarded too: the governance documents and
+	/// the template content project, whose comment names the pin and its range. Every file under <c>.github/</c> and
+	/// the CHANGELOG (<see cref="GuardedChangelogLines" />) are added to them.
+	/// </summary>
+	private static readonly string[] GovernanceDocuments =
+	[
+		".coderabbit.yaml",
+		"CODE_OF_CONDUCT.md",
+		"CONTRIBUTING.md",
+		"RELEASING.md",
+		"ROADMAP.md",
+		"SECURITY.md",
+		"templates/CheatEngine.Client.Templates/content/CheatEngine.Plugin/CheatEngine.Plugin.csproj"
+	];
 
 	/// <summary>The only values a CheatEngine.SDK version attribute may take outside the pin file.</summary>
 	private static readonly HashSet<string> DerivedVersionExpressions = new(StringComparer.Ordinal)
@@ -114,34 +149,19 @@ public sealed partial class SdkPinTests
 	public void ProseMentionsOfTheConsumedSdkEqualThePin()
 	{
 		string pin = SdkPin.Version;
-		HashSet<string> files = new(ProseLocations, StringComparer.Ordinal);
-		foreach (string pattern in (string[]) ["*.md", "*.cs"])
-		{
-			foreach (string file in RepositoryRoot.EnumerateSourceFiles(pattern))
-			{
-				if (file.StartsWith("src/", StringComparison.Ordinal) || file.StartsWith("libs/", StringComparison.Ordinal)
-					|| file.StartsWith("source-generators/", StringComparison.Ordinal)
-					|| file.StartsWith("templates/", StringComparison.Ordinal))
-				{
-					files.Add(file);
-				}
-			}
-		}
-
 		List<string> offenders = [];
-		foreach (string file in files.Order(StringComparer.Ordinal))
+		foreach ((string file, IReadOnlyList<(int Line, string Text)> lines) in GuardedDocuments())
 		{
-			string[] lines = File.ReadAllLines(Path.Combine(RepositoryRoot.Path, file));
 			int mentions = 0;
-			for (int index = 0; index < lines.Length; index++)
+			foreach ((int line, string text) in lines)
 			{
-				foreach (Match match in SdkVersionMention().Matches(lines[index]))
+				foreach (Match match in SdkVersionMention().Matches(text))
 				{
 					mentions++;
 					string version = match.Groups["version"].Value;
 					if (version != pin)
 					{
-						offenders.Add($"{file}:{index + 1} → names CheatEngine.SDK {version}, but the pin is {pin}");
+						offenders.Add($"{file}:{line} → names CheatEngine.SDK {version}, but the pin is {pin}");
 					}
 				}
 			}
@@ -154,6 +174,97 @@ public sealed partial class SdkPinTests
 
 		AssertNoOffenders(offenders,
 			"Documentation and diagnostics name the SDK the Client consumes, never another version (ADR-10: a feature exists for the Client only in the consumed package)");
+	}
+
+	[Fact]
+	public void VersionRangesInTheDocumentationAreTheDeclaredSdkRange()
+	{
+		string range = $"[{SdkPin.Version}, {SdkPin.UpperBound})";
+		List<string> offenders = [];
+		int ranges = 0;
+		foreach ((string file, IReadOnlyList<(int Line, string Text)> lines) in GuardedDocuments())
+		{
+			foreach ((int line, string literal) in FindForeignRanges(lines, range, ref ranges))
+			{
+				offenders.Add($"{file}:{line} → {literal}");
+			}
+		}
+
+		Assert.True(ranges > 0, $"No guarded document states the declared range {range}; the READMEs must.");
+		AssertNoOffenders(offenders,
+			$"A version range in the documentation is the range the Client declares for CheatEngine.SDK, {range} " +
+			$"({SdkPin.PropsPath}); state any other dependency's version without a range");
+	}
+
+	[Fact]
+	public void TupleLineHashesAreTheReviewedIdentityOfThePinnedSdk()
+	{
+		ReviewedSdkIdentity identity = ReadReviewedIdentity();
+		HashSet<string> lockHashes = new(StringComparer.Ordinal);
+		foreach (string file in RepositoryRoot.EnumerateSourceFiles("packages.lock.json"))
+		{
+			foreach ((_, JsonElement entry) in SdkLockEntries(file))
+			{
+				lockHashes.Add(entry.GetProperty("contentHash").GetString() ?? string.Empty);
+			}
+		}
+
+		Assert.Equal(SdkPin.Version, identity.Version);
+		Assert.True(lockHashes.SetEquals([identity.ContentHash]),
+			$"{IdentityFixturePath} records the content hash {identity.ContentHash}, but the lock files record " +
+			$"{string.Join(", ", lockHashes)}.");
+
+		string[] allowed = [identity.ContentHash, identity.SignedFileHash, identity.BridgeHash, .. HostProfileHashes];
+		List<string> offenders = [];
+		HashSet<string> stated = new(StringComparer.OrdinalIgnoreCase);
+		foreach ((string file, IReadOnlyList<(int Line, string Text)> lines) in GuardedDocuments())
+		{
+			foreach ((int line, string literal) in FindForeignTupleHashes(lines, allowed, stated))
+			{
+				offenders.Add($"{file}:{line} → {literal}");
+			}
+		}
+
+		Assert.True(stated.Contains(identity.ContentHash) && stated.Contains(identity.BridgeHash),
+			"No guarded document states the reviewed content hash and native bridge SHA-256 on a CheatEngine.SDK " +
+			"tuple line; the install guides must.");
+		AssertNoOffenders(offenders,
+			"A content hash or bridge hash on a CheatEngine.SDK tuple line is the reviewed identity of " +
+			$"CheatEngine.SDK {SdkPin.Version} ({IdentityFixturePath}) or a host profile hash");
+	}
+
+	[Fact]
+	public void TheDocumentationChecksSeeTupleHashesRangesAndOnlyTheCurrentChangelog()
+	{
+		string content = new string('C', 86) + "==";
+		string bridge = new('b', 64);
+		string foreignHex = new('0', 64);
+		string hostHex = HostProfileHashes[0].ToUpperInvariant();
+		(int, string)[] lines =
+		[
+			(1, $"| Consumed SDK package | `CheatEngine.SDK` 2.0.0, NuGet content hash `{content}` |"),
+			(2, $"| SDK native bridge | SHA-256 `{bridge}` |"),
+			(3, $"Tuple: CheatEngine.SDK 2.0.0 ({content}), Cheat Engine 7.7.0.10621 x64 (`{hostHex}`)"),
+			(4, $"| SDK native bridge | SHA-256 `{foreignHex}` |"),
+			(5, $"ACTIONLINT_SHA256: {foreignHex} # an unrelated tool checksum"),
+			(6, "Client 1.x declares `[2.0.0, 3.0.0)`; a stale guide said [2.0.0,4.0.0) and a pack `[1.0.0]`.")
+		];
+		HashSet<string> stated = new(StringComparer.OrdinalIgnoreCase);
+		int ranges = 0;
+
+		Assert.Equal([(4, foreignHex)], FindForeignTupleHashes(lines, [content, bridge, .. HostProfileHashes], stated));
+		Assert.True(stated.SetEquals([content, bridge, hostHex, foreignHex]));
+		Assert.Equal([(6, "[2.0.0,4.0.0)")], FindForeignRanges(lines, "[2.0.0, 3.0.0)", ref ranges));
+		Assert.Equal(2, ranges);
+
+		string[] changelog =
+		[
+			"# Changelog", "## [Unreleased]", "- CheatEngine.SDK 3.0.0", "## [1.1.0] - 2027-01-04", "- 1.1 line",
+			"## [1.0.0] - 2026-09-25", "- CheatEngine.SDK 2.0.0 (history)", "## [0.9.0-rc.1] - 2026-01-01", "- older"
+		];
+		Assert.Equal([1, 2, 3, 4, 5],
+			GuardedChangelogLines(changelog, new Version(1, 1)).Select(static line => line.Line));
+		Assert.Equal(9, GuardedChangelogLines(changelog, new Version(0, 9)).Count);
 	}
 
 	[Fact]
@@ -275,8 +386,151 @@ public sealed partial class SdkPinTests
 		return file.StartsWith("templates/", StringComparison.Ordinal) && file.Contains("/content/", StringComparison.Ordinal);
 	}
 
+	/// <summary>
+	/// Whether a repository path belongs to a folder that ships: sources, libraries, generators, templates.
+	/// </summary>
+	internal static bool IsShippedSource(string file)
+	{
+		return file.StartsWith("src/", StringComparison.Ordinal) || file.StartsWith("libs/", StringComparison.Ordinal)
+			|| file.StartsWith("source-generators/", StringComparison.Ordinal)
+			|| file.StartsWith("templates/", StringComparison.Ordinal);
+	}
+
+	/// <summary>
+	/// Every guarded document with the numbered lines the documentation checks read: the Markdown and C# files of the
+	/// shipped folders, <see cref="ProseLocations" />, <see cref="GovernanceDocuments" />, every text file under
+	/// <c>.github/</c>, and the CHANGELOG lines that are not released history.
+	/// </summary>
+	private static IEnumerable<(string File, IReadOnlyList<(int Line, string Text)> Lines)> GuardedDocuments()
+	{
+		SortedSet<string> files = new(ProseLocations, StringComparer.Ordinal);
+		files.UnionWith(GovernanceDocuments);
+		foreach (string pattern in (string[]) ["*.md", "*.cs"])
+		{
+			files.UnionWith(RepositoryRoot.EnumerateSourceFiles(pattern).Where(IsShippedSource));
+		}
+
+		string github = Path.Combine(RepositoryRoot.Path, ".github");
+		files.UnionWith(Directory.EnumerateFiles(github, "*", SearchOption.AllDirectories)
+			.Select(RepositoryRoot.ToRelative).Where(IsTextFile));
+		foreach (string file in files)
+		{
+			string[] lines = File.ReadAllLines(Path.Combine(RepositoryRoot.Path, file));
+			List<(int Line, string Text)> numbered = [.. lines.Select(static (text, index) => (index + 1, text))];
+			yield return (file, numbered);
+		}
+
+		Version floor = Version.Parse(PackageVersioningTests.BuildProperty("MinVerMinimumMajorMinor"));
+		yield return (ChangelogPath,
+			GuardedChangelogLines(File.ReadAllLines(Path.Combine(RepositoryRoot.Path, ChangelogPath)), floor));
+	}
+
+	/// <summary>
+	/// The CHANGELOG lines the documentation checks read: all of them except the sections of versions below the MinVer
+	/// floor (<c>MinVerMinimumMajorMinor</c>), which were released and keep the CheatEngine.SDK facts of their time.
+	/// The floor moves to the next line in the change that follows a release (RELEASING.md).
+	/// </summary>
+	private static List<(int Line, string Text)> GuardedChangelogLines(string[] changelog, Version floor)
+	{
+		List<(int Line, string Text)> guarded = [];
+		bool history = false;
+		for (int index = 0; index < changelog.Length; index++)
+		{
+			string line = changelog[index];
+			if (line.StartsWith("## ", StringComparison.Ordinal))
+			{
+				Match release = ChangelogRelease().Match(line);
+				history = release.Success && Version.Parse(release.Groups["line"].Value) < floor;
+			}
+
+			if (!history)
+			{
+				guarded.Add((index + 1, line));
+			}
+		}
+
+		return guarded;
+	}
+
+	/// <summary>
+	/// The version ranges of <paramref name="lines" /> that differ from <paramref name="range" />, whitespace ignored;
+	/// <paramref name="count" /> grows by every range found.
+	/// </summary>
+	private static List<(int Line, string Literal)> FindForeignRanges(IEnumerable<(int Line, string Text)> lines,
+		string range, ref int count)
+	{
+		string expected = string.Concat(range.Where(static character => !char.IsWhiteSpace(character)));
+		List<(int Line, string Literal)> foreign = [];
+		foreach ((int line, string text) in lines)
+		{
+			foreach (Match match in RangeLiteral().Matches(text))
+			{
+				count++;
+				if (!string.Equals(string.Concat(match.Value.Where(static character => !char.IsWhiteSpace(character))),
+						expected, StringComparison.Ordinal))
+				{
+					foreign.Add((line, match.Value));
+				}
+			}
+		}
+
+		return foreign;
+	}
+
+	/// <summary>
+	/// The SHA-512 (base64) and SHA-256 (hex, any case) literals on the CheatEngine.SDK tuple lines of
+	/// <paramref name="lines" /> that are not in <paramref name="allowed" />. Every literal a tuple line states is
+	/// added to <paramref name="stated" />; a hash on another line (a workflow's tool checksum) is not a tuple value.
+	/// </summary>
+	private static List<(int Line, string Literal)> FindForeignTupleHashes(IEnumerable<(int Line, string Text)> lines,
+		string[] allowed, HashSet<string> stated)
+	{
+		List<(int Line, string Literal)> foreign = [];
+		foreach ((int line, string text) in lines)
+		{
+			if (!SdkTupleLine().IsMatch(text))
+			{
+				continue;
+			}
+
+			foreach (Match match in HashLiteral().Matches(text))
+			{
+				string literal = match.Value;
+				StringComparison comparison = match.Groups["hex"].Success
+					? StringComparison.OrdinalIgnoreCase
+					: StringComparison.Ordinal;
+				stated.Add(literal);
+				if (!allowed.Any(value => string.Equals(value, literal, comparison)))
+				{
+					foreign.Add((line, literal));
+				}
+			}
+		}
+
+		return foreign;
+	}
+
+	/// <summary>
+	/// The reviewed identity of the pinned package, as <c>PackagedClientFeedFixture.PinnedSdkIdentity</c> records it
+	/// for the package consumption tests.
+	/// </summary>
+	private static ReviewedSdkIdentity ReadReviewedIdentity()
+	{
+		string fixture = File.ReadAllText(Path.Combine(RepositoryRoot.Path, IdentityFixturePath));
+		Match literal = PinnedIdentityLiteral().Match(fixture);
+		Assert.True(literal.Success,
+			$"{IdentityFixturePath} no longer declares PinnedSdkIdentity as a JsonDocument.Parse raw string literal.");
+		using JsonDocument document = JsonDocument.Parse(literal.Groups["json"].Value);
+		JsonElement root = document.RootElement;
+		return new ReviewedSdkIdentity(
+			root.GetProperty("version").GetString() ?? string.Empty,
+			root.GetProperty("contentHashSha512").GetString() ?? string.Empty,
+			root.GetProperty("nugetOrgSignedSha512").GetString() ?? string.Empty,
+			root.GetProperty("nativeBridge").GetProperty("sha256").GetString() ?? string.Empty);
+	}
+
 	/// <summary>A file is text unless its first 8 KiB contain a NUL byte (the heuristic Git uses).</summary>
-	private static bool IsTextFile(string file)
+	internal static bool IsTextFile(string file)
 	{
 		using FileStream stream = File.OpenRead(Path.Combine(RepositoryRoot.Path, file));
 		Span<byte> head = stackalloc byte[8192];
@@ -333,4 +587,29 @@ public sealed partial class SdkPinTests
 
 	[GeneratedRegex(@"^(?<major>0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$", RegexOptions.CultureInvariant, RegexTimeoutMilliseconds)]
 	private static partial Regex StableVersion();
+
+	/// <summary>A CHANGELOG release heading, with its major.minor line.</summary>
+	[GeneratedRegex(@"^## \[(?<line>\d+\.\d+)\.\d+", RegexOptions.CultureInvariant, RegexTimeoutMilliseconds)]
+	private static partial Regex ChangelogRelease();
+
+	/// <summary>A line that names the CheatEngine.SDK package, its native bridge or its content hash.</summary>
+	[GeneratedRegex(@"CheatEngine\.SDK|(?<!\.NET\s)\bSDK\b|\b[Bb]ridge\b|\b[Cc]ontent ?[Hh]ash",
+		RegexOptions.CultureInvariant, RegexTimeoutMilliseconds)]
+	private static partial Regex SdkTupleLine();
+
+	/// <summary>A whole SHA-256 in hex or SHA-512 in base64, not part of a longer token.</summary>
+	[GeneratedRegex(@"(?<![A-Za-z0-9+/=])(?:(?<hex>[0-9A-Fa-f]{64})|[A-Za-z0-9+/]{86}==)(?![A-Za-z0-9+/=])",
+		RegexOptions.CultureInvariant, RegexTimeoutMilliseconds)]
+	private static partial Regex HashLiteral();
+
+	[GeneratedRegex(@"PinnedSdkIdentity\s*=\s*JsonDocument\.Parse\(\s*""""""(?<json>.*?)""""""\s*\)",
+		RegexOptions.CultureInvariant | RegexOptions.Singleline, RegexTimeoutMilliseconds)]
+	private static partial Regex PinnedIdentityLiteral();
+
+	/// <summary>The identity values of the pinned package that a tuple line may state.</summary>
+	private sealed record ReviewedSdkIdentity(
+		string Version,
+		string ContentHash,
+		string SignedFileHash,
+		string BridgeHash);
 }
