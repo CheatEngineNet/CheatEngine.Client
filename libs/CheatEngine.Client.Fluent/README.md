@@ -82,8 +82,9 @@ Abstractions  ←  Fluent
   no service, and every operation that runs or selects a terminal throws a documented
   `InvalidOperationException` on it.
 - Validates and normalizes an AOB pattern and its options before a terminal operation is selected:
-  `Executable()`, `Writable()` and `WithProtection(...)` set the protection filter, `AlignedTo(...)` and
-  `WithLastDigits(...)` the alignment rule.
+  `Executable()`, `Writable()` and `WithProtection(...)` set the protection filter, `AlignedTo(...)`,
+  `LastDigits(...)` and `WithAlignment(...)` the alignment rule. A shortcut is named like the
+  `ScanAlignment` factory it calls, and `With<Option>(...)` sets a whole option value.
 - Forces explicit result cardinality: `RequireSingle()`, `FirstOrNone()`, or `Take(maximumResults)`.
 - Preserves materialization-bounded copies: the limit bounds only the number of copied addresses, never Cheat
   Engine's scan. Callers inspect `AobScanResult.IsTruncated`, which reports a copy that is not proven complete.

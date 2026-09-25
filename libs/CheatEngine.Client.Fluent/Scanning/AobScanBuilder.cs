@@ -196,13 +196,25 @@ public readonly struct AobScanBuilder
 		return new AobScanBuilder(_scanner, Pattern, protection, Alignment, Module, Range);
 	}
 
+	/// <summary>Returns an equivalent builder with an explicit alignment rule.</summary>
+	/// <param name="alignment">The alignment rule of candidate addresses.</param>
+	/// <returns>A new immutable builder whose alignment rule replaces the current one.</returns>
+	/// <remarks>
+	///     <see cref="AlignedTo" /> and <see cref="LastDigits" /> are its shortcuts, named like the
+	///     <see cref="ScanAlignment" /> factories they call.
+	/// </remarks>
+	public AobScanBuilder WithAlignment(ScanAlignment alignment)
+	{
+		return new AobScanBuilder(_scanner, Pattern, Protection, alignment, Module, Range);
+	}
+
 	/// <summary>Returns an equivalent builder that checks only addresses divisible by <paramref name="divisor" />.</summary>
 	/// <param name="divisor">The positive divisor, for example 4 for 4-byte aligned matches.</param>
 	/// <returns>A new immutable builder whose alignment rule replaces the current one.</returns>
 	/// <exception cref="ArgumentOutOfRangeException"><paramref name="divisor" /> is zero or negative.</exception>
 	public AobScanBuilder AlignedTo(int divisor)
 	{
-		return new AobScanBuilder(_scanner, Pattern, Protection, ScanAlignment.AlignedTo(divisor), Module, Range);
+		return WithAlignment(ScanAlignment.AlignedTo(divisor));
 	}
 
 	/// <summary>
@@ -213,9 +225,9 @@ public readonly struct AobScanBuilder
 	/// <returns>A new immutable builder whose alignment rule replaces the current one.</returns>
 	/// <exception cref="ArgumentNullException"><paramref name="digits" /> is <see langword="null" />.</exception>
 	/// <exception cref="ArgumentException"><paramref name="digits" /> is empty, too long or not hexadecimal.</exception>
-	public AobScanBuilder WithLastDigits(string digits)
+	public AobScanBuilder LastDigits(string digits)
 	{
-		return new AobScanBuilder(_scanner, Pattern, Protection, ScanAlignment.LastDigits(digits), Module, Range);
+		return WithAlignment(ScanAlignment.LastDigits(digits));
 	}
 
 	/// <summary>Selects an operation that succeeds only when exactly one AOB match exists.</summary>

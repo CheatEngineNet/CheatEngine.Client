@@ -71,7 +71,7 @@ public sealed class AobFluentBuilderTests
 
 		Address actual = scanner.Aob("90")
 			.WithProtection(protection)
-			.WithLastDigits("f0")
+			.LastDigits("f0")
 			.InRange(0x400000, 0x4FFFFF)
 			.RequireSingle()
 			.Execute(TestContext.Current.CancellationToken);
@@ -87,11 +87,11 @@ public sealed class AobFluentBuilderTests
 	[Theory]
 	[InlineData("")]
 	[InlineData("0xF0")]
-	public void WithLastDigitsRejectsMalformedDigitsBeforeTerminalSelection(string digits)
+	public void LastDigitsRejectsMalformedDigitsBeforeTerminalSelection(string digits)
 	{
 		FakePatternScanner scanner = new();
 
-		Assert.Throws<ArgumentException>(() => scanner.Aob("90").WithLastDigits(digits));
+		Assert.Throws<ArgumentException>(() => scanner.Aob("90").LastDigits(digits));
 		Assert.Null(scanner.LastRequest);
 	}
 
@@ -102,6 +102,18 @@ public sealed class AobFluentBuilderTests
 
 		Assert.Throws<ArgumentOutOfRangeException>(() => scanner.Aob("90").AlignedTo(0));
 		Assert.Null(scanner.LastRequest);
+	}
+
+	[Fact]
+	public void TheAlignmentShortcutsSetWhatWithAlignmentSets()
+	{
+		FakePatternScanner scanner = new();
+		AobScanBuilder builder = scanner.Aob("90").AlignedTo(8);
+
+		Assert.Equal(builder.WithAlignment(ScanAlignment.AlignedTo(4)).Alignment, builder.AlignedTo(4).Alignment);
+		Assert.Equal(builder.WithAlignment(ScanAlignment.LastDigits("f0")).Alignment, builder.LastDigits("f0").Alignment);
+		Assert.Equal(ScanAlignment.None, builder.WithAlignment(ScanAlignment.None).Alignment);
+		Assert.Equal(ScanAlignment.AlignedTo(8), builder.Alignment);
 	}
 
 	[Fact]

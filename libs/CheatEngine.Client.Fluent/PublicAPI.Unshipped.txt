@@ -48,13 +48,14 @@ CheatEngine.Client.Scanning.AobScanBuilder.FirstOrNone() -> CheatEngine.Client.S
 CheatEngine.Client.Scanning.AobScanBuilder.InModule(CheatEngine.SDK.Engine.Inspection.ModuleName module) -> CheatEngine.Client.Scanning.AobScanBuilder
 CheatEngine.Client.Scanning.AobScanBuilder.InModule(string! moduleName) -> CheatEngine.Client.Scanning.AobScanBuilder
 CheatEngine.Client.Scanning.AobScanBuilder.InRange(CheatEngine.SDK.Engine.Values.Address start, CheatEngine.SDK.Engine.Values.Address end) -> CheatEngine.Client.Scanning.AobScanBuilder
+CheatEngine.Client.Scanning.AobScanBuilder.LastDigits(string! digits) -> CheatEngine.Client.Scanning.AobScanBuilder
 CheatEngine.Client.Scanning.AobScanBuilder.Module.get -> CheatEngine.SDK.Engine.Inspection.ModuleName?
 CheatEngine.Client.Scanning.AobScanBuilder.Pattern.get -> CheatEngine.Client.Scanning.AobPattern
 CheatEngine.Client.Scanning.AobScanBuilder.Protection.get -> CheatEngine.Client.Scanning.ScanProtectionFilter
 CheatEngine.Client.Scanning.AobScanBuilder.Range.get -> CheatEngine.Client.Scanning.AobScanRange?
 CheatEngine.Client.Scanning.AobScanBuilder.RequireSingle() -> CheatEngine.Client.Scanning.AobSingleMatchBuilder
 CheatEngine.Client.Scanning.AobScanBuilder.Take(int maximumResults) -> CheatEngine.Client.Scanning.AobManyMatchBuilder
-CheatEngine.Client.Scanning.AobScanBuilder.WithLastDigits(string! digits) -> CheatEngine.Client.Scanning.AobScanBuilder
+CheatEngine.Client.Scanning.AobScanBuilder.WithAlignment(CheatEngine.Client.Scanning.ScanAlignment alignment) -> CheatEngine.Client.Scanning.AobScanBuilder
 CheatEngine.Client.Scanning.AobScanBuilder.WithProtection(CheatEngine.Client.Scanning.ScanProtectionFilter protection) -> CheatEngine.Client.Scanning.AobScanBuilder
 CheatEngine.Client.Scanning.AobScanBuilder.Writable() -> CheatEngine.Client.Scanning.AobScanBuilder
 CheatEngine.Client.Scanning.AobSingleMatchBuilder
