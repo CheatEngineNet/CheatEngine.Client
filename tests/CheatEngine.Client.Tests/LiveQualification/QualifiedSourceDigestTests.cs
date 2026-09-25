@@ -78,6 +78,18 @@ public sealed class QualifiedSourceDigestTests : IDisposable
 	}
 
 	[Fact]
+	public void TheEmbeddedEvidenceFileExistsAndIsNoInputWhileTheGateIs()
+	{
+		const string Evidence = "libs/CheatEngine.Client.Core/Qualification/HostQualificationEvidence.cs";
+		IReadOnlyList<string> inputs = QualifiedSourceDigest.EnumerateInputs(RepositoryLayout.Root);
+
+		Assert.True(File.Exists(RepositoryLayout.Combine(Evidence)), $"'{Evidence}' is the file the digest excludes; it must exist.");
+		Assert.False(QualifiedSourceDigest.IsInput(Evidence));
+		Assert.DoesNotContain(Evidence, inputs);
+		Assert.Contains("libs/CheatEngine.Client.Core/Qualification/HostQualificationGate.cs", inputs);
+	}
+
+	[Fact]
 	public void CrLfAndLfCheckoutsHaveTheSameDigest()
 	{
 		string crlf = Tree("crlf", "\r\n");

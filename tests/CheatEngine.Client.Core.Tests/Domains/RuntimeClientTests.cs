@@ -1,5 +1,6 @@
 using CheatEngine.Client.Core.Domains;
 using CheatEngine.Client.Core.Infrastructure;
+using CheatEngine.Client.Core.Qualification;
 using CheatEngine.Client.Core.Tests.TestSupport;
 using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Results;
@@ -717,13 +718,42 @@ public sealed class RuntimeClientTests
 		foreach (ClientCapabilityAvailability capability in snapshot.Capabilities.Entries)
 		{
 			Assert.Equal(ClientCapabilityEvidenceState.Unknown, capability.Evidence.LiveQualification.State);
-			Assert.Equal(reason, capability.Evidence.LiveQualification.Reason);
+			// Arbitrary Lua has no live scenario: its gate says it is never qualified, whatever the evidence.
+			Assert.Equal(capability.Capability == ClientCapabilityId.UnsafeLuaExecution
+					? "Client.UnsafeLuaExecution is never host-qualified: no live scenario covers it."
+					: reason,
+				capability.Evidence.LiveQualification.Reason);
 		}
 
 		Assert.Contains("SDK-branch receipts never qualify the Client tuple", reason, StringComparison.Ordinal);
 		Assert.Contains(ConsumedSdkIdentity.SupportedHostProfileId, reason, StringComparison.Ordinal);
 		// The Client tuple names the embedded identity, not a version written in the source.
 		Assert.Contains($"CheatEngine.SDK {SdkVersion}+{SdkCommit}", reason, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void QualificationGateFollowsTheEmbeddedHostEvidence()
+	{
+		HostQualificationRecord evidence = new("20260930T101530Z-a1b2", "1.0.0", $"{SdkVersion}+{SdkCommit}",
+			ConsumedSdkIdentity.SupportedHostProfileId, CheatEngineVersion.Ce77010621,
+		[
+			new HostQualifiedCapability(ClientCapabilityId.TypedMemory, ["Q20", "Q21", "Q33"], [], [CheatEngineArchitecture.X64])
+		]);
+
+		CheatEngineRuntimeSnapshot qualified = new RuntimeClient(new InlineDispatcher(), new FakeRuntimeObservationPort(),
+			static () => 1, sdkIdentity: MatchingIdentity(), qualificationEvidence: evidence, clientVersion: "1.0.0")
+			.GetSnapshot(TestContext.Current.CancellationToken);
+		CheatEngineRuntimeSnapshot otherClient = new RuntimeClient(new InlineDispatcher(), new FakeRuntimeObservationPort(),
+			static () => 1, sdkIdentity: MatchingIdentity(), qualificationEvidence: evidence, clientVersion: "1.0.1")
+			.GetSnapshot(TestContext.Current.CancellationToken);
+
+		Assert.True(qualified.Capabilities.TryGet(ClientCapabilityId.TypedMemory, out ClientCapabilityAvailability memory));
+		Assert.Equal(ClientCapabilityEvidenceState.Satisfied, memory.Evidence.LiveQualification.State);
+		Assert.True(qualified.Capabilities.TryGet(ClientCapabilityId.Tables, out ClientCapabilityAvailability tables));
+		Assert.Equal(ClientCapabilityEvidenceState.Unknown, tables.Evidence.LiveQualification.State);
+		Assert.True(otherClient.Capabilities.TryGet(ClientCapabilityId.TypedMemory, out ClientCapabilityAvailability stale));
+		Assert.Equal(ClientCapabilityEvidenceState.Unknown, stale.Evidence.LiveQualification.State);
+		Assert.Contains("1.0.1", stale.Evidence.LiveQualification.Reason, StringComparison.Ordinal);
 	}
 
 	[Fact]

@@ -178,6 +178,7 @@ internal static class SdkApiUsage
 		_ = version.Major;
 		_ = version.Minor;
 		_ = CheatEngineVersion.Ce77010621;
+		_ = version != CheatEngineVersion.Ce77010621;
 		_ = PointerSize.Bit32;
 		_ = PointerSize.Bit64;
 		_ = PointerSize.Unknown;

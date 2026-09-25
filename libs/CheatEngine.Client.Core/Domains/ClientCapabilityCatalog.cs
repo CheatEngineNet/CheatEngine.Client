@@ -37,8 +37,9 @@ internal enum CapabilityHostSource
 /// <param name="Policy">Where the policy gate comes from.</param>
 /// <param name="Host">Where the host gate comes from.</param>
 /// <param name="RequiredScenarios">
-///     The live qualification scenarios whose receipts the qualification gate requires; empty when the capability can
-///     never be qualified, so its qualification gate stays unknown.
+///     The live qualification scenarios that must pass, none waived, before the qualification gate is satisfied
+///     (<c>HostQualificationGate</c>); empty when the capability can never be qualified, so its qualification gate stays
+///     unknown.
 /// </param>
 internal sealed record ClientCapabilityDescriptor(
 	ClientCapabilityId Id,
@@ -63,15 +64,16 @@ internal sealed record ClientCapabilityDescriptor(
 ///     <para>
 ///         <see cref="RuntimeClient" /> composes the evidence of each capability from its row: the source of the policy
 ///         gate and of the host gate, and the experimental id that the implementation gate names. Every capability
-///         composes an operational adapter, so its implementation gate is satisfied. The package, lifetime and
-///         live-qualification gates are the same for every capability. The required scenarios are the live
-///         qualification scenarios that the qualification gate will require; that gate stays unknown until committed
-///         Client receipts exist.
+///         composes an operational adapter, so its implementation gate is satisfied. The package and lifetime gates are
+///         the same for every capability. The required scenarios are the live qualification scenarios the qualification
+///         gate requires: <c>HostQualificationGate</c> satisfies it only from the host evidence this build embeds
+///         (<c>HostQualificationEvidence</c>), which is empty until a live run is recorded.
 ///     </para>
 ///     <para>
 ///         Each capability has one row, and a lot changes only its own row. The capability tables of the READMEs follow
 ///         the experimental ids and the required scenarios (<c>CapabilityDocumentationTests</c>), and
-///         <c>ClientCapabilityCatalogTests</c> proves that every <see cref="ClientCapabilityId" /> has exactly one row.
+///         <c>ClientCapabilityCatalogTests</c> proves that every <see cref="ClientCapabilityId" /> has exactly one row
+///         and that every required scenario exists in the live scenario catalog of the runner.
 ///     </para>
 /// </remarks>
 internal static class ClientCapabilityCatalog

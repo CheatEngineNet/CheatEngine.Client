@@ -1,6 +1,8 @@
 using System.Collections.Immutable;
+using System.Reflection;
 
 using CheatEngine.Client.Core.Infrastructure;
+using CheatEngine.Client.Core.Qualification;
 using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Results;
 using CheatEngine.Client.Runtime;
@@ -20,6 +22,7 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 	private const string CapabilityOperation = "Runtime.GetClientCapability";
 
 	private readonly Version _clientAssemblyVersion;
+	private readonly string? _clientVersion;
 	private readonly ICoreDiagnostics _diagnostics;
 	private readonly ICheatEngineDispatcher _dispatcher;
 	private readonly Func<long> _getEpoch;
@@ -27,6 +30,7 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 	private readonly CoreLifetime? _lifetime;
 	private readonly CoreClientPolicy _policy;
 	private readonly IRuntimeObservationPort _port;
+	private readonly HostQualificationRecord? _qualificationEvidence;
 	private readonly Version _sdkAssemblyVersion;
 	private readonly ConsumedSdkIdentity _sdkIdentity;
 
@@ -40,7 +44,8 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 			policy,
 			() => lifetime.IsCurrent,
 			ConsumedSdkIdentity.Current,
-			lifetime.Diagnostics)
+			lifetime.Diagnostics,
+			HostQualificationEvidence.Recorded)
 	{
 		ArgumentNullException.ThrowIfNull(lifetime);
 		_lifetime = lifetime;
@@ -59,6 +64,14 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 	///     operational package gate stays unknown.
 	/// </param>
 	/// <param name="diagnostics">The diagnostics sink; nothing is emitted when omitted.</param>
+	/// <param name="qualificationEvidence">
+	///     The host qualification evidence; <see langword="null" /> means that no run is recorded, so every qualification
+	///     gate stays unknown.
+	/// </param>
+	/// <param name="clientVersion">
+	///     The Client version the qualification gate compares with the evidence, without build metadata; the
+	///     informational version of this build when omitted.
+	/// </param>
 	internal RuntimeClient(
 		ICheatEngineDispatcher dispatcher,
 		IRuntimeObservationPort port,
@@ -68,7 +81,9 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 		CoreClientPolicy? policy = null,
 		Func<bool>? isActivationCurrent = null,
 		ConsumedSdkIdentity? sdkIdentity = null,
-		ICoreDiagnostics? diagnostics = null)
+		ICoreDiagnostics? diagnostics = null,
+		HostQualificationRecord? qualificationEvidence = null,
+		string? clientVersion = null)
 	{
 		_dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
 		_diagnostics = GuardedCoreDiagnostics.Wrap(diagnostics);
@@ -81,12 +96,16 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 			throw new InvalidOperationException("The Client assembly does not declare an assembly version.");
 		_sdkAssemblyVersion = sdkAssemblyVersion ?? typeof(RuntimeInfo).Assembly.GetName().Version ??
 			throw new InvalidOperationException("The SDK runtime assembly does not declare an assembly version.");
+		_qualificationEvidence = qualificationEvidence;
+		_clientVersion = clientVersion ?? HostQualificationGate.WithoutMetadata(typeof(ICheatEngineRuntime).Assembly
+			.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion);
 	}
 
 	/// <summary>
-	///     Creates the qualification gate reason of every capability until a Client qualification receipt exists (audit
-	///     A20-19): receipts produced for the SDK branch never qualify the Client tuple. The tuple names the consumed
-	///     CheatEngine.SDK identity this build embeds, never a version written in the source.
+	///     Creates the qualification gate reason of every capability while this build embeds no host qualification
+	///     evidence (<see cref="HostQualificationEvidence" />; audit A20-19): receipts produced for the SDK branch never
+	///     qualify the Client tuple. The tuple names the consumed CheatEngine.SDK identity this build embeds, never a version
+	///     written in the source.
 	/// </summary>
 	/// <param name="sdkIdentity">The consumed-SDK identity evidence of this build.</param>
 	internal static string QualificationUnknownReason(ConsumedSdkIdentity sdkIdentity)
@@ -188,11 +207,14 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 				target.Abi,
 				target.IsAndroid,
 				target.ConfiguredPointerSizeBytes),
-			CreateClientCapabilities(observed.ProcessSelectionHost),
+			CreateClientCapabilities(observed.ProcessSelectionHost, new HostQualificationContext(
+				_sdkIdentity.ExactReviewedIdentity, _sdkIdentity.LoadedInformationalVersion, host.FileVersion,
+				host.CheatEngineIs64Bit, host.OperatingSystem, target.Backend, target.Architecture, _clientVersion)),
 			new CheatEngineRuntimeLuaInfo(_port.ExternalStateResetDetected));
 	}
 
-	private ClientCapabilities CreateClientCapabilities(ClientCapabilityEvidenceGate selectedProcess)
+	private ClientCapabilities CreateClientCapabilities(ClientCapabilityEvidenceGate selectedProcess,
+		HostQualificationContext qualificationContext)
 	{
 		ClientCapabilityEvidenceGate lifetime = _isActivationCurrent()
 			? Satisfied("The Client activation is current.")
@@ -200,7 +222,7 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 		// ADR-09, ADR-10: the package gate of every capability comes from evidence (the embedded consumed-SDK identity
 		// compared with the loaded CheatEngine.SDK.Engine), never from the presence of an interface or a version name.
 		ClientCapabilityEvidenceGate package = _sdkIdentity.PackageGate;
-		ClientCapabilityEvidenceGate qualificationUnknown = UnknownEvidence(QualificationUnknownReason(_sdkIdentity));
+		string noQualificationEvidence = QualificationUnknownReason(_sdkIdentity);
 		ClientCapabilityEvidenceGate policyNotRequired = Satisfied(
 			"This capability has no additional activation policy opt-in.");
 		ClientCapabilityEvidenceGate unprobedHost = UnknownEvidence(
@@ -229,7 +251,7 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 					: implemented,
 				package,
 				entry.Host == CapabilityHostSource.SdkSelectedProcess ? selectedProcess : unprobedHost,
-				qualificationUnknown,
+				HostQualificationGate.Evaluate(entry, _qualificationEvidence, qualificationContext, noQualificationEvidence),
 				entry.Policy switch
 				{
 					CapabilityPolicySource.UnsafeLuaExecutionOptIn => unsafeLuaPolicy,

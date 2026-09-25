@@ -124,7 +124,14 @@ the speed hack, hashing, DBVM and remote execution): the Client has no contract 
 Every capability is described once, in the internal `ClientCapabilityCatalog`: its implementation
 gate, where its policy and host gates come from, and the live scenarios its qualification gate
 requires. `RuntimeClient` composes the snapshot from that catalog, and a repository test keeps the
-capability tables of the READMEs in step with it. The per-capability evidence (implementation,
+capability tables of the READMEs in step with it. The qualification gate comes from the internal
+`HostQualificationGate`: it is `Satisfied` only when the host evidence this build embeds
+(`HostQualificationEvidence`, empty until a live run is recorded, and excluded from the qualified source
+digest) names exactly the loaded CheatEngine.SDK package, which must be the reviewed one, Cheat Engine
+7.7.0.10621 and the supported host profile, when the observed host is Cheat Engine 7.7.0.10621 64-bit on
+Windows with a local target of an architecture the run covered, when the evidence names this Client
+version, and when every scenario of the capability passed without a waiver; otherwise it is `Unknown`
+and names the first condition that does not hold. The per-capability evidence (implementation,
 package, host, qualification, policy and lifetime gates) is in the capability table of the
 `CheatEngine.Client.Abstractions` README. The package gate
 compares the CheatEngine.SDK identity embedded in this assembly at build time (version, source
