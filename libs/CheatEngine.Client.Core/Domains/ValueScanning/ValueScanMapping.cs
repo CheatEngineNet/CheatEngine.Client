@@ -21,14 +21,7 @@ namespace CheatEngine.Client.Core.Domains.ValueScanning;
 ///         may a status that contradicts the published session or that this Client version does not recognize, since
 ///         nothing proves that no object remains: all three are
 ///         <see cref="CheatEngineFailureKind.IndeterminateHostResult" /> with
-///         <see cref="CheatEngineHostEffect.CleanupUnconfirmed" />.
-///     </para>
-///     <para>
-///         The bounded AOB route reports the same three statuses with the same
-///         <see cref="CheatEngineHostEffect.CleanupUnconfirmed" /> effect but the
-///         <see cref="CheatEngineFailureKind.InvalidState" /> kind, because there a failed creation ends an internal step
-///         of a scan. Here the creation is the public operation, and the SDK reports only that the rollback was not
-///         confirmed, not why the creation failed: the result cannot be attributed to one cause.
+///         <see cref="CheatEngineHostEffect.CleanupUnconfirmed" />, as on the bounded AOB route.
 ///     </para>
 /// </remarks>
 internal static class ValueScanMapping

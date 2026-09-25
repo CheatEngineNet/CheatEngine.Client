@@ -791,7 +791,8 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 	{
 		if (primaryFailure is not { } primary)
 		{
-			return new CheatEngineFailure(CheatEngineFailureKind.InvalidState, ScanOperation,
+			// An unconfirmed host release is an indeterminate host result, never a Client state.
+			return new CheatEngineFailure(CheatEngineFailureKind.IndeterminateHostResult, ScanOperation,
 				$"The {subject} release was not confirmed ({released}); copied results were discarded.",
 				releaseFault, CheatEngineHostEffect.CleanupUnconfirmed);
 		}

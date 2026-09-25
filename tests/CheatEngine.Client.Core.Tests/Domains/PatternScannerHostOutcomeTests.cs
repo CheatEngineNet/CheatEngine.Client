@@ -311,7 +311,7 @@ public sealed class PatternScannerHostOutcomeTests
 							 (status == TargetReleaseStatus.Released
 								 ? succeeded
 								 : !succeeded && failure.HostEffect == CheatEngineHostEffect.CleanupUnconfirmed &&
-								   failure.Kind == CheatEngineFailureKind.InvalidState),
+								   failure.Kind == CheatEngineFailureKind.IndeterminateHostResult),
 			static status => ScanWithRelease(status) is (false, { HostEffect: CheatEngineHostEffect.CleanupUnconfirmed }));
 	}
 

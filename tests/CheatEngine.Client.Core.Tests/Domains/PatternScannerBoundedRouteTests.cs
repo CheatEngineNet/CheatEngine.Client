@@ -489,7 +489,7 @@ public sealed class PatternScannerBoundedRouteTests
 			out CheatEngineFailure failure, TestContext.Current.CancellationToken));
 
 		Assert.Equal(default, result);
-		Assert.Equal(CheatEngineFailureKind.InvalidState, failure.Kind);
+		Assert.Equal(CheatEngineFailureKind.IndeterminateHostResult, failure.Kind);
 		Assert.Equal(CheatEngineHostEffect.CleanupUnconfirmed, failure.HostEffect);
 		Assert.StartsWith("The bounded AOB scan session release was not confirmed", failure.Message,
 			StringComparison.Ordinal);
@@ -681,7 +681,7 @@ public sealed class PatternScannerBoundedRouteTests
 
 		static bool FailsClosed(MemoryScanCreationStatus status)
 		{
-			return Classify(status) is (AobBoundedDisposition.Fail, CheatEngineFailureKind.InvalidState,
+			return Classify(status) is (AobBoundedDisposition.Fail, CheatEngineFailureKind.IndeterminateHostResult,
 				CheatEngineHostEffect.CleanupUnconfirmed);
 		}
 

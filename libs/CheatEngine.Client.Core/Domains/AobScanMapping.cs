@@ -77,8 +77,9 @@ namespace CheatEngine.Client.Core.Domains;
 ///             <term><c>SessionCreationFailed</c>, <c>TargetIdentityUnavailable</c></term>
 ///             <description>
 ///                 Fall back to the global route with managed post-filters; a creation whose rollback Cheat Engine did not
-///                 confirm, or whose creation status this Client does not recognize, is <c>InvalidState</c>,
-///                 <c>CleanupUnconfirmed</c> instead (<see cref="ClassifyCreationFailure" />).
+///                 confirm, or whose creation status this Client does not recognize, is <c>IndeterminateHostResult</c>,
+///                 <c>CleanupUnconfirmed</c> instead (<see cref="ClassifyCreationFailure" />), as a value-scan session
+///                 creation is.
 ///             </description>
 ///         </item>
 ///         <item><term><c>TargetChanged</c></term><description><c>TargetChanged</c></description></item>
@@ -288,10 +289,13 @@ internal static class AobScanMapping
 	///     <see cref="AobBoundedDisposition.Fail" /> otherwise.
 	/// </returns>
 	/// <remarks>
-	///     <c>RollbackUnconfirmed</c> is <see cref="CheatEngineFailureKind.InvalidState" /> with
+	///     <c>RollbackUnconfirmed</c> is <see cref="CheatEngineFailureKind.IndeterminateHostResult" /> with
 	///     <see cref="CheatEngineHostEffect.CleanupUnconfirmed" />: a MemScan object Cheat Engine did not destroy is never
 	///     hidden behind a second scan. <c>Unknown</c>, <c>Success</c> (a contradiction with a failed creation) and a value
 	///     this Client version does not recognize fail closed the same way, because nothing proves that no object remains.
+	///     The value-scan sessions classify the same statuses the same way (<c>ValueScanMapping</c>): an unconfirmed host
+	///     rollback is an indeterminate host result, never a Client state
+	///     (<see cref="CheatEngineFailureKind.InvalidState" />).
 	/// </remarks>
 	internal static AobBoundedDisposition ClassifyCreationFailure(string operation, MemoryScanCreationStatus status,
 		out CheatEngineFailure failure)
@@ -311,12 +315,12 @@ internal static class AobScanMapping
 					CheatEngineHostEffect.NotStarted);
 				return AobBoundedDisposition.FallBack;
 			case MemoryScanCreationStatus.RollbackUnconfirmed:
-				failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidState, operation,
+				failure = new CheatEngineFailure(CheatEngineFailureKind.IndeterminateHostResult, operation,
 					"The bounded AOB scan session could not be created, and Cheat Engine did not confirm its rollback.",
 					null, CheatEngineHostEffect.CleanupUnconfirmed);
 				return AobBoundedDisposition.Fail;
 			default:
-				failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidState, operation,
+				failure = new CheatEngineFailure(CheatEngineFailureKind.IndeterminateHostResult, operation,
 					"The bounded AOB scan session could not be created, and CheatEngine.SDK reported a creation status " +
 					"this Client version does not recognize, so no MemScan object is known to have been removed.", null,
 					CheatEngineHostEffect.CleanupUnconfirmed);

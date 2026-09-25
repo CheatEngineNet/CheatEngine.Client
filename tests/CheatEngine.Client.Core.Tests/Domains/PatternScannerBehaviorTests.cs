@@ -557,7 +557,7 @@ public sealed class PatternScannerBehaviorTests
 
 		Assert.False(succeeded);
 		Assert.Equal(default, result);
-		Assert.Equal(CheatEngineFailureKind.InvalidState, failure.Kind);
+		Assert.Equal(CheatEngineFailureKind.IndeterminateHostResult, failure.Kind);
 		Assert.Equal("Patterns.Scan", failure.Operation);
 		Assert.Equal(CheatEngineHostEffect.CleanupUnconfirmed, failure.HostEffect);
 		Assert.Equal(
@@ -602,7 +602,7 @@ public sealed class PatternScannerBehaviorTests
 			TestContext.Current.CancellationToken);
 
 		Assert.False(succeeded);
-		Assert.Equal(CheatEngineFailureKind.InvalidState, failure.Kind);
+		Assert.Equal(CheatEngineFailureKind.IndeterminateHostResult, failure.Kind);
 		Assert.Equal(CheatEngineHostEffect.CleanupUnconfirmed, failure.HostEffect);
 		Assert.Same(releaseFault, failure.Exception);
 		Assert.Contains("(Unknown)", failure.Message, StringComparison.Ordinal);
@@ -618,9 +618,10 @@ public sealed class PatternScannerBehaviorTests
 		};
 		PatternScanner scanner = CreateScanner(new FakeAobScanPort(matches));
 
-		CheatEngineClientLifecycleException exception = Assert.Throws<CheatEngineClientLifecycleException>(() =>
+		CheatEngineOperationException exception = Assert.Throws<CheatEngineOperationException>(() =>
 			scanner.Scan(CreateRequest(null, null, 1), TestContext.Current.CancellationToken));
 
+		Assert.Equal(CheatEngineFailureKind.IndeterminateHostResult, exception.Failure.Kind);
 		Assert.Equal(CheatEngineHostEffect.CleanupUnconfirmed, exception.Failure.HostEffect);
 		Assert.Equal(1, matches.ReleaseCount);
 	}
