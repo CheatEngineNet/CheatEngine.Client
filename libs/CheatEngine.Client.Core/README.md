@@ -315,11 +315,12 @@ port; the Cheat Engine scan cost is a live-host measurement.
 
 The SDK owner of the result list is handed to the Client wrapper through `OwnershipHandoff`, so a failure between
 acquisition and publication releases the Cheat Engine list exactly once; when that release is not confirmed, the typed
-`OwnershipHandoffException` carries its kind and the scan fails with `CleanupUnconfirmed`. The scanner then releases the list exactly once
-on every path, inside the dispatched callback, through the SDK owner's never-throwing `ReleaseWithOutcome`, mapped with
-`SdkReleaseOutcomes`. Any status other than `Released` is an unconfirmed release: a scan that had succeeded fails with
-`InvalidState` and `CheatEngineHostEffect.CleanupUnconfirmed`, and copied addresses are discarded rather than reported as
-a success; a scan that had already failed keeps its kind and gains the `CleanupUnconfirmed` effect.
+`OwnershipHandoffException` carries its kind and the scan fails with `CleanupUnconfirmed`. The scanner then releases the
+list exactly once on every path, inside the dispatched callback, through the SDK owner's never-throwing
+`ReleaseWithOutcome`, mapped with `SdkReleaseOutcomes`. Any status other than `Released` is an unconfirmed release: a scan that had succeeded fails with
+`IndeterminateHostResult` and `CheatEngineHostEffect.CleanupUnconfirmed`, never a Client state, and copied addresses are
+discarded rather than reported as a success; a scan that had already failed keeps its kind and gains the
+`CleanupUnconfirmed` effect.
 
 The AOB port calls `AobScanner.TryScanOutcome` with its target context, and `AobScanMapping` classifies every outcome:
 `NoResult` is `IndeterminateHostResult` ("CE AOBScan returned nil: on CE 7.7 zero matches and host failures share this

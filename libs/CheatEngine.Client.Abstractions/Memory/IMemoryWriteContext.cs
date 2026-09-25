@@ -72,7 +72,7 @@ public interface IMemoryWriteContext
 	}
 
 	/// <summary>
-	///     Gets whether the observed configured pointer size differs from a known bitness; <see langword="false" /> when
+	///     Gets whether the observed configured pointer size differs from a known bitness; <see langword="null" /> when
 	///     either value is unknown, which is no evidence of a mismatch.
 	/// </summary>
 	/// <exception cref="CheatEngine.Client.Results.CheatEngineClientException">
