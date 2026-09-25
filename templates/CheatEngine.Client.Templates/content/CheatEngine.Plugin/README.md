@@ -20,6 +20,14 @@ The project provides a minimal but production-shaped plugin boundary:
   assembly, with `reloadOnChange: false`, and registers the generated `PluginLuaModule` through
   `AddLuaModule<PluginLuaModule>()`, then the application module. `AppContext.BaseDirectory` is not used: it describes
   the Cheat Engine process that hosts .NET, not the plugin's deployment folder.
+- The plugin reports `CheatEngine Client Plugin` to Cheat Engine and exports the Lua status global
+  `cheatengine_client_plugin_status`. `dotnet new ceplugin` derives both from the project name: the reported name is
+  the project name in printable ASCII, and the global is the project name in ASCII lower_snake_case followed by
+  `_status`. A Lua global has one owner: the Client refuses to replace a global that another plugin registered.
+  Different project names can derive the same global, because the derivation lowercases the name and turns each
+  camel-case boundary and each run of other characters, non-ASCII letters included, into `_`: `MyPlugin` and
+  `My.Plugin` both give `my_plugin_status`, and a name without an ASCII letter or digit gives `plugin_status`. Rename
+  the global in `Modules/PluginLuaFunctions.cs` when another plugin exports it.
 - `PluginClientModule` demonstrates options, logging, a materialization-bounded AOB request (the module filter is
   applied after a global scan), typed memory access, the Address List record count, and normal Client module lifecycle
   callbacks.
@@ -33,10 +41,11 @@ manual bootstrap and explicitly set `CheatEngineClientManualBootstrap=true`.
 
 ## How it helps improve CheatEngine.Client
 
-This plugin is compiled by the template smoke test. It therefore continuously verifies the installation path that
-matters to consumers: package restore, SDK-generated bootstrap, copied bridge assets, functional Client namespaces,
-and the DI-first lifecycle. Its normal host preconditions use `Try...` APIs, so an absent process or pattern does not
-turn the example into an artificial activation failure.
+This plugin is compiled by the template smoke test, which also builds an instance with warnings as errors under the
+CheatEngine.Client repository's code style. It therefore continuously verifies the installation path that matters to
+consumers: package restore and its lock file, SDK-generated bootstrap, copied bridge assets, functional Client
+namespaces, and the DI-first lifecycle. Its normal host preconditions use `Try...` APIs, so an absent process or
+pattern does not turn the example into an artificial activation failure.
 
 `PluginLuaModule` is an attribute-only declaration. The Client generator emits the activation-scoped implementation
 that acquires Lua state and invokes the generated SDK registration calls; application code contains neither those calls
@@ -51,6 +60,18 @@ From this project directory, restore and build the managed plugin:
 dotnet restore .\CheatEngine.Plugin.csproj
 dotnet build .\CheatEngine.Plugin.csproj --configuration Release --no-restore
 ```
+
+`dotnet new ceplugin` already restores the project, unless `--no-restore` is passed. The first restore writes
+`packages.lock.json` (`RestorePackagesWithLockFile`): the exact package graph of the plugin and the content hash of each
+package, CheatEngine.SDK's included. Commit it with the project; the generated `.gitignore` excludes only build output
+and IDE state. On a build machine, restore with `dotnet restore .\CheatEngine.Plugin.csproj --locked-mode`, so that a
+changed package graph fails the restore instead of changing the plugin.
+
+The lock also records `Microsoft.NET.ILLink.Tasks`, which the .NET SDK adds for `IsAotCompatible` at the version it
+bundles, so a locked restore also fails (`NU1004`) after a .NET SDK update, a monthly patch included, that bundles
+another version. Pin the exact .NET SDK in a `global.json` (`"rollForward": "disable"`) on every machine that restores
+the plugin, or regenerate the lock with `dotnet restore .\CheatEngine.Plugin.csproj --force-evaluate` after each SDK
+update and commit it.
 
 Deploy the complete `bin\Release\net10.0` managed output produced by that build, including the plugin assembly,
 `.runtimeconfig.json`, `CheatEngine.SDK` assemblies, and the SDK Lua bridge assets. Do not publish this project as a
@@ -99,8 +120,9 @@ Let DI dispose objects that it creates. A module receives its disposable depende
 them; Hosting closes the activation scope and provider after module callbacks. Register a disposable implementation
 under one owning service descriptor, and use a non-disposable facade if the application needs a second service view.
 
-Before deployment, replace the illustrative AOB pattern and offset in `Modules/PluginClientModule.cs`, and choose an
-application-specific Lua global name in `Modules/PluginLuaFunctions.cs`. Keep AOB copies bounded: `FirstOrNone` copies
+Before deployment, replace the illustrative AOB pattern and offset in `Modules/PluginClientModule.cs`. The Lua global
+in `Modules/PluginLuaFunctions.cs` is already derived from the project name; a global you add or rename must stay an
+ASCII Lua identifier that no other plugin exports. Keep AOB copies bounded: `FirstOrNone` copies
 one address, never stops Cheat Engine early, and follows Cheat Engine's unspecified result order. `InModule` keeps only
 matches that lie entirely inside the module, on every target. On a qualified local target it limits Cheat Engine's scan
 to the module: an exhaustive MemScan that blocks Cheat Engine's main thread while it runs, and whose "nothing found" is
@@ -116,3 +138,12 @@ and `HostEffect`. It never logs addresses, values, symbol expressions, file path
 or `Exception`, because those are user data. If your application needs them for troubleshooting, add a separate log
 event behind an explicit, documented opt-in (for example a configuration flag that is off by default) instead of
 changing the default events.
+
+Nothing the plugin logs is written anywhere until `Plugin.Configure` adds a logging provider, and the template adds
+none. `builder.Logging.AddCheatEngineHostLog()` adds the opt-in provider that writes to CheatEngine.SDK's host log,
+whose default sink is the Windows debug output of the Cheat Engine process, shown by an attached debugger or a
+debug-output viewer. It writes each entry of level Information or higher (the default levels) as its category, event
+id and message template: placeholder values and exception messages are never written. A message built by string
+interpolation is its own template and carries its values, so log through constant templates or `LoggerMessage`
+methods, as the example does. `AddCheatEngineHostLog(options => options.IncludeFormattedMessages = true)` writes
+formatted messages and exceptions: use it only to troubleshoot on a machine you control.

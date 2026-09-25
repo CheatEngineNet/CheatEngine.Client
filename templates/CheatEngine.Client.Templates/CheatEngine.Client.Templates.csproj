@@ -4,13 +4,20 @@
     <PackageType>Template</PackageType>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <NoWarn>$(NoWarn);NU5128</NoWarn>
+    <!-- NuGet drops files that start with '.' by default (NU5119); the template's .gitignore is content. -->
+    <NoDefaultExcludes>true</NoDefaultExcludes>
     <Description>dotnet new template for an in-process, dependency-injection-first Cheat Engine plugin built on CheatEngine.Client and CheatEngine.SDK.</Description>
     <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);_CheatEngineClientStampTemplateProject</TargetsForTfmSpecificContentInPackage>
   </PropertyGroup>
 
   <ItemGroup>
     <Compile Remove="**/*"/>
-    <Content Include="content/**/*" Exclude="content/**/bin/**;content/**/obj/**" Pack="true" PackagePath="content/"/>
+    <!--
+      Keeps a lock file restored in place, a record of one machine's restore, out of the package (LockFileTests forbids
+      committing one). dotnet new would not copy it into a plugin: the template engine skips **/*.lock.json by default.
+    -->
+    <Content Include="content/**/*" Exclude="content/**/bin/**;content/**/obj/**;content/**/packages.lock.json"
+             Pack="true" PackagePath="content/"/>
     <!-- Packed from its stamped copy instead (_CheatEngineClientStampTemplateProject). -->
     <Content Update="content/CheatEngine.Plugin/CheatEngine.Plugin.csproj" Pack="false"/>
     <None Include="README.md" Pack="true" PackagePath="/"/>

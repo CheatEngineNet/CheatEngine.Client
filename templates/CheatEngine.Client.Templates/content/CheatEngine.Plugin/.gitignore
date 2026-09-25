@@ -1,0 +1,9 @@
+# Build output. Keep packages.lock.json under version control: it records every resolved package of the plugin,
+# CheatEngine.SDK's content hash included.
+bin/
+obj/
+
+# IDE state.
+.vs/
+.idea/
+*.user

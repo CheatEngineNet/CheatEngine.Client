@@ -11,6 +11,7 @@
   "shortName": "ceplugin",
   "sourceName": "CheatEngine.Plugin",
   "defaultName": "CheatEngine.Plugin",
+  "preferNameDirectory": true,
   "tags": {
     "language": "C#",
     "type": "project"
@@ -29,6 +30,91 @@
       "args": "[10.0.401,)"
     }
   },
+  "symbols": {
+    "skipRestore": {
+      "type": "parameter",
+      "datatype": "bool",
+      "displayName": "Skip restore",
+      "description": "If specified, skips the automatic restore of the project on create.",
+      "defaultValue": "false"
+    },
+    "pluginDisplayName": {
+      "type": "derived",
+      "valueSource": "name",
+      "valueTransform": "pluginDisplayName",
+      "replaces": "CheatEngine Client Plugin"
+    },
+    "luaGlobalPrefix": {
+      "type": "derived",
+      "valueSource": "name",
+      "valueTransform": "luaGlobalPrefix",
+      "replaces": "cheatengine_client_plugin"
+    }
+  },
+  "forms": {
+    "pluginDisplayName": {
+      "identifier": "chain",
+      "steps": [
+        "displayNamePrintableAscii",
+        "displayNameFallback"
+      ]
+    },
+    "displayNamePrintableAscii": {
+      "identifier": "replace",
+      "pattern": "(?:[^ -~]|[\"\\\\])+",
+      "replacement": "_"
+    },
+    "displayNameFallback": {
+      "identifier": "replace",
+      "pattern": "^[^A-Za-z0-9]*$",
+      "replacement": "Plugin"
+    },
+    "luaGlobalPrefix": {
+      "identifier": "chain",
+      "steps": [
+        "luaWordBoundary",
+        "luaAcronymBoundary",
+        "luaLowerCase",
+        "luaSeparator",
+        "luaTrim",
+        "luaEmpty",
+        "luaLeadingDigit"
+      ]
+    },
+    "luaWordBoundary": {
+      "identifier": "replace",
+      "pattern": "([a-z0-9])([A-Z])",
+      "replacement": "$1_$2"
+    },
+    "luaAcronymBoundary": {
+      "identifier": "replace",
+      "pattern": "([A-Z])([A-Z][a-z])",
+      "replacement": "$1_$2"
+    },
+    "luaLowerCase": {
+      "identifier": "lowerCaseInvariant"
+    },
+    "luaSeparator": {
+      "identifier": "replace",
+      "pattern": "[^a-z0-9]+",
+      "replacement": "_"
+    },
+    "luaTrim": {
+      "identifier": "replace",
+      "pattern": "^_+|_+$",
+      "replacement": ""
+    },
+    "luaEmpty": {
+      "identifier": "replace",
+      "pattern": "^$",
+      "replacement": "plugin"
+    },
+    "luaLeadingDigit": {
+      "identifier": "replace",
+      "pattern": "^(?=[0-9])",
+      "replacement": "plugin_"
+    }
+  },
   "primaryOutputs": [
     {
       "path": "CheatEngine.Plugin.csproj"
@@ -36,6 +122,8 @@
   ],
   "postActions": [
     {
+      "id": "restore",
+      "condition": "(!skipRestore)",
       "description": "Restore NuGet packages.",
       "manualInstructions": [
         {

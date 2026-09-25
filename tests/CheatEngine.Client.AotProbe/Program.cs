@@ -90,4 +90,10 @@ if (allocation.Size != 4096 || allocation.Protection != AllocationProtection.Exe
 }
 #pragma warning restore CECLIENT5002
 
+// Every public Fluent member runs under Native AOT against in-process fakes (AotProbeCoverageTests).
+if (!AotProbeFluentCalls.Run())
+{
+	return 1;
+}
+
 return services.Count == 0 ? 1 : 0;

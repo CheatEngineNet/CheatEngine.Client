@@ -37,7 +37,8 @@ public sealed class LockFileTests
 			if (project == TemplateContentProject)
 			{
 				Assert.False(exists,
-					$"{lockFile} would be packed into every plugin created from the template; delete it.");
+					$"{lockFile} records one machine's restore of the template content, which each plugin restores " +
+					"for itself; delete it.");
 				continue;
 			}
 

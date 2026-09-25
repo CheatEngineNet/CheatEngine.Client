@@ -93,6 +93,10 @@ read committed files: the project never builds, packs, restores or starts a proc
   `InstallGuidesStateTheQualifiedHostProfile` proves that the three install guides state the supported host profile,
   the host executable and runtime configuration hashes and the NuGet content hash that Core's lock file records.
 - `SourcePolicy/` holds the source rules no analyzer expresses:
+  - `AotProbeCoverageTests`: the Native AOT probe calls every public member of CheatEngine.Client.Fluent, read from
+    the Fluent PublicAPI baselines. Each public Fluent type has an `Exercise` method that `Run` calls, each member has
+    at least as many call sites there as public signatures (counted as text, comments excluded, so a review keeps one
+    call per overload), and the probe's entry point returns 1 when `AotProbeFluentCalls.Run()` fails;
   - `ErrorTextClassificationPolicyTests`: Client libraries never classify a failure by Cheat Engine or Lua error text
     (A07-22, A24-24), only by type and status;
   - `InterfaceStabilityRemarkTests`: every public interface states whether it is Call-only or Implementable, and the

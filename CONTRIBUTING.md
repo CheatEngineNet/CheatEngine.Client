@@ -53,8 +53,13 @@ They include the template smoke tests: they install the packed `CheatEngine.Clie
 template home, run `dotnet new ceplugin --dry-run`, instantiate the template into a temporary directory outside the
 repository, restore it against the packed Client packages and nuget.org only, and build it in Release configuration.
 They check that the generated project references the co-packed `CheatEngine.Client` version and the pinned
-`CheatEngine.SDK` directly, and that the build output holds the complete deployment closure next to the plugin. To run
-only the project that holds them, after the pack above:
+`CheatEngine.SDK` directly, and that the build output holds the complete deployment closure next to the plugin. They
+also check that the package carries the `.gitignore` and no lock file, that the restore's lock file records the pinned
+`CheatEngine.SDK` content hash and the SDK-added `Microsoft.NET.ILLink.Tasks`, that `--no-restore` leaves the project
+unrestored, which plugin name and Lua global each of a set of project names derives (two names that derive the same
+global included), that `--name` without `--output` creates the name's folder, and that an instance builds with warnings
+as errors under this repository's `.editorconfig`, code style enforcement and analysis level. To run only the project
+that holds them, after the pack above:
 
 ```powershell
 $env:CHEATENGINE_CLIENT_PACKAGE_SOURCE = (Resolve-Path artifacts/nuget).Path

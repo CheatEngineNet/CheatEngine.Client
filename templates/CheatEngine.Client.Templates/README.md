@@ -24,8 +24,8 @@ contract is checked before compilation.
 
 The template turns the intended consumption model into buildable source. It exercises activation-scoped DI, generated
 SDK plugin bootstrap, explicit configuration, AOB probing with a bounded copy (post-filtered global scan), typed memory
-access, Address List inspection, and
-an application-owned Lua module. Keeping this path executable prevents package, bootstrap, and documentation drift.
+access, Address List inspection, and an application-owned Lua module. Keeping this path executable prevents package,
+bootstrap, and documentation drift.
 
 It deliberately does not imply that a Native AOT binary is loadable by Cheat Engine. The project enables AOT
 compatibility analysis for the library graph, but a plugin must be deployed as the complete managed output required by
@@ -38,10 +38,29 @@ Install the published template, then instantiate it from the directory that shou
 
 ```powershell
 dotnet new install CheatEngine.Client.Templates
-dotnet new ceplugin --name Contoso.CheatEngine.Plugin --output .\Contoso.CheatEngine.Plugin
-dotnet restore .\Contoso.CheatEngine.Plugin\Contoso.CheatEngine.Plugin.csproj
+dotnet new ceplugin --name Contoso.CheatEngine.Plugin
 dotnet build .\Contoso.CheatEngine.Plugin\Contoso.CheatEngine.Plugin.csproj --configuration Release --no-restore
 ```
+
+`dotnet new ceplugin --name <name>` creates the project in a `<name>` folder (`--output` chooses another folder) with a
+`.gitignore` for build output, and restores it unless `--no-restore` is passed. That restore writes
+`packages.lock.json`, the exact package graph of the plugin with the content hash of each package, CheatEngine.SDK's
+included: commit it, and restore with `--locked-mode` on a build machine. The lock also records the
+`Microsoft.NET.ILLink.Tasks` version that the .NET SDK adds for `IsAotCompatible`, which changes with the SDK, a monthly
+patch included: pin the exact .NET SDK in a `global.json` (`"rollForward": "disable"`) on every machine that restores
+the plugin, or regenerate the lock with `dotnet restore --force-evaluate` after each SDK update.
+
+The template derives two names from the project name:
+
+- the name the plugin reports to Cheat Engine, the project name in printable ASCII (`Contoso.CheatEngine.Plugin`);
+- its Lua status global, the project name in ASCII lower_snake_case followed by `_status`
+  (`contoso_cheat_engine_plugin_status`).
+
+A Lua global has one owner: the Client refuses to replace a global that another plugin registered. Different project
+names can derive the same global, because the derivation lowercases the name and turns each camel-case boundary and
+each run of other characters, non-ASCII letters included, into `_`: `MyPlugin` and `My.Plugin` both give
+`my_plugin_status`, and a name without an ASCII letter or digit gives `plugin_status`. Rename the global in the
+generated `Modules/PluginLuaFunctions.cs` when another plugin exports it.
 
 The generated project's
 [README](https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/templates/CheatEngine.Client.Templates/content/CheatEngine.Plugin/README.md)

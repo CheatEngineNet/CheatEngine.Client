@@ -63,6 +63,24 @@ TRX report keeps. The facts prove that:
 These are package-level results (fixture level C2); a Cheat Engine host run of Q40 is a separate qualification.
 `PackageSourceResolutionTests` has no category, so both CI legs check the package source rules.
 
+`TemplateInstantiationTests` (`Category=PackageConsumption` and `Qualification=Q40`, same fixture and serial
+collection, package-level results too) proves what `dotnet new ceplugin` generates from the packed template, beyond
+the smoke build above:
+
+- `PackedTemplateCarriesItsGitIgnoreAndNoLockFile`: the package carries the `.gitignore` and no `packages.lock.json`,
+  and its project restores with a lock file;
+- `InstantiatedTemplateLockFileRecordsThePinnedSdk`: the instance's lock file records the pinned `CheatEngine.SDK` with
+  its content hash, the co-packed `CheatEngine.Client`, and the `Microsoft.NET.ILLink.Tasks` that the .NET SDK adds;
+- `TemplateDerivesDistinctPluginNamesAndLuaGlobalsFromTheProjectNameAsync` and
+  `DifferentProjectNamesCanDeriveTheSameLuaGlobalAsync`: the plugin name and Lua status global that each of a set of
+  project names derives, six distinct globals, and names that derive the same global;
+- `TemplateRestoresWithALockFileUnlessNoRestoreIsPassedAsync`: the restore post action writes the lock file (it finds
+  the fixture's `NuGet.Config` above the temporary directory), and `--no-restore` leaves the project unrestored;
+- `TemplateNameWithoutOutputCreatesTheNameFolderAsync`: `--name` without `--output` creates the name's folder;
+- `InstantiatedTemplateBuildsWithWarningsAsErrorsUnderTheRepositoryCodeStyleAsync`: an instance builds with warnings as
+  errors, code style enforcement, the repository `.editorconfig` and its pinned `AnalysisLevel`, and the same build
+  refuses a style violation (`IDE0161`), so those rules are in effect.
+
 `ReadmeSnippetCompilationTests` (`Category=PackageConsumption`, same fixture and serial collection) reads the README
 that each packed package publishes, and the repository README, and compiles every `csharp` block of one README as one
 plugin project against the packed Client: the documented `CheatEngine.Client`, `CheatEngine.SDK` and
