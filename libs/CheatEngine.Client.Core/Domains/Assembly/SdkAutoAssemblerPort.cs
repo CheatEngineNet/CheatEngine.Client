@@ -15,7 +15,7 @@ namespace CheatEngine.Client.Core.Domains.Assembly;
 ///         This type is the only Client code that calls <c>AutoAssemblerPatcher</c> and the only code that holds an
 ///         <c>AutoAssemblerPatch</c>. The patch is handed to its Client owner through <see cref="OwnershipHandoff" />, so
 ///         a failure between the activation and the publication of the owner releases the patch exactly once, with the
-///         release mapping of the lease (<see cref="AutoAssemblerMapping.ToReleaseOutcome" />); an unconfirmed release
+///         release mapping of the lease (<see cref="MapUnpublishedRelease" />); an unconfirmed release
 ///         surfaces as an <see cref="OwnershipHandoffException" /> that <c>AutoAssemblerClient</c> maps.
 ///     </para>
 ///     <para>
@@ -53,12 +53,26 @@ internal sealed class SdkAutoAssemblerPort : IAutoAssemblerPort
 			outcome.Compensation?.Status);
 		if (applied is not null)
 		{
-			// The one disable of an unpublished patch is mapped like every release of its lease.
 			patch = OwnershipHandoff.Adopt(applied, static owner => new SdkPatchOwner(owner),
-				static owner => AutoAssemblerMapping.ToReleaseOutcome(owner.ReleaseWithTargetOutcome().Status));
+				static owner => MapUnpublishedRelease(owner.ReleaseWithTargetOutcome().Status));
 		}
 
 		return true;
+	}
+
+	/// <summary>
+	///     Maps the one disable of a patch that Cheat Engine applied but the port could not publish, like every release
+	///     of its lease (<see cref="AutoAssemblerMapping.ToReleaseOutcome" />).
+	/// </summary>
+	/// <param name="status">The status of CheatEngine.SDK's <c>AutoAssemblerPatch.ReleaseWithTargetOutcome</c>.</param>
+	/// <returns>
+	///     The outcome <see cref="OwnershipHandoff" /> reports: a disable that could not begin is the terminal
+	///     <see cref="LeaseReleaseKind.RefusedRuntimeChanged" />, never the retryable
+	///     <see cref="LeaseReleaseKind.CleanupUnavailable" />, because CheatEngine.SDK consumed the disable information.
+	/// </returns>
+	internal static LeaseReleaseOutcome MapUnpublishedRelease(TargetReleaseStatus status)
+	{
+		return AutoAssemblerMapping.ToReleaseOutcome(status);
 	}
 
 	public bool TryCheck(string operation, string script, AutoAssemblerOptions options,

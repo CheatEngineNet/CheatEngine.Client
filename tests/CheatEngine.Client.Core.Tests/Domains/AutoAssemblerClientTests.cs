@@ -311,8 +311,9 @@ public sealed class AutoAssemblerClientTests : IDisposable
 	{
 		InvalidOperationException publishFailure = new("the patch owner could not be published");
 		AutoAssemblerClient client = CreateClient();
+		// The handoff releases the unpublished patch with the production port's own mapping.
 		_port.DuringApply = () => _ = OwnershipHandoff.Adopt<object, object>(new object(), _ => throw publishFailure,
-			_ => AutoAssemblerMapping.ToReleaseOutcome(disable));
+			_ => SdkAutoAssemblerPort.MapUnpublishedRelease(disable));
 
 		Assert.False(client.TryApplyPatch(new AutoAssemblerScript(Script), out IAutoAssemblerPatchLease? lease,
 			out CheatEngineFailure failure, Token));
@@ -325,6 +326,26 @@ public sealed class AutoAssemblerClientTests : IDisposable
 		Assert.EndsWith($"The applied Auto Assembler patch release was not confirmed ({expectedKind}).",
 			failure.Message, StringComparison.Ordinal);
 		Assert.Equal(0, _port.Owner!.ReleaseCalls);
+	}
+
+	/// <summary>
+	///     The production port releases a patch it could not publish with the lease's mapping, not the shared one: a
+	///     disable that could not begin is the terminal RefusedRuntimeChanged, since CheatEngine.SDK consumed the disable
+	///     information, never the retryable CleanupUnavailable.
+	/// </summary>
+	[Fact]
+	public void ThePortMapsTheDisableOfAnUnpublishedPatchLikeTheLease()
+	{
+		foreach (TargetReleaseStatus status in Enum.GetValues<TargetReleaseStatus>())
+		{
+			Assert.Equal(AutoAssemblerMapping.ToReleaseOutcome(status),
+				SdkAutoAssemblerPort.MapUnpublishedRelease(status));
+		}
+
+		LeaseReleaseOutcome notInvoked = SdkAutoAssemblerPort.MapUnpublishedRelease(TargetReleaseStatus.NotInvoked);
+		Assert.Equal(new LeaseReleaseOutcome(LeaseReleaseKind.RefusedRuntimeChanged, CheatEngineHostEffect.NotStarted),
+			notInvoked);
+		Assert.NotEqual(SdkReleaseOutcomes.FromTarget(TargetReleaseStatus.NotInvoked), notInvoked);
 	}
 
 	[Theory]
