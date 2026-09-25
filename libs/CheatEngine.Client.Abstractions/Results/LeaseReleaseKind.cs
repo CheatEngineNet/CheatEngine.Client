@@ -24,7 +24,10 @@ public enum LeaseReleaseKind
 	/// <summary>The resource was released and Cheat Engine confirmed it.</summary>
 	Released = 1,
 
-	/// <summary>An earlier attempt had already ended the lease; this attempt did nothing.</summary>
+	/// <summary>
+	///     The owner reported that the resource was already released or that it held nothing; nothing was done. A
+	///     repeated release of an ended lease does not report this kind: it returns the outcome that ended the lease.
+	/// </summary>
 	AlreadyReleased = 2,
 
 	/// <summary>

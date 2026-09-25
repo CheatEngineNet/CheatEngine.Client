@@ -623,14 +623,15 @@ buffer cleared.
 Every Client lease implements `ICheatEngineLease` (`IDisposable`): `Release()` releases the resource on Cheat Engine's
 main thread and returns a `LeaseReleaseOutcome`; `Dispose()` performs the same release, **never throws**, and discards
 the outcome; `LastReleaseOutcome` keeps the outcome of the attempt that ended the lease, and `IsReleased` says that no
-later attempt will be made. A repeated release returns `AlreadyReleased` without a Cheat Engine call. The outcome's
-`Kind` says what happened and its `HostEffect` how far the release call got; exactly one of three flags is `true`:
+later attempt will be made. A repeated release of an ended lease returns its `LastReleaseOutcome` unchanged, without a
+Cheat Engine call, so a refused or unconfirmed release never reads as complete the second time. The outcome's `Kind`
+says what happened and its `HostEffect` how far the release call got; exactly one of three flags is `true`:
 
 | `LeaseReleaseKind` | Value | Flag | Meaning |
 |---|---|---|---|
 | `Unknown` | 0 | `IsRetryable` | No outcome could be established; the lease stays active |
 | `Released` | 1 | `IsComplete` | Released and confirmed |
-| `AlreadyReleased` | 2 | `IsComplete` | An earlier attempt ended the lease; nothing was done |
+| `AlreadyReleased` | 2 | `IsComplete` | The owner reported that the resource was already released or that it held nothing; nothing was done |
 | `PartiallyReleased` | 3 | `RequiresManualRecovery` | Part released, part failed; the failed part may remain |
 | `Replaced` | 4 | `IsComplete` | A third party replaced the resource; it was left in place |
 | `Superseded` | 5 | `IsComplete` | A newer Client registration replaced the lease |

@@ -610,7 +610,7 @@ public sealed class ValueScannerTests : IDisposable
 		Assert.Equal(CheatEngineFailureKind.InvalidState, failure.Kind);
 		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
 		Assert.Equal(calls, Handle.Calls.Count);
-		Assert.Equal(LeaseReleaseKind.AlreadyReleased, session.Release().Kind);
+		Assert.Equal(session.LastReleaseOutcome, session.Release());
 		Assert.Throws<CheatEngineClientLifecycleException>(() => session.Reset(Token));
 	}
 

@@ -70,8 +70,7 @@ public sealed class SymbolRegistrationLeaseTests : IDisposable
 
 		Assert.Equal(new LeaseReleaseOutcome(LeaseReleaseKind.Superseded, CheatEngineHostEffect.NotStarted), outcome);
 		Assert.True(outcome.IsComplete);
-		Assert.Equal(new LeaseReleaseOutcome(LeaseReleaseKind.AlreadyReleased, CheatEngineHostEffect.NotStarted),
-			repeated);
+		Assert.Equal(outcome, repeated);
 		Assert.Equal(outcome, lease.LastReleaseOutcome);
 		Assert.Equal(1, handle.Calls);
 		Assert.Equal([Name], _releasedNames);
@@ -115,7 +114,7 @@ public sealed class SymbolRegistrationLeaseTests : IDisposable
 
 		Assert.Equal(new LeaseReleaseOutcome(LeaseReleaseKind.CleanupUnconfirmed, CheatEngineHostEffect.Started),
 			outcome);
-		Assert.Equal(LeaseReleaseKind.AlreadyReleased, repeated.Kind);
+		Assert.Equal(outcome, repeated);
 		Assert.Equal(CheatEngineFailureKind.IndeterminateHostResult, report.Failure.Kind);
 		Assert.Equal(1, handle.Calls);
 		Assert.Equal([Name], _releasedNames);
@@ -166,7 +165,7 @@ public sealed class SymbolRegistrationLeaseTests : IDisposable
 		Assert.Equal(new LeaseReleaseOutcome(LeaseReleaseKind.CleanupUnconfirmed, CheatEngineHostEffect.Unknown),
 			lease.LastReleaseOutcome);
 		Assert.True(lease.IsReleased);
-		Assert.Equal(LeaseReleaseKind.AlreadyReleased, repeated.Kind);
+		Assert.Equal(lease.LastReleaseOutcome, repeated);
 		Assert.Equal(1, handle.Calls);
 		Assert.Equal([Name], _releasedNames);
 	}

@@ -66,8 +66,7 @@ public sealed class HostResourceLeaseTests : IDisposable
 		LeaseReleaseOutcome repeated = lease.Release();
 		lease.Dispose();
 
-		Assert.Equal(new LeaseReleaseOutcome(LeaseReleaseKind.AlreadyReleased, CheatEngineHostEffect.NotStarted),
-			repeated);
+		Assert.Equal(Released, repeated);
 		Assert.Equal(1, lease.Calls);
 		Assert.Equal(1, _invoker.Calls);
 		Assert.Equal(Released, lease.LastReleaseOutcome);
@@ -95,7 +94,7 @@ public sealed class HostResourceLeaseTests : IDisposable
 		Assert.Equal(new LeaseReleaseOutcome(LeaseReleaseKind.CleanupUnconfirmed, CheatEngineHostEffect.Unknown),
 			lease.LastReleaseOutcome);
 		Assert.True(lease.IsReleased);
-		Assert.Equal(LeaseReleaseKind.AlreadyReleased, repeated.Kind);
+		Assert.Equal(lease.LastReleaseOutcome, repeated);
 		Assert.Equal(1, lease.Calls);
 	}
 
@@ -265,14 +264,42 @@ public sealed class HostResourceLeaseTests : IDisposable
 		_ = lease.Release();
 		lease.Dispose();
 
+		// The release of the ended lease is not an attempt: it returns the ending outcome and logs nothing.
 		Assert.Equal(
 			[
 				(Operation, LeaseReleaseKind.CleanupUnavailable, CheatEngineHostEffect.NotStarted),
-				(Operation, LeaseReleaseKind.Released, CheatEngineHostEffect.Completed),
-				(Operation, LeaseReleaseKind.AlreadyReleased, CheatEngineHostEffect.NotStarted)
+				(Operation, LeaseReleaseKind.Released, CheatEngineHostEffect.Completed)
 			],
 			_diagnostics.Releases);
 		Assert.False(_diagnostics.LoggedInsideCallback);
+	}
+
+	/// <summary>
+	///     A lease that ended without a complete release keeps reporting that outcome: a repeated release or dispose returns
+	///     it unchanged, makes no Cheat Engine call and logs nothing, so it never reads as complete the second time.
+	/// </summary>
+	[Theory]
+	[InlineData(LeaseReleaseKind.RefusedTargetChanged, CheatEngineHostEffect.NotStarted)]
+	[InlineData(LeaseReleaseKind.CleanupUnconfirmed, CheatEngineHostEffect.Unknown)]
+	[InlineData(LeaseReleaseKind.PartiallyReleased, CheatEngineHostEffect.Started)]
+	public void ARepeatedReleaseOfAnIncompleteLeaseReturnsTheEndingOutcome(LeaseReleaseKind kind,
+		CheatEngineHostEffect hostEffect)
+	{
+		LeaseReleaseOutcome ending = new(kind, hostEffect);
+		ScriptedLease lease = CreateLease(ending);
+
+		LeaseReleaseOutcome first = lease.Release();
+		LeaseReleaseOutcome repeated = lease.Release();
+		lease.Dispose();
+
+		Assert.Equal(ending, first);
+		Assert.Equal(ending, repeated);
+		Assert.False(repeated.IsComplete);
+		Assert.True(repeated.RequiresManualRecovery);
+		Assert.Equal(ending, lease.LastReleaseOutcome);
+		Assert.Equal(1, lease.Calls);
+		Assert.Equal(1, _invoker.Calls);
+		Assert.Equal([(Operation, kind, hostEffect)], _diagnostics.Releases);
 	}
 
 	private ScriptedLease CreateLease(params LeaseReleaseOutcome[] outcomes)

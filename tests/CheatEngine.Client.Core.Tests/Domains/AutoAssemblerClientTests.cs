@@ -171,7 +171,7 @@ public sealed class AutoAssemblerClientTests : IDisposable
 		LeaseReleaseOutcome repeated = lease.Release();
 
 		Assert.Equal(new LeaseReleaseOutcome(LeaseReleaseKind.Released, CheatEngineHostEffect.Completed), outcome);
-		Assert.Equal(LeaseReleaseKind.AlreadyReleased, repeated.Kind);
+		Assert.Equal(outcome, repeated);
 		Assert.Equal(1, _port.Owner!.ReleaseCalls);
 		Assert.Equal([true], _port.Owner.ReleasedOnMainThread);
 		Assert.True(lease.IsReleased);
@@ -523,7 +523,7 @@ public sealed class AutoAssemblerClientTests : IDisposable
 		Assert.True(lease.IsReleased);
 		Assert.True(lease.RequiresManualRecovery);
 		Assert.False(lease.IsEnabled);
-		Assert.Equal(LeaseReleaseKind.AlreadyReleased, repeated.Kind);
+		Assert.Equal(lease.LastReleaseOutcome, repeated);
 		Assert.Equal(1, _port.Owner.ReleaseCalls);
 	}
 
@@ -582,7 +582,7 @@ public sealed class AutoAssemblerClientTests : IDisposable
 			first);
 		Assert.False(first.IsRetryable);
 		Assert.True(first.RequiresManualRecovery);
-		Assert.Equal(LeaseReleaseKind.AlreadyReleased, second.Kind);
+		Assert.Equal(first, second);
 		Assert.Equal(first, lease.LastReleaseOutcome);
 		Assert.True(lease.IsReleased);
 		Assert.True(lease.RequiresManualRecovery);

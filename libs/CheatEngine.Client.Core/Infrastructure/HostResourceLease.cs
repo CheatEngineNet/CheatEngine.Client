@@ -23,14 +23,12 @@ namespace CheatEngine.Client.Core.Infrastructure;
 ///     </para>
 ///     <para>
 ///         Every attempt is logged after the dispatched work returned, with its operation name, kind and effect only
-///         (audit Q46).
+///         (audit Q46). A release of a lease that already ended is not an attempt: it returns the outcome that ended the
+///         lease (<see cref="LastReleaseOutcome" />), with no Cheat Engine call and no log entry.
 ///     </para>
 /// </remarks>
 internal abstract class HostResourceLease : ICheatEngineLease, IOutcomeReportingResource
 {
-	private static readonly LeaseReleaseOutcome AlreadyReleasedOutcome =
-		new(LeaseReleaseKind.AlreadyReleased, CheatEngineHostEffect.NotStarted);
-
 	private static readonly LeaseReleaseOutcome UnavailableOutcome =
 		new(LeaseReleaseKind.CleanupUnavailable, CheatEngineHostEffect.NotStarted);
 
@@ -78,8 +76,18 @@ internal abstract class HostResourceLease : ICheatEngineLease, IOutcomeReporting
 
 	public LeaseReleaseOutcome Release()
 	{
-		LeaseReleaseOutcome outcome = Attempt();
-		_diagnostics.LeaseReleased(Operation, outcome.Kind, outcome.HostEffect);
+		if (TryGetEndingOutcome(out LeaseReleaseOutcome ending))
+		{
+			// An ended lease returns the outcome that ended it: no Cheat Engine call and nothing new to log.
+			return ending;
+		}
+
+		LeaseReleaseOutcome outcome = Attempt(out bool recorded);
+		if (recorded)
+		{
+			_diagnostics.LeaseReleased(Operation, outcome.Kind, outcome.HostEffect);
+		}
+
 		return outcome;
 	}
 
@@ -100,7 +108,8 @@ internal abstract class HostResourceLease : ICheatEngineLease, IOutcomeReporting
 	{
 		try
 		{
-			LeaseReleaseOutcome outcome = IsReleased ? (LastReleaseOutcome ?? AlreadyReleasedOutcome) : Release();
+			// An ended lease reports the outcome that ended it (LastReleaseOutcome) without another attempt.
+			LeaseReleaseOutcome outcome = Release();
 			return outcome.IsComplete ? null : CreateReport(outcome);
 		}
 		catch (Exception exception)
@@ -173,14 +182,34 @@ internal abstract class HostResourceLease : ICheatEngineLease, IOutcomeReporting
 		};
 	}
 
-	private LeaseReleaseOutcome Attempt()
+	/// <summary>Gets the outcome that ended the lease, when an earlier attempt ended it.</summary>
+	private bool TryGetEndingOutcome(out LeaseReleaseOutcome ending)
 	{
-		if (IsReleased)
+		lock (_gate)
 		{
-			return AlreadyReleasedOutcome;
+			return TryGetEndingOutcomeUnderGate(out ending);
+		}
+	}
+
+	/// <summary>Gets the outcome that ended the lease; the caller holds the gate.</summary>
+	private bool TryGetEndingOutcomeUnderGate(out LeaseReleaseOutcome ending)
+	{
+		// Record sets the outcome before it ends the lease, so an ended lease always has one.
+		if (IsReleased && _lastOutcome is { } last)
+		{
+			ending = last;
+			return true;
 		}
 
+		ending = default;
+		return false;
+	}
+
+	/// <summary>Makes one attempt; <paramref name="recorded" /> is false when another attempt ended the lease first.</summary>
+	private LeaseReleaseOutcome Attempt(out bool recorded)
+	{
 		bool ran = false;
+		bool attempted = false;
 		LeaseReleaseOutcome dispatched = default;
 		try
 		{
@@ -188,7 +217,7 @@ internal abstract class HostResourceLease : ICheatEngineLease, IOutcomeReporting
 			// dispatch deliberately opts out of the activation's Stopping token.
 			_ = _dispatcher.TryInvoke(() =>
 			{
-				dispatched = ReleaseUnderGate();
+				dispatched = ReleaseUnderGate(out attempted);
 				ran = true;
 				return true;
 			}, out bool _, out CheatEngineFailure _, CancellationToken.None);
@@ -199,18 +228,27 @@ internal abstract class HostResourceLease : ICheatEngineLease, IOutcomeReporting
 			// callback already recorded its outcome below.
 		}
 
-		return ran ? dispatched : RecordUnavailable();
+		if (ran)
+		{
+			recorded = attempted;
+			return dispatched;
+		}
+
+		return RecordUnavailable(out recorded);
 	}
 
-	private LeaseReleaseOutcome ReleaseUnderGate()
+	private LeaseReleaseOutcome ReleaseUnderGate(out bool recorded)
 	{
 		lock (_gate)
 		{
-			if (IsReleased)
+			if (TryGetEndingOutcomeUnderGate(out LeaseReleaseOutcome ending))
 			{
-				return AlreadyReleasedOutcome;
+				// Another attempt ended the lease while this one waited for the main thread.
+				recorded = false;
+				return ending;
 			}
 
+			recorded = true;
 			LeaseReleaseOutcome outcome;
 			try
 			{
@@ -225,11 +263,12 @@ internal abstract class HostResourceLease : ICheatEngineLease, IOutcomeReporting
 		}
 	}
 
-	private LeaseReleaseOutcome RecordUnavailable()
+	private LeaseReleaseOutcome RecordUnavailable(out bool recorded)
 	{
 		lock (_gate)
 		{
-			return IsReleased ? AlreadyReleasedOutcome : Record(UnavailableOutcome);
+			recorded = !TryGetEndingOutcomeUnderGate(out LeaseReleaseOutcome ending);
+			return recorded ? Record(UnavailableOutcome) : ending;
 		}
 	}
 

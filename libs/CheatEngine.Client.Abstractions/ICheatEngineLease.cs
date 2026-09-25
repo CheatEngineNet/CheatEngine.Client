@@ -16,8 +16,9 @@ namespace CheatEngine.Client;
 ///     </para>
 ///     <para>
 ///         Releasing is idempotent. Once an attempt ends the lease (<see cref="IsReleased" />), a later
-///         <see cref="Release" /> or <see cref="IDisposable.Dispose" /> makes no Cheat Engine call and returns
-///         <see cref="LeaseReleaseKind.AlreadyReleased" />. A retryable outcome
+///         <see cref="Release" /> or <see cref="IDisposable.Dispose" /> makes no Cheat Engine call and returns the
+///         outcome that ended the lease (<see cref="LastReleaseOutcome" />), unchanged, so a refused or unconfirmed
+///         release is never reported as complete by a second call. A retryable outcome
 ///         (<see cref="LeaseReleaseOutcome.IsRetryable" />) keeps the lease active: a later release tries again, and the
 ///         activation cleanup tries again before the plugin is disabled.
 ///     </para>
@@ -55,8 +56,8 @@ public interface ICheatEngineLease : IDisposable
 	///     yet.
 	/// </summary>
 	/// <remarks>
-	///     A repeated release of an ended lease returns <see cref="LeaseReleaseKind.AlreadyReleased" /> but does not
-	///     replace this value, which keeps the outcome of the attempt that ended the lease.
+	///     Once the lease has ended, this value is the outcome of the attempt that ended it; a repeated release returns it
+	///     and does not replace it.
 	/// </remarks>
 	public LeaseReleaseOutcome? LastReleaseOutcome
 	{
@@ -65,8 +66,8 @@ public interface ICheatEngineLease : IDisposable
 
 	/// <summary>Releases the resource on Cheat Engine's main thread and returns what happened.</summary>
 	/// <returns>
-	///     The outcome of this attempt; <see cref="LeaseReleaseKind.AlreadyReleased" /> when an earlier attempt already
-	///     ended the lease.
+	///     The outcome of this attempt; when an earlier attempt already ended the lease, the outcome of that attempt
+	///     (<see cref="LastReleaseOutcome" />), without any Cheat Engine call.
 	/// </returns>
 	/// <remarks>
 	///     The method can be called from any thread: the release itself runs on Cheat Engine's main thread. When the

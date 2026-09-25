@@ -604,7 +604,7 @@ public sealed class LuaModuleRegistrationTests
 		Assert.True(lease.IsReleased);
 		Assert.Same(reported, lease.ModuleReleaseOutcome);
 		Assert.Single(tracked, lease);
-		Assert.Equal(LeaseReleaseKind.AlreadyReleased, lease.Release().Kind);
+		Assert.Equal(outcome, lease.Release());
 		Assert.Equal(["diagnostics.register", "diagnostics.unregister"], module.Events);
 	}
 
@@ -631,7 +631,7 @@ public sealed class LuaModuleRegistrationTests
 		Assert.False(outcome.IsRetryable);
 		Assert.True(lease.IsReleased);
 		Assert.Same(unconfirmed, lease.ModuleReleaseOutcome);
-		Assert.Equal(LeaseReleaseKind.AlreadyReleased, retry.Kind);
+		Assert.Equal(outcome, retry);
 		context.Stop();
 		using (lifetime.EnterCleanupScope())
 		{

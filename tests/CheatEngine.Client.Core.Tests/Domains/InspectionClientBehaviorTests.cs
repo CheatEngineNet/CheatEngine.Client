@@ -385,7 +385,7 @@ public sealed class InspectionClientBehaviorTests
 		LeaseReleaseOutcome repeated = lease.Release();
 
 		Assert.Equal(new LeaseReleaseOutcome(LeaseReleaseKind.Released, CheatEngineHostEffect.Completed), outcome);
-		Assert.Equal(LeaseReleaseKind.AlreadyReleased, repeated.Kind);
+		Assert.Equal(outcome, repeated);
 		Assert.Equal(["fixture-symbol"], port.UnregisteredNames);
 		Assert.Equal(1, port.ReleaseCalls);
 		Assert.True(lease.IsReleased);

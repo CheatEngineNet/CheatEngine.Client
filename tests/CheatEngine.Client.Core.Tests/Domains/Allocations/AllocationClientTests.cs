@@ -69,7 +69,7 @@ public sealed class AllocationClientTests : IDisposable
 		LeaseReleaseOutcome again = lease.Release();
 
 		Assert.Equal(new LeaseReleaseOutcome(LeaseReleaseKind.Released, CheatEngineHostEffect.Completed), released);
-		Assert.Equal(LeaseReleaseKind.AlreadyReleased, again.Kind);
+		Assert.Equal(released, again);
 		Assert.True(lease.IsReleased);
 		Assert.False(lease.RequiresManualRecovery);
 		Assert.Equal(released, lease.LastReleaseOutcome);
@@ -141,7 +141,7 @@ public sealed class AllocationClientTests : IDisposable
 		Assert.Equal(1, releaseCalls);
 		Assert.Equal(0, Region.Deallocations);
 		Assert.Equal(1, _port.Allocations);
-		Assert.Equal(LeaseReleaseKind.AlreadyReleased, again.Kind);
+		Assert.Equal(lease.LastReleaseOutcome, again);
 		Assert.Equal(1, Region.ReleaseCalls);
 		// The refused allocation stays in the deactivation report (Q43), under the kind of the refusal.
 		Assert.Equal(TargetMemoryLease.ReleaseOperation, reported.Failure.Operation);
@@ -178,7 +178,7 @@ public sealed class AllocationClientTests : IDisposable
 			released);
 		Assert.True(lease.IsReleased);
 		Assert.True(lease.RequiresManualRecovery);
-		Assert.Equal(LeaseReleaseKind.AlreadyReleased, again.Kind);
+		Assert.Equal(released, again);
 		Assert.Equal(1, Region.ReleaseCalls);
 		Assert.Equal(1, Region.Deallocations);
 	}
