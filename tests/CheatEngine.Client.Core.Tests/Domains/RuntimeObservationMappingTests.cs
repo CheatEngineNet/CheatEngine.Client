@@ -160,11 +160,11 @@ public sealed class RuntimeObservationMappingTests
 	[InlineData(ProcessOperationStatusKind.FileAsProcessTarget)]
 	public void AFailureCarriesItsKindTheOperationAndTheHostEffectWithAStableMessage(ProcessOperationStatusKind kind)
 	{
-		CheatEngineFailure failure = RuntimeObservationMapping.ToFailure("Processes.GetCurrent",
+		CheatEngineFailure failure = RuntimeObservationMapping.ToFailure("Processes.GetCurrentProcess",
 			TargetObservations.Status(kind), CheatEngineHostEffect.Completed);
 
 		Assert.Equal(FailureKinds[kind], failure.Kind);
-		Assert.Equal("Processes.GetCurrent", failure.Operation);
+		Assert.Equal("Processes.GetCurrentProcess", failure.Operation);
 		Assert.Equal(CheatEngineHostEffect.Completed, failure.HostEffect);
 		Assert.Null(failure.Exception);
 		Assert.False(string.IsNullOrWhiteSpace(failure.Message));
@@ -173,7 +173,7 @@ public sealed class RuntimeObservationMappingTests
 	[Fact]
 	public void ASuccessfulStatusIsNotAFailure()
 	{
-		Assert.Throws<ArgumentException>(() => RuntimeObservationMapping.ToFailure("Processes.GetCurrent",
+		Assert.Throws<ArgumentException>(() => RuntimeObservationMapping.ToFailure("Processes.GetCurrentProcess",
 			ProcessOperationStatus.Success, CheatEngineHostEffect.Completed));
 	}
 }

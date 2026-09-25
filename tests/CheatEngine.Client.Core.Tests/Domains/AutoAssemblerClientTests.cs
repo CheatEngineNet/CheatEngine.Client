@@ -469,20 +469,20 @@ public sealed class AutoAssemblerClientTests : IDisposable
 	[Trait("Qualification", "Q35")]
 	public void ATargetChangeObservedDuringTheApplyKeysTheLeaseToTheProcessItWasAppliedIn()
 	{
-		_ = _processes.GetCurrent(Token);
+		_ = _processes.GetCurrentProcess(Token);
 		_port.Owner!.ReleaseStatus = TargetReleaseStatus.RefusedTargetChanged;
 		// CheatEngine.SDK bound the patch to process 42; Cheat Engine then selects process 43, which the Client
 		// observes before the lease is registered.
 		_port.DuringApply = () =>
 		{
 			_target.Select(FakeSelectedTarget.OtherProcessIncarnation);
-			_ = _processes.GetCurrent(Token);
+			_ = _processes.GetCurrentProcess(Token);
 		};
 		AutoAssemblerClient client = CreateClient();
 
 		IAutoAssemblerPatchLease lease = client.ApplyPatch(new AutoAssemblerScript(Script), Token);
 		bool releasedWhenPublished = lease.IsReleased;
-		ProcessSnapshot observed = _processes.GetCurrent(Token);
+		ProcessSnapshot observed = _processes.GetCurrentProcess(Token);
 
 		Assert.False(releasedWhenPublished);
 		// The next observation of process 43 ends the lease of process 42: CheatEngine.SDK refuses the disable there.
@@ -497,7 +497,7 @@ public sealed class AutoAssemblerClientTests : IDisposable
 	[Trait("Qualification", "Q35")]
 	public void APatchAppliedInAProcessSelectedInCheatEngineStaysWithThatProcess()
 	{
-		long observedEpoch = _processes.GetCurrent(Token).SelectionEpoch;
+		long observedEpoch = _processes.GetCurrentProcess(Token).SelectionEpoch;
 		AutoAssemblerClient client = CreateClient();
 		FakeOwner first = _port.Owner!;
 		first.ReleaseStatus = TargetReleaseStatus.RefusedTargetChanged;
@@ -512,7 +512,7 @@ public sealed class AutoAssemblerClientTests : IDisposable
 
 		IAutoAssemblerPatchLease inSecond = client.ApplyPatch(new AutoAssemblerScript(Script), Token);
 		long secondEpoch = inSecond.SelectionEpoch;
-		ProcessSnapshot observed = _processes.GetCurrent(Token);
+		ProcessSnapshot observed = _processes.GetCurrentProcess(Token);
 
 		// The first patch's process is no longer selected: its lease ended when the second patch was bound, and
 		// CheatEngine.SDK refused to disable it in the new target.
@@ -533,11 +533,11 @@ public sealed class AutoAssemblerClientTests : IDisposable
 	[Trait("Qualification", "Q35")]
 	public void APatchInTheObservedProcessKeepsTheObservedSelection()
 	{
-		long observedEpoch = _processes.GetCurrent(Token).SelectionEpoch;
+		long observedEpoch = _processes.GetCurrentProcess(Token).SelectionEpoch;
 		AutoAssemblerClient client = CreateClient();
 
 		IAutoAssemblerPatchLease lease = client.ApplyPatch(new AutoAssemblerScript(Script), Token);
-		ProcessSnapshot observed = _processes.GetCurrent(Token);
+		ProcessSnapshot observed = _processes.GetCurrentProcess(Token);
 
 		Assert.Equal(observedEpoch, lease.SelectionEpoch);
 		Assert.Equal(observedEpoch, observed.SelectionEpoch);

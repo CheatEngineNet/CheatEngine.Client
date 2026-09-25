@@ -46,11 +46,11 @@ public interface IProcessClient
 	///     call is returned as a classified failure and never crosses this method. Invalid arguments and Client
 	///     lifecycle exceptions (<see cref="CheatEngineClientException" />) are thrown.
 	/// </remarks>
-	public bool TryGetCurrent(out ProcessSnapshot snapshot, out CheatEngineFailure failure,
+	public bool TryGetCurrentProcess(out ProcessSnapshot snapshot, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
 	/// <summary>Gets the selected process or throws when no target is attached.</summary>
-	public ProcessSnapshot GetCurrent(CancellationToken cancellationToken = default);
+	public ProcessSnapshot GetCurrentProcess(CancellationToken cancellationToken = default);
 
 	/// <summary>
 	///     Re-reads Cheat Engine's selected target and advances the selection epoch when its PID or its local incarnation
@@ -63,7 +63,8 @@ public interface IProcessClient
 	///     PID neither advances the selection epoch nor replaces the last value known for that selection, so a probe
 	///     failure does not invalidate target-bound leases and does not weaken the selection identity to the PID alone.
 	///     Local metadata is optional enrichment and does not establish liveness or target identity. This is an
-	///     observation, not an atomic process-lifetime guarantee; exceptions follow <see cref="TryGetCurrent" />.
+	///     observation, not an atomic process-lifetime guarantee; exceptions follow
+	///     <see cref="TryGetCurrentProcess" />.
 	/// </remarks>
 	public bool TryRefresh(out ProcessSnapshot snapshot, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
@@ -89,7 +90,8 @@ public interface IProcessClient
 	///     <para>
 	///         Attaching resets Cheat Engine's configured pointer size to the target default, so an attach silently undoes
 	///         an earlier pointer-size override. A fault of the attach call is returned with
-	///         <see cref="CheatEngineHostEffect.Unknown" />; exceptions otherwise follow <see cref="TryGetCurrent" />.
+	///         <see cref="CheatEngineHostEffect.Unknown" />; exceptions otherwise follow
+	///         <see cref="TryGetCurrentProcess" />.
 	///     </para>
 	/// </remarks>
 	public bool TryAttach(TargetProcessId processId, out ProcessSnapshot snapshot,

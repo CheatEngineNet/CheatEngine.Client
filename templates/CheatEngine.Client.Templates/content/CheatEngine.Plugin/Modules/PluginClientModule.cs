@@ -39,7 +39,7 @@ internal sealed partial class PluginClientModule(
 			LogSkipped("Address List", tableFailure);
 		}
 
-		if (!client.Processes.TryGetCurrent(out ProcessSnapshot process, out CheatEngineFailure processFailure))
+		if (!client.Processes.TryGetCurrentProcess(out ProcessSnapshot process, out CheatEngineFailure processFailure))
 		{
 			LogSkipped("AOB/memory probe", processFailure);
 			return;

@@ -86,8 +86,8 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 			diagnostics.Single(nameof(ICoreDiagnostics.RuntimeSnapshotCaptured)));
 		Assert.Equal(
 			[
-				Fields(1L, 1L, "Processes.GetCurrent", "PidChanged"),
-				Fields(1L, 2L, "Processes.GetCurrent", "TargetDetached")
+				Fields(1L, 1L, "Processes.GetCurrentProcess", "PidChanged"),
+				Fields(1L, 2L, "Processes.GetCurrentProcess", "TargetDetached")
 			],
 			diagnostics.All(nameof(ICoreDiagnostics.TargetSelectionAdvanced)));
 		Assert.Equal(Fields("Memory.ReadPrimitive", 8, 4),
@@ -207,14 +207,14 @@ public sealed partial class CoreDiagnosticsTests : IDisposable
 			runtime.TryGetSnapshot(out _, out CheatEngineFailure failure, cancellationToken), failure));
 
 		ProcessClient processes = new(dispatcher, target, target, target, lifetime);
-		outcomes.Add(Describe("Processes.First", processes.TryGetCurrent(out _, out failure, cancellationToken),
-			failure));
+		outcomes.Add(Describe("Processes.First",
+			processes.TryGetCurrentProcess(out _, out failure, cancellationToken), failure));
 		target.ProcessId = 200;
-		outcomes.Add(Describe("Processes.PidChanged", processes.TryGetCurrent(out _, out failure, cancellationToken),
-			failure));
+		outcomes.Add(Describe("Processes.PidChanged",
+			processes.TryGetCurrentProcess(out _, out failure, cancellationToken), failure));
 		target.ProcessId = 0;
-		outcomes.Add(Describe("Processes.Detached", processes.TryGetCurrent(out _, out failure, cancellationToken),
-			failure));
+		outcomes.Add(Describe("Processes.Detached",
+			processes.TryGetCurrentProcess(out _, out failure, cancellationToken), failure));
 		target.ProcessId = 200;
 
 		MemoryClient memory = new(dispatcher, lifetime, target);

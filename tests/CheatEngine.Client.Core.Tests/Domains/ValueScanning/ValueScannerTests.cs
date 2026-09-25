@@ -675,7 +675,7 @@ public sealed class ValueScannerTests : IDisposable
 	[Trait("Qualification", "Q26")]
 	public void ASessionForAProcessSelectedInCheatEngineStaysWithThatProcess()
 	{
-		long firstEpoch = _processes.GetCurrent(Token).SelectionEpoch;
+		long firstEpoch = _processes.GetCurrentProcess(Token).SelectionEpoch;
 		FakeValueScanSessionHandle first = Handle;
 		first.OwnerReleases = (TargetReleaseStatus.RefusedTargetChanged, TargetReleaseStatus.RefusedTargetChanged);
 		IValueScanSession forFirst = CreateSession();
@@ -689,7 +689,7 @@ public sealed class ValueScannerTests : IDisposable
 
 		IValueScanSession forSecond = CreateSession();
 		int secondDestroysAfterCreation = second.Destroys;
-		long secondEpoch = _processes.GetCurrent(Token).SelectionEpoch;
+		long secondEpoch = _processes.GetCurrentProcess(Token).SelectionEpoch;
 		forSecond.FirstScan(ValueScanFirstRequest.Exact(ValueScanValue.FromInt32(1)), Token);
 
 		// The first session's process is no longer selected: it was released when the second session was bound.
@@ -708,10 +708,10 @@ public sealed class ValueScannerTests : IDisposable
 	[Fact]
 	public void ASessionInTheObservedProcessKeepsTheObservedSelectionEpoch()
 	{
-		long observedEpoch = _processes.GetCurrent(Token).SelectionEpoch;
+		long observedEpoch = _processes.GetCurrentProcess(Token).SelectionEpoch;
 
 		IValueScanSession session = CreateSession();
-		long laterEpoch = _processes.GetCurrent(Token).SelectionEpoch;
+		long laterEpoch = _processes.GetCurrentProcess(Token).SelectionEpoch;
 
 		Assert.Equal(observedEpoch, session.SelectionEpoch);
 		Assert.Equal(observedEpoch, laterEpoch);

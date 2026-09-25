@@ -395,19 +395,19 @@ public sealed class AllocationClientTests : IDisposable
 	[Trait("Qualification", "Q30.a")]
 	public void ATargetChangeObservedDuringTheAllocationKeysTheLeaseToTheProcessItWasMadeIn()
 	{
-		_ = _processes.GetCurrent(Token);
+		_ = _processes.GetCurrentProcess(Token);
 		Region.ReleaseStatus = TargetReleaseStatus.RefusedTargetChanged;
 		// The SDK bound the allocation to process 42; Cheat Engine then selects process 43, which the Client observes
 		// before the lease is registered.
 		_port.DuringAllocate = () =>
 		{
 			_target.Select(FakeSelectedTarget.OtherProcessIncarnation);
-			_ = _processes.GetCurrent(Token);
+			_ = _processes.GetCurrentProcess(Token);
 		};
 
 		ITargetMemoryLease lease = _client.Allocate(new AllocationRequest(64), Token);
 		bool releasedWhenPublished = lease.IsReleased;
-		ProcessSnapshot observed = _processes.GetCurrent(Token);
+		ProcessSnapshot observed = _processes.GetCurrentProcess(Token);
 
 		Assert.False(releasedWhenPublished);
 		// The next observation of process 43 releases the lease of process 42, and the SDK frees nothing in 43.
@@ -422,7 +422,7 @@ public sealed class AllocationClientTests : IDisposable
 	[Trait("Qualification", "Q30.a")]
 	public void AnAllocationInAProcessSelectedInCheatEngineStaysWithThatProcess()
 	{
-		long observedEpoch = _processes.GetCurrent(Token).SelectionEpoch;
+		long observedEpoch = _processes.GetCurrentProcess(Token).SelectionEpoch;
 		FakeAllocatedRegion first = Region;
 		first.ReleaseStatus = TargetReleaseStatus.RefusedTargetChanged;
 		ITargetMemoryLease inFirst = _client.Allocate(new AllocationRequest(64), Token);
@@ -436,7 +436,7 @@ public sealed class AllocationClientTests : IDisposable
 
 		ITargetMemoryLease inSecond = _client.Allocate(new AllocationRequest(64), Token);
 		long secondEpoch = inSecond.SelectionEpoch;
-		ProcessSnapshot observed = _processes.GetCurrent(Token);
+		ProcessSnapshot observed = _processes.GetCurrentProcess(Token);
 
 		// The first allocation's process is no longer selected: its lease was released when the second allocation was
 		// bound, and the SDK refused to free it in the new target.
@@ -456,10 +456,10 @@ public sealed class AllocationClientTests : IDisposable
 	[Trait("Qualification", "Q30.a")]
 	public void AnAllocationInTheObservedProcessKeepsTheObservedSelection()
 	{
-		long observedEpoch = _processes.GetCurrent(Token).SelectionEpoch;
+		long observedEpoch = _processes.GetCurrentProcess(Token).SelectionEpoch;
 
 		ITargetMemoryLease lease = _client.Allocate(new AllocationRequest(64), Token);
-		ProcessSnapshot observed = _processes.GetCurrent(Token);
+		ProcessSnapshot observed = _processes.GetCurrentProcess(Token);
 
 		Assert.Equal(observedEpoch, lease.SelectionEpoch);
 		Assert.Equal(observedEpoch, observed.SelectionEpoch);

@@ -127,7 +127,7 @@ public sealed class TryContractTests
 		"Memory.ReadBytes",
 		"Memory.WritePrimitiveBatch",
 		"Memory.ResolvePointerChain",
-		"Processes.GetCurrent",
+		"Processes.GetCurrentProcess",
 		"Processes.Attach",
 		"Runtime.GetSnapshot",
 		"Lua.RegisterModule",
@@ -178,7 +178,7 @@ public sealed class TryContractTests
 			"UnsafeLua" => () => new UnsafeLuaClient(dispatcher, policy, lifetime)
 				.TryExecute(new LuaScript("return 1"), out _, cancelled),
 			"Processes" => () => new ProcessClient(dispatcher, ports, ports, ports, lifetime)
-				.TryGetCurrent(out _, out _, cancelled),
+				.TryGetCurrentProcess(out _, out _, cancelled),
 			"Runtime" => () => new RuntimeClient(dispatcher, ports, static () => 1).TryGetSnapshot(out _, out _, cancelled),
 			"ValueScans" => () => new ValueScanner(dispatcher, Binder(dispatcher), scans)
 				.TryCreateSession(out _, out _, cancelled),
@@ -414,9 +414,10 @@ public sealed class TryContractTests
 				static (client, request, t) =>
 					(client.TryResolvePointerChain(request, out _, out CheatEngineFailure f, t), f),
 				static (client, request, t) => client.ResolvePointerChain(request, t), token),
-			"Processes.GetCurrent" => Run(new ProcessClient(dispatcher, ports, ports, ports, lifetime), 0,
-				static (client, _, t) => (client.TryGetCurrent(out ProcessSnapshot _, out CheatEngineFailure f, t), f),
-				static (client, _, t) => client.GetCurrent(t), token),
+			"Processes.GetCurrentProcess" => Run(new ProcessClient(dispatcher, ports, ports, ports, lifetime), 0,
+				static (client, _, t) =>
+					(client.TryGetCurrentProcess(out ProcessSnapshot _, out CheatEngineFailure f, t), f),
+				static (client, _, t) => client.GetCurrentProcess(t), token),
 			"Processes.Attach" => Run(new ProcessClient(dispatcher, ports, ports, ports, lifetime), new TargetProcessId(43),
 				static (client, processId, t) => (client.TryAttach(processId, out _, out CheatEngineFailure f, t), f),
 				static (client, processId, t) => client.Attach(processId, t), token),

@@ -76,17 +76,17 @@ internal sealed class ProcessClient : IProcessClient, ITargetSelectionBinder
 		_lifetime = lifetime;
 	}
 
-	public bool TryGetCurrent(
+	public bool TryGetCurrentProcess(
 		out ProcessSnapshot snapshot,
 		out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
-		return TryReadCurrent("Processes.GetCurrent", out snapshot, out failure, cancellationToken);
+		return TryReadCurrent("Processes.GetCurrentProcess", out snapshot, out failure, cancellationToken);
 	}
 
-	public ProcessSnapshot GetCurrent(CancellationToken cancellationToken = default)
+	public ProcessSnapshot GetCurrentProcess(CancellationToken cancellationToken = default)
 	{
-		if (TryGetCurrent(out ProcessSnapshot snapshot, out CheatEngineFailure failure, cancellationToken))
+		if (TryGetCurrentProcess(out ProcessSnapshot snapshot, out CheatEngineFailure failure, cancellationToken))
 		{
 			return snapshot;
 		}

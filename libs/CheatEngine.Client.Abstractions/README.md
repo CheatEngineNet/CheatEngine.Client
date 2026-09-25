@@ -760,7 +760,7 @@ This charter is normative for every public type of the seven Client packages; th
   default`, always last. `ICheatEngineDispatcher` uses explicit overloads instead of an optional token. An operation on
   one existing resource takes its identifier first, never inside a request (`TryUpdate(id, update, ...)`,
   `TrySetParent(childId, parentId, ...)`).
-- **Names.** `Get<X>` returns an `X` (`GetPreviousInstructionAddress`, `GetSelectedRecord`).
+- **Names.** `Get<X>` returns an `X` (`GetPreviousInstructionAddress`, `GetSelectedRecord`, `GetCurrentProcess`).
 - **Outputs.** A failed `Try` leaves its value output `default`. A lease or session output is nullable and annotated
   `[NotNullWhen(true)]`.
 - **Exemptions.** BCL-shaped pure lookups and parses (`ClientCapabilities.TryGet`, `AobPattern.TryParse`) have no
