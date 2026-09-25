@@ -1,5 +1,3 @@
-using System.Reflection;
-
 using CheatEngine.Client.Core.Dispatching;
 using CheatEngine.Client.Core.Domains;
 using CheatEngine.Client.Core.Tests.TestSupport;
@@ -131,14 +129,15 @@ public sealed class PatternScannerTests
 	public void TryValidateRequestRefusesATamperedOptionValue(string tampered)
 	{
 		ScanProtectionFilter protection = tampered == "Protection"
-			? WithBackingField(default(ScanProtectionFilter), nameof(ScanProtectionFilter.Writable),
+			? TamperedValues.WithBackingField(default(ScanProtectionFilter), nameof(ScanProtectionFilter.Writable),
 				(ScanProtectionRequirement) 9)
 			: default;
 		ScanAlignment alignment = tampered switch
 		{
-			"AlignmentKind" => WithBackingField(ScanAlignment.None, nameof(ScanAlignment.Mode), (ScanAlignmentMode) 9),
-			"AlignmentDivisor" => WithBackingField(ScanAlignment.AlignedTo(4), nameof(ScanAlignment.Mode),
-				ScanAlignmentMode.None),
+			"AlignmentKind" => TamperedValues.WithBackingField(ScanAlignment.None, nameof(ScanAlignment.Mode),
+				(ScanAlignmentMode) 9),
+			"AlignmentDivisor" => TamperedValues.WithBackingField(ScanAlignment.AlignedTo(4),
+				nameof(ScanAlignment.Mode), ScanAlignmentMode.None),
 			_ => default
 		};
 
@@ -149,16 +148,5 @@ public sealed class PatternScannerTests
 		Assert.False(valid);
 		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
 		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
-	}
-
-	/// <summary>Writes one auto-property backing field of a copy of <paramref name="value" />, as memory tampering would.</summary>
-	private static T WithBackingField<T>(T value, string property, object fieldValue)
-		where T : struct
-	{
-		object boxed = value;
-		FieldInfo field = typeof(T).GetField($"<{property}>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic)
-						  ?? throw new InvalidOperationException($"{typeof(T).Name}.{property} has no backing field.");
-		field.SetValue(boxed, fieldValue);
-		return (T) boxed;
 	}
 }

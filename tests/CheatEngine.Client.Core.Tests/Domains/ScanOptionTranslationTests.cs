@@ -51,7 +51,8 @@ public sealed class ScanOptionTranslationTests
 	public void BothScanRoutesAcceptEveryOptionThePublicFactoriesCreate()
 	{
 		// One check serves both routes: every value a public constructor or factory creates is defined, and so are the
-		// default filter and alignment; only a tampered value is refused, by the AOB and value-scan validation alike.
+		// default filter and alignment; only a tampered value is refused, by the AOB and value-scan validation alike
+		// (PatternScannerTests and ValueScannerTests tamper one on each route).
 		foreach (ScanProtectionRequirement requirement in Enum.GetValues<ScanProtectionRequirement>())
 		{
 			ScanProtectionFilter filter = new(requirement, requirement, requirement);

@@ -655,6 +655,38 @@ public sealed class ValueScannerTests : IDisposable
 		Assert.Throws<CheatEngineOperationException>(() => session.FirstScan(default, Token));
 	}
 
+	/// <summary>
+	///     Only a tampered value can be undefined: a first scan refuses it before dispatch through the option check it
+	///     shares with the AOB validation, as <c>PatternScannerTests</c> proves for the AOB route.
+	/// </summary>
+	[Theory]
+	[InlineData("Protection", "A value scan protection filter must use defined requirements.")]
+	[InlineData("AlignmentKind", "A value scan alignment must be created by a ScanAlignment factory.")]
+	[InlineData("AlignmentDivisor", "A value scan alignment must be created by a ScanAlignment factory.")]
+	public void ATamperedScanOptionIsRefusedBeforeDispatch(string tampered, string message)
+	{
+		IValueScanSession session = CreateSession();
+		ValueScanFirstRequest valid = ValueScanFirstRequest.Exact(ValueScanValue.FromInt32(1));
+		ValueScanFirstRequest request = tampered switch
+		{
+			"Protection" => valid.WithProtection(TamperedValues.WithBackingField(default(ScanProtectionFilter),
+				nameof(ScanProtectionFilter.Writable), (ScanProtectionRequirement) 9)),
+			"AlignmentKind" => valid.WithAlignment(TamperedValues.WithBackingField(ScanAlignment.None,
+				nameof(ScanAlignment.Mode), (ScanAlignmentMode) 9)),
+			"AlignmentDivisor" => valid.WithAlignment(TamperedValues.WithBackingField(ScanAlignment.AlignedTo(4),
+				nameof(ScanAlignment.Mode), ScanAlignmentMode.None)),
+			_ => throw new ArgumentOutOfRangeException(nameof(tampered), tampered, null)
+		};
+
+		bool scanned = session.TryFirstScan(request, out CheatEngineFailure failure, Token);
+
+		Assert.False(scanned);
+		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
+		Assert.Equal(message, failure.Message);
+		Assert.Empty(Handle.Calls);
+	}
+
 	[Fact]
 	public void AScanFaultBeforeCheatEngineIsCalledCarriesNoHostText()
 	{
