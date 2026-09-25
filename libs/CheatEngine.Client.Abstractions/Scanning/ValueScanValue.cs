@@ -33,14 +33,17 @@ public readonly record struct ValueScanValue
 {
 	private const int MaximumFloatDecimals = 15;
 
-	private ValueScanValue(ValueScanValueType type, string text)
+	private ValueScanValue(ValueScanValueType valueType, string text)
 	{
-		Type = type;
+		ValueType = valueType;
 		Text = text;
 	}
 
-	/// <summary>Gets the type Cheat Engine compares.</summary>
-	public ValueScanValueType Type
+	/// <summary>
+	///     Gets the type Cheat Engine compares; a first scan takes its <see cref="ValueScanFirstRequest.ValueType" /> from
+	///     its value.
+	/// </summary>
+	public ValueScanValueType ValueType
 	{
 		get;
 	}
@@ -52,7 +55,7 @@ public readonly record struct ValueScanValue
 	}
 
 	/// <summary>Gets whether the value is a numeric type, which ordered comparisons and unknown initial values accept.</summary>
-	public bool IsNumeric => Type is >= ValueScanValueType.Integer8 and <= ValueScanValueType.DoubleFloat;
+	public bool IsNumeric => ValueType is >= ValueScanValueType.Integer8 and <= ValueScanValueType.DoubleFloat;
 
 	/// <summary>Creates a one-byte value.</summary>
 	/// <param name="value">The value.</param>

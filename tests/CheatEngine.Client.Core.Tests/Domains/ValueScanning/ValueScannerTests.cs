@@ -66,7 +66,7 @@ public sealed class ValueScannerTests : IDisposable
 
 		Assert.Equal(1, Handle.Destroys);
 		Assert.True(session.IsReleased);
-		Assert.Equal(ValueScanSessionState.Released, session.State);
+		Assert.Equal(ValueScanSessionState.Closed, session.State);
 		Assert.Equal(new LeaseReleaseOutcome(LeaseReleaseKind.Released, CheatEngineHostEffect.Completed),
 			session.LastReleaseOutcome);
 	}
@@ -392,7 +392,7 @@ public sealed class ValueScannerTests : IDisposable
 		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
 		Assert.Equal(ValueScanInvalidationKind.TargetChanged, invalidation);
 		Assert.True(session.IsReleased);
-		Assert.Equal(ValueScanSessionState.Released, session.State);
+		Assert.Equal(ValueScanSessionState.Closed, session.State);
 		Assert.Equal(LeaseReleaseKind.RefusedTargetChanged, session.LastReleaseOutcome?.Kind);
 		Assert.True(session.LastReleaseOutcome?.RequiresManualRecovery);
 		Assert.False(after);
@@ -497,7 +497,7 @@ public sealed class ValueScannerTests : IDisposable
 		// NotInvoked stays retryable: the lease stays registered and the deactivation report carries it.
 		Assert.Equal(LeaseReleaseKind.CleanupUnavailable, released.Kind);
 		Assert.False(session.IsReleased);
-		Assert.Equal(ValueScanSessionState.Released, session.State);
+		Assert.Equal(ValueScanSessionState.Closed, session.State);
 		Assert.False(afterRelease);
 		Assert.Equal(CheatEngineFailureKind.InvalidState, afterFailure.Kind);
 	}

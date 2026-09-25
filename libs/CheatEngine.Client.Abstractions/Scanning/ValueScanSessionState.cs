@@ -35,6 +35,10 @@ public enum ValueScanSessionState
 	/// <summary>A Cheat Engine call began without establishing a safe next state: reset or release the session.</summary>
 	Invalidated = 4,
 
-	/// <summary>The session's Cheat Engine objects were released or given up; no operation is accepted.</summary>
-	Released = 5
+	/// <summary>
+	///     The session accepts no operation: its Cheat Engine objects were released or given up.
+	///     <see cref="ICheatEngineLease.IsReleased" /> and <see cref="ICheatEngineLease.LastReleaseOutcome" /> say what
+	///     the release did; a release that could not begin leaves the session closed while its lease stays active.
+	/// </summary>
+	Closed = 5
 }

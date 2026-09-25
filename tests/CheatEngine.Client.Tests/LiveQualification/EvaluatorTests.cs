@@ -127,7 +127,7 @@ public sealed class EvaluatorTests
 	[Fact]
 	public void ALeaseEndedByATargetChangeIsNeverReleasedOnTheOtherProcess()
 	{
-		const string Ended = """{"ok":true,"session":{"state":"Released","released":true},"lastRelease":{"kind":"RefusedTargetChanged","requiresManualRecovery":true}}""";
+		const string Ended = """{"ok":true,"session":{"state":"Closed","released":true},"lastRelease":{"kind":"RefusedTargetChanged","requiresManualRecovery":true}}""";
 		const string ReleasedOnB = """{"ok":true,"release":{"kind":"RefusedTargetChanged","hostEffect":"NotStarted"},"lastRelease":{"kind":"RefusedTargetChanged","requiresManualRecovery":true}}""";
 		const string FreedOnB = """{"ok":true,"release":{"kind":"Released","hostEffect":"NotStarted"},"lastRelease":{"kind":"RefusedTargetChanged","requiresManualRecovery":true}}""";
 		const string AllocationReleasedOnB = """{"ok":true,"releasedBefore":true,"release":{"kind":"RefusedTargetChanged","hostEffect":"NotStarted"},"requiresManualRecovery":true}""";

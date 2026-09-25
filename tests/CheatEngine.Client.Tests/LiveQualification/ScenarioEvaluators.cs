@@ -229,7 +229,7 @@ internal static class ScenarioEvaluators
 		Add("Q26", "S3", "refused-after-target-change",
 			"after Cheat Engine selects another process, the session has ended with RefusedTargetChanged and manual recovery",
 			static evidence => evidence.Observe("value-scan-state-on-b",
-				static observed => observed.Is("session.released") && observed.Text("session.state") == "Released" &&
+				static observed => observed.Is("session.released") && observed.Text("session.state") == "Closed" &&
 								   observed.Text("lastRelease.kind") == "RefusedTargetChanged" &&
 								   observed.Is("lastRelease.requiresManualRecovery"),
 				"session.released", "session.state", "lastRelease.kind", "lastRelease.requiresManualRecovery"));

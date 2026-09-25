@@ -62,7 +62,7 @@ public readonly record struct ValueScanNextRequest
 	{
 		RequireNumeric(lowest, nameof(lowest));
 		RequireNumeric(highest, nameof(highest));
-		if (lowest.Type != highest.Type)
+		if (lowest.ValueType != highest.ValueType)
 		{
 			throw new ArgumentException("Both bounds of a value scan must have the same type.", nameof(highest));
 		}

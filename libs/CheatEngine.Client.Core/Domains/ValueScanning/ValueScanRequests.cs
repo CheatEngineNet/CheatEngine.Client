@@ -73,7 +73,7 @@ internal static class ValueScanRequests
 			return false;
 		}
 
-		ScanValueFlags flags = GetFlags(valueType ?? request.Value?.Type ?? ValueScanValueType.Integer32);
+		ScanValueFlags flags = GetFlags(valueType ?? request.Value?.ValueType ?? ValueScanValueType.Integer32);
 		sdkRequest = new NextScanRequest(
 			ToScanOption(request.Comparison),
 			RoundingType.Rounded,
@@ -161,7 +161,7 @@ internal static class ValueScanRequests
 	private static bool TryValidateNext(ValueScanNextRequest request, ValueScanValueType? valueType,
 		out string? refusal)
 	{
-		ValueScanValueType expected = valueType ?? request.Value?.Type ?? ValueScanValueType.Integer32;
+		ValueScanValueType expected = valueType ?? request.Value?.ValueType ?? ValueScanValueType.Integer32;
 		refusal = request.Comparison switch
 		{
 			ValueScanComparison.Exact => ValidateValue(request.Value, expected, requireNumeric: false),
@@ -185,12 +185,12 @@ internal static class ValueScanRequests
 			return "A value scan comparison requires a value created by a ValueScanValue factory.";
 		}
 
-		if (present.Type != expected)
+		if (present.ValueType != expected)
 		{
-			return $"The scanned value is a {present.Type} value; the session scans {expected} values.";
+			return $"The scanned value is a {present.ValueType} value; the session scans {expected} values.";
 		}
 
-		return requireNumeric && !IsNumeric(present.Type) ? "This comparison accepts only a numeric value." : null;
+		return requireNumeric && !IsNumeric(present.ValueType) ? "This comparison accepts only a numeric value." : null;
 	}
 
 	private static bool IsNumeric(ValueScanValueType valueType)

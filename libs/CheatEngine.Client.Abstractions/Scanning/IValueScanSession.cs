@@ -53,7 +53,7 @@ namespace CheatEngine.Client.Scanning;
 ///         change of the Lua runtime, or when the target was never checked, CheatEngine.SDK consumes the session without
 ///         any Cheat Engine call and reports a release that could not begin: the outcome is
 ///         <see cref="LeaseReleaseKind.CleanupUnavailable" />, <see cref="ICheatEngineLease.IsReleased" /> stays
-///         <see langword="false" /> while <see cref="State" /> is <see cref="ValueScanSessionState.Released" />, and the
+///         <see langword="false" /> while <see cref="State" /> is <see cref="ValueScanSessionState.Closed" />, and the
 ///         lease stays registered so that the deactivation report carries it. Retrying that release destroys nothing,
 ///         since CheatEngine.SDK no longer owns the objects.
 ///     </para>

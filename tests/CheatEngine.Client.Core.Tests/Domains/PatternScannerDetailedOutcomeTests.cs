@@ -227,10 +227,16 @@ public sealed class PatternScannerDetailedOutcomeTests
 		MappingTotality.AssertTotal<AobBoundedScanOutcomeKind>(
 			kind => withoutHostOutcome.Contains(kind)
 				? AobScanMapping.ToHostOutcome(kind) == PatternScanHostOutcomeKind.Unknown
-				: kind == AobBoundedScanOutcomeKind.RuntimeInvalidated
+				: kind switch
+				{
 					// The Client names a replaced Lua runtime RuntimeChanged, like the failure kind.
-					? AobScanMapping.ToHostOutcome(kind) == PatternScanHostOutcomeKind.RuntimeChanged
-					: AobScanMapping.ToHostOutcome(kind).ToString() == kind.ToString(),
+					AobBoundedScanOutcomeKind.RuntimeInvalidated =>
+						AobScanMapping.ToHostOutcome(kind) == PatternScanHostOutcomeKind.RuntimeChanged,
+					// A protected call that raised has one member on both routes.
+					AobBoundedScanOutcomeKind.ScanFailed =>
+						AobScanMapping.ToHostOutcome(kind) == PatternScanHostOutcomeKind.ProtectedLuaFailure,
+					_ => AobScanMapping.ToHostOutcome(kind).ToString() == kind.ToString()
+				},
 			static kind => AobScanMapping.ToHostOutcome(kind) == PatternScanHostOutcomeKind.Unknown);
 	}
 

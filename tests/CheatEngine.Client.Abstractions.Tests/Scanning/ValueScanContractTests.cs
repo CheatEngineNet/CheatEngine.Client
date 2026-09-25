@@ -16,7 +16,7 @@ public sealed class ValueScanContractTests
 		Assert.Equal(2, (int) ValueScanSessionState.Scanning);
 		Assert.Equal(3, (int) ValueScanSessionState.ResultsReady);
 		Assert.Equal(4, (int) ValueScanSessionState.Invalidated);
-		Assert.Equal(5, (int) ValueScanSessionState.Released);
+		Assert.Equal(5, (int) ValueScanSessionState.Closed);
 		Assert.Equal(0, (int) ValueScanInvalidationKind.Unknown);
 		Assert.Equal(1, (int) ValueScanInvalidationKind.None);
 	}
@@ -216,6 +216,6 @@ public sealed class ValueScanContractTests
 
 	private static (ValueScanValueType Type, string? Text) Describe(ValueScanValue value)
 	{
-		return (value.Type, value.Text);
+		return (value.ValueType, value.Text);
 	}
 }

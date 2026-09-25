@@ -79,7 +79,7 @@ internal static class ValueScanMapping
 			MemoryScanState.Scanning => ValueScanSessionState.Scanning,
 			MemoryScanState.ResultsReady => ValueScanSessionState.ResultsReady,
 			MemoryScanState.Invalidated => ValueScanSessionState.Invalidated,
-			MemoryScanState.Disposed => ValueScanSessionState.Released,
+			MemoryScanState.Disposed => ValueScanSessionState.Closed,
 			_ => ValueScanSessionState.Unknown
 		};
 	}

@@ -523,7 +523,6 @@ CheatEngine.Client.Scanning.PatternScanHostOutcomeKind.NoResult = 3 -> CheatEngi
 CheatEngine.Client.Scanning.PatternScanHostOutcomeKind.ProtectedLuaFailure = 5 -> CheatEngine.Client.Scanning.PatternScanHostOutcomeKind
 CheatEngine.Client.Scanning.PatternScanHostOutcomeKind.ResultListCountUnavailable = 7 -> CheatEngine.Client.Scanning.PatternScanHostOutcomeKind
 CheatEngine.Client.Scanning.PatternScanHostOutcomeKind.RuntimeChanged = 11 -> CheatEngine.Client.Scanning.PatternScanHostOutcomeKind
-CheatEngine.Client.Scanning.PatternScanHostOutcomeKind.ScanFailed = 13 -> CheatEngine.Client.Scanning.PatternScanHostOutcomeKind
 CheatEngine.Client.Scanning.PatternScanHostOutcomeKind.TargetChanged = 9 -> CheatEngine.Client.Scanning.PatternScanHostOutcomeKind
 CheatEngine.Client.Scanning.PatternScanHostOutcomeKind.TargetIdentityUnavailable = 10 -> CheatEngine.Client.Scanning.PatternScanHostOutcomeKind
 CheatEngine.Client.Scanning.PatternScanHostOutcomeKind.Unknown = 0 -> CheatEngine.Client.Scanning.PatternScanHostOutcomeKind
@@ -782,9 +781,9 @@ CheatEngine.Client.Tables.TrustedTableFile.TrustedTableFile(string! path) -> voi
 [CECLIENT5001]CheatEngine.Client.Scanning.ValueScanReadRequest.ValueScanReadRequest() -> void
 [CECLIENT5001]CheatEngine.Client.Scanning.ValueScanReadRequest.ValueScanReadRequest(long startIndex, int maximumCount) -> void
 [CECLIENT5001]CheatEngine.Client.Scanning.ValueScanSessionState
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanSessionState.Closed = 5 -> CheatEngine.Client.Scanning.ValueScanSessionState
 [CECLIENT5001]CheatEngine.Client.Scanning.ValueScanSessionState.Created = 1 -> CheatEngine.Client.Scanning.ValueScanSessionState
 [CECLIENT5001]CheatEngine.Client.Scanning.ValueScanSessionState.Invalidated = 4 -> CheatEngine.Client.Scanning.ValueScanSessionState
-[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanSessionState.Released = 5 -> CheatEngine.Client.Scanning.ValueScanSessionState
 [CECLIENT5001]CheatEngine.Client.Scanning.ValueScanSessionState.ResultsReady = 3 -> CheatEngine.Client.Scanning.ValueScanSessionState
 [CECLIENT5001]CheatEngine.Client.Scanning.ValueScanSessionState.Scanning = 2 -> CheatEngine.Client.Scanning.ValueScanSessionState
 [CECLIENT5001]CheatEngine.Client.Scanning.ValueScanSessionState.Unknown = 0 -> CheatEngine.Client.Scanning.ValueScanSessionState
@@ -792,8 +791,8 @@ CheatEngine.Client.Tables.TrustedTableFile.TrustedTableFile(string! path) -> voi
 [CECLIENT5001]CheatEngine.Client.Scanning.ValueScanValue.Equals(CheatEngine.Client.Scanning.ValueScanValue other) -> bool
 [CECLIENT5001]CheatEngine.Client.Scanning.ValueScanValue.IsNumeric.get -> bool
 [CECLIENT5001]CheatEngine.Client.Scanning.ValueScanValue.Text.get -> string?
-[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanValue.Type.get -> CheatEngine.Client.Scanning.ValueScanValueType
 [CECLIENT5001]CheatEngine.Client.Scanning.ValueScanValue.ValueScanValue() -> void
+[CECLIENT5001]CheatEngine.Client.Scanning.ValueScanValue.ValueType.get -> CheatEngine.Client.Scanning.ValueScanValueType
 [CECLIENT5001]CheatEngine.Client.Scanning.ValueScanValueType
 [CECLIENT5001]CheatEngine.Client.Scanning.ValueScanValueType.ByteArray = 8 -> CheatEngine.Client.Scanning.ValueScanValueType
 [CECLIENT5001]CheatEngine.Client.Scanning.ValueScanValueType.DoubleFloat = 5 -> CheatEngine.Client.Scanning.ValueScanValueType

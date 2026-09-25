@@ -346,7 +346,7 @@ internal static partial class QualificationScenarios
 			bool scannedOk = session.TryFirstScan(
 				ValueScanFirstRequest.Exact(scanned).WithRange(scratch, scratch + ScratchLength), out CheatEngineFailure scanFailure);
 			observation.BeginItem()
-				.String("type", scanned.Type.ToString())
+				.String("type", scanned.ValueType.ToString())
 				.String("text", scanned.Text)
 				.Number("decimals", decimals)
 				.Boolean("discriminating", expectedFound is null)

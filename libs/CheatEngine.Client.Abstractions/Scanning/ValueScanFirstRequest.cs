@@ -93,7 +93,7 @@ public readonly record struct ValueScanFirstRequest
 	public static ValueScanFirstRequest Exact(ValueScanValue value)
 	{
 		RequireValue(value, nameof(value));
-		return Create(ValueScanComparison.Exact, value.Type, value, null);
+		return Create(ValueScanComparison.Exact, value.ValueType, value, null);
 	}
 
 	/// <summary>Scans for addresses whose value is between two bounds, both included.</summary>
@@ -107,12 +107,12 @@ public readonly record struct ValueScanFirstRequest
 	{
 		RequireNumeric(lowest, nameof(lowest));
 		RequireNumeric(highest, nameof(highest));
-		if (lowest.Type != highest.Type)
+		if (lowest.ValueType != highest.ValueType)
 		{
 			throw new ArgumentException("Both bounds of a value scan must have the same type.", nameof(highest));
 		}
 
-		return Create(ValueScanComparison.Between, lowest.Type, lowest, highest);
+		return Create(ValueScanComparison.Between, lowest.ValueType, lowest, highest);
 	}
 
 	/// <summary>Scans for addresses whose value is greater than <paramref name="value" />.</summary>
@@ -122,7 +122,7 @@ public readonly record struct ValueScanFirstRequest
 	public static ValueScanFirstRequest BiggerThan(ValueScanValue value)
 	{
 		RequireNumeric(value, nameof(value));
-		return Create(ValueScanComparison.BiggerThan, value.Type, value, null);
+		return Create(ValueScanComparison.BiggerThan, value.ValueType, value, null);
 	}
 
 	/// <summary>Scans for addresses whose value is less than <paramref name="value" />.</summary>
@@ -132,7 +132,7 @@ public readonly record struct ValueScanFirstRequest
 	public static ValueScanFirstRequest SmallerThan(ValueScanValue value)
 	{
 		RequireNumeric(value, nameof(value));
-		return Create(ValueScanComparison.SmallerThan, value.Type, value, null);
+		return Create(ValueScanComparison.SmallerThan, value.ValueType, value, null);
 	}
 
 	/// <summary>Records every address of a numeric type without comparing, for a later next scan.</summary>

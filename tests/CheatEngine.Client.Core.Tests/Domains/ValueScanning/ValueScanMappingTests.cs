@@ -92,7 +92,7 @@ public sealed class ValueScanMappingTests
 			static state => ValueScanMapping.ToState(state) != ValueScanSessionState.Unknown,
 			static state => ValueScanMapping.ToState(state) == ValueScanSessionState.Unknown);
 		Assert.Equal(ValueScanSessionState.Created, ValueScanMapping.ToState(MemoryScanState.New));
-		Assert.Equal(ValueScanSessionState.Released, ValueScanMapping.ToState(MemoryScanState.Disposed));
+		Assert.Equal(ValueScanSessionState.Closed, ValueScanMapping.ToState(MemoryScanState.Disposed));
 	}
 
 	[Fact]

@@ -73,7 +73,7 @@ internal sealed class ValueScanSession : HostResourceLease, IValueScanSession
 	}
 
 	public ValueScanSessionState State =>
-		IsReleased ? ValueScanSessionState.Released : (ValueScanSessionState) Volatile.Read(ref _state);
+		IsReleased ? ValueScanSessionState.Closed : (ValueScanSessionState) Volatile.Read(ref _state);
 
 	public ValueScanInvalidationKind Invalidation => (ValueScanInvalidationKind) Volatile.Read(ref _invalidation);
 
@@ -293,7 +293,7 @@ internal sealed class ValueScanSession : HostResourceLease, IValueScanSession
 			return StartFailed(NextScanOperation, fault);
 		}
 
-		return WaitForResults(NextScanOperation, _valueType ?? request.Value?.Type ?? ValueScanValueType.Integer32,
+		return WaitForResults(NextScanOperation, _valueType ?? request.Value?.ValueType ?? ValueScanValueType.Integer32,
 			cancellationToken);
 	}
 

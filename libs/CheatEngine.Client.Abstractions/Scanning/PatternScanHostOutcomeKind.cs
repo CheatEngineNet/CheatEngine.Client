@@ -14,8 +14,9 @@ namespace CheatEngine.Client.Scanning;
 ///         <see cref="InvalidResult" /> or <see cref="ResultListCountUnavailable" />. The bounded route reports
 ///         <see cref="Matches" />, <see cref="NoMatches" />, <see cref="HostReportedError" />, <see cref="InvalidResult" />,
 ///         <see cref="TargetChanged" />, <see cref="TargetIdentityUnavailable" />, <see cref="RuntimeChanged" />,
-///         <see cref="Cancelled" /> or <see cref="ScanFailed" />. <see cref="Unknown" /> means no host outcome was
-///         observed (the request was refused or failed before a scan) or the outcome is not one this Client knows.
+///         <see cref="Cancelled" /> or <see cref="ProtectedLuaFailure" />: a fact that both routes report has one member.
+///         <see cref="Unknown" /> means no host outcome was observed (the request was refused or failed before a scan)
+///         or the outcome is not one this Client knows.
 ///     </para>
 /// </remarks>
 public enum PatternScanHostOutcomeKind
@@ -41,7 +42,10 @@ public enum PatternScanHostOutcomeKind
 	/// <summary>The <c>AOBScan</c> global was absent or not callable.</summary>
 	GlobalUnavailable = 4,
 
-	/// <summary>A protected Lua call of the global route failed.</summary>
+	/// <summary>
+	///     A protected Lua call of the scan failed: the global <c>AOBScan</c> lookup or call, or a call of the bounded
+	///     scan (its scan, wait, count or row reads).
+	/// </summary>
 	ProtectedLuaFailure = 5,
 
 	/// <summary>Cheat Engine returned a malformed value, count or row.</summary>
@@ -63,8 +67,5 @@ public enum PatternScanHostOutcomeKind
 	RuntimeChanged = 11,
 
 	/// <summary>CheatEngine.SDK observed the cancellation token between the bounded scan's Cheat Engine calls.</summary>
-	Cancelled = 12,
-
-	/// <summary>A protected call of the bounded scan failed.</summary>
-	ScanFailed = 13
+	Cancelled = 12
 }
