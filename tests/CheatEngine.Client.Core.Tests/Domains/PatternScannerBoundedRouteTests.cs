@@ -348,6 +348,53 @@ public sealed class PatternScannerBoundedRouteTests
 		Assert.Equal(CheatEngineFailureKind.IndeterminateHostResult, failure.Kind);
 	}
 
+	/// <summary>
+	///     A full destination that holds a match next to rows the Client drops leaves a host row unread: the match is
+	///     published as truncated, because whether the unread row is a further match is unknown. The global route reads
+	///     every row of the same result and proves the same copy complete.
+	/// </summary>
+	[Fact]
+	[Trait("Qualification", "Q28")]
+	public void AFullDestinationWithDroppedRowsPublishesItsMatchesAsNotProvenComplete()
+	{
+		// A 4-byte pattern in the module [0x4000, 0x4100): 0x40FC is its last whole match, 0x40FD and 0x40FF straddle
+		// the module end, and 0x4100 starts after it. A limit of two gives the bounded route a destination of three.
+		string[] hostRows = ["40FC", "40FD", "40FF", "4100"];
+		AobScanRequest request = new(new AobPattern("90 90 90 90"), 2, new ModuleName("game.exe"));
+
+		PatternScanOutcome bounded = Scan(AobHosts.Local());
+		PatternScanOutcome global = Scan(AobHosts.Remote);
+
+		Assert.True(bounded.IsSuccess, bounded.Failure?.Message);
+		Assert.Equal([0x40FC], bounded.Result!.Value.Matches);
+		Assert.True(bounded.Result.Value.IsTruncated);
+		PatternScanMetrics boundedMetrics = Assert.NotNull(bounded.Metrics);
+		Assert.Equal(PatternScanScope.HostBoundedRange, boundedMetrics.Scope);
+		Assert.Equal((4UL, 3UL, 2UL, 1, 1UL),
+			(boundedMetrics.HostResultCount, boundedMetrics.ExaminedCount, boundedMetrics.FilteredOutCount,
+				boundedMetrics.MaterializedCount, boundedMetrics.UnreadHostRowCount));
+		Assert.False(boundedMetrics.InBoundsCountIsExact);
+
+		Assert.True(global.IsSuccess, global.Failure?.Message);
+		Assert.Equal(bounded.Result.Value.Matches, global.Result!.Value.Matches);
+		Assert.False(global.Result.Value.IsTruncated);
+		PatternScanMetrics globalMetrics = Assert.NotNull(global.Metrics);
+		Assert.Equal(PatternScanScope.GlobalHostScanWithManagedFilter, globalMetrics.Scope);
+		Assert.Equal(0UL, globalMetrics.UnreadHostRowCount);
+		Assert.True(globalMetrics.InBoundsCountIsExact);
+
+		PatternScanOutcome Scan(TargetSelectionFacts selection)
+		{
+			FakeAobScanPort port = new(new RecordingAobMatchList(hostRows))
+			{
+				Modules = [Module()],
+				Selection = selection,
+				BoundedRows = [.. hostRows.Select(static row => Address.Parse(row))]
+			};
+			return CreateScanner(port).ScanDetailed(request, TestContext.Current.CancellationToken);
+		}
+	}
+
 	[Fact]
 	public void TheSdkCountsOfDroppedRowsAreReportedAsFilteredOut()
 	{

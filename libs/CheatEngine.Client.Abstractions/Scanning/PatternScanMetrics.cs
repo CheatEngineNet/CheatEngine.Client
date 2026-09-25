@@ -146,6 +146,11 @@ public readonly record struct PatternScanMetrics
 	}
 
 	/// <summary>Gets the rows that were not read because the copy stopped first.</summary>
+	/// <remarks>
+	///     A successful scan that left rows unread always reports a result that is not proven complete
+	///     (<see cref="AobScanResult.IsTruncated" />). A truncated result can still have read every row, when the one
+	///     match found beyond the copy was the last row.
+	/// </remarks>
 	public ulong UnreadHostRowCount
 	{
 		get;

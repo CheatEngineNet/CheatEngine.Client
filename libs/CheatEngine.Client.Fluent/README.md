@@ -32,13 +32,14 @@ limited to the module intersected with the range; it blocks Cheat Engine's main 
 started. On a CEServer or file-as-process target, Cheat Engine runs one global `AOBScan` over the whole target and Core
 applies the same rule while copying, which does not reduce Cheat Engine's scan time or memory.
 `Take(n)`, `FirstOrNone()` (1) and `RequireSingle()` (2) bound only how many addresses Core copies; they never stop
-Cheat Engine early. Every route copies at most 65,535 addresses, whatever `n`, and a result cut by that cap reports
-`IsTruncated`, as `AobScanRequest.MaximumResults` documents. `FirstOrNone()` returns the first element in Cheat
-Engine's result-list order, which Cheat Engine does not specify (not the lowest address, not the first logical
-region), and never uses a "first found" scan. `RequireSingle()` copies up to two matches from an exhaustive scan: two
-copied matches are `AmbiguousMatch`, and one copied match is unique only when every row Cheat Engine returned was read
-and the copy is not truncated. Otherwise whether a second match exists is unknown, which is `IndeterminateHostResult`,
-never `AmbiguousMatch`.
+Cheat Engine early. Every route copies at most 65,535 addresses, whatever `n`, as `AobScanRequest.MaximumResults`
+documents. `IsTruncated` reports a copy that is not proven complete: one cut by either limit, or, on the bounded route,
+a destination that filled up with rows outside the request while rows stayed unread. `FirstOrNone()` returns the first
+element in Cheat Engine's result-list order, which Cheat Engine does not specify (not the lowest address, not the first
+logical region), and never uses a "first found" scan. `RequireSingle()` copies up to two matches from an exhaustive
+scan: two copied matches are `AmbiguousMatch`, and one copied match is unique only when every row Cheat Engine returned
+was read and the copy is not truncated. Otherwise whether a second match exists is unknown, which is
+`IndeterminateHostResult`, never `AmbiguousMatch`.
 
 The terminals read `IPatternScanner.ScanDetailed`, whose metrics say whether every row Cheat Engine returned was
 read. `null`, `NotFound` and an empty `Take` result are factual zeros only: the scan succeeded, every row was read,
@@ -85,7 +86,7 @@ Abstractions  ←  Fluent
   `WithLastDigits(...)` the alignment rule.
 - Forces explicit result cardinality: `RequireSingle()`, `FirstOrNone()`, or `Take(maximumResults)`.
 - Preserves materialization-bounded copies: the limit bounds only the number of copied addresses, never Cheat
-  Engine's scan. Callers inspect `AobScanResult.IsTruncated` when a copy is intentionally incomplete.
+  Engine's scan. Callers inspect `AobScanResult.IsTruncated`, which reports a copy that is not proven complete.
 - Provides `memory.At(...)` and `memory.Batch<T>()` builders for primitive and codec-based reads and
   writes without retaining a live target handle, including exact byte copies, strings with an explicit
   `MemoryStringEncoding` and length bound (`ReadString`/`TryReadString`, `WriteString`/`TryWriteString`),

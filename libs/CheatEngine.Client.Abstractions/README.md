@@ -320,9 +320,16 @@ One scope rule applies on every route, so the same request returns the same addr
 Core resolves the module before any scan, and a request whose module and range leave no room for one whole match (a
 range that ends before the module can hold one, or a module smaller than the pattern) is refused (`OperationRejected`,
 `NotStarted`) before any scan. `AobScanRequest.MaximumResults` bounds only how many addresses Core copies; it never stops
-Cheat Engine early, and every route copies at most 65,535 addresses (`IsTruncated` reports a result cut by either
-limit). The copied order is Cheat Engine's result-list order, which Cheat Engine does not specify: the first copied
-address is not guaranteed to be the lowest address or the first logical region.
+Cheat Engine early, and every route copies at most 65,535 addresses. The copied order is Cheat Engine's result-list
+order, which Cheat Engine does not specify: the first copied address is not guaranteed to be the lowest address or the
+first logical region.
+
+`AobScanResult.IsTruncated` means that the copy is not proven complete: more matches inside the request may exist, or
+rows Cheat Engine returned were left unread. Every route sets it when it found one more match than it copied, cut by
+either limit. The bounded route also sets it when its destination filled up with rows outside the request (for example
+matches that straddle the module end) while rows stayed unread (`PatternScanMetrics.UnreadHostRowCount`): whether those
+rows hold further matches is unknown, so the same request can report the same matches as complete on the global route,
+which reads every row. `false` means that every match inside the request was copied.
 
 The memory protection and alignment of a scan are Client values: `ScanProtectionFilter` holds one
 `ScanProtectionRequirement` (`Unspecified`, `Required`, `Excluded`, `Any`) per Cheat Engine flag (executable,

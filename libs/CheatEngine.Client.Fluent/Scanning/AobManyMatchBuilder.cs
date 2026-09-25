@@ -14,7 +14,8 @@ namespace CheatEngine.Client.Scanning;
 ///     <para>
 ///         The limit bounds only how many addresses Core copies from Cheat Engine's result, and every route copies at
 ///         most 65,535 addresses whatever the limit; Cheat Engine's scan (global, or bounded to the module and range) is
-///         never stopped early. Inspect <see cref="AobScanResult.IsTruncated" /> before treating the copy as complete.
+///         never stopped early. Inspect <see cref="AobScanResult.IsTruncated" /> before treating the copy as
+///         complete: it is set when more matches may exist, or when the bounded route left rows unread.
 ///     </para>
 ///     <para>
 ///         An empty result is a factual zero: the scan succeeded, every row Cheat Engine returned was read, and none lay

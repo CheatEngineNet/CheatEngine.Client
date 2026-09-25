@@ -21,8 +21,9 @@ namespace CheatEngine.Client.Scanning;
 ///         thread and cannot be interrupted once started); otherwise Cheat Engine runs one global <c>AOBScan</c> and Core
 ///         applies the same rule while copying, which does not reduce Cheat Engine's scan time or memory.
 ///         <see cref="Take" />, <see cref="FirstOrNone" /> (1) and <see cref="RequireSingle" /> (2) bound only how many
-///         addresses Core copies (never more than 65,535, a cut reported as <see cref="AobScanResult.IsTruncated" />);
-///         they never stop Cheat Engine early.
+///         addresses Core copies (never more than 65,535); they never stop Cheat Engine early.
+///         <see cref="AobScanResult.IsTruncated" /> reports a copy that is not proven complete: more matches may
+///         exist, or rows Cheat Engine returned were left unread.
 ///     </para>
 ///     <para>
 ///         <see cref="FirstOrNone" /> returns the first element in Cheat Engine's result-list order, which Cheat Engine
@@ -263,8 +264,10 @@ public readonly struct AobScanBuilder
 	/// <remarks>
 	///     This bound applies only while Core materializes the result. It is not pushed into Cheat Engine, does not
 	///     request early termination, and does not reduce scan work. It is forwarded unchanged as
-	///     <see cref="AobScanRequest.MaximumResults" />: every route copies at most 65,535 addresses, whatever this limit,
-	///     and a result cut by that cap reports <see cref="AobScanResult.IsTruncated" />.
+	///     <see cref="AobScanRequest.MaximumResults" />: every route copies at most 65,535 addresses, whatever
+	///     this limit. <see cref="AobScanResult.IsTruncated" /> reports a copy that is not proven complete: one cut
+	///     by either limit, or, on the bounded route, a destination that filled up with rows outside the request
+	///     while rows stayed unread.
 	/// </remarks>
 	public AobManyMatchBuilder Take(int maximumResults)
 	{

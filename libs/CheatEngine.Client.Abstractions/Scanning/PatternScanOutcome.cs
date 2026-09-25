@@ -18,6 +18,12 @@ namespace CheatEngine.Client.Scanning;
 ///         <see cref="Result" /> and <see cref="Failure" /> are classified exactly as
 ///         <see cref="IPatternScanner.TryScan" /> classifies them for the same request and host behavior.
 ///     </para>
+///     <para>
+///         A successful result whose <see cref="AobScanResult.IsTruncated" /> is <see langword="true" /> is not
+///         proven complete. <see cref="Metrics" /> says why: <see cref="PatternScanMetrics.UnreadHostRowCount" />
+///         counts the rows left unread, and <see cref="PatternScanMetrics.InBoundsCountIsExact" /> says whether every
+///         row was read.
+///     </para>
 /// </remarks>
 public sealed class PatternScanOutcome
 {
