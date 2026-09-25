@@ -542,10 +542,11 @@ internal sealed class TableClient(
 		bool found = false;
 		bool succeeded = false;
 		HierarchyProblem problem = default;
+		RecordLookupStatus rootStatus = RecordLookupStatus.Success;
 		if (!TryDispatch(GetHierarchyOperation, rootId, null, () =>
 			{
-				if (_hierarchy.TryGetRoot(rootId, out ITableHierarchyRecord? root) != RecordLookupStatus.Success ||
-					root is null)
+				rootStatus = _hierarchy.TryGetRoot(rootId, out ITableHierarchyRecord? root);
+				if (rootStatus != RecordLookupStatus.Success || root is null)
 				{
 					return;
 				}
@@ -567,7 +568,11 @@ internal sealed class TableClient(
 			return true;
 		}
 
-		failure = GetHierarchyFailure(problem, found, request);
+		// A root lookup that failed is reported like every other record lookup: an unavailable Address List is
+		// CapabilityUnavailable, an absent record NotFound and a malformed one InvalidHostResult.
+		failure = rootStatus == RecordLookupStatus.Success
+			? GetHierarchyFailure(problem, found, request)
+			: LookupFailure(GetHierarchyOperation, rootStatus);
 		return false;
 	}
 

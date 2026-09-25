@@ -243,6 +243,34 @@ public sealed class TableClientLookupTests
 		Assert.Empty(second.RequestedChildren);
 	}
 
+	/// <summary>The root lookup of a hierarchy fails the way every other record lookup does.</summary>
+	[Theory]
+	[InlineData(nameof(RecordLookupStatus.AddressListUnavailable), CheatEngineFailureKind.CapabilityUnavailable,
+		"Cheat Engine's Address List capability is unavailable.")]
+	[InlineData(nameof(RecordLookupStatus.NotFound), CheatEngineFailureKind.NotFound,
+		"The requested Cheat Engine memory record was not found.")]
+	[InlineData(nameof(RecordLookupStatus.InvalidRecord), CheatEngineFailureKind.InvalidHostResult,
+		"Cheat Engine did not return the expected Address List contract.")]
+	public void AHierarchyRootLookupFailsLikeEveryRecordLookup(string status, CheatEngineFailureKind expectedKind,
+		string expectedMessage)
+	{
+		TableClient client = new(new InlineDispatcher(), CoreClientPolicy.SafeDefaults,
+			hierarchy: new FakeHierarchyPort(new FakeHierarchyRecord(12))
+			{
+				Status = Enum.Parse<RecordLookupStatus>(status)
+			});
+
+		bool succeeded = client.TryGetHierarchy(new MemoryRecordId(12), new MemoryRecordHierarchyRequest(16, 4),
+			out MemoryRecordHierarchySnapshot hierarchy, out CheatEngineFailure failure,
+			TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(default, hierarchy);
+		Assert.Equal(expectedKind, failure.Kind);
+		Assert.Equal("Tables.GetHierarchy", failure.Operation);
+		Assert.Equal(expectedMessage, failure.Message);
+	}
+
 	private static TableClient CreateClient(FakeRecordLookupPort lookups)
 	{
 		return new TableClient(new InlineDispatcher(), CoreClientPolicy.SafeDefaults, recordLookups: lookups);
@@ -355,8 +383,21 @@ public sealed class TableClientLookupTests
 
 	private sealed class FakeHierarchyPort(FakeHierarchyRecord record) : ITableHierarchyPort
 	{
+		/// <summary>Gets or sets a failed status to report instead of the lookup, or <c>Success</c> to look up.</summary>
+		internal RecordLookupStatus Status
+		{
+			get;
+			init;
+		} = RecordLookupStatus.Success;
+
 		public RecordLookupStatus TryGetRoot(MemoryRecordId id, out ITableHierarchyRecord? root)
 		{
+			if (Status != RecordLookupStatus.Success)
+			{
+				root = null;
+				return Status;
+			}
+
 			root = id == record.Id ? record : null;
 			return root is null ? RecordLookupStatus.NotFound : RecordLookupStatus.Success;
 		}
