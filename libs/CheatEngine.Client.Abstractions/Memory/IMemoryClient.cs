@@ -135,16 +135,32 @@ public interface IMemoryClient
 		CancellationToken cancellationToken = default);
 
 	/// <summary>Tries to read one typed value with the codec its request carries.</summary>
+	/// <exception cref="ArgumentException">
+	///     <paramref name="request" /> is the <see langword="default" /> request, which carries no codec. It is thrown
+	///     before the activation check and before any Cheat Engine call.
+	/// </exception>
 	public bool TryRead<T>(MemoryReadRequest<T> request, [MaybeNullWhen(false)] out T value,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default);
 
 	/// <summary>Reads one typed value with the codec its request carries, or throws when the operation fails.</summary>
+	/// <exception cref="ArgumentException">
+	///     <paramref name="request" /> is the <see langword="default" /> request, which carries no codec. It is thrown
+	///     before the activation check and before any Cheat Engine call.
+	/// </exception>
 	public T Read<T>(MemoryReadRequest<T> request, CancellationToken cancellationToken = default);
 
 	/// <summary>Tries to write one typed value with the codec its request carries.</summary>
+	/// <exception cref="ArgumentException">
+	///     <paramref name="request" /> is the <see langword="default" /> request, which carries no codec. It is thrown
+	///     before the activation check and before any Cheat Engine call.
+	/// </exception>
 	public bool TryWrite<T>(MemoryWriteRequest<T> request, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
 	/// <summary>Writes one typed value with the codec its request carries, or throws when the operation fails.</summary>
+	/// <exception cref="ArgumentException">
+	///     <paramref name="request" /> is the <see langword="default" /> request, which carries no codec. It is thrown
+	///     before the activation check and before any Cheat Engine call.
+	/// </exception>
 	public void Write<T>(MemoryWriteRequest<T> request, CancellationToken cancellationToken = default);
 }

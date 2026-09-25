@@ -3,6 +3,10 @@ using CheatEngine.SDK.Engine.Values;
 namespace CheatEngine.Client.Memory;
 
 /// <summary>An immutable typed target-memory write request.</summary>
+/// <remarks>
+///     A <see langword="default" /> request carries no codec: <see cref="IMemoryClient" /> throws an
+///     <see cref="ArgumentException" /> for it before the activation check and before any Cheat Engine call.
+/// </remarks>
 public readonly record struct MemoryWriteRequest<T>
 {
 	/// <summary>Creates a memory write request.</summary>
