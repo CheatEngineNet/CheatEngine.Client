@@ -155,23 +155,6 @@ public sealed class CoreFailureFactoryTests
 		Assert.Equal(expectedKind, CoreFailureFactory.FromEngineFailureKind(engineKind));
 	}
 
-	[Theory]
-	[InlineData(CheatEngineFailureKind.ActivationExpired)]
-	[InlineData(CheatEngineFailureKind.InvalidState)]
-	[InlineData(CheatEngineFailureKind.RuntimeChanged)]
-	public void ARefusedLuaAdmissionKeepsItsClassifiedKind(CheatEngineFailureKind kind)
-	{
-		LuaAdmissionRefusedException exception = new(new CheatEngineFailure(kind, "Lua.Contract",
-			"The Lua operation was refused.", null, CheatEngineHostEffect.NotStarted));
-
-		CheatEngineFailure failure = CoreFailureFactory.FromException("Lua.ExecuteUnsafe", exception);
-
-		Assert.Equal(kind, failure.Kind);
-		Assert.Equal("Lua.ExecuteUnsafe", failure.Operation);
-		Assert.Equal("The Lua operation was refused.", failure.Message);
-		Assert.Same(exception, failure.Exception);
-	}
-
 	[Fact]
 	public void CancelledIsTheBeforeNativeCallCancellation()
 	{

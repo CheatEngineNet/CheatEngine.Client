@@ -85,7 +85,6 @@ internal static class CoreFailureFactory
 		{
 			CheatEngineActivationExpiredException => CheatEngineFailureKind.ActivationExpired,
 			CheatEngineClientLifecycleException => CheatEngineFailureKind.InvalidState,
-			LuaAdmissionRefusedException refused => refused.Failure.Kind,
 			EngineException engine => FromEngineFailureKind(engine.Kind),
 			LuaException => CheatEngineFailureKind.LuaError,
 			// The session is busy (a Cheat Engine call is still running) or not in a state that accepts the call.
