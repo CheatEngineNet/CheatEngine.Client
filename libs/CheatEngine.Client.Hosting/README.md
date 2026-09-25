@@ -192,8 +192,11 @@ process, shown by an attached debugger or a debug-output viewer. Nothing is adde
   filters admit it **and** `HostLog.IsEnabled` accepts its host level. `HostLog.MinimumLevel` is `Information` by
   default, so `Debug` and `Trace` entries need `HostLog.MinimumLevel = HostLogLevel.Trace`.
 - By default an entry is `category[event id]: template`, the **message template** of the entry (for example
-  `Cheat Engine Client activation {Epoch} enabled.`), followed by the exception type name. Argument values and exception
-  messages are never written, because they can hold addresses, values, symbol expressions, paths, or Lua text (Q46).
+  `Cheat Engine Client activation {Epoch} enabled.`), followed by the exception type name. Placeholder values and
+  exception messages are never written, because they can hold addresses, values, symbol expressions, paths, or Lua text
+  (Q46). The template is written as the caller passed it: a message built by string interpolation, such as
+  `logger.LogInformation($"Read {address}")`, is its own template and carries its values. Plugin code keeps them out of
+  the host log only by logging constant structured templates or `LoggerMessage` methods, as the Client's own events do.
   `AddCheatEngineHostLog(options => options.IncludeFormattedMessages = true)` writes the formatted message and the
   exception instead; use it only to troubleshoot on a machine you control.
 - The provider is added once: a later call adds nothing and keeps the options of the first call.

@@ -140,6 +140,27 @@ public sealed partial class CheatEngineHostLogProviderTests : IDisposable
 		Assert.Equal(Category + "[7]", entry.Message);
 	}
 
+	/// <summary>
+	///     The documented limit of Q46: the template is the caller's text as passed, so a message whose values were
+	///     written into it before logging, as string interpolation does, reaches the host log with those values.
+	/// </summary>
+	[Fact]
+	[Trait("Qualification", "Q46")]
+	public void AMessageBuiltBeforeLoggingIsWrittenAsItsOwnTemplate()
+	{
+		using ILoggerFactory factory = CreateFactory(static _ =>
+		{
+		});
+		ILogger logger = factory.CreateLogger(Category);
+
+#pragma warning disable CA1848 // The call shape of plugin code that does not use LoggerMessage, which Q46 cannot redact.
+		logger.LogInformation(new EventId(8), $"Read {AddressMarker}.");
+#pragma warning restore CA1848
+
+		HostLogEntry entry = Assert.Single(_sink.Entries);
+		Assert.Equal($"{Category}[8]: Read {AddressMarker}.", entry.Message);
+	}
+
 	[Theory]
 	[InlineData(LogLevel.Trace, HostLogLevel.Trace)]
 	[InlineData(LogLevel.Debug, HostLogLevel.Trace)]

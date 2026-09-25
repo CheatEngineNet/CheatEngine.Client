@@ -9,9 +9,11 @@ namespace CheatEngine.Client.Hosting;
 ///     <para>
 ///         An entry is written as <c>category[event id]: text</c>. By default the text is the message template of the
 ///         entry, read from its <c>{OriginalFormat}</c> value, followed by the exception type name: argument values and
-///         exception messages, which can hold user data, are never read (audit Q46). An entry whose state carries no
-///         template is written as its category and event id only. With formatted messages enabled, the text is the
-///         formatted message and the exception is passed to the host log.
+///         exception messages, which can hold user data, are never read (audit Q46). The template is the caller's text
+///         as passed, so one built by string interpolation already carries its values; only constant structured
+///         templates keep them out. An entry whose state carries no template is written as its category and event id
+///         only. With formatted messages enabled, the text is the formatted message and the exception is passed to the
+///         host log.
 ///     </para>
 ///     <para>
 ///         <see cref="HostLog.Write" /> never throws and drops an entry that a sink writes back into it on the same

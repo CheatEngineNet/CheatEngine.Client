@@ -22,7 +22,9 @@ namespace CheatEngine.Client.Hosting;
 ///     <para>
 ///         By default an entry carries only the logger category, the event id, the message template and the exception
 ///         type name (audit Q46); <see cref="CheatEngineHostLogOptions.IncludeFormattedMessages" /> writes the formatted
-///         message and the exception instead. The host log, its sink and its minimum level belong to CheatEngine.SDK and
+///         message and the exception instead. The template is written as the caller passed it, so a message built by
+///         string interpolation carries its values: log through constant structured templates or <c>LoggerMessage</c>
+///         methods to keep them out. The host log, its sink and its minimum level belong to CheatEngine.SDK and
 ///         are shared by every plugin that loads the same SDK assemblies. A sink that routes host log entries back into
 ///         a logger that uses this provider is contained: the host log drops the re-entrant entry instead of recursing.
 ///     </para>

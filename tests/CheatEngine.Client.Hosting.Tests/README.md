@@ -32,7 +32,8 @@ snapshot, which the SDK refuses after a reset; without a reset, or when the read
 `CheatEngineHostLogProviderTests` replace CheatEngine.SDK's process-wide `HostLog` sink with a fake one, in a serial
 collection: the provider writes message templates and exception type names only by default (Q46), the formatted message
 and the exception on request, maps every `LogLevel` to a host level (`Critical` to `Error`, `None` never written),
-respects `HostLog.IsEnabled`, and is registered once.
+respects `HostLog.IsEnabled`, and is registered once. They also pin the documented limit of Q46: a message built by
+string interpolation is written as its own template, with the values it already carries.
 
 ## Run
 
