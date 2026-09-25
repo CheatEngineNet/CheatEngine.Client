@@ -534,7 +534,7 @@ public sealed class ArchitectureRatchetTests
 				}
 			}
 
-			if (DescribeSignature(reader, method).Contains("fnptr(", StringComparison.Ordinal))
+			if (DescribeSignature(method).Contains("fnptr(", StringComparison.Ordinal))
 			{
 				violations.Add($"{assembly}: {owner} exposes a function pointer in its signature.");
 			}
@@ -552,7 +552,7 @@ public sealed class ArchitectureRatchetTests
 		return violations;
 	}
 
-	private static string DescribeSignature(MetadataReader reader, MethodDefinition method)
+	private static string DescribeSignature(MethodDefinition method)
 	{
 		MethodSignature<MetadataSurface.SignatureName> signature =
 			method.DecodeSignature(new MetadataSurface.SignatureNameProvider(), null);

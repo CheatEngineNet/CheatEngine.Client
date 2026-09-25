@@ -97,7 +97,7 @@ public sealed record FakePublication(
 public sealed class FakeLuaGlobals
 {
 	[ThreadStatic]
-	private static FakeLuaGlobals? t_current;
+	private static FakeLuaGlobals? _current;
 
 	private readonly List<LuaRegistrationCollisionPolicy> _bindingsRegistrations = [];
 	private readonly Dictionary<string, FakeLuaValue> _globals = new(StringComparer.Ordinal);
@@ -111,7 +111,7 @@ public sealed class FakeLuaGlobals
 
 	/// <summary>Gets the double the replacement adapter uses on this thread.</summary>
 	public static FakeLuaGlobals Current =>
-		t_current ?? throw new InvalidOperationException("No FakeLuaGlobals is active on this thread.");
+		_current ?? throw new InvalidOperationException("No FakeLuaGlobals is active on this thread.");
 
 	public string ModuleName
 	{
@@ -214,8 +214,8 @@ public sealed class FakeLuaGlobals
 	/// <summary>Makes this double the one the replacement adapter uses on this thread until the scope is disposed.</summary>
 	public IDisposable Activate()
 	{
-		FakeLuaGlobals? previous = t_current;
-		t_current = this;
+		FakeLuaGlobals? previous = _current;
+		_current = this;
 		return new Scope(previous);
 	}
 
@@ -447,7 +447,7 @@ public sealed class FakeLuaGlobals
 	{
 		public void Dispose()
 		{
-			t_current = previous;
+			_current = previous;
 		}
 	}
 }

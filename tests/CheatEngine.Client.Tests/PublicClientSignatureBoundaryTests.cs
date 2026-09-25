@@ -414,7 +414,7 @@ public sealed class PublicClientSignatureBoundaryTests
 			return;
 		}
 
-		if (IsForbiddenSdkType(type, source, violations, declaringMember) ||
+		if (IsForbiddenSdkType(type, source, violations) ||
 			IsUnsupportedFrameworkType(type, source, violations, declaringMember))
 		{
 			return;
@@ -454,8 +454,7 @@ public sealed class PublicClientSignatureBoundaryTests
 		VerifyTypeMembers(type, source, violations, visited, ref visitedCount, depth);
 	}
 
-	private static bool IsForbiddenSdkType(Type type, string? source, List<string> violations,
-		MemberInfo? declaringMember)
+	private static bool IsForbiddenSdkType(Type type, string? source, List<string> violations)
 	{
 		Type definition = type.IsGenericType ? type.GetGenericTypeDefinition() : type;
 		string typeName = definition.FullName ?? definition.Name;
