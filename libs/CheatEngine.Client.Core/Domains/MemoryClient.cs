@@ -1078,7 +1078,9 @@ internal sealed class MemoryClient : IMemoryClient
 	{
 		internal static CodecOutcome Success => new(true, null, null);
 
-		/// <summary>Creates the outcome of a codec that returned <see langword="false" /> with its own failure.</summary>
+		/// <summary>
+		///     Creates the outcome of a codec that returned <see langword="false" /> with its own failure.
+		/// </summary>
 		/// <param name="failure">The codec's classified failure, published unchanged.</param>
 		internal static CodecOutcome FromCodecFailure(CheatEngineFailure failure)
 		{

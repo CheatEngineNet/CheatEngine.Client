@@ -45,8 +45,8 @@ internal static class SdkBoundary
 {
 	/// <summary>
 	///     Gets the SDK's sticky external Lua state reset fact (<see cref="LuaRuntime.ExternalStateResetDetected" />), the
-	///     same fact this boundary classifies faults with. Hosting reads it through the dependency-injection cleanup bridge
-	///     after the releases of a deactivation and logs event 8 when it is set (A8).
+	///     same fact this boundary classifies faults with. Hosting reads it through the dependency-injection cleanup
+	///     bridge after the releases of a deactivation and logs event 8 when it is set (A8).
 	/// </summary>
 	internal static bool ExternalStateResetDetected => LuaRuntime.ExternalStateResetDetected;
 

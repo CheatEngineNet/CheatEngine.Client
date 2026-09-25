@@ -699,8 +699,8 @@ public sealed class TryContractTests
 	[Fact]
 	public void TheExternalResetFactIsReadWithoutALuaAdmission()
 	{
-		// The fact Hosting reads when it deactivates the plugin (event 8) is the SDK's lock-free sticky flag: it needs no
-		// Lua admission and no Cheat Engine. No Lua state was ever replaced here.
+		// The fact Hosting reads when it deactivates the plugin (event 8) is the SDK's lock-free sticky flag: it needs
+		// no Lua admission and no Cheat Engine. No Lua state was ever replaced here.
 		Assert.False(SdkBoundary.ExternalStateResetDetected);
 	}
 

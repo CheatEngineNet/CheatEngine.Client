@@ -10,8 +10,8 @@ namespace CheatEngine.Client.Runtime;
 ///     <para>
 ///         No snapshot reports an external Lua state reset. Once CheatEngine.SDK detects that Cheat Engine replaced its
 ///         Lua state outside the plugin's control, it refuses every Lua admission, the snapshot's included: taking a
-///         snapshot then fails with <see cref="CheatEngine.Client.Results.CheatEngineFailureKind.RuntimeChanged" />, like
-///         all other Lua work, and Hosting logs the reset as a warning when it deactivates the plugin (event 8).
+///         snapshot then fails with <see cref="CheatEngine.Client.Results.CheatEngineFailureKind.RuntimeChanged" />,
+///         like all other Lua work, and Hosting logs the reset as a warning when it deactivates the plugin (event 8).
 ///     </para>
 /// </remarks>
 public readonly record struct CheatEngineRuntimeSnapshot

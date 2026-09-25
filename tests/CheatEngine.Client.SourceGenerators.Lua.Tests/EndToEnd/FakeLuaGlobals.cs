@@ -199,8 +199,8 @@ public sealed class FakeLuaGlobals
 	}
 
 	/// <summary>
-	///     Gets or sets what the next registration reports instead of publishing: it reads and writes nothing, and returns
-	///     this value once (a result outside the documented shape, or a kind a later SDK adds).
+	///     Gets or sets what the next registration reports instead of publishing: it reads and writes nothing, and
+	///     returns this value once (a result outside the documented shape, or a kind a later SDK adds).
 	/// </summary>
 	public FakePublication? NextPublication
 	{

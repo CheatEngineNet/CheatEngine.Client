@@ -22,10 +22,10 @@ namespace CheatEngine.Client.Tests.Architecture;
 ///     <para>
 ///         <see cref="FrozenLuaGlobals" /> and <see cref="FrozenLuaUsage" /> are the registered ADR-01 debt of the Client.
 ///         <see cref="FrozenLuaGlobals" /> is empty and stays empty: the Client binds no Cheat Engine global itself. Each
-///         <see cref="FrozenLuaUsage" /> entry states why it exists and how it ends: it names the CheatEngine.SDK primitive
-///         that is still missing, or it is permanent, which only the unsafe Lua opt-in (<c>UnsafeLuaClient</c>) may be.
-///         Shrinking a list is always allowed; growing it requires a registered exception with its own reason and the
-///         missing SDK primitive it waits for, here, not in an external document.
+///         <see cref="FrozenLuaUsage" /> entry states why it exists and how it ends: it names the CheatEngine.SDK
+///         primitive that is still missing, or it is permanent, which only the unsafe Lua opt-in
+///         (<c>UnsafeLuaClient</c>) may be. Shrinking a list is always allowed; growing it requires a registered
+///         exception with its own reason and the missing SDK primitive it waits for, here, not in an external document.
 ///     </para>
 ///     <para>
 ///         <see cref="SanctionedSdkLuaSurface" /> is the exact inventory of the typed SDK Lua API the Client is expected to
@@ -573,8 +573,9 @@ public sealed class ArchitectureRatchetTests
 	private sealed record SanctionedSdkLuaMember(string Member, string Reason, string? OnlyIn = null);
 
 	/// <summary>
-	///     How a registered ADR-01 debt entry ends: when the consumed SDK offers the missing primitive, or never, for the
-	///     unsafe Lua opt-in only. There is no transitional kind: a need the SDK already covers is routed through it.
+	///     How a registered ADR-01 debt entry ends: when the consumed SDK offers the missing primitive, or never,
+	///     for the unsafe Lua opt-in only. There is no transitional kind: a need the SDK already covers is routed
+	///     through it.
 	/// </summary>
 	private abstract record LuaDebtKind
 	{

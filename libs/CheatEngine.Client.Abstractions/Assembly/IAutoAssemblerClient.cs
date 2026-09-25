@@ -89,9 +89,9 @@ public interface IAutoAssemblerClient
 	///     <see cref="CheatEngineHostEffect.Unknown" /> and Cheat Engine's bounded error text is in
 	///     <see cref="CheatEngineFailure.Message" />. When Cheat Engine applied the script but the selected target no
 	///     longer matched right after, the lease is still returned with
-	///     <see cref="IAutoAssemblerPatchLease.AppliedAfterTargetChange" /> set, and the Client logs a warning. A script
-	///     applied without an owner (<see cref="CheatEngineFailureKind.IndeterminateHostResult" />), and a failed
-	///     activation whose owner was released incompletely, report
+	///     <see cref="IAutoAssemblerPatchLease.AppliedAfterTargetChange" /> set, and the Client logs a warning. A
+	///     script applied without an owner (<see cref="CheatEngineFailureKind.IndeterminateHostResult" />), and a
+	///     failed activation whose owner was released incompletely, report
 	///     <see cref="CheatEngineHostEffect.CleanupUnconfirmed" />: the patch may remain in the target.
 	/// </remarks>
 	public bool TryApplyPatch(AutoAssemblerScript script, [NotNullWhen(true)] out IAutoAssemblerPatchLease? lease,
