@@ -527,7 +527,7 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 			? new LeaseReleaseOutcome(LeaseReleaseKind.Released, CheatEngineHostEffect.Completed)
 			: null;
 
-		public LuaModuleReleaseOutcome? ModuleReleaseOutcome => null;
+		public LuaModuleReleaseOutcome? LastModuleReleaseOutcome => null;
 
 		public LeaseReleaseOutcome Release()
 		{

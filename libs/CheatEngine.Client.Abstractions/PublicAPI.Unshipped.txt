@@ -82,7 +82,7 @@ CheatEngine.Client.Lua.ILuaModule.Descriptor.get -> CheatEngine.Client.Lua.LuaMo
 CheatEngine.Client.Lua.ILuaModule.Register() -> void
 CheatEngine.Client.Lua.ILuaModule.Unregister() -> CheatEngine.Client.Lua.LuaModuleReleaseOutcome!
 CheatEngine.Client.Lua.ILuaModuleLease
-CheatEngine.Client.Lua.ILuaModuleLease.ModuleReleaseOutcome.get -> CheatEngine.Client.Lua.LuaModuleReleaseOutcome?
+CheatEngine.Client.Lua.ILuaModuleLease.LastModuleReleaseOutcome.get -> CheatEngine.Client.Lua.LuaModuleReleaseOutcome?
 CheatEngine.Client.Lua.ILuaOperation<TResult>
 CheatEngine.Client.Lua.ILuaOperation<TResult>.TryExecute(CheatEngine.Client.Lua.ILuaExecutionContext! context, out TResult result, out CheatEngine.Client.Results.CheatEngineFailure failure) -> bool
 CheatEngine.Client.Lua.ILuaResultMapper<TSource, TResult>

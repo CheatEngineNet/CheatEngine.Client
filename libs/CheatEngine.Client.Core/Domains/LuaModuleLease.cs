@@ -42,7 +42,7 @@ internal sealed class LuaModuleLease : HostResourceLease, ILuaModuleLease
 		_releaseReservation = releaseReservation ?? throw new ArgumentNullException(nameof(releaseReservation));
 	}
 
-	public LuaModuleReleaseOutcome? ModuleReleaseOutcome
+	public LuaModuleReleaseOutcome? LastModuleReleaseOutcome
 	{
 		get
 		{

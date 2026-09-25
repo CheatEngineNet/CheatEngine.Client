@@ -535,7 +535,7 @@ public sealed class LuaModuleRegistrationTests
 			unavailable);
 		Assert.False(lease.IsReleased);
 		Assert.Single(tracked, lease);
-		Assert.Null(lease.ModuleReleaseOutcome);
+		Assert.Null(lease.LastModuleReleaseOutcome);
 		Assert.Equal(["diagnostics.register"], module.Events);
 
 		dispatcher.TryInvokeFailure = null;
@@ -567,7 +567,7 @@ public sealed class LuaModuleRegistrationTests
 		Assert.True(lease.IsReleased);
 		Assert.Equal(new LeaseReleaseOutcome(LeaseReleaseKind.CleanupUnconfirmed, CheatEngineHostEffect.Unknown),
 			lease.LastReleaseOutcome);
-		Assert.Null(lease.ModuleReleaseOutcome);
+		Assert.Null(lease.LastModuleReleaseOutcome);
 		// Incomplete: the activation keeps tracking it so the deactivation report carries it.
 		Assert.Single(tracked, lease);
 		Assert.Equal(["diagnostics.register", "diagnostics.unregister"], module.Events);
@@ -601,7 +601,7 @@ public sealed class LuaModuleRegistrationTests
 		Assert.Equal(new LeaseReleaseOutcome(kind, hostEffect), outcome);
 		Assert.True(outcome.RequiresManualRecovery);
 		Assert.True(lease.IsReleased);
-		Assert.Same(reported, lease.ModuleReleaseOutcome);
+		Assert.Same(reported, lease.LastModuleReleaseOutcome);
 		Assert.Single(tracked, lease);
 		Assert.Equal(outcome, lease.Release());
 		Assert.Equal(["diagnostics.register", "diagnostics.unregister"], module.Events);
@@ -629,7 +629,7 @@ public sealed class LuaModuleRegistrationTests
 		Assert.Equal(new LeaseReleaseOutcome(LeaseReleaseKind.CleanupUnconfirmed, CheatEngineHostEffect.Started), outcome);
 		Assert.False(outcome.IsRetryable);
 		Assert.True(lease.IsReleased);
-		Assert.Same(unconfirmed, lease.ModuleReleaseOutcome);
+		Assert.Same(unconfirmed, lease.LastModuleReleaseOutcome);
 		Assert.Equal(outcome, retry);
 		context.Stop();
 		using (lifetime.EnterCleanupScope())
@@ -663,8 +663,8 @@ public sealed class LuaModuleRegistrationTests
 
 		Assert.Equal(new LeaseReleaseOutcome(LeaseReleaseKind.Released, CheatEngineHostEffect.Completed), outcome);
 		Assert.Equal(outcome, clientLease.LastReleaseOutcome);
-		Assert.Same(reported, lease.ModuleReleaseOutcome);
-		Assert.Equal(1, lease.ModuleReleaseOutcome!.ReplacementCount);
+		Assert.Same(reported, lease.LastModuleReleaseOutcome);
+		Assert.Equal(1, lease.LastModuleReleaseOutcome!.ReplacementCount);
 	}
 
 	[Fact]
@@ -719,7 +719,7 @@ public sealed class LuaModuleRegistrationTests
 			refused);
 		Assert.True(refused.IsRetryable);
 		Assert.False(lease.IsReleased);
-		Assert.Same(unavailable, lease.ModuleReleaseOutcome);
+		Assert.Same(unavailable, lease.LastModuleReleaseOutcome);
 		Assert.Single(tracked, lease);
 		// The module still owns its registration, so its names stay reserved.
 		Assert.False(client.TryRegisterModule(contender, out _, out _, TestContext.Current.CancellationToken));

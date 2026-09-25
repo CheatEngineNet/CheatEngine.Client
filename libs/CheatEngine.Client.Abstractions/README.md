@@ -59,7 +59,8 @@ namespaces only:
 | `.Memory`                    | bounded primitive, byte, string, codec, and pointer-chain operations        |
 | `.Scanning`                  | AOB contracts and the value-scan session contract                           |
 | `.Tables`                    | copied Address List records and explicitly trusted table I/O requests       |
-| `.Lua` / `.Modules`          | typed protected Lua operations, explicit modules, and leases                |
+| `.Lua`                       | typed protected Lua operations, Lua modules and their leases                |
+| `.Modules`                   | client modules (`ICheatEngineClientModule`) that compose an activation      |
 | `.Allocations` / `.Assembly` | selection-bound allocation, instructions, and reversible patch leases       |
 | `.Results`                   | classified expected failures, exceptions, and lease release outcomes        |
 
@@ -876,6 +877,7 @@ signature. Because these types are part of the Client's signatures, moving to Ch
 | Effect ran to completion | `Completed` (`CheatEngineHostEffect`, `MemoryBatchWriteEffectState`) | `Complete` |
 | Size of the request | `RequestedCount`, `RequestedLength` | `AttemptedCount` |
 | Done so far | `CompletedCount`, `ConfirmedLength` | — |
+| Last release attempt | `LastReleaseOutcome` (every lease), `LastModuleReleaseOutcome` (what a Lua module reported) | `ModuleReleaseOutcome` |
 | Rows the host reported | `ResultCount` (value scans), `HostResultCount` (AOB), `RecordCount` (tables) | `TotalCount` |
 | Local operating-system catalog | `Local*` (`LocalProcessId`, `LocalProcessSnapshot`, `GetLocalProcesses`) | `ProcessInfo*` |
 | Cheat Engine's target | `Process*` (`ProcessSnapshot`, `IProcessClient`) | — |
@@ -917,7 +919,8 @@ already-`nil` global, left untouched), `RestoredCount` (always `0` for a generat
 `FailedExports` of a partial release, which is never retried. A manual `ILuaModule` reports its release with the
 `LuaModuleReleaseOutcome` factories. The outcome holds copied names and counts only. `ILuaModuleLease` is an
 `ICheatEngineLease`: its `Release()` calls `Unregister()` on Cheat Engine's main thread, keeps the reported outcome in
-`ModuleReleaseOutcome`, and returns the same kind with its host effect (`Completed` for `Released`, `Started` for
-`PartiallyReleased` and `CleanupUnconfirmed`, `NotStarted` for a release that wrote nothing); an exception thrown by a
-module is `CleanupUnconfirmed`. Only `CleanupUnavailable` and `Unknown` keep the lease active for a retry. This behavior is covered by managed tests against a double of the SDK registration set (C1); it is
-not a host qualification.
+`LastModuleReleaseOutcome` next to the lease's `LastReleaseOutcome`, and returns the same kind with its host effect
+(`Completed` for `Released`, `Started` for `PartiallyReleased` and `CleanupUnconfirmed`, `NotStarted` for a release that
+wrote nothing); an exception thrown by a module is `CleanupUnconfirmed`. Only `CleanupUnavailable` and `Unknown` keep
+the lease active for a retry. This behavior is covered by managed tests against a double of the SDK registration set
+(C1); it is not a host qualification.

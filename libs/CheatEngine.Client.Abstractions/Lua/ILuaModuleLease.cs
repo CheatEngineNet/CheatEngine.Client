@@ -31,7 +31,7 @@ public interface ILuaModuleLease : ICheatEngineLease
 	///     <see cref="ICheatEngineLease.LastReleaseOutcome" /> summarizes as a kind and a host effect. A release that could
 	///     not be dispatched, or whose module threw, leaves it unchanged.
 	/// </remarks>
-	public LuaModuleReleaseOutcome? ModuleReleaseOutcome
+	public LuaModuleReleaseOutcome? LastModuleReleaseOutcome
 	{
 		get;
 	}
