@@ -336,7 +336,43 @@ public sealed class AutoAssemblerClientTests : IDisposable
 				client.TryApplyPatch(new AutoAssemblerScript(Script), out _, out _, Token));
 		}
 
+		// Unlike an allocation, an activation is admitted with ThrowIfInactive, which makes no exception for a cleanup
+		// scope: the admission refuses it before anything is dispatched, and nothing is applied or released.
+		Assert.Equal(0, _invoker.Calls);
 		Assert.Equal(0, _port.ApplyCalls);
+		Assert.Equal(0, _port.Owner!.ReleaseCalls);
+	}
+
+	[Theory]
+	[Trait("Qualification", "Q43")]
+	[InlineData(false, typeof(CheatEngineClientLifecycleException))]
+	[InlineData(true, typeof(CheatEngineActivationExpiredException))]
+	public void AnActivationThatStopsOrEndsAfterItsAdmissionIsRefusedBeforeCheatEngineApplies(bool ends,
+		Type expected)
+	{
+		AutoAssemblerClient client = CreateClient();
+		// The admission and the dispatch let the activation through; it stops or ends before the callback runs on
+		// Cheat Engine's main thread, so only the callback's own check can refuse it.
+		_invoker.BeforeCallback = () =>
+		{
+			if (ends)
+			{
+				_context.IsCurrent = false;
+			}
+			else
+			{
+				_context.Stop();
+			}
+		};
+
+		CheatEngineClientException refused = Assert.ThrowsAny<CheatEngineClientException>(() =>
+			client.TryApplyPatch(new AutoAssemblerScript(Script), out _, out _, Token));
+
+		Assert.IsType(expected, refused);
+		Assert.Equal(AutoAssemblerClient.ApplyOperation, refused.Failure.Operation);
+		Assert.Equal(1, _invoker.Calls);
+		Assert.Equal(0, _port.ApplyCalls);
+		Assert.Equal(0, _port.Owner!.ReleaseCalls);
 	}
 
 	[Theory]
@@ -650,6 +686,13 @@ public sealed class AutoAssemblerClientTests : IDisposable
 			set;
 		}
 
+		/// <summary>Gets or sets work that runs once the dispatch was admitted, before the callback.</summary>
+		internal Action? BeforeCallback
+		{
+			get;
+			set;
+		}
+
 		public Exception? Invoke(Action callback)
 		{
 			return Invoke<bool>(() =>
@@ -671,6 +714,7 @@ public sealed class AutoAssemblerClientTests : IDisposable
 			_depth++;
 			try
 			{
+				BeforeCallback?.Invoke();
 				return new MainThreadInvocationResult<T>(callback(), null);
 			}
 			catch (Exception exception)
