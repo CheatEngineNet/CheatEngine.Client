@@ -4,7 +4,9 @@ namespace CheatEngine.Client.Tests.Packaging;
 
 /// <summary>One fenced C# block of a README.</summary>
 /// <param name="Line">The 1-based line of the opening fence.</param>
-/// <param name="NoCompile">Whether the block is marked <c>csharp nocompile</c>, with a written reason next to it.</param>
+/// <param name="NoCompile">
+///     Whether the block is marked <c>csharp nocompile</c>, with a written reason next to it.
+/// </param>
 /// <param name="Code">The code between the fences.</param>
 internal sealed record ReadmeCodeBlock(int Line, bool NoCompile, string Code);
 
@@ -13,10 +15,10 @@ internal sealed record ReadmeCodeBlockSet(IReadOnlyList<ReadmeCodeBlock> Blocks,
 
 /// <summary>
 ///     Reads the fenced C# code blocks of a Markdown file, as CommonMark delimits them: a fence of at least three
-///     backticks or tildes, indented by at most three spaces, closed by a fence of the same character that is at least as
-///     long. A C# block is labelled <c>csharp</c>, so that <see cref="ReadmeSnippetCompilationTests" /> compiles it. A
-///     block that deliberately does not compile is labelled <c>csharp nocompile</c>, and the line right above its opening
-///     fence gives the reason: <c>&lt;!-- nocompile: the reason --&gt;</c>.
+///     backticks or tildes, indented by at most three spaces, closed by a fence of the same character that is at least
+///     as long. A C# block is labelled <c>csharp</c>, so that <see cref="ReadmeSnippetCompilationTests" /> compiles it.
+///     A block that deliberately does not compile is labelled <c>csharp nocompile</c>, and the line right above its
+///     opening fence gives the reason: <c>&lt;!-- nocompile: the reason --&gt;</c>.
 /// </summary>
 internal static partial class ReadmeCodeBlocks
 {
@@ -59,7 +61,8 @@ internal static partial class ReadmeCodeBlocks
 			string language = info.Length > 0 ? info[0] : string.Empty;
 			if (OtherCSharpLabels.Contains(language, StringComparer.OrdinalIgnoreCase))
 			{
-				problems.Add($"line {line}: label a C# block '{CSharpLanguage}', not '{language}', so that it is compiled.");
+				problems.Add(
+					$"line {line}: label a C# block '{CSharpLanguage}', not '{language}', so that it is compiled.");
 			}
 			else if (string.Equals(language, CSharpLanguage, StringComparison.OrdinalIgnoreCase))
 			{
@@ -72,14 +75,15 @@ internal static partial class ReadmeCodeBlocks
 					}
 					else
 					{
-						problems.Add($"line {line}: unknown code block option '{word}' (only '{NoCompileWord}' exists).");
+						problems.Add(
+							$"line {line}: unknown code block option '{word}' (only '{NoCompileWord}' exists).");
 					}
 				}
 
 				if (noCompile && !HasNoCompileReason(lines, index))
 				{
-					problems.Add($"line {line}: a '{CSharpLanguage} {NoCompileWord}' block needs its reason on the line " +
-								 $"right above it: <!-- {NoCompileWord}: the reason -->.");
+					problems.Add($"line {line}: a '{CSharpLanguage} {NoCompileWord}' block needs its reason on the " +
+								 $"line right above it: <!-- {NoCompileWord}: the reason -->.");
 				}
 
 				blocks.Add(new ReadmeCodeBlock(line, noCompile, string.Join('\n', lines[(index + 1)..closing])));

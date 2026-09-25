@@ -9,9 +9,10 @@ namespace CheatEngine.Client.Tests.Packaging;
 ///     Every <c>csharp</c> block of the README that each packed package publishes on nuget.org, and of the repository
 ///     README, compiles against the packed Client. The blocks of one README form one plugin project, as a plugin author
 ///     would copy them: the documented references (CheatEngine.Client, CheatEngine.SDK and
-///     Microsoft.Extensions.Configuration.Json), the template's <c>Nullable</c> and <c>ImplicitUsings</c> settings, and
-///     warnings as errors. A README that declares a <c>[CheatEnginePlugin]</c> type also runs the Hosting plugin profile
-///     checks. A <c>csharp nocompile</c> block is skipped only with its written reason (<see cref="ReadmeCodeBlocks" />).
+///     Microsoft.Extensions.Configuration.Json), the template's <c>Nullable</c> and <c>ImplicitUsings</c> settings,
+///     and warnings as errors. A README that declares a <c>[CheatEnginePlugin]</c> type also runs the Hosting plugin
+///     profile checks. A <c>csharp nocompile</c> block is skipped only with its written reason
+///     (<see cref="ReadmeCodeBlocks" />).
 /// </summary>
 [Collection(PackageConsumptionSmokeSerialGroup.Name)]
 [Trait("Category", "PackageConsumption")]
@@ -49,7 +50,8 @@ public sealed class ReadmeSnippetCompilationTests(PackagedClientFeedFixture fixt
 
 		string directory = fixture.CreateDirectory($"readme-snippets-{readme.Replace('.', '-')}");
 		string project = Path.Combine(directory, "Readme.Snippets.csproj");
-		bool declaresPlugin = compiled.Any(static block => block.Code.Contains(PluginAttribute, StringComparison.Ordinal));
+		bool declaresPlugin =
+			compiled.Any(static block => block.Code.Contains(PluginAttribute, StringComparison.Ordinal));
 		await File.WriteAllTextAsync(project, CreateProject(declaresPlugin), new UTF8Encoding(false),
 			TestContext.Current.CancellationToken);
 		foreach (ReadmeCodeBlock block in compiled)

@@ -124,7 +124,8 @@ public sealed class PositionCodec : IMemoryCodec<Position>
         return true;
     }
 
-    public bool TryWrite(IMemoryWriteContext context, Address address, in Position value, out CheatEngineFailure failure)
+    public bool TryWrite(
+        IMemoryWriteContext context, Address address, in Position value, out CheatEngineFailure failure)
     {
         Span<byte> bytes = stackalloc byte[8];
         BinaryPrimitives.WriteSingleLittleEndian(bytes, value.X);
