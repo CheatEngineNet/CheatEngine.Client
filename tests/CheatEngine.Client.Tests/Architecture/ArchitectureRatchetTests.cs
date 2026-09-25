@@ -2,7 +2,6 @@ using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
 using System.Runtime.InteropServices;
-using System.Text.RegularExpressions;
 
 using CheatEngine.Client.Tables;
 
@@ -23,11 +22,10 @@ namespace CheatEngine.Client.Tests.Architecture;
 ///     <para>
 ///         <see cref="FrozenLuaGlobals" /> and <see cref="FrozenLuaUsage" /> are the registered ADR-01 debt of the Client.
 ///         <see cref="FrozenLuaGlobals" /> is empty and stays empty: the Client binds no Cheat Engine global itself. Each
-///         <see cref="FrozenLuaUsage" /> entry states why it exists and how it ends: the CheatEngine.SDK primitive that
-///         replaces it and the plan lot that removes it, the SDK primitive that is still missing, or a permanent reason.
-///         The replacing members are resolved in the consumed SDK, so a stale name fails here. Shrinking a list is always
-///         allowed; growing it requires a registered exception with its own reason and its replacing or missing SDK
-///         primitive, here, not in an external document.
+///         <see cref="FrozenLuaUsage" /> entry states why it exists and how it ends: it names the CheatEngine.SDK primitive
+///         that is still missing, or it is permanent, which only the unsafe Lua opt-in (<c>UnsafeLuaClient</c>) may be.
+///         Shrinking a list is always allowed; growing it requires a registered exception with its own reason and the
+///         missing SDK primitive it waits for, here, not in an external document.
 ///     </para>
 ///     <para>
 ///         <see cref="SanctionedSdkLuaSurface" /> is the exact inventory of the typed SDK Lua API the Client is expected to
@@ -35,11 +33,11 @@ namespace CheatEngine.Client.Tests.Architecture;
 ///         too: an unused member leaves it, and a new one is a reviewed addition.
 ///     </para>
 /// </remarks>
-public sealed partial class ArchitectureRatchetTests
+public sealed class ArchitectureRatchetTests
 {
 	private const string Adr01Guidance =
 		"ADR-01 exception: register it in the ratchet (tests/CheatEngine.Client.Tests/Architecture) with its reason and " +
-		"the CheatEngine.SDK primitive that replaces it or is missing, or route the work through the SDK.";
+		"the CheatEngine.SDK primitive that is missing, or route the work through the SDK.";
 
 	private const string TableClientType = "CheatEngine.Client.Core.Domains.TableClient";
 
@@ -304,9 +302,6 @@ public sealed partial class ArchitectureRatchetTests
 					when !entry.Usage.StartsWith(UnsafeLuaClientType + " -> ", StringComparison.Ordinal):
 					violations.Add($"{entry.Usage} is Permanent; only UnsafeLuaClient may be.");
 					break;
-				case LuaDebtKind.Transitional transitional:
-					violations.AddRange(FindUnresolvedReplacement(entry.Usage, transitional.Replacement));
-					break;
 				case LuaDebtKind.AwaitingSdkPrimitive awaiting when string.IsNullOrWhiteSpace(awaiting.Primitive):
 					violations.Add($"{entry.Usage} does not name the missing SDK primitive.");
 					break;
@@ -506,29 +501,6 @@ public sealed partial class ArchitectureRatchetTests
 			   member.Contains("::PushUncheckedFunction(", StringComparison.Ordinal);
 	}
 
-	/// <summary>Resolves a replacement in the consumed SDK and returns the violations of one ratchet entry.</summary>
-	private static IEnumerable<string> FindUnresolvedReplacement(string entry, SdkReplacement replacement)
-	{
-		if (!LotPattern().IsMatch(replacement.Lot))
-		{
-			yield return $"{entry}: '{replacement.Lot}' is not a plan lot (L<number>).";
-		}
-
-		if (ConsumedSdkAssemblies.FindPublicType(replacement.Type) is not { } type)
-		{
-			yield return $"{entry}: {replacement.Type} is not a public type of the consumed CheatEngine.SDK.";
-			yield break;
-		}
-
-		foreach (string member in replacement.Members)
-		{
-			if (type.GetMember(member, BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance).Length == 0)
-			{
-				yield return $"{entry}: {replacement} names no public member {type.Name}.{member} in the consumed SDK.";
-			}
-		}
-	}
-
 	private static List<string> FindNativeImports(string assemblyPath)
 	{
 		List<string> violations = [];
@@ -588,9 +560,6 @@ public sealed partial class ArchitectureRatchetTests
 			   signature.ReturnType.Display;
 	}
 
-	[GeneratedRegex("^L[1-9][0-9]*$", RegexOptions.CultureInvariant, 1000)]
-	private static partial Regex LotPattern();
-
 	/// <summary>One registered ADR-01 debt entry: a direct SDK Lua-stack or ownership use, why, and how it ends.</summary>
 	private sealed record FrozenLuaUse(string Usage, string Reason, LuaDebtKind Kind)
 	{
@@ -603,25 +572,14 @@ public sealed partial class ArchitectureRatchetTests
 	/// <summary>A typed SDK Lua member the Client uses, why, and the single Client type allowed to use it, if any.</summary>
 	private sealed record SanctionedSdkLuaMember(string Member, string Reason, string? OnlyIn = null);
 
-	/// <summary>The CheatEngine.SDK members that replace a registered exception, and the plan lot that adopts them.</summary>
-	private sealed record SdkReplacement(string Type, string Lot, string[] Members)
-	{
-		/// <summary>Formats the replacement as <c>Type.Member (Lot)</c>, for example
-		///     <c>CheatTableFiles.TryLoad (L13)</c>.</summary>
-		public override string ToString()
-		{
-			return $"{Type[(Type.LastIndexOf('.') + 1)..]}.{string.Join(" and ", Members)} ({Lot})";
-		}
-	}
-
-	/// <summary>How a registered ADR-01 debt entry ends.</summary>
+	/// <summary>
+	///     How a registered ADR-01 debt entry ends: when the consumed SDK offers the missing primitive, or never, for the
+	///     unsafe Lua opt-in only. There is no transitional kind: a need the SDK already covers is routed through it.
+	/// </summary>
 	private abstract record LuaDebtKind
 	{
 		/// <summary>Kept by design: the SDK offers no replacement and the Client deliberately exposes the capability.</summary>
 		internal sealed record Permanent : LuaDebtKind;
-
-		/// <summary>Removed by a plan lot that adopts the named SDK replacement.</summary>
-		internal sealed record Transitional(SdkReplacement Replacement) : LuaDebtKind;
 
 		/// <summary>Kept until the consumed SDK offers the named primitive.</summary>
 		internal sealed record AwaitingSdkPrimitive(string Primitive) : LuaDebtKind;

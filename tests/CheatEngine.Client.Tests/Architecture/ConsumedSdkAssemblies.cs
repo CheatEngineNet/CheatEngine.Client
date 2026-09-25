@@ -14,14 +14,6 @@ internal static class ConsumedSdkAssemblies
 	/// <summary>Every referenced SDK runtime assembly, ordered by simple name.</summary>
 	internal static IReadOnlyList<ReflectionAssembly> All => LazyAll.Value;
 
-	/// <summary>Finds a public SDK type by its full metadata name.</summary>
-	/// <returns>The type, or <see langword="null" /> when no referenced SDK assembly exports it.</returns>
-	internal static Type? FindPublicType(string fullName)
-	{
-		return All.Select(assembly => assembly.GetType(fullName, throwOnError: false))
-			.FirstOrDefault(static type => type is { IsPublic: true } or { IsNestedPublic: true });
-	}
-
 	private static ReflectionAssembly[] Load()
 	{
 		return
