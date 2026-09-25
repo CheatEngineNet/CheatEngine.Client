@@ -62,6 +62,33 @@ public sealed class TableClientCoverageTests
 	}
 
 	[Fact]
+	public void DefaultCollectionAndHierarchyRequestsAreRefusedWithoutDispatching()
+	{
+		RejectingDispatcher dispatcher = new(Failure());
+		TableClient client = CreateClient(dispatcher);
+		CancellationToken token = TestContext.Current.CancellationToken;
+
+		Assert.False(client.TryGetSnapshot(default, out AddressTableSnapshot table,
+			out CheatEngineFailure snapshotFailure, token));
+		Assert.False(client.TryFind(new MemoryRecordSearch("Ammo"), default,
+			out ImmutableArray<MemoryRecordSnapshot> records, out CheatEngineFailure findFailure, token));
+		Assert.False(client.TryGetHierarchy(new MemoryRecordId(42), default,
+			out MemoryRecordHierarchySnapshot hierarchy, out CheatEngineFailure hierarchyFailure, token));
+
+		Assert.Equal(default, table);
+		Assert.True(records.IsEmpty);
+		Assert.Equal(default, hierarchy);
+		Assert.Equal(("Tables.GetSnapshot", "Tables.Find", "Tables.GetHierarchy"),
+			(snapshotFailure.Operation, findFailure.Operation, hierarchyFailure.Operation));
+		Assert.All([snapshotFailure, findFailure, hierarchyFailure], static failure =>
+		{
+			Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
+			Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
+		});
+		Assert.Equal(0, dispatcher.InvocationCount);
+	}
+
+	[Fact]
 	public void NegativeRecordIndexIsRejectedBeforeTheAddressListIsRead()
 	{
 		RejectingDispatcher dispatcher = new(Failure());

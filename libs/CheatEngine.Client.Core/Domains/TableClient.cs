@@ -524,6 +524,14 @@ internal sealed class TableClient(
 		out MemoryRecordHierarchySnapshot hierarchy, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
+		if (request.MaximumItems <= 0 || request.MaximumDepth <= 0)
+		{
+			// Only the default request allows no record and no level: its constructor refuses both.
+			hierarchy = default;
+			failure = DefaultRequestFailure(GetHierarchyOperation);
+			return false;
+		}
+
 		if (IsStale(GetHierarchyOperation, rootId, out failure))
 		{
 			hierarchy = default;
@@ -699,6 +707,14 @@ internal sealed class TableClient(
 	private bool TryCopyTopLevel(string operation, MemoryRecordCollectionRequest request,
 		out AddressTableSnapshot table, out CheatEngineFailure failure, CancellationToken cancellationToken)
 	{
+		if (request.MaximumItems <= 0)
+		{
+			// Only the default request allows no record: its constructor refuses a limit below one.
+			table = default;
+			failure = DefaultRequestFailure(operation);
+			return false;
+		}
+
 		AddressTableSnapshot captured = default;
 		RecordLookupStatus status = RecordLookupStatus.InvalidRecord;
 		if (!TryDispatch(operation, null, null,
@@ -1020,6 +1036,14 @@ internal sealed class TableClient(
 			RecordLookupStatus.InvalidRecord => HostFailure(operation),
 			_ => HostFailure(operation)
 		};
+	}
+
+	/// <summary>Creates the refusal of a default collection or hierarchy request, before any Cheat Engine call.</summary>
+	private static CheatEngineFailure DefaultRequestFailure(string operation)
+	{
+		return new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, operation,
+			"A memory-record request must allow at least one record; the default request allows none.", null,
+			CheatEngineHostEffect.NotStarted);
 	}
 
 	private static CheatEngineFailure ResultLimitFailure(string operation, int maximumItems)

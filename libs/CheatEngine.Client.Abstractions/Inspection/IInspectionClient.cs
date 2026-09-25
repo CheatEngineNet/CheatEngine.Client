@@ -9,8 +9,16 @@ namespace CheatEngine.Client.Inspection;
 
 /// <summary>Reads copied modules, sections, symbols, and memory regions from the selected Cheat Engine target.</summary>
 /// <remarks>
-///     <b>Call-only.</b> The Client implements this interface and applications call it. A minor release can add members
-///     to it, so implement it only in a test double.
+///     <para>
+///         <b>Call-only.</b> The Client implements this interface and applications call it. A minor release can add
+///         members to it, so implement it only in a test double.
+///     </para>
+///     <para>
+///         A <see langword="default" /> <see cref="InspectionCollectionRequest" />, which allows no item, and a
+///         <see langword="default" /> <see cref="SymbolRegistration" />, which names no symbol, are refused with
+///         <see cref="CheatEngineFailureKind.OperationRejected" /> and <see cref="CheatEngineHostEffect.NotStarted" />
+///         before any Cheat Engine call.
+///     </para>
 /// </remarks>
 public interface IInspectionClient
 {

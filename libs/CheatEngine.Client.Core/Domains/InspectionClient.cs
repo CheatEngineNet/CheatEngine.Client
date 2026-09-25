@@ -36,6 +36,12 @@ internal sealed class InspectionClient(
 		out ImmutableArray<ModuleInfo> modules, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
+		if (IsDefault(request, "Inspection.GetModules", out failure))
+		{
+			modules = [];
+			return false;
+		}
+
 		ImmutableArray<ModuleInfo> result = ImmutableArray<ModuleInfo>.Empty;
 		InspectionStatus status = InspectionStatus.InvalidResult;
 		if (!SdkBoundary.TryInvoke(_dispatcher, "Inspection.GetModules", () =>
@@ -75,6 +81,12 @@ internal sealed class InspectionClient(
 		out ImmutableArray<ModuleSectionInfo> sections, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
+		if (IsDefault(request, "Inspection.GetModuleSections", out failure))
+		{
+			sections = [];
+			return false;
+		}
+
 		ImmutableArray<ModuleSectionInfo> result = ImmutableArray<ModuleSectionInfo>.Empty;
 		InspectionStatus status = InspectionStatus.InvalidResult;
 		if (!SdkBoundary.TryInvoke(_dispatcher, "Inspection.GetModuleSections", () =>
@@ -112,6 +124,12 @@ internal sealed class InspectionClient(
 		out ImmutableArray<MemoryRegionInfo> regions, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
+		if (IsDefault(request, "Inspection.GetMemoryRegions", out failure))
+		{
+			regions = [];
+			return false;
+		}
+
 		ImmutableArray<MemoryRegionInfo> result = [];
 		InspectionStatus status = InspectionStatus.InvalidResult;
 		if (!SdkBoundary.TryInvoke(_dispatcher, "Inspection.GetMemoryRegions", () =>
@@ -242,6 +260,15 @@ internal sealed class InspectionClient(
 	{
 		lease = null;
 		_lifetime.ThrowIfInactive(RegisterOperation);
+		if (registration.Name is null)
+		{
+			// Only the default registration has no name: its constructor refuses an empty one.
+			failure = new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, RegisterOperation,
+				"A symbol registration must name the symbol; the default registration has no name.", null,
+				CheatEngineHostEffect.NotStarted);
+			return false;
+		}
+
 		if (!TryReserveSymbolName(registration.Name, out failure))
 		{
 			return false;
@@ -320,6 +347,24 @@ internal sealed class InspectionClient(
 
 		failure.Throw(cancellationToken);
 		return default;
+	}
+
+	/// <summary>
+	///     Refuses the default collection request, which allows no item, before dispatch: its constructor refuses a limit
+	///     below one, and a copy into no room would otherwise reach Cheat Engine only to exceed it.
+	/// </summary>
+	private static bool IsDefault(InspectionCollectionRequest request, string operation, out CheatEngineFailure failure)
+	{
+		if (request.MaximumItems > 0)
+		{
+			failure = default;
+			return false;
+		}
+
+		failure = new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, operation,
+			"An inspection collection request must allow at least one item; the default request allows none.", null,
+			CheatEngineHostEffect.NotStarted);
+		return true;
 	}
 
 	/// <summary>Maps an SDK inspection status by value; internal so the Q48 contract tests can prove it is total.</summary>

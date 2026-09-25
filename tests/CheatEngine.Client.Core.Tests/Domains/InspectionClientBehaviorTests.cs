@@ -602,6 +602,42 @@ public sealed class InspectionClientBehaviorTests
 		Assert.Equal(0, port.ExplicitProcessModuleCalls);
 	}
 
+	[Fact]
+	public void DefaultCollectionRequestsAndRegistrationsAreRefusedBeforeDispatch()
+	{
+		using ControlledCoreLifetimeContext context = new();
+		using CoreLifetime lifetime = new(context);
+		FakeInspectionPort port = new();
+		CountingMainThreadInvoker invoker = new();
+		InspectionClient client = new(new SdkMainThreadDispatcher(lifetime, invoker), lifetime, port);
+		CancellationToken token = TestContext.Current.CancellationToken;
+
+		Assert.False(client.TryGetModules(default, null, out ImmutableArray<ModuleInfo> modules,
+			out CheatEngineFailure modulesFailure, token));
+		Assert.False(client.TryGetModuleSections(new ModuleName("game.exe"), default,
+			out ImmutableArray<ModuleSectionInfo> sections, out CheatEngineFailure sectionsFailure, token));
+		Assert.False(client.TryGetMemoryRegions(default, out ImmutableArray<MemoryRegionInfo> regions,
+			out CheatEngineFailure regionsFailure, token));
+		Assert.False(client.TryRegisterSymbol(default, out ISymbolRegistrationLease? lease,
+			out CheatEngineFailure registrationFailure, token));
+
+		Assert.Empty(modules);
+		Assert.Empty(sections);
+		Assert.Empty(regions);
+		Assert.Null(lease);
+		Assert.Equal(("Inspection.GetModules", "Inspection.GetModuleSections", "Inspection.GetMemoryRegions",
+				"Inspection.RegisterSymbol"),
+			(modulesFailure.Operation, sectionsFailure.Operation, regionsFailure.Operation,
+				registrationFailure.Operation));
+		Assert.All([modulesFailure, sectionsFailure, regionsFailure, registrationFailure], static failure =>
+		{
+			Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
+			Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
+		});
+		Assert.Equal(0, invoker.Invocations);
+		Assert.Equal(0, port.RegisterCalls);
+	}
+
 	private static InspectionClient CreateClient(CoreLifetime lifetime, IInspectionPort port)
 	{
 		return new InspectionClient(new SdkMainThreadDispatcher(lifetime, new InlineMainThreadInvoker()), lifetime,
@@ -622,6 +658,30 @@ public sealed class InspectionClientBehaviorTests
 			LuaOperationStatusKind.ResultCapacityExceeded => LuaOperationStatus.ResultCapacityExceeded,
 			_ => default
 		};
+	}
+
+	/// <summary>Runs every callback inline and counts the dispatches.</summary>
+	private sealed class CountingMainThreadInvoker : IMainThreadInvoker
+	{
+		private readonly InlineMainThreadInvoker _inner = new();
+
+		internal int Invocations
+		{
+			get;
+			private set;
+		}
+
+		public Exception? Invoke(Action callback)
+		{
+			Invocations++;
+			return _inner.Invoke(callback);
+		}
+
+		public MainThreadInvocationResult<T> Invoke<T>(Func<T> callback)
+		{
+			Invocations++;
+			return _inner.Invoke(callback);
+		}
 	}
 
 	private sealed class FakeInspectionPort : IInspectionPort

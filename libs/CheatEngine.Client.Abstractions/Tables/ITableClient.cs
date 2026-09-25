@@ -28,6 +28,13 @@ namespace CheatEngine.Client.Tables;
 ///         in-flight load is checked again on the main thread and refused without calling Cheat Engine.
 ///     </para>
 ///     <para>
+///         A <see langword="default" /> <see cref="MemoryRecordCollectionRequest" /> or
+///         <see cref="MemoryRecordHierarchyRequest" />, which allows no record, is refused with
+///         <see cref="CheatEngineFailureKind.OperationRejected" /> and <see cref="CheatEngineHostEffect.NotStarted" />
+///         before any Cheat Engine call, like a <see langword="default" /> <see cref="MemoryRecordSearch" /> or
+///         <see cref="MemoryRecordUpdate" />.
+///     </para>
+///     <para>
 ///         Trusted table files follow the Client path policy. Cheat Engine's file form of <c>loadTable</c> offers no
 ///         option to suppress a table's Lua scripts, so a table with scripts may prompt or execute Lua. A refused path is
 ///         never retried through another overload and never turned into a stream.
