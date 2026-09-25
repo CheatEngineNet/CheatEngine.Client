@@ -13,8 +13,8 @@ this project inside the template instead of maintaining a separate `samples/` co
 The project provides a minimal but production-shaped plugin boundary:
 
 - `[CheatEnginePlugin]` is the SDK entry-point annotation recognized by the generated bootstrap.
-- `CheatEngineClientPlugin` creates a fresh DI container and Client activation for every enable cycle. The Client graph,
-  options, and codecs are provider-local singletons; the module scope is the one scope inside that new provider, not a
+- `CheatEngineClientPlugin` creates a fresh DI container and Client activation for every enable cycle. The Client graph
+  and options are provider-local singletons; the module scope is the one scope inside that new provider, not a
   persistent root that can be reused for a later enable.
 - `Configure` explicitly loads the optional `appsettings.json` from `builder.PluginDirectory`, the folder of the plugin
   assembly, with `reloadOnChange: false`, and registers the generated `PluginLuaModule` through

@@ -199,8 +199,8 @@ reads.
 Every `MemoryAccessFailure` the SDK reports reaches the caller through `MemoryAccessFailureMapping`,
 value by value and never as text: see the table in the Abstractions README.
 
-Cost: every `ReadPrimitive<Address>`/`WritePrimitive<Address>` call, every Address primitive batch,
-every pointer chain and every built-in Address codec invocation observes the target facts once
+Cost: every `ReadPrimitive<Address>`/`WritePrimitive<Address>` call, every Address primitive batch
+and every pointer chain observes the target facts once
 inside its dispatched call, through one `ObserveTargetArchitecture` (about nine Lua global calls in
 one Lua admission: the selected PID twice, `isConnectedToCEServer`, `targetIs64Bit`, `targetIsX86`,
 `targetIsArm`, `targetIsAndroid`, `getABI`, `getPointerSize`). A batch pays this once for all its

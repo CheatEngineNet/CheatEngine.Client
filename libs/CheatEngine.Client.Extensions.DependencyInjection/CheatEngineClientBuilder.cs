@@ -6,7 +6,6 @@ using CheatEngine.Client.Core.Domains;
 using CheatEngine.Client.Core.Domains.Assembly;
 using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Lua;
-using CheatEngine.Client.Memory;
 using CheatEngine.Client.Modules;
 
 using Microsoft.Extensions.Configuration;
@@ -17,8 +16,17 @@ namespace CheatEngine.Client.Extensions.DependencyInjection;
 
 /// <summary>Configures explicit registrations for one Cheat Engine client service provider.</summary>
 /// <remarks>
-///     The builder never constructs a service provider. Plugin hosting creates and validates one provider for each Cheat
-///     Engine activation epoch, after all registrations are complete.
+///     <para>
+///         The builder never constructs a service provider. CheatEngine.Client.Hosting creates and validates one provider
+///         for each Cheat Engine activation epoch, after all registrations are complete, and hands this builder to the
+///         plugin as <c>CheatEnginePluginBuilder.Client</c>. This package is the composition layer of Hosting: composing
+///         the Client in a provider that Hosting does not own is not supported in 1.0.
+///     </para>
+///     <para>
+///         No memory codec is registered or resolved implicitly. A plugin registers its own codec as an ordinary
+///         service, for example <c>Services.AddSingleton&lt;IMemoryCodec&lt;T&gt;, TCodec&gt;()</c>, and passes it to
+///         <c>IMemoryClient</c> through <c>MemoryReadRequest&lt;T&gt;</c> or <c>MemoryWriteRequest&lt;T&gt;</c>.
+///     </para>
 /// </remarks>
 public sealed class CheatEngineClientBuilder
 {
@@ -89,22 +97,6 @@ public sealed class CheatEngineClientBuilder
 			typeof(ICheatEngineClientModule),
 			typeof(LuaModuleLifecycle<TModule>),
 			ServiceLifetime.Scoped));
-		return this;
-	}
-
-	/// <summary>Adds a singleton, deterministic codec for a managed memory value type.</summary>
-	/// <typeparam name="T">The managed memory value type.</typeparam>
-	/// <typeparam name="TCodec">The concrete codec type.</typeparam>
-	/// <remarks>
-	///     Codecs must not capture a Lua state, CE object, activation scope, or target-specific state. The default codecs
-	///     cover only fixed-width scalar and pointer representations; variable-length memory is deliberately opt-in.
-	/// </remarks>
-	public CheatEngineClientBuilder AddMemoryCodec<T,
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
-	TCodec>()
-		where TCodec : class, IMemoryCodec<T>
-	{
-		Services.TryAdd(ServiceDescriptor.Singleton<IMemoryCodec<T>, TCodec>());
 		return this;
 	}
 

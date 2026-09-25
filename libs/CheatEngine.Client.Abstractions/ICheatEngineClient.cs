@@ -22,11 +22,13 @@ namespace CheatEngine.Client;
 ///     </para>
 ///     <para>
 ///         <b>Handle-free surface.</b> No member of this client, and no service, value or lease it returns, exposes a Lua
-///         state, a Lua reference, a CE object handle or an SDK ownership wrapper. A plugin that derives from
-///         <c>CheatEngineClientPlugin</c> (CheatEngine.Client.Hosting) also inherits CheatEngine.SDK's
-///         <c>CheatEnginePlugin.Context</c>, the raw SDK plugin context: it is an SDK escape hatch outside every guarantee
-///         of this client (activation epochs, main-thread dispatch, failure classification, resource ownership and
-///         release, redaction). Code that uses it follows the CheatEngine.SDK contract instead.
+///         state, a Lua reference, a CE object handle or an SDK ownership wrapper. That guarantee covers the Client
+///         surface only. A plugin that derives from <c>CheatEngineClientPlugin</c> (CheatEngine.Client.Hosting) also
+///         inherits CheatEngine.SDK's <c>protected static</c> <c>CheatEnginePlugin.Context</c>, the raw SDK plugin context
+///         of the current enable, which <c>CheatEngineClientPlugin</c> documents as a raw SDK escape hatch: it is outside
+///         every guarantee of this client (activation epochs, main-thread dispatch, failure classification, resource
+///         ownership and release, redaction). Code that uses it, or any other CheatEngine.SDK API directly, follows the
+///         CheatEngine.SDK contract instead.
 ///     </para>
 ///     <para>
 ///         <b>Try and throwing forms.</b> An operation that can fail for an expected reason has a <c>TryX</c> form, which

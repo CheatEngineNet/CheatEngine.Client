@@ -36,7 +36,6 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		Assert.NotNull(builder);
 		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(ICheatEngineClient));
 		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IProcessClient));
-		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IMemoryCodec<int>));
 		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IMemoryClient));
 		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IPatternScanner));
 		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IAllocationClient));
@@ -132,18 +131,31 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		Assert.DoesNotContain("Unavailable", implementation.GetType().FullName!, StringComparison.Ordinal);
 	}
 
+	/// <summary>
+	///     A5: the Client resolves no codec implicitly. A codec is an ordinary application service, which the plugin passes
+	///     with each codec request; the registration adds none of its own and the builder has no codec shortcut.
+	/// </summary>
 	[Fact]
-	public void AddMemoryCodecPreservesTheFirstExplicitRegistration()
+	public void AddCheatEngineClientRegistersNoMemoryCodecAndACodecIsAnApplicationService()
 	{
 		ServiceCollection services = new();
-		CheatEngineClientBuilder builder = services.AddCheatEngineClient();
+		services.AddCheatEngineClient();
 
-		builder.AddMemoryCodec<CustomValue, FirstCustomCodec>();
-		builder.AddMemoryCodec<CustomValue, SecondCustomCodec>();
+		Assert.DoesNotContain(services, static descriptor =>
+			descriptor.ServiceType.IsGenericType &&
+			descriptor.ServiceType.GetGenericTypeDefinition() == typeof(IMemoryCodec<>));
+		Assert.DoesNotContain(typeof(CheatEngineClientBuilder).GetMethods(),
+			static method => method.Name.Contains("Codec", StringComparison.Ordinal));
 
-		ServiceDescriptor descriptor = Assert.Single(services,
-			static descriptor => descriptor.ServiceType == typeof(IMemoryCodec<CustomValue>));
-		Assert.Equal(typeof(FirstCustomCodec), descriptor.ImplementationType);
+		services.AddSingleton<IMemoryCodec<CustomValue>, CustomCodec>();
+		using ServiceProvider provider = services.BuildServiceProvider(new ServiceProviderOptions
+		{
+			ValidateOnBuild = true,
+			ValidateScopes = true
+		});
+
+		Assert.IsType<CustomCodec>(provider.GetRequiredService<IMemoryCodec<CustomValue>>());
+		Assert.Null(provider.GetService<IMemoryCodec<int>>());
 	}
 
 	[Fact]
@@ -170,12 +182,16 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		ServiceCollection services = new();
 
 		services.AddCheatEngineClient(configuration.GetSection("Configured"))
-			.Configure(options => options.AllowedTableRoots = [overriddenRoot]);
+			.Configure(options =>
+			{
+				options.AllowedTableRoots.Clear();
+				options.AllowedTableRoots.Add(overriddenRoot);
+			});
 
 		using ServiceProvider provider = services.BuildServiceProvider();
 		CheatEngineClientOptions options = provider.GetRequiredService<IOptions<CheatEngineClientOptions>>().Value;
 
-		Assert.Equal([overriddenRoot], Assert.IsType<string[]>(options.AllowedTableRoots));
+		Assert.Equal([overriddenRoot], options.AllowedTableRoots);
 	}
 
 	[Fact]
@@ -191,7 +207,7 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		using ServiceProvider provider = services.BuildServiceProvider();
 		CheatEngineClientOptions options = provider.GetRequiredService<IOptions<CheatEngineClientOptions>>().Value;
 
-		Assert.Equal([allowedRoot], Assert.IsType<string[]>(options.AllowedTableRoots));
+		Assert.Equal([allowedRoot], options.AllowedTableRoots);
 	}
 
 	[Fact]
@@ -205,7 +221,6 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		using ServiceProvider provider = services.BuildServiceProvider();
 		CheatEngineClientOptions options = provider.GetRequiredService<IOptions<CheatEngineClientOptions>>().Value;
 
-		Assert.NotNull(options.MemoryResourceLimits);
 		Assert.Equal(37, options.MemoryResourceLimits.MaximumReadBytes);
 	}
 
@@ -330,23 +345,7 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 
 	private readonly record struct CustomValue(int Value);
 
-	private sealed class FirstCustomCodec : IMemoryCodec<CustomValue>
-	{
-		public bool TryRead(IMemoryReadContext context, Address address, out CustomValue value, out CheatEngineFailure failure)
-		{
-			failure = default;
-			value = default;
-			return false;
-		}
-
-		public bool TryWrite(IMemoryWriteContext context, Address address, in CustomValue value, out CheatEngineFailure failure)
-		{
-			failure = default;
-			return false;
-		}
-	}
-
-	private sealed class SecondCustomCodec : IMemoryCodec<CustomValue>
+	private sealed class CustomCodec : IMemoryCodec<CustomValue>
 	{
 		public bool TryRead(IMemoryReadContext context, Address address, out CustomValue value, out CheatEngineFailure failure)
 		{

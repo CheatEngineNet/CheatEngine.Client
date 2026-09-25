@@ -22,8 +22,8 @@ namespace CheatEngine.Client.Memory;
 ///         <c>readPointer</c> follows the bitness, not the configured pointer size (a Lua-only host observation; not
 ///         host-qualified); what the configured size affects besides the value Cheat Engine reports is not established.
 ///         The Client's own pointer-typed operations are refused when the bitness is unknown or the two differ; an
-///         application codec decides for itself. The built-in codecs write little-endian values, an assumption of the
-///         local x86/x64 host profile.
+///         application codec decides for itself. The Client ships no codec, so a codec also chooses the byte order it
+///         writes; the local x86/x64 host profile is little-endian.
 ///     </para>
 /// </remarks>
 public interface IMemoryWriteContext

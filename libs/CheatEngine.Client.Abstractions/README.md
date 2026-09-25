@@ -443,7 +443,7 @@ observed process width to CheatEngine.SDK's width-qualified pointer reads and wr
 (`Address` primitives, primitive batches, pointer chains). Before any memory access it refuses the operation with
 `CheatEngineHostEffect.NotStarted` when the width is unknown (`InvalidState` for a selected target, otherwise the kind of
 the status CheatEngine.SDK reported, such as `TargetNotAttached`) and when the configured size is known and differs
-(`OperationRejected`); the built-in `Address` codec follows the same policy. A configured size that could not be
+(`OperationRejected`). A configured size that could not be
 observed is no evidence of a mismatch. On a 32-bit target nothing is truncated: writing an `Address` above 4 GiB is
 refused with `OperationRejected` and `NotStarted`, a pointer value above 4 GiB returned by Cheat Engine is refused with
 `OperationRejected` and `Completed`, and a pointer chain refuses a base or computed address above 4 GiB and names the hop

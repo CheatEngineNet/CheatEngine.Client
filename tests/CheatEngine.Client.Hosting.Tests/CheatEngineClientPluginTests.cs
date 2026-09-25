@@ -905,7 +905,7 @@ public sealed class CheatEngineClientPluginTests
 		{
 			ArgumentNullException.ThrowIfNull(client);
 			state.AliasReferencedOwnedDisposable = ReferenceEquals(ownedDisposable, alias.OwnedDisposable);
-			state.AllowedTableRootCount = options.Value.AllowedTableRoots?.Length ?? 0;
+			state.AllowedTableRootCount = options.Value.AllowedTableRoots.Count;
 			state.EnabledModuleIds.Add(_id);
 			state.ProviderSingletonIds.Add(providerOwnedSingleton.Id);
 		}
@@ -1041,7 +1041,7 @@ public sealed class CheatEngineClientPluginTests
 	{
 		public void OnEnabled(ICheatEngineClient client)
 		{
-			probe.MaximumReadBytes = options.Value.MemoryResourceLimits?.MaximumReadBytes;
+			probe.MaximumReadBytes = options.Value.MemoryResourceLimits.MaximumReadBytes;
 		}
 
 		public void OnDisabling(ICheatEngineClient client)

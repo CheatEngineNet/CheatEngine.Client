@@ -19,11 +19,21 @@ namespace CheatEngine.Client.Hosting;
 ///     epoch.
 /// </summary>
 /// <remarks>
-///     The SDK constructs a plugin through a parameterless factory and reuses that instance across enable/disable cycles.
-///     This base class therefore creates a fresh validated provider and scope only from <see cref="OnEnable" />, when the
-///     SDK has attached Lua, and disposes them before the SDK detaches Lua in <see cref="OnDisable" />. It does not create
-///     a
-///     Generic Host, discover assemblies, retain a Lua state, or cross an asynchronous boundary.
+///     <para>
+///         The SDK constructs a plugin through a parameterless factory and reuses that instance across enable/disable
+///         cycles. This base class therefore creates a fresh validated provider and scope only from
+///         <see cref="OnEnable" />, when the SDK has attached Lua, and disposes them before the SDK detaches Lua in
+///         <see cref="OnDisable" />. It does not create a Generic Host, discover assemblies, retain a Lua state, or cross
+///         an asynchronous boundary.
+///     </para>
+///     <para>
+///         <b>Raw SDK escape hatch.</b> A derived plugin also inherits CheatEngine.SDK's <c>protected static</c>
+///         <c>CheatEnginePlugin.Context</c>, the raw SDK plugin context of the current enable (plugin id, SDK epoch, main
+///         thread, shutdown token). It is outside every guarantee of the Client: activation epochs, main-thread dispatch,
+///         failure classification, resource ownership and release, and redaction. Code that uses it, or any other
+///         CheatEngine.SDK API directly, follows the CheatEngine.SDK contract instead. Use <see cref="GetRequiredClient" />
+///         and the <see cref="ICheatEngineClient" /> it returns for Client work.
+///     </para>
 /// </remarks>
 public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 {
@@ -45,12 +55,13 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 		return GetActiveClient();
 	}
 
-	/// <summary>Adds application services, explicit Client modules, codecs, and configuration sources for one activation.</summary>
+	/// <summary>Adds application services, explicit Client modules, logging, and configuration sources for one activation.</summary>
 	/// <remarks>
 	///     Do not build a provider here. The base class builds it after this method returns with scope and build validation
 	///     enabled. Application services that use Client APIs should be scoped and receive their dependencies by constructor
 	///     injection; the plugin itself is the one unavoidable composition boundary because SDK plugins use parameterless
-	///     construction.
+	///     construction. A memory codec is an ordinary application service: register it in
+	///     <see cref="CheatEnginePluginBuilder.Services" /> and pass it with each codec request.
 	/// </remarks>
 	protected abstract void Configure(CheatEnginePluginBuilder builder);
 

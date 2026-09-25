@@ -8,6 +8,12 @@ Explicit, AOT-aware dependency-injection composition for the high-level Cheat En
 implementations. It registers the public domain services—`ICheatEngineClient`, memory, process, scanning, inspection,
 table, Lua, runtime, and dispatch services—without making consumers reference implementation namespaces.
 
+It is the composition layer of `CheatEngine.Client.Hosting`: `CheatEnginePluginBuilder` calls `AddCheatEngineClient`
+for each activation provider, which Hosting builds, validates, and disposes around one Cheat Engine enable epoch, and
+hands the returned builder to the plugin as `builder.Client`. Composing the Client in a provider that Hosting does not
+own is not supported in 1.0: the Client services capture the SDK plugin context of one enable and must not outlive or
+precede it.
+
 It builds on Microsoft.Extensions dependency injection, options, configuration and logging (the packages are listed
 under "Dependencies" below). The package enables the .NET configuration-binding generator and uses generated options
 validation for `CheatEngineClientOptions`; it does not require the Generic Host.
@@ -23,17 +29,22 @@ only supported place to wire Core implementation types into the functional publi
 
 ## How it helps CheatEngine.Client
 
-`AddCheatEngineClient` adds direct service registrations, the built-in deterministic memory codecs, options services,
-and the Client facade. It returns a `CheatEngineClientBuilder`; the builder only adds registrations and never builds a
+`AddCheatEngineClient` adds direct service registrations, logging, options services and their validators, and the
+Client facade. It returns a `CheatEngineClientBuilder`; the builder only adds registrations and never builds a
 provider.
 
 Configuration is always opt-in. `BindConfiguration(IConfiguration)` reads the `CheatEngineClient` section, while
 `BindConfiguration(IConfigurationSection)` lets a plugin choose a different explicit section. The package never searches
 for, loads, or watches `appsettings.json` on its own.
 
-`CheatEngineClientOptions` controls table-file policy:
+`CheatEngineClientOptions` controls table-file policy and memory budgets. Both properties are read-only and never
+`null`; configuration binding and `Configure` delegates fill them:
 
-- `AllowedTableRoots` is empty by default, which denies table-file load/save access.
+- `AllowedTableRoots` (`IList<string>`) is empty by default, which denies table-file load/save access.
+- `MemoryResourceLimits` holds the memory budgets described below.
+
+The options validators are internal: `AddCheatEngineClient` registers them, and Hosting resolves the options before any
+Client work, so an invalid value fails the enable.
 
 AOB materialization and value-scan pages require their callers to provide an explicit bound. Unsafe Lua is deliberately
 not an appsettings option: it can only be enabled with the explicit builder opt-in below.
@@ -43,7 +54,6 @@ The builder also provides explicit extension points:
 - `AddModule<TModule>()` preserves module registration order and creates modules in the activation scope; Hosting
   enables
   modules in that order and disables them in reverse order.
-- `AddMemoryCodec<T, TCodec>()` adds a singleton deterministic codec without reflective structure marshalling.
 - `EnableUnsafeLuaExecution()` registers the unsafe Lua facade only for the current activation policy. It never exposes
   an SDK `LuaState`. The opt-in satisfies only the policy evidence gate; it does not prove package support, host
   globals, or live qualification.
@@ -52,28 +62,35 @@ The builder also provides explicit extension points:
   registration, and an `IAutoAssemblerClient` registered by another path makes it throw. Resolve the client from the
   activation provider, for example in a module constructor.
 
+The Client never registers or resolves a memory codec implicitly. The built-in primitives (8- to 64-bit integers,
+`float`, `double`, and `Address`) need none. A codec for any other type is an ordinary application service: register it
+in `Configure` and pass it with each codec request (`MemoryReadRequest<T>`, `MemoryWriteRequest<T>`):
+
 ```csharp
-using CheatEngine.Client.Extensions.DependencyInjection;
-using Microsoft.Extensions.Configuration;
+using CheatEngine.Client.Hosting;
+using CheatEngine.Client.Memory;
 using Microsoft.Extensions.DependencyInjection;
 
-var services = new ServiceCollection();
-IConfiguration configuration = new ConfigurationBuilder().Build();
+// In the plugin, which derives from CheatEngineClientPlugin:
+protected override void Configure(CheatEnginePluginBuilder builder)
+{
+    builder.Services.AddSingleton<IMemoryCodec<MyValue>, MyValueCodec>();
+    builder.Client.AddModule<MyModule>();
+}
 
-services.AddCheatEngineClient(configuration)
-    .AddMemoryCodec<MyValue, MyValueCodec>();
+// In MyModule, which receives IMemoryCodec<MyValue> codec by constructor injection:
+MyValue value = client.Memory.Read(new MemoryReadRequest<MyValue>(address, codec));
 ```
 
-For an SDK-loaded plugin, use `CheatEngine.Client.Hosting` instead of manually building this collection. The hosting
-package creates one validating provider for each enable epoch and resolves `IOptions<CheatEngineClientOptions>`
-immediately, so generated and semantic validation run before Client work starts.
+The hosting package creates one validating provider for each enable epoch and resolves
+`IOptions<CheatEngineClientOptions>` immediately, so generated and semantic validation run before Client work starts.
 
 ## Provider and scope contract
 
 `AddCheatEngineClient` configures one provider; it does not define a persistent application root. The supported plugin
-path builds a **fresh provider per enable epoch**, then opens one activation scope. The Core Client graph, options, and
-deterministic codecs are intentionally provider-local singleton registrations: that is safe because the provider itself
-is discarded at disable. Modules are scoped so they can consume scoped application services, but their scoped lifetime
+path builds a **fresh provider per enable epoch**, then opens one activation scope. The Core Client graph and options
+are intentionally provider-local singleton registrations: that is safe because the provider itself is discarded at
+disable. Modules are scoped so they can consume scoped application services, but their scoped lifetime
 does not make a second scope in the same provider a fresh Client activation.
 
 A fresh provider per enable does not isolate CheatEngine.SDK static state (`PluginHost` and the current plugin

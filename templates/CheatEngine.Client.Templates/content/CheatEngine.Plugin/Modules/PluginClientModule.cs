@@ -17,7 +17,6 @@ namespace CheatEngine.Plugin.Modules;
 ///     and generated Lua exports.
 /// </summary>
 internal sealed partial class PluginClientModule(
-	IMemoryCodec<int> int32Codec,
 	IOptions<CheatEngineClientOptions> options,
 	ILogger<PluginClientModule> logger) : ICheatEngineClientModule
 {
@@ -28,7 +27,7 @@ internal sealed partial class PluginClientModule(
 	{
 		ArgumentNullException.ThrowIfNull(client);
 
-		int allowedTableRootCount = _options.AllowedTableRoots?.Length ?? 0;
+		int allowedTableRootCount = _options.AllowedTableRoots.Count;
 		LogEnabled(logger, client.Epoch, allowedTableRootCount);
 
 		if (client.Tables.TryGetRecordCount(out int recordCount, out CheatEngineFailure tableFailure))
@@ -75,7 +74,9 @@ internal sealed partial class PluginClientModule(
 			return;
 		}
 
-		if (client.Memory.At(match + 0x14).TryReadWith(int32Codec, out _, out CheatEngineFailure readFailure))
+		// A built-in primitive needs no codec. A custom type reads through a codec registered as an application service
+		// and passed with each request (MemoryReadRequest<T>); the Client never resolves a codec implicitly.
+		if (client.Memory.At(match + 0x14).TryRead<int>(out _, out CheatEngineFailure readFailure))
 		{
 			// Addresses and values are user data: this default log records only that the probe succeeded.
 			LogMemoryReadSucceeded(logger);

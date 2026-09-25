@@ -25,9 +25,16 @@ using Microsoft.Extensions.Options;
 namespace CheatEngine.Client.Extensions.DependencyInjection;
 
 /// <summary>Registers the high-level Cheat Engine client without building a nested service provider.</summary>
+/// <remarks>
+///     This package is the composition layer of CheatEngine.Client.Hosting: <c>CheatEnginePluginBuilder</c> calls
+///     <c>AddCheatEngineClient</c> once for each activation provider, which Hosting builds, validates and disposes around
+///     one Cheat Engine enable epoch. Calling these methods on a collection whose provider Hosting does not own is not
+///     supported in 1.0: the Client services would outlive or precede the SDK plugin context they capture.
+/// </remarks>
 public static class CheatEngineClientServiceCollectionExtensions
 {
-	/// <summary>Adds the client options, deterministic memory codecs, and explicit Client service registrations.</summary>
+	/// <summary>Adds the client options, their validators, logging, and explicit Client service registrations.</summary>
+	/// <remarks>No memory codec is registered: a codec is an application service passed with each codec request.</remarks>
 	public static CheatEngineClientBuilder AddCheatEngineClient(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
@@ -40,7 +47,6 @@ public static class CheatEngineClientServiceCollectionExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor
 				.Singleton<IValidateOptions<CheatEngineClientOptions>, CheatEngineClientOptionsSemanticValidator>());
-		DefaultMemoryCodecs.Add(services);
 		AddCoreServices(services);
 
 		return new CheatEngineClientBuilder(services);
@@ -87,16 +93,14 @@ public static class CheatEngineClientServiceCollectionExtensions
 		{
 			CheatEngineClientOptions options =
 				serviceProvider.GetRequiredService<IOptions<CheatEngineClientOptions>>().Value;
-			string[] allowedTableRoots = options.AllowedTableRoots
-										 ?? throw new InvalidOperationException(
-											 "AllowedTableRoots must be validated before the Client policy is created.");
 			bool enableUnsafeLuaExecution = serviceProvider
 				.GetService<UnsafeLuaExecutionRegistration>()?
 				.IsEnabled == true;
 			bool enableAutoAssemblerPatches = serviceProvider
 				.GetService<AutoAssemblerPatchesRegistration>()?
 				.IsEnabled == true;
-			return new CoreClientPolicy(allowedTableRoots, enableUnsafeLuaExecution, enableAutoAssemblerPatches);
+			return new CoreClientPolicy(options.AllowedTableRoots, enableUnsafeLuaExecution,
+				enableAutoAssemblerPatches);
 		});
 
 		services.TryAddSingleton<SdkMainThreadDispatcher>(static serviceProvider =>
@@ -127,13 +131,10 @@ public static class CheatEngineClientServiceCollectionExtensions
 		{
 			CheatEngineClientOptions options =
 				serviceProvider.GetRequiredService<IOptions<CheatEngineClientOptions>>().Value;
-			MemoryResourceLimits limits = options.MemoryResourceLimits
-										  ?? throw new InvalidOperationException(
-											  "MemoryResourceLimits must be validated before the Client memory service is created.");
 			return new MemoryClient(
 				serviceProvider.GetRequiredService<SdkMainThreadDispatcher>(),
 				serviceProvider.GetRequiredService<CoreLifetime>(),
-				limits);
+				options.MemoryResourceLimits);
 		});
 		services.TryAddSingleton<IMemoryClient>(static serviceProvider =>
 			serviceProvider.GetRequiredService<MemoryClient>());
@@ -159,13 +160,10 @@ public static class CheatEngineClientServiceCollectionExtensions
 		{
 			CheatEngineClientOptions options =
 				serviceProvider.GetRequiredService<IOptions<CheatEngineClientOptions>>().Value;
-			MemoryResourceLimits limits = options.MemoryResourceLimits
-										  ?? throw new InvalidOperationException(
-											  "MemoryResourceLimits must be validated before the Client instruction service is created.");
 			return new AssemblyClient(
 				serviceProvider.GetRequiredService<SdkMainThreadDispatcher>(),
 				serviceProvider.GetRequiredService<CoreLifetime>(),
-				limits);
+				options.MemoryResourceLimits);
 		});
 		services.TryAddSingleton<IAssemblyClient>(static serviceProvider =>
 			serviceProvider.GetRequiredService<AssemblyClient>());

@@ -12,6 +12,11 @@ concrete plugin, whose implicit public constructor may call it.
 The host is intentionally synchronous and in-process. It is not a Generic Host and does not create a process-wide
 service provider, retain a raw Lua state, discover services by reflection, or keep a configuration file watcher alive.
 
+A plugin also inherits CheatEngine.SDK's `protected static` `CheatEnginePlugin.Context`, the raw SDK plugin context of
+the current enable. It is a raw SDK escape hatch outside every guarantee of the Client (activation epochs, main-thread
+dispatch, failure classification, resource ownership and release, redaction): code that uses it, or any other
+CheatEngine.SDK API directly, follows the CheatEngine.SDK contract instead.
+
 ## Why this project exists
 
 Cheat Engine controls plugin construction and the point at which its Lua runtime is attached. Reusing a provider across
@@ -37,8 +42,9 @@ disposes activation configuration. Cleanup failures are aggregated after all cle
 `CheatEnginePluginBuilder`, builds a new provider, and creates one activation scope from that provider. The Core Client
 graph intentionally uses provider-local singleton registrations, so **activation-local** means “owned by this new
 provider,” not “registered with Microsoft DI's `Scoped` lifetime.” A disable/re-enable cycle therefore constructs a
-new Client graph, options cache, deterministic codecs, and module state without mechanically changing their DI
-lifetimes.
+new Client graph, options cache, and module state without mechanically changing their DI lifetimes. The Client
+registers no memory codec: a codec is an application service that the plugin registers in `Services` and passes with
+each codec request.
 
 A new provider per enable isolates this plugin's Client graph from its previous enable epochs; it does **not** isolate
 state that lives outside the container. CheatEngine.SDK static state (`PluginHost` and the current plugin context) and
@@ -49,9 +55,9 @@ committed.
 
 Creating a second `IServiceScope` from the same provider does not create another Client activation. That second scope
 has its own scoped application services and modules, but shares the provider's singleton Client graph, options, and
-codecs; scopes are siblings, not nested activation roots. Hosting opens exactly one such scope for an enable epoch.
-An integrator that needs an external persistent root must first introduce and qualify an explicit activation-factory
-design—repeated `CreateScope()` calls are not a supported substitute.
+application singletons; scopes are siblings, not nested activation roots. Hosting opens exactly one such scope for an
+enable epoch. An integrator that needs an external persistent root must first introduce and qualify an explicit
+activation-factory design—repeated `CreateScope()` calls are not a supported substitute.
 
 The DI container owns the objects that it creates. Hosting never disposes resolved modules or services individually:
 after lifecycle callbacks and Client resource drain, it disposes the activation scope, then the provider, and finally

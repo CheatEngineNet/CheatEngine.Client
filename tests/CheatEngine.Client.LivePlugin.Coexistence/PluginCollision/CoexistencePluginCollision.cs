@@ -57,7 +57,7 @@ internal sealed class CoexistencePluginCollisionModule(
 		}
 
 		_lease = lease;
-		CoexistenceDiagnostics.RecordEnabled(pluginIdentity.Id, client, _options.AllowedTableRoots?.Length ?? 0);
+		CoexistenceDiagnostics.RecordEnabled(pluginIdentity.Id, client, _options.AllowedTableRoots.Count);
 	}
 
 	/// <inheritdoc />

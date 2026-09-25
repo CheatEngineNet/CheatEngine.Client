@@ -17,35 +17,29 @@ public sealed class CheatEngineClientOptionsSemanticValidatorTests
 	}
 
 	[Fact]
-	public void ValidateRejectsMissingOrInvalidMemoryResourceLimits()
+	public void ValidateRejectsInvalidMemoryResourceLimits()
 	{
-		ValidateOptionsResult missing = _validator.Validate(null,
-			new CheatEngineClientOptions { MemoryResourceLimits = null });
-		ValidateOptionsResult invalid = _validator.Validate(null,
-			new CheatEngineClientOptions
-			{
-				MemoryResourceLimits = new MemoryResourceLimits
-				{
-					MaximumBatchOperationCount = MemoryBatchLimits.MaximumOperationCount + 1
-				}
-			});
+		CheatEngineClientOptions options = new();
+		options.MemoryResourceLimits.MaximumBatchOperationCount = MemoryBatchLimits.MaximumOperationCount + 1;
 
-		Assert.True(missing.Failed);
-		Assert.Contains("MemoryResourceLimits", missing.FailureMessage, StringComparison.Ordinal);
+		ValidateOptionsResult invalid = _validator.Validate(null, options);
+
 		Assert.True(invalid.Failed);
 		Assert.Contains("MemoryResourceLimits", invalid.FailureMessage, StringComparison.Ordinal);
 	}
 
 	[Fact]
-	public void ValidateRejectsNullAllowedRootList()
+	public void ValidateRejectsANullAllowedRootEntry()
 	{
-		ValidateOptionsResult result =
-			_validator.Validate(null, new CheatEngineClientOptions { AllowedTableRoots = null });
+		CheatEngineClientOptions options = new();
+		options.AllowedTableRoots.Add(null!);
+
+		ValidateOptionsResult result = _validator.Validate(null, options);
 
 		Assert.True(result.Failed);
 		string? failureMessage = result.FailureMessage;
 		Assert.NotNull(failureMessage);
-		Assert.Contains("empty array", failureMessage, StringComparison.Ordinal);
+		Assert.Contains("blank paths", failureMessage, StringComparison.Ordinal);
 	}
 
 	[Theory]
@@ -55,7 +49,7 @@ public sealed class CheatEngineClientOptionsSemanticValidatorTests
 	public void ValidateRejectsBlankOrRelativeAllowedRoots(string root)
 	{
 		ValidateOptionsResult result =
-			_validator.Validate(null, new CheatEngineClientOptions { AllowedTableRoots = [root] });
+			_validator.Validate(null, new CheatEngineClientOptions { AllowedTableRoots = { root } });
 
 		Assert.True(result.Failed);
 	}
@@ -67,7 +61,7 @@ public sealed class CheatEngineClientOptionsSemanticValidatorTests
 		string rootWithTrailingSeparator = root + Path.DirectorySeparatorChar;
 
 		ValidateOptionsResult result = _validator.Validate(null,
-			new CheatEngineClientOptions { AllowedTableRoots = [root, rootWithTrailingSeparator] });
+			new CheatEngineClientOptions { AllowedTableRoots = { root, rootWithTrailingSeparator } });
 
 		Assert.True(result.Failed);
 		string? failureMessage = result.FailureMessage;
@@ -82,7 +76,7 @@ public sealed class CheatEngineClientOptionsSemanticValidatorTests
 		string second = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "CheatEngine.Client.Tests", "two"));
 
 		ValidateOptionsResult result =
-			_validator.Validate(null, new CheatEngineClientOptions { AllowedTableRoots = [first, second] });
+			_validator.Validate(null, new CheatEngineClientOptions { AllowedTableRoots = { first, second } });
 
 		Assert.True(result.Succeeded);
 	}
@@ -93,7 +87,7 @@ public sealed class CheatEngineClientOptionsSemanticValidatorTests
 		string root = Path.GetPathRoot(Path.GetTempPath()) + "\0";
 
 		ValidateOptionsResult result =
-			_validator.Validate(null, new CheatEngineClientOptions { AllowedTableRoots = [root] });
+			_validator.Validate(null, new CheatEngineClientOptions { AllowedTableRoots = { root } });
 
 		Assert.True(result.Failed);
 		string? failureMessage = result.FailureMessage;

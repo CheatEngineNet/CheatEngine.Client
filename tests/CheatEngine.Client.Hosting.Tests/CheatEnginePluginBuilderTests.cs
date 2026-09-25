@@ -25,7 +25,7 @@ public sealed class CheatEnginePluginBuilderTests
 		using ServiceProvider provider = builder.BuildServiceProvider();
 		CheatEngineClientOptions options = provider.GetRequiredService<IOptions<CheatEngineClientOptions>>().Value;
 
-		Assert.Equal([allowedRoot], Assert.IsType<string[]>(options.AllowedTableRoots));
+		Assert.Equal([allowedRoot], options.AllowedTableRoots);
 		Assert.Same(builder.Configuration, provider.GetRequiredService<IConfiguration>());
 		Assert.Same(builder.Configuration, provider.GetRequiredService<IConfigurationRoot>());
 	}

@@ -56,6 +56,7 @@ public sealed class PublicClientSignatureBoundaryTests
 		"System.Collections.Frozen.FrozenSet`1",
 		"System.Collections.Generic.IAsyncEnumerable`1",
 		"System.Collections.Generic.IEnumerable`1",
+		"System.Collections.Generic.IList`1",
 		"System.Collections.Generic.IReadOnlyCollection`1",
 		"System.Collections.Generic.IReadOnlyDictionary`2",
 		"System.Collections.Generic.IReadOnlyList`1",
@@ -91,8 +92,7 @@ public sealed class PublicClientSignatureBoundaryTests
 		"Microsoft.Extensions.DependencyInjection.IServiceCollection",
 		"Microsoft.Extensions.DependencyInjection.IServiceScope",
 		"Microsoft.Extensions.Logging.ILogger",
-		"Microsoft.Extensions.Logging.ILoggingBuilder",
-		"Microsoft.Extensions.Options.ValidateOptionsResult"
+		"Microsoft.Extensions.Logging.ILoggingBuilder"
 	};
 
 	[Fact]
