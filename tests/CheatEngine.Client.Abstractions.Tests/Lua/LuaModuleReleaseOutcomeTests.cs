@@ -63,7 +63,7 @@ public sealed class LuaModuleReleaseOutcomeTests
 	[InlineData(LeaseReleaseKind.Replaced, true)]
 	[InlineData(LeaseReleaseKind.Superseded, true)]
 	[InlineData(LeaseReleaseKind.ExternallyRemoved, true)]
-	[InlineData(LeaseReleaseKind.RefusedNoTarget, false)]
+	[InlineData(LeaseReleaseKind.RefusedTargetNotAttached, false)]
 	[InlineData(LeaseReleaseKind.RefusedTargetChanged, false)]
 	[InlineData(LeaseReleaseKind.RefusedTargetIdentityUnavailable, false)]
 	[InlineData(LeaseReleaseKind.RefusedRuntimeChanged, false)]

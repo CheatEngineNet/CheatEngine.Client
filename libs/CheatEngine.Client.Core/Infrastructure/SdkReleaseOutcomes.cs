@@ -43,7 +43,7 @@ internal static class SdkReleaseOutcomes
 			// No release was attempted yet: the owner is still held, so the lease stays retryable.
 			TargetReleaseStatus.Unspecified => Outcome(LeaseReleaseKind.Unknown, CheatEngineHostEffect.NotStarted),
 			TargetReleaseStatus.Released => Outcome(LeaseReleaseKind.Released, CheatEngineHostEffect.Completed),
-			TargetReleaseStatus.RefusedNoTarget => Outcome(LeaseReleaseKind.RefusedNoTarget,
+			TargetReleaseStatus.RefusedNoTarget => Outcome(LeaseReleaseKind.RefusedTargetNotAttached,
 				CheatEngineHostEffect.NotStarted),
 			TargetReleaseStatus.RefusedIdentityUnavailable => Outcome(LeaseReleaseKind.RefusedTargetIdentityUnavailable,
 				CheatEngineHostEffect.NotStarted),
@@ -123,7 +123,7 @@ internal static class SdkReleaseOutcomes
 			LeaseReleaseKind.Superseded => 2,
 			LeaseReleaseKind.Replaced => 3,
 			LeaseReleaseKind.ExternallyRemoved => 4,
-			LeaseReleaseKind.RefusedNoTarget => 5,
+			LeaseReleaseKind.RefusedTargetNotAttached => 5,
 			LeaseReleaseKind.RefusedTargetIdentityUnavailable => 6,
 			LeaseReleaseKind.RefusedTargetChanged => 7,
 			LeaseReleaseKind.RefusedRuntimeChanged => 8,

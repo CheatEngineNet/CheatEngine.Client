@@ -18,7 +18,8 @@ public sealed class LuaModuleReleaseMappingTests
 		[LeaseReleaseKind.Superseded] = Outcome(LeaseReleaseKind.Superseded, CheatEngineHostEffect.NotStarted),
 		[LeaseReleaseKind.ExternallyRemoved] =
 			Outcome(LeaseReleaseKind.ExternallyRemoved, CheatEngineHostEffect.NotStarted),
-		[LeaseReleaseKind.RefusedNoTarget] = Outcome(LeaseReleaseKind.RefusedNoTarget, CheatEngineHostEffect.NotStarted),
+		[LeaseReleaseKind.RefusedTargetNotAttached] =
+			Outcome(LeaseReleaseKind.RefusedTargetNotAttached, CheatEngineHostEffect.NotStarted),
 		[LeaseReleaseKind.RefusedTargetChanged] =
 			Outcome(LeaseReleaseKind.RefusedTargetChanged, CheatEngineHostEffect.NotStarted),
 		[LeaseReleaseKind.RefusedTargetIdentityUnavailable] =

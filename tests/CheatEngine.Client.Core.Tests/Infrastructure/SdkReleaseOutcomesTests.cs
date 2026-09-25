@@ -16,7 +16,7 @@ public sealed class SdkReleaseOutcomesTests
 		[TargetReleaseStatus.Unspecified] = Outcome(LeaseReleaseKind.Unknown, CheatEngineHostEffect.NotStarted),
 		[TargetReleaseStatus.Released] = Outcome(LeaseReleaseKind.Released, CheatEngineHostEffect.Completed),
 		[TargetReleaseStatus.RefusedNoTarget] =
-			Outcome(LeaseReleaseKind.RefusedNoTarget, CheatEngineHostEffect.NotStarted),
+			Outcome(LeaseReleaseKind.RefusedTargetNotAttached, CheatEngineHostEffect.NotStarted),
 		[TargetReleaseStatus.RefusedIdentityUnavailable] =
 			Outcome(LeaseReleaseKind.RefusedTargetIdentityUnavailable, CheatEngineHostEffect.NotStarted),
 		[TargetReleaseStatus.RefusedTargetChanged] =
@@ -103,13 +103,13 @@ public sealed class SdkReleaseOutcomesTests
 	[InlineData(LeaseReleaseKind.AlreadyReleased, LeaseReleaseKind.Released, LeaseReleaseKind.AlreadyReleased)]
 	[InlineData(LeaseReleaseKind.RefusedTargetChanged, LeaseReleaseKind.PartiallyReleased,
 		LeaseReleaseKind.PartiallyReleased)]
-	[InlineData(LeaseReleaseKind.RefusedRuntimeChanged, LeaseReleaseKind.RefusedNoTarget,
+	[InlineData(LeaseReleaseKind.RefusedRuntimeChanged, LeaseReleaseKind.RefusedTargetNotAttached,
 		LeaseReleaseKind.RefusedRuntimeChanged)]
 	[InlineData(LeaseReleaseKind.CleanupUnconfirmed, LeaseReleaseKind.CleanupUnavailable,
 		LeaseReleaseKind.CleanupUnavailable)]
 	[InlineData(LeaseReleaseKind.CleanupUnavailable, LeaseReleaseKind.Unknown, LeaseReleaseKind.Unknown)]
-	[InlineData(LeaseReleaseKind.ExternallyRemoved, LeaseReleaseKind.RefusedNoTarget,
-		LeaseReleaseKind.RefusedNoTarget)]
+	[InlineData(LeaseReleaseKind.ExternallyRemoved, LeaseReleaseKind.RefusedTargetNotAttached,
+		LeaseReleaseKind.RefusedTargetNotAttached)]
 	public void WorstKeepsTheKindThatLeavesTheMostToDo(LeaseReleaseKind first, LeaseReleaseKind second,
 		LeaseReleaseKind expected)
 	{

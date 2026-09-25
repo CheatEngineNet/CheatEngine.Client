@@ -58,7 +58,8 @@ public sealed class AutoAssemblerMappingTests
 	{
 		[TargetReleaseStatus.Unspecified] = new(LeaseReleaseKind.Unknown, CheatEngineHostEffect.NotStarted),
 		[TargetReleaseStatus.Released] = new(LeaseReleaseKind.Released, CheatEngineHostEffect.Completed),
-		[TargetReleaseStatus.RefusedNoTarget] = new(LeaseReleaseKind.RefusedNoTarget, CheatEngineHostEffect.NotStarted),
+		[TargetReleaseStatus.RefusedNoTarget] =
+			new(LeaseReleaseKind.RefusedTargetNotAttached, CheatEngineHostEffect.NotStarted),
 		[TargetReleaseStatus.RefusedIdentityUnavailable] =
 			new(LeaseReleaseKind.RefusedTargetIdentityUnavailable, CheatEngineHostEffect.NotStarted),
 		[TargetReleaseStatus.RefusedTargetChanged] =

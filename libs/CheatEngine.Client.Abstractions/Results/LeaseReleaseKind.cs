@@ -49,10 +49,11 @@ public enum LeaseReleaseKind
 	ExternallyRemoved = 6,
 
 	/// <summary>
-	///     Cleanup was refused before any Cheat Engine call because Cheat Engine has no selected target. The resource may
-	///     remain in the target it was created in.
+	///     Cleanup was refused before any Cheat Engine call because Cheat Engine has no selected target, the fact that
+	///     <see cref="CheatEngineFailureKind.TargetNotAttached" /> reports for an operation. The resource may remain in
+	///     the target it was created in.
 	/// </summary>
-	RefusedNoTarget = 7,
+	RefusedTargetNotAttached = 7,
 
 	/// <summary>
 	///     Cleanup was refused before any Cheat Engine call because the selected target is no longer the process, or the

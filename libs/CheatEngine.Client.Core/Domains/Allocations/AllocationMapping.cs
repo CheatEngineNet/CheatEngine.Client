@@ -171,7 +171,7 @@ internal static class AllocationMapping
 		LeaseReleaseOutcome released = SdkReleaseOutcomes.FromTarget(status);
 		CheatEngineFailureKind kind = released.Kind switch
 		{
-			LeaseReleaseKind.RefusedNoTarget => CheatEngineFailureKind.TargetNotAttached,
+			LeaseReleaseKind.RefusedTargetNotAttached => CheatEngineFailureKind.TargetNotAttached,
 			LeaseReleaseKind.RefusedTargetChanged => CheatEngineFailureKind.TargetChanged,
 			LeaseReleaseKind.RefusedTargetIdentityUnavailable => CheatEngineFailureKind.TargetIdentityUnavailable,
 			LeaseReleaseKind.RefusedRuntimeChanged => CheatEngineFailureKind.RuntimeChanged,

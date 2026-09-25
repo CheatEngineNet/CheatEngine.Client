@@ -181,7 +181,7 @@ internal abstract class HostResourceLease : ICheatEngineLease, IOutcomeReporting
 	{
 		return kind switch
 		{
-			LeaseReleaseKind.RefusedNoTarget => CheatEngineFailureKind.TargetNotAttached,
+			LeaseReleaseKind.RefusedTargetNotAttached => CheatEngineFailureKind.TargetNotAttached,
 			LeaseReleaseKind.RefusedTargetChanged => CheatEngineFailureKind.TargetChanged,
 			LeaseReleaseKind.RefusedTargetIdentityUnavailable => CheatEngineFailureKind.TargetIdentityUnavailable,
 			LeaseReleaseKind.RefusedRuntimeChanged => CheatEngineFailureKind.RuntimeChanged,

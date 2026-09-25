@@ -658,7 +658,7 @@ says what happened and its `HostEffect` how far the release call got; exactly on
 | `Replaced` | 4 | `IsComplete` | A third party replaced the resource; it was left in place |
 | `Superseded` | 5 | `IsComplete` | A newer Client registration replaced the lease |
 | `ExternallyRemoved` | 6 | `IsComplete` | The resource was already gone |
-| `RefusedNoTarget` | 7 | `RequiresManualRecovery` | Refused before any call: no target is selected |
+| `RefusedTargetNotAttached` | 7 | `RequiresManualRecovery` | Refused before any call: no target is selected |
 | `RefusedTargetChanged` | 8 | `RequiresManualRecovery` | Refused before any call: another process or process incarnation is selected |
 | `RefusedTargetIdentityUnavailable` | 9 | `RequiresManualRecovery` | Refused before any call: the target identity could not be established |
 | `RefusedRuntimeChanged` | 10 | `RequiresManualRecovery` | Refused before any call: the Lua runtime that created the resource is gone |
@@ -873,6 +873,7 @@ signature. Because these types are part of the Client's signatures, moving to Ch
 | Activation epoch | `Epoch` (`ICheatEngineClient`, `ICheatEngineRuntime`, `CheatEngineRuntimeSnapshot`, `ILuaExecutionContext`) | "SDK lifecycle epoch", an epoch on a lease |
 | Target-selection epoch | `SelectionEpoch` (`ProcessSnapshot`, every target-bound lease) | — |
 | Lua runtime replaced | `RuntimeChanged`, `RefusedRuntimeChanged` | `RuntimeInvalidated` |
+| No target selected | `TargetNotAttached`, `RefusedTargetNotAttached` | `RefusedNoTarget` |
 | Another target selected | `TargetChanged`, `RefusedTargetChanged` | — |
 | Target identity not established | `TargetIdentityUnavailable` | — |
 | Effect ran to completion | `Completed` (`CheatEngineHostEffect`, `MemoryBatchWriteEffectState`) | `Complete` |

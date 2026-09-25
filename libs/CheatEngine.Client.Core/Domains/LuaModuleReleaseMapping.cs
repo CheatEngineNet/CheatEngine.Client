@@ -27,7 +27,7 @@ internal static class LuaModuleReleaseMapping
 			LeaseReleaseKind.PartiallyReleased or LeaseReleaseKind.CleanupUnconfirmed =>
 				Outcome(kind, CheatEngineHostEffect.Started),
 			LeaseReleaseKind.AlreadyReleased or LeaseReleaseKind.Replaced or LeaseReleaseKind.Superseded
-				or LeaseReleaseKind.ExternallyRemoved or LeaseReleaseKind.RefusedNoTarget
+				or LeaseReleaseKind.ExternallyRemoved or LeaseReleaseKind.RefusedTargetNotAttached
 				or LeaseReleaseKind.RefusedTargetChanged or LeaseReleaseKind.RefusedTargetIdentityUnavailable
 				or LeaseReleaseKind.RefusedRuntimeChanged or LeaseReleaseKind.CleanupUnavailable =>
 				Outcome(kind, CheatEngineHostEffect.NotStarted),

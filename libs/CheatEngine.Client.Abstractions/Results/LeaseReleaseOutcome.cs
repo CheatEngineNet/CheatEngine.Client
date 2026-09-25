@@ -96,7 +96,7 @@ public readonly record struct LeaseReleaseOutcome
 	///     and the Client will not try again: only a manual recovery (or the end of the target process) removes it.
 	/// </summary>
 	public bool RequiresManualRecovery => Kind is LeaseReleaseKind.PartiallyReleased
-		or LeaseReleaseKind.RefusedNoTarget or LeaseReleaseKind.RefusedTargetChanged
+		or LeaseReleaseKind.RefusedTargetNotAttached or LeaseReleaseKind.RefusedTargetChanged
 		or LeaseReleaseKind.RefusedTargetIdentityUnavailable or LeaseReleaseKind.RefusedRuntimeChanged
 		or LeaseReleaseKind.CleanupUnconfirmed;
 

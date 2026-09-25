@@ -15,7 +15,7 @@ public sealed class LeaseReleaseOutcomeTests
 		Assert.Equal(4, (int) LeaseReleaseKind.Replaced);
 		Assert.Equal(5, (int) LeaseReleaseKind.Superseded);
 		Assert.Equal(6, (int) LeaseReleaseKind.ExternallyRemoved);
-		Assert.Equal(7, (int) LeaseReleaseKind.RefusedNoTarget);
+		Assert.Equal(7, (int) LeaseReleaseKind.RefusedTargetNotAttached);
 		Assert.Equal(8, (int) LeaseReleaseKind.RefusedTargetChanged);
 		Assert.Equal(9, (int) LeaseReleaseKind.RefusedTargetIdentityUnavailable);
 		Assert.Equal(10, (int) LeaseReleaseKind.RefusedRuntimeChanged);
@@ -36,7 +36,7 @@ public sealed class LeaseReleaseOutcomeTests
 	[InlineData(LeaseReleaseKind.Replaced, true, false, false)]
 	[InlineData(LeaseReleaseKind.Superseded, true, false, false)]
 	[InlineData(LeaseReleaseKind.ExternallyRemoved, true, false, false)]
-	[InlineData(LeaseReleaseKind.RefusedNoTarget, false, false, true)]
+	[InlineData(LeaseReleaseKind.RefusedTargetNotAttached, false, false, true)]
 	[InlineData(LeaseReleaseKind.RefusedTargetChanged, false, false, true)]
 	[InlineData(LeaseReleaseKind.RefusedTargetIdentityUnavailable, false, false, true)]
 	[InlineData(LeaseReleaseKind.RefusedRuntimeChanged, false, false, true)]
