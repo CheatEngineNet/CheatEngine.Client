@@ -70,4 +70,52 @@ internal static class OwnershipHandoff
 			throw;
 		}
 	}
+
+	/// <summary>Reports a failed handoff whose release was not confirmed, for the operation that called the port.</summary>
+	/// <param name="operation">The public Client operation name.</param>
+	/// <param name="handoff">The failed handoff.</param>
+	/// <param name="subject">What the owner held, for the message (for example <c>AOB result list</c>).</param>
+	/// <param name="lifetime">The owning activation lifetime, when the caller has one.</param>
+	/// <returns>
+	///     The publication fault classified by <see cref="SdkBoundary.Translate" /> with a completed effect (Cheat Engine
+	///     returned the owner), then marked <see cref="CheatEngineHostEffect.CleanupUnconfirmed" /> with the release kind
+	///     (<see cref="WithUnconfirmedRelease" />).
+	/// </returns>
+	/// <exception cref="CheatEngineActivationExpiredException">The activation ended while the SDK call ran.</exception>
+	/// <remarks>
+	///     Every route that publishes an SDK owner through <see cref="Adopt{TOwner, TResult}" /> reports its failed
+	///     handoff with this one mapping: the AOB result list and the Auto Assembler patch. A handoff whose release was
+	///     confirmed rethrows the publication fault instead, which the route classifies like any SDK fault.
+	/// </remarks>
+	internal static CheatEngineFailure ToFailure(string operation, OwnershipHandoffException handoff, string subject,
+		CoreLifetime? lifetime)
+	{
+		ArgumentNullException.ThrowIfNull(handoff);
+		CheatEngineFailure publishFailure = SdkBoundary.Translate(operation, handoff.PublishFailure,
+			CheatEngineHostEffect.Completed, lifetime);
+		return WithUnconfirmedRelease(publishFailure, subject, handoff.ReleaseKind, handoff.ReleaseFailure);
+	}
+
+	/// <summary>Adds a release that was not confirmed to the failure that caused it.</summary>
+	/// <param name="primary">The failure that caused the release.</param>
+	/// <param name="subject">What the released owner held, for the message.</param>
+	/// <param name="released">The release kind, never <see cref="LeaseReleaseKind.Released" />.</param>
+	/// <param name="releaseFault">The exception the release threw, if it threw.</param>
+	/// <returns>
+	///     The failure with its kind and operation, the release appended to its message, both exceptions, and
+	///     <see cref="CheatEngineHostEffect.CleanupUnconfirmed" />.
+	/// </returns>
+	internal static CheatEngineFailure WithUnconfirmedRelease(CheatEngineFailure primary, string subject,
+		LeaseReleaseKind released, Exception? releaseFault)
+	{
+		Exception? exception = (primary.Exception, releaseFault) switch
+		{
+			({ } cause, { } fault) => new AggregateException(cause, fault),
+			({ } cause, null) => cause,
+			_ => releaseFault
+		};
+		return new CheatEngineFailure(primary.Kind, primary.Operation,
+			$"{primary.Message} The {subject} release was not confirmed ({released}).", exception,
+			CheatEngineHostEffect.CleanupUnconfirmed);
+	}
 }

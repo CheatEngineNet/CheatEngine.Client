@@ -298,6 +298,35 @@ public sealed class AutoAssemblerClientTests : IDisposable
 		Assert.Same(fault, faulted.Exception);
 	}
 
+	/// <summary>
+	///     A patch the port could not publish, whose one disable was not confirmed, is reported like the AOB result list:
+	///     the publication fault keeps its classification and the unconfirmed release makes it CleanupUnconfirmed.
+	/// </summary>
+	[Theory]
+	[Trait("Qualification", "Q35")]
+	[InlineData(TargetReleaseStatus.UnconfirmedAfterInvocation, "CleanupUnconfirmed")]
+	[InlineData(TargetReleaseStatus.NotInvoked, "RefusedRuntimeChanged")]
+	public void APatchWhosePublicationFailedAndWhoseDisableWasNotConfirmedIsCleanupUnconfirmed(
+		TargetReleaseStatus disable, string expectedKind)
+	{
+		InvalidOperationException publishFailure = new("the patch owner could not be published");
+		AutoAssemblerClient client = CreateClient();
+		_port.DuringApply = () => _ = OwnershipHandoff.Adopt<object, object>(new object(), _ => throw publishFailure,
+			_ => AutoAssemblerMapping.ToReleaseOutcome(disable));
+
+		Assert.False(client.TryApplyPatch(new AutoAssemblerScript(Script), out IAutoAssemblerPatchLease? lease,
+			out CheatEngineFailure failure, Token));
+
+		Assert.Null(lease);
+		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.CleanupUnconfirmed, failure.HostEffect);
+		Assert.Equal(AutoAssemblerClient.ApplyOperation, failure.Operation);
+		Assert.Same(publishFailure, failure.Exception);
+		Assert.EndsWith($"The applied Auto Assembler patch release was not confirmed ({expectedKind}).",
+			failure.Message, StringComparison.Ordinal);
+		Assert.Equal(0, _port.Owner!.ReleaseCalls);
+	}
+
 	[Theory]
 	[Trait("Qualification", "Q35")]
 	[InlineData(TargetReleaseStatus.Released, CheatEngineHostEffect.Completed, "which was released at once")]

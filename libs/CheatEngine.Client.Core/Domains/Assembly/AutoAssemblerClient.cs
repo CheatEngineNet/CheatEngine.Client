@@ -46,6 +46,8 @@ internal sealed class AutoAssemblerClient : IAutoAssemblerClient
 	/// <summary>The largest number of UTF-8 bytes copied from one Cheat Engine host text.</summary>
 	internal const int HostTextByteLimit = 4096;
 
+	private const string PatchSubject = "applied Auto Assembler patch";
+
 	private const string PolicyRefusalMessage =
 		"Auto Assembler patches were not enabled for this activation; call EnableAutoAssemblerPatches() on the " +
 		"Client builder.";
@@ -214,10 +216,22 @@ internal sealed class AutoAssemblerClient : IAutoAssemblerClient
 		// No lease can be registered once the activation stops or ends: refuse before Cheat Engine applies a patch that
 		// no lease could own.
 		_lifetime.ThrowIfInactive(ApplyOperation);
-		if (!_port.TryApply(ApplyOperation, source, Options, out AutoAssemblerApplyFacts facts,
-				out IAutoAssemblerPatchOwner? patch, out CheatEngineFailure admissionFailure))
+		AutoAssemblerApplyFacts facts;
+		IAutoAssemblerPatchOwner? patch;
+		try
 		{
-			return new ApplyAttempt(null, admissionFailure);
+			if (!_port.TryApply(ApplyOperation, source, Options, out facts, out patch,
+					out CheatEngineFailure admissionFailure))
+			{
+				return new ApplyAttempt(null, admissionFailure);
+			}
+		}
+		catch (OwnershipHandoffException handoff)
+		{
+			// Cheat Engine applied the script, but the port could not publish its owner and the one disable was not
+			// confirmed: the publication fault keeps its classification, like the AOB route, with CleanupUnconfirmed.
+			return new ApplyAttempt(null,
+				OwnershipHandoff.ToFailure(ApplyOperation, handoff, PatchSubject, _lifetime));
 		}
 
 		if (AutoAssemblerMapping.ToApplyFailure(ApplyOperation, facts) is { } failure)

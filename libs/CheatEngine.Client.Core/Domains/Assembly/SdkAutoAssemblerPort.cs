@@ -14,7 +14,9 @@ namespace CheatEngine.Client.Core.Domains.Assembly;
 ///     <para>
 ///         This type is the only Client code that calls <c>AutoAssemblerPatcher</c> and the only code that holds an
 ///         <c>AutoAssemblerPatch</c>. The patch is handed to its Client owner through <see cref="OwnershipHandoff" />, so
-///         a failure between the activation and the publication of the owner releases the patch exactly once.
+///         a failure between the activation and the publication of the owner releases the patch exactly once, with the
+///         release mapping of the lease (<see cref="AutoAssemblerMapping.ToReleaseOutcome" />); an unconfirmed release
+///         surfaces as an <see cref="OwnershipHandoffException" /> that <c>AutoAssemblerClient</c> maps.
 ///     </para>
 ///     <para>
 ///         No hosted test has a Cheat Engine process or Lua state, so its lines are excluded from the coverage metric;
@@ -51,8 +53,9 @@ internal sealed class SdkAutoAssemblerPort : IAutoAssemblerPort
 			outcome.Compensation?.Status);
 		if (applied is not null)
 		{
+			// The one disable of an unpublished patch is mapped like every release of its lease.
 			patch = OwnershipHandoff.Adopt(applied, static owner => new SdkPatchOwner(owner),
-				static owner => SdkReleaseOutcomes.FromTarget(owner.ReleaseWithTargetOutcome().Status));
+				static owner => AutoAssemblerMapping.ToReleaseOutcome(owner.ReleaseWithTargetOutcome().Status));
 		}
 
 		return true;

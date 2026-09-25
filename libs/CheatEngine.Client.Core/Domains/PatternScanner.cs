@@ -588,10 +588,8 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 		{
 			// CE's scan returned a list that the port could not publish, and the list's release was not confirmed: the
 			// publication fault keeps its classification, and the unconfirmed release makes it CleanupUnconfirmed.
-			CheatEngineFailure publishFailure = SdkBoundary.Translate(ScanOperation, handoff.PublishFailure,
-				CheatEngineHostEffect.Completed, _dispatcher.Lifetime);
-			return ScanOutcome.Failed(CreateReleaseFailure(publishFailure, ListSubject, handoff.ReleaseKind,
-				handoff.ReleaseFailure), null);
+			return ScanOutcome.Failed(
+				OwnershipHandoff.ToFailure(ScanOperation, handoff, ListSubject, _dispatcher.Lifetime), null);
 		}
 		catch (Exception scanFault) when (SdkBoundary.IsSdkFault(scanFault))
 		{
@@ -798,15 +796,7 @@ internal sealed class PatternScanner(SdkMainThreadDispatcher dispatcher, IAobSca
 				releaseFault, CheatEngineHostEffect.CleanupUnconfirmed);
 		}
 
-		Exception? exception = (primary.Exception, releaseFault) switch
-		{
-			({ } cause, { } fault) => new AggregateException(cause, fault),
-			({ } cause, null) => cause,
-			_ => releaseFault
-		};
-		return new CheatEngineFailure(primary.Kind, primary.Operation,
-			$"{primary.Message} The {subject} release was not confirmed ({released}).", exception,
-			CheatEngineHostEffect.CleanupUnconfirmed);
+		return OwnershipHandoff.WithUnconfirmedRelease(primary, subject, released, releaseFault);
 	}
 
 	private static CheatEngineFailure Rejected(string message)
