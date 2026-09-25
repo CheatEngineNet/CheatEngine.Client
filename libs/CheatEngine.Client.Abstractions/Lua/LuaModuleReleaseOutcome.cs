@@ -174,6 +174,9 @@ public sealed class LuaModuleReleaseOutcome
 	/// <param name="restoredCount">The globals whose earlier value was put back.</param>
 	/// <param name="replacementCount">The globals left untouched because they no longer held the module's value.</param>
 	/// <returns>A <see cref="LeaseReleaseKind.Released" /> outcome.</returns>
+	/// <exception cref="ArgumentNullException"><paramref name="moduleName" /> is <see langword="null" />.</exception>
+	/// <exception cref="ArgumentException"><paramref name="moduleName" /> is empty or white space.</exception>
+	/// <exception cref="ArgumentOutOfRangeException">A count is negative.</exception>
 	public static LuaModuleReleaseOutcome Released(string moduleName, int removedCount, int restoredCount,
 		int replacementCount)
 	{
@@ -190,6 +193,12 @@ public sealed class LuaModuleReleaseOutcome
 	///     A <see cref="LeaseReleaseKind.PartiallyReleased" /> outcome whose <see cref="RemainingCount" /> is the number of
 	///     failed exports.
 	/// </returns>
+	/// <exception cref="ArgumentNullException"><paramref name="moduleName" /> is <see langword="null" />.</exception>
+	/// <exception cref="ArgumentException">
+	///     <paramref name="moduleName" /> or a failed export name is empty or white space, a failed export is listed
+	///     twice, or <paramref name="failedExports" /> is empty.
+	/// </exception>
+	/// <exception cref="ArgumentOutOfRangeException">A count is negative.</exception>
 	public static LuaModuleReleaseOutcome PartiallyReleased(string moduleName, int removedCount, int restoredCount,
 		int replacementCount, ImmutableArray<string> failedExports)
 	{
@@ -200,6 +209,8 @@ public sealed class LuaModuleReleaseOutcome
 	/// <summary>Creates the outcome of a release that found no registration left to release.</summary>
 	/// <param name="moduleName">The stable module identity.</param>
 	/// <returns>An <see cref="LeaseReleaseKind.AlreadyReleased" /> outcome.</returns>
+	/// <exception cref="ArgumentNullException"><paramref name="moduleName" /> is <see langword="null" />.</exception>
+	/// <exception cref="ArgumentException"><paramref name="moduleName" /> is empty or white space.</exception>
 	public static LuaModuleReleaseOutcome AlreadyReleased(string moduleName)
 	{
 		return Create(moduleName, LeaseReleaseKind.AlreadyReleased, 0, 0, 0, 0, []);
@@ -211,6 +222,9 @@ public sealed class LuaModuleReleaseOutcome
 	/// <param name="moduleName">The stable module identity.</param>
 	/// <param name="remainingCount">The globals of the registration, none of which was examined.</param>
 	/// <returns>A <see cref="LeaseReleaseKind.RefusedRuntimeChanged" /> outcome.</returns>
+	/// <exception cref="ArgumentNullException"><paramref name="moduleName" /> is <see langword="null" />.</exception>
+	/// <exception cref="ArgumentException"><paramref name="moduleName" /> is empty or white space.</exception>
+	/// <exception cref="ArgumentOutOfRangeException"><paramref name="remainingCount" /> is negative.</exception>
 	public static LuaModuleReleaseOutcome RefusedRuntimeChanged(string moduleName, int remainingCount)
 	{
 		return Create(moduleName, LeaseReleaseKind.RefusedRuntimeChanged, 0, 0, 0, remainingCount, []);
@@ -220,6 +234,9 @@ public sealed class LuaModuleReleaseOutcome
 	/// <param name="moduleName">The stable module identity.</param>
 	/// <param name="remainingCount">The globals of the registration, none of which was examined.</param>
 	/// <returns>A retryable <see cref="LeaseReleaseKind.CleanupUnavailable" /> outcome.</returns>
+	/// <exception cref="ArgumentNullException"><paramref name="moduleName" /> is <see langword="null" />.</exception>
+	/// <exception cref="ArgumentException"><paramref name="moduleName" /> is empty or white space.</exception>
+	/// <exception cref="ArgumentOutOfRangeException"><paramref name="remainingCount" /> is negative.</exception>
 	public static LuaModuleReleaseOutcome CleanupUnavailable(string moduleName, int remainingCount)
 	{
 		return Create(moduleName, LeaseReleaseKind.CleanupUnavailable, 0, 0, 0, remainingCount, []);

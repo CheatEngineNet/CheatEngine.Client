@@ -42,6 +42,11 @@ public readonly record struct AobScanRange
 	}
 
 	/// <summary>Gets whether <paramref name="address" /> is inside this inclusive range.</summary>
+	/// <param name="address">The address to test.</param>
+	/// <returns>
+	///     <see langword="true" /> when <paramref name="address" /> is at or after <see cref="Start" /> and at or
+	///     before <see cref="End" />.
+	/// </returns>
 	public bool Contains(Address address)
 	{
 		return address >= Start && address <= End;

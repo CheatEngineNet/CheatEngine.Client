@@ -5,6 +5,12 @@ namespace CheatEngine.Client.Processes;
 public readonly record struct LocalProcessSnapshot
 {
 	/// <summary>Creates copied local-process metadata.</summary>
+	/// <param name="id">The local operating-system process identifier.</param>
+	/// <param name="name">The display name, or <see langword="null" /> when it could not be read.</param>
+	/// <param name="executablePath">The executable path, or <see langword="null" /> when it could not be read.</param>
+	/// <exception cref="ArgumentException">
+	///     <paramref name="name" /> or <paramref name="executablePath" /> is empty.
+	/// </exception>
 	public LocalProcessSnapshot(LocalProcessId id, string? name, string? executablePath)
 	{
 		if (name is { Length: 0 })

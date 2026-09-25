@@ -34,6 +34,9 @@ namespace CheatEngine.Client.Extensions.DependencyInjection;
 public static class CheatEngineClientServiceCollectionExtensions
 {
 	/// <summary>Adds the client options, their validators, logging, and explicit Client service registrations.</summary>
+	/// <param name="services">The service collection of the activation provider.</param>
+	/// <returns>The builder of the Client registrations, to add modules and opt-ins.</returns>
+	/// <exception cref="ArgumentNullException"><paramref name="services" /> is <see langword="null" />.</exception>
 	/// <remarks>No memory codec is registered: a codec is an application service passed with each codec request.</remarks>
 	public static CheatEngineClientBuilder AddCheatEngineClient(this IServiceCollection services)
 	{
@@ -53,6 +56,14 @@ public static class CheatEngineClientServiceCollectionExtensions
 	}
 
 	/// <summary>Adds the client and binds its options from the default client section.</summary>
+	/// <param name="services">The service collection of the activation provider.</param>
+	/// <param name="configuration">
+	///     The configuration whose <see cref="CheatEngineClientOptions.ConfigurationSectionName" /> section is bound.
+	/// </param>
+	/// <returns>The builder of the Client registrations, to add modules and opt-ins.</returns>
+	/// <exception cref="ArgumentNullException">
+	///     <paramref name="services" /> or <paramref name="configuration" /> is <see langword="null" />.
+	/// </exception>
 	public static CheatEngineClientBuilder AddCheatEngineClient(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -62,6 +73,12 @@ public static class CheatEngineClientServiceCollectionExtensions
 	}
 
 	/// <summary>Adds the client and binds its options from an explicitly selected configuration section.</summary>
+	/// <param name="services">The service collection of the activation provider.</param>
+	/// <param name="section">The configuration section bound to the options.</param>
+	/// <returns>The builder of the Client registrations, to add modules and opt-ins.</returns>
+	/// <exception cref="ArgumentNullException">
+	///     <paramref name="services" /> or <paramref name="section" /> is <see langword="null" />.
+	/// </exception>
 	public static CheatEngineClientBuilder AddCheatEngineClient(
 		this IServiceCollection services,
 		IConfigurationSection section)
@@ -71,6 +88,12 @@ public static class CheatEngineClientServiceCollectionExtensions
 	}
 
 	/// <summary>Adds the client and applies a programmatic options configuration.</summary>
+	/// <param name="services">The service collection of the activation provider.</param>
+	/// <param name="configure">Configures the options of every activation.</param>
+	/// <returns>The builder of the Client registrations, to add modules and opt-ins.</returns>
+	/// <exception cref="ArgumentNullException">
+	///     <paramref name="services" /> or <paramref name="configure" /> is <see langword="null" />.
+	/// </exception>
 	public static CheatEngineClientBuilder AddCheatEngineClient(
 		this IServiceCollection services,
 		Action<CheatEngineClientOptions> configure)

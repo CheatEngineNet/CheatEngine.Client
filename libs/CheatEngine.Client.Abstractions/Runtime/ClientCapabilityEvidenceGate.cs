@@ -6,6 +6,11 @@ public readonly record struct ClientCapabilityEvidenceGate
 	private readonly string? _reason;
 
 	/// <summary>Creates a validated capability prerequisite observation.</summary>
+	/// <param name="state">The observed prerequisite state.</param>
+	/// <param name="reason">The bounded reason for the observation.</param>
+	/// <exception cref="ArgumentOutOfRangeException"><paramref name="state" /> is not a defined value.</exception>
+	/// <exception cref="ArgumentNullException"><paramref name="reason" /> is <see langword="null" />.</exception>
+	/// <exception cref="ArgumentException"><paramref name="reason" /> is empty or white space.</exception>
 	public ClientCapabilityEvidenceGate(ClientCapabilityEvidenceState state, string reason)
 	{
 		if (!Enum.IsDefined(state))

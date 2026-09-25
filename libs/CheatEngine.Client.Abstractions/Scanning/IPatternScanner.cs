@@ -91,6 +91,14 @@ namespace CheatEngine.Client.Scanning;
 public interface IPatternScanner
 {
 	/// <summary>Tries to run one scan and copy its matches.</summary>
+	/// <param name="request">The scan request.</param>
+	/// <param name="result">The copied matches on success; otherwise the default value.</param>
+	/// <param name="failure">The classified failure; the default value on success.</param>
+	/// <param name="cancellationToken">
+	///     Observed before dispatch, between Cheat Engine calls and between Client-managed steps; it never interrupts a
+	///     Cheat Engine scan that has already started (see <see cref="CheatEngineFailure.HostEffect" />).
+	/// </param>
+	/// <returns><see langword="true" /> when the scan ran and its matches were copied.</returns>
 	/// <remarks>
 	///     Expected failures, including an unconfirmed release of the Cheat Engine result list or scan session
 	///     (<see cref="CheatEngineHostEffect.CleanupUnconfirmed" />), are returned as <paramref name="failure" />. Lifecycle
@@ -102,14 +110,33 @@ public interface IPatternScanner
 	///     <see cref="ArgumentOutOfRangeException" /> for a limit, a range or an option its constructor would refuse.
 	///     It is thrown before the activation check and before any Cheat Engine call.
 	/// </exception>
+	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
 	public bool TryScan(AobScanRequest request, out AobScanResult result, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
 	/// <summary>Runs one scan and copies its matches, or throws when it fails.</summary>
+	/// <param name="request">The scan request.</param>
+	/// <param name="cancellationToken">
+	///     Observed before dispatch, between Cheat Engine calls and between Client-managed steps; it never interrupts a
+	///     Cheat Engine scan that has already started (see <see cref="CheatEngineFailure.HostEffect" />).
+	/// </param>
+	/// <returns>The copied matches.</returns>
 	/// <exception cref="ArgumentException">
 	///     <paramref name="request" /> is the <see langword="default" /> request, or a tampered one: an
 	///     <see cref="ArgumentOutOfRangeException" /> for a limit, a range or an option its constructor would refuse.
 	///     It is thrown before the activation check and before any Cheat Engine call.
+	/// </exception>
+	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, or the scan failed with <see cref="CheatEngineFailureKind.InvalidState" />.
+	/// </exception>
+	/// <exception cref="CheatEngineOperationCanceledException">
+	///     The scan observed the cancellation of <paramref name="cancellationToken" />.
+	/// </exception>
+	/// <exception cref="CheatEngineOperationException">
+	///     The scan failed with any other failure kind, <see cref="CheatEngineFailureKind.IndeterminateHostResult" />
+	///     for a global scan without a result list included.
 	/// </exception>
 	public AobScanResult Scan(AobScanRequest request, CancellationToken cancellationToken = default);
 
@@ -128,7 +155,7 @@ public interface IPatternScanner
 	///     <paramref name="request" /> is the <see langword="default" /> request, or a tampered one, as
 	///     <see cref="TryScan" /> throws.
 	/// </exception>
-	/// <exception cref="CheatEngineActivationExpiredException">The client activation has expired.</exception>
-	/// <exception cref="CheatEngineInvalidStateException">The client activation is stopping.</exception>
+	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
 	public PatternScanOutcome ScanDetailed(AobScanRequest request, CancellationToken cancellationToken = default);
 }

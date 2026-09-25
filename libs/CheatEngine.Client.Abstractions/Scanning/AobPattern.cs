@@ -92,6 +92,9 @@ public readonly record struct AobPattern
 	}
 
 	/// <summary>Formats the pattern as normalized Cheat Engine text.</summary>
+	/// <returns>
+	///     <see cref="Value" />: the normalized text, or an empty string for the <see langword="default" /> value.
+	/// </returns>
 	public override string ToString()
 	{
 		return Value;

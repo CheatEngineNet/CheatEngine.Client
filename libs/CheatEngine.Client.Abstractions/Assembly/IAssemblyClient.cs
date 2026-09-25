@@ -57,6 +57,8 @@ public interface IAssemblyClient
 	///     An empty result is <see cref="CheatEngineFailureKind.InvalidHostResult" />: one instruction is never zero bytes
 	///     long.
 	/// </remarks>
+	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
 	public bool TryAssemble(AssemblyInstructionRequest request, out ImmutableArray<byte> bytes,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default);
 
@@ -64,6 +66,17 @@ public interface IAssemblyClient
 	/// <param name="request">The instruction, its origin address, its encoding preference and range-check option.</param>
 	/// <param name="cancellationToken">Observed before dispatch only.</param>
 	/// <returns>The assembled bytes.</returns>
+	/// <exception cref="ArgumentException"><paramref name="request" /> is the default value.</exception>
+	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, or the assembly failed with <see cref="CheatEngineFailureKind.InvalidState" />.
+	/// </exception>
+	/// <exception cref="CheatEngineOperationCanceledException">
+	///     The assembly observed the cancellation of <paramref name="cancellationToken" />.
+	/// </exception>
+	/// <exception cref="CheatEngineOperationException">
+	///     The assembly failed with any other failure kind, a rejected instruction included.
+	/// </exception>
 	public ImmutableArray<byte> Assemble(AssemblyInstructionRequest request,
 		CancellationToken cancellationToken = default);
 
@@ -73,6 +86,8 @@ public interface IAssemblyClient
 	/// <param name="failure">The classified failure; the default value on success.</param>
 	/// <param name="cancellationToken">Observed before dispatch only.</param>
 	/// <returns><see langword="true" /> when the instruction, its length and its bytes were copied.</returns>
+	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
 	public bool TryDisassemble(Address address, out AssemblyInstructionSnapshot instruction,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default);
 
@@ -80,6 +95,15 @@ public interface IAssemblyClient
 	/// <param name="address">The address of the instruction.</param>
 	/// <param name="cancellationToken">Observed before dispatch only.</param>
 	/// <returns>The copied instruction.</returns>
+	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, or the disassembly failed with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />.
+	/// </exception>
+	/// <exception cref="CheatEngineOperationCanceledException">
+	///     The disassembly observed the cancellation of <paramref name="cancellationToken" />.
+	/// </exception>
+	/// <exception cref="CheatEngineOperationException">The disassembly failed with any other failure kind.</exception>
 	public AssemblyInstructionSnapshot Disassemble(Address address, CancellationToken cancellationToken = default);
 
 	/// <summary>Tries to get the exact length of the instruction at an address.</summary>
@@ -88,6 +112,8 @@ public interface IAssemblyClient
 	/// <param name="failure">The classified failure; the default value on success.</param>
 	/// <param name="cancellationToken">Observed before dispatch only.</param>
 	/// <returns><see langword="true" /> when Cheat Engine reported a positive length.</returns>
+	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
 	public bool TryGetInstructionLength(Address address, out int length, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
@@ -95,6 +121,14 @@ public interface IAssemblyClient
 	/// <param name="address">The address of the instruction.</param>
 	/// <param name="cancellationToken">Observed before dispatch only.</param>
 	/// <returns>The positive instruction length.</returns>
+	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, or the query failed with <see cref="CheatEngineFailureKind.InvalidState" />.
+	/// </exception>
+	/// <exception cref="CheatEngineOperationCanceledException">
+	///     The query observed the cancellation of <paramref name="cancellationToken" />.
+	/// </exception>
+	/// <exception cref="CheatEngineOperationException">The query failed with any other failure kind.</exception>
 	public int GetInstructionLength(Address address, CancellationToken cancellationToken = default);
 
 	/// <summary>Tries to get Cheat Engine's estimate of the start address of the preceding instruction.</summary>
@@ -108,6 +142,8 @@ public interface IAssemblyClient
 	///     not a proof. An estimate wider than the target's address width is
 	///     <see cref="CheatEngineFailureKind.OperationRejected" /> with <see cref="CheatEngineHostEffect.Completed" />.
 	/// </remarks>
+	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
 	public bool TryGetPreviousInstructionAddress(Address address, out Address previousAddress,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default);
 
@@ -115,5 +151,13 @@ public interface IAssemblyClient
 	/// <param name="address">The address of the instruction that follows the one sought.</param>
 	/// <param name="cancellationToken">Observed before dispatch only.</param>
 	/// <returns>The estimated start address of the preceding instruction.</returns>
+	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, or the query failed with <see cref="CheatEngineFailureKind.InvalidState" />.
+	/// </exception>
+	/// <exception cref="CheatEngineOperationCanceledException">
+	///     The query observed the cancellation of <paramref name="cancellationToken" />.
+	/// </exception>
+	/// <exception cref="CheatEngineOperationException">The query failed with any other failure kind.</exception>
 	public Address GetPreviousInstructionAddress(Address address, CancellationToken cancellationToken = default);
 }

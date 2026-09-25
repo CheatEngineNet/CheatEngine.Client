@@ -93,5 +93,10 @@ public interface IMemoryReadContext
 	/// <returns>
 	///     <see langword="true" /> when every byte was read; otherwise <see langword="false" />, with the buffer cleared.
 	/// </returns>
+	/// <exception cref="CheatEngineActivationExpiredException">
+	///     The context is used after its codec invocation returned or threw, on another thread, or after the activation
+	///     ended.
+	/// </exception>
+	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
 	public bool TryReadBytes(Address address, Span<byte> destination, out CheatEngineFailure failure);
 }

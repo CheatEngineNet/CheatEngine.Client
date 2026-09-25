@@ -8,8 +8,10 @@ namespace CheatEngine.Client.Modules;
 public interface ICheatEngineClientModule
 {
 	/// <summary>Runs after the client scope and Lua runtime are active.</summary>
+	/// <param name="client">The client of the activation.</param>
 	public void OnEnabled(ICheatEngineClient client);
 
 	/// <summary>Runs before the client scope is disposed and the Lua runtime is detached.</summary>
+	/// <param name="client">The client of the activation that is stopping.</param>
 	public void OnDisabling(ICheatEngineClient client);
 }

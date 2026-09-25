@@ -7,6 +7,9 @@ namespace CheatEngine.Client.Assembly;
 public readonly record struct AutoAssemblerScript
 {
 	/// <summary>Creates an Auto Assembler script request.</summary>
+	/// <param name="source">The complete Auto Assembler source.</param>
+	/// <param name="name">A diagnostic name for the patch, or <see langword="null" /> for none.</param>
+	/// <exception cref="ArgumentNullException"><paramref name="source" /> is <see langword="null" />.</exception>
 	/// <exception cref="ArgumentException"><paramref name="source" /> is blank or <paramref name="name" /> is blank.</exception>
 	public AutoAssemblerScript(string source, string? name = null)
 	{

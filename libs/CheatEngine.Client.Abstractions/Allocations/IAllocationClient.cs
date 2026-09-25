@@ -39,6 +39,10 @@ public interface IAllocationClient
 	///     <paramref name="request" /> is the <see langword="default" /> request, which has no size, or a tampered one;
 	///     it is thrown before the activation check and before any Cheat Engine call.
 	/// </exception>
+	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping: no new lease is created while it stops.
+	/// </exception>
 	public bool TryAllocate(
 		AllocationRequest request,
 		[NotNullWhen(true)] out ITargetMemoryLease? lease,
@@ -53,6 +57,15 @@ public interface IAllocationClient
 	///     <paramref name="request" /> is the <see langword="default" /> request, which has no size, or a tampered one;
 	///     it is thrown before the activation check and before any Cheat Engine call.
 	/// </exception>
+	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, or the allocation failed with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />.
+	/// </exception>
+	/// <exception cref="CheatEngineOperationCanceledException">
+	///     The allocation observed the cancellation of <paramref name="cancellationToken" />.
+	/// </exception>
+	/// <exception cref="CheatEngineOperationException">The allocation failed with any other failure kind.</exception>
 	public ITargetMemoryLease Allocate(
 		AllocationRequest request,
 		CancellationToken cancellationToken = default);

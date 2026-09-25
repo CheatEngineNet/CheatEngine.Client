@@ -93,6 +93,8 @@ public interface IValueScanSession : ICheatEngineLease
 	///     comparison, a value type, a range or an option its factories would refuse). It is thrown before the
 	///     activation check and before any Cheat Engine call.
 	/// </exception>
+	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
 	public bool TryFirstScan(ValueScanFirstRequest request, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
@@ -104,6 +106,17 @@ public interface IValueScanSession : ICheatEngineLease
 	///     <see langword="default" /> request, or a tampered one (an <see cref="ArgumentOutOfRangeException" /> for a
 	///     comparison, a value type, a range or an option its factories would refuse). It is thrown before the
 	///     activation check and before any Cheat Engine call.
+	/// </exception>
+	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, or the scan failed with <see cref="CheatEngineFailureKind.InvalidState" />: a
+	///     state the session does not accept, a released session included, or a re-entrant call.
+	/// </exception>
+	/// <exception cref="CheatEngineOperationCanceledException">
+	///     The scan observed the cancellation of <paramref name="cancellationToken" />.
+	/// </exception>
+	/// <exception cref="CheatEngineOperationException">
+	///     The scan failed with any other failure kind.
 	/// </exception>
 	public void FirstScan(ValueScanFirstRequest request, CancellationToken cancellationToken = default);
 
@@ -119,6 +132,8 @@ public interface IValueScanSession : ICheatEngineLease
 	///     before any Cheat Engine call; a value of another type than the session's first scan is refused with
 	///     <see cref="CheatEngineFailureKind.OperationRejected" /> instead.
 	/// </exception>
+	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
 	public bool TryNextScan(ValueScanNextRequest request, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
@@ -132,6 +147,17 @@ public interface IValueScanSession : ICheatEngineLease
 	///     before any Cheat Engine call; a value of another type than the session's first scan is refused with
 	///     <see cref="CheatEngineFailureKind.OperationRejected" /> instead.
 	/// </exception>
+	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, or the scan failed with <see cref="CheatEngineFailureKind.InvalidState" />: a
+	///     state the session does not accept, a released session included, or a re-entrant call.
+	/// </exception>
+	/// <exception cref="CheatEngineOperationCanceledException">
+	///     The scan observed the cancellation of <paramref name="cancellationToken" />.
+	/// </exception>
+	/// <exception cref="CheatEngineOperationException">
+	///     The scan failed with any other failure kind.
+	/// </exception>
 	public void NextScan(ValueScanNextRequest request, CancellationToken cancellationToken = default);
 
 	/// <summary>Tries to clear the results so that the session accepts a new first scan.</summary>
@@ -142,10 +168,23 @@ public interface IValueScanSession : ICheatEngineLease
 	///     A reset recovers an <see cref="ValueScanSessionState.Invalidated" /> session while its target and Lua runtime
 	///     are unchanged; it is refused while Cheat Engine may still be scanning.
 	/// </remarks>
+	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
 	public bool TryReset(out CheatEngineFailure failure, CancellationToken cancellationToken = default);
 
 	/// <summary>Clears the results so that the session accepts a new first scan, or throws the failure.</summary>
 	/// <param name="cancellationToken">Observed before Cheat Engine clears the results, and after.</param>
+	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, or the reset failed with <see cref="CheatEngineFailureKind.InvalidState" />: a
+	///     state the session does not accept, a released session included, or a re-entrant call.
+	/// </exception>
+	/// <exception cref="CheatEngineOperationCanceledException">
+	///     The reset observed the cancellation of <paramref name="cancellationToken" />.
+	/// </exception>
+	/// <exception cref="CheatEngineOperationException">
+	///     The reset failed with any other failure kind.
+	/// </exception>
 	public void Reset(CancellationToken cancellationToken = default);
 
 	/// <summary>Tries to read the number of current results.</summary>
@@ -153,12 +192,25 @@ public interface IValueScanSession : ICheatEngineLease
 	/// <param name="failure">The classified failure when the method returns <see langword="false" />.</param>
 	/// <param name="cancellationToken">Observed before Cheat Engine is asked, and after.</param>
 	/// <returns><see langword="true" /> when the count was read.</returns>
+	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
 	public bool TryGetResultCount(out ulong resultCount, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
 	/// <summary>Reads the number of current results, or throws the failure.</summary>
 	/// <param name="cancellationToken">Observed before Cheat Engine is asked, and after.</param>
 	/// <returns>The number of results.</returns>
+	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, or the count failed with <see cref="CheatEngineFailureKind.InvalidState" />: a
+	///     state the session does not accept, a released session included, or a re-entrant call.
+	/// </exception>
+	/// <exception cref="CheatEngineOperationCanceledException">
+	///     The count observed the cancellation of <paramref name="cancellationToken" />.
+	/// </exception>
+	/// <exception cref="CheatEngineOperationException">
+	///     The count failed with any other failure kind.
+	/// </exception>
 	public ulong GetResultCount(CancellationToken cancellationToken = default);
 
 	/// <summary>Tries to copy one bounded page of the current results.</summary>
@@ -174,6 +226,8 @@ public interface IValueScanSession : ICheatEngineLease
 	///     <paramref name="request" /> is the <see langword="default" /> request, which allows no result, or a tampered
 	///     one: it is thrown before the activation check and before any Cheat Engine call.
 	/// </exception>
+	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
 	public bool TryRead(ValueScanReadRequest request, out ValueScanPage page, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
@@ -184,6 +238,17 @@ public interface IValueScanSession : ICheatEngineLease
 	/// <exception cref="ArgumentOutOfRangeException">
 	///     <paramref name="request" /> is the <see langword="default" /> request, which allows no result, or a tampered
 	///     one: it is thrown before the activation check and before any Cheat Engine call.
+	/// </exception>
+	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, or the read failed with <see cref="CheatEngineFailureKind.InvalidState" />: a
+	///     state the session does not accept, a released session included, or a re-entrant call.
+	/// </exception>
+	/// <exception cref="CheatEngineOperationCanceledException">
+	///     The read observed the cancellation of <paramref name="cancellationToken" />.
+	/// </exception>
+	/// <exception cref="CheatEngineOperationException">
+	///     The read failed with any other failure kind.
 	/// </exception>
 	public ValueScanPage Read(ValueScanReadRequest request, CancellationToken cancellationToken = default);
 }

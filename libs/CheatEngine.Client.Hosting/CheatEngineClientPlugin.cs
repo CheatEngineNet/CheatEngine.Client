@@ -48,6 +48,7 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 	}
 
 	/// <summary>Gets the client for the active enable epoch.</summary>
+	/// <returns>The client of the current activation.</returns>
 	/// <exception cref="CheatEngineInvalidStateException">The plugin is not currently enabled.</exception>
 	protected ICheatEngineClient GetRequiredClient()
 	{
@@ -55,6 +56,7 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 	}
 
 	/// <summary>Adds application services, explicit Client modules, logging, and configuration sources for one activation.</summary>
+	/// <param name="builder">The registrations, configuration and logging of the activation being enabled.</param>
 	/// <remarks>
 	///     Do not build a provider here. The base class builds it after this method returns with scope and build validation
 	///     enabled. Application services that use Client APIs should be scoped and receive their dependencies by constructor
@@ -78,7 +80,23 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 		ArgumentNullException.ThrowIfNull(client);
 	}
 
-	/// <inheritdoc />
+	/// <summary>
+	///     Creates and publishes the activation of this enable: calls <see cref="Configure" />, builds and validates
+	///     the activation provider and scope, enables the Client modules in registration order, then calls
+	///     <see cref="OnClientEnabled" />.
+	/// </summary>
+	/// <remarks>
+	///     A failure at any step rolls the partial activation back before the failure is rethrown, so no activation is
+	///     published.
+	/// </remarks>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     A Client activation of this plugin instance is already active, or Cheat Engine has not enabled a current
+	///     plugin context for it.
+	/// </exception>
+	/// <exception cref="AggregateException">
+	///     The activation failed and its rollback failed too: the activation failure comes first, then every rollback
+	///     failure. A failure whose rollback succeeded is rethrown unchanged.
+	/// </exception>
 	protected sealed override void OnEnable()
 	{
 		if (Volatile.Read(ref _activation) is not null)
@@ -118,7 +136,23 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 		}
 	}
 
-	/// <inheritdoc />
+	/// <summary>
+	///     Closes the activation of this enable, when there is one: calls <see cref="OnClientDisabling" />, disables
+	///     the enabled modules in reverse order and releases the Client-owned Cheat Engine resources while Lua is
+	///     attached, then disposes the activation scope, the provider and the configuration.
+	/// </summary>
+	/// <remarks>
+	///     Every stage is attempted even after an earlier one failed. A lease that the application did not release
+	///     completely is reported here, never to the code that released it.
+	/// </remarks>
+	/// <exception cref="CheatEngineClientException">
+	///     A Client-owned resource was not released completely, and nothing else failed: the failure has the host
+	///     effect <see cref="CheatEngineHostEffect.CleanupUnconfirmed" />.
+	/// </exception>
+	/// <exception cref="AggregateException">
+	///     Several cleanup failures, one per failed stage or incomplete release; a single failure of another stage (a
+	///     module callback, for example) is rethrown unchanged.
+	/// </exception>
 	protected sealed override void OnDisable()
 	{
 		Activation? activation = Interlocked.Exchange(ref _activation, null);

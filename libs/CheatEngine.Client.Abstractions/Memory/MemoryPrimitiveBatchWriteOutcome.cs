@@ -6,6 +6,24 @@ namespace CheatEngine.Client.Memory;
 public sealed class MemoryPrimitiveBatchWriteOutcome
 {
 	/// <summary>Creates a write outcome with a known or explicitly unknown target effect state.</summary>
+	/// <param name="requestedCount">The positive number of writes the batch requested.</param>
+	/// <param name="completedCount">The number of writes known to have completed in order.</param>
+	/// <param name="failedIndex">
+	///     The write that failed, which is <paramref name="completedCount" />, or <see langword="null" /> when it is
+	///     not known.
+	/// </param>
+	/// <param name="failure">The failure when the batch did not complete; <see langword="null" /> otherwise.</param>
+	/// <param name="effectState">What is known about the writes' effect on the target.</param>
+	/// <exception cref="ArgumentOutOfRangeException">
+	///     <paramref name="requestedCount" /> is zero or negative, <paramref name="completedCount" /> is negative or
+	///     larger than it, <paramref name="effectState" /> is not a defined value, or <paramref name="failedIndex" />
+	///     is not <paramref name="completedCount" />.
+	/// </exception>
+	/// <exception cref="ArgumentException">
+	///     The values contradict each other: <paramref name="failure" /> is <see langword="null" /> for an incomplete
+	///     batch or set for a complete one, a <see cref="MemoryBatchWriteEffectState.NotStarted" /> state has completed
+	///     writes, or a <see cref="MemoryBatchWriteEffectState.Partial" /> state has none or all of them.
+	/// </exception>
 	public MemoryPrimitiveBatchWriteOutcome(int requestedCount, int completedCount, int? failedIndex,
 		CheatEngineFailure? failure, MemoryBatchWriteEffectState effectState)
 	{

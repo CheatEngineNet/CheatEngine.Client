@@ -7,6 +7,8 @@ public readonly record struct LuaExportDescriptor
 
 	/// <summary>Initializes one validated Lua global descriptor.</summary>
 	/// <param name="name">The case-sensitive Lua global name.</param>
+	/// <exception cref="ArgumentNullException"><paramref name="name" /> is <see langword="null" />.</exception>
+	/// <exception cref="ArgumentException"><paramref name="name" /> is empty or white space.</exception>
 	public LuaExportDescriptor(string name)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(name);

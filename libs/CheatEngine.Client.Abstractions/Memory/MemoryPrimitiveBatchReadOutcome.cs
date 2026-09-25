@@ -16,6 +16,13 @@ public sealed class MemoryPrimitiveBatchReadOutcome<T>
 	/// <param name="values">The values read in order before the batch stopped: the confirmed prefix.</param>
 	/// <param name="failedIndex">The read that failed, or <see langword="null" /> when admission or dispatch failed.</param>
 	/// <param name="failure">The failure when the batch did not complete; <see langword="null" /> otherwise.</param>
+	/// <exception cref="ArgumentOutOfRangeException">
+	///     <paramref name="requestedCount" /> is zero or negative, <paramref name="values" /> is longer than it, or
+	///     <paramref name="failedIndex" /> is not the index that follows the values read.
+	/// </exception>
+	/// <exception cref="ArgumentException">
+	///     <paramref name="failure" /> is <see langword="null" /> for an incomplete batch, or set for a complete one.
+	/// </exception>
 	public MemoryPrimitiveBatchReadOutcome(int requestedCount, ReadOnlySpan<T> values, int? failedIndex,
 		CheatEngineFailure? failure)
 	{

@@ -8,6 +8,10 @@ namespace CheatEngine.Client.Memory;
 public readonly struct PointerChainRequest
 {
 	/// <summary>Creates a bounded pointer chain by copying its offsets.</summary>
+	/// <param name="baseAddress">The address that holds the first target pointer.</param>
+	/// <param name="offsets">The offsets, one per pointer read: between 1 and 64, copied by the constructor.</param>
+	/// <exception cref="ArgumentException"><paramref name="offsets" /> is empty.</exception>
+	/// <exception cref="ArgumentOutOfRangeException"><paramref name="offsets" /> has more than 64 offsets.</exception>
 	public PointerChainRequest(Address baseAddress, ReadOnlySpan<long> offsets)
 	{
 		if (offsets.IsEmpty)

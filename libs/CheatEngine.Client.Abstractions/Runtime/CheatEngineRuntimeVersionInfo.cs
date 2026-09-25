@@ -32,7 +32,10 @@ public readonly record struct CheatEngineRuntimeVersionInfo
 	/// <param name="isReviewedSdkPackage">
 	///     Whether the loaded CheatEngine.SDK is exactly the package this Client build consumed and was reviewed with.
 	/// </param>
-	/// <exception cref="ArgumentNullException">An assembly version is <see langword="null" />.</exception>
+	/// <exception cref="ArgumentNullException">
+	///     <paramref name="clientAssemblyVersion" /> or <paramref name="sdkAssemblyVersion" /> is
+	///     <see langword="null" />.
+	/// </exception>
 	/// <exception cref="ArgumentException">
 	///     <paramref name="sdkPackageVersion" /> is empty or white space, or <paramref name="isReviewedSdkPackage" /> is
 	///     <see langword="true" /> without a package version.

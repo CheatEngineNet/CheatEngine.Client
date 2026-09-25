@@ -42,6 +42,9 @@ public sealed class CheatEngineClientBuilder
 	}
 
 	/// <summary>Adds a programmatic options configuration that runs after configuration binding.</summary>
+	/// <param name="configure">Configures the options of every activation.</param>
+	/// <returns>This builder.</returns>
+	/// <exception cref="ArgumentNullException"><paramref name="configure" /> is <see langword="null" />.</exception>
 	public CheatEngineClientBuilder Configure(Action<CheatEngineClientOptions> configure)
 	{
 		ArgumentNullException.ThrowIfNull(configure);
@@ -50,6 +53,13 @@ public sealed class CheatEngineClientBuilder
 	}
 
 	/// <summary>Binds client options from the default client section of a configuration root.</summary>
+	/// <param name="configuration">
+	///     The configuration whose <see cref="CheatEngineClientOptions.ConfigurationSectionName" /> section is bound.
+	/// </param>
+	/// <returns>This builder.</returns>
+	/// <exception cref="ArgumentNullException">
+	///     <paramref name="configuration" /> is <see langword="null" />.
+	/// </exception>
 	public CheatEngineClientBuilder BindConfiguration(IConfiguration configuration)
 	{
 		ArgumentNullException.ThrowIfNull(configuration);
@@ -57,6 +67,9 @@ public sealed class CheatEngineClientBuilder
 	}
 
 	/// <summary>Binds client options from an explicitly selected configuration section.</summary>
+	/// <param name="section">The configuration section bound to the options.</param>
+	/// <returns>This builder.</returns>
+	/// <exception cref="ArgumentNullException"><paramref name="section" /> is <see langword="null" />.</exception>
 	public CheatEngineClientBuilder BindConfiguration(IConfigurationSection section)
 	{
 		ArgumentNullException.ThrowIfNull(section);
@@ -66,6 +79,7 @@ public sealed class CheatEngineClientBuilder
 
 	/// <summary>Adds one activation module in registration order.</summary>
 	/// <typeparam name="TModule">The concrete module type.</typeparam>
+	/// <returns>This builder.</returns>
 	/// <remarks>
 	///     Module construction is explicit through the generic service descriptor; no assembly scanning or runtime type
 	///     discovery is performed. Modules are scoped to the activation so they can depend on other scoped application
@@ -82,6 +96,7 @@ public sealed class CheatEngineClientBuilder
 
 	/// <summary>Adds one Lua module to every Client activation.</summary>
 	/// <typeparam name="TModule">The generated (<see cref="CheatEngineLuaModuleAttribute" />) or manual Lua module type.</typeparam>
+	/// <returns>This builder.</returns>
 	/// <remarks>
 	///     The module is created from its public constructor by the activation-scoped provider and is registered only
 	///     after the Client and Lua runtime are live, after the Client reserved its descriptor's module name and exports
@@ -101,6 +116,10 @@ public sealed class CheatEngineClientBuilder
 	}
 
 	/// <summary>Opts this activation into trusted arbitrary Lua execution.</summary>
+	/// <returns>This builder.</returns>
+	/// <exception cref="InvalidOperationException">
+	///     <see cref="IUnsafeLuaClient" /> was registered by another path than this method.
+	/// </exception>
 	/// <remarks>
 	///     This is the only supported opt-in path. Configuration binding cannot enable the capability or register the
 	///     unsafe facade, so the activation policy and service registration are established together.

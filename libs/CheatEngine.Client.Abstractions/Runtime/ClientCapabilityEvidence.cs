@@ -7,6 +7,20 @@ namespace CheatEngine.Client.Runtime;
 public readonly record struct ClientCapabilityEvidence
 {
 	/// <summary>Creates validated evidence for one Client capability.</summary>
+	/// <param name="implementation">Whether an operational Client adapter is delivered for the capability.</param>
+	/// <param name="package">Whether the required primitive is established in the consumed package.</param>
+	/// <param name="host">The observation of the required Cheat Engine host primitive.</param>
+	/// <param name="liveQualification">Whether the required host profile passed its live qualification gate.</param>
+	/// <param name="policy">Whether Client policy permits the capability for the activation.</param>
+	/// <param name="lifetime">Whether the activation lifetime the capability requires is current.</param>
+	/// <exception cref="ArgumentOutOfRangeException">
+	///     The state of a gate is not a defined value (<paramref name="implementation" />, <paramref name="package" />,
+	///     <paramref name="host" />, <paramref name="liveQualification" />, <paramref name="policy" /> or
+	///     <paramref name="lifetime" />).
+	/// </exception>
+	/// <exception cref="ArgumentException">
+	///     A gate is the <see langword="default" /> value, which has no reason.
+	/// </exception>
 	public ClientCapabilityEvidence(
 		ClientCapabilityEvidenceGate implementation,
 		ClientCapabilityEvidenceGate package,

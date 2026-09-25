@@ -77,6 +77,18 @@ public sealed class MemoryResourceLimits
 	}
 
 	/// <summary>Initializes explicitly bounded activation memory budgets.</summary>
+	/// <param name="maximumReadBytes">The positive maximum number of bytes one read may copy.</param>
+	/// <param name="maximumWriteBytes">The positive maximum number of bytes one write may copy.</param>
+	/// <param name="maximumStringBytes">The positive maximum encoded bytes of one string operation.</param>
+	/// <param name="maximumBatchPayloadBytes">The positive maximum payload bytes of one primitive batch.</param>
+	/// <param name="maximumBatchOperationCount">
+	///     The positive maximum number of operations of one primitive batch, at most
+	///     <see cref="MemoryBatchLimits.MaximumOperationCount" />.
+	/// </param>
+	/// <exception cref="ArgumentOutOfRangeException">
+	///     A value is zero or negative, or <paramref name="maximumBatchOperationCount" /> exceeds
+	///     <see cref="MemoryBatchLimits.MaximumOperationCount" />.
+	/// </exception>
 	public MemoryResourceLimits(int maximumReadBytes, int maximumWriteBytes, int maximumStringBytes,
 		int maximumBatchPayloadBytes, int maximumBatchOperationCount)
 	{

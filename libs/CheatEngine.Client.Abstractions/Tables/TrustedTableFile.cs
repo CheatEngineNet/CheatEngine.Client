@@ -4,6 +4,11 @@ namespace CheatEngine.Client.Tables;
 public readonly record struct TrustedTableFile
 {
 	/// <summary>Creates a trusted table path. Policy validation is still performed by the configured table client.</summary>
+	/// <param name="path">The absolute path of the table file; it is normalized.</param>
+	/// <exception cref="ArgumentNullException"><paramref name="path" /> is <see langword="null" />.</exception>
+	/// <exception cref="ArgumentException">
+	///     <paramref name="path" /> is empty, white space or not fully qualified.
+	/// </exception>
 	public TrustedTableFile(string path)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(path);

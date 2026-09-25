@@ -24,6 +24,13 @@ namespace CheatEngine.Client.Lua;
 ///         from the <c>[LuaFunction]</c> declarations on <paramref name="bindingsType" />.
 ///     </para>
 /// </remarks>
+/// <param name="bindingsType">
+///     The static partial SDK binding type whose <c>[LuaFunction]</c> methods the module exports.
+/// </param>
+/// <param name="name">
+///     The stable module identity, or <see langword="null" /> to use the module type's simple name.
+/// </param>
+/// <exception cref="ArgumentNullException"><paramref name="bindingsType" /> is <see langword="null" />.</exception>
 [AttributeUsage(AttributeTargets.Class, Inherited = false)]
 public sealed class CheatEngineLuaModuleAttribute(Type bindingsType, string? name = null) : Attribute
 {

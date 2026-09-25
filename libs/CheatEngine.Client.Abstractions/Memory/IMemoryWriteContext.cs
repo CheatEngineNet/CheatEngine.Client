@@ -91,5 +91,10 @@ public interface IMemoryWriteContext
 	///     success. A codec that fails because of this write can return it unchanged.
 	/// </param>
 	/// <returns><see langword="true" /> when every byte was written.</returns>
+	/// <exception cref="CheatEngineActivationExpiredException">
+	///     The context is used after its codec invocation returned or threw, on another thread, or after the activation
+	///     ended.
+	/// </exception>
+	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
 	public bool TryWriteBytes(Address address, ReadOnlySpan<byte> source, out CheatEngineFailure failure);
 }

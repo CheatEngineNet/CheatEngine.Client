@@ -4,6 +4,14 @@ namespace CheatEngine.Client.Processes;
 public readonly record struct LocalProcessEnumerationRequest
 {
 	/// <summary>Creates a bounded process enumeration request.</summary>
+	/// <param name="maximumResults">The positive maximum number of processes to copy.</param>
+	/// <param name="nameContains">
+	///     A case-insensitive substring the process name must contain, or <see langword="null" /> for every process.
+	/// </param>
+	/// <exception cref="ArgumentOutOfRangeException">
+	///     <paramref name="maximumResults" /> is zero or negative.
+	/// </exception>
+	/// <exception cref="ArgumentException"><paramref name="nameContains" /> is empty.</exception>
 	public LocalProcessEnumerationRequest(int maximumResults, string? nameContains = null)
 	{
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumResults);

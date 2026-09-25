@@ -8,6 +8,11 @@ public readonly struct LocalProcessEnumerationResult
 	private readonly ImmutableArray<LocalProcessSnapshot> _processes;
 
 	/// <summary>Creates a copied process enumeration result.</summary>
+	/// <param name="processes">The copied processes, ordered by identifier; a default array is empty.</param>
+	/// <param name="isTruncated">Whether matching processes were omitted at the caller's limit.</param>
+	/// <exception cref="ArgumentException">
+	///     <paramref name="isTruncated" /> is <see langword="true" /> and <paramref name="processes" /> is empty.
+	/// </exception>
 	public LocalProcessEnumerationResult(ImmutableArray<LocalProcessSnapshot> processes, bool isTruncated)
 	{
 		_processes = processes.IsDefault ? ImmutableArray<LocalProcessSnapshot>.Empty : processes;

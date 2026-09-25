@@ -64,6 +64,8 @@ public interface IAutoAssemblerClient
 	///     An accepted check does not prove that an activation will succeed: the target or its symbols can change before
 	///     it, and allocations or injections are not attempted. A check never creates a lease.
 	/// </remarks>
+	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">The activation is stopping.</exception>
 	public bool TryCheck(AutoAssemblerScript script, out AutoAssemblerCheckResult result,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default);
 
@@ -72,8 +74,15 @@ public interface IAutoAssemblerClient
 	/// <param name="cancellationToken">Observed before the check is dispatched.</param>
 	/// <returns>Whether Cheat Engine accepted the section, with its bounded messages when it did not.</returns>
 	/// <exception cref="ArgumentException"><paramref name="script" /> is the default value.</exception>
+	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, or the check could not run with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />.
+	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">The check was cancelled before it was dispatched.</exception>
-	/// <exception cref="CheatEngineClientException">The check could not run.</exception>
+	/// <exception cref="CheatEngineOperationException">
+	///     The check could not run, with any other failure kind; a rejection is a result, not an exception.
+	/// </exception>
 	public AutoAssemblerCheckResult Check(AutoAssemblerScript script, CancellationToken cancellationToken = default);
 
 	/// <summary>Tries to apply a script and to take ownership of the patch Cheat Engine applied.</summary>
@@ -94,6 +103,10 @@ public interface IAutoAssemblerClient
 	///     failed activation whose owner was released incompletely, report
 	///     <see cref="CheatEngineHostEffect.CleanupUnconfirmed" />: the patch may remain in the target.
 	/// </remarks>
+	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping: no new lease is created while it stops.
+	/// </exception>
 	public bool TryApplyPatch(AutoAssemblerScript script, [NotNullWhen(true)] out IAutoAssemblerPatchLease? lease,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default);
 
@@ -102,8 +115,15 @@ public interface IAutoAssemblerClient
 	/// <param name="cancellationToken">Observed before the activation is dispatched.</param>
 	/// <returns>The owner of the applied patch.</returns>
 	/// <exception cref="ArgumentException"><paramref name="script" /> is the default value.</exception>
+	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, or no lease was returned, with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />.
+	/// </exception>
 	/// <exception cref="CheatEngineOperationCanceledException">The activation was cancelled before it was dispatched.</exception>
-	/// <exception cref="CheatEngineClientException">No lease was returned.</exception>
+	/// <exception cref="CheatEngineOperationException">
+	///     No lease was returned, with any other failure kind, a rejection of the script included.
+	/// </exception>
 	public IAutoAssemblerPatchLease ApplyPatch(AutoAssemblerScript script,
 		CancellationToken cancellationToken = default);
 }

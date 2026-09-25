@@ -34,11 +34,23 @@ public interface IValueScanner
 	/// <remarks>
 	///     A cancellation observed after Cheat Engine created the session releases it at once and publishes nothing.
 	/// </remarks>
+	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping: no new lease is created while it stops.
+	/// </exception>
 	public bool TryCreateSession([NotNullWhen(true)] out IValueScanSession? session, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default);
 
 	/// <summary>Creates a value-scan session for Cheat Engine's selected target, or throws the failure.</summary>
 	/// <param name="cancellationToken">Observed before Cheat Engine creates the session, and after.</param>
 	/// <returns>The new session; release it when done.</returns>
+	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The activation is stopping, or the creation failed with <see cref="CheatEngineFailureKind.InvalidState" />.
+	/// </exception>
+	/// <exception cref="CheatEngineOperationCanceledException">
+	///     The creation observed the cancellation of <paramref name="cancellationToken" />.
+	/// </exception>
+	/// <exception cref="CheatEngineOperationException">The creation failed with any other failure kind.</exception>
 	public IValueScanSession CreateSession(CancellationToken cancellationToken = default);
 }

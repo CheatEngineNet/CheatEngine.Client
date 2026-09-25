@@ -10,6 +10,11 @@ public readonly struct AobScanResult
 	private readonly ImmutableArray<Address> _matches;
 
 	/// <summary>Creates a copied AOB scan result.</summary>
+	/// <param name="matches">The copied match addresses; a default array is empty.</param>
+	/// <param name="isTruncated">Whether the copy is not proven complete (see <see cref="IsTruncated" />).</param>
+	/// <exception cref="ArgumentException">
+	///     <paramref name="isTruncated" /> is <see langword="true" /> and <paramref name="matches" /> is empty.
+	/// </exception>
 	public AobScanResult(ImmutableArray<Address> matches, bool isTruncated)
 	{
 		_matches = matches.IsDefault ? ImmutableArray<Address>.Empty : matches;
