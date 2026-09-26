@@ -5,11 +5,12 @@
 **High-level, lifecycle-safe C# APIs for modern Cheat Engine plugins.**
 
 [![CI](https://img.shields.io/github/actions/workflow/status/CheatEngineNet/CheatEngine.Client/main-ci.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white&labelColor=24292f)](https://github.com/CheatEngineNet/CheatEngine.Client/actions/workflows/main-ci.yml)
+[![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/CheatEngineNet/CheatEngine.Client?style=flat-square&label=OpenSSF%20Scorecard&labelColor=24292f)](https://scorecard.dev/viewer/?uri=github.com/CheatEngineNet/CheatEngine.Client)
 [![NuGet](https://img.shields.io/nuget/vpre/CheatEngine.Client?style=flat-square&logo=nuget&logoColor=white&labelColor=24292f&color=004880)](https://www.nuget.org/packages/CheatEngine.Client)
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4?style=flat-square&logo=dotnet&logoColor=white&labelColor=24292f)](https://dotnet.microsoft.com/download/dotnet/10.0)
 [![Windows x64](https://img.shields.io/badge/platform-Windows%20x64-0078D4?style=flat-square&labelColor=24292f)](#requirements)
 
-[Quick start](#quick-start) · [Lifecycle](#the-plugin-lifecycle) · [Packages](#packages-and-direct-sdk-reference) · [Capabilities](#v010-capability-status) · [Contributing](#build-and-validation)
+[Quick start](#quick-start) · [Lifecycle](#the-plugin-lifecycle) · [Packages](#packages-and-direct-sdk-reference) · [Capabilities](#capability-status) · [Contributing](CONTRIBUTING.md)
 
 </div>
 
@@ -53,16 +54,31 @@ surface reviewable: high-level APIs remain fluent for consumers while the Core r
 
 ## Requirements
 
-| Requirement                 | Baseline                                                                           |
-|-----------------------------|------------------------------------------------------------------------------------|
-| .NET SDK                    | 10.0.401 or later                                                                  |
-| Target framework / language | `net10.0` / C# 14                                                                  |
-| Cheat Engine host           | 7.7, Windows x64                                                                   |
-| Plugin form                 | Framework-dependent managed plugin output folder                                   |
-| SDK package                 | `CheatEngine.SDK` 1.x; the Client publishes a compatible range of `[1.0.0, 2.0.0)` |
+A plugin project that consumes the packages needs:
+
+| Plugin project requirement | Value |
+|---|---|
+| Target framework | `net10.0` |
+| Language | C# 14 (`<LangVersion>14.0</LangVersion>`) |
+| .NET SDK | 10.0.401 or later: the Lua generator packed in Hosting is compiled against Roslyn 5.9.0; an older compiler does not run it and reports only warning CS9057 |
+| Platform | Windows x64; `PlatformTarget` is `x64` or `AnyCPU` |
+| Cheat Engine host | 7.7.0.10621 x64 (`cheatengine-x86_64.exe`), loading the plugin through its managed .NET host |
+| Plugin form | Framework-dependent managed plugin output folder, never a Native AOT DLL |
+| `CheatEngine.SDK` | A direct `PackageReference` in `[2.0.0, 3.0.0)`: a 3.x SDK fails the build with `CECLIENT017`, a version below 2.0.0 fails the restore with `NU1605` |
+
+Building this repository needs:
+
+| Repository build requirement | Value |
+|---|---|
+| Operating system | Windows x64 |
+| .NET SDK | 10.0.401 exactly (`global.json` `rollForward: disable`); install it with `winget install Microsoft.DotNet.SDK.10 --version 10.0.401` |
+| `CheatEngine.SDK` | 2.0.0, pinned in `eng/CheatEngineSdk.props` and in every committed lock file |
+| Tools | PowerShell 7.4 or later and Git, to run the CI checks locally ([CONTRIBUTING](CONTRIBUTING.md#prerequisites)) |
+| Cheat Engine | Only for the opt-in live qualification tests, never for an ordinary build or test run |
 
 Cheat Engine remains the compatibility authority. The Client is not an IPC client, a remote-process service, or a
-standalone executable; v0.1 runs only inside an enabled Cheat Engine plugin.
+standalone executable; it runs only in process inside an enabled Cheat Engine plugin. It is neither Cheat Engine's
+`luaclient` library nor an RPC client of `ceserver`.
 
 ## Quick start
 
@@ -82,22 +98,31 @@ The generated project intentionally retains these direct dependencies:
 <PropertyGroup>
   <TargetFramework>net10.0</TargetFramework>
   <LangVersion>14.0</LangVersion>
+  <Nullable>enable</Nullable>
+  <ImplicitUsings>enable</ImplicitUsings>
   <PlatformTarget>x64</PlatformTarget>
   <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   <CheatEngineClientPluginProject>true</CheatEngineClientPluginProject>
 </PropertyGroup>
 
 <ItemGroup>
-  <PackageReference Include="CheatEngine.Client" Version="0.1.0" />
-  <PackageReference Include="CheatEngine.SDK" Version="1.0.0" />
+  <PackageReference Include="CheatEngine.Client" Version="X.Y.Z" />
+  <PackageReference Include="CheatEngine.SDK" Version="2.0.0" />
   <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.12" />
 </ItemGroup>
 ```
 
+Replace `X.Y.Z` with the CheatEngine.Client version you install; the `ceplugin` template writes it for you. Keep
+`CheatEngine.SDK` on 2.x: this Client release is built and tested against CheatEngine.SDK 2.0.0 and declares
+`[2.0.0, 3.0.0)`. A 3.x SDK fails the build with `CECLIENT017`, and a version below 2.0.0 fails the restore with
+`NU1605`. Do not upgrade to 3.x until a Client release says so.
+
 `CheatEngine.SDK` must be referenced **directly by the plugin project**. Its build assets generate the Cheat Engine
 entry point and provide the native Lua bridge; NuGet transitivity is not sufficient at that host boundary. Setting
-`CheatEngineClientPluginProject` opts the project into the Hosting package's `CECLIENT001` guard, which fails the
-build if the direct SDK reference is removed.
+`CheatEngineClientPluginProject` opts the project into the Hosting package's plugin profile checks, which fail the
+build if the direct SDK reference is removed (`CECLIENT001`); the
+[Hosting README](libs/CheatEngine.Client.Hosting/README.md#build-diagnostics) lists every `CECLIENT` build
+diagnostic.
 
 Start with the template rather than copying this fragment into an existing plugin: it also demonstrates module
 registration, generated Lua exports, validated options, bounded AOB and typed-memory access, and an Address List
@@ -106,12 +131,21 @@ snapshot. See the [template guide](templates/CheatEngine.Client.Templates/README
 
 ### Minimal plugin shape
 
-The SDK still owns the plugin annotation. The Client base owns the activation-scoped composition:
+The SDK still owns the plugin annotation. The Client base owns the activation-scoped composition, and an activation
+module receives the scoped client in `OnEnabled` and `OnDisabling`. Fluent calls remain bounded and handle-free:
 
 ```csharp
+using CheatEngine.Client;
 using CheatEngine.Client.Hosting;
+using CheatEngine.Client.Memory;
+using CheatEngine.Client.Modules;
+using CheatEngine.Client.Results;
+using CheatEngine.Client.Scanning;
 using CheatEngine.SDK.Annotations.Plugin;
+using CheatEngine.SDK.Engine.Values;
+
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace MyPlugin;
 
@@ -121,27 +155,46 @@ public sealed class Plugin : CheatEngineClientPlugin
     protected override void Configure(CheatEnginePluginBuilder builder)
     {
         builder.Configuration
-            .SetBasePath(AppContext.BaseDirectory)
+            .SetBasePath(builder.PluginDirectory)
             .AddJsonFile("appsettings.json", optional: true, reloadOnChange: false);
 
-        builder.Client.AddModule<PluginClientModule>();
+        builder.Client.AddModule<ScoreModule>();
+    }
+}
+
+public sealed class ScoreModule(ILogger<ScoreModule> logger) : ICheatEngineClientModule
+{
+    public void OnEnabled(ICheatEngineClient client)
+    {
+        // A Try form returns an expected failure, such as no selected process, instead of throwing it.
+        if (!client.Patterns.Aob("48 8B ?? ?? ?? 89")
+                .InModule("game.exe")
+                .Executable()
+                .RequireSingle()
+                .TryExecute(out Address address, out CheatEngineFailure failure))
+        {
+            logger.LogDebug("Score probe skipped: {Failure}", failure);
+            return;
+        }
+
+        client.Memory.At(address + 0x14).Write(999);
+    }
+
+    public void OnDisabling(ICheatEngineClient client)
+    {
     }
 }
 ```
 
-An activation module receives the scoped client in `OnEnabled` and `OnDisabling`. Fluent calls remain bounded and
-handle-free:
-
-```csharp
-Address address = client.Patterns
-    .Aob("48 8B ?? ?? ?? 89")
-    .InModule("game.exe")
-    .ReadableExecutable()
-    .RequireSingle()
-    .Execute();
-
-client.Memory.At(address + 0x14).Write(999);
-```
+`InModule(...)` and `InRange(...)` scope the scan with one rule on every route (a match lies entirely inside the module
+and starts inside the range): on a qualified local target Cheat Engine scans only the module intersected with the range
+(an exhaustive MemScan that blocks its main thread and cannot be interrupted once started); on a CEServer or
+file-as-process target it runs one global `AOBScan` and Core applies the same rule while copying. `Take(n)`,
+`FirstOrNone()` and `RequireSingle()` bound only how many addresses Core copies; they never stop Cheat Engine early, and
+`FirstOrNone()` follows Cheat Engine's unspecified result-list order. `null` and `NotFound` mean that the scan succeeded
+without a match inside the request: a factual zero of the bounded route, or a global result list without any address
+inside the module or range. A global scan for which Cheat Engine returns no result list is reported as
+`IndeterminateHostResult` (that route cannot tell zero matches from a host failure), never as `null` or `NotFound`.
 
 Use the `Try...` terminal operations when absence of a process, scan result, or runtime capability is an expected
 condition. Do not make a worker wait for the Cheat Engine thread if that worker can call back into the Client.
@@ -174,9 +227,26 @@ All Client operations are synchronous. For stateful Client operations, request v
 admission, then caller-cancellation observation, and only then policy checks or Cheat Engine work. A stale activation
 therefore throws `CheatEngineActivationExpiredException` even when the requested capability is currently gated. A
 cancellation token can prevent dispatch or stop Client-managed work between steps, but it does not claim to interrupt
-a Lua primitive that has already started. `ILocalProcessDiagnostics` is the explicit exception: it is an offline BCL
-catalog service, never a proof of Cheat Engine target identity, and its copied snapshots remain usable after disable.
+a Lua primitive that has already started. `IProcessClient.TryGetLocalProcesses` is the explicit exception: it is an
+offline BCL catalog read, never a proof of Cheat Engine target identity, and its copied snapshots remain usable after
+disable.
 Services that touch Cheat Engine must preserve this activation-lifecycle contract.
+
+### Failures, exceptions and cancellation
+
+`Try...` methods return a `CheatEngineFailure` for the refusals of a well-formed request, cancellation before dispatch,
+and Cheat Engine results that are false, absent, indeterminate or malformed; no `Try...` method throws a
+CheatEngine.SDK exception. They still throw an argument exception for a null argument, a `default`
+request, an undefined enum value or an out-of-range number (checked first, before the activation and before any Cheat
+Engine call), `CheatEngineActivationExpiredException` and `CheatEngineInvalidStateException`, and they rethrow
+exceptions from your own callbacks, codecs and Lua operations unchanged.
+The throwing form of the same operation throws the same failure through `CheatEngineFailure.Throw(cancellationToken)`:
+a cancellation surfaces as `CheatEngineOperationCanceledException`, an `OperationCanceledException`, and every other
+failure as a `CheatEngineClientException`. Releasing a lease never throws: `ICheatEngineLease.Release()` returns a
+`LeaseReleaseOutcome`, and `Dispose()` discards it.
+`CheatEngineFailure.HostEffect` states how far the Cheat Engine primitive got: `NotStarted`, `Started`, `Completed`,
+`NotApplied`, `CleanupUnconfirmed` or `Unknown`. The per-family table is in the
+[Abstractions README](libs/CheatEngine.Client.Abstractions/README.md#failure-exception-and-cancellation-contract).
 
 ## Packages and direct SDK reference
 
@@ -197,8 +267,8 @@ public contracts ─────────────────────
 | Package                                                                                                                 | Purpose                                                           | Consume directly when                                  |
 |-------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------|--------------------------------------------------------|
 | [`CheatEngine.Client`](src/CheatEngine.Client/README.md)                                                                | Umbrella package for the high-level fluent and hosting experience | Building a normal plugin                               |
-| [`CheatEngine.Client.Hosting`](libs/CheatEngine.Client.Hosting/README.md)                                               | `CheatEngineClientPlugin` and one-provider-per-activation host    | Integrating the host into an existing composition root |
-| [`CheatEngine.Client.Extensions.DependencyInjection`](libs/CheatEngine.Client.Extensions.DependencyInjection/README.md) | Explicit DI registrations, modules, memory codecs, and options    | Composing the Client without the plugin base           |
+| [`CheatEngine.Client.Hosting`](libs/CheatEngine.Client.Hosting/README.md)                                               | `CheatEngineClientPlugin` and one-provider-per-activation host    | Hosting a plugin (the supported composition root)      |
+| [`CheatEngine.Client.Extensions.DependencyInjection`](libs/CheatEngine.Client.Extensions.DependencyInjection/README.md) | Hosting's composition layer: DI registrations and options         | Only through Hosting in 1.0 (standalone unsupported)   |
 | [`CheatEngine.Client.Fluent`](libs/CheatEngine.Client.Fluent/README.md)                                                 | Immutable fluent memory and AOB builders                          | Depending only on fluent request construction          |
 | [`CheatEngine.Client.Abstractions`](libs/CheatEngine.Client.Abstractions/README.md)                                     | Contracts, requests, failures, and value vocabulary               | Referencing contracts without an implementation        |
 | [`CheatEngine.Client.Core`](libs/CheatEngine.Client.Core/README.md)                                                     | SDK-facing implementation                                         | Normally composed through DI, not called directly      |
@@ -207,35 +277,93 @@ public contracts ─────────────────────
 Package and assembly names describe delivery, not user code. Consumer-facing APIs use functional namespaces such as
 `CheatEngine.Client.Memory`, `.Scanning`, `.Tables`, `.Lua`, `.Processes`, `.Runtime`, and `.Hosting`.
 
-## v0.1.0 capability status
+## Capability status
 
 The Client reports runtime capability rather than assuming a particular Cheat Engine global or ownership contract. The
-following table is a delivery statement, not a substitute for a live host check.
+following table is a delivery statement, not a substitute for a live host check. **Available** means a stable 1.x API
+with an operational implementation; **Experimental** APIs are operational too, but carry an
+`[Experimental("CECLIENT500x")]` diagnostic and can change in a minor release until their live scenarios pass. At run
+time no capability reports the state `Available` before Client qualification receipts exist for the scenarios of its
+row.
 
-| Area                                                | v0.1.0 status                   | Boundary                                                                                                                                                                         |
-|-----------------------------------------------------|---------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Lifecycle, dispatch, DI, modules, options           | Available                       | Per-enable provider and scope; modules stop in reverse order                                                                                                                     |
-| Runtime facts and selected process                  | Available                       | Snapshot and attachment state are re-read through the active host                                                                                                                |
-| Typed memory and finite pointer chains              | Available                       | Built-in primitives plus explicitly registered deterministic codecs; strings and byte ranges are bounded                                                                         |
-| Modules, regions, symbols, and custom-symbol leases | Available                       | Results are copied; leases are activation-scoped                                                                                                                                 |
-| AOB scanning                                        | Available                       | Patterns are normalized; terminals are `FirstOrNone`, `RequireSingle`, or bounded `Take`                                                                                         |
-| Address List and memory records                     | Available                       | Snapshots and hierarchy materialization are bounded; table file access requires an allowed root                                                                                  |
-| Typed protected Lua and explicit Lua modules        | Available                       | No Lua state crosses the public Client contract                                                                                                                                  |
-| Value scanning                                      | **Capability-gated**            | The public state machine exists, but Client session creation stays unavailable until the internal `MemScan`/`FoundList` ownership path passes its Cheat Engine 7.7 x64 live gate |
-| Arbitrary Lua source                                | Policy-gated and off by default | Requires explicit unsafe opt-in; raw Lua state remains hidden                                                                                                                    |
+<!-- capability-table:start -->
+| Capability id | Implementation | 1.0 status | Boundary | Qualification |
+|---|---|---|---|---|
+| `Client.ProcessSelection` | Operational adapter | Available | Snapshot and attachment state are re-read through the active host | Unknown until Client receipts for Q30.a, Q31 and Q32 exist |
+| `Client.TypedMemory` | Operational adapter | Available | Built-in primitives (8- to 64-bit integers, float, double, Address) plus codecs passed with each request; strings and byte ranges are bounded | Unknown until Client receipts for Q20, Q21 and Q33 exist |
+| `Client.PatternScanning` | Operational adapter | Available | Patterns are normalized; terminals are `FirstOrNone`, `RequireSingle`, or materialization-bounded `Take`; module and range scans are bounded on a qualified local target | Unknown until Client receipts for Q27, Q28 and Q29 exist |
+| `Client.Inspection` | Operational adapter | Available | Modules, regions and symbols are copied; custom-symbol leases are activation-scoped | Unknown until Client receipts for Q16.b and Q28 exist |
+| `Client.Tables` | Operational adapter | Available | Snapshots and hierarchy materialization are bounded; table file access requires an allowed root | Unknown until Client receipts for Q34 exist |
+| `Client.ProtectedLua` | Operational adapter | Available | Typed Lua operations and explicit Lua modules; no Lua state crosses the public Client contract | Unknown until Client receipts for Q05, Q16 and Q19 exist |
+| `Client.UnsafeLuaExecution` | Operational, policy opt-in | Available with `EnableUnsafeLuaExecution()`, off by default | Arbitrary trusted Lua source; raw Lua state remains hidden | Stays `Unknown`: no scenario covers arbitrary Lua |
+| `Client.ValueScanning` | Operational adapter, experimental (CECLIENT5001) | Experimental | Sessions over CheatEngine.SDK's owned `MemScan`/`FoundList`: first and next scans, bounded pages of copied results | Unknown until Client receipts for Q25 and Q26 exist |
+| `Client.Allocations` | Operational adapter, experimental (CECLIENT5002) | Experimental | Leases over CheatEngine.SDK's `AllocatedRegion`, freed only in the process that made them; executable memory needs no opt-in | Unknown until Client receipts for Q30.a exist |
+| `Client.Assembly` | Operational adapter, experimental (CECLIENT5003) | Experimental | One profile-checked instruction per call, bytes read from target memory, nothing written to the target | Unknown until Client receipts for Q32 exist |
+| `Client.AutoAssemblerPatches` | Operational, policy opt-in, experimental (CECLIENT5004) | Experimental, with `EnableAutoAssemblerPatches()` | A lease owns the disable information Cheat Engine returned | Unknown until Client receipts for Q35 and Q44 exist |
+<!-- capability-table:end -->
 
-Target allocations; assembly and Auto Assembler; remote execution and DLL injection; debugger and breakpoints;
-hotkeys and timers; speed; hashing; and DBVM now have public Client API contracts. Each remains
-`Unknown` or `Unavailable` until its primitive, ownership, and lifecycle behavior passes the corresponding Cheat
-Engine 7.7 x64 live gate. IPC, remote clients, UI/forms, structures, Mono/IL2CPP, and advanced ABI hooks remain
-outside v0.1 and have no placeholder public API. The capability table above is the current public-surface contract.
+The activation lifecycle, main-thread dispatch, runtime facts, dependency injection, options and modules are always
+available. IPC, remote clients, UI/forms, structures, Mono/IL2CPP, and advanced ABI hooks remain outside 1.0 and have no
+placeholder public API. The capability table above is the current public-surface contract; the
+[Abstractions README](libs/CheatEngine.Client.Abstractions/README.md#capability-boundary) states the runtime evidence of
+each capability.
+
+### Not offered in 1.0
+
+These Cheat Engine features have no public Client contract, not even a gated placeholder: timers and hotkeys; the
+debugger and breakpoints; the speed hack; target-memory and file hashing; DBVM; remote execution and DLL injection;
+pausing, resuming or creating a process, and attaching to the foreground process; assembly comments; and detaching from
+a process. No CheatEngine.SDK primitive backs these yet; they may arrive in a 1.x minor release once the SDK provides
+an owner.
+
+CheatEngine.SDK 2.0.0 also resolves addresses in Cheat Engine's own process (`EngineInspection.ResolveHostAddress`)
+and registers symbol lists (`SymbolLists`). Neither is a 1.0 goal of the Client: `IInspectionClient` resolves in the
+target process only and registers one symbol per lease.
+
+## Versioning and compatibility
+
+CheatEngine.Client follows [Semantic Versioning 2.0.0](https://semver.org/) from 1.0.0. Every Client package is
+released with the same version; use one version for all of them.
+
+The seven packages ship in lockstep. Each Client package depends on the Client packages it builds on at exactly its own
+version (`[X.Y.Z]` in its nuspec, not the `X.Y.Z` minimum NuGet writes by default), because
+`CheatEngine.Client.Extensions.DependencyInjection` and `CheatEngine.Client.Hosting` use internal types of
+`CheatEngine.Client.Core` and of `CheatEngine.Client.Extensions.DependencyInjection`, which no public API baseline
+protects. Reference `CheatEngine.Client` and let it bring the others; a Client package you reference directly takes the
+same version. `CheatEngine.Client.Core` is not a standalone package: it has no public API and is published only as a
+dependency of `CheatEngine.Client.Extensions.DependencyInjection`.
+
+- **Patch releases (1.0.x)** fix behavior and documentation without changing the public API.
+- **Minor releases (1.x)** add API without breaking code compiled against an earlier 1.x:
+  - new types, members, overloads and namespaces;
+  - new members on a **call-only** interface. The documentation of every public interface says whether it is
+    *Call-only* (the Client implements it and applications call it, for example `ICheatEngineClient`, `IMemoryClient`
+    or `ICheatEngineLease`) or *Implementable* (applications implement it and the Client calls it). Implement a
+    call-only interface only in a test double, and expect to update the double in a minor release;
+  - new enum values. Public enums are `int` enums whose explicit values never change meaning. An outcome enum (a name
+    ending in `Kind`, `Status`, `State`, `Effect` or `Scope`) has `Unknown = 0`: handle a value you do not recognize
+    like `Unknown`. An option enum has a valid default at 0 and never an outcome suffix.
+- **Frozen for all of 1.x:** the *Implementable* interfaces (`ILuaModule`, `ILuaOperation<TResult>`,
+  `ILuaResultMapper<TSource, TResult>`, `IMemoryCodec<T>` and `ICheatEngineClientModule`) never gain, lose or change a
+  member.
+- **Experimental APIs**, marked `[Experimental("CECLIENT500x")]`, can change or be removed in a minor release until
+  their live qualification passes; using one is an explicit opt-in to that diagnostic.
+- **Charter:** the public API charter of the `CheatEngine.Client.Abstractions` README fixes the Try and throwing forms,
+  the names, the exception policy (no Client exception has a public constructor; `CheatEngineFailure.Throw` and
+  `ToException` create them) and the CheatEngine.SDK value types a public signature may use; 1.x only adds to it.
+- **Not contractual:** the text of `CheatEngineFailure.Message`, of `CheatEngineFailure.Operation` and of exception
+  messages. Classify a failure by `CheatEngineFailure.Kind` and `HostEffect`, never by text.
+- **CheatEngine.SDK:** Client 1.x depends on CheatEngine.SDK `[2.0.0, 3.0.0)`. Its descriptive value types (`Address`,
+  `PointerSize`, `ModuleInfo` and the others the charter lists) are part of the Client's public signatures, so a new
+  CheatEngine.SDK major version means a new Client major version, never a Client minor release.
+- Removing or changing a stable public member, or changing the meaning of a value, happens only in a new major version.
 
 ## AOT, trimming, and deployment
 
 Shipping Client projects target `net10.0`, enable nullable analysis, warnings as errors, trim/AOT compatibility
-analysis, reference-AOT verification, deterministic builds, XML documentation, Source Link, symbol packages, and
-package/API validation. `CheatEngine.Client.AotProbe` publishes the complete Client graph as Native AOT for `win-x64`
-to validate those library constraints.
+analysis, trim and AOT compatibility verification of every referenced assembly, deterministic builds, XML documentation,
+Source Link, symbol packages, and package/API validation. `CheatEngine.Client.AotProbe` publishes the complete Client
+graph as Native AOT for `win-x64` to validate those library constraints.
 
 That is **not** a claim that Cheat Engine can load a Native AOT plugin DLL. The supported deployment remains the
 framework-dependent managed plugin output folder. Deploy it as one unit: your plugin assembly, its `.deps.json` and
@@ -247,26 +375,17 @@ files, package validation, and the probe described above.
 
 ## Build and validation
 
-The repository pins the .NET SDK in [global.json](global.json), uses Central Package Management, and commits NuGet
-lock files. Run the normal Windows validation sequence from the repository root:
+The repository pins the .NET SDK in [global.json](global.json) (10.0.401 exactly), uses Central Package Management, and
+commits NuGet lock files. [CONTRIBUTING](CONTRIBUTING.md#build-and-test) gives the exact Windows validation sequence,
+from the locked restore to the package consumption tests and the Native AOT probe, and describes each job of the
+required `CI / Gate` check ([Continuous integration](CONTRIBUTING.md#continuous-integration)).
 
-```powershell
-dotnet restore CheatEngine.Client.slnx --locked-mode
-dotnet build CheatEngine.Client.slnx --configuration Release --no-restore
-dotnet test --solution CheatEngine.Client.slnx --configuration Release --no-build --no-restore
-dotnet pack CheatEngine.Client.slnx --configuration Release --no-build --no-restore --output ./artifacts/packages
-$env:CHEATENGINE_CLIENT_PACKAGE_SOURCE = (Resolve-Path ./artifacts/packages).Path
-dotnet test --project ./tests/CheatEngine.Client.Tests/CheatEngine.Client.Tests.csproj --configuration Release --no-build --no-restore --fail-skips on
-dotnet publish tests/CheatEngine.Client.AotProbe/CheatEngine.Client.AotProbe.csproj --configuration Release --runtime win-x64 --no-restore --output ./artifacts/aot-probe
-./artifacts/aot-probe/CheatEngine.Client.AotProbe.exe
-```
+The Cheat Engine 7.7 x64 live suite is opt-in and intentionally excluded from ordinary CI; no CI result should be read
+as proof that an untested live-host feature is available. Success, failure, cleanup, disable, re-enable, and
+target-change evidence for every advanced capability still requires the opt-in Cheat Engine 7.7 x64 qualification run.
 
-The [Windows CI workflow](.github/workflows/ci.yml) runs the locked restore, Release build, Microsoft Testing Platform
-tests, package API validation, one immutable package artifact, the C# package/template consumer smoke test, and Native
-AOT graph probe. The
-Cheat Engine 7.7 x64 live suite is opt-in and intentionally excluded from ordinary CI; no CI result should be read as
-proof that an untested live-host feature is available. Success, failure, cleanup, disable, re-enable, and target-change
-evidence for every advanced capability still requires the opt-in Cheat Engine 7.7 x64 qualification run.
+See also [CONTRIBUTING](CONTRIBUTING.md), [RELEASING](RELEASING.md), the [CHANGELOG](CHANGELOG.md) and the
+[LICENSE](LICENSE).
 
 ## Security and scope
 
@@ -275,8 +394,11 @@ transport, or a mechanism to bypass Cheat Engine or host protections.
 
 Table loading can execute Lua in the host. Keep `AllowedTableRoots` empty unless the plugin has an explicit,
 trusted import/export location; an empty set disables table file access. Arbitrary Lua source is separately opt-in and
-should remain disabled unless the plugin has a deliberate trust boundary. Avoid logging target-memory contents or Lua
-source by default.
+should remain disabled unless the plugin has a deliberate trust boundary. Auto Assembler patches are another explicit,
+experimental opt-in (`EnableAutoAssemblerPatches()`): a script can allocate memory, inject code and run Lua, so apply
+only scripts the plugin owns. Avoid logging target-memory contents or Lua source by default.
+
+Report vulnerabilities privately: see [SECURITY.md](SECURITY.md).
 
 For the SDK's bootstrap, generated Lua bindings, native bridge, and host ABI details, start with the
 [CheatEngine.SDK README](https://github.com/CheatEngineNet/CheatEngine.SDK#readme).

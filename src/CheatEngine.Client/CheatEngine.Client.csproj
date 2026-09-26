@@ -4,6 +4,7 @@
     <!-- This is intentionally a NuGet façade: public compile assets come from Fluent and Hosting. -->
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <NoWarn>$(NoWarn);NU5128</NoWarn>
+    <Description>The package a normal in-process Cheat Engine plugin references: brings CheatEngine.Client.Hosting and CheatEngine.Client.Fluent. Reference CheatEngine.SDK directly next to it.</Description>
   </PropertyGroup>
 
   <ItemGroup>

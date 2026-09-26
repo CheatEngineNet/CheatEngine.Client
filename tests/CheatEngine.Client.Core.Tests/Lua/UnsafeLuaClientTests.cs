@@ -19,7 +19,7 @@ public sealed class UnsafeLuaClientTests
 
 		Assert.False(succeeded);
 		Assert.Equal(CheatEngineFailureKind.CapabilityUnavailable, failure.Kind);
-		Assert.Equal("Lua.ExecuteUnsafe", failure.Operation);
+		Assert.Equal("UnsafeLua.Execute", failure.Operation);
 		Assert.Equal(0, dispatcher.InvocationCount);
 	}
 
@@ -32,6 +32,36 @@ public sealed class UnsafeLuaClientTests
 		Assert.Throws<ArgumentNullException>(() =>
 			client.TryExecute(default, out _, TestContext.Current.CancellationToken));
 		Assert.Equal(0, dispatcher.InvocationCount);
+	}
+
+	[Fact]
+	public void TryExecuteReportsARefusedLuaAdmissionFromTheSdkStatusWithoutRunningTheScript()
+	{
+		RecordingDispatcher dispatcher = new();
+		UnsafeLuaClient client = new(dispatcher, new CoreClientPolicy([], true));
+
+		// No Lua runtime is attached in unit tests: CheatEngine.SDK reports the admission as Detached.
+		bool succeeded = client.TryExecute(new LuaScript("return 42"), out CheatEngineFailure failure,
+			TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(1, dispatcher.InvocationCount);
+		Assert.Equal(CheatEngineFailureKind.ActivationExpired, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
+		Assert.Equal("UnsafeLua.Execute", failure.Operation);
+		Assert.Null(failure.Exception);
+		Assert.NotEqual(CheatEngineFailureKind.OperationRejected, failure.Kind);
+	}
+
+	[Fact]
+	public void ExecuteThrowsTheActivationExpiredExceptionForARefusedLuaAdmission()
+	{
+		UnsafeLuaClient client = new(new RecordingDispatcher(), new CoreClientPolicy([], true));
+
+		CheatEngineActivationExpiredException exception = Assert.Throws<CheatEngineActivationExpiredException>(() =>
+			client.Execute(new LuaScript("return 42"), TestContext.Current.CancellationToken));
+
+		Assert.Equal(CheatEngineHostEffect.NotStarted, exception.Failure.HostEffect);
 	}
 
 	private sealed class RecordingDispatcher : ICheatEngineDispatcher

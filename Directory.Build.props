@@ -13,24 +13,65 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <!-- Pinned so a newer SDK band cannot add CA/IDE errors; raise it together with global.json (guard CHEATENGINECLIENT9030). -->
+    <_CheatEngineClientPinnedAnalysisLevel>10.0-recommended</_CheatEngineClientPinnedAnalysisLevel>
+    <AnalysisLevel>$(_CheatEngineClientPinnedAnalysisLevel)</AnalysisLevel>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <Deterministic>true</Deterministic>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
 
+  <!-- NuGet audit policy (https://learn.microsoft.com/nuget/concepts/auditing-packages), guarded by CHEATENGINECLIENT9031.
+       High (NU1903) and critical (NU1904) advisories fail every restore and build through TreatWarningsAsErrors. Suppress an
+       advisory only with <NuGetAuditSuppress Include="<advisory URL>"/> plus a comment giving the justification and an expiry
+       date, never on the release path. -->
+  <PropertyGroup Label="Supply chain">
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <NuGetAuditLevel>low</NuGetAuditLevel>
+    <_CheatEngineClientNuGetAuditCodes>NU1900;NU1901;NU1902;NU1903;NU1904;NU1905</_CheatEngineClientNuGetAuditCodes>
+    <!-- Ordinary builds: audit-source outages and low/moderate advisories are reported but do not block; high and critical advisories fail through TreatWarningsAsErrors. -->
+    <WarningsNotAsErrors Condition="'$(AuditPipeline)' != 'true'">$(WarningsNotAsErrors);NU1900;NU1901;NU1902;NU1905</WarningsNotAsErrors>
+    <!-- Dedicated audit run (restore -p:AuditPipeline=true): every audit code is an error. -->
+    <WarningsAsErrors Condition="'$(AuditPipeline)' == 'true'">$(WarningsAsErrors);$(_CheatEngineClientNuGetAuditCodes)</WarningsAsErrors>
+  </PropertyGroup>
+
   <PropertyGroup Label="Package identity">
-    <VersionPrefix>0.1.0</VersionPrefix>
     <Authors>CheatEngineNet</Authors>
     <Company>CheatEngineNet</Company>
+    <!-- The holder line of LICENSE; RepositoryDocumentsTests keeps the two equal. -->
+    <Copyright>Copyright (c) 2026 AriusII, ShadowNineX and CheatEngine.Client contributors</Copyright>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>https://github.com/CheatEngineNet/CheatEngine.Client</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/CheatEngineNet/CheatEngine.Client</PackageProjectUrl>
+    <PackageReleaseNotes>$(PackageProjectUrl)/blob/main/CHANGELOG.md</PackageReleaseNotes>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Packaging and versioning">
+    <!-- MinVer derives one version for every package from the nearest v* tag, so CI must fetch full history and tags. -->
+    <MinVerTagPrefix>v</MinVerTagPrefix>
+    <!-- Floor for commits no v* tag covers yet, which build as 1.0.0-alpha.0.N. Raise it after each release to open the next line, and never above the line of the tag being released. -->
+    <MinVerMinimumMajorMinor>1.0</MinVerMinimumMajorMinor>
+    <!--
+      Evaluation-time placeholder equal to the MinVer floor: NuGet records it for project references in lock files
+      ([1.0.0, )), including the Coexistence fixtures that are outside Central Package Management; MinVer computes the
+      real version at build and pack. CHEATENGINECLIENT9019 refuses any other version source.
+    -->
+    <VersionPrefix>$(MinVerMinimumMajorMinor).0</VersionPrefix>
+    <_CheatEngineClientRootVersionPrefix>$(VersionPrefix)</_CheatEngineClientRootVersionPrefix>
+    <!--
+      The Roslyn version the shipped Lua generator (packed inside CheatEngine.Client.Hosting) is compiled against. A
+      generator built against Roslyn N does not load in an older compiler (CS9057), so this floor, the
+      Microsoft.CodeAnalysis pins in Directory.Packages.props, the template sdk-version constraint and global.json move
+      together; CHEATENGINECLIENT9020 enforces the first two.
+    -->
+    <CheatEngineClientRoslynComponentFloor>5.9.0</CheatEngineClientRoslynComponentFloor>
   </PropertyGroup>
 
   <!-- Friend assemblies by convention: <Project> and tests/<Project>.Tests are twins. Keyed on the project name only, so the props phase is early enough. -->

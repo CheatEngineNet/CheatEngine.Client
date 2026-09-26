@@ -1,7 +1,7 @@
 namespace CheatEngine.Client.Runtime;
 
 /// <summary>Describes the observed availability of a Client-owned high-level capability.</summary>
-public enum ClientCapabilityAvailabilityState : byte
+public enum ClientCapabilityAvailabilityState
 {
 	/// <summary>The Client has not established every prerequisite for the capability.</summary>
 	Unknown = 0,

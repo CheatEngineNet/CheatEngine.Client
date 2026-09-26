@@ -4,16 +4,76 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!-- The final plugin executable owns the SDK dynamic-loading bootstrap and runtimeconfig. -->
     <EnableDynamicLoading>false</EnableDynamicLoading>
+    <Description>The CheatEngine.SDK-facing implementation of the CheatEngine.Client contracts for an enabled, in-process Cheat Engine plugin. Composed through dependency injection; plugins do not call it directly.</Description>
+    <!-- Core implements every experimental Client API (CECLIENT5001 value scans, CECLIENT5002 allocations, CECLIENT5003 instructions, CECLIENT5004 Auto Assembler patches) and suppresses them here, never file by file; only Core, DI and tests may suppress them (ClientExperimentalDiagnosticsTests). -->
+    <NoWarn>$(NoWarn);CECLIENT5001;CECLIENT5002;CECLIENT5003;CECLIENT5004</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="../CheatEngine.Client.Abstractions/CheatEngine.Client.Abstractions.csproj"/>
-    <PackageReference Include="CheatEngine.SDK" VersionOverride="[1.0.0,2.0.0)"/>
+    <PackageReference Include="CheatEngine.SDK" VersionOverride="$(CheatEngineSdkVersionRange)"/>
   </ItemGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="CheatEngine.Client.Extensions.DependencyInjection"/>
     <InternalsVisibleTo Include="CheatEngine.Client.Hosting"/>
+    <InternalsVisibleTo Include="CheatEngine.Client.Benchmarks"/>
   </ItemGroup>
+
+  <!--
+    Consumed CheatEngine.SDK identity (audit ADR-09, ADR-10, A21-35, A22-21). The runtime package gate compares evidence
+    (the loaded CheatEngine.SDK.Engine informational version) with the package this build restored, instead of trusting a
+    version name. The identity is read at evaluation time, so "dotnet msbuild -getItem:AssemblyMetadata" shows it, from
+    files every restored checkout has:
+    - Version and ContentHashSha512: the resolved CheatEngine.SDK entry of this project's packages.lock.json. The version
+      must equal $(CheatEngineSdkVersion) (eng/CheatEngineSdk.props); a locked restore verifies the downloaded package
+      against the content hash.
+    - SourceCommit: the repository commit that the restored package's nuspec declares, taken only when the restored
+      package's .nupkg.metadata content hash equals the lock value (the restored package is the locked one).
+    - SupportedMajor: _CheatEngineClientSupportedSdkMajor of eng/CheatEngineSdk.props. The package gate accepts a loaded
+      CheatEngine.SDK.Engine of that major at or above Version (the pin), the range the packages declare; the source
+      holds no version literal.
+    A build that cannot embed the identity fails with CHEATENGINECLIENT9050, so no build degrades the operational
+    package gates to Unknown without a signal.
+    Property functions: https://learn.microsoft.com/visualstudio/msbuild/property-functions
+    AssemblyMetadata items: https://learn.microsoft.com/dotnet/core/project-sdk/msbuild-props#assemblymetadata
+  -->
+  <PropertyGroup Label="Consumed CheatEngine.SDK identity">
+    <_CheatEngineClientSdkLockFile>$(MSBuildThisFileDirectory)packages.lock.json</_CheatEngineClientSdkLockFile>
+    <_CheatEngineClientSdkLockJson Condition="Exists('$(_CheatEngineClientSdkLockFile)')">$([System.IO.File]::ReadAllText('$(_CheatEngineClientSdkLockFile)'))</_CheatEngineClientSdkLockJson>
+    <_CheatEngineClientLockedSdkVersion Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('$(_CheatEngineClientSdkLockJson)', '&quot;CheatEngine\.SDK&quot;\s*:\s*\{[^}]*?&quot;resolved&quot;\s*:\s*&quot;[0-9A-Za-z.+-]+&quot;'))">$([System.Text.RegularExpressions.Regex]::Replace('$(_CheatEngineClientSdkLockJson)', '(?s)^.*?&quot;CheatEngine\.SDK&quot;\s*:\s*\{[^}]*?&quot;resolved&quot;\s*:\s*&quot;([0-9A-Za-z.+-]+)&quot;.*$', '$1'))</_CheatEngineClientLockedSdkVersion>
+    <_CheatEngineClientLockedSdkContentHash Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('$(_CheatEngineClientSdkLockJson)', '&quot;CheatEngine\.SDK&quot;\s*:\s*\{[^}]*?&quot;contentHash&quot;\s*:\s*&quot;[A-Za-z0-9+/=]+&quot;'))">$([System.Text.RegularExpressions.Regex]::Replace('$(_CheatEngineClientSdkLockJson)', '(?s)^.*?&quot;CheatEngine\.SDK&quot;\s*:\s*\{[^}]*?&quot;contentHash&quot;\s*:\s*&quot;([A-Za-z0-9+/=]+)&quot;.*$', '$1'))</_CheatEngineClientLockedSdkContentHash>
+    <_CheatEngineClientRestoredSdkDirectory Condition="'$(NuGetPackageRoot)' != '' and '$(_CheatEngineClientLockedSdkVersion)' != ''">$([MSBuild]::EnsureTrailingSlash('$(NuGetPackageRoot)'))cheatengine.sdk/$(_CheatEngineClientLockedSdkVersion.ToLowerInvariant())/</_CheatEngineClientRestoredSdkDirectory>
+    <_CheatEngineClientRestoredSdkNuspec Condition="'$(_CheatEngineClientRestoredSdkDirectory)' != '' and Exists('$(_CheatEngineClientRestoredSdkDirectory)cheatengine.sdk.nuspec')">$([System.IO.File]::ReadAllText('$(_CheatEngineClientRestoredSdkDirectory)cheatengine.sdk.nuspec'))</_CheatEngineClientRestoredSdkNuspec>
+    <_CheatEngineClientRestoredSdkMetadata Condition="'$(_CheatEngineClientRestoredSdkDirectory)' != '' and Exists('$(_CheatEngineClientRestoredSdkDirectory).nupkg.metadata')">$([System.IO.File]::ReadAllText('$(_CheatEngineClientRestoredSdkDirectory).nupkg.metadata'))</_CheatEngineClientRestoredSdkMetadata>
+    <_CheatEngineClientRestoredSdkContentHash Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('$(_CheatEngineClientRestoredSdkMetadata)', '&quot;contentHash&quot;\s*:\s*&quot;[A-Za-z0-9+/=]+&quot;'))">$([System.Text.RegularExpressions.Regex]::Replace('$(_CheatEngineClientRestoredSdkMetadata)', '(?s)^.*?&quot;contentHash&quot;\s*:\s*&quot;([A-Za-z0-9+/=]+)&quot;.*$', '$1'))</_CheatEngineClientRestoredSdkContentHash>
+    <_CheatEngineClientRestoredSdkCommit Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('$(_CheatEngineClientRestoredSdkNuspec)', '&lt;repository\b[^&gt;]*?\bcommit=&quot;[0-9a-f]{40}&quot;'))">$([System.Text.RegularExpressions.Regex]::Replace('$(_CheatEngineClientRestoredSdkNuspec)', '(?s)^.*?&lt;repository\b[^&gt;]*?\bcommit=&quot;([0-9a-f]{40})&quot;.*$', '$1'))</_CheatEngineClientRestoredSdkCommit>
+    <!-- The first missing piece of evidence, for the CHEATENGINECLIENT9050 message; empty when the identity is complete. -->
+    <_CheatEngineClientConsumedSdkProblem Condition="'$(_CheatEngineClientSdkLockJson)' == ''">the lock file $(_CheatEngineClientSdkLockFile) does not exist</_CheatEngineClientConsumedSdkProblem>
+    <_CheatEngineClientConsumedSdkProblem Condition="'$(_CheatEngineClientConsumedSdkProblem)' == '' and '$(_CheatEngineClientLockedSdkVersion)' == ''">the lock file $(_CheatEngineClientSdkLockFile) has no resolved CheatEngine.SDK entry</_CheatEngineClientConsumedSdkProblem>
+    <_CheatEngineClientConsumedSdkProblem Condition="'$(_CheatEngineClientConsumedSdkProblem)' == '' and '$(_CheatEngineClientLockedSdkVersion)' != '$(CheatEngineSdkVersion)'">the lock file resolves CheatEngine.SDK $(_CheatEngineClientLockedSdkVersion), not the pin $(CheatEngineSdkVersion) of eng/CheatEngineSdk.props</_CheatEngineClientConsumedSdkProblem>
+    <_CheatEngineClientConsumedSdkProblem Condition="'$(_CheatEngineClientConsumedSdkProblem)' == '' and '$(_CheatEngineClientLockedSdkContentHash)' == ''">the CheatEngine.SDK entry of the lock file has no content hash</_CheatEngineClientConsumedSdkProblem>
+    <_CheatEngineClientConsumedSdkProblem Condition="'$(_CheatEngineClientConsumedSdkProblem)' == '' and ('$(_CheatEngineClientRestoredSdkNuspec)' == '' or '$(_CheatEngineClientRestoredSdkMetadata)' == '')">the restored CheatEngine.SDK $(_CheatEngineClientLockedSdkVersion) package was not found under the NuGet package root '$(NuGetPackageRoot)' (restore the project first)</_CheatEngineClientConsumedSdkProblem>
+    <_CheatEngineClientConsumedSdkProblem Condition="'$(_CheatEngineClientConsumedSdkProblem)' == '' and '$(_CheatEngineClientRestoredSdkContentHash)' != '$(_CheatEngineClientLockedSdkContentHash)'">the restored CheatEngine.SDK $(_CheatEngineClientLockedSdkVersion) package has content hash '$(_CheatEngineClientRestoredSdkContentHash)', not the lock value '$(_CheatEngineClientLockedSdkContentHash)'</_CheatEngineClientConsumedSdkProblem>
+    <_CheatEngineClientConsumedSdkProblem Condition="'$(_CheatEngineClientConsumedSdkProblem)' == '' and '$(_CheatEngineClientRestoredSdkCommit)' == ''">the restored CheatEngine.SDK $(_CheatEngineClientLockedSdkVersion) package declares no repository commit in its nuspec</_CheatEngineClientConsumedSdkProblem>
+    <_CheatEngineClientEmbedConsumedSdk Condition="'$(_CheatEngineClientConsumedSdkProblem)' == ''">true</_CheatEngineClientEmbedConsumedSdk>
+  </PropertyGroup>
+
+  <ItemGroup Label="Consumed CheatEngine.SDK identity" Condition="'$(_CheatEngineClientEmbedConsumedSdk)' == 'true'">
+    <AssemblyMetadata Include="CheatEngine.Client.ConsumedSdk.Version" Value="$(_CheatEngineClientLockedSdkVersion)"/>
+    <AssemblyMetadata Include="CheatEngine.Client.ConsumedSdk.SourceCommit" Value="$(_CheatEngineClientRestoredSdkCommit)"/>
+    <AssemblyMetadata Include="CheatEngine.Client.ConsumedSdk.ContentHashSha512" Value="$(_CheatEngineClientLockedSdkContentHash)"/>
+    <AssemblyMetadata Include="CheatEngine.Client.ConsumedSdk.SupportedMajor" Value="$(_CheatEngineClientSupportedSdkMajor)"/>
+  </ItemGroup>
+
+  <!--
+    CHEATENGINECLIENT9050: a compilation that cannot embed the consumed CheatEngine.SDK identity fails instead of
+    producing a Core assembly whose package gates would all report Unknown. Design-time builds are exempt.
+  -->
+  <Target Name="CheatEngineClientRequireConsumedSdkIdentity" BeforeTargets="CoreCompile"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <Error Code="CHEATENGINECLIENT9050" Condition="'$(_CheatEngineClientEmbedConsumedSdk)' != 'true'"
+           Text="CheatEngine.Client.Core cannot embed the identity of the consumed CheatEngine.SDK package: $(_CheatEngineClientConsumedSdkProblem). Without it the runtime package gate of every operational capability would report Unknown. Restore with the committed lock files (dotnet restore --locked-mode) and keep eng/CheatEngineSdk.props, libs/CheatEngine.Client.Core/packages.lock.json and the restored package in agreement."/>
+  </Target>
 
 </Project>

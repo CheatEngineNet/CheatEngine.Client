@@ -13,11 +13,22 @@
     <VerifyReferenceAotCompatibility>true</VerifyReferenceAotCompatibility>
     <!-- A generated template is standalone even when it is created under this repository. -->
     <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <!--
+      The first restore writes packages.lock.json: the exact package graph of the plugin and the content hash of every
+      package, CheatEngine.SDK's included. Commit it; a CI restore in locked mode then refuses any drift. The lock also
+      records Microsoft.NET.ILLink.Tasks, which the .NET SDK adds for IsAotCompatible at the version it bundles: pin the
+      exact .NET SDK in a global.json, or regenerate the lock with a force-evaluate restore after each SDK update.
+    -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
 
+  <!--
+    Keep CheatEngine.SDK on 2.x: this template is built and tested against CheatEngine.SDK 2.0.0 and CheatEngine.Client
+    declares [2.0.0, 3.0.0). The packed template references the exact CheatEngine.Client version it was released with.
+  -->
   <ItemGroup>
-    <PackageReference Include="CheatEngine.Client" Version="0.1.0"/>
-    <PackageReference Include="CheatEngine.SDK" Version="1.0.0"/>
+    <PackageReference Include="CheatEngine.Client" Version="1.0.0"/>
+    <PackageReference Include="CheatEngine.SDK" Version="2.0.0"/>
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.12"/>
   </ItemGroup>
 

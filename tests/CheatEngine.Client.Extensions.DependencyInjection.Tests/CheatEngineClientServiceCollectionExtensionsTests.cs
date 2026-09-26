@@ -1,25 +1,21 @@
+#pragma warning disable CECLIENT5003 // These tests compose the experimental instruction client of ICheatEngineClient.
+
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 
 using CheatEngine.Client.Allocations;
 using CheatEngine.Client.Assembly;
-using CheatEngine.Client.Dbvm;
-using CheatEngine.Client.Debugger;
 using CheatEngine.Client.Dispatching;
-using CheatEngine.Client.Hashing;
-using CheatEngine.Client.Hotkeys;
 using CheatEngine.Client.Inspection;
 using CheatEngine.Client.Lua;
 using CheatEngine.Client.Memory;
 using CheatEngine.Client.Modules;
 using CheatEngine.Client.Processes;
-using CheatEngine.Client.RemoteExecution;
 using CheatEngine.Client.Results;
 using CheatEngine.Client.Runtime;
 using CheatEngine.Client.Scanning;
-using CheatEngine.Client.Speed;
 using CheatEngine.Client.Tables;
-using CheatEngine.Client.Timers;
 using CheatEngine.SDK.Engine.Values;
 
 using Microsoft.Extensions.Configuration;
@@ -39,42 +35,127 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 
 		Assert.NotNull(builder);
 		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(ICheatEngineClient));
-		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(ILocalProcessDiagnostics));
-		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IMemoryCodec<int>));
-		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IMemoryBatchClient));
+		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IProcessClient));
+		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IMemoryClient));
+		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IPatternScanner));
 		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IAllocationClient));
 		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IAssemblyClient));
-		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IRemoteExecutionClient));
-		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IDebuggerClient));
-		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IHotkeyClient));
-		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(ITimerClient));
-		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(ISpeedClient));
-		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IHashingClient));
-		Assert.Contains(services, static descriptor => descriptor.ServiceType == typeof(IDbvmClient));
 		Assert.Contains(services,
 			static descriptor => descriptor.ServiceType == typeof(IValidateOptions<CheatEngineClientOptions>));
 		Assert.DoesNotContain(services, static descriptor => descriptor.ServiceType == typeof(IUnsafeLuaClient));
 
 		using ServiceProvider provider = services.BuildServiceProvider(new ServiceProviderOptions
 		{
-			ValidateOnBuild = true, ValidateScopes = true
+			ValidateOnBuild = true,
+			ValidateScopes = true
 		});
 
 		Assert.NotNull(provider);
 	}
 
+	/// <summary>
+	///     The detailed scan is a member of <see cref="IPatternScanner" />: DI registers the scanner once, as the Core
+	///     singleton, and no companion service for its outcomes.
+	/// </summary>
 	[Fact]
-	public void AddMemoryCodecPreservesTheFirstExplicitRegistration()
+	public void AddCheatEngineClientRegistersThePatternScannerOnceAndNoOutcomeCompanion()
 	{
 		ServiceCollection services = new();
-		CheatEngineClientBuilder builder = services.AddCheatEngineClient();
+		services.AddCheatEngineClient();
+		ServiceDescriptor scanner =
+			Assert.Single(services, static descriptor => descriptor.ServiceType == typeof(IPatternScanner));
+		AliasRecordingServiceProvider provider = new();
 
-		builder.AddMemoryCodec<CustomValue, FirstCustomCodec>();
-		builder.AddMemoryCodec<CustomValue, SecondCustomCodec>();
+		object viaScanner = scanner.ImplementationFactory!(provider);
 
-		ServiceDescriptor descriptor = Assert.Single(services,
-			static descriptor => descriptor.ServiceType == typeof(IMemoryCodec<CustomValue>));
-		Assert.Equal(typeof(FirstCustomCodec), descriptor.ImplementationType);
+		Assert.Equal(ServiceLifetime.Singleton, scanner.Lifetime);
+		Assert.IsType<IPatternScanner>(viaScanner, exactMatch: false);
+		Type requested = Assert.Single(provider.RequestedTypes);
+		Assert.Equal("CheatEngine.Client.Core.Domains.PatternScanner", requested.FullName);
+		Assert.DoesNotContain(services, static descriptor =>
+			descriptor.ServiceType.Namespace == "CheatEngine.Client.Scanning" &&
+			descriptor.ServiceType.Name.Contains("Outcome", StringComparison.Ordinal));
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q25")]
+	public void AddCheatEngineClientComposesTheOperationalValueScannerAsASingleton()
+	{
+		ServiceCollection services = new();
+		services.AddCheatEngineClient();
+		ServiceDescriptor descriptor =
+			Assert.Single(services, static descriptor => descriptor.ServiceType == typeof(IValueScanner));
+		AliasRecordingServiceProvider provider = new();
+
+		object scanner = descriptor.ImplementationFactory!(provider);
+
+		Assert.Equal(ServiceLifetime.Singleton, descriptor.Lifetime);
+		Assert.IsType<IValueScanner>(scanner, exactMatch: false);
+		Type requested = Assert.Single(provider.RequestedTypes);
+		Assert.Equal("CheatEngine.Client.Core.Domains.ValueScanning.ValueScanner", requested.FullName);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q30.a")]
+	public void AddCheatEngineClientComposesTheOperationalAllocationClientAsASingleton()
+	{
+		ServiceCollection services = new();
+		services.AddCheatEngineClient();
+		ServiceDescriptor descriptor =
+			Assert.Single(services, static descriptor => descriptor.ServiceType == typeof(IAllocationClient));
+		AliasRecordingServiceProvider provider = new();
+
+		object allocations = descriptor.ImplementationFactory!(provider);
+
+		Assert.Equal(ServiceLifetime.Singleton, descriptor.Lifetime);
+		Assert.IsType<IAllocationClient>(allocations, exactMatch: false);
+		Type requested = Assert.Single(provider.RequestedTypes);
+		Assert.Equal("CheatEngine.Client.Core.Domains.Allocations.AllocationClient", requested.FullName);
+	}
+
+	[Fact]
+	public void AddCheatEngineClientResolvesTheInstructionClientToTheOperationalAssemblyClientSingleton()
+	{
+		ServiceCollection services = new();
+		services.AddCheatEngineClient();
+		ServiceDescriptor descriptor =
+			Assert.Single(services, static descriptor => descriptor.ServiceType == typeof(IAssemblyClient));
+		AliasRecordingServiceProvider provider = new();
+
+		object implementation = descriptor.ImplementationFactory!(provider);
+
+		Assert.Equal(ServiceLifetime.Singleton, descriptor.Lifetime);
+		Assert.IsType<IAssemblyClient>(implementation, exactMatch: false);
+		Type requested = Assert.Single(provider.RequestedTypes);
+		Assert.Equal("CheatEngine.Client.Core.Domains.Assembly.AssemblyClient", requested.FullName);
+		Assert.DoesNotContain("Unavailable", implementation.GetType().FullName!, StringComparison.Ordinal);
+	}
+
+	/// <summary>
+	///     A5: the Client resolves no codec implicitly. A codec is an ordinary application service, which the plugin passes
+	///     with each codec request; the registration adds none of its own and the builder has no codec shortcut.
+	/// </summary>
+	[Fact]
+	public void AddCheatEngineClientRegistersNoMemoryCodecAndACodecIsAnApplicationService()
+	{
+		ServiceCollection services = new();
+		services.AddCheatEngineClient();
+
+		Assert.DoesNotContain(services, static descriptor =>
+			descriptor.ServiceType.IsGenericType &&
+			descriptor.ServiceType.GetGenericTypeDefinition() == typeof(IMemoryCodec<>));
+		Assert.DoesNotContain(typeof(CheatEngineClientBuilder).GetMethods(),
+			static method => method.Name.Contains("Codec", StringComparison.Ordinal));
+
+		services.AddSingleton<IMemoryCodec<CustomValue>, CustomCodec>();
+		using ServiceProvider provider = services.BuildServiceProvider(new ServiceProviderOptions
+		{
+			ValidateOnBuild = true,
+			ValidateScopes = true
+		});
+
+		Assert.IsType<CustomCodec>(provider.GetRequiredService<IMemoryCodec<CustomValue>>());
+		Assert.Null(provider.GetService<IMemoryCodec<int>>());
 	}
 
 	[Fact]
@@ -101,12 +182,16 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		ServiceCollection services = new();
 
 		services.AddCheatEngineClient(configuration.GetSection("Configured"))
-			.Configure(options => options.AllowedTableRoots = [overriddenRoot]);
+			.Configure(options =>
+			{
+				options.AllowedTableRoots.Clear();
+				options.AllowedTableRoots.Add(overriddenRoot);
+			});
 
 		using ServiceProvider provider = services.BuildServiceProvider();
 		CheatEngineClientOptions options = provider.GetRequiredService<IOptions<CheatEngineClientOptions>>().Value;
 
-		Assert.Equal([overriddenRoot], Assert.IsType<string[]>(options.AllowedTableRoots));
+		Assert.Equal([overriddenRoot], options.AllowedTableRoots);
 	}
 
 	[Fact]
@@ -122,7 +207,7 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		using ServiceProvider provider = services.BuildServiceProvider();
 		CheatEngineClientOptions options = provider.GetRequiredService<IOptions<CheatEngineClientOptions>>().Value;
 
-		Assert.Equal([allowedRoot], Assert.IsType<string[]>(options.AllowedTableRoots));
+		Assert.Equal([allowedRoot], options.AllowedTableRoots);
 	}
 
 	[Fact]
@@ -136,7 +221,6 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		using ServiceProvider provider = services.BuildServiceProvider();
 		CheatEngineClientOptions options = provider.GetRequiredService<IOptions<CheatEngineClientOptions>>().Value;
 
-		Assert.NotNull(options.MemoryResourceLimits);
 		Assert.Equal(37, options.MemoryResourceLimits.MaximumReadBytes);
 	}
 
@@ -164,7 +248,8 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 
 		using ServiceProvider provider = services.BuildServiceProvider(new ServiceProviderOptions
 		{
-			ValidateOnBuild = true, ValidateScopes = true
+			ValidateOnBuild = true,
+			ValidateScopes = true
 		});
 		using IServiceScope scope = provider.CreateScope();
 		ICheatEngineClientModule[] modules = scope.ServiceProvider.GetServices<ICheatEngineClientModule>().ToArray();
@@ -184,7 +269,8 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 
 		using ServiceProvider provider = services.BuildServiceProvider(new ServiceProviderOptions
 		{
-			ValidateOnBuild = true, ValidateScopes = true
+			ValidateOnBuild = true,
+			ValidateScopes = true
 		});
 		using IServiceScope scope = provider.CreateScope();
 		ScopedDependencyModule first = Assert.IsType<ScopedDependencyModule>(
@@ -207,7 +293,8 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 
 		using ServiceProvider provider = services.BuildServiceProvider(new ServiceProviderOptions
 		{
-			ValidateOnBuild = true, ValidateScopes = true
+			ValidateOnBuild = true,
+			ValidateScopes = true
 		});
 		ServiceDescriptor[] lifecycleDescriptors = services
 			.Where(static descriptor => descriptor.ServiceType == typeof(ICheatEngineClientModule))
@@ -246,7 +333,10 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		RecordingLuaClient lua = new();
 		LuaModuleLifecycle<FirstLuaModule> lifecycle = new(lua, new FirstLuaModule());
 		using CancellationTokenSource stopping = new();
-		TestClient client = new() { Stopping = stopping.Token };
+		TestClient client = new()
+		{
+			Stopping = stopping.Token
+		};
 
 		lifecycle.OnEnabled(client);
 
@@ -255,30 +345,18 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 
 	private readonly record struct CustomValue(int Value);
 
-	private sealed class FirstCustomCodec : IMemoryCodec<CustomValue>
+	private sealed class CustomCodec : IMemoryCodec<CustomValue>
 	{
-		public bool TryRead(IMemoryReadContext context, Address address, out CustomValue value)
+		public bool TryRead(IMemoryReadContext context, Address address, out CustomValue value, out CheatEngineFailure failure)
 		{
-			value = default;
-			return false;
-		}
-
-		public bool TryWrite(IMemoryWriteContext context, Address address, in CustomValue value)
-		{
-			return false;
-		}
-	}
-
-	private sealed class SecondCustomCodec : IMemoryCodec<CustomValue>
-	{
-		public bool TryRead(IMemoryReadContext context, Address address, out CustomValue value)
-		{
+			failure = default;
 			value = new CustomValue(2);
 			return true;
 		}
 
-		public bool TryWrite(IMemoryWriteContext context, Address address, in CustomValue value)
+		public bool TryWrite(IMemoryWriteContext context, Address address, in CustomValue value, out CheatEngineFailure failure)
 		{
+			failure = default;
 			return value.Value == 2;
 		}
 	}
@@ -329,7 +407,7 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		}
 	}
 
-	public sealed class FirstLuaModule : IDescribedLuaModule
+	public sealed class FirstLuaModule : ILuaModule
 	{
 		public LuaModuleDescriptor Descriptor
 		{
@@ -340,12 +418,13 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		{
 		}
 
-		public void Unregister()
+		public LuaModuleReleaseOutcome Unregister()
 		{
+			return LuaModuleReleaseOutcome.Released(Descriptor.Name, 1, 0, 0);
 		}
 	}
 
-	public sealed class SecondLuaModule : IDescribedLuaModule
+	public sealed class SecondLuaModule : ILuaModule
 	{
 		public LuaModuleDescriptor Descriptor
 		{
@@ -356,8 +435,9 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		{
 		}
 
-		public void Unregister()
+		public LuaModuleReleaseOutcome Unregister()
 		{
+			return LuaModuleReleaseOutcome.Released(Descriptor.Name, 1, 0, 0);
 		}
 	}
 
@@ -399,31 +479,34 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		public ILuaModuleLease RegisterModule(ILuaModule luaModule, CancellationToken cancellationToken = default)
 		{
 			if (TryRegisterModule(luaModule, out ILuaModuleLease? lease, out CheatEngineFailure failure,
-				    cancellationToken))
+					cancellationToken))
 			{
 				return lease;
 			}
 
-			failure.Throw();
+			failure.Throw(cancellationToken);
 			throw new InvalidOperationException("A failed Lua registration must throw its mapped exception.");
 		}
 
-		public bool TryExecute<TResult>(
-			ILuaOperation<TResult> operation,
+		public bool TryExecute<TOperation, TResult>(
+			in TOperation operation,
 			[MaybeNullWhen(false)] out TResult result,
 			out CheatEngineFailure failure,
 			CancellationToken cancellationToken = default)
+			where TOperation : ILuaOperation<TResult>
 		{
-			ArgumentNullException.ThrowIfNull(operation);
 			result = default;
 			failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidState, "Test.Lua", "Not used by this test.");
 			return false;
 		}
 
-		public TResult Execute<TResult>(ILuaOperation<TResult> operation, CancellationToken cancellationToken = default)
+		public TResult Execute<TOperation, TResult>(in TOperation operation,
+			CancellationToken cancellationToken = default)
+			where TOperation : ILuaOperation<TResult>
 		{
-			_ = TryExecute(operation, out TResult? result, out CheatEngineFailure failure, cancellationToken);
-			failure.Throw();
+			_ = TryExecute<TOperation, TResult>(in operation, out TResult? result, out CheatEngineFailure failure,
+				cancellationToken);
+			failure.Throw(cancellationToken);
 			return result!;
 		}
 	}
@@ -436,9 +519,24 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 			private set;
 		}
 
-		public long Epoch => 1;
-
 		public bool IsReleased => DisposeCount != 0;
+
+		public bool RequiresManualRecovery => false;
+
+		public LeaseReleaseOutcome? LastReleaseOutcome => IsReleased
+			? new LeaseReleaseOutcome(LeaseReleaseKind.Released, CheatEngineHostEffect.Completed)
+			: null;
+
+		public LuaModuleReleaseOutcome? LastModuleReleaseOutcome => null;
+
+		public LeaseReleaseOutcome Release()
+		{
+			bool alreadyReleased = IsReleased;
+			Dispose();
+			return alreadyReleased
+				? new LeaseReleaseOutcome(LeaseReleaseKind.AlreadyReleased, CheatEngineHostEffect.NotStarted)
+				: LastReleaseOutcome!.Value;
+		}
 
 		public void Dispose()
 		{
@@ -469,7 +567,7 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 
 		public IPatternScanner Patterns => null!;
 
-		public IValueScanner Scans => null!;
+		public IValueScanner ValueScans => null!;
 
 		public IInspectionClient Inspection => null!;
 
@@ -480,19 +578,27 @@ public sealed class CheatEngineClientServiceCollectionExtensionsTests
 		public IAllocationClient Allocations => null!;
 
 		public IAssemblyClient Assembly => null!;
+	}
 
-		public IRemoteExecutionClient RemoteExecution => null!;
+	/// <summary>
+	///     Resolves each requested implementation type to one uninitialized singleton so descriptor aliases can be compared
+	///     without activating Core (which requires an enabled Cheat Engine plugin context).
+	/// </summary>
+	private sealed class AliasRecordingServiceProvider : IServiceProvider
+	{
+		private readonly Dictionary<Type, object> _instances = [];
 
-		public IDebuggerClient Debugger => null!;
+		internal IReadOnlyCollection<Type> RequestedTypes => _instances.Keys;
 
-		public IHotkeyClient Hotkeys => null!;
+		public object? GetService(Type serviceType)
+		{
+			if (!_instances.TryGetValue(serviceType, out object? instance))
+			{
+				instance = RuntimeHelpers.GetUninitializedObject(serviceType);
+				_instances.Add(serviceType, instance);
+			}
 
-		public ITimerClient Timers => null!;
-
-		public ISpeedClient Speed => null!;
-
-		public IHashingClient Hashing => null!;
-
-		public IDbvmClient Dbvm => null!;
+			return instance;
+		}
 	}
 }

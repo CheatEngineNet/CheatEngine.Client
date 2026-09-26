@@ -1,14 +1,23 @@
 using CheatEngine.SDK.Engine.Inspection;
-using CheatEngine.SDK.Engine.Scanning.Aob;
 
 namespace CheatEngine.Client.Scanning;
 
-/// <summary>An immutable AOB scan request with an explicit managed, post-filter materialization limit.</summary>
+/// <summary>An immutable AOB scan request with an explicit materialization limit and an optional module and range scope.</summary>
 public readonly record struct AobScanRequest
 {
 	/// <summary>Creates an AOB scan request.</summary>
-	public AobScanRequest(AobPattern pattern, AobScanOptions options, int maximumResults, ModuleName? module = null,
-		AobScanRange? range = null)
+	/// <param name="pattern">The normalized pattern.</param>
+	/// <param name="maximumResults">The positive materialization limit.</param>
+	/// <param name="module">The optional module that scopes the scan.</param>
+	/// <param name="range">The optional inclusive range of match start addresses that scopes the scan.</param>
+	/// <param name="protection">The memory protection the matches must have; unspecified by default.</param>
+	/// <param name="alignment">The alignment rule of candidate addresses; <see cref="ScanAlignment.None" /> by default.</param>
+	/// <exception cref="ArgumentException">
+	///     <paramref name="pattern" /> is empty, or <paramref name="module" /> is an empty module name.
+	/// </exception>
+	/// <exception cref="ArgumentOutOfRangeException"><paramref name="maximumResults" /> is zero or negative.</exception>
+	public AobScanRequest(AobPattern pattern, int maximumResults, ModuleName? module = null, AobScanRange? range = null,
+		ScanProtectionFilter protection = default, ScanAlignment alignment = default)
 	{
 		if (string.IsNullOrWhiteSpace(pattern.Value))
 		{
@@ -22,10 +31,11 @@ public readonly record struct AobScanRequest
 		}
 
 		Pattern = pattern;
-		Options = AobScanOptionsNormalizer.Normalize(options);
 		MaximumResults = maximumResults;
 		Module = module;
 		Range = range;
+		Protection = protection;
+		Alignment = alignment;
 	}
 
 	/// <summary>Gets the scan pattern.</summary>
@@ -34,27 +44,54 @@ public readonly record struct AobScanRequest
 		get;
 	}
 
-	/// <summary>Gets the SDK's evidence-backed optional scan arguments.</summary>
-	public AobScanOptions Options
-	{
-		get;
-	}
-
 	/// <summary>Gets the maximum number of copied addresses that may survive managed post-filters.</summary>
-	/// <remarks>This bounds result materialization only; it does not bound or terminate the global Cheat Engine scan.</remarks>
+	/// <remarks>
+	///     This is the materialization limit: it bounds how many addresses Core copies from Cheat Engine's result. It does
+	///     not bound or terminate the Cheat Engine scan, and it is not the number of available results (see
+	///     <see cref="PatternScanMetrics.HostResultCount" />). Every route copies at most 65,535 addresses, whatever this
+	///     limit; a result cut by that cap is truncated (<see cref="AobScanResult.IsTruncated" />).
+	/// </remarks>
 	public int MaximumResults
 	{
 		get;
 	}
 
-	/// <summary>Gets the optional module Core resolves before the global scan and applies as a copied-address post-filter.</summary>
+	/// <summary>Gets the optional module that scopes the scan; Core resolves it before any scan.</summary>
+	/// <remarks>
+	///     A match is kept only when all of its pattern bytes lie inside the module, on every route: a match that
+	///     straddles the module end is never reported. On a qualified local target Cheat Engine scans only the module
+	///     (intersected with <see cref="Range" />, <see cref="PatternScanScope.HostBoundedRange" />); otherwise Cheat
+	///     Engine scans the whole target and Core applies the same rule while copying
+	///     (<see cref="PatternScanScope.GlobalHostScanWithManagedFilter" />).
+	/// </remarks>
 	public ModuleName? Module
 	{
 		get;
 	}
 
-	/// <summary>Gets the optional inclusive copied-address post-filter.</summary>
+	/// <summary>Gets the optional inclusive range of match start addresses that scopes the scan.</summary>
+	/// <remarks>
+	///     A match is kept when its start lies in the range, on every route (and, with <see cref="Module" />, when it also
+	///     fits entirely inside the module). On a qualified local target Cheat Engine scans only
+	///     <c>[Start, End + pattern length)</c>, intersected with <see cref="Module" />
+	///     (<see cref="PatternScanScope.HostBoundedRange" />); otherwise the range is applied while copying and does not
+	///     reduce Cheat Engine's scan time or memory (<see cref="PatternScanScope.GlobalHostScanWithManagedFilter" />).
+	/// </remarks>
 	public AobScanRange? Range
+	{
+		get;
+	}
+
+	/// <summary>Gets the memory protection the matches must have.</summary>
+	/// <remarks>Cheat Engine applies it on every route: it reduces the memory Cheat Engine scans.</remarks>
+	public ScanProtectionFilter Protection
+	{
+		get;
+	}
+
+	/// <summary>Gets the alignment rule of candidate addresses.</summary>
+	/// <remarks>Cheat Engine applies it on every route.</remarks>
+	public ScanAlignment Alignment
 	{
 		get;
 	}

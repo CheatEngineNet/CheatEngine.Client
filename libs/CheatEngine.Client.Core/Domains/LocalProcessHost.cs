@@ -1,23 +1,15 @@
 using System.ComponentModel;
 using System.Diagnostics;
 
-using CheatEngine.Client.Core.Infrastructure;
-using CheatEngine.SDK.Engine.Runtime;
-
 namespace CheatEngine.Client.Core.Domains;
 
+/// <summary>Production process host: local metadata through the base class library.</summary>
+/// <remarks>
+///     Name and executable path come from <see cref="Process" /> and describe a local process only: they are not evidence
+///     of a CEServer target or of a file opened as a process, whose identifiers do not name a local process.
+/// </remarks>
 internal sealed class LocalProcessHost : IProcessHost
 {
-	public long GetOpenedProcessId()
-	{
-		return ClientLuaGlobals.GetOpenedProcessId();
-	}
-
-	public void OpenProcess(long processId)
-	{
-		ClientLuaGlobals.OpenProcess(processId);
-	}
-
 	public bool TryGetLocalProcess(int processId, out LocalProcessInfo process)
 	{
 		try
@@ -55,20 +47,13 @@ internal sealed class LocalProcessHost : IProcessHost
 		for (int index = 0; index < processes.Count; index++)
 		{
 			if (TryCapture(processes[index], out LocalProcessInfo process) &&
-			    string.Equals(process.Name, processName, StringComparison.OrdinalIgnoreCase))
+				string.Equals(process.Name, processName, StringComparison.OrdinalIgnoreCase))
 			{
 				matches.Add(process);
 			}
 		}
 
 		return matches;
-	}
-
-	public CheatEngineArchitecture GetTargetArchitecture()
-	{
-		return ClientLuaGlobals.TargetIs64Bit()
-			? CheatEngineArchitecture.X64
-			: CheatEngineArchitecture.X86;
 	}
 
 	private static bool TryCapture(Process process, out LocalProcessInfo captured)
@@ -93,7 +78,7 @@ internal sealed class LocalProcessHost : IProcessHost
 			return process.MainModule?.FileName;
 		}
 		catch (Exception exception) when (exception is InvalidOperationException or Win32Exception
-			                                  or NotSupportedException)
+											  or NotSupportedException)
 		{
 			return null;
 		}

@@ -1,33 +1,24 @@
+using CheatEngine.Client.Core.Domains;
+
 using Microsoft.Extensions.Options;
 
 namespace CheatEngine.Client.Extensions.DependencyInjection;
 
 /// <summary>Validates the security-sensitive options that cannot be expressed as data annotations.</summary>
-public sealed class CheatEngineClientOptionsSemanticValidator : IValidateOptions<CheatEngineClientOptions>
+/// <remarks>
+///     A composition detail: <c>AddCheatEngineClient</c> registers it, and Hosting resolves the options before any Client
+///     work, so it runs at every enable.
+/// </remarks>
+internal sealed class CheatEngineClientOptionsSemanticValidator : IValidateOptions<CheatEngineClientOptions>
 {
-	/// <summary>Initializes the semantic validator for the Client table-file policy.</summary>
-	public CheatEngineClientOptionsSemanticValidator()
-	{
-	}
-
 	/// <inheritdoc />
 	public ValidateOptionsResult Validate(string? name, CheatEngineClientOptions options)
 	{
 		ArgumentNullException.ThrowIfNull(options);
 
-		if (options.AllowedTableRoots is null)
-		{
-			return ValidateOptionsResult.Fail("AllowedTableRoots must be an empty array or contain absolute paths.");
-		}
-
-		if (options.MemoryResourceLimits is null)
-		{
-			return ValidateOptionsResult.Fail("MemoryResourceLimits must be configured.");
-		}
-
 		try
 		{
-			_ = options.MemoryResourceLimits.CreateSnapshot();
+			_ = MemoryResourceLimitsCopy.CreateValidated(options.MemoryResourceLimits);
 		}
 		catch (ArgumentOutOfRangeException exception)
 		{
@@ -35,7 +26,7 @@ public sealed class CheatEngineClientOptionsSemanticValidator : IValidateOptions
 		}
 
 		HashSet<string> roots = new(StringComparer.OrdinalIgnoreCase);
-		foreach (string root in options.AllowedTableRoots)
+		foreach (string? root in options.AllowedTableRoots)
 		{
 			if (string.IsNullOrWhiteSpace(root))
 			{

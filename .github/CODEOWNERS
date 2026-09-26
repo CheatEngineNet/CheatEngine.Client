@@ -1,0 +1,16 @@
+# Informational only. "Require review from Code Owners" stays off while the project has a single active maintainer:
+# an author cannot approve their own pull request, so a required code-owner review would block every change.
+# Owners must have write access to the repository; invalid lines are skipped silently. Syntax:
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+# The sensitive paths below repeat the default owner so that a second owner can be added in one place.
+
+*                           @AriusII
+
+/.github/                   @AriusII
+/eng/                       @AriusII
+/Directory.Build.props      @AriusII
+/Directory.Build.targets    @AriusII
+/Directory.Packages.props   @AriusII
+/global.json                @AriusII
+/nuget.config               @AriusII
+/SECURITY.md                @AriusII

@@ -1,7 +1,9 @@
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 
+using CheatEngine.Client.Core.Dispatching;
 using CheatEngine.Client.Core.Domains;
+using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Core.Tests.TestSupport;
 using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Memory;
@@ -60,8 +62,9 @@ public sealed class MemoryClientDispatchFailureTests
 		MemoryClient client = new(new RejectingDispatcher(expected), InertCoreLifetime.Create());
 		MemoryBytesReadRequest byteRead = new(Address, 2);
 		MemoryBytesWriteRequest byteWrite = new(Address, [0x10, 0x20]);
-		MemoryStringReadRequest stringRead = new(Address, 12, true);
-		MemoryStringWriteRequest stringWrite = new(Address, "health", true);
+		MemoryStringReadRequest stringRead = new MemoryStringReadRequest(Address, 12, MemoryStringEncoding.Utf16);
+		MemoryStringWriteRequest stringWrite =
+			new MemoryStringWriteRequest(Address, "health", 6, MemoryStringEncoding.Utf16);
 
 		Assert.False(client.TryReadBytes(byteRead, out ImmutableArray<byte> bytes,
 			out CheatEngineFailure byteReadFailure,
@@ -114,6 +117,39 @@ public sealed class MemoryClientDispatchFailureTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q33")]
+	public void PreAdmissionCancelledBatchWriteReportsNotStarted()
+	{
+		CoreLifetime lifetime = InertCoreLifetime.Create();
+		MemoryClient client = new(new SdkMainThreadDispatcher(lifetime, new InlineMainThreadInvoker()), lifetime);
+		MemoryPrimitiveBatchWriteRequest<int> writes = new([new MemoryAddressValue<int>(Address, 12)]);
+
+		MemoryPrimitiveBatchWriteOutcome outcome =
+			client.WritePrimitiveBatchDetailed(writes, new CancellationToken(true));
+
+		Assert.False(outcome.IsSuccess);
+		Assert.Equal(0, outcome.CompletedCount);
+		Assert.Null(outcome.FailedIndex);
+		Assert.Equal(MemoryBatchWriteEffectState.NotStarted, outcome.EffectState);
+		Assert.Equal(CheatEngineFailureKind.Cancelled, outcome.Failure!.Value.Kind);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, outcome.Failure.Value.HostEffect);
+	}
+
+	[Fact]
+	public void NonCancellationDispatchFailureOfABatchWriteKeepsAnUnknownEffect()
+	{
+		CheatEngineFailure expected = Failure("Test.Batch");
+		MemoryClient client = new(new RejectingDispatcher(expected), InertCoreLifetime.Create());
+
+		MemoryPrimitiveBatchWriteOutcome outcome = client.WritePrimitiveBatchDetailed(
+			new MemoryPrimitiveBatchWriteRequest<int>([new MemoryAddressValue<int>(Address, 12)]),
+			TestContext.Current.CancellationToken);
+
+		Assert.Equal(MemoryBatchWriteEffectState.Unknown, outcome.EffectState);
+		Assert.Equal(expected, outcome.Failure);
+	}
+
+	[Fact]
 	public void DefaultPrimitiveBatchesAreRejectedBeforeDispatch()
 	{
 		MemoryClient client = new(new RejectingDispatcher(Failure("Test.ShouldNotDispatch")),
@@ -126,23 +162,24 @@ public sealed class MemoryClientDispatchFailureTests
 			TestContext.Current.CancellationToken));
 	}
 
+	/// <summary>
+	///     A5: the primitive members support exactly the 8- to 64-bit integers, float, double and Address. Any other
+	///     unmanaged type is refused before dispatch: a rejecting dispatcher would otherwise report its own failure.
+	/// </summary>
 	[Fact]
-	public void UnsupportedPrimitiveTypesReturnTheSpecificUnsupportedFailureWithoutAccessingTheHost()
+	[Trait("Qualification", "Q20")]
+	public void UnsupportedPrimitiveTypesAreRefusedBeforeDispatchWithoutAHostCall()
 	{
-		MemoryClient client = new(new InlineDispatcher(), InertCoreLifetime.Create());
+		MemoryClient client = new(new RejectingDispatcher(Failure("Test.ShouldNotDispatch")),
+			InertCoreLifetime.Create());
 
-		bool readSucceeded = client.TryReadPrimitive(Address, out DateTime readValue,
-			out CheatEngineFailure readFailure, TestContext.Current.CancellationToken);
-		bool writeSucceeded = client.TryWritePrimitive(Address, DateTime.UnixEpoch, out CheatEngineFailure writeFailure,
-			TestContext.Current.CancellationToken);
-
-		Assert.False(readSucceeded);
-		Assert.Equal(default, readValue);
-		Assert.Equal(CheatEngineFailureKind.Unsupported, readFailure.Kind);
-		Assert.Equal("Memory.ReadPrimitive", readFailure.Operation);
-		Assert.False(writeSucceeded);
-		Assert.Equal(CheatEngineFailureKind.Unsupported, writeFailure.Kind);
-		Assert.Equal("Memory.WritePrimitive", writeFailure.Operation);
+		AssertRefusedBeforeDispatch(client, DateTime.UnixEpoch);
+		AssertRefusedBeforeDispatch(client, 'A');
+		AssertRefusedBeforeDispatch(client, true);
+		AssertRefusedBeforeDispatch(client, (nint) 1);
+		AssertRefusedBeforeDispatch(client, 1m);
+		AssertRefusedBeforeDispatch(client, Guid.Empty);
+		AssertRefusedBeforeDispatch(client, (Half) 1);
 	}
 
 	[Fact]
@@ -152,12 +189,12 @@ public sealed class MemoryClientDispatchFailureTests
 		MemoryReadRequest<int> read = new(Address, new NeverUsedCodec());
 		MemoryWriteRequest<int> write = new(Address, 42, new NeverUsedCodec());
 
-		CheatEngineClientLifecycleException primitiveException =
-			Assert.Throws<CheatEngineClientLifecycleException>(() =>
+		CheatEngineInvalidStateException primitiveException =
+			Assert.Throws<CheatEngineInvalidStateException>(() =>
 				client.ReadPrimitive<int>(Address, TestContext.Current.CancellationToken));
-		CheatEngineClientLifecycleException readException = Assert.Throws<CheatEngineClientLifecycleException>(() =>
+		CheatEngineInvalidStateException readException = Assert.Throws<CheatEngineInvalidStateException>(() =>
 			client.Read(read, TestContext.Current.CancellationToken));
-		CheatEngineClientLifecycleException writeException = Assert.Throws<CheatEngineClientLifecycleException>(() =>
+		CheatEngineInvalidStateException writeException = Assert.Throws<CheatEngineInvalidStateException>(() =>
 			client.Write(write, TestContext.Current.CancellationToken));
 
 		Assert.Equal("Test.Convenience", primitiveException.Failure.Operation);
@@ -203,6 +240,70 @@ public sealed class MemoryClientDispatchFailureTests
 			client.TryWriteString(default, out _, TestContext.Current.CancellationToken));
 	}
 
+	/// <summary>
+	///     A string request tampered past its constructor throws what that constructor throws for the same value, from
+	///     both forms and before dispatch: an undefined encoding would otherwise be read or written as UTF-8.
+	/// </summary>
+	[Theory]
+	[InlineData("Read.Encoding", "request")]
+	[InlineData("Write.Encoding", "request")]
+	[InlineData("Write.MaximumLength", "request.MaximumLength")]
+	public void ATamperedStringRequestThrowsBeforeDispatch(string tampered, string parameter)
+	{
+		MemoryClient client = new(new RejectingDispatcher(Failure("Test.ShouldNotDispatch")),
+			InertCoreLifetime.Create());
+		CancellationToken token = TestContext.Current.CancellationToken;
+		MemoryStringReadRequest read = TamperedValues.WithBackingField(
+			new MemoryStringReadRequest(Address, 16, MemoryStringEncoding.Utf8),
+			nameof(MemoryStringReadRequest.Encoding), (MemoryStringEncoding) 7);
+		MemoryStringWriteRequest write = new(Address, string.Empty, 16, MemoryStringEncoding.Utf8);
+		MemoryStringWriteRequest tamperedWrite = tampered == "Write.MaximumLength"
+			? TamperedValues.WithBackingField(write, nameof(MemoryStringWriteRequest.MaximumLength), 0)
+			: TamperedValues.WithBackingField(write, nameof(MemoryStringWriteRequest.Encoding),
+				(MemoryStringEncoding) 7);
+		(Action TryForm, Action ThrowingForm) forms = tampered switch
+		{
+			"Read.Encoding" => (() => client.TryReadString(read, out _, out _, token),
+				() => client.ReadString(read, token)),
+			"Write.Encoding" or "Write.MaximumLength" => (() => client.TryWriteString(tamperedWrite, out _, token),
+				() => client.WriteString(tamperedWrite, token)),
+			_ => throw new ArgumentOutOfRangeException(nameof(tampered), tampered, null)
+		};
+
+		ArgumentOutOfRangeException thrown = Assert.Throws<ArgumentOutOfRangeException>(forms.TryForm);
+		ArgumentOutOfRangeException throwingForm = Assert.Throws<ArgumentOutOfRangeException>(forms.ThrowingForm);
+
+		Assert.Equal(parameter, thrown.ParamName);
+		Assert.Equal(thrown.Message, throwingForm.Message);
+	}
+
+	private static void AssertRefusedBeforeDispatch<T>(MemoryClient client, T sample)
+		where T : unmanaged
+	{
+		CancellationToken token = TestContext.Current.CancellationToken;
+		bool read = client.TryReadPrimitive(Address, out T _, out CheatEngineFailure readFailure, token);
+		bool written = client.TryWritePrimitive(Address, sample, out CheatEngineFailure writeFailure, token);
+		MemoryPrimitiveBatchReadOutcome<T> readBatch =
+			client.ReadPrimitiveBatchDetailed(new MemoryPrimitiveBatchReadRequest<T>([Address]), token);
+		MemoryPrimitiveBatchWriteOutcome writeBatch = client.WritePrimitiveBatchDetailed(
+			new MemoryPrimitiveBatchWriteRequest<T>([new MemoryAddressValue<T>(Address, sample)]), token);
+
+		Assert.False(read);
+		Assert.False(written);
+		Assert.Equal(MemoryBatchWriteEffectState.NotStarted, writeBatch.EffectState);
+		Assert.Equal(0, readBatch.CompletedCount);
+		foreach ((CheatEngineFailure failure, string operation) in (ReadOnlySpan<(CheatEngineFailure, string)>)
+				 [
+					 (readFailure, "Memory.ReadPrimitive"), (writeFailure, "Memory.WritePrimitive"),
+					 (readBatch.Failure!.Value, "Memory.ReadPrimitiveBatch"),
+					 (writeBatch.Failure!.Value, "Memory.WritePrimitiveBatch")
+				 ])
+		{
+			Assert.Equal((CheatEngineFailureKind.OperationRejected, CheatEngineHostEffect.NotStarted, operation),
+				(failure.Kind, failure.HostEffect, failure.Operation));
+		}
+	}
+
 	private static CheatEngineFailure Failure(string operation)
 	{
 		return new CheatEngineFailure(CheatEngineFailureKind.InvalidState, operation, "The dispatcher rejected work.");
@@ -210,13 +311,15 @@ public sealed class MemoryClientDispatchFailureTests
 
 	private sealed class NeverUsedCodec : IMemoryCodec<int>
 	{
-		public bool TryRead(IMemoryReadContext context, Address address, out int value)
+		public bool TryRead(IMemoryReadContext context, Address address, out int value, out CheatEngineFailure failure)
 		{
+			failure = default;
 			throw new InvalidOperationException("The rejecting dispatcher must prevent codec execution.");
 		}
 
-		public bool TryWrite(IMemoryWriteContext context, Address address, in int value)
+		public bool TryWrite(IMemoryWriteContext context, Address address, in int value, out CheatEngineFailure failure)
 		{
+			failure = default;
 			throw new InvalidOperationException("The rejecting dispatcher must prevent codec execution.");
 		}
 	}
@@ -253,7 +356,7 @@ public sealed class MemoryClientDispatchFailureTests
 		{
 			if (!TryInvoke(callback, out CheatEngineFailure failure, cancellationToken))
 			{
-				failure.Throw();
+				failure.Throw(cancellationToken);
 			}
 		}
 
@@ -264,7 +367,7 @@ public sealed class MemoryClientDispatchFailureTests
 				return result;
 			}
 
-			failure.Throw();
+			failure.Throw(cancellationToken);
 			return default!;
 		}
 	}

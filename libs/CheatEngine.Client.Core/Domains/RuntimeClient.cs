@@ -1,47 +1,94 @@
+using System.Collections.Immutable;
+using System.Reflection;
+
 using CheatEngine.Client.Core.Infrastructure;
+using CheatEngine.Client.Core.Qualification;
 using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Results;
 using CheatEngine.Client.Runtime;
-using CheatEngine.SDK.Engine.Errors;
 using CheatEngine.SDK.Engine.Runtime;
 
 namespace CheatEngine.Client.Core.Domains;
 
 /// <summary>Captures only independently observed, synchronous runtime facts from the active Cheat Engine host.</summary>
+/// <remarks>
+///     The facts are the read-only CheatEngine.SDK 2.0.0 runtime observations, through <see cref="RuntimeObserver" />:
+///     the snapshot reports what the SDK established and leaves every other fact unknown.
+/// </remarks>
 internal sealed class RuntimeClient : ICheatEngineRuntime
 {
+	private const string SnapshotOperation = "Runtime.GetSnapshot";
+
+	private const string CapabilityOperation = "Runtime.GetClientCapability";
+
 	private readonly Version _clientAssemblyVersion;
+	private readonly string? _clientVersion;
+	private readonly ICoreDiagnostics _diagnostics;
 	private readonly ICheatEngineDispatcher _dispatcher;
 	private readonly Func<long> _getEpoch;
 	private readonly Func<bool> _isActivationCurrent;
+	private readonly CoreLifetime? _lifetime;
 	private readonly CoreClientPolicy _policy;
-	private readonly IRuntimeProbe _probe;
+	private readonly IRuntimeObservationPort _port;
+	private readonly HostQualificationRecord? _qualificationEvidence;
 	private readonly Version _sdkAssemblyVersion;
+	private readonly ConsumedSdkIdentity _sdkIdentity;
 
 	internal RuntimeClient(ICheatEngineDispatcher dispatcher, CoreLifetime lifetime, CoreClientPolicy policy)
 		: this(
 			dispatcher,
-			new LuaRuntimeProbe(),
+			SdkRuntimeObservationPort.Instance,
 			() => lifetime.Epoch,
 			typeof(ICheatEngineRuntime).Assembly.GetName().Version,
 			typeof(RuntimeInfo).Assembly.GetName().Version,
 			policy,
-			() => lifetime.IsCurrent)
+			() => lifetime.IsCurrent,
+			ConsumedSdkIdentity.Current,
+			lifetime.Diagnostics,
+			HostQualificationEvidence.Recorded)
 	{
 		ArgumentNullException.ThrowIfNull(lifetime);
+		_lifetime = lifetime;
 	}
 
+	/// <summary>Creates a runtime client with explicit seams; tests supply the port and the consumed-SDK identity.</summary>
+	/// <param name="dispatcher">The dispatcher that runs the read-only observations on Cheat Engine's main thread.</param>
+	/// <param name="port">The read-only runtime observation port.</param>
+	/// <param name="getEpoch">Reads the current activation epoch.</param>
+	/// <param name="clientAssemblyVersion">The Client assembly version, or the version of this build.</param>
+	/// <param name="sdkAssemblyVersion">The SDK runtime assembly version, or the loaded one.</param>
+	/// <param name="policy">The activation policy, or the safe defaults.</param>
+	/// <param name="isActivationCurrent">Reads whether the activation is current; always current when omitted.</param>
+	/// <param name="sdkIdentity">
+	///     The consumed-SDK identity evidence; <see langword="null" /> means that no identity was embedded, so every
+	///     operational package gate stays unknown.
+	/// </param>
+	/// <param name="diagnostics">The diagnostics sink; nothing is emitted when omitted.</param>
+	/// <param name="qualificationEvidence">
+	///     The host qualification evidence; <see langword="null" /> means that no run is recorded, so every qualification
+	///     gate stays unknown.
+	/// </param>
+	/// <param name="clientVersion">
+	///     The Client version the qualification gate compares with the evidence, without build metadata; the
+	///     informational version of this build when omitted.
+	/// </param>
 	internal RuntimeClient(
 		ICheatEngineDispatcher dispatcher,
-		IRuntimeProbe probe,
+		IRuntimeObservationPort port,
 		Func<long> getEpoch,
 		Version? clientAssemblyVersion = null,
 		Version? sdkAssemblyVersion = null,
 		CoreClientPolicy? policy = null,
-		Func<bool>? isActivationCurrent = null)
+		Func<bool>? isActivationCurrent = null,
+		ConsumedSdkIdentity? sdkIdentity = null,
+		ICoreDiagnostics? diagnostics = null,
+		HostQualificationRecord? qualificationEvidence = null,
+		string? clientVersion = null)
 	{
 		_dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
-		_probe = probe ?? throw new ArgumentNullException(nameof(probe));
+		_diagnostics = GuardedCoreDiagnostics.Wrap(diagnostics);
+		_sdkIdentity = sdkIdentity ?? ConsumedSdkIdentity.NotEmbedded;
+		_port = port ?? throw new ArgumentNullException(nameof(port));
 		_getEpoch = getEpoch ?? throw new ArgumentNullException(nameof(getEpoch));
 		_isActivationCurrent = isActivationCurrent ?? (static () => true);
 		_policy = policy ?? CoreClientPolicy.SafeDefaults;
@@ -49,6 +96,26 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 			throw new InvalidOperationException("The Client assembly does not declare an assembly version.");
 		_sdkAssemblyVersion = sdkAssemblyVersion ?? typeof(RuntimeInfo).Assembly.GetName().Version ??
 			throw new InvalidOperationException("The SDK runtime assembly does not declare an assembly version.");
+		_qualificationEvidence = qualificationEvidence;
+		_clientVersion = clientVersion ?? HostQualificationGate.WithoutMetadata(typeof(ICheatEngineRuntime).Assembly
+			.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion);
+	}
+
+	/// <summary>
+	///     Creates the qualification gate reason of every capability while this build embeds no host qualification
+	///     evidence (<see cref="HostQualificationEvidence" />; audit A20-19): receipts produced for the SDK branch never
+	///     qualify the Client tuple. The tuple names the consumed CheatEngine.SDK identity this build embeds, never a version
+	///     written in the source.
+	/// </summary>
+	/// <param name="sdkIdentity">The consumed-SDK identity evidence of this build.</param>
+	internal static string QualificationUnknownReason(ConsumedSdkIdentity sdkIdentity)
+	{
+		ArgumentNullException.ThrowIfNull(sdkIdentity);
+		string package = sdkIdentity.ExpectedInformationalVersion is { } identity
+			? "CheatEngine.SDK " + identity
+			: "the consumed CheatEngine.SDK (this build embeds no identity for it)";
+		return $"No Client qualification receipt for profile {ConsumedSdkIdentity.SupportedHostProfileId} with {package} " +
+			"is embedded in this build; SDK-branch receipts never qualify the Client tuple.";
 	}
 
 	public long Epoch => _getEpoch();
@@ -58,15 +125,7 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 		out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
-		CheatEngineRuntimeSnapshot captured = default;
-		if (!_dispatcher.TryInvoke(() => captured = Capture(), out failure, cancellationToken))
-		{
-			snapshot = default;
-			return false;
-		}
-
-		snapshot = captured;
-		return true;
+		return TryCapture(SnapshotOperation, out snapshot, out failure, cancellationToken);
 	}
 
 	public CheatEngineRuntimeSnapshot GetSnapshot(CancellationToken cancellationToken = default)
@@ -76,51 +135,7 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 			return snapshot;
 		}
 
-		failure.Throw();
-		return default;
-	}
-
-	public bool TryGetSdkCapability(
-		RuntimeCapabilityId capability,
-		out RuntimeCapabilityAvailability availability,
-		out CheatEngineFailure failure,
-		CancellationToken cancellationToken = default)
-	{
-		if (capability.IsEmpty)
-		{
-			throw new ArgumentException("A runtime capability identifier is required.", nameof(capability));
-		}
-
-		if (!TryGetSnapshot(out CheatEngineRuntimeSnapshot snapshot, out failure, cancellationToken))
-		{
-			availability = default;
-			return false;
-		}
-
-		if (snapshot.SdkCapabilities.TryGet(capability, out availability))
-		{
-			return true;
-		}
-
-		availability = new RuntimeCapabilityAvailability(
-			capability,
-			RuntimeCapabilityAvailabilityState.Unknown,
-			RuntimeCapabilityContract.Unknown);
-		failure = default;
-		return true;
-	}
-
-	public RuntimeCapabilityAvailability GetSdkCapability(
-		RuntimeCapabilityId capability,
-		CancellationToken cancellationToken = default)
-	{
-		if (TryGetSdkCapability(capability, out RuntimeCapabilityAvailability availability,
-			    out CheatEngineFailure failure, cancellationToken))
-		{
-			return availability;
-		}
-
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return default;
 	}
 
@@ -135,21 +150,21 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 			throw new ArgumentException("A Client capability identifier is required.", nameof(capability));
 		}
 
-		if (!TryGetSnapshot(out CheatEngineRuntimeSnapshot snapshot, out failure, cancellationToken))
+		if (!TryCapture(CapabilityOperation, out CheatEngineRuntimeSnapshot snapshot, out failure, cancellationToken))
 		{
 			availability = default;
 			return false;
 		}
 
-		if (snapshot.ClientCapabilities.TryGet(capability, out availability))
+		if (snapshot.Capabilities.TryGet(capability, out availability))
 		{
 			return true;
 		}
 
-		availability = new ClientCapabilityAvailability(
-			capability,
-			ClientCapabilityAvailabilityState.Unknown,
+		ClientCapabilityEvidenceGate undefined = UnknownEvidence(
 			"This Client release does not define a probe or policy gate for the requested capability.");
+		availability = new ClientCapabilityAvailability(capability,
+			new ClientCapabilityEvidence(undefined, undefined, undefined, undefined, undefined, undefined));
 		failure = default;
 		return true;
 	}
@@ -159,120 +174,126 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 		CancellationToken cancellationToken = default)
 	{
 		if (TryGetClientCapability(capability, out ClientCapabilityAvailability availability,
-			    out CheatEngineFailure failure, cancellationToken))
+				out CheatEngineFailure failure, cancellationToken))
 		{
 			return availability;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return default;
 	}
 
 	private CheatEngineRuntimeSnapshot Capture()
 	{
-		ProbeResult<double> version = ValidateVersion(Probe(_probe.GetCheatEngineVersion));
-		ProbeResult<int> systemArchitecture = Probe(_probe.GetSystemArchitecture);
-		ProbeResult<int> targetAbi = Probe(_probe.GetTargetAbi);
-		ProbeResult<long> openedProcess = ValidateOpenedProcess(Probe(_probe.GetOpenedProcessId));
-
-		bool hasTarget = openedProcess.HasValue && openedProcess.Value > 0;
-		ProbeResult<bool> targetArchitecture = hasTarget
-			? Probe(_probe.TargetIs64Bit)
-			: ProbeResult<bool>.Unknown("No target process is selected, so target architecture was not probed.");
-
-		double? observedVersion = version.HasValue ? version.Value : null;
-		CheatEngineArchitecture decodedSystemArchitecture = DecodeSystemArchitecture(ref systemArchitecture);
-		TargetAbi decodedTargetAbi = DecodeTargetAbi(ref targetAbi);
-		CheatEngineArchitecture decodedTargetArchitecture =
-			DecodeTargetArchitecture(ref targetArchitecture, decodedTargetAbi);
-
-		RuntimeCapabilityAvailability[] capabilities =
-		[
-			version.ToAvailability(RuntimeCapabilityId.CheatEngineVersion),
-			systemArchitecture.ToAvailability(RuntimeCapabilityId.SystemArchitecture),
-			targetArchitecture.ToAvailability(RuntimeCapabilityId.TargetArchitecture),
-			targetAbi.ToAvailability(RuntimeCapabilityId.TargetAbi)
-		];
-
+		ObservedRuntime observed = RuntimeObserver.Observe(_port);
+		CheatEngineHostObservation host = observed.Host;
+		ObservedTarget target = observed.Target;
+		PointerSize cheatEngineBitness = host.CheatEngineIs64Bit switch
+		{
+			true => PointerSize.Bit64,
+			false => PointerSize.Bit32,
+			null => PointerSize.Unknown
+		};
 		return new CheatEngineRuntimeSnapshot(
 			Epoch,
-			new CheatEngineRuntimeVersionInfo(observedVersion, CheatEngineVersion.Ce77010621, _clientAssemblyVersion,
-				_sdkAssemblyVersion),
+			new CheatEngineRuntimeVersionInfo(host.FileVersion, CheatEngineVersion.Ce77010621, _clientAssemblyVersion,
+				_sdkAssemblyVersion, _sdkIdentity.LoadedInformationalVersion, _sdkIdentity.ExactReviewedIdentity),
 			new CheatEngineRuntimePlatformInfo(
-				decodedSystemArchitecture,
-				decodedTargetArchitecture,
-				PointerSize.FromArchitecture(decodedTargetArchitecture),
-				decodedTargetAbi),
-			RuntimeCapabilities.Create(capabilities),
-			CreateClientCapabilities(openedProcess));
+				host.OperatingSystem,
+				host.SystemArchitecture,
+				cheatEngineBitness,
+				target.Backend,
+				target.Architecture,
+				target.Bitness,
+				target.Abi,
+				target.IsAndroid,
+				target.ConfiguredPointerSizeBytes),
+			CreateClientCapabilities(observed.ProcessSelectionHost, new HostQualificationContext(
+				_sdkIdentity.ExactReviewedIdentity, _sdkIdentity.LoadedInformationalVersion, host.FileVersion,
+				cheatEngineBitness, host.OperatingSystem, target.Backend, target.Architecture, _clientVersion)));
 	}
 
-	private ClientCapabilities CreateClientCapabilities(ProbeResult<long> openedProcess)
+	private ClientCapabilities CreateClientCapabilities(ClientCapabilityEvidenceGate selectedProcess,
+		HostQualificationContext qualificationContext)
 	{
 		ClientCapabilityEvidenceGate lifetime = _isActivationCurrent()
 			? Satisfied("The Client activation is current.")
 			: Missing("The Client activation is no longer current.");
-		ClientCapabilityEvidenceGate packageUnknown = UnknownEvidence(
-			"The runtime snapshot does not establish the identity of the consumed SDK package artifact.");
-		ClientCapabilityEvidenceGate qualificationUnknown = UnknownEvidence(
-			"No complete Cheat Engine 7.7 x64 live qualification record is attached to this capability observation.");
+		// ADR-09, ADR-10: the package gate of every capability comes from evidence (the embedded consumed-SDK identity
+		// compared with the loaded CheatEngine.SDK.Engine), never from the presence of an interface or a version name.
+		ClientCapabilityEvidenceGate package = _sdkIdentity.PackageGate;
+		string noQualificationEvidence = QualificationUnknownReason(_sdkIdentity);
 		ClientCapabilityEvidenceGate policyNotRequired = Satisfied(
 			"This capability has no additional activation policy opt-in.");
 		ClientCapabilityEvidenceGate unprobedHost = UnknownEvidence(
 			"The runtime snapshot does not probe every host primitive required by this capability.");
 		ClientCapabilityEvidenceGate implemented = Satisfied(
 			"The Client composes an operational adapter for this capability.");
-		ClientCapabilityEvidenceGate contractOnly = Missing(
-			"The Client package currently composes only an unavailable adapter for this capability.");
 
-		ClientCapabilityAvailability[] capabilities =
-		[
-			Describe(ClientCapabilityId.ProcessSelection, implemented, packageUnknown, openedProcess.Evidence,
-				qualificationUnknown, policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.TypedMemory, implemented, packageUnknown, unprobedHost, qualificationUnknown,
-				policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.PatternScanning, implemented, packageUnknown, unprobedHost,
-				qualificationUnknown,
-				policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.ValueScanning, contractOnly,
-				Missing(
-					"CheatEngine.SDK 1.0.0 does not provide the public MemScan and FoundList ownership factory required by Client."),
-				unprobedHost, qualificationUnknown, policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.Inspection, implemented, packageUnknown, unprobedHost, qualificationUnknown,
-				policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.Tables, implemented, packageUnknown, unprobedHost, qualificationUnknown,
-				policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.ProtectedLua, implemented, packageUnknown, unprobedHost, qualificationUnknown,
-				policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.UnsafeLuaExecution, implemented, packageUnknown, unprobedHost,
-				qualificationUnknown,
-				_policy.EnableUnsafeLuaExecution
-					? Satisfied("Unsafe Lua execution was explicitly enabled for this activation.")
-					: Missing(
-						"Unsafe Lua execution requires explicit EnableUnsafeLuaExecution opt-in for this activation."),
-				lifetime),
-			Describe(ClientCapabilityId.Allocations, contractOnly, packageUnknown, unprobedHost, qualificationUnknown,
-				policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.Assembly, contractOnly, packageUnknown, unprobedHost, qualificationUnknown,
-				policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.RemoteExecution, contractOnly, packageUnknown, unprobedHost,
-				qualificationUnknown,
-				policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.Debugger, contractOnly, packageUnknown, unprobedHost, qualificationUnknown,
-				policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.Hotkeys, contractOnly, packageUnknown, unprobedHost, qualificationUnknown,
-				policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.Timers, contractOnly, packageUnknown, unprobedHost, qualificationUnknown,
-				policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.Speed, contractOnly, packageUnknown, unprobedHost, qualificationUnknown,
-				policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.Hashing, contractOnly, packageUnknown, unprobedHost, qualificationUnknown,
-				policyNotRequired, lifetime),
-			Describe(ClientCapabilityId.Dbvm, contractOnly, packageUnknown, unprobedHost, qualificationUnknown,
-				policyNotRequired, lifetime)
-		];
+		ClientCapabilityEvidenceGate unsafeLuaPolicy = _policy.EnableUnsafeLuaExecution
+			? Satisfied("Unsafe Lua execution was explicitly enabled for this activation.")
+			: Missing("Unsafe Lua execution requires explicit EnableUnsafeLuaExecution opt-in for this activation.");
+		ClientCapabilityEvidenceGate autoAssemblerPolicy = _policy.EnableAutoAssemblerPatches
+			? Satisfied("Auto Assembler patches were explicitly enabled for this activation.")
+			: Missing("Auto Assembler patches require explicit EnableAutoAssemblerPatches opt-in for this activation.");
+
+		// Every capability is composed from its one catalog row; only the implementation reason (experimental or not),
+		// the policy gate and the host gate vary.
+		ImmutableArray<ClientCapabilityDescriptor> catalog = ClientCapabilityCatalog.Entries;
+		ClientCapabilityAvailability[] capabilities = new ClientCapabilityAvailability[catalog.Length];
+		for (int index = 0; index < catalog.Length; index++)
+		{
+			ClientCapabilityDescriptor entry = catalog[index];
+			capabilities[index] = Describe(
+				entry.Id,
+				entry.ExperimentalDiagnosticId is { } experimental
+					? Satisfied(ExperimentalImplementationReason(experimental))
+					: implemented,
+				package,
+				entry.Host == CapabilityHostSource.SdkSelectedProcess ? selectedProcess : unprobedHost,
+				HostQualificationGate.Evaluate(entry, _qualificationEvidence, qualificationContext, noQualificationEvidence),
+				entry.Policy switch
+				{
+					CapabilityPolicySource.UnsafeLuaExecutionOptIn => unsafeLuaPolicy,
+					CapabilityPolicySource.AutoAssemblerPatchesOptIn => autoAssemblerPolicy,
+					_ => policyNotRequired
+				},
+				lifetime);
+		}
 
 		return ClientCapabilities.Create(capabilities);
+	}
+
+	/// <summary>Captures one snapshot for the public call <paramref name="operation" />, which names its failure.</summary>
+	private bool TryCapture(string operation, out CheatEngineRuntimeSnapshot snapshot, out CheatEngineFailure failure,
+		CancellationToken cancellationToken)
+	{
+		// The observations are read-only (Q45) and report their outcomes as statuses; an SDK fault (for example a
+		// detached runtime) is returned as a failure, never thrown across a Try method. The activation is admitted
+		// like any dispatch, under the name of the public call instead of the dispatcher's.
+		_lifetime?.ThrowIfDispatchRefused(operation);
+		CheatEngineRuntimeSnapshot captured = default;
+		if (!SdkBoundary.TryInvoke(_dispatcher, operation, () => captured = Capture(),
+				CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
+		{
+			snapshot = default;
+			return false;
+		}
+
+		snapshot = captured;
+		_diagnostics.RuntimeSnapshotCaptured(captured.Epoch, captured.Platform.TargetArchitecture,
+			captured.Platform.TargetBitness.Bytes, captured.Platform.ConfiguredPointerSizeBytes ?? 0,
+			captured.Platform.ConfiguredPointerSizeDiffersFromBitness == true);
+		return true;
+	}
+
+	/// <summary>The implementation gate reason of an operational capability whose public API is experimental.</summary>
+	/// <param name="diagnosticId">The diagnostic id of the experimental API, for example <c>CECLIENT5001</c>.</param>
+	/// <returns>The reason.</returns>
+	internal static string ExperimentalImplementationReason(string diagnosticId)
+	{
+		return "The Client composes an operational adapter for this capability; its API is experimental (" +
+			   diagnosticId + ") until its live scenarios pass.";
 	}
 
 	private static ClientCapabilityAvailability Describe(
@@ -301,95 +322,5 @@ internal sealed class RuntimeClient : ICheatEngineRuntime
 	private static ClientCapabilityEvidenceGate UnknownEvidence(string reason)
 	{
 		return new ClientCapabilityEvidenceGate(ClientCapabilityEvidenceState.Unknown, reason);
-	}
-
-	private static ProbeResult<double> ValidateVersion(ProbeResult<double> probe)
-	{
-		return probe.HasValue && probe.Value is { } version && (!double.IsFinite(version) || version < 0)
-			? ProbeResult<double>.Malformed("Cheat Engine returned a version that is not a finite non-negative number.")
-			: probe;
-	}
-
-	private static ProbeResult<long> ValidateOpenedProcess(ProbeResult<long> probe)
-	{
-		return probe.HasValue && probe.Value is { } processId &&
-		       (processId < 0 || processId > int.MaxValue)
-			? ProbeResult<long>.Malformed(
-				"Cheat Engine returned an opened process identifier outside the supported PID range.")
-			: probe;
-	}
-
-	private static CheatEngineArchitecture DecodeSystemArchitecture(ref ProbeResult<int> probe)
-	{
-		if (!probe.HasValue)
-		{
-			return CheatEngineArchitecture.Unknown;
-		}
-
-		if (RuntimeInfo.TryDecodeSystemArchitecture(probe.Value, out CheatEngineArchitecture architecture))
-		{
-			return architecture;
-		}
-
-		probe = ProbeResult<int>.Malformed("Cheat Engine returned an unsupported system architecture code.");
-		return CheatEngineArchitecture.Unknown;
-	}
-
-	private static TargetAbi DecodeTargetAbi(ref ProbeResult<int> probe)
-	{
-		if (!probe.HasValue)
-		{
-			return TargetAbi.Unknown;
-		}
-
-		if (RuntimeInfo.TryDecodeTargetAbi(probe.Value, out TargetAbi targetAbi))
-		{
-			return targetAbi;
-		}
-
-		probe = ProbeResult<int>.Malformed("Cheat Engine returned an unsupported target ABI code.");
-		return TargetAbi.Unknown;
-	}
-
-	private static CheatEngineArchitecture DecodeTargetArchitecture(ref ProbeResult<bool> probe, TargetAbi targetAbi)
-	{
-		if (!probe.HasValue || targetAbi == TargetAbi.Unknown)
-		{
-			return CheatEngineArchitecture.Unknown;
-		}
-
-		if (targetAbi != TargetAbi.Windows)
-		{
-			probe = ProbeResult<bool>.Unknown(
-				"The target architecture probe is not qualified for the observed target ABI.");
-			return CheatEngineArchitecture.Unknown;
-		}
-
-		return probe.Value ? CheatEngineArchitecture.X64 : CheatEngineArchitecture.X86;
-	}
-
-	private static ProbeResult<T> Probe<T>(Func<T> probe)
-	{
-		try
-		{
-			return ProbeResult<T>.Available(probe());
-		}
-		catch (EngineGlobalUnavailableException)
-		{
-			return ProbeResult<T>.MissingGlobal();
-		}
-		catch (EngineCapabilityUnavailableException)
-		{
-			return ProbeResult<T>.MissingCapability();
-		}
-		catch (EngineMarshallingException)
-		{
-			return ProbeResult<T>.Malformed("The Cheat Engine runtime probe returned a malformed result.");
-		}
-		catch (EngineException exception)
-		{
-			return ProbeResult<T>.Faulted(
-				$"The Cheat Engine runtime probe failed with {exception.GetType().Name}.");
-		}
 	}
 }

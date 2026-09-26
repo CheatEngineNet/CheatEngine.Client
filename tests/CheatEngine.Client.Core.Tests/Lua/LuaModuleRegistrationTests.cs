@@ -29,7 +29,6 @@ public sealed class LuaModuleRegistrationTests
 		Assert.True(succeeded);
 		Assert.Equal(default, failure);
 		Assert.NotNull(lease);
-		Assert.Equal(81, lease.Epoch);
 		Assert.False(lease.IsReleased);
 		Assert.Equal(["diagnostics.register"], module.Events);
 		Assert.Equal(1, dispatcher.InvocationCount);
@@ -69,7 +68,7 @@ public sealed class LuaModuleRegistrationTests
 	}
 
 	[Fact]
-	public void TryRegisterModuleAllowsSeparateManualModulesBecauseTheyDoNotClaimGlobalNames()
+	public void TryRegisterModuleAllowsModulesWhoseDescriptorsDoNotOverlap()
 	{
 		ImmediateDispatcher dispatcher = new();
 		RecordingModule first = new("first");
@@ -97,7 +96,7 @@ public sealed class LuaModuleRegistrationTests
 
 		Assert.False(succeeded);
 		Assert.Null(lease);
-		Assert.Equal(CheatEngineFailureKind.InvalidState, failure.Kind);
+		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
 		Assert.Equal("Lua.RegisterModule", failure.Operation);
 		Assert.Contains("identity 'diagnostics'", failure.Message, StringComparison.Ordinal);
 		Assert.Equal(["first.register"], first.Events);
@@ -119,7 +118,7 @@ public sealed class LuaModuleRegistrationTests
 
 		Assert.False(succeeded);
 		Assert.Null(lease);
-		Assert.Equal(CheatEngineFailureKind.InvalidState, failure.Kind);
+		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
 		Assert.Contains("export 'diagnostics'", failure.Message, StringComparison.Ordinal);
 		Assert.Equal(["first.register"], first.Events);
 		Assert.Empty(second.Events);
@@ -148,7 +147,10 @@ public sealed class LuaModuleRegistrationTests
 	public void TryRegisterModuleReleasesTrackedReservationWhenDispatcherRejectsRegistration()
 	{
 		CheatEngineFailure dispatchFailure = new(CheatEngineFailureKind.InvalidState, "Test.Dispatcher", "Rejected.");
-		ImmediateDispatcher dispatcher = new() { TryInvokeFailure = dispatchFailure };
+		ImmediateDispatcher dispatcher = new()
+		{
+			TryInvokeFailure = dispatchFailure
+		};
 		List<ILuaModuleLease> tracked = [];
 		int trackCount = 0;
 		int untrackCount = 0;
@@ -188,7 +190,7 @@ public sealed class LuaModuleRegistrationTests
 	}
 
 	[Fact]
-	public async Task ConcurrentDescribedRegistrationRejectsTheSecondModuleBeforeEitherOfItsLuaExportsMutate()
+	public async Task ConcurrentDescribedRegistrationRejectsTheSecondModuleBeforeEitherOfItsLuaExportsMutateAsync()
 	{
 		using BlockingDispatcher dispatcher = new();
 		DescribedRecordingModule first = new("first", "one", ["diagnostics"]);
@@ -207,7 +209,7 @@ public sealed class LuaModuleRegistrationTests
 		Assert.True(await firstRegistration);
 		Assert.False(secondSucceeded);
 		Assert.Null(secondLease);
-		Assert.Equal(CheatEngineFailureKind.InvalidState, secondFailure.Kind);
+		Assert.Equal(CheatEngineFailureKind.OperationRejected, secondFailure.Kind);
 		Assert.Empty(second.Events);
 		Assert.Equal(["first.register"], first.Events);
 		firstLease!.Dispose();
@@ -244,7 +246,7 @@ public sealed class LuaModuleRegistrationTests
 		CheatEngineOperationException exception = Assert.Throws<CheatEngineOperationException>(() =>
 			client.RegisterModule(rejected, TestContext.Current.CancellationToken));
 
-		Assert.Equal(81, lease.Epoch);
+		Assert.False(lease.IsReleased);
 		Assert.Equal(CheatEngineFailureKind.OperationRejected, exception.Failure.Kind);
 		Assert.Equal("Lua.RegisterModule", exception.Failure.Operation);
 		Assert.Equal(["accepted.register"], accepted.Events);
@@ -379,7 +381,7 @@ public sealed class LuaModuleRegistrationTests
 		Assert.Null(lease);
 		Assert.Equal(CheatEngineFailureKind.InvalidState, failure.Kind);
 		Assert.Equal("Lua.RegisterModule", failure.Operation);
-		Assert.IsType<CheatEngineClientLifecycleException>(failure.Exception);
+		Assert.IsType<CheatEngineInvalidStateException>(failure.Exception);
 		Assert.Equal(["diagnostics.register"], module.Events);
 		Assert.Equal(1, invoker.ActionCalls);
 
@@ -389,7 +391,9 @@ public sealed class LuaModuleRegistrationTests
 		}
 
 		Assert.Equal(["diagnostics.register", "diagnostics.unregister"], module.Events);
-		Assert.Equal(2, invoker.ActionCalls);
+		// Registration is an action; the lease release is a function whose outcome the lease records.
+		Assert.Equal(1, invoker.ActionCalls);
+		Assert.Equal(1, invoker.FunctionCalls);
 	}
 
 	[Fact]
@@ -465,13 +469,19 @@ public sealed class LuaModuleRegistrationTests
 
 		using (lifetime.EnterCleanupScope())
 		{
-			InvalidOperationException cleanupException = Assert.Throws<InvalidOperationException>(
+			// The module threw from Unregister: the lease records an unconfirmed cleanup and the drain reports it with
+			// safe fields only.
+			CheatEngineOperationException report = Assert.Throws<CheatEngineOperationException>(
 				lifetime.DrainOwnedResourcesForDisable);
-			Assert.Equal("generated unregistration failed", cleanupException.Message);
+			Assert.Equal(CheatEngineFailureKind.IndeterminateHostResult, report.Failure.Kind);
+			Assert.Equal("Lua.Release", report.Failure.Operation);
+			Assert.Equal(CheatEngineHostEffect.CleanupUnconfirmed, report.Failure.HostEffect);
 		}
 
 		Assert.Equal(["diagnostics.register", "diagnostics.unregister"], module.Events);
-		Assert.Equal(2, invoker.ActionCalls);
+		// Registration is an action; the lease release is a function whose outcome the lease records.
+		Assert.Equal(1, invoker.ActionCalls);
+		Assert.Equal(1, invoker.FunctionCalls);
 	}
 
 	[Fact]
@@ -504,27 +514,9 @@ public sealed class LuaModuleRegistrationTests
 	}
 
 	[Fact]
-	public void StaleModuleLeaseDoesNotAttemptToDispatchIntoAChangedActivation()
+	public void ALeaseWhoseReleaseCannotBeDispatchedStaysActiveAndTrackedForTheCleanupRetry()
 	{
-		ImmediateDispatcher dispatcher = new();
-		bool activationIsCurrent = true;
-		RecordingModule module = new("diagnostics");
-		LuaClient client = CreateClient(dispatcher, () => activationIsCurrent);
-
-		Assert.True(client.TryRegisterModule(module, out ILuaModuleLease? lease, out _,
-			TestContext.Current.CancellationToken));
-		activationIsCurrent = false;
-
-		lease.Dispose();
-
-		Assert.True(lease.IsReleased);
-		Assert.Equal(["diagnostics.register"], module.Events);
-		Assert.Equal(1, dispatcher.InvocationCount);
-	}
-
-	[Fact]
-	public void DispatcherRejectionLeavesTheLeaseTrackedForTheLaterCleanupDispatch()
-	{
+		CheatEngineFailure refused = new(CheatEngineFailureKind.ActivationExpired, "Test.Dispatcher", "Refused.");
 		ImmediateDispatcher dispatcher = new();
 		List<ILuaModuleLease> tracked = [];
 		RecordingModule module = new("diagnostics");
@@ -532,53 +524,226 @@ public sealed class LuaModuleRegistrationTests
 		{
 			tracked.Remove(lease);
 		});
-
 		Assert.True(client.TryRegisterModule(module, out ILuaModuleLease? lease, out _,
 			TestContext.Current.CancellationToken));
-		dispatcher.InvokeException =
-			new CheatEngineClientLifecycleException("Dispatcher.Invoke", "Activation stopping.");
+		dispatcher.TryInvokeFailure = refused;
 
-		Assert.Throws<CheatEngineClientLifecycleException>(lease.Dispose);
-
-		Assert.False(lease.IsReleased);
-		Assert.Single(tracked, lease);
-		Assert.Equal(["diagnostics.register"], module.Events);
-
-		dispatcher.InvokeException = null;
+		LeaseReleaseOutcome unavailable = lease.Release();
 		lease.Dispose();
 
+		Assert.Equal(new LeaseReleaseOutcome(LeaseReleaseKind.CleanupUnavailable, CheatEngineHostEffect.NotStarted),
+			unavailable);
+		Assert.False(lease.IsReleased);
+		Assert.Single(tracked, lease);
+		Assert.Null(lease.LastModuleReleaseOutcome);
+		Assert.Equal(["diagnostics.register"], module.Events);
+
+		dispatcher.TryInvokeFailure = null;
+		LeaseReleaseOutcome released = lease.Release();
+
+		Assert.Equal(new LeaseReleaseOutcome(LeaseReleaseKind.Released, CheatEngineHostEffect.Completed), released);
 		Assert.True(lease.IsReleased);
 		Assert.Empty(tracked);
 		Assert.Equal(["diagnostics.register", "diagnostics.unregister"], module.Events);
 	}
 
 	[Fact]
-	public void FailedLeaseDisposeRemainsTrackedAndCanBeRetriedByTheActivationCleanupPath()
+	public void AnUnregistrationExceptionIsAnUnconfirmedCleanupThatDisposeNeverThrowsAndNeverRetries()
 	{
 		ImmediateDispatcher dispatcher = new();
 		List<ILuaModuleLease> tracked = [];
 		RecordingModule module = new("diagnostics", unregisterFailureCount: 1);
+		RecordingModule replacement = new("diagnostics");
 		LuaClient client = CreateClient(dispatcher, static () => true, tracked.Add, lease =>
 		{
 			tracked.Remove(lease);
 		});
-
 		Assert.True(client.TryRegisterModule(module, out ILuaModuleLease? lease, out _,
 			TestContext.Current.CancellationToken));
 
-		InvalidOperationException exception = Assert.Throws<InvalidOperationException>(lease.Dispose);
+		lease.Dispose();
+		lease.Dispose();
 
-		Assert.Equal("generated unregistration failed", exception.Message);
-		Assert.False(lease.IsReleased);
+		Assert.True(lease.IsReleased);
+		Assert.Equal(new LeaseReleaseOutcome(LeaseReleaseKind.CleanupUnconfirmed, CheatEngineHostEffect.Unknown),
+			lease.LastReleaseOutcome);
+		Assert.Null(lease.LastModuleReleaseOutcome);
+		// Incomplete: the activation keeps tracking it so the deactivation report carries it.
 		Assert.Single(tracked, lease);
 		Assert.Equal(["diagnostics.register", "diagnostics.unregister"], module.Events);
+		// The lease ended, so its names are free again.
+		using ILuaModuleLease replacementLease =
+			client.RegisterModule(replacement, TestContext.Current.CancellationToken);
+	}
+
+	[Theory]
+	[InlineData(LeaseReleaseKind.PartiallyReleased, CheatEngineHostEffect.Started)]
+	[InlineData(LeaseReleaseKind.RefusedRuntimeChanged, CheatEngineHostEffect.NotStarted)]
+	public void AReleaseThatRequiresManualRecoveryEndsTheLeaseAndStaysTrackedForTheReport(LeaseReleaseKind kind,
+		CheatEngineHostEffect hostEffect)
+	{
+		ImmediateDispatcher dispatcher = new();
+		List<ILuaModuleLease> tracked = [];
+		RecordingModule module = new("diagnostics");
+		LuaClient client = CreateClient(dispatcher, static () => true, tracked.Add, lease =>
+		{
+			tracked.Remove(lease);
+		});
+		Assert.True(client.TryRegisterModule(module, out ILuaModuleLease? lease, out _,
+			TestContext.Current.CancellationToken));
+		LuaModuleReleaseOutcome reported = kind == LeaseReleaseKind.PartiallyReleased
+			? LuaModuleReleaseOutcome.PartiallyReleased("diagnostics", 0, 0, 0, ["diagnostics_global"])
+			: LuaModuleReleaseOutcome.RefusedRuntimeChanged("diagnostics", 1);
+		module.NextOutcome = reported;
+
+		LeaseReleaseOutcome outcome = lease.Release();
+
+		Assert.Equal(new LeaseReleaseOutcome(kind, hostEffect), outcome);
+		Assert.True(outcome.RequiresManualRecovery);
+		Assert.True(lease.IsReleased);
+		Assert.Same(reported, lease.LastModuleReleaseOutcome);
+		Assert.Single(tracked, lease);
+		Assert.Equal(outcome, lease.Release());
+		Assert.Equal(["diagnostics.register", "diagnostics.unregister"], module.Events);
+	}
+
+	[Fact]
+	public void AnUnconfirmedModuleReleaseEndsTheLeaseAndTheActivationCleanupReportsIt()
+	{
+		using ControlledCoreLifetimeContext context = new();
+		using CoreLifetime lifetime = new(context);
+		SdkMainThreadDispatcher dispatcher = new(lifetime, new RecordingMainThreadInvoker());
+		RecordingModule module = new("diagnostics");
+		LuaClient client = new(dispatcher, lifetime);
+		Assert.True(client.TryRegisterModule(module, out ILuaModuleLease? lease, out _,
+			TestContext.Current.CancellationToken));
+		// What a generated module reports when CheatEngine.SDK consumed its registration lease but returned a release
+		// outside the documented shape.
+		LuaModuleReleaseOutcome unconfirmed =
+			LuaModuleReleaseOutcome.Create("diagnostics", LeaseReleaseKind.CleanupUnconfirmed, 0, 0, 0, 1, []);
+		module.NextOutcome = unconfirmed;
+
+		LeaseReleaseOutcome outcome = lease.Release();
+		LeaseReleaseOutcome retry = lease.Release();
+
+		Assert.Equal(new LeaseReleaseOutcome(LeaseReleaseKind.CleanupUnconfirmed, CheatEngineHostEffect.Started), outcome);
+		Assert.False(outcome.IsRetryable);
+		Assert.True(lease.IsReleased);
+		Assert.Same(unconfirmed, lease.LastModuleReleaseOutcome);
+		Assert.Equal(outcome, retry);
+		context.Stop();
+		using (lifetime.EnterCleanupScope())
+		{
+			// The lease stayed with the activation, so the drain reports the incomplete release instead of retrying it.
+			CheatEngineOperationException report = Assert.Throws<CheatEngineOperationException>(
+				lifetime.DrainOwnedResourcesForDisable);
+			Assert.Equal(CheatEngineFailureKind.IndeterminateHostResult, report.Failure.Kind);
+			Assert.Equal("Lua.Release", report.Failure.Operation);
+			Assert.Equal(CheatEngineHostEffect.CleanupUnconfirmed, report.Failure.HostEffect);
+			Assert.Contains(nameof(LeaseReleaseKind.CleanupUnconfirmed), report.Failure.Message, StringComparison.Ordinal);
+		}
+
+		Assert.Equal(["diagnostics.register", "diagnostics.unregister"], module.Events);
+	}
+
+	[Fact]
+	public void TheLeaseIsAClientLeaseThatReportsWhatTheModuleObserved()
+	{
+		ImmediateDispatcher dispatcher = new();
+		RecordingModule module = new("diagnostics");
+		LuaClient client = CreateClient(dispatcher, static () => true);
+		Assert.True(client.TryRegisterModule(module, out ILuaModuleLease? lease, out _,
+			TestContext.Current.CancellationToken));
+		LuaModuleReleaseOutcome reported = LuaModuleReleaseOutcome.Released("diagnostics", 0, 0, 1);
+		module.NextOutcome = reported;
+
+		ICheatEngineLease clientLease = lease;
+		Assert.Null(clientLease.LastReleaseOutcome);
+		LeaseReleaseOutcome outcome = clientLease.Release();
+
+		Assert.Equal(new LeaseReleaseOutcome(LeaseReleaseKind.Released, CheatEngineHostEffect.Completed), outcome);
+		Assert.Equal(outcome, clientLease.LastReleaseOutcome);
+		Assert.Same(reported, lease.LastModuleReleaseOutcome);
+		Assert.Equal(1, lease.LastModuleReleaseOutcome!.ReplacementCount);
+	}
+
+	[Fact]
+	public void TryRegisterModuleReportsTheFailureAClassifiedRegistrationRefusalCarries()
+	{
+		ImmediateDispatcher dispatcher = new();
+		CheatEngineFailure refusal = new(CheatEngineFailureKind.OperationRejected, "Lua.RegisterModule",
+			"Lua global 'diagnostics_global' is already defined.", null, CheatEngineHostEffect.NotApplied);
+		RecordingModule module = new("diagnostics", refusal.ToException(TestContext.Current.CancellationToken));
+		LuaClient client = CreateClient(dispatcher, static () => true);
+
+		bool succeeded = client.TryRegisterModule(module, out ILuaModuleLease? lease, out CheatEngineFailure failure,
+			TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Null(lease);
+		Assert.Equal(refusal, failure);
+	}
+
+	[Fact]
+	public void TryRegisterModuleRefusesAModuleWithoutADescriptorBeforeAnyDispatch()
+	{
+		ImmediateDispatcher dispatcher = new();
+		LuaClient client = CreateClient(dispatcher, static () => true);
+
+		ArgumentException exception = Assert.Throws<ArgumentException>(() =>
+			client.TryRegisterModule(new UndescribedModule(), out _, out _, TestContext.Current.CancellationToken));
+
+		Assert.Equal("luaModule", exception.ParamName);
+		Assert.Equal(0, dispatcher.InvocationCount);
+	}
+
+	[Fact]
+	public void AReleaseThatCouldNotBeginKeepsTheLeaseForTheCleanupRetry()
+	{
+		ImmediateDispatcher dispatcher = new();
+		List<ILuaModuleLease> tracked = [];
+		RecordingModule module = new("diagnostics");
+		RecordingModule contender = new("diagnostics");
+		LuaClient client = CreateClient(dispatcher, static () => true, tracked.Add, lease =>
+		{
+			tracked.Remove(lease);
+		});
+		Assert.True(client.TryRegisterModule(module, out ILuaModuleLease? lease, out _,
+			TestContext.Current.CancellationToken));
+		LuaModuleReleaseOutcome unavailable = LuaModuleReleaseOutcome.CleanupUnavailable("diagnostics", 1);
+		module.NextOutcome = unavailable;
+
+		LeaseReleaseOutcome refused = lease.Release();
+
+		Assert.Equal(new LeaseReleaseOutcome(LeaseReleaseKind.CleanupUnavailable, CheatEngineHostEffect.NotStarted),
+			refused);
+		Assert.True(refused.IsRetryable);
+		Assert.False(lease.IsReleased);
+		Assert.Same(unavailable, lease.LastModuleReleaseOutcome);
+		Assert.Single(tracked, lease);
+		// The module still owns its registration, so its names stay reserved.
+		Assert.False(client.TryRegisterModule(contender, out _, out _, TestContext.Current.CancellationToken));
 
 		lease.Dispose();
 
 		Assert.True(lease.IsReleased);
 		Assert.Empty(tracked);
 		Assert.Equal(["diagnostics.register", "diagnostics.unregister", "diagnostics.unregister"], module.Events);
-		Assert.Equal(3, dispatcher.InvocationCount);
+	}
+
+	private sealed class UndescribedModule : ILuaModule
+	{
+		public LuaModuleDescriptor Descriptor => default;
+
+		public void Register()
+		{
+			throw new InvalidOperationException("A module without a descriptor must never be registered.");
+		}
+
+		public LuaModuleReleaseOutcome Unregister()
+		{
+			throw new InvalidOperationException("A module without a descriptor must never be released.");
+		}
 	}
 
 	private static LuaClient CreateClient(
@@ -607,6 +772,17 @@ public sealed class LuaModuleRegistrationTests
 			get;
 		} = events ?? [];
 
+		internal LuaModuleReleaseOutcome? NextOutcome
+		{
+			get;
+			set;
+		}
+
+		public LuaModuleDescriptor Descriptor
+		{
+			get;
+		} = new(name, [new LuaExportDescriptor(name + "_global")]);
+
 		public void Register()
 		{
 			Events.Add(name + ".register");
@@ -617,17 +793,21 @@ public sealed class LuaModuleRegistrationTests
 			}
 		}
 
-		public void Unregister()
+		public LuaModuleReleaseOutcome Unregister()
 		{
 			Events.Add(name + ".unregister");
 			if (_remainingUnregisterFailures-- > 0)
 			{
 				throw new InvalidOperationException("generated unregistration failed");
 			}
+
+			LuaModuleReleaseOutcome outcome = NextOutcome ?? LuaModuleReleaseOutcome.Released(name, 1, 0, 0);
+			NextOutcome = null;
+			return outcome;
 		}
 	}
 
-	private sealed class DescribedRecordingModule : IDescribedLuaModule
+	private sealed class DescribedRecordingModule : ILuaModule
 	{
 		private readonly RecordingModule _inner;
 
@@ -655,9 +835,9 @@ public sealed class LuaModuleRegistrationTests
 			_inner.Register();
 		}
 
-		public void Unregister()
+		public LuaModuleReleaseOutcome Unregister()
 		{
-			_inner.Unregister();
+			return _inner.Unregister();
 		}
 	}
 
@@ -667,12 +847,6 @@ public sealed class LuaModuleRegistrationTests
 		{
 			get;
 			private set;
-		}
-
-		internal Exception? InvokeException
-		{
-			get;
-			set;
 		}
 
 		internal CheatEngineFailure? TryInvokeFailure
@@ -731,25 +905,20 @@ public sealed class LuaModuleRegistrationTests
 
 		public void Invoke(Action callback, CancellationToken cancellationToken = default)
 		{
-			if (InvokeException is not null)
-			{
-				throw InvokeException;
-			}
-
 			if (!TryInvoke(callback, out CheatEngineFailure failure, cancellationToken))
 			{
-				failure.Throw();
+				failure.Throw(cancellationToken);
 			}
 		}
 
 		public TResult Invoke<TResult>(Func<TResult> callback, CancellationToken cancellationToken = default)
 		{
-			if (TryInvoke(callback, out var result, out var failure, cancellationToken))
+			if (TryInvoke(callback, out TResult? result, out CheatEngineFailure failure, cancellationToken))
 			{
 				return result;
 			}
 
-			failure.Throw();
+			failure.Throw(cancellationToken);
 			return default!;
 		}
 	}
@@ -795,7 +964,7 @@ public sealed class LuaModuleRegistrationTests
 		{
 			if (!TryInvoke(callback, out CheatEngineFailure failure, cancellationToken))
 			{
-				failure.Throw();
+				failure.Throw(cancellationToken);
 			}
 		}
 
@@ -806,7 +975,7 @@ public sealed class LuaModuleRegistrationTests
 				return result;
 			}
 
-			failure.Throw();
+			failure.Throw(cancellationToken);
 			return default!;
 		}
 
@@ -835,6 +1004,12 @@ public sealed class LuaModuleRegistrationTests
 			private set;
 		}
 
+		internal int FunctionCalls
+		{
+			get;
+			private set;
+		}
+
 		public Exception? Invoke(Action callback)
 		{
 			ArgumentNullException.ThrowIfNull(callback);
@@ -853,6 +1028,7 @@ public sealed class LuaModuleRegistrationTests
 		public MainThreadInvocationResult<T> Invoke<T>(Func<T> callback)
 		{
 			ArgumentNullException.ThrowIfNull(callback);
+			FunctionCalls++;
 			try
 			{
 				return new MainThreadInvocationResult<T>(callback(), null);

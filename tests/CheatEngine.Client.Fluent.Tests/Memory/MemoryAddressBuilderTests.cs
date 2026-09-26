@@ -5,39 +5,43 @@ using CheatEngine.Client.Memory;
 using CheatEngine.Client.Results;
 using CheatEngine.SDK.Engine.Values;
 
-using MemoryFluent = CheatEngine.Client.Memory.Memory;
-
 namespace CheatEngine.Client.Fluent.Tests.Memory;
 
 public sealed class MemoryAddressBuilderTests
 {
 	[Fact]
-	public void AtWithoutServiceRejectsABuiltInTerminalOperation()
+	public void DefaultBuilderRejectsABuiltInTerminalOperationAndNamesTheBoundEntryPoint()
 	{
-		MemoryAddressBuilder builder = MemoryFluent.At(0x401000UL);
+		MemoryAddressBuilder builder = default;
 
 		InvalidOperationException exception =
 			Assert.Throws<InvalidOperationException>(() => builder.Read<int>(TestContext.Current.CancellationToken));
 
-		Assert.Contains("Memory.At(memory, address)", exception.Message);
 		Assert.Contains("memory.At(address)", exception.Message);
-		Assert.Contains("Using(memory)", exception.Message);
-		Assert.DoesNotContain("pass the service to Read/Write", exception.Message);
+		Assert.DoesNotContain("Memory.At(memory, address)", exception.Message);
+		Assert.DoesNotContain("Using(", exception.Message);
 	}
 
 	[Fact]
-	public void UsingCreatesABoundBuilderAndForwardsBuiltInReads()
+	public void AtBindsTheBuilderToTheMemoryServiceAndForwardsBuiltInReads()
 	{
 		Address address = 0x401000;
 		FakeMemoryClient memory = new(1337);
-		MemoryAddressBuilder unbound = MemoryFluent.At(address);
 
-		int value = unbound.Using(memory).Read<int>(TestContext.Current.CancellationToken);
+		int value = memory.At(address).Read<int>(TestContext.Current.CancellationToken);
 
 		Assert.Equal(1337, value);
 		Assert.Equal(address, memory.LastPrimitiveReadAddress);
 		Assert.Equal(typeof(int), memory.LastPrimitiveReadType);
-		Assert.Throws<InvalidOperationException>(() => unbound.Read<int>(TestContext.Current.CancellationToken));
+	}
+
+	[Fact]
+	public void TheMemoryEntryPointsRejectANullService()
+	{
+		IMemoryClient memory = null!;
+
+		Assert.Throws<ArgumentNullException>(() => memory.At(0x401000UL));
+		Assert.Throws<ArgumentNullException>(() => memory.Batch<int>());
 	}
 
 	[Fact]
@@ -63,7 +67,7 @@ public sealed class MemoryAddressBuilderTests
 		Int32Codec codec = new();
 		FakeMemoryClient memory = new(42);
 
-		int value = MemoryFluent.At(address).Using(memory).ReadWith(codec, TestContext.Current.CancellationToken);
+		int value = memory.At(address).ReadWith(codec, TestContext.Current.CancellationToken);
 
 		Assert.Equal(42, value);
 		Assert.Equal(address, memory.LastCustomReadAddress);
@@ -77,7 +81,7 @@ public sealed class MemoryAddressBuilderTests
 		Int32Codec codec = new();
 		FakeMemoryClient memory = new(0);
 
-		bool succeeded = MemoryFluent.At(address).Using(memory).TryWriteWith(
+		bool succeeded = memory.At(address).TryWriteWith(
 			77, codec, out CheatEngineFailure failure, TestContext.Current.CancellationToken);
 
 		Assert.True(succeeded);
@@ -93,7 +97,7 @@ public sealed class MemoryAddressBuilderTests
 		Address address = 0x405000;
 		FakeMemoryClient memory = new(1337);
 
-		bool succeeded = MemoryFluent.At(address).Using(memory).TryRead(
+		bool succeeded = memory.At(address).TryRead(
 			out int value, out CheatEngineFailure failure, TestContext.Current.CancellationToken);
 
 		Assert.True(succeeded);
@@ -109,7 +113,7 @@ public sealed class MemoryAddressBuilderTests
 		Address address = 0x406000;
 		FakeMemoryClient memory = new(0);
 
-		MemoryFluent.At(address).Using(memory).Write(77, TestContext.Current.CancellationToken);
+		memory.At(address).Write(77, TestContext.Current.CancellationToken);
 
 		Assert.Equal(address, memory.LastPrimitiveWriteAddress);
 		Assert.Equal(typeof(int), memory.LastPrimitiveWriteType);
@@ -123,7 +127,7 @@ public sealed class MemoryAddressBuilderTests
 		Int32Codec codec = new();
 		FakeMemoryClient memory = new(42);
 
-		bool succeeded = MemoryFluent.At(address).Using(memory).TryReadWith(
+		bool succeeded = memory.At(address).TryReadWith(
 			codec, out int value, out CheatEngineFailure failure, TestContext.Current.CancellationToken);
 
 		Assert.True(succeeded);
@@ -134,35 +138,16 @@ public sealed class MemoryAddressBuilderTests
 	}
 
 	[Fact]
-	public void TryReadWithForwardsTheExplicitMemoryServiceAndCustomCodec()
+	public void TryReadWithRejectsADefaultBuilderAndANullCodec()
 	{
-		Address address = 0x408000;
+		MemoryAddressBuilder unbound = default;
+		MemoryAddressBuilder bound = new FakeMemoryClient(0).At(0x409000UL);
 		Int32Codec codec = new();
-		FakeMemoryClient memory = new(42);
-
-		bool succeeded = MemoryFluent.At(address).TryReadWith(
-			memory, codec, out int value, out CheatEngineFailure failure, TestContext.Current.CancellationToken);
-
-		Assert.True(succeeded);
-		Assert.Equal(42, value);
-		Assert.Equal(default, failure);
-		Assert.Equal(address, memory.LastCustomReadAddress);
-		Assert.Same(codec, memory.LastCustomReadCodec);
-	}
-
-	[Fact]
-	public void TryReadWithRejectsMissingBoundMemoryAndNullExplicitArguments()
-	{
-		MemoryAddressBuilder unbound = MemoryFluent.At(0x409000UL);
-		Int32Codec codec = new();
-		FakeMemoryClient memory = new(0);
 
 		Assert.Throws<InvalidOperationException>(() => unbound.TryReadWith(
 			codec, out _, out _, TestContext.Current.CancellationToken));
-		Assert.Throws<ArgumentNullException>(() => unbound.TryReadWith(
-			null!, codec, out _, out _, TestContext.Current.CancellationToken));
-		Assert.Throws<ArgumentNullException>(() => unbound.TryReadWith(
-			memory, null!, out int _, out _, TestContext.Current.CancellationToken));
+		Assert.Throws<ArgumentNullException>(() => bound.TryReadWith(
+			(IMemoryCodec<int>) null!, out _, out _, TestContext.Current.CancellationToken));
 	}
 
 	[Fact]
@@ -172,7 +157,7 @@ public sealed class MemoryAddressBuilderTests
 		Int32Codec codec = new();
 		FakeMemoryClient memory = new(0);
 
-		MemoryFluent.At(address).Using(memory).WriteWith(77, codec, TestContext.Current.CancellationToken);
+		memory.At(address).WriteWith(77, codec, TestContext.Current.CancellationToken);
 
 		Assert.Equal(address, memory.LastCustomWriteAddress);
 		Assert.Equal(77, memory.LastCustomWriteValue);
@@ -180,32 +165,16 @@ public sealed class MemoryAddressBuilderTests
 	}
 
 	[Fact]
-	public void WriteWithForwardsTheExplicitMemoryServiceAndCustomCodec()
+	public void WriteWithRejectsADefaultBuilderAndANullCodec()
 	{
-		Address address = 0x40B000;
+		MemoryAddressBuilder unbound = default;
+		MemoryAddressBuilder bound = new FakeMemoryClient(0).At(0x40C000UL);
 		Int32Codec codec = new();
-		FakeMemoryClient memory = new(0);
-
-		MemoryFluent.At(address).WriteWith(memory, 77, codec, TestContext.Current.CancellationToken);
-
-		Assert.Equal(address, memory.LastCustomWriteAddress);
-		Assert.Equal(77, memory.LastCustomWriteValue);
-		Assert.Same(codec, memory.LastCustomWriteCodec);
-	}
-
-	[Fact]
-	public void WriteWithRejectsMissingBoundMemoryAndNullExplicitArguments()
-	{
-		MemoryAddressBuilder unbound = MemoryFluent.At(0x40C000UL);
-		Int32Codec codec = new();
-		FakeMemoryClient memory = new(0);
 
 		Assert.Throws<InvalidOperationException>(() =>
 			unbound.WriteWith(77, codec, TestContext.Current.CancellationToken));
-		Assert.Throws<ArgumentNullException>(() => unbound.WriteWith(
-			null!, 77, codec, TestContext.Current.CancellationToken));
-		Assert.Throws<ArgumentNullException>(() => unbound.WriteWith(
-			memory, 77, null!, TestContext.Current.CancellationToken));
+		Assert.Throws<ArgumentNullException>(() =>
+			bound.WriteWith(77, (IMemoryCodec<int>) null!, TestContext.Current.CancellationToken));
 	}
 
 	[Fact]
@@ -215,8 +184,8 @@ public sealed class MemoryAddressBuilderTests
 		MemoryAddressBuilder builder = memory.At(0x40D000);
 
 		ImmutableArray<byte> bytes = builder.ReadBytes(2, TestContext.Current.CancellationToken);
-		builder.WriteUtf8("é", 2, TestContext.Current.CancellationToken);
-		string text = builder.ReadUtf16(32, TestContext.Current.CancellationToken);
+		builder.WriteString("é", 2, MemoryStringEncoding.Utf8, TestContext.Current.CancellationToken);
+		string text = builder.ReadString(32, MemoryStringEncoding.Utf16, TestContext.Current.CancellationToken);
 
 		Assert.Equal([0x10, 0x20], bytes);
 		Assert.Equal(2, memory.LastBytesReadRequest.Length);
@@ -244,16 +213,53 @@ public sealed class MemoryAddressBuilderTests
 		Assert.Equal(2, memory.LastPrimitiveBatchReadCount);
 	}
 
+	/// <summary>
+	///     Every memory terminal passes the caller's token unchanged, so the service's cancellation surfaces as an
+	///     <see cref="OperationCanceledException" /> carrying that token.
+	/// </summary>
+	[Theory]
+	[InlineData("Read")]
+	[InlineData("Resolve")]
+	[InlineData("Batch")]
+	public void ACancelledTokenReachesTheServiceAndSurfacesAsOperationCanceledException(string terminal)
+	{
+		using CancellationTokenSource cancellation = new();
+		cancellation.Cancel();
+		FakeMemoryClient memory = new(1337);
+		Address address = 0x40F000;
+
+		OperationCanceledException exception = Assert.ThrowsAny<OperationCanceledException>(() =>
+		{
+			switch (terminal)
+			{
+				case "Read":
+					_ = memory.At(address).Read<int>(cancellation.Token);
+					break;
+				case "Resolve":
+					_ = memory.At(address).Follow([0x10L]).Resolve(cancellation.Token);
+					break;
+				default:
+					_ = memory.Batch<int>().Read([address], cancellation.Token);
+					break;
+			}
+		});
+
+		Assert.IsType<CheatEngineOperationCanceledException>(exception);
+		Assert.Equal(cancellation.Token, exception.CancellationToken);
+	}
+
 	private sealed class Int32Codec : IMemoryCodec<int>
 	{
-		public bool TryRead(IMemoryReadContext context, Address address, out int value)
+		public bool TryRead(IMemoryReadContext context, Address address, out int value, out CheatEngineFailure failure)
 		{
+			failure = default;
 			value = default;
 			return false;
 		}
 
-		public bool TryWrite(IMemoryWriteContext context, Address address, in int value)
+		public bool TryWrite(IMemoryWriteContext context, Address address, in int value, out CheatEngineFailure failure)
 		{
+			failure = default;
 			return false;
 		}
 	}
@@ -346,6 +352,7 @@ public sealed class MemoryAddressBuilderTests
 
 		public bool TryReadPrimitive<T>(Address address, [MaybeNullWhen(false)] out T value,
 			out CheatEngineFailure failure, CancellationToken cancellationToken = default)
+			where T : unmanaged
 		{
 			LastPrimitiveReadAddress = address;
 			LastPrimitiveReadType = typeof(T);
@@ -355,13 +362,16 @@ public sealed class MemoryAddressBuilderTests
 		}
 
 		public T ReadPrimitive<T>(Address address, CancellationToken cancellationToken = default)
+			where T : unmanaged
 		{
-			_ = TryReadPrimitive(address, out T? value, out _, cancellationToken);
-			return value!;
+			ThrowIfCancelled("Memory.ReadPrimitive", cancellationToken);
+			_ = TryReadPrimitive(address, out T value, out _, cancellationToken);
+			return value;
 		}
 
 		public bool TryWritePrimitive<T>(Address address, T value, out CheatEngineFailure failure,
 			CancellationToken cancellationToken = default)
+			where T : unmanaged
 		{
 			LastPrimitiveWriteAddress = address;
 			LastPrimitiveWriteType = typeof(T);
@@ -371,6 +381,7 @@ public sealed class MemoryAddressBuilderTests
 		}
 
 		public void WritePrimitive<T>(Address address, T value, CancellationToken cancellationToken = default)
+			where T : unmanaged
 		{
 			_ = TryWritePrimitive(address, value, out _, cancellationToken);
 		}
@@ -378,18 +389,19 @@ public sealed class MemoryAddressBuilderTests
 		public bool TryReadPrimitiveBatch<T>(MemoryPrimitiveBatchReadRequest<T> request,
 			out ImmutableArray<T> values, out CheatEngineFailure failure,
 			CancellationToken cancellationToken = default)
+			where T : unmanaged
 		{
 			LastPrimitiveBatchReadCount = request.Addresses.Length;
 			T[] result = new T[request.Addresses.Length];
 			for (int index = 0; index < result.Length; index++)
 			{
-				if (!TryReadPrimitive(request.Addresses[index], out T? value, out failure, cancellationToken))
+				if (!TryReadPrimitive(request.Addresses[index], out T value, out failure, cancellationToken))
 				{
 					values = [];
 					return false;
 				}
 
-				result[index] = value!;
+				result[index] = value;
 			}
 
 			values = ImmutableArray.Create(result);
@@ -399,13 +411,16 @@ public sealed class MemoryAddressBuilderTests
 
 		public ImmutableArray<T> ReadPrimitiveBatch<T>(MemoryPrimitiveBatchReadRequest<T> request,
 			CancellationToken cancellationToken = default)
+			where T : unmanaged
 		{
+			ThrowIfCancelled("Memory.ReadPrimitiveBatch", cancellationToken);
 			_ = TryReadPrimitiveBatch(request, out ImmutableArray<T> values, out _, cancellationToken);
 			return values;
 		}
 
 		public bool TryWritePrimitiveBatch<T>(MemoryPrimitiveBatchWriteRequest<T> request,
 			out CheatEngineFailure failure, CancellationToken cancellationToken = default)
+			where T : unmanaged
 		{
 			for (int index = 0; index < request.Values.Length; index++)
 			{
@@ -422,8 +437,26 @@ public sealed class MemoryAddressBuilderTests
 
 		public void WritePrimitiveBatch<T>(MemoryPrimitiveBatchWriteRequest<T> request,
 			CancellationToken cancellationToken = default)
+			where T : unmanaged
 		{
 			_ = TryWritePrimitiveBatch(request, out _, cancellationToken);
+		}
+
+		public MemoryPrimitiveBatchReadOutcome<T> ReadPrimitiveBatchDetailed<T>(
+			MemoryPrimitiveBatchReadRequest<T> request, CancellationToken cancellationToken = default)
+			where T : unmanaged
+		{
+			_ = TryReadPrimitiveBatch(request, out ImmutableArray<T> values, out _, cancellationToken);
+			return new MemoryPrimitiveBatchReadOutcome<T>(values.Length, values.AsSpan(), null, null);
+		}
+
+		public MemoryPrimitiveBatchWriteOutcome WritePrimitiveBatchDetailed<T>(
+			MemoryPrimitiveBatchWriteRequest<T> request, CancellationToken cancellationToken = default)
+			where T : unmanaged
+		{
+			_ = TryWritePrimitiveBatch(request, out _, cancellationToken);
+			return new MemoryPrimitiveBatchWriteOutcome(request.Values.Length, request.Values.Length, null, null,
+				MemoryBatchWriteEffectState.Completed);
 		}
 
 		public bool TryReadBytes(MemoryBytesReadRequest request, out ImmutableArray<byte> bytes,
@@ -440,6 +473,13 @@ public sealed class MemoryAddressBuilderTests
 		{
 			_ = TryReadBytes(request, out ImmutableArray<byte> bytes, out _, cancellationToken);
 			return bytes;
+		}
+
+		public MemoryBytesReadOutcome ReadBytesDetailed(MemoryBytesReadRequest request,
+			CancellationToken cancellationToken = default)
+		{
+			_ = TryReadBytes(request, out ImmutableArray<byte> bytes, out _, cancellationToken);
+			return new MemoryBytesReadOutcome(bytes.Length, bytes, null);
 		}
 
 		public bool TryWriteBytes(MemoryBytesWriteRequest request, out CheatEngineFailure failure,
@@ -492,6 +532,7 @@ public sealed class MemoryAddressBuilderTests
 
 		public Address ResolvePointerChain(PointerChainRequest request, CancellationToken cancellationToken = default)
 		{
+			ThrowIfCancelled("Memory.ResolvePointerChain", cancellationToken);
 			_ = TryResolvePointerChain(request, out Address address, out _, cancellationToken);
 			return address;
 		}
@@ -525,6 +566,17 @@ public sealed class MemoryAddressBuilderTests
 		public void Write<T>(MemoryWriteRequest<T> request, CancellationToken cancellationToken = default)
 		{
 			_ = TryWrite(request, out _, cancellationToken);
+		}
+
+		/// <summary>Reports a cancellation observed before dispatch as Core does: through the failure's Throw.</summary>
+		private static void ThrowIfCancelled(string operation, CancellationToken cancellationToken)
+		{
+			if (cancellationToken.IsCancellationRequested)
+			{
+				new CheatEngineFailure(CheatEngineFailureKind.Cancelled, operation,
+					"The operation was cancelled before Cheat Engine work began.", null,
+					CheatEngineHostEffect.NotStarted).Throw(cancellationToken);
+			}
 		}
 	}
 }

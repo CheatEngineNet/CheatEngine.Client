@@ -1,97 +1,69 @@
-using CheatEngine.SDK.Engine.Runtime;
-
 namespace CheatEngine.Client.Runtime;
 
 /// <summary>Immutable runtime observations captured during one active Cheat Engine activation.</summary>
 /// <remarks>
-///     <see cref="ObservedCheatEngineVersion" /> is the coarse number returned by Cheat Engine's
-///     <c>getCEVersion</c> global. It is deliberately separate from
-///     <see cref="QualifiedCheatEngineBaseline" />, because that global cannot establish a complete four-part file
-///     version.
+///     <para>
+///         The observations are grouped: <see cref="Version" /> (Cheat Engine, Client and CheatEngine.SDK versions),
+///         <see cref="Platform" /> (host and target facts) and <see cref="Capabilities" /> (the Client capability
+///         evidence). Each fact is what CheatEngine.SDK reported, and a fact that was not observed stays unknown.
+///     </para>
+///     <para>
+///         No snapshot reports an external Lua state reset. Once CheatEngine.SDK detects that Cheat Engine replaced its
+///         Lua state outside the plugin's control, it refuses every Lua admission, the snapshot's included: taking a
+///         snapshot then fails with <see cref="CheatEngine.Client.Results.CheatEngineFailureKind.RuntimeChanged" />,
+///         like all other Lua work, and Hosting logs the reset as a warning when it deactivates the plugin (event 8).
+///     </para>
 /// </remarks>
 public readonly record struct CheatEngineRuntimeSnapshot
 {
-	/// <summary>Creates a runtime snapshot from grouped version, platform, and capability observations.</summary>
+	private readonly ClientCapabilities? _capabilities;
+
+	/// <summary>Creates a runtime snapshot from grouped observations.</summary>
+	/// <param name="epoch">The activation epoch.</param>
+	/// <param name="version">The version observations.</param>
+	/// <param name="platform">The host and target platform observations.</param>
+	/// <param name="capabilities">The Client capability observations.</param>
 	/// <exception cref="ArgumentOutOfRangeException"><paramref name="epoch" /> is negative.</exception>
 	/// <exception cref="ArgumentNullException">
-	///     <paramref name="versionInfo" /> is uninitialized, or a capability collection is <see langword="null" />.
+	///     <paramref name="version" /> is uninitialized, or <paramref name="capabilities" /> is <see langword="null" />.
 	/// </exception>
 	public CheatEngineRuntimeSnapshot(
 		long epoch,
-		CheatEngineRuntimeVersionInfo versionInfo,
-		CheatEngineRuntimePlatformInfo platformInfo,
-		RuntimeCapabilities sdkCapabilities,
-		ClientCapabilities clientCapabilities)
+		CheatEngineRuntimeVersionInfo version,
+		CheatEngineRuntimePlatformInfo platform,
+		ClientCapabilities capabilities)
 	{
 		ArgumentOutOfRangeException.ThrowIfNegative(epoch);
-		ArgumentNullException.ThrowIfNull(versionInfo.ClientAssemblyVersion);
-		ArgumentNullException.ThrowIfNull(versionInfo.SdkAssemblyVersion);
+		if (version.IsDefault)
+		{
+			throw new ArgumentNullException(nameof(version), "Initialized version observations are required.");
+		}
 
 		Epoch = epoch;
-		Version = versionInfo;
-		Platform = platformInfo;
-		SdkCapabilities = sdkCapabilities ?? throw new ArgumentNullException(nameof(sdkCapabilities));
-		ClientCapabilities = clientCapabilities ?? throw new ArgumentNullException(nameof(clientCapabilities));
+		Version = version;
+		Platform = platform;
+		_capabilities = capabilities ?? throw new ArgumentNullException(nameof(capabilities));
 	}
 
-	/// <summary>Gets the current plugin activation epoch.</summary>
+	/// <summary>Gets the activation epoch the snapshot was captured in.</summary>
 	public long Epoch
 	{
 		get;
 	}
 
-	/// <summary>Gets the grouped version observations captured for this activation.</summary>
+	/// <summary>Gets the Cheat Engine, Client and CheatEngine.SDK version observations.</summary>
 	public CheatEngineRuntimeVersionInfo Version
 	{
 		get;
 	}
 
-	/// <summary>Gets the grouped platform observations captured for this activation.</summary>
+	/// <summary>Gets the host and target platform observations.</summary>
 	public CheatEngineRuntimePlatformInfo Platform
 	{
 		get;
 	}
 
-	/// <summary>Gets the coarse number returned by CE's <c>getCEVersion</c> global, when it was callable.</summary>
-	public double? ObservedCheatEngineVersion => Version.ObservedCheatEngineVersion;
-
-	/// <summary>Gets the complete CE build against which this Client release was qualified.</summary>
-	public CheatEngineVersion QualifiedCheatEngineBaseline => Version.QualifiedCheatEngineBaseline;
-
-	/// <summary>Gets the assembly version of this Client abstraction assembly.</summary>
-	public Version ClientAssemblyVersion => Version.ClientAssemblyVersion;
-
-	/// <summary>Gets the assembly version of the SDK runtime-contract assembly.</summary>
-	public Version SdkAssemblyVersion => Version.SdkAssemblyVersion;
-
-	/// <summary>Gets the CE host architecture observed from CE's system-architecture global.</summary>
-	public CheatEngineArchitecture SystemArchitecture => Platform.SystemArchitecture;
-
-	/// <summary>Gets the target architecture observed by a target-specific probe, or unknown.</summary>
-	public CheatEngineArchitecture TargetArchitecture => Platform.TargetArchitecture;
-
-	/// <summary>Gets the pointer width implied by the observed target architecture, or unknown.</summary>
-	public PointerSize TargetPointerSize => Platform.TargetPointerSize;
-
-	/// <summary>Gets the target ABI observed from CE's ABI global, or unknown.</summary>
-	public TargetAbi TargetAbi => Platform.TargetAbi;
-
-	/// <summary>Gets the explicit availability observation for each SDK runtime capability that was probed.</summary>
-	public RuntimeCapabilities SdkCapabilities
-	{
-		get;
-	}
-
-	/// <summary>Gets the explicit availability observation for each Client high-level capability.</summary>
-	public ClientCapabilities ClientCapabilities
-	{
-		get;
-	}
-
-	/// <summary>Gets whether the observed coarse CE version belongs to the qualified major/minor line.</summary>
-	public bool IsOnQualifiedCheatEngineLine => ObservedCheatEngineVersion is { } observed &&
-	                                            observed >= QualifiedCheatEngineBaseline.Major +
-	                                            QualifiedCheatEngineBaseline.Minor / 10d &&
-	                                            observed < QualifiedCheatEngineBaseline.Major +
-	                                            (QualifiedCheatEngineBaseline.Minor + 1) / 10d;
+	/// <summary>Gets the explicit availability observation and evidence of each Client capability.</summary>
+	/// <remarks><see cref="ClientCapabilities.Empty" /> for the <see langword="default" /> value.</remarks>
+	public ClientCapabilities Capabilities => _capabilities ?? ClientCapabilities.Empty;
 }

@@ -1,7 +1,7 @@
 namespace CheatEngine.Client.Runtime;
 
 /// <summary>Describes one independently established prerequisite in a Client capability evidence record.</summary>
-public enum ClientCapabilityEvidenceState : byte
+public enum ClientCapabilityEvidenceState
 {
 	/// <summary>The Client has not established this prerequisite for the current observation.</summary>
 	Unknown = 0,

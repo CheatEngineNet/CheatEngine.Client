@@ -18,6 +18,8 @@ namespace CheatEngine.Client.Scanning;
 /// </remarks>
 public readonly record struct AobPattern
 {
+	private readonly string? _value;
+
 	/// <summary>Creates and normalizes an AOB pattern.</summary>
 	/// <param name="value">Hexadecimal byte tokens and <c>??</c> wildcard tokens.</param>
 	/// <exception cref="ArgumentNullException"><paramref name="value" /> is <see langword="null" />.</exception>
@@ -31,21 +33,19 @@ public readonly record struct AobPattern
 				"An AOB pattern must contain only two-digit hexadecimal bytes or ?? wildcard tokens.", nameof(value));
 		}
 
-		Value = normalized;
+		_value = normalized;
 		ByteLength = byteLength;
 	}
 
 	private AobPattern(string normalized, int byteLength)
 	{
-		Value = normalized;
+		_value = normalized;
 		ByteLength = byteLength;
 	}
 
 	/// <summary>Gets the normalized Cheat Engine pattern text.</summary>
-	public string Value
-	{
-		get;
-	}
+	/// <remarks><see cref="string.Empty" /> for the <see langword="default" /> value.</remarks>
+	public string Value => _value ?? string.Empty;
 
 	/// <summary>Gets the number of byte positions represented by the pattern.</summary>
 	public int ByteLength
@@ -92,9 +92,12 @@ public readonly record struct AobPattern
 	}
 
 	/// <summary>Formats the pattern as normalized Cheat Engine text.</summary>
+	/// <returns>
+	///     <see cref="Value" />: the normalized text, or an empty string for the <see langword="default" /> value.
+	/// </returns>
 	public override string ToString()
 	{
-		return Value ?? string.Empty;
+		return Value;
 	}
 
 	private static bool TryNormalize(ReadOnlySpan<char> value, out string normalized, out int byteLength)
@@ -168,7 +171,7 @@ public readonly record struct AobPattern
 
 	private static bool TryGetHexDigit(char value, out char normalized)
 	{
-		if (value is >= '0' and <= '9' or >= 'A' and <= 'F')
+		if (value is (>= '0' and <= '9') or (>= 'A' and <= 'F'))
 		{
 			normalized = value;
 			return true;

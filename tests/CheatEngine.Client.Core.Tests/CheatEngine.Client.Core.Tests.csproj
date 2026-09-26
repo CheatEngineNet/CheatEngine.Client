@@ -1,7 +1,26 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <!-- These tests use the experimental Client value scans (CECLIENT5001) and allocations (CECLIENT5002); ClientExperimentalDiagnosticsTests allows it under tests/. -->
+    <NoWarn>$(NoWarn);CECLIENT5001;CECLIENT5002</NoWarn>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="../../libs/CheatEngine.Client.Core/CheatEngine.Client.Core.csproj"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The Fluent AOB terminals, compiled in so that Composition/FluentAobTerminalCompositionTests runs them against
+         Core's real PatternScanner and the AOB port doubles. Fluent references Abstractions only, so its sources compile
+         here unchanged; a project reference would add Fluent to this project's lock file. -->
+    <Compile Include="../../libs/CheatEngine.Client.Fluent/Scanning/*.cs" Link="Fluent/Scanning/%(Filename)%(Extension)"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The live scenario catalog of the runner (CheatEngine.Client.Tests), linked so that ClientCapabilityCatalogTests
+         prove every scenario a capability requires exists there: never copy it. -->
+    <Compile Include="../CheatEngine.Client.Tests/LiveQualification/ScenarioCatalog.cs"
+             Link="Qualification/ScenarioCatalog.cs"/>
   </ItemGroup>
 
 </Project>

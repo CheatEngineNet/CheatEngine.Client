@@ -1,3 +1,5 @@
+using System.Runtime.ExceptionServices;
+
 namespace CheatEngine.Client.Core.Infrastructure;
 
 /// <summary>Owns client-created resources for one active plugin epoch and releases them in reverse creation order.</summary>
@@ -7,9 +9,25 @@ internal sealed class CoreResourceRegistry : IDisposable
 	private bool _disposed;
 
 	/// <summary>Releases every tracked resource even when an earlier cleanup fails.</summary>
+	/// <exception cref="AggregateException">Several resources failed to release; the inner exceptions keep attempt order.</exception>
+	/// <remarks>A single release failure is rethrown as the same instance with its original stack trace.</remarks>
 	public void Dispose()
 	{
 		DisposeDetached(DetachAll());
+	}
+
+	/// <summary>Releases every tracked resource and appends each failure to <paramref name="failures" /> in attempt order.</summary>
+	/// <param name="failures">Receives every release failure, in attempt order.</param>
+	/// <param name="onFailure">Observes each failure with the resource that produced it.</param>
+	/// <param name="reportOutcomes">
+	///     <see langword="true" /> for the activation registry at deactivation: an <see cref="IOutcomeReportingResource" />
+	///     is released through <see cref="IOutcomeReportingResource.ReleaseForDeactivation" />, and an incomplete
+	///     outcome joins <paramref name="failures" /> (audit Q43).
+	/// </param>
+	internal void DisposeCollecting(List<Exception> failures, Action<IDisposable, Exception>? onFailure = null,
+		bool reportOutcomes = false)
+	{
+		DisposeDetached(DetachAll(), failures, onFailure, reportOutcomes);
 	}
 
 	internal T Track<T>(T resource)
@@ -91,26 +109,81 @@ internal sealed class CoreResourceRegistry : IDisposable
 		}
 	}
 
-	/// <summary>Disposes an insertion-ordered resource snapshot in reverse order, preserving the first fault.</summary>
+	/// <summary>
+	///     Disposes an insertion-ordered resource snapshot in reverse order, attempts every release, and reports every
+	///     failure (audit Q43).
+	/// </summary>
+	/// <exception cref="AggregateException">Several releases failed; the inner exceptions keep attempt order.</exception>
+	/// <remarks>A single release failure is rethrown as the same instance with its original stack trace.</remarks>
 	internal static void DisposeDetached(IReadOnlyList<IDisposable> resources)
 	{
-		Exception? firstFailure = null;
+		List<Exception> failures = [];
+		DisposeDetached(resources, failures);
+		ThrowCleanupFailures(failures);
+	}
+
+	/// <summary>
+	///     Disposes a snapshot in reverse order, appends each failure to <paramref name="failures" /> and reports it to
+	///     <paramref name="onFailure" /> when supplied.
+	/// </summary>
+	/// <remarks>
+	///     With <paramref name="reportOutcomes" />, an <see cref="IOutcomeReportingResource" /> is released through
+	///     <see cref="IOutcomeReportingResource.ReleaseForDeactivation" /> instead of <see cref="IDisposable.Dispose" />,
+	///     which never throws: the failure it returns for an incomplete release joins <paramref name="failures" />.
+	///     Without it (a target-selection change), such a resource is disposed like any other and keeps an incomplete
+	///     outcome for the activation's deactivation report.
+	/// </remarks>
+	internal static void DisposeDetached(IReadOnlyList<IDisposable> resources, List<Exception> failures,
+		Action<IDisposable, Exception>? onFailure = null, bool reportOutcomes = false)
+	{
+		ArgumentNullException.ThrowIfNull(failures);
 		for (int index = resources.Count - 1; index >= 0; index--)
 		{
+			IDisposable resource = resources[index];
+			Exception? failure;
 			try
 			{
-				resources[index].Dispose();
+				if (reportOutcomes && resource is IOutcomeReportingResource reporting)
+				{
+					failure = reporting.ReleaseForDeactivation();
+				}
+				else
+				{
+					resource.Dispose();
+					failure = null;
+				}
 			}
 			catch (Exception exception)
 			{
-				firstFailure ??= exception;
+				failure = exception;
+			}
+
+			if (failure is not null)
+			{
+				failures.Add(failure);
+				onFailure?.Invoke(resource, failure);
 			}
 		}
+	}
 
-		if (firstFailure is not null)
+	/// <summary>Throws nothing, the single failure unchanged, or one aggregate of every failure in attempt order.</summary>
+	/// <remarks>
+	///     https://learn.microsoft.com/dotnet/standard/exceptions/best-practices-for-exceptions#capture-exceptions-to-rethrow-later
+	/// </remarks>
+	internal static void ThrowCleanupFailures(List<Exception> failures)
+	{
+		ArgumentNullException.ThrowIfNull(failures);
+		if (failures.Count == 0)
 		{
-			throw firstFailure;
+			return;
 		}
+
+		if (failures.Count == 1)
+		{
+			ExceptionDispatchInfo.Capture(failures[0]).Throw();
+		}
+
+		throw new AggregateException("Client resource cleanup encountered several failures.", failures);
 	}
 
 	private T TrackCore<T>(T resource, long? targetSelectionEpoch)

@@ -8,6 +8,8 @@ internal sealed class CheatEngineClientActivationCleanup(CoreLifetime lifetime)
 {
 	private readonly CoreLifetime _lifetime = lifetime ?? throw new ArgumentNullException(nameof(lifetime));
 
+	public bool ExternalLuaStateResetDetected => SdkBoundary.ExternalStateResetDetected;
+
 	public IDisposable EnterCleanupScope()
 	{
 		return _lifetime.EnterCleanupScope();

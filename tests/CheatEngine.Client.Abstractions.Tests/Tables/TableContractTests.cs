@@ -27,13 +27,14 @@ public sealed class TableContractTests
 		Assert.Equal(32, request.MaximumItems);
 	}
 
-	/// <summary>Represents a known record count without forcing records to be copied into the snapshot.</summary>
+	/// <summary>Treats a default record array as an empty copied table, never as an uninitialized one.</summary>
 	[Fact]
-	public void CardinalityOnlyAddressTableSnapshotRetainsTheCountWithoutMaterializingRecords()
+	public void AddressTableSnapshotTreatsADefaultRecordArrayAsEmpty()
 	{
-		AddressTableSnapshot snapshot = new(3);
+		AddressTableSnapshot snapshot = new(default(ImmutableArray<MemoryRecordSnapshot>));
 
-		Assert.Equal(3, snapshot.RecordCount);
+		Assert.Equal(0, snapshot.RecordCount);
+		Assert.False(snapshot.Records.IsDefault);
 		Assert.Empty(snapshot.Records);
 	}
 
@@ -56,6 +57,23 @@ public sealed class TableContractTests
 		Assert.Throws<ArgumentException>(() => new MemoryRecordSearch(null));
 		Assert.Throws<ArgumentException>(() => new MemoryRecordSearch(string.Empty));
 		Assert.Throws<ArgumentException>(() => new MemoryRecordSearch(addressExpression: string.Empty));
+	}
+
+	/// <summary>An undefined value type is a programming error in a search, a definition and an update alike.</summary>
+	[Fact]
+	public void EveryRecordRequestRejectsAnUndefinedValueType()
+	{
+		const VariableType undefined = (VariableType) 99;
+
+		ArgumentOutOfRangeException search =
+			Assert.Throws<ArgumentOutOfRangeException>(() => new MemoryRecordSearch(variableType: undefined));
+		ArgumentOutOfRangeException definition = Assert.Throws<ArgumentOutOfRangeException>(() =>
+			new MemoryRecordDefinition("health", "game.exe+20", "100", undefined));
+		ArgumentOutOfRangeException update =
+			Assert.Throws<ArgumentOutOfRangeException>(() => new MemoryRecordUpdate(variableType: undefined));
+
+		Assert.All([search, definition, update],
+			static exception => Assert.Equal("variableType", exception.ParamName));
 	}
 
 	/// <summary>Retains every supplied record-search predicate as one conjunctive request.</summary>
@@ -84,31 +102,70 @@ public sealed class TableContractTests
 		Assert.Equal(1, snapshot.RecordCount);
 		MemoryRecordSnapshot onlyRecord = Assert.Single(snapshot.Records);
 		Assert.Equal(record, onlyRecord);
-		Assert.True(onlyRecord.IsActive);
-		Assert.Equal(2, onlyRecord.ChildCount);
+		Assert.True(onlyRecord.State.IsActive);
+		Assert.Equal(2, onlyRecord.State.ChildCount);
 	}
 
-	/// <summary>Forwards grouped content and state fields through the established record leaf properties.</summary>
+	/// <summary>Keeps each copied field once, in its content or state group.</summary>
 	[Fact]
-	public void MemoryRecordSnapshotForwardsContentAndStateComponentsToItsExistingLeafProperties()
+	public void MemoryRecordSnapshotGroupsItsFieldsWithoutFlattenedCopies()
 	{
 		MemoryRecordId id = new(12);
-		Address address = Address.FromUInt64(0x1400);
 		MemoryRecordContentSnapshot content = CreateContent();
-		MemoryRecordStateSnapshot state = CreateState(address, true, 2);
+		MemoryRecordStateSnapshot state = CreateState(Address.FromUInt64(0x1400), true, 2);
 		MemoryRecordSnapshot snapshot = CreateSnapshot(id, 0, content, state);
 
 		Assert.Equal(id, snapshot.Id);
 		Assert.Equal(0, snapshot.Index);
 		Assert.Equal(content, snapshot.Content);
 		Assert.Equal(state, snapshot.State);
-		Assert.Equal(content.Description, snapshot.Description);
-		Assert.Equal(content.AddressExpression, snapshot.AddressExpression);
-		Assert.Equal(content.Value, snapshot.Value);
-		Assert.Equal(content.VariableType, snapshot.VariableType);
-		Assert.Equal(state.CurrentAddress, snapshot.CurrentAddress);
-		Assert.Equal(state.IsActive, snapshot.IsActive);
-		Assert.Equal(state.ChildCount, snapshot.ChildCount);
+		Assert.Equal(
+			["Content", "Id", "Index", "State"],
+			typeof(MemoryRecordSnapshot).GetProperties().Select(static property => property.Name)
+				.Order(StringComparer.Ordinal));
+	}
+
+	/// <summary>Carries the asynchronous activation facts of a copied record state.</summary>
+	[Fact]
+	public void StateSnapshotCarriesTheAsynchronousActivationFacts()
+	{
+		MemoryRecordStateSnapshot state = new(null, isActive: true, childCount: 1, isAsync: true,
+			isAsyncProcessing: true);
+		MemoryRecordStateSnapshot defaults = CreateState();
+
+		Assert.True(state.IsActive);
+		Assert.Equal(1, state.ChildCount);
+		Assert.True(state.IsAsync);
+		Assert.True(state.IsAsyncProcessing);
+		Assert.False(defaults.IsAsync);
+		Assert.False(defaults.IsAsyncProcessing);
+	}
+
+	/// <summary>Carries the script and pointer-offset count of a copied record content.</summary>
+	[Fact]
+	public void ContentSnapshotCarriesTheScriptAndTheOffsetCount()
+	{
+		MemoryRecordContentSnapshot script = new("Infinite ammo", string.Empty, string.Empty, VariableType.Dword,
+			"[ENABLE]\n[DISABLE]", 0);
+		MemoryRecordContentSnapshot pointer = new("Health", "[game.exe+20]+8", "100", VariableType.Dword,
+			offsetCount: 2);
+
+		Assert.Equal("[ENABLE]\n[DISABLE]", script.Script);
+		Assert.Null(pointer.Script);
+		Assert.Equal(2, pointer.OffsetCount);
+		Assert.Equal(0, CreateContent().OffsetCount);
+	}
+
+	/// <summary>Rejects a negative pointer-offset count in a copied record content.</summary>
+	[Theory]
+	[InlineData(-1)]
+	[InlineData(int.MinValue)]
+	public void ContentSnapshotRejectsANegativeOffsetCount(int offsetCount)
+	{
+		ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(() =>
+			new MemoryRecordContentSnapshot("Health", "game.exe+20", "100", VariableType.Dword, null, offsetCount));
+
+		Assert.Equal("offsetCount", exception.ParamName);
 	}
 
 	/// <summary>Rejects a record index that cannot identify a valid address-list position.</summary>
@@ -159,22 +216,19 @@ public sealed class TableContractTests
 		Assert.Equal("value", value.ParamName);
 	}
 
-	/// <summary>Normalizes default child arrays to empty both during construction and with-expression updates.</summary>
+	/// <summary>Normalizes default child arrays to empty, at construction and at the default value.</summary>
 	[Fact]
-	public void HierarchySnapshotNormalizesDefaultChildrenDuringConstructionAndWithUpdate()
+	public void HierarchySnapshotNormalizesDefaultChildren()
 	{
 		MemoryRecordHierarchySnapshot hierarchy = new(CreateSnapshot(
 			new MemoryRecordId(12),
 			0,
 			CreateContent(),
 			CreateState()), default);
-		MemoryRecordHierarchySnapshot updatedHierarchy = hierarchy with { Children = default };
 		MemoryRecordHierarchySnapshot uninitializedHierarchy = default;
 
 		Assert.False(hierarchy.Children.IsDefault);
 		Assert.Empty(hierarchy.Children);
-		Assert.False(updatedHierarchy.Children.IsDefault);
-		Assert.Empty(updatedHierarchy.Children);
 		Assert.False(uninitializedHierarchy.Children.IsDefault);
 		Assert.Empty(uninitializedHierarchy.Children);
 	}

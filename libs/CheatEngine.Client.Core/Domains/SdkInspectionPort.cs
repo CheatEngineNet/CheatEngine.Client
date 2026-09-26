@@ -1,6 +1,9 @@
-using CheatEngine.Client.Core.Infrastructure;
+using CheatEngine.Client.Inspection;
 using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Engine.Values;
+using CheatEngine.SDK.Lua.Calls;
+
+using SdkSymbolRegistrationLease = CheatEngine.SDK.Engine.Inspection.SymbolRegistrationLease;
 
 namespace CheatEngine.Client.Core.Domains;
 
@@ -37,24 +40,32 @@ internal sealed class SdkInspectionPort : IInspectionPort
 		return EngineInspection.GetSymbolInfo(expression, out symbol);
 	}
 
-	public InspectionStatus ResolveAddress(SymbolExpression expression, AddressResolutionOptions options,
+	public InspectionStatus ResolveAddress(SymbolExpression expression, AddressResolutionMode mode,
 		out Address address)
 	{
-		return EngineInspection.ResolveAddress(expression, options, out address);
+		return EngineInspection.ResolveAddress(expression, InspectionMapping.ToSdkResolutionOptions(mode),
+			out address);
 	}
 
-	public bool TryResolveName(nuint address, out string? name)
+	public LuaOperationStatus TryGetName(Address address, out string? name)
 	{
-		return ClientLuaGlobals.TryGetNameFromAddress(address, out name);
+		return SymbolRegistry.TryGetName(address, out name);
 	}
 
-	public void RegisterSymbol(string name, nuint address, bool doNotSave)
+	public SymbolRegistrationAttempt TryRegisterOwned(SymbolName name, Address address,
+		SymbolRegistrationOptions options)
 	{
-		ClientLuaGlobals.RegisterSymbol(name, address, doNotSave);
+		SymbolRegistrationAcquireOutcome outcome = SymbolRegistry.TryRegisterOwned(name, address, options);
+		return new SymbolRegistrationAttempt(outcome.Status,
+			outcome.Lease is { } lease ? new SdkSymbolRegistrationHandle(lease) : null);
 	}
 
-	public void UnregisterSymbol(string name)
+	/// <summary>Adapts the SDK's symbol registration lease, which has no public constructor, to the Core handle.</summary>
+	private sealed class SdkSymbolRegistrationHandle(SdkSymbolRegistrationLease lease) : ISymbolRegistrationHandle
 	{
-		ClientLuaGlobals.UnregisterSymbol(name);
+		public SymbolRegistrationReleaseKind Release()
+		{
+			return lease.Release().Kind;
+		}
 	}
 }

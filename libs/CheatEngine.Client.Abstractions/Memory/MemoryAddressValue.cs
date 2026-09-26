@@ -3,8 +3,11 @@ using CheatEngine.SDK.Engine.Values;
 namespace CheatEngine.Client.Memory;
 
 /// <summary>Associates one copied managed value with its target address.</summary>
-/// <typeparam name="T">The homogeneous scalar type written by a batch.</typeparam>
+/// <typeparam name="T">
+///     The homogeneous primitive type written by a batch, one of the types <see cref="IMemoryClient" /> supports.
+/// </typeparam>
 public readonly struct MemoryAddressValue<T>
+	where T : unmanaged
 {
 	/// <summary>Creates one copied address/value pair.</summary>
 	/// <param name="address">The target address.</param>

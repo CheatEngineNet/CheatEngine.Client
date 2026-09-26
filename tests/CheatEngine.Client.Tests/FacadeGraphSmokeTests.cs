@@ -12,8 +12,6 @@ using CheatEngine.Client.Scanning;
 using CheatEngine.Client.Tables;
 using CheatEngine.SDK.Engine.Values;
 
-using MemoryFluent = CheatEngine.Client.Memory.Memory;
-
 namespace CheatEngine.Client.Tests;
 
 public sealed class FacadeGraphSmokeTests
@@ -22,8 +20,8 @@ public sealed class FacadeGraphSmokeTests
 	public void MetaPackageReferenceProvidesTheFunctionalClientSurface()
 	{
 		Address address = 0x401000;
-		MemoryAddressBuilder memoryOperation = MemoryFluent.At(address);
-		AobPattern pattern = new("48 8B ?? 89");
+		MemoryAddressBuilder memoryOperation = DispatchProxy.Create<IMemoryClient, UnusedServiceProxy>().At(address);
+		AobScanBuilder scanOperation = DispatchProxy.Create<IPatternScanner, UnusedServiceProxy>().Aob("48 8b ?? 89");
 
 		Dictionary<Type, string> entryPoints = new()
 		{
@@ -45,7 +43,7 @@ public sealed class FacadeGraphSmokeTests
 		};
 
 		Assert.Equal(address, memoryOperation.Address);
-		Assert.Equal("48 8B ?? 89", pattern.Value);
+		Assert.Equal("48 8B ?? 89", scanOperation.Pattern.Value);
 		Assert.All(entryPoints, static entryPoint =>
 			Assert.Equal(entryPoint.Value, entryPoint.Key.Namespace));
 	}
@@ -71,8 +69,9 @@ public sealed class FacadeGraphSmokeTests
 			typeof(IMemoryReadContext),
 			typeof(IMemoryWriteContext),
 			typeof(MemoryAddressBuilder),
+			typeof(MemoryPointerChainBuilder),
+			typeof(MemoryPrimitiveBatchBuilder<>),
 			typeof(CheatEngineMemoryFluentExtensions),
-			typeof(MemoryFluent),
 			typeof(AobScanBuilder),
 			typeof(AobFirstMatchBuilder),
 			typeof(AobSingleMatchBuilder),
@@ -99,13 +98,13 @@ public sealed class FacadeGraphSmokeTests
 		}
 
 		foreach (PropertyInfo property in contract.GetProperties(BindingFlags.Public | BindingFlags.Instance |
-		                                                         BindingFlags.Static))
+																 BindingFlags.Static))
 		{
 			yield return property.PropertyType;
 		}
 
 		foreach (MethodInfo method in contract.GetMethods(BindingFlags.Public | BindingFlags.Instance |
-		                                                  BindingFlags.Static))
+														  BindingFlags.Static))
 		{
 			yield return method.ReturnType;
 			foreach (ParameterInfo parameter in method.GetParameters())
@@ -128,6 +127,15 @@ public sealed class FacadeGraphSmokeTests
 		}
 
 		return type.Name is "LuaState" or "LuaRef" or "CEObject" or "MemScan" or "FoundList"
-		       || type.Name.StartsWith("Owned`", StringComparison.Ordinal);
+			   || type.Name.StartsWith("Owned`", StringComparison.Ordinal);
+	}
+
+	/// <summary>A service the smoke test binds a Fluent builder to without ever running a terminal.</summary>
+	public class UnusedServiceProxy : DispatchProxy
+	{
+		protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
+		{
+			throw new NotSupportedException("The facade smoke test must not run a Fluent terminal.");
+		}
 	}
 }

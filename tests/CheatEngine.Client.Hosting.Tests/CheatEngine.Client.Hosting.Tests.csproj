@@ -1,7 +1,17 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <!-- These tests use the experimental Client value scans (CECLIENT5001) and allocations (CECLIENT5002); ClientExperimentalDiagnosticsTests allows it under tests/. -->
+    <NoWarn>$(NoWarn);CECLIENT5001;CECLIENT5002</NoWarn>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="../../libs/CheatEngine.Client.Hosting/CheatEngine.Client.Hosting.csproj"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Deployed next to the test assembly, as a plugin deploys its appsettings.json next to the plugin assembly. -->
+    <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest"/>
   </ItemGroup>
 
 </Project>

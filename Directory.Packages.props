@@ -1,10 +1,13 @@
 <Project>
+  <!-- The consumed CheatEngine.SDK pin. Imported here because this file is imported by every project, before its body. -->
+  <Import Project="$(MSBuildThisFileDirectory)eng/CheatEngineSdk.props"/>
+
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
 
   <ItemGroup Label="Runtime">
-    <PackageVersion Include="CheatEngine.SDK" Version="1.0.0"/>
+    <PackageVersion Include="CheatEngine.SDK" Version="$(CheatEngineSdkVersion)"/>
     <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.12"/>
     <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.12"/>
     <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="10.0.12"/>
@@ -21,12 +24,23 @@
     <PackageVersion Include="xunit.v3.mtp-v2" Version="4.0.1"/>
     <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.11.2"/>
     <PackageVersion Include="Microsoft.Testing.Extensions.TrxReport" Version="2.4.1"/>
+    <!-- GitHub annotations and job summaries (report-gh), hang and crash dumps for CI diagnostics. -->
+    <PackageVersion Include="Microsoft.Testing.Extensions.GitHubActionsReport" Version="2.4.1"/>
+    <PackageVersion Include="Microsoft.Testing.Extensions.HangDump" Version="2.4.1"/>
+    <PackageVersion Include="Microsoft.Testing.Extensions.CrashDump" Version="2.4.1"/>
+    <!-- Workflow contract tests parse .github/workflows/*.yml. -->
+    <PackageVersion Include="YamlDotNet" Version="18.1.0"/>
   </ItemGroup>
 
   <ItemGroup Label="Build tooling">
     <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="5.9.0"/>
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0"/>
-    <GlobalPackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.401"/>
+    <!-- Global so that every Client package carries the same version. Global package references are build-only assets. -->
+    <GlobalPackageReference Include="MinVer" Version="8.0.0"/>
     <PackageVersion Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="5.6.0"/>
+    <!-- SPDX software bill of materials embedded in the packages at pack time. -->
+    <PackageVersion Include="Microsoft.Sbom.Targets" Version="4.1.13"/>
+    <!-- Template validation at build (eng/Templates.props). Versioned with the .NET SDK line: move it together with global.json. -->
+    <PackageVersion Include="Microsoft.TemplateEngine.Authoring.Tasks" Version="10.0.401"/>
   </ItemGroup>
 </Project>

@@ -1,0 +1,57 @@
+# Advisory CI-side dependency submission: automatic NuGet submission cannot be enabled for this organization, and the
+# dependency graph detects no NuGet package from the CPM + lock-file layout on its own. GitHub's own Component
+# Detection dependency submission action (https://github.com/advanced-security/component-detection-dependency-submission-action)
+# scans the locked restore and submits the snapshot in one step.
+# Pushes to main give dependency review its base snapshot; same-repository pull requests (Dependabot included) submit a
+# head snapshot for the pull request head commit. Fork pull requests never run it (contents: write stays out of reach).
+name: Dependency submission
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+# Only the newest snapshot of a pull request matters; a push to main is never cancelled, so a quick second push does not
+# drop the base snapshot of the first commit.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  submit:
+    name: Submit NuGet dependency snapshot
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    # Windows: the AOT probe's lock file holds win-x64 sections, so a locked restore fails on Linux.
+    runs-on: windows-2025
+    timeout-minutes: 20
+    permissions:
+      contents: write # POST /repos/{owner}/{repo}/dependency-graph/snapshots
+    steps:
+      # The snapshot describes the commit it names: the pull request head, not the merge commit.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Set up .NET and restore (locked)
+        uses: ./.github/actions/setup-dotnet
+        with:
+          restore: CheatEngine.Client.slnx
+          cache: 'false'
+
+      - name: Detect and submit NuGet dependencies
+        uses: advanced-security/component-detection-dependency-submission-action@b282c67b1008fde9b60da4bdfcd8849613e293b2 # v0.1.6
+        with:
+          detectorsCategories: NuGet
+          correlator: ${{ github.workflow }}_nuget
+          snapshot-sha: ${{ github.event.pull_request.head.sha || github.sha }}
+          snapshot-ref: ${{ github.ref }}

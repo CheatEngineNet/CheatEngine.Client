@@ -1,21 +1,14 @@
 using CheatEngine.Client.Allocations;
 using CheatEngine.Client.Assembly;
-using CheatEngine.Client.Dbvm;
-using CheatEngine.Client.Debugger;
 using CheatEngine.Client.Dispatching;
-using CheatEngine.Client.Hashing;
-using CheatEngine.Client.Hotkeys;
 using CheatEngine.Client.Inspection;
 using CheatEngine.Client.Lua;
 using CheatEngine.Client.Memory;
 using CheatEngine.Client.Modules;
 using CheatEngine.Client.Processes;
-using CheatEngine.Client.RemoteExecution;
 using CheatEngine.Client.Runtime;
 using CheatEngine.Client.Scanning;
-using CheatEngine.Client.Speed;
 using CheatEngine.Client.Tables;
-using CheatEngine.Client.Timers;
 
 namespace CheatEngine.Client.Hosting.Tests;
 
@@ -44,6 +37,7 @@ public sealed class ClientActivationLifecycleTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q06")]
 	public void FailedModuleEnableStillCompensatesTheFailingModuleThenEarlierModulesInReverseOrder()
 	{
 		List<string> events = [];
@@ -79,6 +73,7 @@ public sealed class ClientActivationLifecycleTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q43")]
 	public void CleanupContinuesAfterFailuresAndIsIdempotent()
 	{
 		List<string> events = [];
@@ -160,18 +155,13 @@ public sealed class ClientActivationLifecycleTests
 		public IProcessClient Processes => null!;
 		public IMemoryClient Memory => null!;
 		public IPatternScanner Patterns => null!;
-		public IValueScanner Scans => null!;
+		public IValueScanner ValueScans => null!;
 		public IInspectionClient Inspection => null!;
 		public ITableClient Tables => null!;
 		public ILuaClient Lua => null!;
 		public IAllocationClient Allocations => null!;
+#pragma warning disable CECLIENT5003 // The test client implements the experimental instruction property.
 		public IAssemblyClient Assembly => null!;
-		public IRemoteExecutionClient RemoteExecution => null!;
-		public IDebuggerClient Debugger => null!;
-		public IHotkeyClient Hotkeys => null!;
-		public ITimerClient Timers => null!;
-		public ISpeedClient Speed => null!;
-		public IHashingClient Hashing => null!;
-		public IDbvmClient Dbvm => null!;
+#pragma warning restore CECLIENT5003
 	}
 }

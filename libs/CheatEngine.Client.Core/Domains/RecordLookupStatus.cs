@@ -6,5 +6,8 @@ internal enum RecordLookupStatus
 	Success,
 	NotFound,
 	AddressListUnavailable,
-	InvalidRecord
+	InvalidRecord,
+
+	/// <summary>The table holds more records than the caller's materialization limit; nothing was copied.</summary>
+	LimitExceeded
 }

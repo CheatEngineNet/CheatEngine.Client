@@ -7,6 +7,20 @@ namespace CheatEngine.Client.Runtime;
 public readonly record struct ClientCapabilityEvidence
 {
 	/// <summary>Creates validated evidence for one Client capability.</summary>
+	/// <param name="implementation">Whether an operational Client adapter is delivered for the capability.</param>
+	/// <param name="package">Whether the required primitive is established in the consumed package.</param>
+	/// <param name="host">The observation of the required Cheat Engine host primitive.</param>
+	/// <param name="liveQualification">Whether the required host profile passed its live qualification gate.</param>
+	/// <param name="policy">Whether Client policy permits the capability for the activation.</param>
+	/// <param name="lifetime">Whether the activation lifetime the capability requires is current.</param>
+	/// <exception cref="ArgumentOutOfRangeException">
+	///     The state of a gate is not a defined value (<paramref name="implementation" />, <paramref name="package" />,
+	///     <paramref name="host" />, <paramref name="liveQualification" />, <paramref name="policy" /> or
+	///     <paramref name="lifetime" />).
+	/// </exception>
+	/// <exception cref="ArgumentException">
+	///     A gate is the <see langword="default" /> value, which has no reason.
+	/// </exception>
 	public ClientCapabilityEvidence(
 		ClientCapabilityEvidenceGate implementation,
 		ClientCapabilityEvidenceGate package,
@@ -66,7 +80,13 @@ public readonly record struct ClientCapabilityEvidence
 		get;
 	}
 
-	/// <summary>Gets the legacy availability projection without collapsing the underlying evidence dimensions.</summary>
+	/// <summary>
+	///     Gets the availability the gates establish: <see cref="ClientCapabilityAvailabilityState.Unavailable" /> when a
+	///     gate is <see cref="ClientCapabilityEvidenceState.Missing" />,
+	///     <see cref="ClientCapabilityAvailabilityState.Available" /> when every gate is
+	///     <see cref="ClientCapabilityEvidenceState.Satisfied" />, otherwise
+	///     <see cref="ClientCapabilityAvailabilityState.Unknown" />.
+	/// </summary>
 	public ClientCapabilityAvailabilityState AvailabilityState
 	{
 		get
@@ -82,14 +102,17 @@ public readonly record struct ClientCapabilityEvidence
 		}
 	}
 
-	/// <summary>Gets whether every prerequisite has been independently established.</summary>
-	public bool IsExecutable => AllSatisfied;
-
-	/// <summary>Gets the reason for the highest-priority missing, faulted, malformed, or unknown prerequisite.</summary>
-	public string EffectiveReason => GetGate(EffectiveReasonCode).Reason;
+	/// <summary>
+	///     Gets the reason for the highest-priority missing, faulted, malformed, or unknown prerequisite; empty for the
+	///     uninitialized default value.
+	/// </summary>
+	public string EffectiveReason => EffectiveReasonCode == ClientCapabilityEvidenceReasonCode.Unknown
+		? string.Empty
+		: GetGate(EffectiveReasonCode).Reason;
 
 	/// <summary>
-	///     Gets the stable code for the evidence gate that supplies <see cref="EffectiveReason" />. Its state remains
+	///     Gets the stable code for the evidence gate that supplies <see cref="EffectiveReason" />, or
+	///     <see cref="ClientCapabilityEvidenceReasonCode.Unknown" /> for the uninitialized default value. Its state remains
 	///     available through the corresponding evidence-gate property.
 	/// </summary>
 	public ClientCapabilityEvidenceReasonCode EffectiveReasonCode => GetEffectiveReasonCode();
@@ -100,6 +123,12 @@ public readonly record struct ClientCapabilityEvidence
 
 	private ClientCapabilityEvidenceReasonCode GetEffectiveReasonCode()
 	{
+		// The constructor requires a reason for every gate, so a gate without one is the uninitialized default value.
+		if (Implementation.IsDefault)
+		{
+			return ClientCapabilityEvidenceReasonCode.Unknown;
+		}
+
 		if (Lifetime.State == ClientCapabilityEvidenceState.Missing)
 		{
 			return ClientCapabilityEvidenceReasonCode.Lifetime;
@@ -206,7 +235,7 @@ public readonly record struct ClientCapabilityEvidence
 	private bool HasState(ClientCapabilityEvidenceState state)
 	{
 		return Implementation.State == state || Package.State == state || Host.State == state ||
-		       LiveQualification.State == state || Policy.State == state || Lifetime.State == state;
+			   LiveQualification.State == state || Policy.State == state || Lifetime.State == state;
 	}
 
 	private static void Validate(ClientCapabilityEvidenceGate gate, string parameterName)

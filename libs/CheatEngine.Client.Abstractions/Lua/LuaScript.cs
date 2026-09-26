@@ -4,6 +4,10 @@ namespace CheatEngine.Client.Lua;
 public readonly record struct LuaScript
 {
 	/// <summary>Creates a Lua script request.</summary>
+	/// <param name="source">The Lua source text.</param>
+	/// <param name="chunkName">The chunk name Lua diagnostics use, or <see langword="null" /> for none.</param>
+	/// <exception cref="ArgumentNullException"><paramref name="source" /> is <see langword="null" />.</exception>
+	/// <exception cref="ArgumentException"><paramref name="chunkName" /> is empty.</exception>
 	public LuaScript(string source, string? chunkName = null)
 	{
 		ArgumentNullException.ThrowIfNull(source);

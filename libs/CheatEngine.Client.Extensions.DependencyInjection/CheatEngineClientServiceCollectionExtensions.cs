@@ -5,41 +5,39 @@ using CheatEngine.Client.Core.Dispatching;
 using CheatEngine.Client.Core.Domains;
 using CheatEngine.Client.Core.Domains.Allocations;
 using CheatEngine.Client.Core.Domains.Assembly;
-using CheatEngine.Client.Core.Domains.Dbvm;
-using CheatEngine.Client.Core.Domains.Debugger;
-using CheatEngine.Client.Core.Domains.Hashing;
-using CheatEngine.Client.Core.Domains.Hotkeys;
-using CheatEngine.Client.Core.Domains.RemoteExecution;
-using CheatEngine.Client.Core.Domains.Speed;
-using CheatEngine.Client.Core.Domains.Timers;
+using CheatEngine.Client.Core.Domains.ValueScanning;
 using CheatEngine.Client.Core.Infrastructure;
-using CheatEngine.Client.Dbvm;
-using CheatEngine.Client.Debugger;
 using CheatEngine.Client.Dispatching;
-using CheatEngine.Client.Hashing;
-using CheatEngine.Client.Hotkeys;
 using CheatEngine.Client.Inspection;
 using CheatEngine.Client.Lua;
 using CheatEngine.Client.Memory;
 using CheatEngine.Client.Processes;
-using CheatEngine.Client.RemoteExecution;
 using CheatEngine.Client.Runtime;
 using CheatEngine.Client.Scanning;
-using CheatEngine.Client.Speed;
 using CheatEngine.Client.Tables;
-using CheatEngine.Client.Timers;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace CheatEngine.Client.Extensions.DependencyInjection;
 
 /// <summary>Registers the high-level Cheat Engine client without building a nested service provider.</summary>
+/// <remarks>
+///     This package is the composition layer of CheatEngine.Client.Hosting: <c>CheatEnginePluginBuilder</c> calls
+///     <c>AddCheatEngineClient</c> once for each activation provider, which Hosting builds, validates and disposes around
+///     one Cheat Engine enable epoch. Calling these methods on a collection whose provider Hosting does not own is not
+///     supported in 1.0: the Client services would outlive or precede the SDK plugin context they capture.
+/// </remarks>
 public static class CheatEngineClientServiceCollectionExtensions
 {
-	/// <summary>Adds the client options, deterministic memory codecs, and explicit Client service registrations.</summary>
+	/// <summary>Adds the client options, their validators, logging, and explicit Client service registrations.</summary>
+	/// <param name="services">The service collection of the activation provider.</param>
+	/// <returns>The builder of the Client registrations, to add modules and opt-ins.</returns>
+	/// <exception cref="ArgumentNullException"><paramref name="services" /> is <see langword="null" />.</exception>
+	/// <remarks>No memory codec is registered: a codec is an application service passed with each codec request.</remarks>
 	public static CheatEngineClientBuilder AddCheatEngineClient(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
@@ -52,13 +50,20 @@ public static class CheatEngineClientServiceCollectionExtensions
 		services.TryAddEnumerable(
 			ServiceDescriptor
 				.Singleton<IValidateOptions<CheatEngineClientOptions>, CheatEngineClientOptionsSemanticValidator>());
-		DefaultMemoryCodecs.Add(services);
 		AddCoreServices(services);
 
 		return new CheatEngineClientBuilder(services);
 	}
 
 	/// <summary>Adds the client and binds its options from the default client section.</summary>
+	/// <param name="services">The service collection of the activation provider.</param>
+	/// <param name="configuration">
+	///     The configuration whose <see cref="CheatEngineClientOptions.ConfigurationSectionName" /> section is bound.
+	/// </param>
+	/// <returns>The builder of the Client registrations, to add modules and opt-ins.</returns>
+	/// <exception cref="ArgumentNullException">
+	///     <paramref name="services" /> or <paramref name="configuration" /> is <see langword="null" />.
+	/// </exception>
 	public static CheatEngineClientBuilder AddCheatEngineClient(
 		this IServiceCollection services,
 		IConfiguration configuration)
@@ -68,6 +73,12 @@ public static class CheatEngineClientServiceCollectionExtensions
 	}
 
 	/// <summary>Adds the client and binds its options from an explicitly selected configuration section.</summary>
+	/// <param name="services">The service collection of the activation provider.</param>
+	/// <param name="section">The configuration section bound to the options.</param>
+	/// <returns>The builder of the Client registrations, to add modules and opt-ins.</returns>
+	/// <exception cref="ArgumentNullException">
+	///     <paramref name="services" /> or <paramref name="section" /> is <see langword="null" />.
+	/// </exception>
 	public static CheatEngineClientBuilder AddCheatEngineClient(
 		this IServiceCollection services,
 		IConfigurationSection section)
@@ -77,6 +88,12 @@ public static class CheatEngineClientServiceCollectionExtensions
 	}
 
 	/// <summary>Adds the client and applies a programmatic options configuration.</summary>
+	/// <param name="services">The service collection of the activation provider.</param>
+	/// <param name="configure">Configures the options of every activation.</param>
+	/// <returns>The builder of the Client registrations, to add modules and opt-ins.</returns>
+	/// <exception cref="ArgumentNullException">
+	///     <paramref name="services" /> or <paramref name="configure" /> is <see langword="null" />.
+	/// </exception>
 	public static CheatEngineClientBuilder AddCheatEngineClient(
 		this IServiceCollection services,
 		Action<CheatEngineClientOptions> configure)
@@ -89,20 +106,26 @@ public static class CheatEngineClientServiceCollectionExtensions
 	{
 		// Every descriptor is a direct construction path. The client never scans assemblies, resolves arbitrary types,
 		// or creates a nested provider; Core internals are visible only to this composition assembly.
-		services.TryAddSingleton<CoreLifetime>(static _ => CoreLifetime.Capture());
+		// The Core diagnostics of this activation log through the activation's own logger factory (audit ch.24); Core
+		// itself references no logging assembly. The sink is a registration of its own, which the lifetime resolves.
+		services.TryAddSingleton<LoggerCoreDiagnostics>(static serviceProvider =>
+			new LoggerCoreDiagnostics(serviceProvider.GetRequiredService<ILoggerFactory>()));
+		services.TryAddSingleton<CoreLifetime>(static serviceProvider =>
+			CoreLifetime.Capture(serviceProvider.GetRequiredService<LoggerCoreDiagnostics>()));
 		services.TryAddSingleton<ICheatEngineClientActivationCleanup>(static serviceProvider =>
 			new CheatEngineClientActivationCleanup(serviceProvider.GetRequiredService<CoreLifetime>()));
 		services.TryAddSingleton<CoreClientPolicy>(static serviceProvider =>
 		{
 			CheatEngineClientOptions options =
 				serviceProvider.GetRequiredService<IOptions<CheatEngineClientOptions>>().Value;
-			string[] allowedTableRoots = options.AllowedTableRoots
-			                             ?? throw new InvalidOperationException(
-				                             "AllowedTableRoots must be validated before the Client policy is created.");
 			bool enableUnsafeLuaExecution = serviceProvider
 				.GetService<UnsafeLuaExecutionRegistration>()?
 				.IsEnabled == true;
-			return new CoreClientPolicy(allowedTableRoots, enableUnsafeLuaExecution);
+			bool enableAutoAssemblerPatches = serviceProvider
+				.GetService<AutoAssemblerPatchesRegistration>()?
+				.IsEnabled == true;
+			return new CoreClientPolicy(options.AllowedTableRoots, enableUnsafeLuaExecution,
+				enableAutoAssemblerPatches);
 		});
 
 		services.TryAddSingleton<SdkMainThreadDispatcher>(static serviceProvider =>
@@ -119,12 +142,12 @@ public static class CheatEngineClientServiceCollectionExtensions
 			serviceProvider.GetRequiredService<RuntimeClient>());
 
 		services.TryAddSingleton<LocalProcessHost>();
-		services.TryAddSingleton<ILocalProcessDiagnostics>(static serviceProvider =>
-			new LocalProcessDiagnostics(serviceProvider.GetRequiredService<LocalProcessHost>()));
 		services.TryAddSingleton<ProcessClient>(static serviceProvider =>
 			new ProcessClient(
 				serviceProvider.GetRequiredService<SdkMainThreadDispatcher>(),
 				serviceProvider.GetRequiredService<LocalProcessHost>(),
+				SdkRuntimeObservationPort.Instance,
+				SdkProcessSelectionPort.Instance,
 				serviceProvider.GetRequiredService<CoreLifetime>()));
 		services.TryAddSingleton<IProcessClient>(static serviceProvider =>
 			serviceProvider.GetRequiredService<ProcessClient>());
@@ -133,17 +156,12 @@ public static class CheatEngineClientServiceCollectionExtensions
 		{
 			CheatEngineClientOptions options =
 				serviceProvider.GetRequiredService<IOptions<CheatEngineClientOptions>>().Value;
-			MemoryResourceLimits limits = options.MemoryResourceLimits
-			                              ?? throw new InvalidOperationException(
-				                              "MemoryResourceLimits must be validated before the Client memory service is created.");
 			return new MemoryClient(
 				serviceProvider.GetRequiredService<SdkMainThreadDispatcher>(),
 				serviceProvider.GetRequiredService<CoreLifetime>(),
-				limits);
+				options.MemoryResourceLimits);
 		});
 		services.TryAddSingleton<IMemoryClient>(static serviceProvider =>
-			serviceProvider.GetRequiredService<MemoryClient>());
-		services.TryAddSingleton<IMemoryBatchClient>(static serviceProvider =>
 			serviceProvider.GetRequiredService<MemoryClient>());
 
 		services.TryAddSingleton<PatternScanner>(static serviceProvider =>
@@ -151,26 +169,29 @@ public static class CheatEngineClientServiceCollectionExtensions
 		services.TryAddSingleton<IPatternScanner>(static serviceProvider =>
 			serviceProvider.GetRequiredService<PatternScanner>());
 
+		services.TryAddSingleton<ValueScanner>(static serviceProvider =>
+			new ValueScanner(serviceProvider.GetRequiredService<SdkMainThreadDispatcher>(),
+				serviceProvider.GetRequiredService<ProcessClient>()));
 		services.TryAddSingleton<IValueScanner>(static serviceProvider =>
-			new UnavailableValueScanner(serviceProvider.GetRequiredService<CoreLifetime>()));
+			serviceProvider.GetRequiredService<ValueScanner>());
+
+		services.TryAddSingleton<AllocationClient>(static serviceProvider =>
+			new AllocationClient(serviceProvider.GetRequiredService<SdkMainThreadDispatcher>(),
+				serviceProvider.GetRequiredService<ProcessClient>()));
 		services.TryAddSingleton<IAllocationClient>(static serviceProvider =>
-			new UnavailableAllocationClient(serviceProvider.GetRequiredService<CoreLifetime>()));
+			serviceProvider.GetRequiredService<AllocationClient>());
+
+		services.TryAddSingleton<AssemblyClient>(static serviceProvider =>
+		{
+			CheatEngineClientOptions options =
+				serviceProvider.GetRequiredService<IOptions<CheatEngineClientOptions>>().Value;
+			return new AssemblyClient(
+				serviceProvider.GetRequiredService<SdkMainThreadDispatcher>(),
+				serviceProvider.GetRequiredService<CoreLifetime>(),
+				options.MemoryResourceLimits);
+		});
 		services.TryAddSingleton<IAssemblyClient>(static serviceProvider =>
-			new UnavailableAssemblyClient(serviceProvider.GetRequiredService<CoreLifetime>()));
-		services.TryAddSingleton<IRemoteExecutionClient>(static serviceProvider =>
-			new UnavailableRemoteExecutionClient(serviceProvider.GetRequiredService<CoreLifetime>()));
-		services.TryAddSingleton<IDebuggerClient>(static serviceProvider =>
-			new UnavailableDebuggerClient(serviceProvider.GetRequiredService<CoreLifetime>()));
-		services.TryAddSingleton<IHotkeyClient>(static serviceProvider =>
-			new UnavailableHotkeyClient(serviceProvider.GetRequiredService<CoreLifetime>()));
-		services.TryAddSingleton<ITimerClient>(static serviceProvider =>
-			new UnavailableTimerClient(serviceProvider.GetRequiredService<CoreLifetime>()));
-		services.TryAddSingleton<ISpeedClient>(static serviceProvider =>
-			new UnavailableSpeedClient(serviceProvider.GetRequiredService<CoreLifetime>()));
-		services.TryAddSingleton<IHashingClient>(static serviceProvider =>
-			new UnavailableHashingClient(serviceProvider.GetRequiredService<CoreLifetime>()));
-		services.TryAddSingleton<IDbvmClient>(static serviceProvider =>
-			new UnavailableDbvmClient(serviceProvider.GetRequiredService<CoreLifetime>()));
+			serviceProvider.GetRequiredService<AssemblyClient>());
 
 		services.TryAddSingleton<InspectionClient>(static serviceProvider =>
 			new InspectionClient(
@@ -208,13 +229,6 @@ public static class CheatEngineClientServiceCollectionExtensions
 			ILuaClient lua = serviceProvider.GetRequiredService<ILuaClient>();
 			IAllocationClient allocations = serviceProvider.GetRequiredService<IAllocationClient>();
 			IAssemblyClient assembly = serviceProvider.GetRequiredService<IAssemblyClient>();
-			IRemoteExecutionClient remoteExecution = serviceProvider.GetRequiredService<IRemoteExecutionClient>();
-			IDebuggerClient debugger = serviceProvider.GetRequiredService<IDebuggerClient>();
-			IHotkeyClient hotkeys = serviceProvider.GetRequiredService<IHotkeyClient>();
-			ITimerClient timers = serviceProvider.GetRequiredService<ITimerClient>();
-			ISpeedClient speed = serviceProvider.GetRequiredService<ISpeedClient>();
-			IHashingClient hashing = serviceProvider.GetRequiredService<IHashingClient>();
-			IDbvmClient dbvm = serviceProvider.GetRequiredService<IDbvmClient>();
 
 			return new CheatEngineClient(
 				lifetime,
@@ -228,14 +242,7 @@ public static class CheatEngineClientServiceCollectionExtensions
 					tables,
 					lua,
 					allocations,
-					assembly,
-					remoteExecution,
-					debugger,
-					hotkeys,
-					timers,
-					speed,
-					hashing,
-					dbvm));
+					assembly));
 		});
 		services.TryAddSingleton<ICheatEngineClient>(static serviceProvider =>
 			serviceProvider.GetRequiredService<CheatEngineClient>());

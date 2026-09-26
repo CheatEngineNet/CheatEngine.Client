@@ -2,8 +2,31 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <IsAotCompatible>false</IsAotCompatible>
-    <PackageOutputPath>$(ArtifactsPath)/packages</PackageOutputPath>
-    <PackageDescription>dotnet new template for an in-process, dependency-injection-first Cheat Engine plugin.</PackageDescription>
+    <!-- Same folder as the CI Release leg and the package smoke tests. -->
+    <PackageOutputPath>$(ArtifactsPath)/nuget</PackageOutputPath>
     <PackageTags>dotnet-new;template;cheat-engine;plugin</PackageTags>
   </PropertyGroup>
+
+  <!-- The same SPDX 2.2 SBOM as eng/Shipping.props (see the comment there). -->
+  <PropertyGroup Label="Software bill of materials">
+    <GenerateSBOM>true</GenerateSBOM>
+    <SbomGenerationPackageSupplier>CheatEngineNet</SbomGenerationPackageSupplier>
+    <SbomGenerationNamespaceBaseUri>https://github.com/CheatEngineNet/CheatEngine.Client</SbomGenerationNamespaceBaseUri>
+  </PropertyGroup>
+
+  <!--
+    Template validation (the "template authoring MSBuild tasks"): every build of a template package validates its
+    templates, so a broken template.json fails the solution build that precedes the no-build pack.
+    https://learn.microsoft.com/dotnet/core/tutorials/cli-templates-create-template-package#create-a-template-package-project
+  -->
+  <PropertyGroup Label="Template validation">
+    <!-- The default '.' depends on the working directory; the templates live under content/. -->
+    <ValidateTemplatesPath>$(MSBuildProjectDirectory)/content</ValidateTemplatesPath>
+    <LocalizeTemplates>false</LocalizeTemplates>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Sbom.Targets" PrivateAssets="all"/>
+    <PackageReference Include="Microsoft.TemplateEngine.Authoring.Tasks" PrivateAssets="all"/>
+  </ItemGroup>
 </Project>

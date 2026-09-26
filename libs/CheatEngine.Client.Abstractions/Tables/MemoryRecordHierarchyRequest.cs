@@ -4,6 +4,11 @@ namespace CheatEngine.Client.Tables;
 public readonly record struct MemoryRecordHierarchyRequest
 {
 	/// <summary>Creates a bounded hierarchy materialization request.</summary>
+	/// <param name="maximumItems">The positive maximum number of snapshots, the root included.</param>
+	/// <param name="maximumDepth">The positive maximum depth; the root has depth one.</param>
+	/// <exception cref="ArgumentOutOfRangeException">
+	///     <paramref name="maximumItems" /> or <paramref name="maximumDepth" /> is zero or negative.
+	/// </exception>
 	public MemoryRecordHierarchyRequest(int maximumItems, int maximumDepth)
 	{
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);

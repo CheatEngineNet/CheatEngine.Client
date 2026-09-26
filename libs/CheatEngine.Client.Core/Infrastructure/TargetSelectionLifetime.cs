@@ -1,5 +1,3 @@
-using CheatEngine.Client.Results;
-
 namespace CheatEngine.Client.Core.Infrastructure;
 
 /// <summary>
@@ -20,7 +18,16 @@ internal sealed class TargetSelectionLifetime(Action<string> activationGuard) : 
 	internal long Epoch => Volatile.Read(ref _epoch);
 
 	/// <summary>Releases every target-bound resource that remains at activation shutdown.</summary>
+	/// <exception cref="AggregateException">Several resources failed to release; the inner exceptions keep attempt order.</exception>
 	public void Dispose()
+	{
+		List<Exception> failures = [];
+		DisposeCollecting(failures);
+		CoreResourceRegistry.ThrowCleanupFailures(failures);
+	}
+
+	/// <summary>Releases every remaining target-bound resource and appends each failure in attempt order.</summary>
+	internal void DisposeCollecting(List<Exception> failures, Action<IDisposable, Exception>? onFailure = null)
 	{
 		IDisposable[] resources;
 		lock (_gate)
@@ -34,7 +41,7 @@ internal sealed class TargetSelectionLifetime(Action<string> activationGuard) : 
 			resources = _resources.DetachAll();
 		}
 
-		CoreResourceRegistry.DisposeDetached(resources);
+		CoreResourceRegistry.DisposeDetached(resources, failures, onFailure);
 	}
 
 	/// <summary>
@@ -75,7 +82,7 @@ internal sealed class TargetSelectionLifetime(Action<string> activationGuard) : 
 				return;
 			}
 
-			throw new CheatEngineClientLifecycleException(operation,
+			throw ClientExceptions.InvalidState(operation,
 				"The target process selection changed, so this resource is no longer valid.");
 		}
 	}
@@ -88,7 +95,7 @@ internal sealed class TargetSelectionLifetime(Action<string> activationGuard) : 
 
 		lock (_gate)
 		{
-			ThrowIfExpiredCore(capturedEpoch, "TargetSelection.Track");
+			ThrowIfExpiredCore(capturedEpoch, "Client.TrackResource");
 			return _resources.Track(resource, capturedEpoch);
 		}
 	}
@@ -113,7 +120,7 @@ internal sealed class TargetSelectionLifetime(Action<string> activationGuard) : 
 			return;
 		}
 
-		throw new CheatEngineClientLifecycleException(operation,
+		throw ClientExceptions.InvalidState(operation,
 			"The target process selection changed, so this resource is no longer valid.");
 	}
 

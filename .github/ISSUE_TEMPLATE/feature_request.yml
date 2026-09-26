@@ -1,0 +1,38 @@
+name: Feature request
+description: Propose a new Client capability or an improvement to an existing one.
+title: "Feature: "
+labels: [ enhancement ]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        CheatEngine.SDK owns native bindings, Lua globals and native resource ownership; CheatEngine.Client composes
+        them. A request that needs a new Cheat Engine primitive usually starts in the CheatEngine.SDK repository.
+        Security problems go through private vulnerability reporting (see SECURITY.md), never through an issue.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What do you want to do, and why is it hard today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed API or behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: dropdown
+    id: sdk-dependency
+    attributes:
+      label: Does it need something CheatEngine.SDK does not expose?
+      options:
+        - "No"
+        - "Yes"
+        - I do not know
+    validations:
+      required: true

@@ -1,25 +1,92 @@
 using System.Diagnostics.CodeAnalysis;
 
+using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Engine.Objects;
 using CheatEngine.SDK.Engine.Scanning.Aob;
+using CheatEngine.SDK.Engine.Targets;
+using CheatEngine.SDK.Engine.Values;
 
 namespace CheatEngine.Client.Core.Domains;
 
 /// <summary>Production adapter that copies and releases the SDK-owned AOB list on the CE dispatch thread.</summary>
+/// <remarks>
+///     <para>
+///         The global route calls <c>AobScanner.TryScanOutcome</c> with its target context and copies both into an
+///         <see cref="AobHostOutcome" />; classification happens in <see cref="PatternScanner" />, never here.
+///     </para>
+///     <para>
+///         The bounded route calls the stable <c>AobScanner.TryScanWithinBounds</c> overload without a call deadline and
+///         copies its result, the Cheat Engine error text and the session release into an
+///         <see cref="AobBoundedHostResult" />; the SDK releases the MemScan session itself, once, before it returns. The
+///         target observation that selects the route goes through <see cref="SdkRuntimeObservationPort" />, the only
+///         Client code that calls <c>TargetSelection</c>.
+///     </para>
+///     <para>
+///         The SDK owner is handed to <see cref="SdkAobMatchList" /> through <see cref="OwnershipHandoff" />, so a failure
+///         between acquisition and publication releases the Cheat Engine list exactly once (audit F13); a release that is
+///         not confirmed then surfaces as an <see cref="OwnershipHandoffException" /> carrying its kind, which
+///         <see cref="PatternScanner" /> reports as <c>CleanupUnconfirmed</c>. After publication
+///         the match list is the single release authority, and it releases through the never-throwing
+///         <c>Owned&lt;StringList&gt;.ReleaseWithOutcome</c>.
+///     </para>
+/// </remarks>
 internal sealed class SdkAobScanPort : IAobScanPort
 {
-	public AobScanHostStatus TryScan(string pattern, AobScanOptions options,
-		[NotNullWhen(true)] out IAobMatchList? matches)
+	public AobHostOutcome TryScan(string pattern, AobScanOptions options, out IAobMatchList? matches)
 	{
 		matches = null;
-		if (!AobScanner.TryScan(pattern, options, out Owned<StringList>? owner))
+		AobScanOutcome outcome = AobScanner.TryScanOutcome(pattern, options, out Owned<StringList>? owner,
+			out AobScanTargetContext context);
+		AobHostOutcome host = new(outcome.Kind, outcome.LuaStatus, outcome.ResultCount,
+			SdkRuntimeObservationPort.Copy(context.Before), SdkRuntimeObservationPort.Copy(context.After));
+
+		// The SDK hands out an owner only with a successful outcome. The guard keeps a contract break (a success
+		// without an owner) from reaching OwnershipHandoff.Adopt, whose ArgumentNullException would otherwise escape a
+		// Try method; PatternScanner classifies that outcome as an invalid host result. An owner handed out with any
+		// other outcome is still adopted, so PatternScanner releases it once.
+		if (owner is null)
 		{
-			return AobScanHostStatus.Rejected;
+			return host;
 		}
 
-		matches = new SdkAobMatchList(owner);
-		return AobScanHostStatus.Success;
+		matches = OwnershipHandoff.Adopt(owner, static acquired => new SdkAobMatchList(acquired),
+			static acquired => SdkReleaseOutcomes.FromTarget(acquired.ReleaseWithOutcome().Status));
+		return host;
+	}
+
+	public AobBoundedHostResult TryScanWithinBounds(string pattern, AobScanBounds bounds, AobScanOptions options,
+		Span<Address> destination, CancellationToken cancellationToken)
+	{
+		// The stable overload without a call deadline: the deadline overload is experimental (CESDK5010).
+		AobBoundedScanResult result =
+			AobScanner.TryScanWithinBounds(pattern, bounds, options, destination, cancellationToken);
+		return new AobBoundedHostResult
+		{
+			Kind = result.Kind,
+			CreationStatus = result.Creation.Status,
+			LuaStatus = result.LuaStatus,
+			HostResultCount = result.HostResultCount,
+			Written = result.Written,
+			RowsRead = result.RowsRead,
+			UnreadHostRows = result.UnreadHostRows,
+			BelowStartSkipped = result.BelowStartSkipped,
+			AtOrAfterStopSkipped = result.AtOrAfterStopSkipped,
+			IsMaterializationLimitReached = result.IsMaterializationLimitReached,
+			HostErrorText = result.HostErrorText,
+			IsHostErrorTextTruncated = result.IsHostErrorTextTruncated,
+			IsHostErrorTextUnreadable = result.IsHostErrorTextUnreadable,
+			HostScanElapsed = result.HostScanElapsed,
+			CopyElapsed = result.CopyElapsed,
+			FoundListRelease = result.Release.FoundList.Status,
+			MemScanRelease = result.Release.MemScan.Status,
+			ReleaseTermination = result.Release.Termination
+		};
+	}
+
+	public TargetSelectionFacts ObserveSelection()
+	{
+		return SdkRuntimeObservationPort.Instance.ObserveSelection();
 	}
 
 	public InspectionStatus EnumerateModules(ModuleInfo[] destination, out int written)
@@ -41,9 +108,17 @@ internal sealed class SdkAobScanPort : IAobScanPort
 			return _owner.Value.TryGetItem(index, out value);
 		}
 
-		public void Dispose()
+		/// <summary>Releases the Cheat Engine list through the SDK owner, once, without throwing.</summary>
+		/// <remarks>
+		///     CheatEngine.SDK 2.0.0 <c>Owned&lt;T&gt;.ReleaseWithOutcome</c> always consumes the owner and never retries
+		///     <c>destroy()</c>: <c>Released</c> after a confirmed destroy, <c>UnconfirmedAfterInvocation</c> when it
+		///     raised, <c>RefusedRuntimeChanged</c> when the owner belongs to a previous Lua runtime, and <c>NotInvoked</c>
+		///     when no Lua operation could be admitted. <see cref="PatternScanner" /> treats every status but
+		///     <c>Released</c> as an unconfirmed release.
+		/// </remarks>
+		public TargetReleaseStatus Release()
 		{
-			_owner.Dispose();
+			return _owner.ReleaseWithOutcome().Status;
 		}
 	}
 }

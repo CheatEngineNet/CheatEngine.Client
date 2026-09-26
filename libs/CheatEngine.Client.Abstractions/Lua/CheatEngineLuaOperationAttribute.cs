@@ -26,6 +26,7 @@ public sealed class CheatEngineLuaOperationAttribute : Attribute
 
 	/// <summary>Initializes operation generation with one explicit static Client result mapper.</summary>
 	/// <param name="mapperType">The type that implements the required static mapper contract.</param>
+	/// <exception cref="ArgumentNullException"><paramref name="mapperType" /> is <see langword="null" />.</exception>
 	public CheatEngineLuaOperationAttribute(Type mapperType)
 	{
 		MapperType = mapperType ?? throw new ArgumentNullException(nameof(mapperType));

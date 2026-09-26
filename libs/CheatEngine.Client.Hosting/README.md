@@ -12,6 +12,49 @@ concrete plugin, whose implicit public constructor may call it.
 The host is intentionally synchronous and in-process. It is not a Generic Host and does not create a process-wide
 service provider, retain a raw Lua state, discover services by reflection, or keep a configuration file watcher alive.
 
+A plugin also inherits CheatEngine.SDK's `protected static` `CheatEnginePlugin.Context`, the raw SDK plugin context of
+the current enable. It is a raw SDK escape hatch outside every guarantee of the Client (activation epochs, main-thread
+dispatch, failure classification, resource ownership and release, redaction): code that uses it, or any other
+CheatEngine.SDK API directly, follows the CheatEngine.SDK contract instead.
+
+## Installation
+
+A plugin references [`CheatEngine.Client`](https://www.nuget.org/packages/CheatEngine.Client), which brings this
+package at exactly its own version, and `CheatEngine.SDK` directly:
+
+| Plugin project requirement | Value |
+|---|---|
+| Target framework | `net10.0` |
+| Language | C# 14 (`<LangVersion>14.0</LangVersion>`) |
+| .NET SDK | 10.0.401 or later: the Lua generator packed in this package is compiled against Roslyn 5.9.0; an older compiler does not run it and reports only warning CS9057 |
+| Platform | Windows x64; `PlatformTarget` is `x64` or `AnyCPU` |
+| Cheat Engine | 7.7.0.10621 x64 (`cheatengine-x86_64.exe`), loading the plugin through its managed .NET host |
+| `CheatEngine.SDK` | A direct `PackageReference` in `[2.0.0, 3.0.0)` |
+
+```xml
+<PropertyGroup>
+  <TargetFramework>net10.0</TargetFramework>
+  <LangVersion>14.0</LangVersion>
+  <Nullable>enable</Nullable>
+  <ImplicitUsings>enable</ImplicitUsings>
+  <PlatformTarget>x64</PlatformTarget>
+  <CheatEngineClientPluginProject>true</CheatEngineClientPluginProject>
+</PropertyGroup>
+
+<ItemGroup>
+  <PackageReference Include="CheatEngine.Client" Version="X.Y.Z" />
+  <PackageReference Include="CheatEngine.SDK" Version="2.0.0" />
+  <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.12" />
+</ItemGroup>
+```
+
+Replace `X.Y.Z` with the installed CheatEngine.Client version. Keep `CheatEngine.SDK` on 2.x: this Client release is
+built and tested against CheatEngine.SDK 2.0.0 and declares `[2.0.0, 3.0.0)`. A 3.x SDK fails the build with
+`CECLIENT017`, and a version below 2.0.0 fails the restore with `NU1605`. The seven Client packages ship in lockstep:
+reference this package directly only at the same version as `CheatEngine.Client`.
+`CheatEngine.Client.Templates` (`dotnet new ceplugin`) writes this project with a complete plugin layout: a bounded
+AOB, memory, Address List and Lua-module example.
+
 ## Why this project exists
 
 Cheat Engine controls plugin construction and the point at which its Lua runtime is attached. Reusing a provider across
@@ -37,14 +80,21 @@ disposes activation configuration. Cleanup failures are aggregated after all cle
 `CheatEnginePluginBuilder`, builds a new provider, and creates one activation scope from that provider. The Core Client
 graph intentionally uses provider-local singleton registrations, so **activation-local** means “owned by this new
 provider,” not “registered with Microsoft DI's `Scoped` lifetime.” A disable/re-enable cycle therefore constructs a
-new Client graph, options cache, deterministic codecs, and module state without mechanically changing their DI
-lifetimes.
+new Client graph, options cache, and module state without mechanically changing their DI lifetimes. The Client
+registers no memory codec: a codec is an application service that the plugin registers in `Services` and passes with
+each codec request.
+
+A new provider per enable isolates this plugin's Client graph from its previous enable epochs; it does **not** isolate
+state that lives outside the container. CheatEngine.SDK static state (`PluginHost` and the current plugin context) and
+Cheat Engine's Lua globals are shared by every plugin that loads the same SDK assemblies into the Cheat Engine process,
+and a DI container cannot separate them. Coexistence of two plugins that share or do not share the SDK assemblies is
+the live scenario Q09 (two plugins in one Cheat Engine process), for which no Client receipt exists yet.
 
 Creating a second `IServiceScope` from the same provider does not create another Client activation. That second scope
 has its own scoped application services and modules, but shares the provider's singleton Client graph, options, and
-codecs; scopes are siblings, not nested activation roots. Hosting opens exactly one such scope for an enable epoch.
-An integrator that needs an external persistent root must first introduce and qualify an explicit activation-factory
-design—repeated `CreateScope()` calls are not a supported substitute.
+application singletons; scopes are siblings, not nested activation roots. Hosting opens exactly one such scope for an
+enable epoch. An integrator that needs an external persistent root must first introduce and qualify an explicit
+activation-factory design—repeated `CreateScope()` calls are not a supported substitute.
 
 The DI container owns the objects that it creates. Hosting never disposes resolved modules or services individually:
 after lifecycle callbacks and Client resource drain, it disposes the activation scope, then the provider, and finally
@@ -60,12 +110,19 @@ attached as secondary diagnostics. No module callback or Client-owned resource d
 created and published. The DI container disposes services it creates; Hosting explicitly releases its host-created
 `ConfigurationManager` only after the scope and provider have been released.
 
-Add configuration sources explicitly and keep reload disabled. The following is the normal plugin shape:
+Add configuration sources explicitly and keep reload disabled. `CheatEnginePluginBuilder` exposes `Configuration`,
+`Services`, `Logging` (the `ILoggingBuilder` of the activation provider), `Client` (the Client registrations) and
+`PluginDirectory`, the folder of the plugin assembly. Resolve the files deployed with the plugin against
+`PluginDirectory`: `AppContext.BaseDirectory` describes the Cheat Engine process that hosts .NET, not the plugin's
+deployment folder. Hosting creates the builder and builds the provider itself; neither is public. The following is the
+normal plugin shape:
 
 ```csharp
 using CheatEngine.Client;
 using CheatEngine.Client.Hosting;
+using CheatEngine.Client.Modules;
 using CheatEngine.SDK.Annotations.Plugin;
+
 using Microsoft.Extensions.Configuration;
 
 namespace MyPlugin;
@@ -76,7 +133,7 @@ public sealed class Plugin : CheatEngineClientPlugin
     protected override void Configure(CheatEnginePluginBuilder builder)
     {
         builder.Configuration
-            .SetBasePath(AppContext.BaseDirectory)
+            .SetBasePath(builder.PluginDirectory)
             .AddJsonFile("appsettings.json", optional: true, reloadOnChange: false);
 
         builder.Client.AddModule<MyClientModule>();
@@ -87,30 +144,57 @@ public sealed class Plugin : CheatEngineClientPlugin
         // Use the client only for this enable epoch.
     }
 }
+
+public sealed class MyClientModule : ICheatEngineClientModule
+{
+    public void OnEnabled(ICheatEngineClient client)
+    {
+        // Runs after the provider, the scope and the client of this enable exist, in registration order.
+    }
+
+    public void OnDisabling(ICheatEngineClient client)
+    {
+        // Runs in reverse registration order, before Client-owned resources are released.
+    }
+}
 ```
+
+## Build diagnostics
 
 Plugin projects must reference `CheatEngine.SDK` directly as well as `CheatEngine.Client`. The SDK's plugin entry-point
 generator and native bridge build assets cannot be supplied through a transitive NuGet dependency. Set
-`CheatEngineClientPluginProject` to `true` to opt into the Hosting profile. It verifies the two direct references
-(`CECLIENT001`/`CECLIENT002`), exactly one attributed `CheatEngineClientPlugin` (`CECLIENT003`/`CECLIENT004`),
-`net10.0`, C# 14, and an x64 or AnyCPU target (`CECLIENT005`–`CECLIENT007`). Disabling the SDK generator additionally
-requires an explicit `CheatEngineClientManualBootstrap=true` acknowledgement; the SDK then validates the exact manual
-entry point (`CECLIENT008` and `CESDK0003`).
+`CheatEngineClientPluginProject` to `true` to opt into the Hosting plugin profile: the build targets this package
+brings (`buildTransitive`) then report the diagnostics below, and nothing else. Every diagnostic's help link points to
+its row. The profile checks run before compilation, the plugin type check right after it, the SDK major check once
+package assets are resolved, and the deployment checks only when `CheatEnginePluginOutputPath` is set (see "Managed
+deployment folder"). `CheatEngineClientSkipPluginProjectValidation=true` skips the profile and plugin type checks, and
+`CheatEngineClientSkipDirectSdkReferenceCheck=true` skips `CECLIENT001` alone; neither is needed by a normal plugin.
 
-```xml
-<PropertyGroup>
-  <CheatEngineClientPluginProject>true</CheatEngineClientPluginProject>
-</PropertyGroup>
+| Code | Severity | Reported when | Fix |
+|---|---|---|---|
+| <a id="CECLIENT001"></a>`CECLIENT001` | Error | The plugin project has no direct `PackageReference` to `CheatEngine.SDK` | Reference `CheatEngine.SDK` 2.x directly: its entry-point generator and Lua bridge run only for a direct reference |
+| <a id="CECLIENT002"></a>`CECLIENT002` | Error | The plugin project has no direct `PackageReference` to `CheatEngine.Client`, for example when it references `CheatEngine.Client.Hosting` only | Reference `CheatEngine.Client` directly |
+| <a id="CECLIENT003"></a>`CECLIENT003` | Error | The compiled assembly declares no `[CheatEnginePlugin]` type derived from `CheatEngineClientPlugin` | Declare exactly one |
+| <a id="CECLIENT004"></a>`CECLIENT004` | Error | The compiled assembly declares more than one such type | Keep one plugin type per assembly |
+| <a id="CECLIENT005"></a>`CECLIENT005` | Error | `TargetFramework` is not exactly `net10.0`, for example `net10.0-windows` | Target `net10.0` |
+| <a id="CECLIENT006"></a>`CECLIENT006` | Error | `LangVersion` is not exactly `14.0` | Set `<LangVersion>14.0</LangVersion>` |
+| <a id="CECLIENT007"></a>`CECLIENT007` | Error | `PlatformTarget` is neither `x64` nor `AnyCPU`: Cheat Engine hosts the plugin in an x64 process | Set `x64` or `AnyCPU` |
+| <a id="CECLIENT008"></a>`CECLIENT008` | Error | `CheatEngineSdkGenerateEntryPoint=false` without `CheatEngineClientManualBootstrap=true` | Keep the generated entry point, or write the exact `CESDK.CESDK.CEPluginInitialize` bootstrap that `CESDK0003` validates and set `CheatEngineClientManualBootstrap=true` |
+| <a id="CECLIENT009"></a>`CECLIENT009` | Error | The plugin type check could not read the compiled assembly's metadata; the message gives the reason | Rebuild; report the message if it persists |
+| <a id="CECLIENT010"></a>`CECLIENT010` | Error | Deployment: the plugin assembly was not produced | Fix the build errors reported before it |
+| <a id="CECLIENT011"></a>`CECLIENT011` | Error | Deployment: no `<AssemblyName>.deps.json` next to the plugin assembly, for example with `GenerateDependencyFile=false` | Let the build generate the dependency manifest |
+| <a id="CECLIENT012"></a>`CECLIENT012` | Error | Deployment: no `<AssemblyName>.runtimeconfig.json` next to the plugin assembly, for example with `GenerateRuntimeConfigurationFiles=false` | Let the build generate the runtime configuration |
+| <a id="CECLIENT013"></a>`CECLIENT013` | Error | Deployment: `CheatEngine.SDK.dll` is not in the build output, for example with `CopyLocalLockFileAssemblies=false` | Reference `CheatEngine.SDK` directly and keep package assemblies copied to the output |
+| <a id="CECLIENT014"></a>`CECLIENT014` | Error | Deployment: `CheatEngine.Client.Hosting.dll` is not in the build output | Reference `CheatEngine.Client` and keep package assemblies copied to the output |
+| <a id="CECLIENT015"></a>`CECLIENT015` | Error | Deployment: `cheatengine-sdk-lua-bridge.dll` is not in the build output, because the direct `CheatEngine.SDK` build asset did not copy it | Reference `CheatEngine.SDK` directly and keep its bridge `Content` item |
+| <a id="CECLIENT016"></a>`CECLIENT016` | Error | Deployment: the output holds no managed file, or staging or replacing a destination file failed; the message gives the reason | Check the destination folder and deploy while the plugin is disabled |
+| <a id="CECLIENT017"></a>`CECLIENT017` | Error; Warning with `CheatEngineClientAllowUnsupportedSdk=true` | The plugin resolves a `CheatEngine.SDK` major this release does not support (3.x or later) | Reference `CheatEngine.SDK` 2.x, or a Client release that supports that SDK |
 
-<ItemGroup>
-  <PackageReference Include="CheatEngine.Client" Version="0.1.0" />
-  <PackageReference Include="CheatEngine.SDK" Version="1.0.0" />
-  <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.12" />
-</ItemGroup>
-```
-
-`CheatEngine.Client.Templates` contains a complete plugin layout that applies this configuration and includes a bounded
-AOB, memory, Address List, and Lua-module example.
+A `CheatEngine.SDK` below 2.0.0 never reaches these checks: the restore fails with `NU1605`. The SDK's own build and
+analyzer diagnostics (`CESDK...`) are documented in the
+[CheatEngine.SDK repository](https://github.com/CheatEngineNet/CheatEngine.SDK/tree/main/analyzers/docs), and those of
+the Lua module generator this package carries (`CECLUA...`) in its
+[README](https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/source-generators/CheatEngine.Client.SourceGenerators.Lua/README.md#diagnostics).
 
 ## Managed deployment folder
 
@@ -122,8 +206,90 @@ dotnet build .\MyPlugin.csproj --configuration Release `
 ```
 
 `PrepareCheatEnginePluginDeployment` runs only for the marked plugin profile and only when that property is non-empty.
-It validates the plugin DLL, manifests, Client/SDK managed closure, and the SDK Lua bridge, stages the complete output,
-then replaces each destination file with Windows write-through replacement semantics. It does not inspect or change a
-Cheat Engine installation, runtime configuration, or plugin list. Windows cannot atomically replace a non-empty
-directory, so deploy while the plugin is disabled; destination files are individually never copied in a partially
-written state.
+It validates the plugin DLL, manifests, Client/SDK managed closure, and the SDK Lua bridge before anything is written
+(`CECLIENT010` to `CECLIENT015`), stages the complete output, then replaces each destination file with Windows
+write-through replacement semantics (`CECLIENT016` when that fails). It does not inspect or change a Cheat Engine
+installation, runtime configuration, or plugin list. Windows cannot atomically replace a non-empty directory, so deploy
+while the plugin is disabled; destination files are individually never copied in a partially written state.
+
+## Cleanup diagnostics and redaction
+
+Disable runs every cleanup stage even after an earlier stage fails, in this order: `CleanupScope` (the main-thread
+cleanup scope), `ModuleCallbacks` (application hook, then modules in reverse order), `ClientResources` (Client-owned
+Cheat Engine resources, while the SDK context is still attached), then `Scope`, `Provider`, and `Configuration`. One
+failure is rethrown unchanged; several are reported together as one `AggregateException` in attempt order. Core applies
+the same rule to its own resource registries, so a faulty module or lease never prevents the next release.
+
+Once per enable, before the modules start, event 20 (`ActivationIdentified`, Information) identifies the activation:
+epoch, plugin type name, CheatEngine.Client version, the consumed CheatEngine.SDK version and NuGet content hash
+embedded at build time, the informational version of the loaded `CheatEngine.SDK.Engine` with a label that says whether
+it is the reviewed package, another release of the supported major that the package gate accepts, or a release outside
+that range, the package evidence state, and the supported host profile id `ce-7.7.0.10621-x64-managed-hostfxr`. It is
+built from assembly metadata only: no path, no file read, and no Lua call. The Core diagnostic events (1000–1800) are
+described in the
+[`CheatEngine.Client.Core` README](https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/libs/CheatEngine.Client.Core/README.md#diagnostics-events).
+
+Each failed stage is logged as event 6 with the activation epoch, the stable stage name, and the exception **type**
+name only; event 7 reports how many stages were attempted and how many failed; event 5 reports the failure count.
+Hosting never logs exception messages, addresses, values, symbol expressions, file paths, or Lua text: those are user
+data and belong to the application's explicit opt-in; `CheatEngineFailure.ToString()` follows the same rule. Logging is
+best effort: a logging provider that throws cannot abort enable, disable, or any remaining cleanup stage.
+
+After the `ClientResources` stage and before the scope is disposed, Hosting reads CheatEngine.SDK's sticky external
+Lua state reset fact once. When CheatEngine.SDK detected, during the activation or during those releases, that Cheat
+Engine replaced its Lua state outside the plugin's control, event 8 (`ExternalLuaStateResetDetected`, Warning, epoch
+only) says so: Lua work is refused until the next enable, and the Lua-bound releases were refused rather than made into
+the replacement state. The read is a lock-free flag read, not a runtime snapshot: once CheatEngine.SDK detected the
+reset it refuses every Lua admission, the snapshot's included. A read that fails changes nothing. A reset that
+CheatEngine.SDK first detects when it detaches Lua, after the Client cleanup, is reported only by the SDK's own
+`LuaStateReplacedExternally:` host log line.
+
+## Cheat Engine host log (opt-in)
+
+`builder.Logging.AddCheatEngineHostLog()` adds a logging provider that writes to CheatEngine.SDK's host log
+(`CheatEngine.SDK.Hosting.Diagnostics.HostLog`), whose default sink is the Windows debug output of the Cheat Engine
+process, shown by an attached debugger or a debug-output viewer. Nothing is added by default.
+
+- Levels map to the four host log levels: `Trace` and `Debug` to `Trace`, `Information` to `Information`, `Warning` to
+  `Warning`, and `Error` and `Critical` to `Error`; `None` is never written. An entry is written only when the logging
+  filters admit it **and** `HostLog.IsEnabled` accepts its host level. `HostLog.MinimumLevel` is `Information` by
+  default, so `Debug` and `Trace` entries need `HostLog.MinimumLevel = HostLogLevel.Trace`.
+- By default an entry is `category[event id]: template`, the **message template** of the entry (for example
+  `Cheat Engine Client activation {Epoch} enabled.`), followed by the exception type name. Placeholder values and
+  exception messages are never written, because they can hold addresses, values, symbol expressions, paths, or Lua text
+  (Q46). The template is written as the caller passed it: a message built by string interpolation, such as
+  `logger.LogInformation($"Read {address}")`, is its own template and carries its values. Plugin code keeps them out of
+  the host log only by logging constant structured templates or `LoggerMessage` methods, as the Client's own events do.
+  `AddCheatEngineHostLog(options => options.IncludeFormattedMessages = true)` writes the formatted message and the
+  exception instead; use it only to troubleshoot on a machine you control.
+- The provider is added once: a later call adds nothing and keeps the options of the first call.
+- The host log, its sink, and its minimum level belong to CheatEngine.SDK and are shared by every plugin that loads the
+  same SDK assemblies. A sink that routes host log entries back into `ILogger` is contained: the host log drops the
+  re-entrant entry instead of recursing.
+
+CheatEngine.SDK can also write its own bounded identification line, `CheatEngineSdkIdentification` (SDK version, native
+bridge fingerprint, bound Lua module hash, Cheat Engine and runtime versions, never a user path), at the start of every
+enable attempt. It is off by default. Set `HostLog.IdentifyOnEnable = true` from a `[ModuleInitializer]` method, which
+runs before any plugin code, so that it also covers the first enable; or set the environment variable
+`CHEATENGINE_SDK_IDENTIFY_ON_ENABLE=1` for the Cheat Engine process, without rebuilding the plugin. Either one is
+enough. The Client's own identification is event 20 above. A plugin assembly is the application Cheat Engine loads, so
+the library warning CA2255 on a module initializer does not apply to it:
+
+```csharp
+using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
+
+using CheatEngine.SDK.Hosting.Diagnostics;
+
+namespace MyPlugin;
+
+internal static class HostLogSetup
+{
+    [ModuleInitializer]
+    [SuppressMessage("Usage", "CA2255", Justification = "A plugin assembly is the application Cheat Engine loads.")]
+    internal static void IdentifyEveryEnable()
+    {
+        HostLog.IdentifyOnEnable = true;
+    }
+}
+```

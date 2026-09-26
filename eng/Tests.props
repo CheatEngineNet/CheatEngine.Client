@@ -16,6 +16,12 @@
     <PackageReference Include="xunit.v3.mtp-v2"/>
     <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage"/>
     <PackageReference Include="Microsoft.Testing.Extensions.TrxReport"/>
+    <!-- CI passes one option set (report-gh, hangdump, crashdump) to every module of its single solution test run. A
+         module that lacks the extension owning an option fails with exit code 5, so every *.Tests project references
+         all of them (https://learn.microsoft.com/dotnet/core/tools/dotnet-test-mtp). -->
+    <PackageReference Include="Microsoft.Testing.Extensions.GitHubActionsReport"/>
+    <PackageReference Include="Microsoft.Testing.Extensions.HangDump"/>
+    <PackageReference Include="Microsoft.Testing.Extensions.CrashDump"/>
     <Using Include="Xunit"/>
   </ItemGroup>
 </Project>

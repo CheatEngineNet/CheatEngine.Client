@@ -14,10 +14,11 @@ namespace CheatEngine.Client.SourceGenerators.Lua.Tests.Infrastructure;
 
 internal sealed class GeneratorRun
 {
-	private GeneratorRun(GeneratorDriver driver, GeneratorDriverRunResult result, Compilation outputCompilation,
-		ImmutableArray<Diagnostic> diagnostics)
+	private GeneratorRun(GeneratorDriver driver, GeneratorDriverRunResult result, Compilation inputCompilation,
+		Compilation outputCompilation, ImmutableArray<Diagnostic> diagnostics)
 	{
 		Driver = driver;
+		InputCompilation = inputCompilation;
 		Result = result;
 		OutputCompilation = outputCompilation;
 		Diagnostics = diagnostics;
@@ -29,6 +30,12 @@ internal sealed class GeneratorRun
 	}
 
 	public GeneratorDriverRunResult Result
+	{
+		get;
+	}
+
+	/// <summary>Gets the compilation the generator ran on, without the generated trees.</summary>
+	public Compilation InputCompilation
 	{
 		get;
 	}
@@ -47,15 +54,49 @@ internal sealed class GeneratorRun
 
 	public static GeneratorRun Execute(string source)
 	{
+		return Execute([source], []);
+	}
+
+	/// <summary>Runs the generator over several source files, optionally with extra metadata references.</summary>
+	public static GeneratorRun Execute(string[] sources, MetadataReference[] additionalReferences)
+	{
+		ArgumentNullException.ThrowIfNull(sources);
+		ArgumentNullException.ThrowIfNull(additionalReferences);
+
+		return ExecuteFiles(
+			[.. sources.Select((source, index) => (sources.Length == 1 ? string.Empty : $"Source{index}.cs", source))],
+			additionalReferences);
+	}
+
+	/// <summary>Runs the generator over source files with explicit paths, in the given syntax-tree order.</summary>
+	public static GeneratorRun ExecuteFiles((string Path, string Source)[] files,
+		MetadataReference[]? additionalReferences = null)
+	{
+		return ExecuteFiles(files, additionalReferences, []);
+	}
+
+	/// <summary>
+	///     Runs the Client generator next to <paramref name="otherGenerators" /> over source files with explicit paths, so
+	///     the output compilation contains what every generator emitted.
+	/// </summary>
+	public static GeneratorRun ExecuteFiles((string Path, string Source)[] files,
+		MetadataReference[]? additionalReferences, ISourceGenerator[] otherGenerators)
+	{
+		ArgumentNullException.ThrowIfNull(files);
+		ArgumentNullException.ThrowIfNull(otherGenerators);
+
 		CSharpParseOptions parseOptions = new(LanguageVersion.CSharp14);
-		SyntaxTree syntaxTree = CSharpSyntaxTree.ParseText(SourceText.From(source), parseOptions);
+		SyntaxTree[] syntaxTrees =
+		[
+			.. files.Select(file => CSharpSyntaxTree.ParseText(SourceText.From(file.Source), parseOptions, file.Path))
+		];
 		CSharpCompilation compilation = CSharpCompilation.Create(
 			"CheatEngineClientLuaGeneratorTests",
-			[syntaxTree],
-			GetMetadataReferences(),
+			syntaxTrees,
+			[.. GetMetadataReferences(), .. additionalReferences ?? []],
 			new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, allowUnsafe: true));
 		GeneratorDriver driver = CSharpGeneratorDriver.Create(
-			[new CheatEngineLuaGenerator().AsSourceGenerator()],
+			[new CheatEngineLuaGenerator().AsSourceGenerator(), .. otherGenerators],
 			parseOptions: parseOptions,
 			driverOptions: new GeneratorDriverOptions(IncrementalGeneratorOutputKind.None,
 				true));
@@ -69,7 +110,7 @@ internal sealed class GeneratorRun
 			out Compilation outputCompilation,
 			out ImmutableArray<Diagnostic> diagnostics,
 			TestContext.Current.CancellationToken);
-		return new GeneratorRun(updated, updated.GetRunResult(), outputCompilation, diagnostics);
+		return new GeneratorRun(updated, updated.GetRunResult(), compilation, outputCompilation, diagnostics);
 	}
 
 	public string GeneratedText(string suffix)

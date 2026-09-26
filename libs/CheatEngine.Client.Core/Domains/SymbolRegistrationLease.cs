@@ -1,70 +1,92 @@
+using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Inspection;
+using CheatEngine.Client.Results;
 using CheatEngine.SDK.Engine.Values;
 
 namespace CheatEngine.Client.Core.Domains;
 
-/// <summary>Activation-owned release path for a custom symbol that Client registered in Cheat Engine.</summary>
-internal sealed class SymbolRegistrationLease(
-	SymbolRegistration registration,
-	ICheatEngineDispatcher dispatcher,
-	Action<SymbolRegistrationLease> untrack,
-	Action<string> unregisterSymbol,
-	Action<string> releaseName) : ISymbolRegistrationLease
+/// <summary>The activation-owned lease of one symbol that CheatEngine.SDK's ownership coordinator registered.</summary>
+/// <remarks>
+///     <para>
+///         <see cref="InspectionClient" /> ran the collision pre-check before the registration (audit A14-25, A14-39);
+///         the release delegates to the SDK lease (<c>SymbolRegistrationLease.Release</c>), which unregisters the name
+///         only while it still resolves to the leased address and no newer registration of the name through the SDK
+///         coordinator superseded it. <see cref="SdkReleaseOutcomes.FromSymbolRegistration" /> maps its kind:
+///     </para>
+///     <list type="table">
+///         <listheader>
+///             <term>SDK kind</term>
+///             <description>Client outcome</description>
+///         </listheader>
+///         <item><term><c>Released</c></term><description><c>Released</c>, <c>Completed</c></description></item>
+///         <item><term><c>AlreadyReleased</c></term><description><c>AlreadyReleased</c>, <c>NotStarted</c></description></item>
+///         <item><term><c>Superseded</c></term><description><c>Superseded</c>, <c>NotStarted</c></description></item>
+///         <item><term><c>StaleRuntime</c></term><description><c>RefusedRuntimeChanged</c>, <c>NotStarted</c></description></item>
+///         <item><term><c>CleanupUnavailable</c></term><description><c>CleanupUnavailable</c>, <c>NotStarted</c> (retryable)</description></item>
+///         <item><term><c>CleanupIndeterminate</c></term><description><c>CleanupUnconfirmed</c>, <c>Started</c></description></item>
+///         <item><term><c>Replaced</c></term><description><c>Replaced</c>, <c>NotStarted</c></description></item>
+///         <item><term><c>ExternallyRemoved</c></term><description><c>ExternallyRemoved</c>, <c>NotStarted</c></description></item>
+///         <item><term><c>Unknown</c> or an undefined kind</term><description><c>Unknown</c>, <c>Unknown</c> (retryable)</description></item>
+///     </list>
+///     <para>
+///         <see cref="HostResourceLease" /> runs the release on Cheat Engine's main thread, keeps a retryable outcome
+///         registered with the activation and reports an incomplete one at deactivation (audit Q43). Once an outcome is
+///         no longer retryable the lease owns nothing that a later attempt could release, so it gives the
+///         activation-local name reservation back, including after an SDK fault; a retryable outcome keeps it.
+///     </para>
+/// </remarks>
+internal sealed class SymbolRegistrationLease : HostResourceLease, ISymbolRegistrationLease
 {
-	private readonly ICheatEngineDispatcher _dispatcher =
-		dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
+	/// <summary>The stable operation name of the release, the only text its logs and reports carry.</summary>
+	internal const string ReleaseOperation = "Inspection.Release";
 
-	private readonly Lock _gate = new();
-	private readonly Action<string> _releaseName = releaseName ?? throw new ArgumentNullException(nameof(releaseName));
+	/// <summary>What the base lease records when the SDK release faults: a call may have begun.</summary>
+	private static readonly LeaseReleaseOutcome FaultedOutcome =
+		new(LeaseReleaseKind.CleanupUnconfirmed, CheatEngineHostEffect.Unknown);
 
-	private readonly Action<string> _unregisterSymbol =
-		unregisterSymbol ?? throw new ArgumentNullException(nameof(unregisterSymbol));
+	private readonly ISymbolRegistrationHandle _handle;
+	private readonly Action<string> _releaseName;
 
-	private readonly Action<SymbolRegistrationLease> _untrack =
-		untrack ?? throw new ArgumentNullException(nameof(untrack));
-
-	private int _released;
+	/// <summary>Creates the lease of one registration.</summary>
+	/// <param name="registration">The registered name and address.</param>
+	/// <param name="handle">The SDK release handle of the registration.</param>
+	/// <param name="dispatcher">The activation dispatcher that runs the release on Cheat Engine's main thread.</param>
+	/// <param name="releaseName">Gives the activation-local name reservation back.</param>
+	/// <param name="diagnostics">The activation diagnostics; nothing is logged when omitted.</param>
+	internal SymbolRegistrationLease(SymbolRegistration registration, ISymbolRegistrationHandle handle,
+		ICheatEngineDispatcher dispatcher, Action<string> releaseName, ICoreDiagnostics? diagnostics = null)
+		: base(ReleaseOperation, dispatcher, diagnostics)
+	{
+		_handle = handle ?? throw new ArgumentNullException(nameof(handle));
+		_releaseName = releaseName ?? throw new ArgumentNullException(nameof(releaseName));
+		Name = registration.Name;
+		Address = registration.Address;
+	}
 
 	public string Name
 	{
 		get;
-	} = registration.Name;
+	}
 
 	public Address Address
 	{
 		get;
-	} = registration.Address;
+	}
 
-	public bool IsReleased => Volatile.Read(ref _released) != 0;
-
-	public void Dispose()
+	protected override LeaseReleaseOutcome ReleaseOnMainThread()
 	{
-		lock (_gate)
+		LeaseReleaseOutcome outcome = FaultedOutcome;
+		try
 		{
-			if (Volatile.Read(ref _released) != 0)
+			outcome = SdkReleaseOutcomes.FromSymbolRegistration(_handle.Release());
+			return outcome;
+		}
+		finally
+		{
+			if (!outcome.IsRetryable)
 			{
-				return;
-			}
-
-			// Keep the lease active and registered when normal dispatch admission is closed during disable. The hosting
-			// cleanup scope can then retry this exact disposal on CE's main thread before Lua detaches.
-			_dispatcher.Invoke(() => _unregisterSymbol(Name));
-
-			try
-			{
-				_untrack(this);
-			}
-			finally
-			{
-				try
-				{
-					_releaseName(Name);
-				}
-				finally
-				{
-					Volatile.Write(ref _released, 1);
-				}
+				_releaseName(Name);
 			}
 		}
 	}

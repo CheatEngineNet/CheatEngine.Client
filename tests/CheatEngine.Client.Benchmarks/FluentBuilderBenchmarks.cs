@@ -1,9 +1,9 @@
+using System.Reflection;
+
 using BenchmarkDotNet.Attributes;
 
 using CheatEngine.Client.Memory;
 using CheatEngine.SDK.Engine.Values;
-
-using MemoryFluent = CheatEngine.Client.Memory.Memory;
 
 namespace CheatEngine.Client.Benchmarks;
 
@@ -13,20 +13,25 @@ namespace CheatEngine.Client.Benchmarks;
 public class FluentBuilderBenchmarks
 {
 	private Address _address;
+	private IMemoryClient _memory = null!;
 
-	/// <summary>Initializes a non-constant input so the JIT cannot fold the fluent operation.</summary>
+	/// <summary>
+	///     Initializes a non-constant input so the JIT cannot fold the fluent operation, and the memory service the
+	///     builders are bound to; building never calls that service.
+	/// </summary>
 	[GlobalSetup]
 	public void Setup()
 	{
 		_address = 0x401000UL;
+		_memory = DispatchProxy.Create<IMemoryClient, UnusedMemoryProxy>();
 	}
 
-	/// <summary>Measures one unbound pure-builder creation without a Client-to-SDK transition.</summary>
+	/// <summary>Measures one bound pure-builder creation without a Client-to-SDK transition.</summary>
 	[Benchmark]
 	[BenchmarkCategory("PureBuilder", "AllocationGate")]
-	public MemoryAddressBuilder CreateUnboundBuilder()
+	public MemoryAddressBuilder CreateBoundBuilder()
 	{
-		return MemoryFluent.At(_address);
+		return _memory.At(_address);
 	}
 
 	/// <summary>Measures the builder construction and its copied address projection.</summary>
@@ -34,6 +39,16 @@ public class FluentBuilderBenchmarks
 	[BenchmarkCategory("PureBuilder", "AllocationGate")]
 	public Address CreateAndProjectAddress()
 	{
-		return MemoryFluent.At(_address).Address;
+		return _memory.At(_address).Address;
+	}
+
+	/// <summary>The memory service a measured builder is bound to; a benchmark never runs a terminal.</summary>
+	public class UnusedMemoryProxy : DispatchProxy
+	{
+		/// <inheritdoc />
+		protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
+		{
+			throw new NotSupportedException("Building a Fluent memory operation must not call the memory service.");
+		}
 	}
 }

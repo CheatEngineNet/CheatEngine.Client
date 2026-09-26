@@ -1,0 +1,76 @@
+name: Bug report
+description: A Client API, package or template behaves incorrectly; load or host problems use the compatibility report.
+title: "Bug: "
+labels: [ bug ]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If the problem depends on the Cheat Engine build, its .NET runtime policy or plugin loading, use the
+        **Compatibility report** form instead: it records the exact tuple needed to investigate.
+        Security problems go through private vulnerability reporting (see SECURITY.md), never through an issue.
+  - type: input
+    id: client-version
+    attributes:
+      label: CheatEngine.Client version
+      description: All CheatEngine.Client* packages share one version. Read it from your packages.lock.json.
+      placeholder: 1.0.0
+    validations:
+      required: true
+  - type: input
+    id: sdk-version
+    attributes:
+      label: CheatEngine.SDK version resolved in packages.lock.json
+      placeholder: 2.0.0
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Abstractions (public contracts, options, failures, leases)
+        - Fluent API
+        - Core (processes, memory, AOB scanning, inspection and symbols, tables, protected Lua)
+        - Experimental APIs (value scans, allocations, instructions, Auto Assembler patches; CECLIENT5001-5004)
+        - Hosting and dependency injection
+        - Lua source generator
+        - Template (dotnet new ceplugin)
+        - Packaging
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: A minimal code sample or project is best.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      description: Include the exact exception, or the CheatEngineFailure kind and operation name.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Redacted logs
+      render: text
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmations
+      options:
+        - label: I removed user names, private paths and target-memory contents from this report.
+          required: true
+        - label: This is not a security vulnerability.
+          required: true

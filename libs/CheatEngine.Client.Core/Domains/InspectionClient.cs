@@ -7,6 +7,7 @@ using CheatEngine.Client.Inspection;
 using CheatEngine.Client.Results;
 using CheatEngine.SDK.Engine.Inspection;
 using CheatEngine.SDK.Engine.Values;
+using CheatEngine.SDK.Lua.Calls;
 
 namespace CheatEngine.Client.Core.Domains;
 
@@ -15,32 +16,48 @@ internal sealed class InspectionClient(
 	CoreLifetime lifetime,
 	IInspectionPort? inspection = null) : IInspectionClient
 {
+	private const string RegisterOperation = "Inspection.RegisterSymbol";
+
+	private const string ResolveNameOperation = "Inspection.ResolveName";
+
 	private readonly SdkMainThreadDispatcher _dispatcher =
 		dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
 
 	private readonly IInspectionPort _inspection = inspection ?? new SdkInspectionPort();
 
 	private readonly CoreLifetime _lifetime = lifetime ?? throw new ArgumentNullException(nameof(lifetime));
-	private readonly HashSet<string> _registeredSymbolNames = new(StringComparer.Ordinal);
+
+	// Cheat Engine's case rules for user symbols are not established, so the activation-local reservation is
+	// conservative: names that differ only by case are treated as the same name.
+	private readonly HashSet<string> _registeredSymbolNames = new(StringComparer.OrdinalIgnoreCase);
 	private readonly Lock _registeredSymbolNamesLock = new();
 
-	public bool TryGetModules(InspectionCollectionRequest request, out ImmutableArray<ModuleInfo> modules,
-		out CheatEngineFailure failure, TargetProcessId? processId = null,
+	public bool TryGetModules(InspectionCollectionRequest request, TargetProcessId? processId,
+		out ImmutableArray<ModuleInfo> modules, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
+		// Arguments first, then the activation: an ended or stopping activation throws before any failure.
+		ValidateCollectionRequest(request);
+		if (processId is { Value: <= 0 } invalidProcessId)
+		{
+			throw new ArgumentOutOfRangeException(nameof(processId), invalidProcessId.Value,
+				"A target process identifier must be positive.");
+		}
+
+		_lifetime.ThrowIfDispatchRefused("Inspection.GetModules");
 		ImmutableArray<ModuleInfo> result = ImmutableArray<ModuleInfo>.Empty;
 		InspectionStatus status = InspectionStatus.InvalidResult;
-		if (!_dispatcher.TryInvoke(() =>
-		    {
-			    ModuleInfo[] buffer = new ModuleInfo[request.MaximumItems];
-			    status = processId.HasValue
-				    ? _inspection.EnumerateModules(processId.Value, buffer, out int written)
-				    : _inspection.EnumerateModules(buffer, out written);
-			    if (status == InspectionStatus.Success)
-			    {
-				    result = ImmutableArray.Create(buffer, 0, written);
-			    }
-		    }, out failure, cancellationToken))
+		if (!SdkBoundary.TryInvoke(_dispatcher, "Inspection.GetModules", () =>
+			{
+				ModuleInfo[] buffer = new ModuleInfo[request.MaximumItems];
+				status = processId.HasValue
+					? _inspection.EnumerateModules(processId.Value, buffer, out int written)
+					: _inspection.EnumerateModules(buffer, out written);
+				if (status == InspectionStatus.Success)
+				{
+					result = ImmutableArray.Create(buffer, 0, written);
+				}
+			}, CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
 		{
 			modules = [];
 			return false;
@@ -53,13 +70,13 @@ internal sealed class InspectionClient(
 	public ImmutableArray<ModuleInfo> GetModules(InspectionCollectionRequest request,
 		TargetProcessId? processId = null, CancellationToken cancellationToken = default)
 	{
-		if (TryGetModules(request, out ImmutableArray<ModuleInfo> result, out CheatEngineFailure failure, processId,
-			    cancellationToken))
+		if (TryGetModules(request, processId, out ImmutableArray<ModuleInfo> result, out CheatEngineFailure failure,
+				cancellationToken))
 		{
 			return result;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return [];
 	}
 
@@ -67,17 +84,26 @@ internal sealed class InspectionClient(
 		out ImmutableArray<ModuleSectionInfo> sections, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
+		// Arguments first, then the activation: an ended or stopping activation throws before any failure.
+		if (string.IsNullOrWhiteSpace(moduleName.Value))
+		{
+			throw new ArgumentException("A module name must not be empty; the default module name has none.",
+				nameof(moduleName));
+		}
+
+		ValidateCollectionRequest(request);
+		_lifetime.ThrowIfDispatchRefused("Inspection.GetModuleSections");
 		ImmutableArray<ModuleSectionInfo> result = ImmutableArray<ModuleSectionInfo>.Empty;
 		InspectionStatus status = InspectionStatus.InvalidResult;
-		if (!_dispatcher.TryInvoke(() =>
-		    {
-			    ModuleSectionInfo[] buffer = new ModuleSectionInfo[request.MaximumItems];
-			    status = _inspection.EnumerateSections(moduleName, buffer, out int written);
-			    if (status == InspectionStatus.Success)
-			    {
-				    result = ImmutableArray.Create(buffer, 0, written);
-			    }
-		    }, out failure, cancellationToken))
+		if (!SdkBoundary.TryInvoke(_dispatcher, "Inspection.GetModuleSections", () =>
+			{
+				ModuleSectionInfo[] buffer = new ModuleSectionInfo[request.MaximumItems];
+				status = _inspection.EnumerateSections(moduleName, buffer, out int written);
+				if (status == InspectionStatus.Success)
+				{
+					result = ImmutableArray.Create(buffer, 0, written);
+				}
+			}, CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
 		{
 			sections = [];
 			return false;
@@ -91,12 +117,12 @@ internal sealed class InspectionClient(
 		InspectionCollectionRequest request, CancellationToken cancellationToken = default)
 	{
 		if (TryGetModuleSections(moduleName, request, out ImmutableArray<ModuleSectionInfo> result,
-			    out CheatEngineFailure failure, cancellationToken))
+				out CheatEngineFailure failure, cancellationToken))
 		{
 			return result;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return [];
 	}
 
@@ -104,17 +130,20 @@ internal sealed class InspectionClient(
 		out ImmutableArray<MemoryRegionInfo> regions, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
+		// Arguments first, then the activation: an ended or stopping activation throws before any failure.
+		ValidateCollectionRequest(request);
+		_lifetime.ThrowIfDispatchRefused("Inspection.GetMemoryRegions");
 		ImmutableArray<MemoryRegionInfo> result = [];
 		InspectionStatus status = InspectionStatus.InvalidResult;
-		if (!_dispatcher.TryInvoke(() =>
-		    {
-			    MemoryRegionInfo[] buffer = new MemoryRegionInfo[request.MaximumItems];
-			    status = _inspection.EnumerateMemoryRegions(buffer, out int written);
-			    if (status == InspectionStatus.Success)
-			    {
-				    result = ImmutableArray.Create(buffer, 0, written);
-			    }
-		    }, out failure, cancellationToken))
+		if (!SdkBoundary.TryInvoke(_dispatcher, "Inspection.GetMemoryRegions", () =>
+			{
+				MemoryRegionInfo[] buffer = new MemoryRegionInfo[request.MaximumItems];
+				status = _inspection.EnumerateMemoryRegions(buffer, out int written);
+				if (status == InspectionStatus.Success)
+				{
+					result = ImmutableArray.Create(buffer, 0, written);
+				}
+			}, CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
 		{
 			regions = [];
 			return false;
@@ -128,22 +157,24 @@ internal sealed class InspectionClient(
 		CancellationToken cancellationToken = default)
 	{
 		if (TryGetMemoryRegions(request, out ImmutableArray<MemoryRegionInfo> result, out CheatEngineFailure failure,
-			    cancellationToken))
+				cancellationToken))
 		{
 			return result;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return [];
 	}
 
 	public bool TryGetMemoryRegion(Address address, out MemoryRegionInfo region,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
+		_lifetime.ThrowIfDispatchRefused("Inspection.GetMemoryRegion");
 		MemoryRegionInfo captured = default;
 		InspectionStatus status = InspectionStatus.InvalidResult;
-		if (!_dispatcher.TryInvoke(() => status = _inspection.GetMemoryRegion(address, out captured),
-			    out failure, cancellationToken))
+		if (!SdkBoundary.TryInvoke(_dispatcher, "Inspection.GetMemoryRegion",
+				() => status = _inspection.GetMemoryRegion(address, out captured), CheatEngineHostEffect.Unknown,
+				_lifetime, out failure, cancellationToken))
 		{
 			region = default;
 			return false;
@@ -160,17 +191,20 @@ internal sealed class InspectionClient(
 			return result;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return default;
 	}
 
 	public bool TryGetSymbol(SymbolExpression expression, out SymbolInfo symbol,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
+		ValidateExpression(expression);
+		_lifetime.ThrowIfDispatchRefused("Inspection.GetSymbol");
 		SymbolInfo captured = default;
 		InspectionStatus status = InspectionStatus.InvalidResult;
-		if (!_dispatcher.TryInvoke(() => status = _inspection.GetSymbol(expression, out captured),
-			    out failure, cancellationToken))
+		if (!SdkBoundary.TryInvoke(_dispatcher, "Inspection.GetSymbol",
+				() => status = _inspection.GetSymbol(expression, out captured), CheatEngineHostEffect.Unknown,
+				_lifetime, out failure, cancellationToken))
 		{
 			symbol = default;
 			return false;
@@ -187,36 +221,32 @@ internal sealed class InspectionClient(
 			return result;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return default;
 	}
 
 	public bool TryResolveName(Address address, [NotNullWhen(true)] out string? name, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
+		_lifetime.ThrowIfDispatchRefused(ResolveNameOperation);
 		string? captured = null;
-		bool succeeded = false;
-		if (!_dispatcher.TryInvoke(() =>
-				    succeeded = _inspection.TryResolveName(ToNativeAddress(address), out captured),
-			    out failure,
-			    cancellationToken))
+		LuaOperationStatus status = default;
+		if (!SdkBoundary.TryInvoke(_dispatcher, ResolveNameOperation,
+				() => status = _inspection.TryGetName(address, out captured),
+				CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
 		{
 			name = null;
 			return false;
 		}
 
-		if (succeeded && captured is not null)
+		if (status.IsSuccess && captured is not null)
 		{
 			name = captured;
 			return true;
 		}
 
 		name = null;
-		failure = succeeded
-			? new CheatEngineFailure(CheatEngineFailureKind.InvalidHostResult, "Inspection.ResolveName",
-				"Cheat Engine returned an invalid symbol-name result.")
-			: new CheatEngineFailure(CheatEngineFailureKind.NotFound, "Inspection.ResolveName",
-				"Cheat Engine did not return a symbol name for the requested address.");
+		failure = InspectionMapping.NameLookupFailure(ResolveNameOperation, status.Kind);
 		return false;
 	}
 
@@ -227,7 +257,7 @@ internal sealed class InspectionClient(
 			return result;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return string.Empty;
 	}
 
@@ -236,73 +266,88 @@ internal sealed class InspectionClient(
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
 		lease = null;
-		_lifetime.ThrowIfInactive("Inspection.RegisterSymbol");
+		if (string.IsNullOrWhiteSpace(registration.Name))
+		{
+			// Only the default registration has no name: its constructor throws for an empty one.
+			throw new ArgumentException(
+				"A symbol registration must name the symbol; the default registration has no name.",
+				nameof(registration));
+		}
+
+		_lifetime.ThrowIfInactive(RegisterOperation);
 		if (!TryReserveSymbolName(registration.Name, out failure))
 		{
 			return false;
 		}
 
-		if (!_dispatcher.TryInvoke(() => _inspection.RegisterSymbol(registration.Name,
-			    ToNativeAddress(registration.Address), registration.DoNotSave), out failure, cancellationToken))
+		// The collision pre-check, the registration and the activation ownership run in one dispatched callback (audit
+		// A14-25, A14-39): CheatEngine.SDK keeps Cheat Engine's behavior for an existing name, so registerSymbol would
+		// shadow or replace a definition that already resolves, and only a name that resolves to nothing is registered.
+		// An SDK fault inside the registration leaves it unknown: the Client neither claims it nor retries an
+		// unregistration by name. A registration CheatEngine.SDK could not hand over (SymbolRegistrationHandoffException)
+		// was compensated once by the SDK, and SdkBoundary reports it CleanupUnconfirmed.
+		RegistrationStep step = default;
+		bool dispatched;
+		try
+		{
+			dispatched = SdkBoundary.TryInvoke(_dispatcher, RegisterOperation,
+				() => step = RegisterOnMainThread(registration), CheatEngineHostEffect.Unknown, _lifetime, out failure,
+				cancellationToken);
+		}
+		catch (Exception)
+		{
+			// A lifecycle exception of the dispatch or of the callback's admission registered nothing.
+			ReleaseSymbolName(registration.Name);
+			throw;
+		}
+
+		if (!dispatched)
 		{
 			ReleaseSymbolName(registration.Name);
 			return false;
 		}
 
-		SymbolRegistrationLease created = new(
-			registration,
-			_dispatcher,
-			lease => _lifetime.Untrack(lease),
-			_inspection.UnregisterSymbol,
-			ReleaseSymbolName);
-		try
+		if (step.Lease is { } created)
 		{
-			_lifetime.Track(created);
 			lease = created;
 			failure = default;
 			return true;
 		}
-		catch (Exception exception)
-		{
-			try
-			{
-				created.Dispose();
-			}
-			catch
-			{
-				// The original lifecycle failure is the meaningful result. Release the name below only if disposal did not.
-			}
 
-			if (!created.IsReleased)
-			{
-				ReleaseSymbolName(registration.Name);
-			}
-
-			failure = CoreFailureFactory.FromException("Inspection.RegisterSymbol", exception);
-			return false;
-		}
+		ReleaseSymbolName(registration.Name);
+		failure = CreateRegistrationFailure(step);
+		return false;
 	}
 
 	public ISymbolRegistrationLease RegisterSymbol(SymbolRegistration registration,
 		CancellationToken cancellationToken = default)
 	{
 		if (TryRegisterSymbol(registration, out ISymbolRegistrationLease? result, out CheatEngineFailure failure,
-			    cancellationToken))
+				cancellationToken))
 		{
 			return result;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		throw new InvalidOperationException("Unreachable failure flow.");
 	}
 
-	public bool TryResolveAddress(SymbolExpression expression, AddressResolutionOptions options,
+	public bool TryResolveAddress(SymbolExpression expression, AddressResolutionMode mode,
 		out Address address, out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
+		ValidateExpression(expression);
+		if (!Enum.IsDefined(mode))
+		{
+			throw new ArgumentOutOfRangeException(nameof(mode), mode,
+				"The address resolution mode must be a defined value.");
+		}
+
+		_lifetime.ThrowIfDispatchRefused("Inspection.ResolveAddress");
 		Address captured = Address.Zero;
 		InspectionStatus status = InspectionStatus.InvalidResult;
-		if (!_dispatcher.TryInvoke(() => status = _inspection.ResolveAddress(expression, options, out captured),
-			    out failure, cancellationToken))
+		if (!SdkBoundary.TryInvoke(_dispatcher, "Inspection.ResolveAddress",
+				() => status = _inspection.ResolveAddress(expression, mode, out captured),
+				CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
 		{
 			address = default;
 			return false;
@@ -312,20 +357,56 @@ internal sealed class InspectionClient(
 		return TryMap(status, "Inspection.ResolveAddress", out failure);
 	}
 
-	public Address ResolveAddress(SymbolExpression expression, AddressResolutionOptions options,
+	public Address ResolveAddress(SymbolExpression expression, AddressResolutionMode mode,
 		CancellationToken cancellationToken = default)
 	{
-		if (TryResolveAddress(expression, options, out Address result, out CheatEngineFailure failure,
-			    cancellationToken))
+		if (TryResolveAddress(expression, mode, out Address result, out CheatEngineFailure failure,
+				cancellationToken))
 		{
 			return result;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		return default;
 	}
 
-	private static bool TryMap(InspectionStatus status, string operation, out CheatEngineFailure failure)
+	/// <summary>
+	///     Throws for the default collection request, which allows no item, as its constructor throws for a limit below
+	///     one: a copy into no room would otherwise reach Cheat Engine only to exceed it.
+	/// </summary>
+	/// <exception cref="ArgumentOutOfRangeException">The request allows no item.</exception>
+	private static void ValidateCollectionRequest(InspectionCollectionRequest request)
+	{
+		if (request.MaximumItems <= 0)
+		{
+			throw new ArgumentOutOfRangeException(nameof(request), request.MaximumItems,
+				"An inspection collection request must allow at least one item; the default request allows none.");
+		}
+	}
+
+	/// <summary>
+	///     Throws for the default symbol expression, as its constructor throws for an empty one, before CheatEngine.SDK
+	///     would refuse it on Cheat Engine's main thread.
+	/// </summary>
+	/// <exception cref="ArgumentException">The expression is empty.</exception>
+	private static void ValidateExpression(SymbolExpression expression)
+	{
+		if (string.IsNullOrWhiteSpace(expression.Value))
+		{
+			throw new ArgumentException("A symbol expression must not be empty; the default expression has none.",
+				nameof(expression));
+		}
+	}
+
+	/// <summary>Maps an SDK inspection status by value; internal so the Q48 contract tests can prove it is total.</summary>
+	/// <remarks>
+	///     An unavailable inspection global is <see cref="CheatEngineFailureKind.CapabilityUnavailable" /> with
+	///     <see cref="CheatEngineHostEffect.NotStarted" />: Cheat Engine was not called, as the memory and Address List
+	///     lookups report it. A status this Client does not recognize fails closed as
+	///     <see cref="CheatEngineFailureKind.IndeterminateHostResult" />, like <see cref="InspectionMapping" />; every
+	///     other failure keeps an unknown host effect.
+	/// </remarks>
+	internal static bool TryMap(InspectionStatus status, string operation, out CheatEngineFailure failure)
 	{
 		if (status == InspectionStatus.Success)
 		{
@@ -340,10 +421,99 @@ internal sealed class InspectionClient(
 			InspectionStatus.GlobalUnavailable => CheatEngineFailureKind.CapabilityUnavailable,
 			InspectionStatus.LuaFailure => CheatEngineFailureKind.LuaError,
 			InspectionStatus.InvalidResult => CheatEngineFailureKind.InvalidHostResult,
-			_ => CheatEngineFailureKind.Unknown
+			_ => CheatEngineFailureKind.IndeterminateHostResult
 		};
-		failure = new CheatEngineFailure(kind, operation, $"Cheat Engine inspection returned '{status}'.");
+		CheatEngineHostEffect effect = status == InspectionStatus.GlobalUnavailable
+			? CheatEngineHostEffect.NotStarted
+			: CheatEngineHostEffect.Unknown;
+		failure = new CheatEngineFailure(kind, operation, $"Cheat Engine inspection returned '{status}'.", null,
+			effect);
 		return false;
+	}
+
+	/// <summary>The refusal of a registration whose name already resolves or whose collision check failed.</summary>
+	private static CheatEngineFailure CreateCollisionFailure(InspectionStatus preflight)
+	{
+		if (preflight == InspectionStatus.Success)
+		{
+			return new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, RegisterOperation,
+				"The symbol name already resolves in Cheat Engine (a registered symbol, a module or an expression that " +
+				"parses as an address); registering it would shadow or replace that definition.", null,
+				CheatEngineHostEffect.NotStarted);
+		}
+
+		TryMap(preflight, RegisterOperation, out CheatEngineFailure mapped);
+		return new CheatEngineFailure(mapped.Kind, mapped.Operation,
+			$"The symbol collision check returned '{preflight}', so the ownership of the name cannot be established; " +
+			"nothing was registered.", null, CheatEngineHostEffect.NotStarted);
+	}
+
+	/// <summary>
+	///     Runs on Cheat Engine's main thread: the collision pre-check, the registration through the CheatEngine.SDK
+	///     ownership coordinator, and the registration of the lease with the activation.
+	/// </summary>
+	/// <remarks>
+	///     The lease joins the activation before the callback returns, so a registration never outlives an activation
+	///     that starts stopping afterwards. When the lease cannot join it (the activation stopped between the dispatch
+	///     admission and that step, or its resources were already drained, which closes the registry with an
+	///     <see cref="ObjectDisposedException" />), the registration has no owner: it is released once, here, and the
+	///     failure reports what the release established.
+	/// </remarks>
+	private RegistrationStep RegisterOnMainThread(SymbolRegistration registration)
+	{
+		// No lease can be registered once the activation stops or ends: refuse before Cheat Engine registers a name
+		// that no lease could own, as every other lease-creating operation does in its callback.
+		_lifetime.ThrowIfInactive(RegisterOperation);
+		InspectionStatus preflight = _inspection.ResolveAddress(new SymbolExpression(registration.Name),
+			AddressResolutionMode.Default, out _);
+		if (preflight != InspectionStatus.NotFound)
+		{
+			return new RegistrationStep(preflight, default, null, null, default);
+		}
+
+		SymbolRegistrationAttempt attempt = _inspection.TryRegisterOwned(new SymbolName(registration.Name),
+			registration.Address, new SymbolRegistrationOptions(registration.DoNotSave));
+		if (attempt.Handle is not { } handle)
+		{
+			return new RegistrationStep(preflight, attempt.Status, null, null, default);
+		}
+
+		SymbolRegistrationLease lease = new(registration, handle, _dispatcher, ReleaseSymbolName,
+			_lifetime.Diagnostics);
+		try
+		{
+			lease.Register(_lifetime);
+			return new RegistrationStep(preflight, attempt.Status, lease, null, default);
+		}
+		catch (Exception exception)
+		{
+			// Whatever kept the lease out of the activation, nothing owns the registration: release it once.
+			return new RegistrationStep(preflight, attempt.Status, null, exception,
+				SdkReleaseOutcomes.FromSymbolRegistration(handle.Release()));
+		}
+	}
+
+	/// <summary>Creates the failure of a registration that produced no lease; emitted after the dispatched work.</summary>
+	private CheatEngineFailure CreateRegistrationFailure(RegistrationStep step)
+	{
+		if (step.TrackingFault is { } fault)
+		{
+			// The one release made on the main thread removed the registration, or could not confirm it.
+			CheatEngineHostEffect effect = step.Compensation.IsComplete
+				? CheatEngineHostEffect.Completed
+				: CheatEngineHostEffect.CleanupUnconfirmed;
+			return SdkBoundary.Translate(RegisterOperation, fault, effect, _lifetime);
+		}
+
+		if (step.Preflight != InspectionStatus.NotFound)
+		{
+			// The reason only: the symbol name is never logged (A24-13).
+			_lifetime.Diagnostics.SymbolRegistrationRejected(RegisterOperation,
+				step.Preflight == InspectionStatus.Success ? "AlreadyResolves" : "LookupFailed");
+			return CreateCollisionFailure(step.Preflight);
+		}
+
+		return InspectionMapping.RegistrationFailure(RegisterOperation, step.Status.Kind);
 	}
 
 	private bool TryReserveSymbolName(string name, out CheatEngineFailure failure)
@@ -357,8 +527,9 @@ internal sealed class InspectionClient(
 			}
 		}
 
-		failure = new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, "Inspection.RegisterSymbol",
-			"This client activation already owns a symbol registration with the requested name.");
+		failure = new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, RegisterOperation,
+			"This client activation already owns a symbol registration with the requested name.", null,
+			CheatEngineHostEffect.NotStarted);
 		return false;
 	}
 
@@ -370,8 +541,19 @@ internal sealed class InspectionClient(
 		}
 	}
 
-	private static nuint ToNativeAddress(Address address)
-	{
-		return checked((nuint) address.Value);
-	}
+	/// <summary>What the dispatched registration established.</summary>
+	/// <param name="Preflight">The collision pre-check status; only <see cref="InspectionStatus.NotFound" /> registers.</param>
+	/// <param name="Status">The registration status CheatEngine.SDK reported, when the registration was attempted.</param>
+	/// <param name="Lease">The lease, registered with the activation, when the registration succeeded.</param>
+	/// <param name="TrackingFault">
+	///     The fault that prevented the activation from owning the lease: a lifecycle exception, or the
+	///     <see cref="ObjectDisposedException" /> of a resource registry that was already drained.
+	/// </param>
+	/// <param name="Compensation">The outcome of the one release made after <paramref name="TrackingFault" />.</param>
+	private readonly record struct RegistrationStep(
+		InspectionStatus Preflight,
+		LuaOperationStatus Status,
+		SymbolRegistrationLease? Lease,
+		Exception? TrackingFault,
+		LeaseReleaseOutcome Compensation);
 }

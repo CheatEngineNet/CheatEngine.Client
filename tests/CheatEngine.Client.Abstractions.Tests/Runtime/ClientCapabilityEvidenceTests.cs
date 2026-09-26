@@ -4,15 +4,18 @@ namespace CheatEngine.Client.Abstractions.Tests.Runtime;
 
 public sealed class ClientCapabilityEvidenceTests
 {
-	public static IEnumerable<object[]> EffectiveReasonPriorityCases
+	public static TheoryData<ClientCapabilityEvidenceState, ClientCapabilityEvidenceReasonCode,
+		ClientCapabilityAvailabilityState> EffectiveReasonPriorityCases
 	{
 		get
 		{
+			TheoryData<ClientCapabilityEvidenceState, ClientCapabilityEvidenceReasonCode,
+				ClientCapabilityAvailabilityState> cases = [];
 			foreach (ClientCapabilityEvidenceState state in new[]
-			         {
-				         ClientCapabilityEvidenceState.Missing, ClientCapabilityEvidenceState.Faulted,
-				         ClientCapabilityEvidenceState.Malformed, ClientCapabilityEvidenceState.Unknown
-			         })
+					 {
+						 ClientCapabilityEvidenceState.Missing, ClientCapabilityEvidenceState.Faulted,
+						 ClientCapabilityEvidenceState.Malformed, ClientCapabilityEvidenceState.Unknown
+					 })
 			{
 				ClientCapabilityAvailabilityState expectedAvailabilityState =
 					state == ClientCapabilityEvidenceState.Missing
@@ -21,9 +24,11 @@ public sealed class ClientCapabilityEvidenceTests
 
 				foreach (ClientCapabilityEvidenceReasonCode expectedReasonCode in GetPriority(state))
 				{
-					yield return [state, expectedReasonCode, expectedAvailabilityState];
+					cases.Add(state, expectedReasonCode, expectedAvailabilityState);
 				}
 			}
+
+			return cases;
 		}
 	}
 
@@ -97,38 +102,37 @@ public sealed class ClientCapabilityEvidenceTests
 
 		Assert.Equal(ClientCapabilityEvidenceReasonCode.Lifetime, evidence.EffectiveReasonCode);
 		Assert.Equal(ReasonFor(ClientCapabilityEvidenceReasonCode.Lifetime), evidence.EffectiveReason);
-		Assert.True(evidence.IsExecutable);
 		Assert.Equal(ClientCapabilityAvailabilityState.Available, evidence.AvailabilityState);
 	}
 
-	[Theory]
-	[InlineData(ClientCapabilityAvailabilityState.Available, ClientCapabilityEvidenceReasonCode.Lifetime)]
-	[InlineData(ClientCapabilityAvailabilityState.Unavailable, ClientCapabilityEvidenceReasonCode.Lifetime)]
-	[InlineData(ClientCapabilityAvailabilityState.Unknown, ClientCapabilityEvidenceReasonCode.Host)]
-	public void LegacyAvailabilityConstructionRetainsStateAndDisplayReason(
-		ClientCapabilityAvailabilityState state,
-		ClientCapabilityEvidenceReasonCode expectedReasonCode)
+	[Fact]
+	public void DefaultEvidenceHasNoEffectiveReasonAndCannotBackAnAvailability()
 	{
-		const string reason = "Legacy display reason.";
-		ClientCapabilityAvailability availability = new(ClientCapabilityId.ProcessSelection, state, reason);
+		ClientCapabilityEvidence evidence = default;
 
-		Assert.Equal(state, availability.State);
-		Assert.Equal(expectedReasonCode, availability.Evidence.EffectiveReasonCode);
-		Assert.Equal(reason, availability.Evidence.EffectiveReason);
-		Assert.Equal(reason, availability.Reason);
-		Assert.Equal(state == ClientCapabilityAvailabilityState.Available, availability.IsAvailable);
-		Assert.Equal(state != ClientCapabilityAvailabilityState.Unknown, availability.IsKnown);
+		Assert.Equal(ClientCapabilityEvidenceReasonCode.Unknown, evidence.EffectiveReasonCode);
+		Assert.Equal(string.Empty, evidence.EffectiveReason);
+		Assert.Equal(ClientCapabilityAvailabilityState.Unknown, evidence.AvailabilityState);
+		Assert.Equal("evidence", Assert.Throws<ArgumentException>(() =>
+			new ClientCapabilityAvailability(ClientCapabilityId.ProcessSelection, evidence)).ParamName);
 	}
 
 	[Fact]
-	public void EffectiveReasonCodesUseStableUnderlyingValues()
+	public void TheCapabilityEnumsAreIntBackedWithUnknownAsZero()
 	{
-		Assert.Equal((byte) 0, (byte) ClientCapabilityEvidenceReasonCode.Implementation);
-		Assert.Equal((byte) 1, (byte) ClientCapabilityEvidenceReasonCode.Package);
-		Assert.Equal((byte) 2, (byte) ClientCapabilityEvidenceReasonCode.Host);
-		Assert.Equal((byte) 3, (byte) ClientCapabilityEvidenceReasonCode.LiveQualification);
-		Assert.Equal((byte) 4, (byte) ClientCapabilityEvidenceReasonCode.Policy);
-		Assert.Equal((byte) 5, (byte) ClientCapabilityEvidenceReasonCode.Lifetime);
+		// The 1.x enum charter: int, explicit values, Unknown = 0 (OutcomeEnumConventionTests).
+		Assert.Equal(typeof(int), Enum.GetUnderlyingType(typeof(ClientCapabilityEvidenceReasonCode)));
+		Assert.Equal(typeof(int), Enum.GetUnderlyingType(typeof(ClientCapabilityEvidenceState)));
+		Assert.Equal(typeof(int), Enum.GetUnderlyingType(typeof(ClientCapabilityAvailabilityState)));
+		Assert.Equal(0, (int) ClientCapabilityEvidenceReasonCode.Unknown);
+		Assert.Equal(1, (int) ClientCapabilityEvidenceReasonCode.Implementation);
+		Assert.Equal(2, (int) ClientCapabilityEvidenceReasonCode.Package);
+		Assert.Equal(3, (int) ClientCapabilityEvidenceReasonCode.Host);
+		Assert.Equal(4, (int) ClientCapabilityEvidenceReasonCode.LiveQualification);
+		Assert.Equal(5, (int) ClientCapabilityEvidenceReasonCode.Policy);
+		Assert.Equal(6, (int) ClientCapabilityEvidenceReasonCode.Lifetime);
+		Assert.Equal(0, (int) ClientCapabilityEvidenceState.Unknown);
+		Assert.Equal(0, (int) ClientCapabilityAvailabilityState.Unknown);
 	}
 
 	private static ClientCapabilityEvidence CreateEvidenceForPriority(
@@ -154,7 +158,7 @@ public sealed class ClientCapabilityEvidenceTests
 		int expectedPriorityIndex)
 	{
 		ClientCapabilityEvidenceState gateState = state == ClientCapabilityEvidenceState.Satisfied ||
-		                                          Array.IndexOf(priority, code) < expectedPriorityIndex
+												  Array.IndexOf(priority, code) < expectedPriorityIndex
 			? ClientCapabilityEvidenceState.Satisfied
 			: state;
 		return new ClientCapabilityEvidenceGate(gateState, ReasonFor(code));

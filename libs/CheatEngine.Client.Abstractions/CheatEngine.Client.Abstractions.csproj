@@ -2,11 +2,12 @@
 
   <PropertyGroup>
     <RootNamespace>CheatEngine.Client</RootNamespace>
+    <Description>Contracts, requests, failures and value vocabulary of CheatEngine.Client: the public types a Cheat Engine plugin or library references without taking the implementation.</Description>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="CheatEngine.SDK"
-                      VersionOverride="[1.0.0,2.0.0)"
+                      VersionOverride="$(CheatEngineSdkVersionRange)"
                       IncludeAssets="compile;runtime"
                       ExcludeAssets="build;buildTransitive;analyzers;native;contentFiles"/>
   </ItemGroup>

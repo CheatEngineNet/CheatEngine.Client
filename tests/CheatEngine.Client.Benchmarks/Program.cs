@@ -65,14 +65,14 @@ namespace CheatEngine.Client.Benchmarks
 		{
 			string argument = args[index]!;
 			if (argument.Equals("-a", StringComparison.OrdinalIgnoreCase) ||
-			    argument.Equals("--artifacts", StringComparison.OrdinalIgnoreCase))
+				argument.Equals("--artifacts", StringComparison.OrdinalIgnoreCase))
 			{
 				artifactsPath = index + 1 < args.Count ? args[++index] : null;
 				return artifactsPath is not null;
 			}
 
 			return TryReadAssignedArtifactsPath(argument, "-a=", out artifactsPath) ||
-			       TryReadAssignedArtifactsPath(argument, "--artifacts=", out artifactsPath);
+				   TryReadAssignedArtifactsPath(argument, "--artifacts=", out artifactsPath);
 		}
 
 		private static bool TryReadAssignedArtifactsPath(

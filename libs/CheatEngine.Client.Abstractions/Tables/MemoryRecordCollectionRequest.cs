@@ -4,6 +4,8 @@ namespace CheatEngine.Client.Tables;
 public readonly record struct MemoryRecordCollectionRequest
 {
 	/// <summary>Creates a bounded record materialization request.</summary>
+	/// <param name="maximumItems">The positive maximum number of record snapshots to copy.</param>
+	/// <exception cref="ArgumentOutOfRangeException"><paramref name="maximumItems" /> is zero or negative.</exception>
 	public MemoryRecordCollectionRequest(int maximumItems)
 	{
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);

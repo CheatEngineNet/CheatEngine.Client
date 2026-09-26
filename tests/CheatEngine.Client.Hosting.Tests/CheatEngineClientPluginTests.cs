@@ -1,28 +1,24 @@
+using System.Globalization;
 using System.Reflection;
+using System.Text.Json;
 
 using CheatEngine.Client.Allocations;
 using CheatEngine.Client.Assembly;
-using CheatEngine.Client.Dbvm;
-using CheatEngine.Client.Debugger;
 using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Extensions.DependencyInjection;
-using CheatEngine.Client.Hashing;
-using CheatEngine.Client.Hotkeys;
 using CheatEngine.Client.Inspection;
 using CheatEngine.Client.Lua;
 using CheatEngine.Client.Memory;
 using CheatEngine.Client.Modules;
 using CheatEngine.Client.Processes;
-using CheatEngine.Client.RemoteExecution;
 using CheatEngine.Client.Results;
 using CheatEngine.Client.Runtime;
 using CheatEngine.Client.Scanning;
-using CheatEngine.Client.Speed;
 using CheatEngine.Client.Tables;
-using CheatEngine.Client.Timers;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace CheatEngine.Client.Hosting.Tests;
@@ -47,15 +43,15 @@ public sealed class CheatEngineClientPluginTests
 	}
 
 	[Fact]
-	public void GetRequiredClientWithoutAnActiveEnableEpochThrowsLifecycleException()
+	public void GetRequiredClientWithoutAnActiveEnableEpochThrowsInvalidStateException()
 	{
 		TestPlugin plugin = new();
 
-		CheatEngineClientLifecycleException exception =
-			Assert.Throws<CheatEngineClientLifecycleException>(plugin.GetRequiredClientForTest);
+		CheatEngineInvalidStateException exception =
+			Assert.Throws<CheatEngineInvalidStateException>(plugin.GetRequiredClientForTest);
 
 		Assert.Equal(CheatEngineFailureKind.InvalidState, exception.Failure.Kind);
-		Assert.Equal("GetClient", exception.Failure.Operation);
+		Assert.Equal("Client.GetRequiredClient", exception.Failure.Operation);
 		Assert.Contains("only while the plugin is enabled", exception.Message, StringComparison.Ordinal);
 	}
 
@@ -71,9 +67,9 @@ public sealed class CheatEngineClientPluginTests
 		plugin.EnableForTest();
 
 		Assert.Same(client, plugin.GetRequiredClientForTest());
-		CheatEngineClientLifecycleException duplicateEnable =
-			Assert.Throws<CheatEngineClientLifecycleException>(plugin.EnableForTest);
-		Assert.Equal("EnableClient", duplicateEnable.Failure.Operation);
+		CheatEngineInvalidStateException duplicateEnable =
+			Assert.Throws<CheatEngineInvalidStateException>(plugin.EnableForTest);
+		Assert.Equal("Client.Activate", duplicateEnable.Failure.Operation);
 
 		plugin.DisableForTest();
 
@@ -85,10 +81,11 @@ public sealed class CheatEngineClientPluginTests
 			events);
 		Assert.Equal(1, cleanup.DrainCount);
 		Assert.Equal(1, cleanup.ScopeDisposeCount);
-		Assert.Throws<CheatEngineClientLifecycleException>(plugin.GetRequiredClientForTest);
+		Assert.Throws<CheatEngineInvalidStateException>(plugin.GetRequiredClientForTest);
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q06")]
 	public void FailedModuleEnableRollsBackAllEnteredModulesAndLeavesThePluginInactive()
 	{
 		List<string> events = [];
@@ -108,7 +105,7 @@ public sealed class CheatEngineClientPluginTests
 				"module.disabling", "cleanup.drain", "cleanup.exit"
 			],
 			events);
-		Assert.Throws<CheatEngineClientLifecycleException>(plugin.GetRequiredClientForTest);
+		Assert.Throws<CheatEngineInvalidStateException>(plugin.GetRequiredClientForTest);
 
 		plugin.DisableForTest();
 
@@ -149,10 +146,11 @@ public sealed class CheatEngineClientPluginTests
 
 		Assert.Equal("cleanup scope", exception.Message);
 		Assert.Equal(["configure", "client.enabled", "cleanup.enter"], events);
-		Assert.Throws<CheatEngineClientLifecycleException>(plugin.GetRequiredClientForTest);
+		Assert.Throws<CheatEngineInvalidStateException>(plugin.GetRequiredClientForTest);
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q06")]
 	public void ApplicationEnableFailureAndCleanupFailureAreReportedTogetherAfterRollback()
 	{
 		List<string> events = [];
@@ -178,6 +176,7 @@ public sealed class CheatEngineClientPluginTests
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q43")]
 	public void DisableAggregatesApplicationModuleAndResourceCleanupFailures()
 	{
 		List<string> events = [];
@@ -223,12 +222,13 @@ public sealed class CheatEngineClientPluginTests
 
 		Assert.Equal("configuration", exception.Message);
 		Assert.Equal(1, configureCalls);
-		Assert.Throws<CheatEngineClientLifecycleException>(plugin.GetRequiredClientForTest);
+		Assert.Throws<CheatEngineInvalidStateException>(plugin.GetRequiredClientForTest);
 
 		plugin.DisableForTest();
 	}
 
 	[Fact]
+	[Trait("Qualification", "Q06")]
 	public void FailedConstructionCleansEveryAcquiredStageAndAllowsANewEnableEpoch()
 	{
 		List<string> events = [];
@@ -259,7 +259,7 @@ public sealed class CheatEngineClientPluginTests
 		Assert.Equal(
 			["configure", "client.resolve", "scope.dispose", "provider.dispose", "configuration.dispose"],
 			events);
-		Assert.Throws<CheatEngineClientLifecycleException>(plugin.GetRequiredClientForTest);
+		Assert.Throws<CheatEngineInvalidStateException>(plugin.GetRequiredClientForTest);
 
 		plugin.DisableForTest();
 		plugin.EnableForTest();
@@ -287,10 +287,28 @@ public sealed class CheatEngineClientPluginTests
 			failure => Assert.Equal("configuration", failure.Message),
 			failure => Assert.Equal("configuration dispose", failure.Message));
 		Assert.Equal(["configuration.dispose"], events);
-		Assert.Throws<CheatEngineClientLifecycleException>(plugin.GetRequiredClientForTest);
+		Assert.Throws<CheatEngineInvalidStateException>(plugin.GetRequiredClientForTest);
 	}
 
 	[Fact]
+	public void InvalidClientOptionsFailTheEnableWithTheirValidationExceptionAfterRollback()
+	{
+		List<string> events = [];
+		FakeClient client = new(51);
+		RecordingCleanup cleanup = new(events);
+		TestPlugin plugin = CreatePlugin(events, client, cleanup, static builder =>
+			builder.Configuration["CheatEngineClient:AllowedTableRoots:0"] = "relative-root");
+
+		OptionsValidationException exception = Assert.Throws<OptionsValidationException>(plugin.EnableForTest);
+
+		Assert.Equal(typeof(CheatEngineClientOptions), exception.OptionsType);
+		Assert.Equal(["configure"], events);
+		Assert.Equal(0, cleanup.DrainCount);
+		Assert.Throws<CheatEngineInvalidStateException>(plugin.GetRequiredClientForTest);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q06")]
 	public void FailedModuleEnableRollsBackAndTheSamePluginCanEnableAgain()
 	{
 		List<string> events = [];
@@ -311,7 +329,7 @@ public sealed class CheatEngineClientPluginTests
 				"configure", "module.enabled", "cleanup.enter", "module.disabling", "cleanup.drain", "cleanup.exit"
 			],
 			events);
-		Assert.Throws<CheatEngineClientLifecycleException>(plugin.GetRequiredClientForTest);
+		Assert.Throws<CheatEngineInvalidStateException>(plugin.GetRequiredClientForTest);
 
 		plugin.EnableForTest();
 		Assert.Same(client, plugin.GetRequiredClientForTest());
@@ -361,6 +379,272 @@ public sealed class CheatEngineClientPluginTests
 		Assert.Equal(2, state.ModuleDisposeCount);
 		Assert.Equal(2, state.DependencyDisposeCount);
 		Assert.Equal(2, state.ProviderSingletonDisposeCount);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q43")]
+	[Trait("Qualification", "Q46")]
+	public void DisableAttemptsEveryStageAndLogsEachFailedStageWithoutExceptionMessages()
+	{
+		const string SensitiveModuleText = "module failed at 0x7FFC7A0A0000 reading C:\\Users\\player\\secret.ct";
+		const string SensitiveDrainText = "drain failed for symbol game.exe+1234 and Lua 'return readInteger(x)'";
+		List<string> events = [];
+		CapturingLoggerProvider logs = new();
+		FakeClient client = new(51);
+		RecordingCleanup cleanup = new(events, drainFailure: new InvalidOperationException(SensitiveDrainText));
+		TestPlugin plugin = CreatePlugin(events, client, cleanup, builder =>
+		{
+			builder.Services.AddLogging(logging => logging.SetMinimumLevel(LogLevel.Trace).AddProvider(logs));
+			builder.Client.AddModule<SensitiveDisableModule>();
+			builder.Services.AddSingleton(new SensitiveFailure(SensitiveModuleText));
+		});
+		plugin.EnableForTest();
+
+		AggregateException exception = Assert.Throws<AggregateException>(plugin.DisableForTest);
+
+		Assert.Equal(2, exception.InnerExceptions.Count);
+		Assert.Equal(1, cleanup.DrainCount);
+		Assert.Equal(1, cleanup.ScopeDisposeCount);
+		Assert.Contains("cleanup.exit", events);
+		Assert.Collection(
+			logs.Entries.Where(static entry => entry.EventId == 6),
+			module => Assert.Equal(
+				"Cheat Engine Client activation 51 cleanup stage ModuleCallbacks failed with System.InvalidOperationException.",
+				module.Message),
+			drain => Assert.Equal(
+				"Cheat Engine Client activation 51 cleanup stage ClientResources failed with System.InvalidOperationException.",
+				drain.Message));
+		LogEntry completed = Assert.Single(logs.Entries, static entry => entry.EventId == 7);
+		Assert.Equal("Cheat Engine Client activation 51 attempted 6 cleanup stage(s); 2 failed.", completed.Message);
+		Assert.Contains(logs.Entries, static entry => entry.EventId == 5);
+		Assert.All(logs.Entries, static entry =>
+		{
+			Assert.Null(entry.Exception);
+			Assert.DoesNotContain("0x7FFC", entry.Message, StringComparison.OrdinalIgnoreCase);
+			Assert.DoesNotContain("secret", entry.Message, StringComparison.OrdinalIgnoreCase);
+			Assert.DoesNotContain("game.exe", entry.Message, StringComparison.OrdinalIgnoreCase);
+			Assert.DoesNotContain("readInteger", entry.Message, StringComparison.Ordinal);
+		});
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q43")]
+	public void ThrowingLoggerProviderCannotAbortCleanup()
+	{
+		List<string> events = [];
+		FakeClient client = new(52);
+		RecordingCleanup cleanup = new(events);
+		TestPlugin plugin = CreatePlugin(events, client, cleanup, static builder =>
+		{
+			builder.Services.AddLogging(logging =>
+				logging.SetMinimumLevel(LogLevel.Trace).AddProvider(new ThrowingLoggerProvider()));
+			builder.Client.AddModule<RecordingModule>();
+		});
+
+		plugin.EnableForTest();
+		Assert.Same(client, plugin.GetRequiredClientForTest());
+		plugin.DisableForTest();
+
+		Assert.Equal(
+			[
+				"configure", "module.enabled", "client.enabled", "cleanup.enter", "client.disabling", "module.disabling",
+				"cleanup.drain", "cleanup.exit"
+			],
+			events);
+		Assert.Equal(1, cleanup.DrainCount);
+		Assert.Throws<CheatEngineInvalidStateException>(plugin.GetRequiredClientForTest);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q46")]
+	public void EnableLogsOneIdentificationEventWithoutPaths()
+	{
+		List<string> events = [];
+		CapturingLoggerProvider logs = new();
+		FakeClient client = new(53);
+		RecordingCleanup cleanup = new(events);
+		TestPlugin plugin = CreatePlugin(events, client, cleanup, builder =>
+			builder.Services.AddLogging(logging => logging.SetMinimumLevel(LogLevel.Trace).AddProvider(logs)));
+
+		plugin.EnableForTest();
+		plugin.DisableForTest();
+
+		LogEntry identification = Assert.Single(logs.Entries, static entry => entry.EventId == 20);
+		string message = identification.Message;
+		Assert.Equal(LogLevel.Information, identification.Level);
+		Assert.Null(identification.Exception);
+		Assert.Contains("activation 53 enables " + typeof(TestPlugin).FullName, message, StringComparison.Ordinal);
+		Assert.Contains("CheatEngine.SDK " + GetConsumedSdkMetadata("Version"), message, StringComparison.Ordinal);
+		Assert.Contains("NuGet content hash " + GetConsumedSdkMetadata("ContentHashSha512"), message,
+			StringComparison.Ordinal);
+		// The test process loads the reviewed package itself, so the identity label, built from versions only, says so.
+		string loaded = typeof(CheatEngine.SDK.Engine.Runtime.RuntimeInfo).Assembly
+			.GetCustomAttribute<AssemblyInformationalVersionAttribute>()!.InformationalVersion;
+		Assert.Contains($"loaded CheatEngine.SDK.Engine {loaded} (the reviewed package), package evidence Satisfied;",
+			message, StringComparison.Ordinal);
+		Assert.Contains("supported host profile ce-7.7.0.10621-x64-managed-hostfxr.", message, StringComparison.Ordinal);
+		Assert.DoesNotMatch(@"[A-Za-z]:\\", message);
+		Assert.DoesNotContain("\\", message, StringComparison.Ordinal);
+		Assert.DoesNotContain(".dll", message, StringComparison.OrdinalIgnoreCase);
+		Assert.DoesNotContain(".exe", message, StringComparison.OrdinalIgnoreCase);
+		Assert.DoesNotContain(Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory), message,
+			StringComparison.OrdinalIgnoreCase);
+		Assert.True(logs.Entries.ToList().FindIndex(static entry => entry.EventId == 20) <
+					logs.Entries.ToList().FindIndex(static entry => entry.EventId == 1),
+			"The identification event must precede the enabled event.");
+	}
+
+	[Fact]
+	public void ThrowingLoggerProviderCannotFailEnable()
+	{
+		List<string> events = [];
+		FakeClient client = new(54);
+		RecordingCleanup cleanup = new(events);
+		TestPlugin plugin = CreatePlugin(events, client, cleanup, static builder =>
+		{
+			builder.Services.AddLogging(logging => logging.SetMinimumLevel(LogLevel.Trace)
+				.AddProvider(new ThrowingLoggerProvider(throwFromIsEnabled: true)));
+			builder.Client.AddModule<RecordingModule>();
+		});
+
+		plugin.EnableForTest();
+
+		Assert.Same(client, plugin.GetRequiredClientForTest());
+		Assert.Equal(["configure", "module.enabled", "client.enabled"], events);
+		plugin.DisableForTest();
+		Assert.Equal(1, cleanup.DrainCount);
+	}
+
+	[Fact]
+	public void ProvidersAddedThroughTheBuilderLoggingReceiveTheActivationEvents()
+	{
+		List<string> events = [];
+		CapturingLoggerProvider logs = new();
+		FakeClient client = new(55);
+		RecordingCleanup cleanup = new(events);
+		TestPlugin plugin = CreatePlugin(events, client, cleanup, builder =>
+			builder.Logging.SetMinimumLevel(LogLevel.Trace).AddProvider(logs));
+
+		plugin.EnableForTest();
+		plugin.DisableForTest();
+
+		Assert.Equal([20, 1, 3, 7, 4], logs.Entries.Select(static entry => entry.EventId));
+	}
+
+	/// <summary>
+	///     A8 on CheatEngine.SDK 2.0.0: once the SDK detected an external Lua state reset it refuses every Lua admission,
+	///     the runtime snapshot's included, so the warning reads the SDK's flag through the cleanup bridge, after the
+	///     Client-owned releases, whose refused Lua admissions can be the ones that detect the reset. The runtime double
+	///     refuses the snapshot the way the real stack does after a reset, and cleanup never asks it.
+	/// </summary>
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public void CleanupWarnsOnceWhenCheatEngineSdkDetectedAnExternalLuaStateReset(bool detectedByTheReleases)
+	{
+		List<string> events = [];
+		CapturingLoggerProvider logs = new();
+		FakeClient client = new(58, new ResetRefusingRuntime(events));
+		RecordingCleanup cleanup = new(events)
+		{
+			ResetDetected = !detectedByTheReleases,
+			DrainDetectsReset = detectedByTheReleases
+		};
+		TestPlugin plugin = CreatePlugin(events, client, cleanup, builder =>
+			builder.Logging.SetMinimumLevel(LogLevel.Trace).AddProvider(logs));
+
+		plugin.EnableForTest();
+		plugin.DisableForTest();
+
+		LogEntry warning = Assert.Single(logs.Entries, static entry => entry.EventId == 8);
+		Assert.Equal(LogLevel.Warning, warning.Level);
+		Assert.Equal(
+			"Cheat Engine Client activation 58: Cheat Engine replaced its Lua state outside the plugin's control. Lua " +
+			"work is refused until the next enable, and Lua-bound resources are not released into the new state.",
+			warning.Message);
+		Assert.Equal([20, 1, 3, 8, 7, 4], logs.Entries.Select(static entry => entry.EventId));
+		Assert.Equal(1, cleanup.ResetReadCount);
+		Assert.Equal(
+			["configure", "client.enabled", "cleanup.enter", "client.disabling", "cleanup.drain", "cleanup.exit"],
+			cleanup.EventsBeforeResetRead);
+		Assert.DoesNotContain("runtime.snapshot", events);
+	}
+
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public void CleanupDoesNotWarnWithoutAReportedExternalLuaStateReset(bool readThrows)
+	{
+		List<string> events = [];
+		CapturingLoggerProvider logs = new();
+		FakeClient client = new(59, new ResetRefusingRuntime(events));
+		RecordingCleanup cleanup = new(events)
+		{
+			ResetReadFailure = readThrows ? new InvalidOperationException("reset read") : null
+		};
+		TestPlugin plugin = CreatePlugin(events, client, cleanup, builder =>
+			builder.Logging.SetMinimumLevel(LogLevel.Trace).AddProvider(logs));
+
+		plugin.EnableForTest();
+		plugin.DisableForTest();
+
+		Assert.DoesNotContain(logs.Entries, static entry => entry.EventId == 8);
+		Assert.Equal([20, 1, 3, 7, 4], logs.Entries.Select(static entry => entry.EventId));
+		Assert.Equal(1, cleanup.ResetReadCount);
+		Assert.Equal(1, cleanup.DrainCount);
+		Assert.Equal(1, cleanup.ScopeDisposeCount);
+		Assert.DoesNotContain("runtime.snapshot", events);
+	}
+
+	[Fact]
+	public void ConfigureReceivesTheFolderOfTheConcretePluginAssembly()
+	{
+		List<string> events = [];
+		FakeClient client = new(57);
+		RecordingCleanup cleanup = new(events);
+		string? pluginDirectory = null;
+		TestPlugin plugin = CreatePlugin(events, client, cleanup,
+			builder => pluginDirectory = builder.PluginDirectory);
+
+		plugin.EnableForTest();
+		plugin.DisableForTest();
+
+		Assert.NotNull(pluginDirectory);
+		Assert.Equal(Path.GetDirectoryName(typeof(TestPlugin).Assembly.Location), pluginDirectory);
+	}
+
+	/// <summary>
+	///     <c>appsettings.json</c> is deployed next to the plugin assembly and read from
+	///     <see cref="CheatEnginePluginBuilder.PluginDirectory" />, then bound to the Client options of the activation.
+	/// </summary>
+	[Fact]
+	public void AppSettingsFileIsLoadedFromThePluginDirectory()
+	{
+		List<string> events = [];
+		FakeClient client = new(56);
+		RecordingCleanup cleanup = new(events);
+		OptionsProbe probe = new();
+		TestPlugin plugin = CreatePlugin(events, client, cleanup, builder =>
+		{
+			builder.Configuration.Sources.Add(
+				new JsonFileStandInSource(Path.Combine(builder.PluginDirectory, "appsettings.json")));
+			builder.Services.AddSingleton(probe);
+			builder.Client.AddModule<OptionsProbeModule>();
+		});
+
+		plugin.EnableForTest();
+		plugin.DisableForTest();
+
+		Assert.Equal(4096, probe.MaximumReadBytes);
+	}
+
+	private static string GetConsumedSdkMetadata(string name)
+	{
+		string key = "CheatEngine.Client.ConsumedSdk." + name;
+		return System.Reflection.Assembly.Load("CheatEngine.Client.Core")
+				   .GetCustomAttributes<AssemblyMetadataAttribute>()
+				   .Single(attribute => attribute.Key == key).Value
+			   ?? throw new InvalidOperationException($"The Core assembly embeds no {key} value.");
 	}
 
 	private static void AddFailingConstructionRegistrations(CheatEnginePluginBuilder builder, List<string> events)
@@ -654,7 +938,7 @@ public sealed class CheatEngineClientPluginTests
 		{
 			ArgumentNullException.ThrowIfNull(client);
 			state.AliasReferencedOwnedDisposable = ReferenceEquals(ownedDisposable, alias.OwnedDisposable);
-			state.AllowedTableRootCount = options.Value.AllowedTableRoots?.Length ?? 0;
+			state.AllowedTableRootCount = options.Value.AllowedTableRoots.Count;
 			state.EnabledModuleIds.Add(_id);
 			state.ProviderSingletonIds.Add(providerOwnedSingleton.Id);
 		}
@@ -689,6 +973,51 @@ public sealed class CheatEngineClientPluginTests
 			private set;
 		}
 
+		/// <summary>Gets or sets the SDK's external Lua state reset fact this cleanup bridge reports.</summary>
+		internal bool ResetDetected
+		{
+			get;
+			set;
+		}
+
+		/// <summary>Gets or sets whether the drain detects the reset, as a refused Lua-bound release does in the SDK.</summary>
+		internal bool DrainDetectsReset
+		{
+			get;
+			init;
+		}
+
+		/// <summary>Gets or sets an exception the reset fact read throws.</summary>
+		internal Exception? ResetReadFailure
+		{
+			get;
+			init;
+		}
+
+		/// <summary>Gets how many times the reset fact was read.</summary>
+		internal int ResetReadCount
+		{
+			get;
+			private set;
+		}
+
+		/// <summary>Gets the lifecycle events recorded before the last read of the reset fact.</summary>
+		internal string[] EventsBeforeResetRead
+		{
+			get;
+			private set;
+		} = [];
+
+		public bool ExternalLuaStateResetDetected
+		{
+			get
+			{
+				ResetReadCount++;
+				EventsBeforeResetRead = [.. events];
+				return ResetReadFailure is { } failure ? throw failure : ResetDetected;
+			}
+		}
+
 		public IDisposable EnterCleanupScope()
 		{
 			events.Add("cleanup.enter");
@@ -708,6 +1037,7 @@ public sealed class CheatEngineClientPluginTests
 		{
 			DrainCount++;
 			events.Add("cleanup.drain");
+			ResetDetected |= DrainDetectsReset;
 			if (drainFailure is not null)
 			{
 				throw drainFailure;
@@ -760,27 +1090,236 @@ public sealed class CheatEngineClientPluginTests
 		}
 	}
 
-	private sealed class FakeClient(long epoch) : ICheatEngineClient
+	public sealed record SensitiveFailure(string Message);
+
+	public sealed class SensitiveDisableModule(List<string> events, SensitiveFailure failure) : ICheatEngineClientModule
+	{
+		public void OnEnabled(ICheatEngineClient client)
+		{
+			events.Add("module.enabled");
+		}
+
+		public void OnDisabling(ICheatEngineClient client)
+		{
+			events.Add("module.disabling");
+			throw new InvalidOperationException(failure.Message);
+		}
+	}
+
+	public sealed class OptionsProbe
+	{
+		internal int? MaximumReadBytes
+		{
+			get;
+			set;
+		}
+	}
+
+	public sealed class OptionsProbeModule(IOptions<CheatEngineClientOptions> options, OptionsProbe probe)
+		: ICheatEngineClientModule
+	{
+		public void OnEnabled(ICheatEngineClient client)
+		{
+			probe.MaximumReadBytes = options.Value.MemoryResourceLimits.MaximumReadBytes;
+		}
+
+		public void OnDisabling(ICheatEngineClient client)
+		{
+		}
+	}
+
+	/// <summary>
+	///     Stands in for the <c>Microsoft.Extensions.Configuration.Json</c> file source that a plugin references and this
+	///     test project does not: it flattens one JSON file into configuration keys.
+	/// </summary>
+	private sealed class JsonFileStandInSource(string path) : IConfigurationSource
+	{
+		public IConfigurationProvider Build(IConfigurationBuilder builder)
+		{
+			return new JsonFileStandInProvider(path);
+		}
+	}
+
+	private sealed class JsonFileStandInProvider(string path) : ConfigurationProvider
+	{
+		public override void Load()
+		{
+			using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
+			Flatten(document.RootElement, string.Empty);
+		}
+
+		private void Flatten(JsonElement element, string key)
+		{
+			switch (element.ValueKind)
+			{
+				case JsonValueKind.Object:
+					foreach (JsonProperty property in element.EnumerateObject())
+					{
+						Flatten(property.Value, Child(key, property.Name));
+					}
+
+					break;
+				case JsonValueKind.Array:
+					int index = 0;
+					foreach (JsonElement item in element.EnumerateArray())
+					{
+						Flatten(item, Child(key, index.ToString(CultureInfo.InvariantCulture)));
+						index++;
+					}
+
+					break;
+				default:
+					Data[key] = element.ToString();
+					break;
+			}
+		}
+
+		private static string Child(string key, string name)
+		{
+			return key.Length == 0 ? name : ConfigurationPath.Combine(key, name);
+		}
+	}
+
+	private sealed record LogEntry(int EventId, LogLevel Level, string Message, Exception? Exception);
+
+	private sealed class CapturingLoggerProvider : ILoggerProvider
+	{
+		private readonly Lock _gate = new();
+		private readonly List<LogEntry> _entries = [];
+
+		internal IReadOnlyList<LogEntry> Entries
+		{
+			get
+			{
+				lock (_gate)
+				{
+					return [.. _entries];
+				}
+			}
+		}
+
+		public ILogger CreateLogger(string categoryName)
+		{
+			return new CapturingLogger(this);
+		}
+
+		public void Dispose()
+		{
+		}
+
+		private void Add(LogEntry entry)
+		{
+			lock (_gate)
+			{
+				_entries.Add(entry);
+			}
+		}
+
+		private sealed class CapturingLogger(CapturingLoggerProvider owner) : ILogger
+		{
+			public IDisposable? BeginScope<TState>(TState state)
+				where TState : notnull
+			{
+				return null;
+			}
+
+			public bool IsEnabled(LogLevel logLevel)
+			{
+				return true;
+			}
+
+			public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+				Func<TState, Exception?, string> formatter)
+			{
+				owner.Add(new LogEntry(eventId.Id, logLevel, formatter(state, exception), exception));
+			}
+		}
+	}
+
+	private sealed class ThrowingLoggerProvider(bool throwFromIsEnabled = false) : ILoggerProvider
+	{
+		public ILogger CreateLogger(string categoryName)
+		{
+			return new ThrowingLogger(throwFromIsEnabled);
+		}
+
+		public void Dispose()
+		{
+		}
+
+		private sealed class ThrowingLogger(bool throwFromIsEnabled) : ILogger
+		{
+			public IDisposable? BeginScope<TState>(TState state)
+				where TState : notnull
+			{
+				return null;
+			}
+
+			public bool IsEnabled(LogLevel logLevel)
+			{
+				return throwFromIsEnabled ? throw new InvalidOperationException("The logging filter failed.") : true;
+			}
+
+			public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+				Func<TState, Exception?, string> formatter)
+			{
+				throw new InvalidOperationException("The logging provider failed.");
+			}
+		}
+	}
+
+	/// <summary>
+	///     Refuses the snapshot as the real stack does after CheatEngine.SDK detected an external Lua state reset: the SDK
+	///     refuses the snapshot's Lua admission and the Client reports the fault as a failure.
+	/// </summary>
+	private sealed class ResetRefusingRuntime(List<string> events) : ICheatEngineRuntime
+	{
+		public long Epoch => 1;
+
+		public bool TryGetSnapshot(out CheatEngineRuntimeSnapshot snapshot, out CheatEngineFailure failure,
+			CancellationToken cancellationToken = default)
+		{
+			events.Add("runtime.snapshot");
+			snapshot = default;
+			failure = new CheatEngineFailure(CheatEngineFailureKind.RuntimeChanged, "Runtime.GetSnapshot",
+				"Cheat Engine replaced its Lua state outside the plugin's control.");
+			return false;
+		}
+
+		public CheatEngineRuntimeSnapshot GetSnapshot(CancellationToken cancellationToken = default)
+		{
+			throw new NotSupportedException();
+		}
+
+		public bool TryGetClientCapability(ClientCapabilityId capability, out ClientCapabilityAvailability availability,
+			out CheatEngineFailure failure, CancellationToken cancellationToken = default)
+		{
+			throw new NotSupportedException();
+		}
+
+		public ClientCapabilityAvailability GetClientCapability(ClientCapabilityId capability,
+			CancellationToken cancellationToken = default)
+		{
+			throw new NotSupportedException();
+		}
+	}
+
+	private sealed class FakeClient(long epoch, ICheatEngineRuntime? runtime = null) : ICheatEngineClient
 	{
 		public long Epoch => epoch;
 		public CancellationToken Stopping => CancellationToken.None;
-		public ICheatEngineRuntime Runtime => null!;
+		public ICheatEngineRuntime Runtime => runtime!;
 		public ICheatEngineDispatcher Dispatcher => null!;
 		public IProcessClient Processes => null!;
 		public IMemoryClient Memory => null!;
 		public IPatternScanner Patterns => null!;
-		public IValueScanner Scans => null!;
+		public IValueScanner ValueScans => null!;
 		public IInspectionClient Inspection => null!;
 		public ITableClient Tables => null!;
 		public ILuaClient Lua => null!;
 		public IAllocationClient Allocations => null!;
+#pragma warning disable CECLIENT5003 // The test client implements the experimental instruction property.
 		public IAssemblyClient Assembly => null!;
-		public IRemoteExecutionClient RemoteExecution => null!;
-		public IDebuggerClient Debugger => null!;
-		public IHotkeyClient Hotkeys => null!;
-		public ITimerClient Timers => null!;
-		public ISpeedClient Speed => null!;
-		public IHashingClient Hashing => null!;
-		public IDbvmClient Dbvm => null!;
+#pragma warning restore CECLIENT5003
 	}
 }

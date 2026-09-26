@@ -25,11 +25,28 @@ internal sealed class TemporaryDirectory : IDisposable
 		get;
 	}
 
+	/// <summary>
+	/// Deletes the directory. NuGet extracts some files read-only, and a child process that has just exited can still hold
+	/// a handle, so read-only attributes are cleared and the deletion is retried; a directory that still cannot be deleted
+	/// is left for the operating system's temporary-file cleanup rather than failing the test run.
+	/// </summary>
 	public void Dispose()
 	{
-		if (Directory.Exists(Path))
+		for (int attempt = 0; attempt < 3 && Directory.Exists(Path); attempt++)
 		{
-			Directory.Delete(Path, true);
+			try
+			{
+				foreach (string file in Directory.EnumerateFiles(Path, "*", SearchOption.AllDirectories))
+				{
+					File.SetAttributes(file, FileAttributes.Normal);
+				}
+
+				Directory.Delete(Path, true);
+			}
+			catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+			{
+				Thread.Sleep(TimeSpan.FromMilliseconds(500 * (attempt + 1)));
+			}
 		}
 	}
 

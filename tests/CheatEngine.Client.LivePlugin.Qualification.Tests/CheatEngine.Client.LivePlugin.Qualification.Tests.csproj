@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Tests of the qualification harness. The Lua-free harness files are compiled in: the x64 plugin project itself is
+    never referenced, because an AnyCPU test module referencing an x64 project is a processor-architecture mismatch.
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="../../libs/CheatEngine.Client.Abstractions/CheatEngine.Client.Abstractions.csproj"/>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="../CheatEngine.Client.LivePlugin.Qualification/Harness/*.cs" Link="Harness/%(Filename)%(Extension)"/>
+  </ItemGroup>
+
+</Project>

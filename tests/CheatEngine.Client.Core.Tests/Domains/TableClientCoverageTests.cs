@@ -3,6 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 
 using CheatEngine.Client.Core.Domains;
 using CheatEngine.Client.Core.Infrastructure;
+using CheatEngine.Client.Core.Tests.TestSupport;
 using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Results;
 using CheatEngine.Client.Tables;
@@ -13,34 +14,71 @@ namespace CheatEngine.Client.Core.Tests.Domains;
 
 public sealed class TableClientCoverageTests
 {
-	[Fact]
-	public void TryFindRejectsAnUninitializedSearchWithoutDispatching()
+	/// <summary>
+	///     A default or tampered argument is a programming error: the Try and the throwing forms throw what the
+	///     argument's constructor throws for the same value, before any dispatch. The default update, search and
+	///     definition, which change or find nothing, are no exception.
+	/// </summary>
+	[Theory]
+	[InlineData("GetSnapshot.DefaultRequest", "request", typeof(ArgumentOutOfRangeException))]
+	[InlineData("Find.DefaultSearch", "search", typeof(ArgumentException))]
+	[InlineData("Find.UndefinedValueType", "search", typeof(ArgumentOutOfRangeException))]
+	[InlineData("Find.DefaultRequest", "request", typeof(ArgumentOutOfRangeException))]
+	[InlineData("Create.DefaultDefinition", "definition", typeof(ArgumentException))]
+	[InlineData("Create.UndefinedValueType", "definition", typeof(ArgumentOutOfRangeException))]
+	[InlineData("Update.DefaultUpdate", "update", typeof(ArgumentException))]
+	[InlineData("Update.UndefinedValueType", "update", typeof(ArgumentOutOfRangeException))]
+	[InlineData("GetHierarchy.DefaultRequest", "request", typeof(ArgumentOutOfRangeException))]
+	[InlineData("LoadTrustedTable.DefaultRequest", "request", typeof(ArgumentException))]
+	[InlineData("SaveTable.DefaultRequest", "request", typeof(ArgumentException))]
+	public void ADefaultOrTamperedArgumentThrowsWithoutDispatching(string entryPoint, string parameter, Type expected)
 	{
 		RejectingDispatcher dispatcher = new(Failure());
 		TableClient client = CreateClient(dispatcher);
+		CancellationToken token = TestContext.Current.CancellationToken;
+		MemoryRecordId id = new(42);
+		MemoryRecordCollectionRequest request = new(8);
+		MemoryRecordSearch search = TamperedValues.WithBackingField(new MemoryRecordSearch("Ammo"),
+			nameof(MemoryRecordSearch.VariableType), (VariableType?) (VariableType) 99);
+		MemoryRecordDefinition definition = TamperedValues.WithBackingField(
+			new MemoryRecordDefinition("Ammo", "game.exe+10", "100", VariableType.Dword),
+			nameof(MemoryRecordDefinition.VariableType), (VariableType) 99);
+		MemoryRecordUpdate update = TamperedValues.WithBackingField(new MemoryRecordUpdate("Ammo"),
+			nameof(MemoryRecordUpdate.VariableType), (VariableType?) (VariableType) 99);
+		(Action TryForm, Action ThrowingForm) forms = entryPoint switch
+		{
+			"GetSnapshot.DefaultRequest" => (() => client.TryGetSnapshot(default, out _, out _, token),
+				() => client.GetSnapshot(default, token)),
+			"Find.DefaultSearch" => (() => client.TryFind(default, request, out _, out _, token),
+				() => client.Find(default, request, token)),
+			"Find.UndefinedValueType" => (() => client.TryFind(search, request, out _, out _, token),
+				() => client.Find(search, request, token)),
+			"Find.DefaultRequest" => (
+				() => client.TryFind(new MemoryRecordSearch("Ammo"), default, out _, out _, token),
+				() => client.Find(new MemoryRecordSearch("Ammo"), default, token)),
+			"Create.DefaultDefinition" => (() => client.TryCreate(default, out _, out _, token),
+				() => client.Create(default, token)),
+			"Create.UndefinedValueType" => (() => client.TryCreate(definition, out _, out _, token),
+				() => client.Create(definition, token)),
+			"Update.DefaultUpdate" => (() => client.TryUpdate(id, default, out _, out _, token),
+				() => client.Update(id, default, token)),
+			"Update.UndefinedValueType" => (() => client.TryUpdate(id, update, out _, out _, token),
+				() => client.Update(id, update, token)),
+			"GetHierarchy.DefaultRequest" => (() => client.TryGetHierarchy(id, default, out _, out _, token),
+				() => client.GetHierarchy(id, default, token)),
+			"LoadTrustedTable.DefaultRequest" => (() => client.TryLoadTrustedTable(default, out _, token),
+				() => client.LoadTrustedTable(default, token)),
+			"SaveTable.DefaultRequest" => (() => client.TrySaveTable(default, out _, token),
+				() => client.SaveTable(default, token)),
+			_ => throw new ArgumentOutOfRangeException(nameof(entryPoint), entryPoint, null)
+		};
 
-		bool succeeded = client.TryFind(default, new MemoryRecordCollectionRequest(8),
-			out ImmutableArray<MemoryRecordSnapshot> records,
-			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+		ArgumentException tryForm = Assert.ThrowsAny<ArgumentException>(forms.TryForm);
+		ArgumentException throwingForm = Assert.ThrowsAny<ArgumentException>(forms.ThrowingForm);
 
-		Assert.False(succeeded);
-		Assert.True(records.IsEmpty);
-		Assert.Equal(CheatEngineFailureKind.OperationRejected, failure.Kind);
-		Assert.Equal("Tables.Find", failure.Operation);
-		Assert.Equal(0, dispatcher.InvocationCount);
-	}
-
-	[Fact]
-	public void FindConvertsTheUninitializedSearchRejectionToAnOperationException()
-	{
-		RejectingDispatcher dispatcher = new(Failure());
-		TableClient client = CreateClient(dispatcher);
-
-		CheatEngineOperationException exception = Assert.Throws<CheatEngineOperationException>(() =>
-			client.Find(default, new MemoryRecordCollectionRequest(8), TestContext.Current.CancellationToken));
-
-		Assert.Equal(CheatEngineFailureKind.OperationRejected, exception.Failure.Kind);
-		Assert.Equal("Tables.Find", exception.Failure.Operation);
+		Assert.IsType(expected, tryForm);
+		Assert.IsType(expected, throwingForm);
+		Assert.Equal(parameter, tryForm.ParamName);
 		Assert.Equal(0, dispatcher.InvocationCount);
 	}
 
@@ -51,7 +89,7 @@ public sealed class TableClientCoverageTests
 		TableClient client = CreateClient(dispatcher);
 
 		Assert.Throws<ArgumentOutOfRangeException>(() =>
-			client.TryGetRecord(-1, out _, out _, TestContext.Current.CancellationToken));
+			client.TryGetRecordAt(-1, out _, out _, TestContext.Current.CancellationToken));
 
 		Assert.Equal(0, dispatcher.InvocationCount);
 	}
@@ -104,15 +142,15 @@ public sealed class TableClientCoverageTests
 		TableClient client = CreateClient(dispatcher);
 		MemoryRecordId id = new(42);
 
-		Assert.False(client.TryGetCurrent(out AddressTableSnapshot current, out CheatEngineFailure currentFailure,
+		Assert.False(client.TryGetRecordCount(out int count, out CheatEngineFailure countFailure,
 			TestContext.Current.CancellationToken));
-		Assert.Equal(default, current);
-		Assert.Equal(expected, currentFailure);
+		Assert.Equal(0, count);
+		Assert.Equal(expected, countFailure);
 		Assert.False(client.TryGetSnapshot(new MemoryRecordCollectionRequest(8), out AddressTableSnapshot snapshot,
 			out CheatEngineFailure snapshotFailure, TestContext.Current.CancellationToken));
 		Assert.Equal(default, snapshot);
 		Assert.Equal(expected, snapshotFailure);
-		Assert.False(client.TryGetRecord(0, out MemoryRecordSnapshot indexedRecord,
+		Assert.False(client.TryGetRecordAt(0, out MemoryRecordSnapshot indexedRecord,
 			out CheatEngineFailure indexedFailure,
 			TestContext.Current.CancellationToken));
 		Assert.Equal(default, indexedRecord);
@@ -122,7 +160,7 @@ public sealed class TableClientCoverageTests
 			TestContext.Current.CancellationToken));
 		Assert.Equal(default, identifiedRecord);
 		Assert.Equal(expected, identifiedFailure);
-		Assert.False(client.TryGetSelected(out MemoryRecordSnapshot selectedRecord,
+		Assert.False(client.TryGetSelectedRecord(out MemoryRecordSnapshot selectedRecord,
 			out CheatEngineFailure selectedFailure,
 			TestContext.Current.CancellationToken));
 		Assert.Equal(default, selectedRecord);
@@ -139,15 +177,15 @@ public sealed class TableClientCoverageTests
 		TableClient client = new(dispatcher, CoreClientPolicy.SafeDefaults, mutations);
 		MemoryRecordId id = new(42);
 		MemoryRecordDefinition definition = new("Health", "game.exe+10", "100", VariableType.Dword);
-		MemoryRecordUpdate update = new(id, value: "101");
+		MemoryRecordUpdate update = new(value: "101");
 
 		Assert.False(client.TryCreate(definition, out MemoryRecordSnapshot created,
 			out CheatEngineFailure createFailure,
 			TestContext.Current.CancellationToken));
 		Assert.Equal(default, created);
 		Assert.Equal(expected, createFailure);
-		Assert.False(client.TryUpdate(update, out MemoryRecordSnapshot updated, out CheatEngineFailure updateFailure,
-			TestContext.Current.CancellationToken));
+		Assert.False(client.TryUpdate(id, update, out MemoryRecordSnapshot updated,
+			out CheatEngineFailure updateFailure, TestContext.Current.CancellationToken));
 		Assert.Equal(default, updated);
 		Assert.Equal(expected, updateFailure);
 		Assert.False(client.TryDelete(id, out CheatEngineFailure deleteFailure, TestContext.Current.CancellationToken));
@@ -199,18 +237,38 @@ public sealed class TableClientCoverageTests
 			private set;
 		}
 
-		public TableRecordMutationStatus TryDelete(MemoryRecordId id)
+		public TableRecordCreation TryCreate(MemoryRecordDefinition definition, out MemoryRecordSnapshot record)
 		{
 			InvocationCount++;
-			return TableRecordMutationStatus.Success;
+			record = default;
+			return TableRecordCreation.Created;
 		}
 
-		public TableRecordMutationStatus TrySetParent(MemoryRecordId childId, MemoryRecordId? parentId,
+		public TableRecordMutationOutcome TryDelete(MemoryRecordId id)
+		{
+			InvocationCount++;
+			return TableRecordMutationOutcome.Succeeded;
+		}
+
+		public TableRecordMutationOutcome TrySetParent(MemoryRecordId childId, MemoryRecordId? parentId,
 			out MemoryRecordSnapshot record)
 		{
 			InvocationCount++;
 			record = default;
-			return TableRecordMutationStatus.Success;
+			return TableRecordMutationOutcome.Succeeded;
+		}
+
+		public TableActivationObservation TrySetActive(MemoryRecordId id, bool requested)
+		{
+			InvocationCount++;
+			return TableActivationObservation.Of(MemoryRecordActivationOutcomeKind.Applied);
+		}
+
+		public TableRecordMutationOutcome TrySelect(MemoryRecordId id, out MemoryRecordSnapshot record)
+		{
+			InvocationCount++;
+			record = default;
+			return TableRecordMutationOutcome.Succeeded;
 		}
 	}
 
@@ -254,7 +312,7 @@ public sealed class TableClientCoverageTests
 		{
 			if (!TryInvoke(callback, out CheatEngineFailure failure, cancellationToken))
 			{
-				failure.Throw();
+				failure.Throw(cancellationToken);
 			}
 		}
 
@@ -265,7 +323,7 @@ public sealed class TableClientCoverageTests
 				return result;
 			}
 
-			failure.Throw();
+			failure.Throw(cancellationToken);
 			return default!;
 		}
 	}

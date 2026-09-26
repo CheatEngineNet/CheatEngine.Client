@@ -4,11 +4,29 @@ using CheatEngine.SDK.Engine.Values;
 namespace CheatEngine.Client.Memory;
 
 /// <summary>An immutable, handle-free fluent operation for one finite target-aware pointer chain.</summary>
+/// <remarks>
+///     <para>
+///         Start it with <see cref="MemoryAddressBuilder.Follow" />, for example
+///         <c>client.Memory.At(address).Follow(offsets)</c>: the chain is bound to that memory service and never rebound.
+///         It is a plain value that declares no <c>Equals</c>, <c>GetHashCode</c>, <c>ToString</c> or equality operators
+///         (only those inherited from <see cref="ValueType" />): compare <see cref="Request" /> values, not builders.
+///     </para>
+///     <para>
+///         Its only constructor is the implicit parameterless one, which yields the <see langword="default" /> value:
+///         that value has no target-memory service, and <see cref="Resolve" /> and <see cref="TryResolve" /> throw
+///         <see cref="InvalidOperationException" /> on it.
+///     </para>
+///     <para>
+///         <see cref="Resolve" /> calls the throwing member of the bound memory service, which the Client implements with
+///         <see cref="CheatEngineFailure.Throw(CancellationToken)" />: the exception type follows
+///         <see cref="CheatEngineFailure.Kind" />, and <see cref="TryResolve" /> returns the same failure instead.
+///     </para>
+/// </remarks>
 public readonly struct MemoryPointerChainBuilder
 {
 	private readonly IMemoryClient? _memory;
 
-	internal MemoryPointerChainBuilder(PointerChainRequest request, IMemoryClient? memory)
+	internal MemoryPointerChainBuilder(PointerChainRequest request, IMemoryClient memory)
 	{
 		Request = request;
 		_memory = memory;
@@ -20,20 +38,28 @@ public readonly struct MemoryPointerChainBuilder
 		get;
 	}
 
-	/// <summary>Returns an equivalent pointer-chain builder bound to a scoped target-memory service.</summary>
-	/// <param name="memory">The scoped target-memory service used by terminal operations.</param>
-	/// <returns>A new immutable builder.</returns>
-	/// <exception cref="ArgumentNullException"><paramref name="memory" /> is <see langword="null" />.</exception>
-	public MemoryPointerChainBuilder Using(IMemoryClient memory)
-	{
-		ArgumentNullException.ThrowIfNull(memory);
-		return new MemoryPointerChainBuilder(Request, memory);
-	}
-
 	/// <summary>Resolves every pointer dereference and offset in the chain.</summary>
-	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <param name="cancellationToken">
+	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
+	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
+	/// </param>
 	/// <returns>The copied final target address.</returns>
-	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
+	/// <exception cref="InvalidOperationException">
+	///     This builder is the <see langword="default" /> value, which has no target-memory service.
+	/// </exception>
+	/// <exception cref="CheatEngineOperationException">
+	///     The bound memory service refused or failed the resolution.
+	/// </exception>
+	/// <exception cref="CheatEngineOperationCanceledException">
+	///     <paramref name="cancellationToken" /> was observed before dispatch or between Client-managed steps.
+	/// </exception>
+	/// <exception cref="CheatEngineActivationExpiredException">
+	///     The Client activation that owns the memory service has ended.
+	/// </exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The Client activation is stopping, outside a deactivation callback, or the resolution failed with
+	///     <see cref="CheatEngineFailureKind.InvalidState" />.
+	/// </exception>
 	public Address Resolve(CancellationToken cancellationToken = default)
 	{
 		return RequireMemory().ResolvePointerChain(Request, cancellationToken);
@@ -42,9 +68,20 @@ public readonly struct MemoryPointerChainBuilder
 	/// <summary>Tries to resolve every pointer dereference and offset in the chain.</summary>
 	/// <param name="address">The copied final target address when the method returns <see langword="true" />.</param>
 	/// <param name="failure">The classified operation failure when the method returns <see langword="false" />.</param>
-	/// <param name="cancellationToken">Cancels before the operation reaches Cheat Engine.</param>
+	/// <param name="cancellationToken">
+	///     Observed before dispatch and between Client-managed steps; it never interrupts a Cheat Engine call that has
+	///     already started (see <see cref="CheatEngine.Client.Results.CheatEngineFailure.HostEffect" />).
+	/// </param>
 	/// <returns><see langword="true" /> when the chain was resolved.</returns>
-	/// <exception cref="InvalidOperationException">No memory service has been bound to this builder.</exception>
+	/// <exception cref="InvalidOperationException">
+	///     This builder is the <see langword="default" /> value, which has no target-memory service.
+	/// </exception>
+	/// <exception cref="CheatEngineActivationExpiredException">
+	///     The Client activation that owns the memory service has ended.
+	/// </exception>
+	/// <exception cref="CheatEngineInvalidStateException">
+	///     The Client activation is stopping, outside a deactivation callback.
+	/// </exception>
 	public bool TryResolve(out Address address, out CheatEngineFailure failure,
 		CancellationToken cancellationToken = default)
 	{
@@ -54,7 +91,7 @@ public readonly struct MemoryPointerChainBuilder
 	private IMemoryClient RequireMemory()
 	{
 		return _memory ?? throw new InvalidOperationException(
-			"This pointer-chain builder has no bound target-memory service. Use Memory.At(memory, address), " +
-			"memory.At(address), or bind the chain with Using(memory) before a terminal operation.");
+			"This pointer-chain builder is a default value without a target-memory service. Start the chain with " +
+			"memory.At(address).Follow(offsets), for example client.Memory.At(address).Follow(offsets).");
 	}
 }

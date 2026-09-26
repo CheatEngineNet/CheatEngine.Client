@@ -1,16 +1,42 @@
-name: Client validation
+name: CI
+
+# Reusable pipeline for pull-request-ci.yml, main-ci.yml and release.yml. Callers use the job id `ci` named `CI`, so
+# the only required check is "CI / Gate".
+#
+#   build-test (Debug, Release) ─► sonar ─┐
+#   aot ──────────────────────────────────┤
+#   lint ─────────────────────────────────┤
+#   format ───────────────────────────────┼─► gate
+#   dependency-review ────────────────────┤
+#   lock-files ───────────────────────────┘
+#
+# The Release leg packs before it tests: the package-consumption tests install the very files CI uploads. Jobs exchange
+# artifacts instead of rebuilding (names reserved, nothing else is uploaded):
+#   nuget-packages                        build-test (Release) → sonar, release.yml
+#   coverage                              build-test (Debug)   → sonar
+#   test-results-<configuration>          build-test           → humans
+#   test-dumps-<configuration>, binlogs-* on failure only      → humans
+#
+# No job here uses a NuGet cache: release.yml reaches every job.
 
 on:
   workflow_call:
     inputs:
-      collect_sonar_coverage:
-        description: Produce Microsoft XML coverage reports consumed by the guarded Sonar job.
-        required: false
+      sonar:
+        description: Run the SonarQube Cloud analysis. Fork pull requests and Dependabot always skip it (SONAR_EXPECTED).
         type: boolean
         default: false
+      package-version:
+        description: When set (release), the Release leg must produce exactly <Id>.<package-version>.nupkg for every Client package.
+        type: string
+        default: ''
+      package-retention-days:
+        description: Days to keep the nuget-packages artifact.
+        type: number
+        default: 7
     secrets:
       SONAR_TOKEN:
-        description: SonarQube Cloud token for protected same-repository analysis.
+        description: SonarQube Cloud analysis token. Needed only when sonar is true.
         required: false
 
 permissions:
@@ -20,281 +46,414 @@ defaults:
   run:
     shell: pwsh
 
-env:
-  DOTNET_NOLOGO: true
-  DOTNET_CLI_TELEMETRY_OPTOUT: true
-  MSBUILDDISABLENODEREUSE: true
-
 jobs:
-  validate:
-    name: Validate packages, template, and AOT graph
-    runs-on: windows-latest
-    timeout-minutes: 35
-
+  build-test:
+    name: Build and test (${{ matrix.configuration }})
+    runs-on: windows-2025
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [ Debug, Release ]
+    env:
+      CONFIGURATION: ${{ matrix.configuration }}
+      RESULTS: artifacts/test-results/${{ matrix.configuration }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # the package version comes from tags and history
           persist-credentials: false
 
-      - name: Install pinned .NET SDK
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+      - name: Setup .NET
+        uses: ./.github/actions/setup-dotnet
         with:
-          global-json-file: global.json
-          cache: true
-          cache-dependency-path: |
-            **/packages.lock.json
-            Directory.Packages.props
+          restore: CheatEngine.Client.slnx
 
-      - name: Restore locked dependency graph
+      # No --warnaserror: it would also promote the NuGet audit warnings replayed at build (NU1901/NU1902) and override
+      # the audit policy. TreatWarningsAsErrors (Directory.Build.props) keeps compiler and analyzer strictness.
+      - name: Build
         run: |
-          dotnet restore CheatEngine.Client.slnx --locked-mode
+          dotnet build CheatEngine.Client.slnx -c $env:CONFIGURATION --no-restore "-bl:artifacts/logs/build-test-$env:CONFIGURATION.binlog"
           if ($LASTEXITCODE -ne 0) {
-            throw "dotnet restore failed with exit code $LASTEXITCODE."
+            throw "$env:CONFIGURATION solution build failed with exit code $LASTEXITCODE."
           }
 
-      - name: Build Release
-        run: |
-          dotnet build CheatEngine.Client.slnx --configuration Release --no-restore --warnaserror
-          if ($LASTEXITCODE -ne 0) {
-            throw "dotnet build failed with exit code $LASTEXITCODE."
-          }
-
-      - name: Pack and validate public package APIs
-        run: |
-          dotnet pack CheatEngine.Client.slnx --configuration Release --no-build --no-restore --output artifacts/packages
-          if ($LASTEXITCODE -ne 0) {
-            throw "dotnet pack failed with exit code $LASTEXITCODE."
-          }
-
-      - name: Run unit tests through Microsoft Testing Platform
+      # Every .nupkg must embed its SPDX SBOM (_manifest/spdx_2.2/manifest.spdx.json): the pack generates it
+      # unconditionally (eng/Shipping.props, eng/Templates.props) and release.yml attests it. The seven ids produce
+      # exactly one nupkg each and a snupkg for every one but the two with no build output (Client, Templates); when a
+      # release names the exact version, every file must be named "<Id>.<version>.nupkg" / ".snupkg".
+      - name: Pack
+        id: pack
+        if: matrix.configuration == 'Release'
         env:
-          COLLECT_SONAR_COVERAGE: ${{ inputs.collect_sonar_coverage }}
-          CHEATENGINE_CLIENT_PACKAGE_SOURCE: ${{ github.workspace }}/artifacts/packages
+          PACKAGE_VERSION: ${{ inputs.package-version }}
         run: |
-          $projects = @(Get-ChildItem -Path tests -Filter '*.Tests.csproj' -Recurse -File | Sort-Object Name)
-          if ($projects.Count -eq 0) {
-            throw 'No *.Tests.csproj project found under tests.'
+          $ErrorActionPreference = 'Stop'
+          dotnet pack CheatEngine.Client.slnx -c Release --no-build -o artifacts/nuget -bl:artifacts/logs/pack-Release.binlog
+          if ($LASTEXITCODE -ne 0) {
+            throw "Client package creation failed with exit code $LASTEXITCODE."
           }
 
-          foreach ($project in $projects) {
-            $results = Join-Path 'artifacts/test-results' $project.BaseName
-            $options = @(
-              '--project', $project.FullName,
-              '--configuration', 'Release',
-              '--no-build', '--no-restore',
-              '--report-trx',
-              '--results-directory', $results,
-              '--fail-skips', 'on'
-            )
-
-            if ($env:COLLECT_SONAR_COVERAGE -eq 'true') {
-              $coverage = [IO.Path]::GetFullPath((Join-Path (Join-Path 'artifacts/sonar-test-results' $project.BaseName) 'coverage.xml'))
-              $options += @(
-                '--coverage',
-                '--coverage-output', $coverage,
-                '--coverage-output-format', 'xml'
-              )
-            }
-
-            dotnet test @options
-            if ($LASTEXITCODE -ne 0) {
-              throw "Microsoft Testing Platform failed for '$($project.FullName)' with exit code $LASTEXITCODE."
-            }
+          # The seven ids, each declared once with whether it ships a symbol package (release.yml lists the same ids in
+          # PACKAGE_IDS).
+          $shipsSymbols = [ordered]@{
+            'CheatEngine.Client' = $false
+            'CheatEngine.Client.Abstractions' = $true
+            'CheatEngine.Client.Core' = $true
+            'CheatEngine.Client.Extensions.DependencyInjection' = $true
+            'CheatEngine.Client.Fluent' = $true
+            'CheatEngine.Client.Hosting' = $true
+            'CheatEngine.Client.Templates' = $false
+          }
+          $ids = @($shipsSymbols.Keys)
+          $noSymbols = @($ids | Where-Object { -not $shipsSymbols[$_] })
+          $nupkgs = @(Get-ChildItem artifacts/nuget -Filter '*.nupkg')
+          $snupkgs = @(Get-ChildItem artifacts/nuget -Filter '*.snupkg')
+          if ($nupkgs.Count -ne $ids.Count -or $snupkgs.Count -ne ($ids.Count - $noSymbols.Count)) {
+            throw "Expected $($ids.Count) nupkg and $($ids.Count - $noSymbols.Count) snupkg in artifacts/nuget, found $($nupkgs.Count) nupkg and $($snupkgs.Count) snupkg."
           }
 
-      - name: Verify Sonar coverage reports
-        if: ${{ inputs.collect_sonar_coverage && !cancelled() }}
-        run: |
-          $projects = @(Get-ChildItem -Path tests -Filter '*.Tests.csproj' -Recurse -File)
-          $reports = @($projects | ForEach-Object {
-            Join-Path (Join-Path 'artifacts/sonar-test-results' $_.BaseName) 'coverage.xml'
-          })
-          $missingReports = @($reports | Where-Object { -not (Test-Path -LiteralPath $_ -PathType Leaf) })
-          if ($missingReports.Count -gt 0) {
-            throw "Microsoft Testing Platform did not produce XML coverage report(s): $($missingReports -join ', ')."
-          }
-
-          foreach ($report in $reports) {
-            if ((Get-Item -LiteralPath $report).Length -eq 0) {
-              throw "Coverage report '$report' is empty."
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          foreach ($id in $ids) {
+            $expectedName = if ($env:PACKAGE_VERSION) { "$id.$env:PACKAGE_VERSION.nupkg" } else { $null }
+            $nupkg = if ($expectedName) { Join-Path artifacts/nuget $expectedName } else { ($nupkgs | Where-Object BaseName -Match "^$([regex]::Escape($id))\.\d") | Select-Object -First 1 -ExpandProperty FullName }
+            if (-not $nupkg -or -not (Test-Path -LiteralPath $nupkg -PathType Leaf)) {
+              throw "artifacts/nuget has no package for $id$(if ($expectedName) { " named $expectedName" })."
             }
 
+            $archive = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path -LiteralPath $nupkg).Path)
             try {
-              $coverage = [xml](Get-Content -LiteralPath $report -Raw)
+              if ($null -eq $archive.GetEntry('_manifest/spdx_2.2/manifest.spdx.json')) {
+                throw "$nupkg has no embedded SBOM at _manifest/spdx_2.2/manifest.spdx.json."
+              }
             }
-            catch {
-              throw "Coverage report '$report' is not valid XML. $($_.Exception.Message)"
-            }
-
-            if ($null -eq $coverage.DocumentElement) {
-              throw "Coverage report '$report' has no XML document element."
+            finally {
+              $archive.Dispose()
             }
           }
 
-          Write-Host "Verified $($reports.Count) non-empty XML coverage report(s)."
+          Write-Output "Verified $($nupkgs.Count) nupkg and $($snupkgs.Count) snupkg, each embedding its SBOM."
 
-      - name: Summarize test results
-        if: ${{ !cancelled() }}
+          # The Release Test step consumes these exact packages (CHEATENGINE_CLIENT_PACKAGE_SOURCE), never a package it
+          # packs itself: a self-pack would test different bits than the ones this run uploads.
+          $absolute = (Resolve-Path artifacts/nuget).Path
+          "package-source=$absolute" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      # The solution build compiles the benchmarks; listing them proves discovery. Benchmarks never run in the Gate.
+      - name: Benchmarks discovery
+        if: matrix.configuration == 'Release'
         run: |
-          $reports = @(Get-ChildItem -Path artifacts/test-results -Filter *.trx -Recurse -File -ErrorAction SilentlyContinue)
-          if ($reports.Count -eq 0) {
-            throw 'Microsoft Testing Platform did not produce a TRX test report.'
+          $ErrorActionPreference = 'Stop'
+          $listed = @(dotnet run --project tests/CheatEngine.Client.Benchmarks/CheatEngine.Client.Benchmarks.csproj -c Release --no-build -- --list flat --artifacts artifacts/benchmarks)
+          if ($LASTEXITCODE -ne 0) {
+            throw "Benchmark discovery failed with exit code $LASTEXITCODE."
+          }
+          $benchmarks = @($listed | Where-Object { $_ -match '^CheatEngine\.Client\.Benchmarks\.' })
+          if ($benchmarks.Count -eq 0) {
+            throw "The benchmark switcher listed no benchmark:`n$($listed -join "`n")"
+          }
+          "Discovered $($benchmarks.Count) benchmarks." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      # One parallel run over every tests/**/*.Tests module. A skip fails the run (--fail-skips on). Debug collects one
+      # coverage report per module and leaves the package-consumption tests to Release by trait filter, never Skip.
+      # Release hands those tests the packages the Pack step produced. Both legs exclude the live qualification tests
+      # by trait: they start a sandboxed Cheat Engine and run only on a maintainer workstation that opts in. The hang
+      # dump fires after 15 minutes without test activity, well below the job timeout.
+      - name: Test
+        env:
+          PACKAGE_SOURCE: ${{ steps.pack.outputs.package-source }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $options = @(
+            '--solution', 'CheatEngine.Client.slnx', '-c', $env:CONFIGURATION, '--no-build', '--results-directory', $env:RESULTS,
+            '--fail-skips', 'on', '--report-trx', '--report-gh', '--report-gh-groups', 'off',
+            '--hangdump', '--hangdump-timeout', '15m', '--crashdump',
+            '--filter-not-trait', 'Category=LiveQualification'
+          )
+          if ($env:CONFIGURATION -eq 'Debug') {
+            $options += '--coverage', '--coverage-output-format', 'xml', '--filter-not-trait', 'Category=PackageConsumption'
+          }
+          else {
+            # Set only here: the smoke tests fail on a set-but-empty value, and the Debug leg has no packages.
+            if ([string]::IsNullOrEmpty($env:PACKAGE_SOURCE)) {
+              throw 'The Pack step exported no package-source.'
+            }
+            $env:CHEATENGINE_CLIENT_PACKAGE_SOURCE = $env:PACKAGE_SOURCE
+          }
+          dotnet test @options
+          if ($LASTEXITCODE -ne 0) {
+            throw "$env:CONFIGURATION tests failed with exit code $LASTEXITCODE."
           }
 
-          $results = @($reports | ForEach-Object {
-            ([xml](Get-Content -LiteralPath $_.FullName -Raw)).TestRun.Results.UnitTestResult
-          } | Where-Object { $_ })
-          $passed = @($results | Where-Object outcome -eq 'Passed').Count
-          $skipped = @($results | Where-Object outcome -eq 'NotExecuted').Count
-          $failed = @($results | Where-Object { $_.outcome -notin 'Passed', 'NotExecuted' })
+      - name: Upload packages
+        if: matrix.configuration == 'Release'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: nuget-packages
+          path: |
+            artifacts/nuget/*.nupkg
+            artifacts/nuget/*.snupkg
+          if-no-files-found: error
+          retention-days: ${{ inputs.package-retention-days }}
 
-          @(
-            '### Test results',
-            '',
-            '| Total | Passed | Failed | Skipped |',
-            '| ---: | ---: | ---: | ---: |',
-            "| $($results.Count) | $passed | $($failed.Count) | $skipped |"
-          ) | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+      - name: Upload coverage
+        if: matrix.configuration == 'Debug'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage
+          path: ${{ env.RESULTS }}/*.xml
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Upload test results
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: test-results
-          path: artifacts/test-results/**/*.trx
+          name: test-results-${{ matrix.configuration }}
+          path: ${{ env.RESULTS }}/*.trx
           if-no-files-found: warn
-          retention-days: 14
+          retention-days: 7
 
-      - name: Upload Sonar coverage reports
-        if: ${{ inputs.collect_sonar_coverage && !cancelled() }}
+      # Crash dumps, hang dumps and the test sequence logs that name the tests running at the time.
+      - name: Upload test dumps
+        if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: sonar-coverage
-          path: artifacts/sonar-test-results/*/coverage.xml
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: Upload package artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: nuget-packages
+          name: test-dumps-${{ matrix.configuration }}
           path: |
-            artifacts/packages/*.nupkg
-            artifacts/packages/*.snupkg
-          if-no-files-found: error
-          retention-days: 14
+            ${{ env.RESULTS }}/**/*.dmp
+            ${{ env.RESULTS }}/**/*.log
+          if-no-files-found: ignore
+          retention-days: 5
 
-      - name: Publish Native AOT reference probe
-        run: |
-          dotnet publish tests/CheatEngine.Client.AotProbe/CheatEngine.Client.AotProbe.csproj --configuration Release --runtime win-x64 --no-restore --output ./artifacts/aot-probe
-          if ($LASTEXITCODE -ne 0) {
-            throw "dotnet publish failed with exit code $LASTEXITCODE."
-          }
-
-      - name: Run Native AOT reference probe
-        run: |
-          ./artifacts/aot-probe/CheatEngine.Client.AotProbe.exe
-          if ($LASTEXITCODE -ne 0) {
-            throw "The Native AOT reference probe failed with exit code $LASTEXITCODE."
-          }
-
-      - name: Upload Native AOT probe
-        if: ${{ !cancelled() }}
+      - name: Upload binary logs
+        if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: native-aot-probe
-          path: artifacts/aot-probe
-          if-no-files-found: warn
-          retention-days: 14
+          name: binlogs-build-test-${{ matrix.configuration }}
+          path: artifacts/logs/*.binlog
+          if-no-files-found: ignore
+          retention-days: 5
 
+  # A trim and Native AOT graph probe only: it never loads anything into Cheat Engine.
+  aot:
+    name: Native AOT publication probe
+    runs-on: windows-2025
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # the package version comes from tags and history
+          persist-credentials: false
+
+      - name: Setup .NET
+        uses: ./.github/actions/setup-dotnet
+        with:
+          restore: tests/CheatEngine.Client.AotProbe/CheatEngine.Client.AotProbe.csproj
+
+      # The project pins its RuntimeIdentifier (win-x64), so publish needs no --runtime.
+      - name: Publish and run Native AOT probe
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $output = Join-Path $PWD 'artifacts/aot-probe'
+          dotnet publish tests/CheatEngine.Client.AotProbe/CheatEngine.Client.AotProbe.csproj -c Release --no-restore -o $output -bl:artifacts/logs/aot-publish.binlog
+          if ($LASTEXITCODE -ne 0) {
+            throw "Native AOT probe publish failed with exit code $LASTEXITCODE."
+          }
+          $probe = Join-Path $output 'CheatEngine.Client.AotProbe.exe'
+          if (-not (Test-Path -LiteralPath $probe -PathType Leaf)) {
+            throw "Native AOT publish did not produce '$probe'."
+          }
+          & $probe
+          if ($LASTEXITCODE -ne 0) {
+            throw "Native AOT probe exited with code $LASTEXITCODE."
+          }
+
+      - name: Upload binary logs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: binlogs-aot
+          path: artifacts/logs/*.binlog
+          if-no-files-found: ignore
+          retention-days: 5
+
+  # Pull requests fail on the quality gate; main only reports it. SONAR_EXPECTED below must stay identical to the gate's.
   sonar:
     name: Sonar
-    needs: validate
-    if: ${{ inputs.collect_sonar_coverage }}
+    needs: build-test
+    if: >-
+      inputs.sonar
+      && github.event_name != 'merge_group'
+      && github.actor != 'dependabot[bot]'
+      && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     uses: ./.github/workflows/sonar.yml
     with:
-      ci_based_analysis: true
+      wait-quality-gate: ${{ github.event_name != 'push' }}
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
-  dependency-review:
-    name: Dependency review
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft == false }}
-    runs-on: ubuntu-latest
+  lint:
+    name: Lint
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
-    permissions:
-      contents: read
-    steps:
-      - name: Review dependency changes
-        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
-        with:
-          fail-on-severity: high
-
-  lint-workflows:
-    name: Lint workflows
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft == false }}
-    runs-on: windows-latest
-    timeout-minutes: 5
     env:
       ACTIONLINT_VERSION: 1.7.12
-      ACTIONLINT_SHA256: 6e7241b51e6817ea6a047693d8e6fed13b31819c9a0dd6c5a726e1592d22f6e9
+      ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8 # linux_amd64, official checksums file
     steps:
-      - name: Checkout workflow definitions
+      - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          sparse-checkout: .github
           persist-credentials: false
 
       - name: Run actionlint
         run: |
           $ErrorActionPreference = 'Stop'
-          $archive = Join-Path $env:RUNNER_TEMP 'actionlint.zip'
-          $url = "https://github.com/rhysd/actionlint/releases/download/v$env:ACTIONLINT_VERSION/actionlint_$($env:ACTIONLINT_VERSION)_windows_amd64.zip"
+          $archive = Join-Path $env:RUNNER_TEMP 'actionlint.tar.gz'
+          $url = "https://github.com/rhysd/actionlint/releases/download/v$env:ACTIONLINT_VERSION/actionlint_$($env:ACTIONLINT_VERSION)_linux_amd64.tar.gz"
           Invoke-WebRequest -Uri $url -OutFile $archive -MaximumRetryCount 3 -RetryIntervalSec 5
           $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($actual -ne $env:ACTIONLINT_SHA256) {
             throw "actionlint $env:ACTIONLINT_VERSION has SHA-256 $actual, expected $env:ACTIONLINT_SHA256."
           }
-          $destination = Join-Path $env:RUNNER_TEMP 'actionlint'
-          Expand-Archive -LiteralPath $archive -DestinationPath $destination
-          & (Join-Path $destination 'actionlint.exe') -color
+          tar -xzf $archive -C $env:RUNNER_TEMP actionlint
+          if ($LASTEXITCODE -ne 0) {
+            throw "Extracting actionlint failed with exit code $LASTEXITCODE."
+          }
+          & (Join-Path $env:RUNNER_TEMP 'actionlint') -color
           if ($LASTEXITCODE -ne 0) {
             throw "actionlint failed with exit code $LASTEXITCODE."
           }
 
+      # Offline audits only, so the result depends on the commit alone; the online audits run in zizmor-online.yml.
+      - name: Run zizmor
+        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
+        with:
+          version: 1.30.1
+          online-audits: false
+          advanced-security: false
+          config: .github/zizmor.yml
+
+  format:
+    name: Format
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup .NET
+        uses: ./.github/actions/setup-dotnet
+
+      # Whitespace needs no restore or MSBuild workspace, and the CRLF checkout (.gitattributes) matches .editorconfig.
+      # Style rules are enforced by the build (EnforceCodeStyleInBuild).
+      - name: Verify whitespace formatting
+        run: |
+          dotnet format whitespace . --folder --verify-no-changes --exclude artifacts
+          if ($LASTEXITCODE -ne 0) {
+            throw "Whitespace formatting differs (exit code $LASTEXITCODE). Fix it with: dotnet format whitespace <path> --folder"
+          }
+
+  # Always runs, so the Gate never has to accept a skip: the review itself runs on pull requests only.
+  dependency-review:
+    name: Dependency review
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Review dependency changes
+        if: github.event_name == 'pull_request'
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          config-file: ./.github/dependency-review-config.yml
+          comment-summary-in-pr: never
+
+      - name: Nothing to review
+        if: github.event_name != 'pull_request'
+        env:
+          EVENT: ${{ github.event_name }}
+        run: Write-Host "::notice title=Dependency review::Dependency review compares a pull request with its base; a $env:EVENT run has nothing to compare."
+
+  lock-files:
+    name: Lock files
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup .NET
+        uses: ./.github/actions/setup-dotnet
+
+      # Windows only: Native AOT lock sections record host-RID ILCompiler packages. A locked restore fails outright
+      # when a committed packages.lock.json no longer matches its project graph.
+      - name: Verify lock files
+        run: |
+          dotnet restore CheatEngine.Client.slnx --locked-mode
+          if ($LASTEXITCODE -ne 0) {
+            throw "Locked restore failed with exit code $LASTEXITCODE. The committed packages.lock.json files do not match the project graph: regenerate the affected ones with 'dotnet restore <project> --force-evaluate' and commit the result."
+          }
+
   gate:
     name: Gate
-    if: ${{ always() }}
-    needs: [validate, sonar, dependency-review, lint-workflows]
-    runs-on: windows-latest
+    # always(): a failed or cancelled job must turn the required check red instead of skipping it.
+    if: always()
+    needs: [ build-test, aot, sonar, lint, format, dependency-review, lock-files ]
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions: {}
-
     steps:
-      - name: Check required results
+      - name: Check results
         env:
-          VALIDATE_RESULT: ${{ needs.validate.result }}
-          SONAR_RESULT: ${{ needs.sonar.result }}
-          SONAR_REQUIRED: ${{ inputs.collect_sonar_coverage }}
-          DEPENDENCY_RESULT: ${{ needs.dependency-review.result }}
-          LINT_RESULT: ${{ needs.lint-workflows.result }}
+          NEEDS: ${{ toJSON(needs) }}
+          SONAR_EXPECTED: >-
+            ${{ inputs.sonar
+                && github.event_name != 'merge_group'
+                && github.actor != 'dependabot[bot]'
+                && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+          EVENT: ${{ github.event_name }}
         run: |
-          $results = [ordered]@{
-            validate = $env:VALIDATE_RESULT
-            sonar = $env:SONAR_RESULT
-            'dependency-review' = $env:DEPENDENCY_RESULT
-            'lint-workflows' = $env:LINT_RESULT
+          # Every job must succeed. Only sonar has a required result that depends on the event: success when
+          # SONAR_EXPECTED is true, skipped otherwise (fork, Dependabot, release call). A sonar run that was not
+          # expected means its condition drifted from SONAR_EXPECTED, which fails too.
+          $ErrorActionPreference = 'Stop'
+          $needs = $env:NEEDS | ConvertFrom-Json -AsHashtable
+          $sonarExpected = $env:SONAR_EXPECTED -eq 'true'
+          $failed = [Collections.Generic.List[string]]::new()
+          $rows = foreach ($job in @($needs.Keys | Sort-Object)) {
+            $result = $needs[$job].result
+            $required = 'success'
+            $reason = 'every job must succeed'
+            if ($job -eq 'sonar') {
+              if ($sonarExpected) {
+                $reason = 'SONAR_EXPECTED=true'
+                if ($result -eq 'skipped' -and $needs['build-test'].result -ne 'success') {
+                  $reason = 'SONAR_EXPECTED=true; skipped because build-test did not succeed'
+                }
+              }
+              else {
+                $required = 'skipped'
+                $reason = "SONAR_EXPECTED=false ($env:EVENT run: fork, Dependabot or release call)"
+              }
+            }
+            if ($result -ne $required) {
+              $failed.Add("$job ($result, required $required)")
+            }
+            "| $job | $result | $required | $reason |"
           }
-          $rows = $results.GetEnumerator() | ForEach-Object { "| $($_.Key) | $($_.Value) |" }
-          '| Job | Result |', '| --- | --- |', $rows | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-          $failed = @($results.GetEnumerator() | Where-Object {
-            $_.Key -eq 'validate' -and $_.Value -ne 'success' -or
-            $_.Key -eq 'sonar' -and $env:SONAR_REQUIRED -eq 'true' -and $_.Value -ne 'success' -or
-            $_.Key -in 'dependency-review', 'lint-workflows' -and $_.Value -ne 'success'
-          } | ForEach-Object Key)
+          @('### Gate', '', '| Job | Result | Required | Reason |', '| --- | --- | --- | --- |') + $rows |
+            Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           if ($failed.Count -gt 0) {
-            Write-Host "::error::Required job(s) did not succeed: $($failed -join ', ')."
+            Write-Host "::error::Not as required: $($failed -join ', ')."
             exit 1
           }

@@ -1,4 +1,4 @@
-﻿using CheatEngine.Client.Dispatching;
+using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Runtime;
 
 namespace CheatEngine.Client.Core;

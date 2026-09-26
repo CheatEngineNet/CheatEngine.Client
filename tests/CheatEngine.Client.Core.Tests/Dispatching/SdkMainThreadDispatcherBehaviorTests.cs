@@ -64,7 +64,10 @@ public sealed class SdkMainThreadDispatcherBehaviorTests
 		using ControlledCoreLifetimeContext context = new();
 		using CoreLifetime lifetime = new(context);
 		InvalidOperationException expected = new("host queue unavailable");
-		RecordingMainThreadInvoker invoker = new() { HostException = expected };
+		RecordingMainThreadInvoker invoker = new()
+		{
+			HostException = expected
+		};
 		SdkMainThreadDispatcher dispatcher = new(lifetime, invoker);
 		bool callbackRan = false;
 
@@ -111,7 +114,10 @@ public sealed class SdkMainThreadDispatcherBehaviorTests
 	[InlineData(DispatchForm.StatefulFunction)]
 	public void TryInvokeContractRejectsAnExpiredActivationBeforeDispatchAdmission(DispatchForm form)
 	{
-		using ControlledCoreLifetimeContext context = new() { IsCurrent = false };
+		using ControlledCoreLifetimeContext context = new()
+		{
+			IsCurrent = false
+		};
 		using CoreLifetime lifetime = new(context);
 		RecordingMainThreadInvoker invoker = new();
 		SdkMainThreadDispatcher dispatcher = new(lifetime, invoker);
@@ -132,7 +138,10 @@ public sealed class SdkMainThreadDispatcherBehaviorTests
 	[InlineData(DispatchForm.StatefulFunction)]
 	public void TryInvokeContractPrioritizesAnExpiredActivationOverPreAdmissionCancellation(DispatchForm form)
 	{
-		using ControlledCoreLifetimeContext context = new() { IsCurrent = false };
+		using ControlledCoreLifetimeContext context = new()
+		{
+			IsCurrent = false
+		};
 		using CoreLifetime lifetime = new(context);
 		RecordingMainThreadInvoker invoker = new();
 		SdkMainThreadDispatcher dispatcher = new(lifetime, invoker);
@@ -147,6 +156,62 @@ public sealed class SdkMainThreadDispatcherBehaviorTests
 		Assert.Equal(CheatEngineFailureKind.ActivationExpired, exception.Failure.Kind);
 		Assert.Equal("Dispatcher.Invoke", exception.Failure.Operation);
 		Assert.Equal(0, invoker.InvocationCount);
+	}
+
+	[Theory]
+	[InlineData(DispatchForm.Action)]
+	[InlineData(DispatchForm.Function)]
+	[InlineData(DispatchForm.StatefulFunction)]
+	public void TryInvokeContractThrowsLifecycleExceptionsInsteadOfReturningFailure(DispatchForm form)
+	{
+		using ControlledCoreLifetimeContext expiredContext = new()
+		{
+			IsCurrent = false
+		};
+		using CoreLifetime expired = new(expiredContext);
+		using ControlledCoreLifetimeContext stoppingContext = new();
+		using CoreLifetime stopping = new(stoppingContext);
+		stoppingContext.Stop();
+		RecordingMainThreadInvoker invoker = new();
+
+		Assert.Throws<CheatEngineActivationExpiredException>(() => TryInvoke(form,
+			new SdkMainThreadDispatcher(expired, invoker), static () =>
+			{
+			}, TestContext.Current.CancellationToken));
+		CheatEngineInvalidStateException stoppingException = Assert.Throws<CheatEngineInvalidStateException>(() =>
+			TryInvoke(form, new SdkMainThreadDispatcher(stopping, invoker), static () =>
+			{
+			}, TestContext.Current.CancellationToken));
+
+		Assert.Equal(CheatEngineFailureKind.InvalidState, stoppingException.Failure.Kind);
+		Assert.Equal(0, invoker.InvocationCount);
+	}
+
+	[Fact]
+	public void PreAdmissionCancellationReportsThatNoCheatEngineWorkStarted()
+	{
+		using ControlledCoreLifetimeContext context = new();
+		using CoreLifetime lifetime = new(context);
+		SdkMainThreadDispatcher dispatcher = new(lifetime, new RecordingMainThreadInvoker());
+
+		bool succeeded = dispatcher.TryInvoke(static () =>
+		{
+		}, out CheatEngineFailure failure, new CancellationToken(true));
+
+		Assert.False(succeeded);
+		Assert.Equal(CheatEngineFailureKind.Cancelled, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
+	}
+
+	[Fact]
+	public void TryInvokeRejectsANullCallbackWithArgumentNullException()
+	{
+		using ControlledCoreLifetimeContext context = new();
+		using CoreLifetime lifetime = new(context);
+		SdkMainThreadDispatcher dispatcher = new(lifetime, new RecordingMainThreadInvoker());
+
+		Assert.Throws<ArgumentNullException>(() =>
+			dispatcher.TryInvoke(null!, out _, TestContext.Current.CancellationToken));
 	}
 
 	[Fact]
@@ -174,41 +239,41 @@ public sealed class SdkMainThreadDispatcherBehaviorTests
 		switch (form)
 		{
 			case DispatchForm.Action:
-			{
-				bool succeeded = dispatcher.TryInvoke(callback, out CheatEngineFailure failure, cancellationToken);
-				return new DispatchInvocation(succeeded, null, failure);
-			}
+				{
+					bool succeeded = dispatcher.TryInvoke(callback, out CheatEngineFailure failure, cancellationToken);
+					return new DispatchInvocation(succeeded, null, failure);
+				}
 			case DispatchForm.Function:
-			{
-				bool succeeded = dispatcher.TryInvoke(
-					() =>
-					{
-						callback();
-						return 42;
-					},
-					out int result,
-					out CheatEngineFailure failure,
-					cancellationToken);
-				return new DispatchInvocation(succeeded, result, failure);
-			}
+				{
+					bool succeeded = dispatcher.TryInvoke(
+						() =>
+						{
+							callback();
+							return 42;
+						},
+						out int result,
+						out CheatEngineFailure failure,
+						cancellationToken);
+					return new DispatchInvocation(succeeded, result, failure);
+				}
 			case DispatchForm.StatefulFunction:
-			{
+				{
 #pragma warning disable CA1859 // This helper intentionally exercises the internal stateful dispatch contract.
-				IStatefulCheatEngineDispatcher statefulDispatcher = dispatcher;
+					IStatefulCheatEngineDispatcher statefulDispatcher = dispatcher;
 #pragma warning restore CA1859
-				CallbackState state = new(callback, 42);
-				bool succeeded = statefulDispatcher.TryInvoke(
-					state,
-					static current =>
-					{
-						current.Callback();
-						return current.Result;
-					},
-					out int result,
-					out CheatEngineFailure failure,
-					cancellationToken);
-				return new DispatchInvocation(succeeded, result, failure);
-			}
+					CallbackState state = new(callback, 42);
+					bool succeeded = statefulDispatcher.TryInvoke(
+						state,
+						static current =>
+						{
+							current.Callback();
+							return current.Result;
+						},
+						out int result,
+						out CheatEngineFailure failure,
+						cancellationToken);
+					return new DispatchInvocation(succeeded, result, failure);
+				}
 			default:
 				throw new ArgumentOutOfRangeException(nameof(form), form, null);
 		}

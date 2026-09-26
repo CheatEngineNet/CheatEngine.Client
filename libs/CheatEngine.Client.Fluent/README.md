@@ -6,23 +6,89 @@
 operations. It enriches the contracts in `CheatEngine.Client.Abstractions`; it does not execute
 Cheat Engine calls by itself.
 
-The package currently provides AOB request builders and typed target-memory address builders. A
-terminal builder delegates work to a caller-supplied `IPatternScanner` or `IMemoryClient`, usually
-the services available from an activation-scoped `ICheatEngineClient`.
+The package currently provides AOB request builders and typed target-memory address builders. Each
+domain has one entry point, an extension method on the service that runs its terminal operations:
+`scanner.Aob(pattern)` on an `IPatternScanner`, and `memory.At(address)` or `memory.Batch<T>()` on an
+`IMemoryClient`, usually `client.Patterns` and `client.Memory` of an activation-scoped
+`ICheatEngineClient`. A builder is bound to that service when it is created and is never rebound.
+
+## Installation
+
+A plugin references [`CheatEngine.Client`](https://www.nuget.org/packages/CheatEngine.Client), which brings this
+package at exactly its own version. The
+[CheatEngine.Client README](https://github.com/CheatEngineNet/CheatEngine.Client/blob/main/src/CheatEngine.Client/README.md)
+gives the plugin project, the requirements (`net10.0`, C# 14, a .NET SDK 10.0.401 or later, Cheat Engine 7.7.0.10621
+x64, a direct `CheatEngine.SDK` reference in `[2.0.0, 3.0.0)`) and a minimal plugin. Reference
+`CheatEngine.Client.Fluent` on its own only for code that builds requests against the contracts without Hosting, at the
+same version as every other Client package: the seven packages ship in lockstep.
+
+## Example
 
 ```csharp
+using System.Collections.Immutable;
+
+using CheatEngine.Client;
 using CheatEngine.Client.Memory;
+using CheatEngine.Client.Modules;
 using CheatEngine.Client.Scanning;
 using CheatEngine.SDK.Engine.Values;
 
-Address address = client.Aob("48 8B ?? ?? ?? 89")
-    .InModule("game.exe")
-    .ReadableExecutable()
-    .RequireSingle()
-    .Execute();
+namespace MyPlugin;
 
-client.Memory.At(address + 0x14).Write(999);
+public sealed class ScoreModule : ICheatEngineClientModule
+{
+    public void OnEnabled(ICheatEngineClient client)
+    {
+        Address address = client.Patterns.Aob("48 8B ?? ?? ?? 89")
+            .InModule("game.exe")
+            .Executable()
+            .RequireSingle()
+            .Execute();
+
+        client.Memory.At(address + 0x14).Write(999);
+
+        // Take(n) copies at most n addresses, and IsTruncated says whether more may exist; a batch then reads one
+        // primitive at each address in one dispatched call.
+        AobScanResult writers = client.Patterns.Aob("89 05 ?? ?? ?? ??").InModule("game.exe").Take(16).Execute();
+        ImmutableArray<int> operands = client.Memory.Batch<int>().Read(writers.Matches.AsSpan());
+    }
+
+    public void OnDisabling(ICheatEngineClient client)
+    {
+    }
+}
 ```
+
+`InModule(...)` and `InRange(...)` scope the scan with one rule on every route: a match must lie entirely inside the
+module, and its start must lie in the range. On a qualified local target Cheat Engine runs an exhaustive MemScan
+limited to the module intersected with the range; it blocks Cheat Engine's main thread and cannot be interrupted once
+started. On a CEServer or file-as-process target, Cheat Engine runs one global `AOBScan` over the whole target and Core
+applies the same rule while copying, which does not reduce Cheat Engine's scan time or memory.
+`Take(n)`, `FirstOrNone()` (1) and `RequireSingle()` (2) bound only how many addresses Core copies; they never stop
+Cheat Engine early. Every route copies at most 65,535 addresses, whatever `n`, as `AobScanRequest.MaximumResults`
+documents. `IsTruncated` reports a copy that is not proven complete: one cut by either limit, or, on the bounded route,
+a destination that filled up with rows outside the request while rows stayed unread. `FirstOrNone()` returns the first
+element in Cheat Engine's result-list order, which Cheat Engine does not specify (not the lowest address, not the first
+logical region), and never uses a "first found" scan. `RequireSingle()` copies up to two matches from an exhaustive
+scan: two copied matches are `AmbiguousMatch`, and one copied match is unique only when every row Cheat Engine returned
+was read and the copy is not truncated. Otherwise whether a second match exists is unknown, which is
+`IndeterminateHostResult`, never `AmbiguousMatch`.
+
+The terminals read `IPatternScanner.ScanDetailed`, whose metrics say whether every row Cheat Engine returned was
+read. `null`, `NotFound` and an empty `Take` result are factual zeros only: the scan succeeded, every row was read,
+and none lay inside the request.
+
+| Route (`PatternScanScope`)        | Factual zero                            | Never a zero             |
+|-----------------------------------|-----------------------------------------|--------------------------|
+| `HostBoundedRange`                | No in-bounds row (error text readable)  | A failed scan            |
+| `GlobalHostScanWithManagedFilter` | Every listed row outside the request    | `nil`, an unread row     |
+| `GlobalHostScan`                  | An empty list that Cheat Engine returns | `nil` (Cheat Engine 7.7) |
+
+A global scan for which Cheat Engine returns no result list is reported as `IndeterminateHostResult` (on Cheat
+Engine 7.7 `AOBScan` returns `nil` for zero matches and for some host failures alike), and so is an empty copy that
+did not read every row. A cancellation token cannot interrupt a scan that Cheat Engine has started.
+`IPatternScanner.ScanDetailed` reports the route, the host outcome, the host result count, the examined, filtered and
+copied counts, and the Cheat Engine scan time separately from the copy time.
 
 ## Why This Project Exists
 
@@ -42,48 +108,46 @@ Abstractions  ←  Fluent
 
 ## How It Improves CheatEngine.Client
 
-- Represents operation configuration as immutable `readonly record struct` values rather than CE
-  handles or mutable builders.
-- Validates and normalizes an AOB pattern and its options before a terminal operation is selected.
+- Represents operation configuration as immutable, plain `readonly struct` builders rather than CE
+  handles or mutable builders. A builder declares no `Equals`, `GetHashCode`, `ToString` or equality
+  operators (only `System.ValueType`'s): compare the requests or addresses it carries. It has no
+  constructor beyond the implicit parameterless one, which yields the `default` value: that value has
+  no service, and every operation that runs or selects a terminal throws a documented
+  `InvalidOperationException` on it.
+- Validates and normalizes an AOB pattern and its options before a terminal operation is selected:
+  `Executable()`, `Writable()` and `WithProtection(...)` set the protection filter, `AlignedTo(...)`,
+  `LastDigits(...)` and `WithAlignment(...)` the alignment rule. A shortcut is named like the
+  `ScanAlignment` factory it calls, and `With<Option>(...)` sets a whole option value.
 - Forces explicit result cardinality: `RequireSingle()`, `FirstOrNone()`, or `Take(maximumResults)`.
-- Preserves bounded materialization rules; callers can inspect `AobScanResult.IsTruncated` when a
-  bounded scan is intentionally incomplete.
-- Provides `Memory.At(...)` and `memory.At(...)` builders for primitive and codec-based reads and
-  writes without retaining a live target handle, including exact byte copies, explicit UTF-8/UTF-16
-  bounds, finite pointer chains, and bounded homogeneous primitive batches.
+- Preserves materialization-bounded copies: the limit bounds only the number of copied addresses, never Cheat
+  Engine's scan. Callers inspect `AobScanResult.IsTruncated`, which reports a copy that is not proven complete.
+- Provides `memory.At(...)` and `memory.Batch<T>()` builders for primitive and codec-based reads and
+  writes without retaining a live target handle, including exact byte copies, strings with an explicit
+  `MemoryStringEncoding` and length bound (`ReadString`/`TryReadString`, `WriteString`/`TryWriteString`),
+  finite pointer chains, and bounded homogeneous primitive batches. The primitive terminals
+  and `Batch<T>` take `where T : unmanaged`, like `IMemoryClient`, which supports the 8- to 64-bit
+  integers, `float`, `double` and `Address`; other types go through `ReadWith`/`WriteWith` and a codec.
 - Uses the normal `Try...` plus `CheatEngineFailure` pattern and leaves the actual lifecycle,
-  dispatch, and SDK translation to the supplied contract implementation.
+  dispatch, and SDK translation to the supplied contract implementation. A throwing terminal raises
+  the exception that `CheatEngineFailure.Throw(CancellationToken)` maps from the failure kind; both
+  forms throw `CheatEngineActivationExpiredException` or `CheatEngineInvalidStateException` when
+  the activation has ended or is stopping, and every terminal documents these exceptions.
 
 ## Public Namespaces and Boundaries
 
 The package publishes functional namespaces only:
 
-| Namespace                     | Entry points                                                          |
-|-------------------------------|-----------------------------------------------------------------------|
-| `CheatEngine.Client.Scanning` | `Aob(...)`, AOB filters, and bounded terminal builders                |
-| `CheatEngine.Client.Memory`   | `Memory.At(...)`, `IMemoryClient.At(...)`, and `MemoryAddressBuilder` |
+| Namespace                     | Entry points                                                                    |
+|-------------------------------|---------------------------------------------------------------------------------|
+| `CheatEngine.Client.Scanning` | `IPatternScanner.Aob(...)`, AOB module and range scopes, copy-bounded terminals |
+| `CheatEngine.Client.Memory`   | `IMemoryClient.At(...)`, `IMemoryClient.Batch<T>()`, and `MemoryAddressBuilder` |
 
 `CheatEngine.Client.Fluent` is a package/assembly name, never a consumer namespace. The builders
 may expose stable SDK value types already present in the Abstractions vocabulary, notably `Address`
-and documented scan/inspection option types; they never expose Lua states, CE objects, or SDK
-ownership wrappers.
+and `ModuleName`; AOB options are the Client-owned `ScanProtectionFilter` and `ScanAlignment`. They
+never expose Lua states, CE objects, SDK option types, or SDK ownership wrappers.
 
-Fluent does not make a capability available. For example, it has no value-scan builder and cannot
-turn the currently gated `IValueScanner` contract into a live scan. A builder remains valid as a
+Fluent does not make a capability available. For example, it has no builder for the experimental
+value scans (`CECLIENT5001`): use `IValueScanner` directly. A builder remains valid as a
 managed value, but executing it through a stale scoped service still follows the implementation's
 activation and target-epoch rules.
-
-## Contribution and Validation
-
-Add a fluent surface only when it preserves an existing explicit contract and has a bounded terminal
-operation. Do not store CE resources in a builder, add Core dependencies, or introduce
-assembly-derived namespaces. Update `PublicAPI.Unshipped.txt` and add focused behavior tests in
-`tests/CheatEngine.Client.Fluent.Tests` for every public member or terminal-condition change.
-
-Validate the complete graph from the repository root:
-
-```powershell
-dotnet restore CheatEngine.Client.slnx --locked-mode
-dotnet build CheatEngine.Client.slnx --configuration Release --no-restore
-dotnet test --solution CheatEngine.Client.slnx --configuration Release --no-build --no-restore
-```

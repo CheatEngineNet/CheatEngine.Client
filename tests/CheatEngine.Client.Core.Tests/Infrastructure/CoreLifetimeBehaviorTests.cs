@@ -9,7 +9,10 @@ public sealed class CoreLifetimeBehaviorTests
 	[Fact]
 	public void ActiveContextExposesItsEpochAndAdmitsOrdinaryWork()
 	{
-		using ControlledCoreLifetimeContext context = new() { Epoch = 42 };
+		using ControlledCoreLifetimeContext context = new()
+		{
+			Epoch = 42
+		};
 		using CoreLifetime lifetime = new(context);
 
 		lifetime.ThrowIfInactive("Test.Work");
@@ -27,7 +30,7 @@ public sealed class CoreLifetimeBehaviorTests
 		using CoreLifetime lifetime = new(context);
 		context.Stop();
 
-		CheatEngineClientLifecycleException rejected = Assert.Throws<CheatEngineClientLifecycleException>(() =>
+		CheatEngineInvalidStateException rejected = Assert.Throws<CheatEngineInvalidStateException>(() =>
 			lifetime.ThrowIfInactive("Test.Work"));
 		Assert.Equal("Test.Work", rejected.Failure.Operation);
 		Assert.False(lifetime.CanDispatch);
@@ -35,7 +38,7 @@ public sealed class CoreLifetimeBehaviorTests
 		using (lifetime.EnterCleanupScope())
 		{
 			Assert.True(lifetime.CanDispatch);
-			lifetime.ThrowIfDispatchAllowed("Test.Cleanup");
+			lifetime.ThrowIfDispatchRefused("Test.Cleanup");
 		}
 
 		Assert.False(lifetime.CanDispatch);
@@ -44,10 +47,13 @@ public sealed class CoreLifetimeBehaviorTests
 	[Fact]
 	public void CleanupScopeRequiresTheCapturedMainThread()
 	{
-		using ControlledCoreLifetimeContext context = new() { IsMainThread = false };
+		using ControlledCoreLifetimeContext context = new()
+		{
+			IsMainThread = false
+		};
 		using CoreLifetime lifetime = new(context);
 
-		CheatEngineClientLifecycleException exception = Assert.Throws<CheatEngineClientLifecycleException>(
+		CheatEngineInvalidStateException exception = Assert.Throws<CheatEngineInvalidStateException>(
 			lifetime.EnterCleanupScope);
 
 		Assert.Equal("Client.EnterCleanupScope", exception.Failure.Operation);
@@ -57,13 +63,16 @@ public sealed class CoreLifetimeBehaviorTests
 	[Fact]
 	public void StaleContextRejectsAllLifecycleAdmissionsWithActivationExpired()
 	{
-		using ControlledCoreLifetimeContext context = new() { IsCurrent = false };
+		using ControlledCoreLifetimeContext context = new()
+		{
+			IsCurrent = false
+		};
 		using CoreLifetime lifetime = new(context);
 
 		CheatEngineActivationExpiredException inactive = Assert.Throws<CheatEngineActivationExpiredException>(() =>
 			lifetime.ThrowIfInactive("Test.Inactive"));
 		CheatEngineActivationExpiredException dispatch = Assert.Throws<CheatEngineActivationExpiredException>(() =>
-			lifetime.ThrowIfDispatchAllowed("Test.Dispatch"));
+			lifetime.ThrowIfDispatchRefused("Test.Dispatch"));
 
 		Assert.Equal("Test.Inactive", inactive.Failure.Operation);
 		Assert.Equal("Test.Dispatch", dispatch.Failure.Operation);
@@ -87,7 +96,40 @@ public sealed class CoreLifetimeBehaviorTests
 		Assert.Throws<CheatEngineActivationExpiredException>(() => lifetime.ThrowIfInactive("Test.Disposed"));
 	}
 
-	private sealed class RecordingDisposable : IDisposable
+	[Fact]
+	[Trait("Qualification", "Q43")]
+	public void DrainAggregatesTargetSelectionAndResourceCleanupFailures()
+	{
+		using ControlledCoreLifetimeContext context = new();
+		CoreLifetime lifetime = new(context);
+		InvalidOperationException targetFailure = new("target-bound lease cleanup");
+		InvalidOperationException activationFailure = new("activation resource cleanup");
+		RecordingDisposable targetBound = new(targetFailure);
+		RecordingDisposable activationBound = new(activationFailure);
+		RecordingDisposable healthy = new();
+		lifetime.TargetSelection.Track(targetBound, lifetime.TargetSelection.Epoch);
+		lifetime.Track(activationBound);
+		lifetime.Track(healthy);
+		context.Stop();
+
+		AggregateException exception;
+		using (lifetime.EnterCleanupScope())
+		{
+			exception = Assert.Throws<AggregateException>(lifetime.DrainOwnedResourcesForDisable);
+		}
+
+		Assert.Collection(
+			exception.InnerExceptions,
+			first => Assert.Same(targetFailure, first),
+			second => Assert.Same(activationFailure, second));
+		Assert.Equal(1, targetBound.DisposeCount);
+		Assert.Equal(1, activationBound.DisposeCount);
+		Assert.Equal(1, healthy.DisposeCount);
+		lifetime.Dispose();
+		Assert.Equal(1, healthy.DisposeCount);
+	}
+
+	private sealed class RecordingDisposable(Exception? failure = null) : IDisposable
 	{
 		internal int DisposeCount
 		{
@@ -98,6 +140,10 @@ public sealed class CoreLifetimeBehaviorTests
 		public void Dispose()
 		{
 			DisposeCount++;
+			if (failure is not null)
+			{
+				throw failure;
+			}
 		}
 	}
 }

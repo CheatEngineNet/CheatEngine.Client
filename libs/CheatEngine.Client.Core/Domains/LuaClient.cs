@@ -11,7 +11,10 @@ namespace CheatEngine.Client.Core.Domains;
 
 internal sealed class LuaClient : ILuaClient
 {
+	private const string RegisterOperation = "Lua.RegisterModule";
+
 	private readonly Action<string>? _admitStatefulOperation;
+	private readonly ICoreDiagnostics _diagnostics;
 	private readonly ICheatEngineDispatcher _dispatcher;
 	private readonly Func<long> _epochProvider;
 
@@ -44,7 +47,8 @@ internal sealed class LuaClient : ILuaClient
 			initialization.TrackLease,
 			initialization.UntrackLease,
 			initialization.AdmitStatefulOperation,
-			initialization.IsStopping)
+			initialization.IsStopping,
+			initialization.Diagnostics)
 	{
 	}
 
@@ -56,9 +60,11 @@ internal sealed class LuaClient : ILuaClient
 		Action<ILuaModuleLease>? trackLease = null,
 		Action<ILuaModuleLease>? untrackLease = null,
 		Action<string>? admitStatefulOperation = null,
-		Func<bool>? isStopping = null)
+		Func<bool>? isStopping = null,
+		ICoreDiagnostics? diagnostics = null)
 	{
 		_dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
+		_diagnostics = GuardedCoreDiagnostics.Wrap(diagnostics);
 		_epochProvider = epochProvider ?? throw new ArgumentNullException(nameof(epochProvider));
 		_isContextCurrent = isContextCurrent ?? throw new ArgumentNullException(nameof(isContextCurrent));
 		_isStopping = isStopping ?? (static () => false);
@@ -75,29 +81,28 @@ internal sealed class LuaClient : ILuaClient
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(luaModule);
+		LuaModuleDescriptor descriptor = luaModule.Descriptor;
+		// A constructed descriptor always has a name; the default value has the empty one.
+		if (descriptor.Name.Length == 0)
+		{
+			throw new ArgumentException("The Lua module must declare its identity and exports in a descriptor.",
+				nameof(luaModule));
+		}
+
 		lease = null;
-		Admit("Lua.RegisterModule");
+		Admit(RegisterOperation);
 		if (cancellationToken.IsCancellationRequested)
 		{
-			failure = CoreFailureFactory.Cancelled("Lua.RegisterModule");
+			failure = CoreFailureFactory.Cancelled(RegisterOperation);
 			return false;
 		}
 
-		try
+		if (!TryReserveModule(luaModule, descriptor, out failure))
 		{
-			if (!TryReserveModule(luaModule, out failure))
-			{
-				return false;
-			}
-		}
-		catch (Exception exception)
-		{
-			failure = CoreFailureFactory.FromException("Lua.RegisterModule", exception);
 			return false;
 		}
 
-		LuaModuleLease created = new(luaModule, _epochProvider(), _dispatcher, _isContextCurrent, _untrackLease,
-			ReleaseModule);
+		LuaModuleLease created = new(luaModule, _dispatcher, _diagnostics, _untrackLease, ReleaseModule);
 		try
 		{
 			_trackLease(created);
@@ -105,29 +110,29 @@ internal sealed class LuaClient : ILuaClient
 		catch (Exception trackingException)
 		{
 			failure = FailAfterAbandoningUnregisteredLease(
-				CoreFailureFactory.FromException("Lua.RegisterModule", trackingException),
+				SdkBoundary.Classify(RegisterOperation, trackingException, CheatEngineHostEffect.NotStarted),
 				created);
 			return false;
 		}
 
 		bool registered = false;
-		CheatEngineFailure moduleFailure = default;
+		Exception? registrationFault = null;
 		if (!_dispatcher.TryInvoke(
-			    () =>
-			    {
-				    try
-				    {
-					    luaModule.Register();
-					    created.ConfirmRegistration();
-					    registered = true;
-				    }
-				    catch (Exception exception)
-				    {
-					    moduleFailure = CoreFailureFactory.FromException("Lua.RegisterModule", exception);
-				    }
-			    },
-			    out failure,
-			    cancellationToken))
+				() =>
+				{
+					try
+					{
+						luaModule.Register();
+						created.ConfirmRegistration();
+						registered = true;
+					}
+					catch (Exception exception)
+					{
+						registrationFault = exception;
+					}
+				},
+				out failure,
+				cancellationToken))
 		{
 			failure = FailAfterAbandoningUnregisteredLease(failure, created);
 			return false;
@@ -135,7 +140,7 @@ internal sealed class LuaClient : ILuaClient
 
 		if (!registered)
 		{
-			failure = FailAfterAbandoningUnregisteredLease(moduleFailure, created);
+			failure = FailAfterAbandoningUnregisteredLease(ClassifyRegistrationFault(registrationFault), created);
 			return false;
 		}
 
@@ -144,11 +149,12 @@ internal sealed class LuaClient : ILuaClient
 			// Registration and lifetime tracking are deliberately handed off in this order. If shutdown starts while
 			// Register runs, the already-tracked lease is drained by the hosting cleanup scope rather than redispatched
 			// from this worker after ordinary dispatch admission has closed.
-			Admit("Lua.RegisterModule");
+			Admit(RegisterOperation);
 		}
 		catch (Exception exception)
 		{
-			CheatEngineFailure admissionFailure = CoreFailureFactory.FromException("Lua.RegisterModule", exception);
+			CheatEngineFailure admissionFailure =
+				SdkBoundary.Classify(RegisterOperation, exception, CheatEngineHostEffect.Unknown);
 			if (_isStopping())
 			{
 				// The Core lifetime owns the pre-tracked, registered lease. Leaving it there gives the main-thread
@@ -173,14 +179,20 @@ internal sealed class LuaClient : ILuaClient
 			return lease;
 		}
 
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		throw new InvalidOperationException("Unreachable failure flow.");
 	}
 
-	public bool TryExecute<TResult>(ILuaOperation<TResult> operation, [MaybeNullWhen(false)] out TResult result,
+	public bool TryExecute<TOperation, TResult>(in TOperation operation, [MaybeNullWhen(false)] out TResult result,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default)
+		where TOperation : ILuaOperation<TResult>
 	{
-		ArgumentNullException.ThrowIfNull(operation);
+		// A null test on an unconstrained type parameter never boxes a value operation.
+		if (operation is null)
+		{
+			throw new ArgumentNullException(nameof(operation));
+		}
+
 		Admit("Lua.Execute");
 		if (cancellationToken.IsCancellationRequested)
 		{
@@ -190,91 +202,60 @@ internal sealed class LuaClient : ILuaClient
 		}
 
 		long epoch = _epochProvider();
-		if (!TryDispatchOperation(operation, epoch, out LuaOperationResult<TResult> operationResult, out failure,
-			    cancellationToken))
+		long started = Stopwatch.GetTimestamp();
+		bool completed;
+		if (TryDispatchOperation(operation, epoch, out LuaOperationResult<TResult> operationResult, out failure,
+				cancellationToken))
+		{
+			completed = TryMaterializeOperationResult(operationResult, out result, out failure);
+		}
+		else
 		{
 			result = default;
-			return false;
+			completed = false;
 		}
 
-		return TryMaterializeOperationResult(operationResult, out result, out failure);
+		ReportOperation(completed, failure, started);
+		return completed;
 	}
 
-	public TResult Execute<TResult>(ILuaOperation<TResult> operation, CancellationToken cancellationToken = default)
+	public TResult Execute<TOperation, TResult>(in TOperation operation, CancellationToken cancellationToken = default)
+		where TOperation : ILuaOperation<TResult>
 	{
-		if (TryExecute<TResult>(operation, out TResult? result, out CheatEngineFailure failure, cancellationToken))
+		if (TryExecute<TOperation, TResult>(in operation, out TResult? result, out CheatEngineFailure failure,
+				cancellationToken))
 		{
 			return result;
 		}
 
-		return ThrowFailure<TResult>(failure);
+		return ThrowFailure<TResult>(failure, cancellationToken);
 	}
 
-	public bool TryExecute<TOperation, TResult>(TOperation operation, [MaybeNullWhen(false)] out TResult result,
-		out CheatEngineFailure failure, CancellationToken cancellationToken)
-		where TOperation : struct, ILuaOperation<TResult>
+	/// <summary>
+	///     Reports a typed operation with its failure kind and duration only (EventId 1600): never the operation type, a
+	///     Lua value or the failure message.
+	/// </summary>
+	private void ReportOperation(bool completed, CheatEngineFailure failure, long started)
 	{
-		Admit("Lua.Execute");
-		if (cancellationToken.IsCancellationRequested)
-		{
-			result = default;
-			failure = CoreFailureFactory.Cancelled("Lua.Execute");
-			return false;
-		}
-
-		long epoch = _epochProvider();
-		if (!TryDispatchOperation(operation, epoch, out LuaOperationResult<TResult> operationResult, out failure,
-			    cancellationToken))
-		{
-			result = default;
-			return false;
-		}
-
-		return TryMaterializeOperationResult(operationResult, out result, out failure);
+		_diagnostics.LuaOperationCompleted("Lua.Execute", completed ? "None" : failure.Kind.ToString(),
+			(long) Stopwatch.GetElapsedTime(started).TotalMilliseconds, 0);
 	}
 
-	public TResult Execute<TOperation, TResult>(TOperation operation, CancellationToken cancellationToken)
-		where TOperation : struct, ILuaOperation<TResult>
+	private static T ThrowFailure<T>(CheatEngineFailure failure, CancellationToken cancellationToken)
 	{
-		if (TryExecute<TOperation, TResult>(operation, out TResult? result, out CheatEngineFailure failure,
-			    cancellationToken))
-		{
-			return result;
-		}
-
-		return ThrowFailure<TResult>(failure);
-	}
-
-	private static T ThrowFailure<T>(CheatEngineFailure failure)
-	{
-		failure.Throw();
+		failure.Throw(cancellationToken);
 		throw new UnreachableException();
 	}
 
-	private LuaOperationResult<TResult> ExecuteOperation<TResult>(ILuaOperation<TResult> operation, long epoch)
-	{
-		LuaOperationContext context = new(epoch, _isContextCurrent);
-		try
-		{
-			context.ThrowIfExpired();
-			bool succeeded = operation.TryExecute(context, out TResult? result, out CheatEngineFailure failure);
-			return new LuaOperationResult<TResult>(succeeded, result!, failure);
-		}
-		finally
-		{
-			context.Expire();
-		}
-	}
-
 	private LuaOperationResult<TResult> ExecuteOperation<TOperation, TResult>(TOperation operation, long epoch)
-		where TOperation : struct, ILuaOperation<TResult>
+		where TOperation : ILuaOperation<TResult>
 	{
 		LuaOperationContext context = new(epoch, _isContextCurrent);
 		try
 		{
 			context.ThrowIfExpired();
-			// The constraint produces a constrained interface call for generated readonly record structs. This keeps the
-			// normal generated-operation path free of an ILuaOperation<TResult> box.
+			// The type parameter produces a constrained interface call for generated readonly record structs. This keeps
+			// the generated-operation path free of an ILuaOperation<TResult> box.
 			bool succeeded = operation.TryExecute(context, out TResult? result, out CheatEngineFailure failure);
 			return new LuaOperationResult<TResult>(succeeded, result!, failure);
 		}
@@ -282,30 +263,6 @@ internal sealed class LuaClient : ILuaClient
 		{
 			context.Expire();
 		}
-	}
-
-	private bool TryDispatchOperation<TResult>(
-		ILuaOperation<TResult> operation,
-		long epoch,
-		out LuaOperationResult<TResult> result,
-		out CheatEngineFailure failure,
-		CancellationToken cancellationToken)
-	{
-		if (_dispatcher is IStatefulCheatEngineDispatcher statefulDispatcher)
-		{
-			return statefulDispatcher.TryInvoke(
-				new LuaOperationDispatchState<TResult>(this, operation, epoch),
-				static dispatchState => dispatchState.Execute(),
-				out result,
-				out failure,
-				cancellationToken);
-		}
-
-		return _dispatcher.TryInvoke(
-			() => ExecuteOperation(operation, epoch),
-			out result,
-			out failure,
-			cancellationToken);
 	}
 
 	private bool TryDispatchOperation<TOperation, TResult>(
@@ -314,7 +271,7 @@ internal sealed class LuaClient : ILuaClient
 		out LuaOperationResult<TResult> result,
 		out CheatEngineFailure failure,
 		CancellationToken cancellationToken)
-		where TOperation : struct, ILuaOperation<TResult>
+		where TOperation : ILuaOperation<TResult>
 	{
 		if (_dispatcher is IStatefulCheatEngineDispatcher statefulDispatcher)
 		{
@@ -360,52 +317,48 @@ internal sealed class LuaClient : ILuaClient
 		return !string.IsNullOrWhiteSpace(failure.Operation) && !string.IsNullOrWhiteSpace(failure.Message);
 	}
 
-	private bool TryReserveModule(ILuaModule module, out CheatEngineFailure failure)
+	private bool TryReserveModule(ILuaModule module, LuaModuleDescriptor descriptor, out CheatEngineFailure failure)
 	{
+		// Every module declares its identity and exports, so the complete name set is reserved before any Lua work. The
+		// module instance that is already registered is a resource state (InvalidState); a name another module of the
+		// activation reserved is a refused request (OperationRejected), as for a symbol name the activation owns.
 		lock (_registeredModulesLock)
 		{
 			if (_registeredModules.ContainsKey(module))
 			{
-				failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidState, "Lua.RegisterModule",
-					"This client activation already owns the supplied Lua module instance.");
+				failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidState, RegisterOperation,
+					"This client activation already owns the supplied Lua module instance.", null,
+					CheatEngineHostEffect.NotStarted);
 				return false;
 			}
 
-			if (module is IDescribedLuaModule describedModule)
+			if (_reservedModuleNames.Contains(descriptor.Name))
 			{
-				LuaModuleDescriptor descriptor = describedModule.Descriptor;
-				if (_reservedModuleNames.Contains(descriptor.Name))
-				{
-					failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidState, "Lua.RegisterModule",
-						$"The Lua module identity '{descriptor.Name}' is already reserved by this client activation.");
-					return false;
-				}
-
-				foreach (LuaExportDescriptor export in descriptor.Exports)
-				{
-					if (_reservedExportNames.Contains(export.Name))
-					{
-						failure = new CheatEngineFailure(CheatEngineFailureKind.InvalidState, "Lua.RegisterModule",
-							$"The Lua export '{export.Name}' is already reserved by this client activation.");
-						return false;
-					}
-				}
-
-				LuaModuleReservation reservation = LuaModuleReservation.Create(descriptor);
-				_registeredModules.Add(module, reservation);
-				_reservedModuleNames.Add(reservation.ModuleName!);
-				foreach (string exportName in reservation.ExportNames)
-				{
-					_reservedExportNames.Add(exportName);
-				}
-
-				failure = default;
-				return true;
+				failure = new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, RegisterOperation,
+					$"The Lua module identity '{descriptor.Name}' is already reserved by this client activation.", null,
+					CheatEngineHostEffect.NotStarted);
+				return false;
 			}
 
-			// Manual ILuaModule implementations remain a supported escape hatch. They participate in instance ownership
-			// only because the Client cannot truthfully infer their global Lua names without reflection or raw Lua access.
-			_registeredModules.Add(module, LuaModuleReservation.Manual);
+			foreach (LuaExportDescriptor export in descriptor.Exports)
+			{
+				if (_reservedExportNames.Contains(export.Name))
+				{
+					failure = new CheatEngineFailure(CheatEngineFailureKind.OperationRejected, RegisterOperation,
+						$"The Lua export '{export.Name}' is already reserved by this client activation.", null,
+						CheatEngineHostEffect.NotStarted);
+					return false;
+				}
+			}
+
+			LuaModuleReservation reservation = LuaModuleReservation.Create(descriptor);
+			_registeredModules.Add(module, reservation);
+			_reservedModuleNames.Add(reservation.ModuleName);
+			foreach (string exportName in reservation.ExportNames)
+			{
+				_reservedExportNames.Add(exportName);
+			}
+
 			failure = default;
 			return true;
 		}
@@ -420,15 +373,38 @@ internal sealed class LuaClient : ILuaClient
 				return;
 			}
 
-			if (reservation.ModuleName is not null)
+			_reservedModuleNames.Remove(reservation.ModuleName);
+			foreach (string exportName in reservation.ExportNames)
 			{
-				_reservedModuleNames.Remove(reservation.ModuleName);
-				foreach (string exportName in reservation.ExportNames)
-				{
-					_reservedExportNames.Remove(exportName);
-				}
+				_reservedExportNames.Remove(exportName);
 			}
 		}
+	}
+
+	/// <summary>
+	///     Reports the exception that a module's <see cref="ILuaModule.Register" /> threw: the failure a Client exception
+	///     carries (a <see cref="CheatEngineClientException" /> or a <see cref="CheatEngineOperationCanceledException" />,
+	///     which a module, generated or not, obtains from <see cref="CheatEngineFailure.ToException" />), otherwise the
+	///     <see cref="SdkBoundary" /> classification with an unknown host effect.
+	/// </summary>
+	/// <remarks>
+	///     Unlike a codec or a typed operation, whose exceptions are rethrown unchanged, a module's registration is
+	///     classified: a generated module surfaces the CheatEngine.SDK faults of its registration from
+	///     <see cref="ILuaModule.Register" />, and no SDK exception may cross <see cref="TryRegisterModule" /> (F15). A
+	///     Client exception always carries a classified failure: its constructors are internal, and
+	///     <see cref="CheatEngineFailure.ToException" /> rejects the <see langword="default" /> failure.
+	/// </remarks>
+	private static CheatEngineFailure ClassifyRegistrationFault(Exception? fault)
+	{
+		return fault switch
+		{
+			// A module reports a classified failure through CheatEngineFailure.ToException: keep it, whatever its kind.
+			CheatEngineClientException reported => reported.Failure,
+			CheatEngineOperationCanceledException cancelled => cancelled.Failure,
+			null => new CheatEngineFailure(CheatEngineFailureKind.Unknown, RegisterOperation,
+				"The Lua module registration ended without completing or reporting a failure."),
+			_ => SdkBoundary.Classify(RegisterOperation, fault, CheatEngineHostEffect.Unknown)
+		};
 	}
 
 	private static LuaClientInitialization CreateProductionInitialization(CoreLifetime lifetime)
@@ -440,7 +416,8 @@ internal sealed class LuaClient : ILuaClient
 			() => lifetime.Stopping.IsCancellationRequested,
 			lease => lifetime.Track(lease),
 			lease => lifetime.Untrack(lease),
-			lifetime.ThrowIfInactive);
+			lifetime.ThrowIfInactive,
+			lifetime.Diagnostics);
 	}
 
 	private void Admit(string operation)
@@ -465,21 +442,19 @@ internal sealed class LuaClient : ILuaClient
 
 	private static CheatEngineFailure FailAfterRegisteredLease(CheatEngineFailure primaryFailure, LuaModuleLease lease)
 	{
-		try
-		{
-			lease.Dispose();
-			return primaryFailure;
-		}
-		catch (Exception cleanupException)
-		{
-			return WithSecondaryFailure(primaryFailure, cleanupException);
-		}
+		// Releasing never throws: an incomplete release stays tracked and is reported by the activation cleanup.
+		LeaseReleaseOutcome release = lease.Release();
+		return release.IsComplete
+			? primaryFailure
+			: new CheatEngineFailure(primaryFailure.Kind, primaryFailure.Operation,
+				$"{primaryFailure.Message} The registration was then released with the outcome {release}.",
+				primaryFailure.Exception, CheatEngineHostEffect.CleanupUnconfirmed);
 	}
 
 	private static CheatEngineFailure WithSecondaryFailure(CheatEngineFailure primaryFailure,
 		Exception secondaryFailure)
 	{
-		Exception primaryException = primaryFailure.Exception ?? new CheatEngineOperationException(primaryFailure);
+		Exception primaryException = primaryFailure.Exception ?? primaryFailure.ToException();
 		AggregateException combined = new(
 			"Lua module registration failed and its handoff cleanup encountered an additional failure.",
 			primaryException,
@@ -502,29 +477,11 @@ internal sealed class LuaClient : ILuaClient
 		Func<bool> IsStopping,
 		Action<ILuaModuleLease> TrackLease,
 		Action<ILuaModuleLease> UntrackLease,
-		Action<string> AdmitStatefulOperation);
-
-	private readonly struct LuaOperationDispatchState<TResult>
-	{
-		private readonly LuaClient _client;
-		private readonly long _epoch;
-		private readonly ILuaOperation<TResult> _operation;
-
-		internal LuaOperationDispatchState(LuaClient client, ILuaOperation<TResult> operation, long epoch)
-		{
-			_client = client;
-			_operation = operation;
-			_epoch = epoch;
-		}
-
-		internal LuaOperationResult<TResult> Execute()
-		{
-			return _client.ExecuteOperation(_operation, _epoch);
-		}
-	}
+		Action<string> AdmitStatefulOperation,
+		ICoreDiagnostics Diagnostics);
 
 	private readonly struct LuaOperationDispatchState<TOperation, TResult>
-		where TOperation : struct, ILuaOperation<TResult>
+		where TOperation : ILuaOperation<TResult>
 	{
 		private readonly LuaClient _client;
 		private readonly long _epoch;
@@ -545,23 +502,18 @@ internal sealed class LuaClient : ILuaClient
 
 	private sealed class LuaModuleReservation
 	{
-		private LuaModuleReservation(string? moduleName, string[] exportNames)
+		private LuaModuleReservation(string moduleName, string[] exportNames)
 		{
 			ModuleName = moduleName;
 			ExportNames = exportNames;
 		}
-
-		internal static LuaModuleReservation Manual
-		{
-			get;
-		} = new(null, []);
 
 		internal string[] ExportNames
 		{
 			get;
 		}
 
-		internal string? ModuleName
+		internal string ModuleName
 		{
 			get;
 		}

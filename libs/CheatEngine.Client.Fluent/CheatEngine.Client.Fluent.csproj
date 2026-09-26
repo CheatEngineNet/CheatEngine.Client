@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <RootNamespace>CheatEngine.Client</RootNamespace>
+    <Description>Immutable fluent builders for CheatEngine.Client memory and AOB requests, with bounded terminal operations.</Description>
   </PropertyGroup>
 
   <ItemGroup>

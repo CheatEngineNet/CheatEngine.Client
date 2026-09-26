@@ -19,26 +19,29 @@ public sealed class CheatEngineClientOptions
 	{
 	}
 
-	/// <summary>Gets or sets absolute roots from which Client table files may be loaded or saved.</summary>
+	/// <summary>Gets the absolute roots from which Client table files may be loaded or saved.</summary>
 	/// <remarks>
-	///     An empty list denies table-file access by default. Paths are normalized and validated when an activation creates
-	///     its client scope; relative paths, blank entries, and <see langword="null" /> are rejected.
+	///     The list is never <see langword="null" /> and is empty by default, which denies table-file access. Configuration
+	///     binding adds the entries of <c>CheatEngineClient:AllowedTableRoots</c>; a
+	///     <see cref="CheatEngineClientBuilder.Configure" /> delegate can add, remove, or clear entries. Paths are
+	///     normalized and validated when an activation creates its client scope; relative paths, blank or
+	///     <see langword="null" /> entries, and two entries that normalize to the same path are rejected.
 	/// </remarks>
 	[Required]
-	public string[]? AllowedTableRoots
+	public IList<string> AllowedTableRoots
 	{
 		get;
-		set;
-	} = Array.Empty<string>();
+	} = [];
 
-	/// <summary>Gets or sets the target-memory budgets captured when an activation creates its client services.</summary>
+	/// <summary>Gets the target-memory budgets captured when an activation creates its client services.</summary>
 	/// <remarks>
-	///     The registration validates and copies these values when it constructs <c>MemoryClient</c>; changing this
-	///     options object afterwards cannot change the active memory policy.
+	///     The object is never <see langword="null" />: configuration binding and
+	///     <see cref="CheatEngineClientBuilder.Configure" /> delegates set its properties. The registration validates and
+	///     copies these values when it constructs <c>MemoryClient</c>; changing this options object afterwards cannot
+	///     change the active memory policy.
 	/// </remarks>
-	public MemoryResourceLimits? MemoryResourceLimits
+	public MemoryResourceLimits MemoryResourceLimits
 	{
 		get;
-		set;
 	} = new();
 }

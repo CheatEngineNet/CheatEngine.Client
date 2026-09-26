@@ -41,7 +41,24 @@ public static partial class BenchmarkSuiteMetadata
 					"di-client-registration",
 					1,
 					false,
-					"Informational allocation and elapsed-time baseline for DI composition.")
+					"Informational allocation and elapsed-time baseline for DI composition."),
+				new BenchmarkWorkloadDescriptor(
+					"aob-materialization",
+					1,
+					false,
+					"Client copy/parse/filter cost over a fake port; excludes CE scan time."),
+				new BenchmarkWorkloadDescriptor(
+					"aob-route-comparison",
+					1,
+					false,
+					"Client cost of a module request on the global post-filter route and on the bounded route over a " +
+					"fake port; excludes CE scan time."),
+				new BenchmarkWorkloadDescriptor(
+					"memory-batch",
+					1,
+					false,
+					"Client admission, dispatch and outcome cost of a primitive batch over a fake port; excludes CE " +
+					"memory access time.")
 			]);
 		string content =
 			JsonSerializer.Serialize(descriptor, BenchmarkSuiteJsonContext.Default.BenchmarkSuiteDescriptor);

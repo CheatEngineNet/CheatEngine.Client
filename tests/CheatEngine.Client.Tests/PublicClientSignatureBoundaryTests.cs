@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using CheatEngine.Client.Extensions.DependencyInjection;
 using CheatEngine.Client.Hosting;
 using CheatEngine.Client.Memory;
+using CheatEngine.Client.SourceGenerators.Lua;
 using CheatEngine.SDK.Engine.Objects;
 using CheatEngine.SDK.Engine.Values;
 using CheatEngine.SDK.Lua.References;
@@ -23,31 +24,9 @@ public sealed class PublicClientSignatureBoundaryTests
 	private const int ClientBoundaryMaximumDepth = 32;
 	private const int ClientBoundaryMaximumNodes = 256;
 
-	private static readonly HashSet<string> ApprovedSdkValueTypes = new(StringComparer.Ordinal)
-	{
-		"CheatEngine.SDK.Engine.AddressList.MemoryRecordId",
-		"CheatEngine.SDK.Engine.Enums.FastScanMethod",
-		"CheatEngine.SDK.Engine.Enums.VariableType",
-		"CheatEngine.SDK.Engine.Inspection.AddressResolutionOptions",
-		"CheatEngine.SDK.Engine.Inspection.MemoryRegionInfo",
-		"CheatEngine.SDK.Engine.Inspection.ModuleInfo",
-		"CheatEngine.SDK.Engine.Inspection.ModuleName",
-		"CheatEngine.SDK.Engine.Inspection.ModuleSectionInfo",
-		"CheatEngine.SDK.Engine.Inspection.SymbolInfo",
-		"CheatEngine.SDK.Engine.Inspection.SymbolExpression",
-		"CheatEngine.SDK.Engine.Inspection.TargetProcessId",
-		"CheatEngine.SDK.Engine.Runtime.CheatEngineArchitecture",
-		"CheatEngine.SDK.Engine.Runtime.CheatEngineVersion",
-		"CheatEngine.SDK.Engine.Runtime.PointerSize",
-		"CheatEngine.SDK.Engine.Runtime.RuntimeCapabilityAvailability",
-		"CheatEngine.SDK.Engine.Runtime.RuntimeCapabilityId",
-		"CheatEngine.SDK.Engine.Runtime.TargetAbi",
-		"CheatEngine.SDK.Engine.Scanning.Aob.AobScanOptions",
-		"CheatEngine.SDK.Engine.Scanning.Aob.AobPattern",
-		"CheatEngine.SDK.Engine.Scanning.Values.FirstScanRequest",
-		"CheatEngine.SDK.Engine.Scanning.Values.NextScanRequest",
-		"CheatEngine.SDK.Engine.Values.Address"
-	};
+	// Single source shared with the Lua generator: source-generators/CheatEngine.Client.SourceGenerators.Lua/ApprovedSdkClientTypes.cs.
+	private static readonly HashSet<string> ApprovedSdkValueTypes =
+		new(ApprovedSdkClientTypes.Names, StringComparer.Ordinal);
 
 	private static readonly HashSet<string> ApprovedFrameworkValueTypes = new(StringComparer.Ordinal)
 	{
@@ -77,6 +56,7 @@ public sealed class PublicClientSignatureBoundaryTests
 		"System.Collections.Frozen.FrozenSet`1",
 		"System.Collections.Generic.IAsyncEnumerable`1",
 		"System.Collections.Generic.IEnumerable`1",
+		"System.Collections.Generic.IList`1",
 		"System.Collections.Generic.IReadOnlyCollection`1",
 		"System.Collections.Generic.IReadOnlyDictionary`2",
 		"System.Collections.Generic.IReadOnlyList`1",
@@ -111,9 +91,8 @@ public sealed class PublicClientSignatureBoundaryTests
 		"Microsoft.Extensions.Configuration.IConfigurationSection",
 		"Microsoft.Extensions.DependencyInjection.IServiceCollection",
 		"Microsoft.Extensions.DependencyInjection.IServiceScope",
-		"Microsoft.Extensions.DependencyInjection.ServiceProvider",
 		"Microsoft.Extensions.Logging.ILogger",
-		"Microsoft.Extensions.Options.ValidateOptionsResult"
+		"Microsoft.Extensions.Logging.ILoggingBuilder"
 	};
 
 	[Fact]
@@ -166,6 +145,23 @@ public sealed class PublicClientSignatureBoundaryTests
 			nameof(GetFunctionPointer),
 			BindingFlags.Static | BindingFlags.NonPublic)!;
 		AssertViolation(method.ReturnType, "function pointer");
+	}
+
+	[Fact]
+	public void PublicSignaturesRejectDisguisedNativePointers()
+	{
+		AssertViolation(typeof(nint), "native-sized integer");
+		AssertViolation(typeof(nuint), "native-sized integer");
+		AssertViolation(typeof(IntPtr[]), "native-sized integer");
+		AssertViolation(typeof(Func<nint>), "native-sized integer");
+		AssertViolation(typeof(object), "unsupported framework type");
+		AssertViolation(typeof(void).MakePointerType(), "pointer type");
+
+		List<string> violations = [];
+		VerifyType(typeof(int), "int", violations);
+		VerifyType(typeof(ulong), "ulong", violations);
+		VerifyType(typeof(Address), "address", violations);
+		Assert.Empty(violations);
 	}
 
 	[Fact]
@@ -232,7 +228,7 @@ public sealed class PublicClientSignatureBoundaryTests
 			ReflectionAssembly assembly = candidate;
 			string? assemblyName = assembly.GetName().Name;
 			if (assemblyName is null || !assemblyName.StartsWith("CheatEngine.Client", StringComparison.Ordinal) ||
-			    !visited.Add(assemblyName))
+				!visited.Add(assemblyName))
 			{
 				continue;
 			}
@@ -252,7 +248,7 @@ public sealed class PublicClientSignatureBoundaryTests
 	private static void VerifyDeclaredMembers(Type publicType, List<string> violations)
 	{
 		const BindingFlags PublicDeclared = BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static |
-		                                    BindingFlags.DeclaredOnly;
+											BindingFlags.DeclaredOnly;
 		if (typeof(Delegate).IsAssignableFrom(publicType))
 		{
 			MethodInfo? invoke = publicType.GetMethod("Invoke", BindingFlags.Public | BindingFlags.Instance);
@@ -333,7 +329,7 @@ public sealed class PublicClientSignatureBoundaryTests
 		foreach (Type genericParameter in genericParameters.Where(static parameter => parameter.IsGenericParameter))
 		{
 			foreach (Type constraint in genericParameter.GetGenericParameterConstraints()
-				         .OrderBy(static type => type.FullName, StringComparer.Ordinal))
+						 .OrderBy(static type => type.FullName, StringComparer.Ordinal))
 			{
 				if (constraint == typeof(ValueType) || constraint == typeof(Enum))
 				{
@@ -412,8 +408,14 @@ public sealed class PublicClientSignatureBoundaryTests
 			return;
 		}
 
-		if (IsForbiddenSdkType(type, source, violations, declaringMember) ||
-		    IsUnsupportedFrameworkType(type, source, violations, declaringMember))
+		if (IsNativeSized(type) && !IsApprovedNativeSizedMember(declaringMember))
+		{
+			violations.Add($"{source} exposes a native-sized integer '{type}' that could disguise a native pointer.");
+			return;
+		}
+
+		if (IsForbiddenSdkType(type, source, violations) ||
+			IsUnsupportedFrameworkType(type, source, violations, declaringMember))
 		{
 			return;
 		}
@@ -452,13 +454,12 @@ public sealed class PublicClientSignatureBoundaryTests
 		VerifyTypeMembers(type, source, violations, visited, ref visitedCount, depth);
 	}
 
-	private static bool IsForbiddenSdkType(Type type, string? source, List<string> violations,
-		MemberInfo? declaringMember)
+	private static bool IsForbiddenSdkType(Type type, string? source, List<string> violations)
 	{
 		Type definition = type.IsGenericType ? type.GetGenericTypeDefinition() : type;
 		string typeName = definition.FullName ?? definition.Name;
 		if (definition.Name is "LuaState" or "LuaRef" or "CEObject" ||
-		    definition.Name.StartsWith("Owned`", StringComparison.Ordinal))
+			definition.Name.StartsWith("Owned`", StringComparison.Ordinal))
 		{
 			violations.Add($"{source} exposes forbidden SDK handle '{typeName}'.");
 			return true;
@@ -471,8 +472,7 @@ public sealed class PublicClientSignatureBoundaryTests
 		}
 
 		if (definition.Assembly.GetName().Name?.StartsWith("CheatEngine.SDK", StringComparison.Ordinal) == true &&
-		    (!definition.IsValueType || !ApprovedSdkValueTypes.Contains(typeName)) &&
-		    !IsShippedRuntimeCapabilitiesDebt(definition, declaringMember))
+			(!definition.IsValueType || !ApprovedSdkValueTypes.Contains(typeName)))
 		{
 			violations.Add($"{source} exposes non-approved SDK type '{typeName}'.");
 			return true;
@@ -486,7 +486,7 @@ public sealed class PublicClientSignatureBoundaryTests
 	{
 		Type definition = type.IsGenericType ? type.GetGenericTypeDefinition() : type;
 		if (!IsFrameworkType(definition) || IsApprovedFrameworkClientBoundaryType(definition) ||
-		    IsApprovedAttributeMetadataType(definition, declaringMember))
+			IsApprovedAttributeMetadataType(definition, declaringMember))
 		{
 			return false;
 		}
@@ -501,20 +501,28 @@ public sealed class PublicClientSignatureBoundaryTests
 		Type definition = type.IsGenericType ? type.GetGenericTypeDefinition() : type;
 		string typeName = definition.FullName ?? definition.Name;
 		return IsScalar(type) || IsTuple(type) || ApprovedFrameworkValueTypes.Contains(typeName) ||
-		       ApprovedFrameworkGenericCollectionTypes.Contains(typeName) ||
-		       ApprovedFrameworkIntegrationTypes.Contains(typeName);
+			   ApprovedFrameworkGenericCollectionTypes.Contains(typeName) ||
+			   ApprovedFrameworkIntegrationTypes.Contains(typeName);
 	}
 
 	private static bool IsApprovedAttributeMetadataType(Type type, MemberInfo? declaringMember)
 	{
 		return type == typeof(Type) && declaringMember?.DeclaringType is { } declaringType &&
-		       typeof(Attribute).IsAssignableFrom(declaringType);
+			   typeof(Attribute).IsAssignableFrom(declaringType);
 	}
 
+	/// <summary>
+	///     Scalars that can never disguise a native handle. <see cref="IntPtr" /> and <see cref="UIntPtr" /> (<c>nint</c>,
+	///     <c>nuint</c>) are primitive to the runtime but are rejected unless explicitly allowlisted (A11-29).
+	/// </summary>
 	private static bool IsScalar(Type type)
 	{
-		return type.IsPrimitive || type == typeof(void) || type == typeof(string) || type == typeof(IntPtr) ||
-		       type == typeof(UIntPtr);
+		return (type.IsPrimitive && !IsNativeSized(type)) || type == typeof(void) || type == typeof(string);
+	}
+
+	private static bool IsNativeSized(Type type)
+	{
+		return type == typeof(IntPtr) || type == typeof(UIntPtr);
 	}
 
 	private static bool IsTuple(Type type)
@@ -526,29 +534,29 @@ public sealed class PublicClientSignatureBoundaryTests
 	{
 		string? assemblyName = type.Assembly.GetName().Name;
 		return assemblyName is not null &&
-		       (assemblyName.StartsWith("System", StringComparison.Ordinal) ||
-		        assemblyName.StartsWith("Microsoft", StringComparison.Ordinal));
+			   (assemblyName.StartsWith("System", StringComparison.Ordinal) ||
+				assemblyName.StartsWith("Microsoft", StringComparison.Ordinal));
 	}
 
 	private static bool ShouldInspectTypeMembers(Type type)
 	{
 		return type.Assembly.IsDynamic || type.Assembly == typeof(PublicClientSignatureBoundaryTests).Assembly ||
-		       (type.IsValueType &&
-		        type.Assembly.GetName().Name?.StartsWith("CheatEngine.Client", StringComparison.Ordinal) == true);
+			   (type.IsValueType &&
+				type.Assembly.GetName().Name?.StartsWith("CheatEngine.Client", StringComparison.Ordinal) == true);
 	}
 
 	private static void VerifyTypeHierarchy(Type type, string? source, List<string> violations,
 		MemberInfo? declaringMember, HashSet<Type> visited, ref int visitedCount, int depth)
 	{
 		if (type.BaseType is { } baseType && baseType != typeof(object) && baseType != typeof(ValueType) &&
-		    baseType != typeof(Enum) && !IsRequiredPluginBase(baseType))
+			baseType != typeof(Enum) && !IsRequiredPluginBase(baseType))
 		{
 			VerifyType(baseType, $"{source} base type", violations, declaringMember, visited, ref visitedCount,
 				depth + 1);
 		}
 
 		foreach (Type implementedInterface in type.GetInterfaces().OrderBy(static candidate => candidate.FullName,
-			         StringComparer.Ordinal))
+					 StringComparer.Ordinal))
 		{
 			if (IsSafeFrameworkDtoImplementationContract(implementedInterface))
 			{
@@ -578,18 +586,18 @@ public sealed class PublicClientSignatureBoundaryTests
 		ref int visitedCount, int depth)
 	{
 		const BindingFlags DeclaredInstance = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic |
-		                                      BindingFlags.DeclaredOnly;
+											  BindingFlags.DeclaredOnly;
 
 		foreach (FieldInfo field in type.GetFields(DeclaredInstance).OrderBy(static candidate => candidate.Name,
-			         StringComparer.Ordinal))
+					 StringComparer.Ordinal))
 		{
 			VerifyType(field.FieldType, $"{source} field '{field.Name}'", violations, field, visited,
 				ref visitedCount, depth + 1);
 		}
 
 		foreach (PropertyInfo property in type.GetProperties(DeclaredInstance).OrderBy(
-			         static candidate => candidate.Name,
-			         StringComparer.Ordinal))
+					 static candidate => candidate.Name,
+					 StringComparer.Ordinal))
 		{
 			VerifyType(property.PropertyType, $"{source} property '{property.Name}'", violations, property, visited,
 				ref visitedCount, depth + 1);
@@ -597,14 +605,14 @@ public sealed class PublicClientSignatureBoundaryTests
 		}
 
 		foreach (ConstructorInfo constructor in type.GetConstructors(DeclaredInstance).OrderBy(static candidate =>
-			         candidate.ToString(), StringComparer.Ordinal))
+					 candidate.ToString(), StringComparer.Ordinal))
 		{
 			VerifyParameters(constructor.GetParameters(), constructor, violations, visited, ref visitedCount, depth);
 		}
 
 		foreach (MethodInfo method in type.GetMethods(DeclaredInstance)
-			         .Where(static candidate => !candidate.IsPrivate)
-			         .OrderBy(static candidate => candidate.ToString(), StringComparer.Ordinal))
+					 .Where(static candidate => !candidate.IsPrivate)
+					 .OrderBy(static candidate => candidate.ToString(), StringComparer.Ordinal))
 		{
 			if (IsObjectEqualityMethod(method))
 			{
@@ -622,23 +630,14 @@ public sealed class PublicClientSignatureBoundaryTests
 	private static bool IsObjectEqualityMethod(MethodInfo method)
 	{
 		return method.Name == nameof(object.Equals) && !method.IsStatic && method.ReturnType == typeof(bool) &&
-		       method.GetParameters() is [ParameterInfo { ParameterType: var type }] && type == typeof(object);
+			   method.GetParameters() is [ParameterInfo { ParameterType: var type }] && type == typeof(object);
 	}
 
-	private static bool IsShippedRuntimeCapabilitiesDebt(Type type, MemberInfo? declaringMember)
+	/// <summary>No public Client member may expose <c>nint</c>/<c>nuint</c>; add a reviewed, named exception here if one ever must.</summary>
+	private static bool IsApprovedNativeSizedMember(MemberInfo? declaringMember)
 	{
-		// PublicAPI.Shipped preserves this one legacy class reference. It is deliberately a member-level exception:
-		// every other SDK reference type remains prohibited by this recursive boundary test.
-		return type.FullName == "CheatEngine.SDK.Engine.Runtime.RuntimeCapabilities" &&
-		       declaringMember?.DeclaringType?.FullName == "CheatEngine.Client.Runtime.CheatEngineRuntimeSnapshot" &&
-		       declaringMember switch
-		       {
-			       FieldInfo { Name: "<SdkCapabilities>k__BackingField" } => true,
-			       ConstructorInfo => true,
-			       MethodInfo { Name: "get_SdkCapabilities" } => true,
-			       PropertyInfo { Name: "SdkCapabilities" } => true,
-			       _ => false
-		       };
+		_ = declaringMember;
+		return false;
 	}
 
 	private static void AssertViolation(Type type, string expectedFragment)

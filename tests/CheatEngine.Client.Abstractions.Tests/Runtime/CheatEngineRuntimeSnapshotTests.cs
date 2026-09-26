@@ -1,5 +1,3 @@
-using System.Globalization;
-
 using CheatEngine.Client.Runtime;
 using CheatEngine.SDK.Engine.Runtime;
 
@@ -7,60 +5,91 @@ namespace CheatEngine.Client.Abstractions.Tests.Runtime;
 
 public sealed class CheatEngineRuntimeSnapshotTests
 {
-	/// <summary>Keeps an observed coarse CE version distinct from its qualified four-part release baseline.</summary>
+	/// <summary>Keeps the version, platform and capability groups exactly as they were supplied.</summary>
 	[Fact]
-	public void SnapshotKeepsObservedCeVersionSeparateFromTheQualifiedFourPartBaseline()
+	public void SnapshotKeepsItsThreeGroups()
 	{
-		CheatEngineRuntimeSnapshot snapshot = Create();
+		CheatEngineRuntimeVersionInfo version = CreateVersionInfo(new CheatEngineVersion(7, 7, 0, 9999));
+		CheatEngineRuntimePlatformInfo platform = CreatePlatformInfo(TargetBackend.LocalProcess,
+			CheatEngineArchitecture.X86, PointerSize.Bit32, 4);
+		ClientCapabilities capabilities = ClientCapabilities.Empty;
 
-		Assert.Equal(7.7d, snapshot.ObservedCheatEngineVersion);
-		Assert.Equal(new CheatEngineVersion(7, 7, 0, 10621), snapshot.QualifiedCheatEngineBaseline);
-		Assert.NotEqual(
-			snapshot.ObservedCheatEngineVersion!.Value.ToString(CultureInfo.InvariantCulture),
-			snapshot.QualifiedCheatEngineBaseline.ToString());
-		Assert.True(snapshot.IsOnQualifiedCheatEngineLine);
-	}
+		CheatEngineRuntimeSnapshot snapshot = new(42, version, platform, capabilities);
 
-	/// <summary>Forwards grouped runtime observations through the established leaf-property compatibility surface.</summary>
-	[Fact]
-	public void SnapshotForwardsVersionAndPlatformComponentsToItsExistingLeafProperties()
-	{
-		Version clientAssemblyVersion = new(0, 1, 2, 3);
-		Version sdkAssemblyVersion = new(1, 2, 3, 4);
-		CheatEngineRuntimeVersionInfo version = new(7.7d, CheatEngineVersion.Ce77010621, clientAssemblyVersion,
-			sdkAssemblyVersion);
-		CheatEngineRuntimePlatformInfo platform = new(
-			CheatEngineArchitecture.X64,
-			CheatEngineArchitecture.X86,
-			PointerSize.Bit32,
-			TargetAbi.Windows);
-		CheatEngineRuntimeSnapshot snapshot = new(
-			42,
-			version,
-			platform,
-			RuntimeCapabilities.Empty,
-			ClientCapabilities.Empty);
-
+		Assert.Equal(42, snapshot.Epoch);
 		Assert.Equal(version, snapshot.Version);
 		Assert.Equal(platform, snapshot.Platform);
-		Assert.Equal(version.ObservedCheatEngineVersion, snapshot.ObservedCheatEngineVersion);
-		Assert.Equal(version.QualifiedCheatEngineBaseline, snapshot.QualifiedCheatEngineBaseline);
-		Assert.Same(clientAssemblyVersion, snapshot.ClientAssemblyVersion);
-		Assert.Same(sdkAssemblyVersion, snapshot.SdkAssemblyVersion);
-		Assert.Equal(platform.SystemArchitecture, snapshot.SystemArchitecture);
-		Assert.Equal(platform.TargetArchitecture, snapshot.TargetArchitecture);
-		Assert.Equal(platform.TargetPointerSize, snapshot.TargetPointerSize);
-		Assert.Equal(platform.TargetAbi, snapshot.TargetAbi);
+		Assert.Same(capabilities, snapshot.Capabilities);
 	}
 
-	/// <summary>Rejects non-finite or negative observed CE version values.</summary>
-	[Theory]
-	[InlineData(double.NaN)]
-	[InlineData(double.PositiveInfinity)]
-	[InlineData(-0.1d)]
-	public void VersionInfoRejectsInvalidObservedCeVersion(double observedVersion)
+	/// <summary>Keeps the observed four-part CE file version distinct from the qualified release baseline.</summary>
+	[Fact]
+	public void VersionInfoKeepsTheObservedFileVersionSeparateFromTheQualifiedBaseline()
 	{
-		Assert.Throws<ArgumentOutOfRangeException>(() => CreateVersionInfo(observedVersion));
+		CheatEngineRuntimeVersionInfo version = CreateVersionInfo(new CheatEngineVersion(7, 7, 0, 9999));
+
+		Assert.Equal(new CheatEngineVersion(7, 7, 0, 9999), version.CheatEngineVersion);
+		Assert.Equal(new CheatEngineVersion(7, 7, 0, 10621), version.QualifiedCheatEngineBaseline);
+		Assert.True(version.IsOnQualifiedCheatEngineLine);
+	}
+
+	/// <summary>
+	///     Compares the major and minor components as integers: 7.10 is its own line, never 7.1 as a coarse decimal
+	///     number would read it.
+	/// </summary>
+	[Theory]
+	[InlineData(7, 7, 7, 7, true)]
+	[InlineData(7, 7, 7, 10, false)]
+	[InlineData(7, 7, 7, 1, false)]
+	[InlineData(7, 7, 8, 7, false)]
+	[InlineData(7, 10, 7, 10, true)]
+	[InlineData(7, 10, 7, 1, false)]
+	[InlineData(7, 10, 7, 11, false)]
+	public void IsOnQualifiedCheatEngineLineComparesMajorAndMinorAsIntegers(int baselineMajor, int baselineMinor,
+		int major, int minor, bool expected)
+	{
+		CheatEngineRuntimeVersionInfo version = new(new CheatEngineVersion(major, minor, 0, 1),
+			new CheatEngineVersion(baselineMajor, baselineMinor, 0, 10621), new Version(1, 0, 0), new Version(2, 0, 0),
+			null, false);
+
+		Assert.Equal(expected, version.IsOnQualifiedCheatEngineLine);
+	}
+
+	/// <summary>An unobserved version is never on the qualified line.</summary>
+	[Fact]
+	public void VersionInfoAllowsAnUnobservedCheatEngineVersion()
+	{
+		CheatEngineRuntimeVersionInfo version = CreateVersionInfo(null);
+
+		Assert.Null(version.CheatEngineVersion);
+		Assert.False(version.IsOnQualifiedCheatEngineLine);
+	}
+
+	/// <summary>Reports the loaded CheatEngine.SDK package and whether it is exactly the reviewed one.</summary>
+	[Theory]
+	[InlineData("2.0.0+325c47b573f8bd39a247f1d0101f110fa36c1696", true)]
+	[InlineData("2.0.1", false)]
+	[InlineData(null, false)]
+	public void VersionInfoReportsTheLoadedSdkPackage(string? packageVersion, bool reviewed)
+	{
+		CheatEngineRuntimeVersionInfo version = new(CheatEngineVersion.Ce77010621, CheatEngineVersion.Ce77010621,
+			new Version(1, 0, 0), new Version(2, 0, 0), packageVersion, reviewed);
+
+		Assert.Equal(packageVersion, version.SdkPackageVersion);
+		Assert.Equal(reviewed, version.IsReviewedSdkPackage);
+	}
+
+	/// <summary>A reviewed package needs its version, and a package version is never blank.</summary>
+	[Fact]
+	public void VersionInfoRejectsABlankPackageVersionAndAReviewedPackageWithoutOne()
+	{
+		ArgumentException blank = Assert.Throws<ArgumentException>(() => new CheatEngineRuntimeVersionInfo(
+			null, CheatEngineVersion.Ce77010621, new Version(1, 0, 0), new Version(2, 0, 0), " ", false));
+		ArgumentException reviewed = Assert.Throws<ArgumentException>(() => new CheatEngineRuntimeVersionInfo(
+			null, CheatEngineVersion.Ce77010621, new Version(1, 0, 0), new Version(2, 0, 0), null, true));
+
+		Assert.Equal("sdkPackageVersion", blank.ParamName);
+		Assert.Equal("isReviewedSdkPackage", reviewed.ParamName);
 	}
 
 	/// <summary>Rejects absent assembly versions that would leave a version observation uninitialized.</summary>
@@ -68,30 +97,14 @@ public sealed class CheatEngineRuntimeSnapshotTests
 	public void VersionInfoRejectsNullAssemblyVersions()
 	{
 		ArgumentNullException clientVersion = Assert.Throws<ArgumentNullException>(() =>
-			new CheatEngineRuntimeVersionInfo(
-				7.7d,
-				CheatEngineVersion.Ce77010621,
-				Null<Version>(),
-				new Version(1, 0, 0)));
-		ArgumentNullException sdkVersion = Assert.Throws<ArgumentNullException>(() => new CheatEngineRuntimeVersionInfo(
-			7.7d,
-			CheatEngineVersion.Ce77010621,
-			new Version(0, 1, 0),
-			Null<Version>()));
+			new CheatEngineRuntimeVersionInfo(null, CheatEngineVersion.Ce77010621, Null<Version>(),
+				new Version(1, 0, 0), null, false));
+		ArgumentNullException sdkVersion = Assert.Throws<ArgumentNullException>(() =>
+			new CheatEngineRuntimeVersionInfo(null, CheatEngineVersion.Ce77010621, new Version(0, 1, 0),
+				Null<Version>(), null, false));
 
 		Assert.Equal("clientAssemblyVersion", clientVersion.ParamName);
 		Assert.Equal("sdkAssemblyVersion", sdkVersion.ParamName);
-	}
-
-	/// <summary>Retains unavailable version and target facts without inferring values that CE did not provide.</summary>
-	[Fact]
-	public void SnapshotAllowsAnUnavailableObservedVersionAndKeepsUnknownTargetFacts()
-	{
-		CheatEngineRuntimeSnapshot snapshot = Create(null);
-
-		Assert.Null(snapshot.ObservedCheatEngineVersion);
-		Assert.Equal(CheatEngineArchitecture.Unknown, snapshot.TargetArchitecture);
-		Assert.Equal(PointerSize.Unknown, snapshot.TargetPointerSize);
 	}
 
 	/// <summary>Rejects a snapshot epoch that cannot identify a real activation.</summary>
@@ -100,61 +113,18 @@ public sealed class CheatEngineRuntimeSnapshotTests
 	[InlineData(long.MinValue)]
 	public void SnapshotRejectsNegativeActivationEpoch(long epoch)
 	{
-		Assert.Throws<ArgumentOutOfRangeException>(() => Create(epoch: epoch));
+		Assert.Throws<ArgumentOutOfRangeException>(() => new CheatEngineRuntimeSnapshot(epoch,
+			CreateVersionInfo(CheatEngineVersion.Ce77010621), CreatePlatformInfo(), ClientCapabilities.Empty));
 	}
 
-	/// <summary>Rejects absent capability collections instead of accepting an incomplete runtime snapshot.</summary>
+	/// <summary>Rejects an absent capability collection instead of accepting an incomplete runtime snapshot.</summary>
 	[Fact]
-	public void SnapshotRejectsNullCapabilityCollections()
+	public void SnapshotRejectsANullCapabilityCollection()
 	{
-		ArgumentNullException sdkCapabilities = Assert.Throws<ArgumentNullException>(() =>
-			new CheatEngineRuntimeSnapshot(
-				42,
-				CreateVersionInfo(),
-				CreatePlatformInfo(),
-				Null<RuntimeCapabilities>(),
-				ClientCapabilities.Empty));
-		ArgumentNullException clientCapabilities = Assert.Throws<ArgumentNullException>(() =>
-			new CheatEngineRuntimeSnapshot(
-				42,
-				CreateVersionInfo(),
-				CreatePlatformInfo(),
-				RuntimeCapabilities.Empty,
-				Null<ClientCapabilities>()));
+		ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => new CheatEngineRuntimeSnapshot(42,
+			CreateVersionInfo(CheatEngineVersion.Ce77010621), CreatePlatformInfo(), Null<ClientCapabilities>()));
 
-		Assert.Equal("sdkCapabilities", sdkCapabilities.ParamName);
-		Assert.Equal("clientCapabilities", clientCapabilities.ParamName);
-	}
-
-	/// <summary>Rejects target pointer widths that disagree with the observed target architecture.</summary>
-	[Theory]
-	[InlineData(CheatEngineArchitecture.X64, 4)]
-	[InlineData(CheatEngineArchitecture.X86, 8)]
-	public void PlatformInfoRejectsPointerSizeThatDoesNotMatchTargetArchitecture(
-		CheatEngineArchitecture targetArchitecture,
-		int pointerBytes)
-	{
-		ArgumentException exception = Assert.Throws<ArgumentException>(() => new CheatEngineRuntimePlatformInfo(
-			CheatEngineArchitecture.X64,
-			targetArchitecture,
-			new PointerSize(pointerBytes),
-			TargetAbi.Windows));
-
-		Assert.Equal("targetPointerSize", exception.ParamName);
-	}
-
-	/// <summary>Accepts unknown architecture and pointer-size facts without inventing a target platform.</summary>
-	[Fact]
-	public void PlatformInfoAcceptsConsistentlyUnknownTargetArchitectureAndPointerSize()
-	{
-		CheatEngineRuntimePlatformInfo platform = new(
-			CheatEngineArchitecture.Unknown,
-			CheatEngineArchitecture.Unknown,
-			PointerSize.Unknown,
-			TargetAbi.Unknown);
-
-		Assert.Equal(CheatEngineArchitecture.Unknown, platform.TargetArchitecture);
-		Assert.Equal(PointerSize.Unknown, platform.TargetPointerSize);
+		Assert.Equal("capabilities", exception.ParamName);
 	}
 
 	/// <summary>Rejects the default version-info value before it can produce a partially initialized snapshot.</summary>
@@ -162,41 +132,129 @@ public sealed class CheatEngineRuntimeSnapshotTests
 	public void SnapshotRejectsDefaultVersionInfo()
 	{
 		ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => new CheatEngineRuntimeSnapshot(
-			42,
-			default,
-			CreatePlatformInfo(),
-			RuntimeCapabilities.Empty,
-			ClientCapabilities.Empty));
+			42, default, CreatePlatformInfo(), ClientCapabilities.Empty));
 
-		Assert.Equal("versionInfo.ClientAssemblyVersion", exception.ParamName);
+		Assert.Equal("version", exception.ParamName);
 	}
 
-	private static CheatEngineRuntimeSnapshot Create(double? observedVersion = 7.7d, long epoch = 42)
+	/// <summary>Keeps every host and target fact as supplied; none is inferred from another (audit F08).</summary>
+	[Fact]
+	public void PlatformInfoKeepsEveryObservedFact()
 	{
-		return new CheatEngineRuntimeSnapshot(
-			epoch,
-			CreateVersionInfo(observedVersion),
-			CreatePlatformInfo(),
-			RuntimeCapabilities.Empty,
-			ClientCapabilities.Empty);
+		CheatEngineRuntimePlatformInfo platform = new(CheatEngineOperatingSystem.Windows,
+			CheatEngineArchitecture.X64, PointerSize.Bit64, TargetBackend.CEServer, CheatEngineArchitecture.Arm64,
+			PointerSize.Bit64, TargetAbi.Unix, true, 8);
+
+		Assert.Equal(CheatEngineOperatingSystem.Windows, platform.HostOperatingSystem);
+		Assert.Equal(CheatEngineArchitecture.X64, platform.HostArchitecture);
+		Assert.Equal(PointerSize.Bit64, platform.CheatEngineBitness);
+		Assert.Equal(TargetBackend.CEServer, platform.TargetBackend);
+		Assert.Equal(CheatEngineArchitecture.Arm64, platform.TargetArchitecture);
+		Assert.Equal(PointerSize.Bit64, platform.TargetBitness);
+		Assert.Equal(TargetAbi.Unix, platform.TargetAbi);
+		Assert.True(platform.TargetIsAndroid);
+		Assert.Equal(8, platform.ConfiguredPointerSizeBytes);
+		Assert.False(platform.ConfiguredPointerSizeDiffersFromBitness);
 	}
 
-	private static CheatEngineRuntimeVersionInfo CreateVersionInfo(double? observedVersion = 7.7d)
+	/// <summary>The default platform keeps every fact unknown.</summary>
+	[Fact]
+	public void DefaultPlatformInfoKeepsEveryFactUnknown()
 	{
-		return new CheatEngineRuntimeVersionInfo(
-			observedVersion,
-			CheatEngineVersion.Ce77010621,
-			new Version(0, 1, 0),
-			new Version(1, 0, 0));
+		CheatEngineRuntimePlatformInfo platform = default;
+
+		Assert.Equal(CheatEngineOperatingSystem.Unknown, platform.HostOperatingSystem);
+		Assert.Equal(CheatEngineArchitecture.Unknown, platform.HostArchitecture);
+		Assert.Equal(PointerSize.Unknown, platform.CheatEngineBitness);
+		Assert.Equal(TargetBackend.Unknown, platform.TargetBackend);
+		Assert.Equal(PointerSize.Unknown, platform.TargetBitness);
+		Assert.Null(platform.TargetIsAndroid);
+		Assert.Null(platform.ConfiguredPointerSizeBytes);
+		Assert.Null(platform.ConfiguredPointerSizeDiffersFromBitness);
+	}
+
+	/// <summary>Rejects a known target bitness that disagrees with a known target architecture.</summary>
+	[Theory]
+	[InlineData(CheatEngineArchitecture.X64, 4)]
+	[InlineData(CheatEngineArchitecture.X86, 8)]
+	[InlineData(CheatEngineArchitecture.Arm64, 4)]
+	[InlineData(CheatEngineArchitecture.Arm32, 8)]
+	public void PlatformInfoRejectsABitnessThatDoesNotMatchTheTargetArchitecture(
+		CheatEngineArchitecture targetArchitecture,
+		int pointerBytes)
+	{
+		ArgumentException exception = Assert.Throws<ArgumentException>(() => CreatePlatformInfo(
+			TargetBackend.LocalProcess, targetArchitecture, new PointerSize(pointerBytes), null));
+
+		Assert.Equal("targetBitness", exception.ParamName);
+	}
+
+	/// <summary>Keeps a known bitness when the ISA could not be derived (Q32: never infer the ISA from the width).</summary>
+	[Fact]
+	[Trait("Qualification", "Q32")]
+	public void PlatformInfoAcceptsAnUnknownIsaWithAKnownBitness()
+	{
+		CheatEngineRuntimePlatformInfo platform = CreatePlatformInfo(TargetBackend.LocalProcess,
+			CheatEngineArchitecture.Unknown, PointerSize.Bit64, null);
+
+		Assert.Equal(CheatEngineArchitecture.Unknown, platform.TargetArchitecture);
+		Assert.Equal(PointerSize.Bit64, platform.TargetBitness);
+	}
+
+	/// <summary>Keeps a known ISA when the bitness was not observed.</summary>
+	[Theory]
+	[InlineData(CheatEngineArchitecture.X86)]
+	[InlineData(CheatEngineArchitecture.X64)]
+	[InlineData(CheatEngineArchitecture.Arm32)]
+	[InlineData(CheatEngineArchitecture.Arm64)]
+	public void PlatformInfoAcceptsAKnownIsaWithAnUnknownBitness(CheatEngineArchitecture architecture)
+	{
+		CheatEngineRuntimePlatformInfo platform = CreatePlatformInfo(TargetBackend.LocalProcess, architecture,
+			PointerSize.Unknown, 4);
+
+		Assert.Equal(architecture, platform.TargetArchitecture);
+		Assert.Equal(PointerSize.Unknown, platform.TargetBitness);
+		Assert.Null(platform.ConfiguredPointerSizeDiffersFromBitness);
+	}
+
+	/// <summary>Keeps Cheat Engine's configured pointer size separate from the bitness (Q31, spike C3 D3).</summary>
+	[Theory]
+	[Trait("Qualification", "Q31")]
+	[InlineData(4, true)]
+	[InlineData(2, true)]
+	[InlineData(8, false)]
+	public void PlatformInfoKeepsARawConfiguredPointerSizeApartFromTheBitness(int configured, bool differs)
+	{
+		CheatEngineRuntimePlatformInfo platform = CreatePlatformInfo(TargetBackend.LocalProcess,
+			CheatEngineArchitecture.X64, PointerSize.Bit64, configured);
+
+		Assert.Equal(PointerSize.Bit64, platform.TargetBitness);
+		Assert.Equal(configured, platform.ConfiguredPointerSizeBytes);
+		Assert.Equal(configured switch
+		{
+			4 => PointerSize.Bit32,
+			8 => PointerSize.Bit64,
+			_ => PointerSize.Unknown
+		}, platform.ConfiguredPointerSize);
+		Assert.Equal(differs, platform.ConfiguredPointerSizeDiffersFromBitness);
+	}
+
+	private static CheatEngineRuntimeVersionInfo CreateVersionInfo(CheatEngineVersion? observedVersion)
+	{
+		return new CheatEngineRuntimeVersionInfo(observedVersion, CheatEngineVersion.Ce77010621, new Version(0, 1, 0),
+			new Version(1, 0, 0), null, false);
 	}
 
 	private static CheatEngineRuntimePlatformInfo CreatePlatformInfo()
 	{
-		return new CheatEngineRuntimePlatformInfo(
-			CheatEngineArchitecture.X64,
-			CheatEngineArchitecture.Unknown,
-			PointerSize.Unknown,
-			TargetAbi.Windows);
+		return CreatePlatformInfo(TargetBackend.Unknown, CheatEngineArchitecture.Unknown, PointerSize.Unknown, null);
+	}
+
+	private static CheatEngineRuntimePlatformInfo CreatePlatformInfo(TargetBackend backend,
+		CheatEngineArchitecture architecture, PointerSize bitness, int? configured)
+	{
+		return new CheatEngineRuntimePlatformInfo(CheatEngineOperatingSystem.Windows, CheatEngineArchitecture.X64,
+			PointerSize.Bit64, backend, architecture, bitness, TargetAbi.Windows, false, configured);
 	}
 
 	private static T Null<T>() where T : class

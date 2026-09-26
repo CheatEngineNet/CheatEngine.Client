@@ -5,7 +5,7 @@ namespace LivePlugin.Coexistence.PluginA;
 /// <summary>Distinct Lua exports used only by the manual coexistence protocol.</summary>
 internal static partial class CoexistencePluginAFunctions
 {
-	private static long s_pingCount;
+	private static long _pingCount;
 
 	/// <summary>Returns Plugin A's activation-local identity observations.</summary>
 	[LuaFunction("cheatengine_client_coexistence_a_identity")]
@@ -18,7 +18,7 @@ internal static partial class CoexistencePluginAFunctions
 	[LuaFunction("cheatengine_client_coexistence_a_ping")]
 	public static long Ping()
 	{
-		return Interlocked.Increment(ref s_pingCount);
+		return Interlocked.Increment(ref _pingCount);
 	}
 
 	/// <summary>Competes with Plugin Collision for the exact same Lua global name.</summary>

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 
 using CheatEngine.Client.Core.Dispatching;
@@ -5,6 +6,7 @@ using CheatEngine.Client.Core.Infrastructure;
 using CheatEngine.Client.Dispatching;
 using CheatEngine.Client.Lua;
 using CheatEngine.Client.Results;
+using CheatEngine.Client.Runtime;
 using CheatEngine.SDK.Lua.Calls;
 using CheatEngine.SDK.Lua.Runtime;
 using CheatEngine.SDK.Lua.State;
@@ -13,6 +15,8 @@ namespace CheatEngine.Client.Core.Domains;
 
 internal sealed class UnsafeLuaClient : IUnsafeLuaClient
 {
+	private const string Operation = "UnsafeLua.Execute";
+
 	private readonly ICheatEngineDispatcher _dispatcher;
 	private readonly CoreLifetime? _lifetime;
 	private readonly CoreClientPolicy _policy;
@@ -40,36 +44,66 @@ internal sealed class UnsafeLuaClient : IUnsafeLuaClient
 			throw new ArgumentException("A Lua chunk name must be null or non-empty.", nameof(script));
 		}
 
-		_lifetime?.ThrowIfInactive("Lua.ExecuteUnsafe");
+		_lifetime?.ThrowIfInactive(Operation);
 
 		if (!_policy.EnableUnsafeLuaExecution)
 		{
-			failure = new CheatEngineFailure(CheatEngineFailureKind.CapabilityUnavailable, "Lua.ExecuteUnsafe",
-				"Arbitrary Lua execution was not enabled for this activation.");
+			_lifetime?.Diagnostics.CapabilityRefused(ClientCapabilityId.UnsafeLuaExecution.Value, Operation,
+				ClientCapabilityEvidenceReasonCode.Policy, ClientCapabilityEvidenceState.Missing);
+			failure = new CheatEngineFailure(CheatEngineFailureKind.CapabilityUnavailable, Operation,
+				"Arbitrary Lua execution was not enabled for this activation.", null, CheatEngineHostEffect.NotStarted);
 			return false;
 		}
 
+		long started = Stopwatch.GetTimestamp();
+		bool completed = TryExecuteCore(script, out failure, cancellationToken);
+		// Size and duration only: the script body and the Lua error text are never logged (A24-14).
+		_lifetime?.Diagnostics.LuaOperationCompleted(Operation,
+			completed ? "None" : failure.Kind.ToString(), (long) Stopwatch.GetElapsedTime(started).TotalMilliseconds,
+			script.Source.Length);
+		return completed;
+	}
+
+	private bool TryExecuteCore(LuaScript script, out CheatEngineFailure failure, CancellationToken cancellationToken)
+	{
 		string luaStatus = "unknown";
 		string? luaMessage = null;
 		bool succeeded = false;
-		if (!_dispatcher.TryInvoke(() =>
-		    {
-			    using LuaRuntimeOperation operation = LuaRuntime.AcquireOperation();
-			    LuaState state = operation.State;
-			    using LuaFrame frame = new(state);
-			    byte[] source = Encoding.UTF8.GetBytes(script.Source);
-			    ReadOnlySpan<byte> name = script.ChunkName is null
-				    ? ReadOnlySpan<byte>.Empty
-				    : Encoding.UTF8.GetBytes(script.ChunkName);
-			    LuaStatus status = state.TryExecute(source, 0, name);
-			    succeeded = status.IsOk;
-			    luaStatus = status.ToString();
-			    if (!succeeded)
-			    {
-				    luaMessage = LuaError.FromStack(state, status).Message;
-			    }
-		    }, out failure, cancellationToken))
+		bool admitted = false;
+		CheatEngineFailure admissionFailure = default;
+		// A refused Lua admission is classified from the SDK's admission status (NotStarted). A protected Lua failure is a
+		// returned status; only SDK faults are translated, with an unknown effect because the script may have run
+		// partially.
+		if (!SdkBoundary.TryInvoke(_dispatcher, Operation, () =>
+			{
+				if (!LuaAdmission.TryAcquire(Operation, out LuaRuntimeOperation acquired, out admissionFailure))
+				{
+					return;
+				}
+
+				admitted = true;
+				using LuaRuntimeOperation operation = acquired;
+				LuaState state = operation.State;
+				using LuaFrame frame = new(state);
+				byte[] source = Encoding.UTF8.GetBytes(script.Source);
+				ReadOnlySpan<byte> name = script.ChunkName is null
+					? ReadOnlySpan<byte>.Empty
+					: Encoding.UTF8.GetBytes(script.ChunkName);
+				LuaStatus status = state.TryExecute(source, 0, name);
+				succeeded = status.IsOk;
+				luaStatus = status.ToString();
+				if (!succeeded)
+				{
+					luaMessage = LuaError.FromStack(state, status).Message;
+				}
+			}, CheatEngineHostEffect.Unknown, _lifetime, out failure, cancellationToken))
 		{
+			return false;
+		}
+
+		if (!admitted)
+		{
+			failure = admissionFailure;
 			return false;
 		}
 
@@ -78,7 +112,7 @@ internal sealed class UnsafeLuaClient : IUnsafeLuaClient
 			return true;
 		}
 
-		failure = new CheatEngineFailure(CheatEngineFailureKind.LuaError, "Lua.ExecuteUnsafe",
+		failure = new CheatEngineFailure(CheatEngineFailureKind.LuaError, Operation,
 			luaMessage is { Length: > 0 }
 				? $"The protected Lua call failed with status '{luaStatus}': {luaMessage}"
 				: $"The protected Lua call failed with status '{luaStatus}'.");
@@ -89,7 +123,7 @@ internal sealed class UnsafeLuaClient : IUnsafeLuaClient
 	{
 		if (!TryExecute(script, out CheatEngineFailure failure, cancellationToken))
 		{
-			failure.Throw();
+			failure.Throw(cancellationToken);
 		}
 	}
 }

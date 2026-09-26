@@ -14,3 +14,7 @@
  CECLUA1104 | CheatEngine.Client.Lua | Error    | Non-scalar Lua operation results require a mapper.
  CECLUA1105 | CheatEngine.Client.Lua | Error    | A Lua operation mapper must match the SDK result.
  CECLUA1106 | CheatEngine.Client.Lua | Error    | A Lua mapper must project a safe, recursively closed Client result and source graph.
+ CECLUA1201 | CheatEngine.Client.Lua | Error    | A Lua global has a single owning module per plugin assembly (Q16).
+ CECLUA1202 | CheatEngine.Client.Lua | Error    | A Lua module cannot declare a member reserved by the generated registration.
+ CECLUA1203 | CheatEngine.Client.Lua | Error    | A Lua module cannot derive from a Lua module implementation.
+ CECLUA1204 | CheatEngine.Client.Lua | Error    | Lua module annotations must be the contract types, not look-alikes.

@@ -1,5 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <!-- These tests use the experimental Client value scans (CECLIENT5001) and allocations (CECLIENT5002); ClientExperimentalDiagnosticsTests allows it under tests/. -->
+    <NoWarn>$(NoWarn);CECLIENT5001;CECLIENT5002</NoWarn>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="../../libs/CheatEngine.Client.Extensions.DependencyInjection/CheatEngine.Client.Extensions.DependencyInjection.csproj"/>
   </ItemGroup>

@@ -9,6 +9,9 @@ using CheatEngine.Client.Processes;
 using CheatEngine.Client.Results;
 using CheatEngine.SDK.Hosting.Bootstrap;
 
+// The fixture retains an experimental allocation lease; the source is compiled standalone by each fixture project.
+#pragma warning disable CECLIENT5002
+
 namespace LivePlugin.Coexistence;
 
 /// <summary>
@@ -17,27 +20,27 @@ namespace LivePlugin.Coexistence;
 /// </summary>
 internal static class CoexistenceDiagnostics
 {
-	private static int s_allowedTableRootCount;
-	private static long s_epoch;
-	private static ITargetMemoryLease? s_retainedOwner;
-	private static uint s_pluginId;
-	private static ICheatEngineClient? s_activeClient;
+	private static int _allowedTableRootCount;
+	private static long _epoch;
+	private static ITargetMemoryLease? _retainedOwner;
+	private static uint _pluginId;
+	private static ICheatEngineClient? _activeClient;
 
 	internal static void RecordEnabled(uint pluginId, ICheatEngineClient client, int allowedTableRootCount)
 	{
 		ArgumentNullException.ThrowIfNull(client);
-		Volatile.Write(ref s_allowedTableRootCount, allowedTableRootCount);
-		Volatile.Write(ref s_epoch, client.Epoch);
-		Volatile.Write(ref s_pluginId, pluginId);
-		Interlocked.Exchange(ref s_activeClient, client);
+		Volatile.Write(ref _allowedTableRootCount, allowedTableRootCount);
+		Volatile.Write(ref _epoch, client.Epoch);
+		Volatile.Write(ref _pluginId, pluginId);
+		Interlocked.Exchange(ref _activeClient, client);
 	}
 
 	internal static void RecordDisabling()
 	{
 		// A fixture-only Lua callback must not retain an expired Client activation. The normal Client owner registry
 		// remains responsible for target-change and activation cleanup; this releases a still-retained probe lease early.
-		Interlocked.Exchange(ref s_activeClient, null);
-		ITargetMemoryLease? owner = Interlocked.Exchange(ref s_retainedOwner, null);
+		Interlocked.Exchange(ref _activeClient, null);
+		ITargetMemoryLease? owner = Interlocked.Exchange(ref _retainedOwner, null);
 		owner?.Dispose();
 	}
 
@@ -56,52 +59,53 @@ internal static class CoexistenceDiagnostics
 			$"SdkHostingAssembly={sdkHostingAssembly.FullName}; SdkHostingMvid={sdkHostingAssembly.ManifestModule.ModuleVersionId}; " +
 			$"PluginALC={Describe(pluginLoadContext)}; ClientHostingALC={Describe(clientHostingLoadContext)}; " +
 			$"SdkHostingALC={Describe(sdkHostingLoadContext)}; SameClientHostingALC={ReferenceEquals(pluginLoadContext, clientHostingLoadContext)}; " +
-			$"SameSdkHostingALC={ReferenceEquals(pluginLoadContext, sdkHostingLoadContext)}; PluginId={Volatile.Read(ref s_pluginId)}; ClientEpoch={Volatile.Read(ref s_epoch)}; " +
-			$"AllowedTableRootCount={Volatile.Read(ref s_allowedTableRootCount)}");
+			$"SameSdkHostingALC={ReferenceEquals(pluginLoadContext, sdkHostingLoadContext)}; PluginId={Volatile.Read(ref _pluginId)}; ClientEpoch={Volatile.Read(ref _epoch)}; " +
+			$"AllowedTableRootCount={Volatile.Read(ref _allowedTableRootCount)}");
 	}
 
 	/// <summary>Refreshes and reports the current target without selecting or otherwise mutating it.</summary>
 	internal static string ObserveTarget()
 	{
-		ICheatEngineClient? client = Volatile.Read(ref s_activeClient);
+		ICheatEngineClient? client = Volatile.Read(ref _activeClient);
 		if (client is null)
 		{
 			return "Target=Inactive";
 		}
 
-		return client.Processes.TryRefresh(out ProcessSnapshot snapshot, out CheatEngineFailure failure)
+		return client.Processes.TryRefresh(out ProcessSnapshot snapshot, out CheatEngineFailure failure, client.Stopping)
 			? string.Create(
 				CultureInfo.InvariantCulture,
-				$"Target=Selected; ProcessId={snapshot.Id.Value}; SelectionEpoch={snapshot.SelectionEpoch}; Architecture={snapshot.TargetArchitecture}")
+				$"Target=Selected; ProcessId={snapshot.Id.Value}; SelectionEpoch={snapshot.SelectionEpoch}; Architecture={snapshot.Architecture}")
 			: DescribeFailure("Target", failure);
 	}
 
 	/// <summary>
-	///     Retains one intentionally tiny allocation only when the exact Client/SDK tuple exposes a qualified allocation
-	///     owner. The current released Client tuple reports capability unavailable; that outcome is an expected blocker,
-	///     never a passing retained-owner result.
+	///     Retains one intentionally tiny allocation through the experimental Client allocations (CECLIENT5002), so that
+	///     a later target change can show what the Client does with a lease bound to the previous process: the lease ends
+	///     with a refused release (<c>RefusedTargetChanged</c>, manual recovery required) and never acts on the new target.
+	///     A refused allocation is reported with its failure; it is a recorded observation, never a passing owner result.
 	/// </summary>
 	internal static string RetainOwner()
 	{
-		ICheatEngineClient? client = Volatile.Read(ref s_activeClient);
+		ICheatEngineClient? client = Volatile.Read(ref _activeClient);
 		if (client is null)
 		{
 			return "Owner=Inactive";
 		}
 
-		ITargetMemoryLease? prior = Volatile.Read(ref s_retainedOwner);
+		ITargetMemoryLease? prior = Volatile.Read(ref _retainedOwner);
 		if (prior is not null)
 		{
 			return DescribeOwner("Owner=AlreadyRetained", prior);
 		}
 
-		if (!client.Allocations.TryAllocate(new TargetAllocationRequest(16), out ITargetMemoryLease? owner,
-			    out CheatEngineFailure failure))
+		if (!client.Allocations.TryAllocate(new AllocationRequest(16), out ITargetMemoryLease? owner,
+				out CheatEngineFailure failure, client.Stopping))
 		{
 			return DescribeFailure("Owner", failure);
 		}
 
-		ITargetMemoryLease? retainedOwner = Interlocked.CompareExchange(ref s_retainedOwner, owner, null);
+		ITargetMemoryLease? retainedOwner = Interlocked.CompareExchange(ref _retainedOwner, owner, null);
 		if (retainedOwner is null)
 		{
 			return DescribeOwner("Owner=Retained", owner);
@@ -116,14 +120,14 @@ internal static class CoexistenceDiagnostics
 	/// <summary>Reports the retained owner's Client-visible lifecycle state without invoking Cheat Engine.</summary>
 	internal static string GetOwnerState()
 	{
-		ITargetMemoryLease? owner = Volatile.Read(ref s_retainedOwner);
+		ITargetMemoryLease? owner = Volatile.Read(ref _retainedOwner);
 		return owner is null ? "Owner=None" : DescribeOwner("Owner=Retained", owner);
 	}
 
 	/// <summary>Releases the retained probe owner once, if one exists.</summary>
 	internal static string ReleaseOwner()
 	{
-		ITargetMemoryLease? owner = Interlocked.Exchange(ref s_retainedOwner, null);
+		ITargetMemoryLease? owner = Interlocked.Exchange(ref _retainedOwner, null);
 		if (owner is null)
 		{
 			return "Owner=None";
@@ -142,9 +146,11 @@ internal static class CoexistenceDiagnostics
 
 	private static string DescribeOwner(string prefix, ITargetMemoryLease owner)
 	{
+		LeaseReleaseOutcome? last = owner.LastReleaseOutcome;
 		return string.Create(
 			CultureInfo.InvariantCulture,
-			$"{prefix}; Released={owner.IsReleased}; SelectionEpoch={owner.SelectionEpoch}; Size={owner.Size}");
+			$"{prefix}; Released={owner.IsReleased}; LastRelease={last?.Kind.ToString() ?? "None"}; " +
+			$"RequiresManualRecovery={owner.RequiresManualRecovery}; SelectionEpoch={owner.SelectionEpoch}; Size={owner.Size}");
 	}
 
 	private static string Describe(AssemblyLoadContext? loadContext)

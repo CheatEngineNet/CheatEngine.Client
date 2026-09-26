@@ -17,9 +17,14 @@
     <IsPackable>false</IsPackable>
     <CheatEngineClientPluginProject>true</CheatEngineClientPluginProject>
     <CheatEngineClientSkipPluginProjectValidation>true</CheatEngineClientSkipPluginProjectValidation>
-    <CoexistenceSdkPackageVersion Condition="'$(CoexistenceSdkPackageVersion)' == ''">1.0.0</CoexistenceSdkPackageVersion>
-    <!-- A version other than the committed 1.0.0 tuple is an operator-supplied qualification input, not a lock-file update. -->
-    <RestorePackagesWithLockFile Condition="'$(CoexistenceSdkPackageVersion)' != '1.0.0'">false</RestorePackagesWithLockFile>
+    <!-- The default follows the repository pin (eng/CheatEngineSdk.props); the fixtures stay out of Central Package Management. -->
+    <CoexistenceSdkPackageVersion Condition="'$(CoexistenceSdkPackageVersion)' == ''">$(CheatEngineSdkVersion)</CoexistenceSdkPackageVersion>
+    <!--
+      A version other than the pinned tuple is an operator-supplied qualification input, not a lock-file update: its
+      restore records the candidate closure in a lock file under obj/ and never rewrites the committed one. Lock files
+      stay enabled, because disabling them while a committed lock file exists fails the restore (NU1005).
+    -->
+    <NuGetLockFilePath Condition="'$(CoexistenceSdkPackageVersion)' != '$(CheatEngineSdkVersion)'">$(MSBuildProjectExtensionsPath)coexistence-candidate.packages.lock.json</NuGetLockFilePath>
   </PropertyGroup>
 
   <ItemGroup>

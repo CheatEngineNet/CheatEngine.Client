@@ -1,16 +1,17 @@
+using System.Reflection;
 using System.Runtime.CompilerServices;
 
 using CheatEngine.Client.Lua;
 using CheatEngine.Client.Memory;
 using CheatEngine.SDK.Engine.Values;
 
-using MemoryFluent = CheatEngine.Client.Memory.Memory;
-
 namespace CheatEngine.Client.Tests;
 
 /// <summary>Protects measured, pure fluent paths from accidental managed allocations.</summary>
 public sealed class AllocationGateTests
 {
+	private static readonly IMemoryClient UnusedMemory = DispatchProxy.Create<IMemoryClient, UnusedMemoryProxy>();
+
 	[Fact]
 	public void PureMemoryBuilderConstructionDoesNotAllocateAfterWarmup()
 	{
@@ -51,7 +52,7 @@ public sealed class AllocationGateTests
 	[MethodImpl(MethodImplOptions.NoInlining)]
 	private static MemoryAddressBuilder CreateBuilder(Address address)
 	{
-		return MemoryFluent.At(address);
+		return UnusedMemory.At(address);
 	}
 
 	[MethodImpl(MethodImplOptions.NoInlining)]
@@ -66,6 +67,15 @@ public sealed class AllocationGateTests
 		public static int Map(int source)
 		{
 			return source;
+		}
+	}
+
+	/// <summary>The memory service a measured builder is bound to; building never calls it.</summary>
+	public class UnusedMemoryProxy : DispatchProxy
+	{
+		protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
+		{
+			throw new NotSupportedException("Building a Fluent memory operation must not call the memory service.");
 		}
 	}
 }

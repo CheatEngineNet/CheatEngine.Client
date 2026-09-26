@@ -22,7 +22,11 @@ public sealed class ClientCapabilities : IEquatable<ClientCapabilities>
 	/// <summary>Gets the ordered observations as a read-only span.</summary>
 	public ReadOnlySpan<ClientCapabilityAvailability> Entries => _entries;
 
-	/// <inheritdoc />
+	/// <summary>Tests this collection and another one for equal observations in the same order.</summary>
+	/// <param name="other">The collection to compare with.</param>
+	/// <returns>
+	///     <see langword="true" /> when <paramref name="other" /> holds equal observations in the same order.
+	/// </returns>
 	public bool Equals(ClientCapabilities? other)
 	{
 		if (ReferenceEquals(this, other))
@@ -46,13 +50,23 @@ public sealed class ClientCapabilities : IEquatable<ClientCapabilities>
 		return true;
 	}
 
-	/// <inheritdoc />
+	/// <summary>Tests this collection and an object for equal observations in the same order.</summary>
+	/// <param name="obj">The object to compare with.</param>
+	/// <returns>
+	///     <see langword="true" /> when <paramref name="obj" /> is a <see cref="ClientCapabilities" /> with equal
+	///     observations in the same order.
+	/// </returns>
 	public override bool Equals(object? obj)
 	{
 		return obj is ClientCapabilities other && Equals(other);
 	}
 
 	/// <summary>Copies and validates a set of distinct Client capability observations.</summary>
+	/// <param name="entries">The observations, one per capability, in the order to keep.</param>
+	/// <returns>The collection, or <see cref="Empty" /> when <paramref name="entries" /> is empty.</returns>
+	/// <exception cref="ArgumentException">
+	///     <paramref name="entries" /> holds a <see langword="default" /> observation or names a capability twice.
+	/// </exception>
 	public static ClientCapabilities Create(ReadOnlySpan<ClientCapabilityAvailability> entries)
 	{
 		if (entries.IsEmpty)
@@ -78,6 +92,11 @@ public sealed class ClientCapabilities : IEquatable<ClientCapabilities>
 	}
 
 	/// <summary>Tries to get one explicit capability observation.</summary>
+	/// <param name="capability">The identifier of the capability.</param>
+	/// <param name="availability">The observation when the collection holds one; otherwise the default value.</param>
+	/// <returns>
+	///     <see langword="true" /> when the collection holds an observation of <paramref name="capability" />.
+	/// </returns>
 	public bool TryGet(ClientCapabilityId capability, out ClientCapabilityAvailability availability)
 	{
 		for (int index = 0; index < _entries.Length; index++)
@@ -93,7 +112,8 @@ public sealed class ClientCapabilities : IEquatable<ClientCapabilities>
 		return false;
 	}
 
-	/// <inheritdoc />
+	/// <summary>Returns a hash code consistent with the equality of the observations.</summary>
+	/// <returns>A hash code combined from every observation, in order.</returns>
 	public override int GetHashCode()
 	{
 		HashCode hash = new();

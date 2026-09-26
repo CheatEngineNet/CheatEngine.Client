@@ -10,6 +10,11 @@ namespace CheatEngine.Client.Inspection;
 public readonly record struct SymbolRegistration
 {
 	/// <summary>Creates a custom symbol definition.</summary>
+	/// <param name="name">The session-wide symbol name; use a plugin-specific prefix.</param>
+	/// <param name="address">The target address the name designates.</param>
+	/// <param name="doNotSave">Whether Cheat Engine omits the registration when it saves a table.</param>
+	/// <exception cref="ArgumentNullException"><paramref name="name" /> is <see langword="null" />.</exception>
+	/// <exception cref="ArgumentException"><paramref name="name" /> is empty or white space.</exception>
 	public SymbolRegistration(string name, Address address, bool doNotSave = true)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(name);
