@@ -29,6 +29,7 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 	internal const string LuaFunctionAttributeMetadataName = "CheatEngine.SDK.Annotations.Lua.LuaFunctionAttribute";
 	internal const string LuaGlobalAttributeMetadataName = "CheatEngine.SDK.Annotations.Lua.LuaGlobalAttribute";
 	private const string LuaResultMapperMetadataName = "CheatEngine.Client.Lua.ILuaResultMapper<TSource, TResult>";
+	private const string SdkLuaOptionalMetadataName = "CheatEngine.SDK.Lua.Marshalling.LuaOptional<T>";
 	private const string LuaClassAttributeMetadataName = "CheatEngine.SDK.Annotations.Lua.LuaClassAttribute";
 	private const string CheatEngineSdkAssemblyPrefix = "CheatEngine.SDK";
 
@@ -274,6 +275,35 @@ public sealed class CheatEngineLuaGenerator : IIncrementalGenerator
 				SpecialType.System_Void => true,
 			_ => false
 		};
+	}
+
+	internal static bool TryGetSdkLuaOptional(ITypeSymbol type, out ITypeSymbol? valueType)
+	{
+		if (type is INamedTypeSymbol { Arity: 1 } named &&
+			string.Equals(named.OriginalDefinition.ToDisplayString(), SdkLuaOptionalMetadataName, StringComparison.Ordinal))
+		{
+			valueType = named.TypeArguments[0];
+			return true;
+		}
+
+		valueType = null;
+		return false;
+	}
+
+	internal static bool IsSupportedSdkLuaOptionalValue(ITypeSymbol type)
+	{
+		return type.SpecialType switch
+		{
+			SpecialType.System_Boolean or SpecialType.System_Int32 or SpecialType.System_Int64 or
+				SpecialType.System_Single or SpecialType.System_Double or SpecialType.System_UIntPtr => true,
+			SpecialType.System_String => type.NullableAnnotation != NullableAnnotation.Annotated,
+			_ => false
+		};
+	}
+
+	internal static string ClientLuaOptionalTypeName(ITypeSymbol valueType)
+	{
+		return "global::CheatEngine.Client.Lua.LuaOptional<" + TypeName(valueType) + ">";
 	}
 
 	internal static bool TryFindClientBoundaryViolation(ITypeSymbol type, ClientBoundaryRole role,

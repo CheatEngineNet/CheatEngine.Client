@@ -73,6 +73,20 @@ public sealed class GeneratedLuaSurfaceRatchetTests
 			Admission + "; passed to the SDK only, never read or written by generated code")
 	];
 
+	// The only SDK calls optional operation adapters need: tri-state conversion across the Client boundary.
+	private static readonly string[] SdkImposedOptionalOperationSurface =
+	[
+		"CheatEngine.SDK.Lua.Marshalling.LuaOptional::Nil()->CheatEngine.SDK.Lua.Marshalling.LuaOptional`1<!!0>",
+		"CheatEngine.SDK.Lua.Marshalling.LuaOptional::Of(!!0)->CheatEngine.SDK.Lua.Marshalling.LuaOptional`1<!!0>",
+		"CheatEngine.SDK.Lua.Marshalling.LuaOptional::Omitted()->CheatEngine.SDK.Lua.Marshalling.LuaOptional`1<!!0>",
+		"CheatEngine.SDK.Lua.Marshalling.LuaOptional`1<!!0>::get_IsNil()->boolean",
+		"CheatEngine.SDK.Lua.Marshalling.LuaOptional`1<!!0>::get_IsOmitted()->boolean",
+		"CheatEngine.SDK.Lua.Marshalling.LuaOptional`1<!!0>::get_Value()->!0",
+		"CheatEngine.SDK.Lua.Marshalling.LuaOptional`1<int32>::get_IsNil()->boolean",
+		"CheatEngine.SDK.Lua.Marshalling.LuaOptional`1<int32>::get_IsOmitted()->boolean",
+		"CheatEngine.SDK.Lua.Marshalling.LuaOptional`1<int32>::get_Value()->!0"
+	];
+
 	private const string ModuleSource =
 		"""
 		using CheatEngine.Client.Lua;
@@ -102,11 +116,10 @@ public sealed class GeneratedLuaSurfaceRatchetTests
 		using CheatEngine.Client.Lua;
 		using CheatEngine.SDK.Annotations.Lua;
 		namespace TestPlugin;
-		internal sealed class SdkSnapshot { }
 		internal readonly record struct Snapshot(int Value);
-		internal readonly struct SnapshotMapper : ILuaResultMapper<SdkSnapshot, Snapshot>
+		internal readonly struct SnapshotMapper : ILuaResultMapper<int, Snapshot>
 		{
-			public static Snapshot Map(SdkSnapshot source) => new(0);
+			public static Snapshot Map(int source) => new(0);
 		}
 
 		internal static partial class Globals
@@ -121,7 +134,18 @@ public sealed class GeneratedLuaSurfaceRatchetTests
 
 			[CheatEngineLuaOperation(typeof(SnapshotMapper))]
 			[LuaGlobal("getSnapshot")]
-			public static partial SdkSnapshot ReadSnapshot();
+			public static partial int ReadSnapshot();
+
+			[CheatEngineLuaOperation]
+			[LuaGlobal("optional")]
+			public static partial bool TryReadOptional(
+				global::CheatEngine.SDK.Lua.Marshalling.LuaOptional<bool> input,
+				out global::CheatEngine.SDK.Lua.Marshalling.LuaOptional<int> result);
+
+			[CheatEngineLuaOperation(typeof(SnapshotMapper))]
+			[LuaGlobal("optionalSnapshot")]
+			public static partial bool TryReadOptionalSnapshot(
+				out global::CheatEngine.SDK.Lua.Marshalling.LuaOptional<int> result);
 		}
 		""";
 
@@ -139,7 +163,22 @@ public sealed class GeneratedLuaSurfaceRatchetTests
 				return true;
 			}
 
-			public static partial SdkSnapshot ReadSnapshot() => new();
+			public static partial int ReadSnapshot() => 0;
+
+			public static partial bool TryReadOptional(
+				global::CheatEngine.SDK.Lua.Marshalling.LuaOptional<bool> input,
+				out global::CheatEngine.SDK.Lua.Marshalling.LuaOptional<int> result)
+			{
+				result = default;
+				return true;
+			}
+
+			public static partial bool TryReadOptionalSnapshot(
+				out global::CheatEngine.SDK.Lua.Marshalling.LuaOptional<int> result)
+			{
+				result = default;
+				return true;
+			}
 		}
 		""";
 
@@ -220,7 +259,8 @@ public sealed class GeneratedLuaSurfaceRatchetTests
 
 		Compilation compilation = run.OutputCompilation.AddSyntaxTrees(CSharpSyntaxTree.ParseText(OperationImplementations,
 			new CSharpParseOptions(LanguageVersion.CSharp14), cancellationToken: TestContext.Current.CancellationToken));
-		Assert.Empty(SdkMemberReferences(Emit(compilation)));
+		Assert.Equal(SdkImposedOptionalOperationSurface.Order(StringComparer.Ordinal),
+			SdkMemberReferences(Emit(compilation)).Order(StringComparer.Ordinal));
 	}
 
 	[Fact]

@@ -204,7 +204,7 @@
       "cheatengine.client.fluent": {
         "type": "Project",
         "dependencies": {
-          "CheatEngine.Client.Abstractions": "[1.0.0, )"
+          "CheatEngine.Client.Abstractions": "[1.1.0, )"
         }
       },
       "CheatEngine.SDK": {

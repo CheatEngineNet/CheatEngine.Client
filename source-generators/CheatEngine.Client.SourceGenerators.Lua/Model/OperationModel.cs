@@ -9,7 +9,7 @@ internal sealed class OperationModel : IEquatable<OperationModel>
 	public OperationModel(EquatableArray<DiagnosticInfo> diagnostics, string hintName, string @namespace,
 		string containingTypeDeclaration, string operationVisibility, string bindingsType, string methodName,
 		string operationTypeName, EquatableArray<OperationParameter> parameters, string sourceResultType,
-		string resultType, string? mapperType, bool hasOutResult, string failureOperation)
+		string resultType, string? mapperType, bool hasOutResult, bool hasOptionalResult, string failureOperation)
 	{
 		Diagnostics = diagnostics;
 		HintName = hintName;
@@ -24,6 +24,7 @@ internal sealed class OperationModel : IEquatable<OperationModel>
 		ResultType = resultType;
 		MapperType = mapperType;
 		HasOutResult = hasOutResult;
+		HasOptionalResult = hasOptionalResult;
 		FailureOperation = failureOperation;
 	}
 
@@ -93,6 +94,11 @@ internal sealed class OperationModel : IEquatable<OperationModel>
 		get;
 	}
 
+	public bool HasOptionalResult
+	{
+		get;
+	}
+
 	public string FailureOperation
 	{
 		get;
@@ -104,7 +110,7 @@ internal sealed class OperationModel : IEquatable<OperationModel>
 	{
 		return new OperationModel(EquatableArray.Create(diagnostic), string.Empty, string.Empty, string.Empty,
 			string.Empty, string.Empty, string.Empty, string.Empty, EquatableArray<OperationParameter>.Empty,
-			string.Empty, string.Empty, null, false, string.Empty);
+			string.Empty, string.Empty, null, false, false, string.Empty);
 	}
 
 	public bool Equals(OperationModel? other)
@@ -121,7 +127,7 @@ internal sealed class OperationModel : IEquatable<OperationModel>
 			   string.Equals(SourceResultType, other.SourceResultType, StringComparison.Ordinal) &&
 			   string.Equals(ResultType, other.ResultType, StringComparison.Ordinal) &&
 			   string.Equals(MapperType, other.MapperType, StringComparison.Ordinal) &&
-			   HasOutResult == other.HasOutResult &&
+			   HasOutResult == other.HasOutResult && HasOptionalResult == other.HasOptionalResult &&
 			   string.Equals(FailureOperation, other.FailureOperation, StringComparison.Ordinal);
 	}
 
@@ -144,11 +150,12 @@ internal sealed class OperationModel : IEquatable<OperationModel>
 /// <summary>One scalar input parameter of a generated Lua operation.</summary>
 internal readonly struct OperationParameter : IEquatable<OperationParameter>
 {
-	public OperationParameter(string type, string name)
+	public OperationParameter(string type, string name, bool isOptional)
 	{
 		Type = type;
 		Name = name;
 		FieldName = "_" + name.TrimStart('@');
+		IsOptional = isOptional;
 	}
 
 	public string Type
@@ -166,10 +173,15 @@ internal readonly struct OperationParameter : IEquatable<OperationParameter>
 		get;
 	}
 
+	public bool IsOptional
+	{
+		get;
+	}
+
 	public bool Equals(OperationParameter other)
 	{
 		return string.Equals(Type, other.Type, StringComparison.Ordinal) &&
-			   string.Equals(Name, other.Name, StringComparison.Ordinal);
+			   string.Equals(Name, other.Name, StringComparison.Ordinal) && IsOptional == other.IsOptional;
 	}
 
 	public override bool Equals(object? obj)

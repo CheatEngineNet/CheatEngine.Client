@@ -57,7 +57,7 @@ internal static class CheatEngineLuaDiagnostics
 
 	public static readonly DiagnosticDescriptor UnsupportedSignature = new(
 		"CECLUA1103", "Lua operation has an unsupported result shape",
-		"Lua operation '{0}' must have scalar input arguments and exactly one return value or one trailing out result",
+		"Lua operation '{0}' must have scalar required inputs followed by a contiguous group of scalar LuaOptional inputs, and exactly one return value or one trailing out result",
 		Category, DiagnosticSeverity.Error, true, helpLinkUri: HelpLinkUri);
 
 	public static readonly DiagnosticDescriptor MapperRequired = new(

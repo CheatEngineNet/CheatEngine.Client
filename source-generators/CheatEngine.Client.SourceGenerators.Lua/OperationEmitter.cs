@@ -98,12 +98,34 @@ internal static class OperationEmitter
 		source.WriteLine();
 		// Only the SDK binding call is classified: the mapper is application code, whose exception leaves TryExecute
 		// unchanged so that the Client rethrows it, like an exception of any other application-supplied code.
-		source.WriteLine(model.MapperType is null
-			? "result = source;"
-			: "result = " + model.MapperType + ".Map(source);");
+		if (!model.HasOptionalResult)
+		{
+			source.WriteLine(model.MapperType is null
+				? "result = source;"
+				: "result = " + model.MapperType + ".Map(source);");
+		}
+		else if (model.MapperType is null)
+		{
+			source.WriteLine("result = ToClientOptional(source);");
+		}
+		else
+		{
+			string optionalResultType = OptionalValueType(model.ResultType);
+			source.WriteLine("result = source.IsOmitted ? global::CheatEngine.Client.Lua.LuaOptional.Omitted<" +
+				optionalResultType + ">() : source.IsNil ? " +
+				"global::CheatEngine.Client.Lua.LuaOptional.Nil<" +
+				optionalResultType + ">() : " +
+				"global::CheatEngine.Client.Lua.LuaOptional.Of(" + model.MapperType + ".Map(source.Value));");
+		}
 		source.WriteLine("failure = default;");
 		source.WriteLine("return true;");
 		source.CloseBlock();
+		if (model.Parameters.Any(static parameter => parameter.IsOptional) ||
+			(model.HasOptionalResult && model.MapperType is null))
+		{
+			source.WriteLine();
+			EmitOptionalConverters(source, model);
+		}
 		source.CloseBlock();
 		source.CloseBlock();
 
@@ -199,12 +221,41 @@ internal static class OperationEmitter
 
 	private static string EmitArgumentList(EquatableArray<OperationParameter> parameters, bool fields)
 	{
-		return string.Join(", ", parameters.Select(parameter => fields ? parameter.FieldName : parameter.Name));
+		return string.Join(", ", parameters.Select(parameter =>
+		{
+			string argument = fields ? parameter.FieldName : parameter.Name;
+			return parameter.IsOptional && fields ? "ToSdkOptional(" + argument + ")" : argument;
+		}));
 	}
 
 	private static string EmitOutArgumentList(EquatableArray<OperationParameter> parameters)
 	{
 		string arguments = EmitArgumentList(parameters, true);
 		return arguments.Length == 0 ? "out source" : arguments + ", out source";
+	}
+
+	private static void EmitOptionalConverters(SourceBuilder source, OperationModel model)
+	{
+		if (model.Parameters.Any(static parameter => parameter.IsOptional))
+		{
+			source.WriteLine("private static global::CheatEngine.SDK.Lua.Marshalling.LuaOptional<T> ToSdkOptional<T>(global::CheatEngine.Client.Lua.LuaOptional<T> value) where T : notnull");
+			source.OpenBlock();
+			source.WriteLine("return value.IsOmitted ? global::CheatEngine.SDK.Lua.Marshalling.LuaOptional.Omitted<T>() : value.IsNil ? global::CheatEngine.SDK.Lua.Marshalling.LuaOptional.Nil<T>() : global::CheatEngine.SDK.Lua.Marshalling.LuaOptional.Of(value.Value!);");
+			source.CloseBlock();
+		}
+
+		if (model.HasOptionalResult && model.MapperType is null)
+		{
+			source.WriteLine("private static global::CheatEngine.Client.Lua.LuaOptional<T> ToClientOptional<T>(global::CheatEngine.SDK.Lua.Marshalling.LuaOptional<T> value) where T : notnull");
+			source.OpenBlock();
+			source.WriteLine("return value.IsOmitted ? global::CheatEngine.Client.Lua.LuaOptional.Omitted<T>() : value.IsNil ? global::CheatEngine.Client.Lua.LuaOptional.Nil<T>() : global::CheatEngine.Client.Lua.LuaOptional.Of(value.Value);");
+			source.CloseBlock();
+		}
+	}
+
+	private static string OptionalValueType(string optionalType)
+	{
+		int start = optionalType.IndexOf('<');
+		return optionalType.Substring(start + 1, optionalType.Length - start - 2);
 	}
 }

@@ -227,15 +227,15 @@
       "cheatengine.client.core": {
         "type": "Project",
         "dependencies": {
-          "CheatEngine.Client.Abstractions": "[1.0.0, )",
+          "CheatEngine.Client.Abstractions": "[1.1.0, )",
           "CheatEngine.SDK": "[2.0.0, 3.0.0)"
         }
       },
       "cheatengine.client.extensions.dependencyinjection": {
         "type": "Project",
         "dependencies": {
-          "CheatEngine.Client.Abstractions": "[1.0.0, )",
-          "CheatEngine.Client.Core": "[1.0.0, )",
+          "CheatEngine.Client.Abstractions": "[1.1.0, )",
+          "CheatEngine.Client.Core": "[1.1.0, )",
           "Microsoft.Extensions.Configuration.Abstractions": "[10.0.12, )",
           "Microsoft.Extensions.DependencyInjection": "[10.0.12, )",
           "Microsoft.Extensions.Logging": "[10.0.12, )",
@@ -246,7 +246,7 @@
       "cheatengine.client.hosting": {
         "type": "Project",
         "dependencies": {
-          "CheatEngine.Client.Extensions.DependencyInjection": "[1.0.0, )",
+          "CheatEngine.Client.Extensions.DependencyInjection": "[1.1.0, )",
           "CheatEngine.SDK": "[2.0.0, 3.0.0)",
           "Microsoft.Extensions.DependencyInjection": "[10.0.12, )",
           "Microsoft.Extensions.Logging": "[10.0.12, )"

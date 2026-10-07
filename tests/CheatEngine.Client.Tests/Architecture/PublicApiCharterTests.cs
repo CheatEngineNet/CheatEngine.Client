@@ -58,6 +58,8 @@ public sealed class PublicApiCharterTests
 	{
 		"CheatEngine.Client.Runtime.ClientCapabilities.TryGet",
 		"CheatEngine.Client.Scanning.AobPattern.TryParse",
+		// An immutable value's presence lookup has no Cheat Engine operation or failure to classify.
+		"CheatEngine.Client.Lua.LuaOptional`1.TryGetValue",
 		"CheatEngine.Client.Lua.ILuaOperation`1.TryExecute",
 		"CheatEngine.Client.Memory.IMemoryCodec`1.TryRead",
 		"CheatEngine.Client.Memory.IMemoryCodec`1.TryWrite",

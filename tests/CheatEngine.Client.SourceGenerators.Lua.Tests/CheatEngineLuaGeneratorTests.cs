@@ -54,6 +54,21 @@ public sealed class CheatEngineLuaGeneratorTests
 		}
 		""";
 
+	private const string OptionalOperationSource =
+		"""
+		using CheatEngine.Client.Lua;
+		using CheatEngine.SDK.Annotations.Lua;
+		namespace TestPlugin;
+		internal static partial class Globals
+		{
+			[CheatEngineLuaOperation]
+			[LuaGlobal("tryGetOptional")]
+			public static partial bool TryReadOptional(
+				bool enabled, global::CheatEngine.SDK.Lua.Marshalling.LuaOptional<string> label,
+				out global::CheatEngine.SDK.Lua.Marshalling.LuaOptional<int> value);
+		}
+		""";
+
 	private const string ModuleCompilationSource =
 		"""
 		using CheatEngine.Client.Lua;
@@ -262,6 +277,179 @@ public sealed class CheatEngineLuaGeneratorTests
 			StringComparison.Ordinal);
 		Assert.Contains("CheatEngineFailureKind.LuaError", generated, StringComparison.Ordinal);
 		Assert.Contains("result = source;", generated, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void OptionalOperationsKeepOmittedNilAndPresentValuesAtTheClientBoundary()
+	{
+		GeneratorRun run = GeneratorRun.Execute(OptionalOperationSource);
+
+		Assert.Empty(run.Diagnostics);
+		string direct = run.GeneratedText("_TryReadOptional.CheatEngineLuaOperation.g.cs");
+		Assert.Contains("global::CheatEngine.Client.Lua.LuaOptional<global::System.String> _label", direct,
+			StringComparison.Ordinal);
+		Assert.Contains("global::TestPlugin.Globals.TryReadOptional(_enabled, ToSdkOptional(_label), out source)", direct,
+			StringComparison.Ordinal);
+		Assert.Contains("result = ToClientOptional(source);", direct, StringComparison.Ordinal);
+		Assert.Contains("LuaOptional.Omitted<T>()", direct, StringComparison.Ordinal);
+		Assert.Contains("LuaOptional.Nil<T>()", direct, StringComparison.Ordinal);
+		Assert.Contains("ToClientOptional(source)", direct, StringComparison.Ordinal);
+
+		AssertNoCompilerDiagnostics(run.OutputCompilation.AddSyntaxTrees(CSharpSyntaxTree.ParseText(
+			"""
+			namespace TestPlugin;
+			internal static partial class Globals
+			{
+				public static partial bool TryReadOptional(
+					bool enabled, global::CheatEngine.SDK.Lua.Marshalling.LuaOptional<string> label,
+					out global::CheatEngine.SDK.Lua.Marshalling.LuaOptional<int> value)
+				{
+					value = default;
+					return true;
+				}
+			}
+			""", new CSharpParseOptions(LanguageVersion.CSharp14),
+			cancellationToken: TestContext.Current.CancellationToken)));
+	}
+
+	[Fact]
+	public void DirectOptionalResultsAreRejectedBecauseTheSdkOnlyGeneratesOptionalOutResults()
+	{
+		GeneratorRun run = GeneratorRun.Execute(
+			"""
+			using CheatEngine.Client.Lua;
+			using CheatEngine.SDK.Annotations.Lua;
+			namespace TestPlugin;
+			internal static partial class Globals
+			{
+				[CheatEngineLuaOperation]
+				[LuaGlobal("invalid")]
+				public static partial global::CheatEngine.SDK.Lua.Marshalling.LuaOptional<int> Invalid();
+			}
+			""");
+
+		Assert.Contains(run.Diagnostics, static diagnostic => diagnostic.Id == "CECLUA1103");
+		Assert.Empty(run.GeneratedSources);
+	}
+
+	[Theory]
+	[InlineData("global::CheatEngine.SDK.Lua.Marshalling.LuaOptional<uint> value", "int")]
+	[InlineData("int value", "global::CheatEngine.SDK.Lua.Marshalling.LuaOptional<uint>")]
+	[InlineData("global::CheatEngine.SDK.Lua.Marshalling.LuaOptional<string?> value", "int")]
+	[InlineData("int value", "global::CheatEngine.SDK.Lua.Marshalling.LuaOptional<string?>")]
+	public void UnsupportedSdkOptionalInnerTypesAreRejectedBeforeGeneration(string input, string result)
+	{
+		GeneratorRun run = GeneratorRun.Execute(
+			"using CheatEngine.Client.Lua; using CheatEngine.SDK.Annotations.Lua; namespace TestPlugin; " +
+			"internal static partial class Globals { [CheatEngineLuaOperation] [LuaGlobal(\"invalid\")] " +
+			"public static partial bool Invalid(" + input + ", out " + result + " output); }");
+
+		Assert.Contains(run.Diagnostics, static diagnostic => diagnostic.Id == "CECLUA1103");
+		Assert.Empty(run.GeneratedSources);
+	}
+
+	[Theory]
+	[InlineData("string?")]
+	[InlineData("int?")]
+	public void OptionalMappedResultsRejectNullableClientTargets(string targetType)
+	{
+		GeneratorRun run = GeneratorRun.Execute(
+			$$"""
+			using CheatEngine.Client.Lua;
+			using CheatEngine.SDK.Annotations.Lua;
+			namespace TestPlugin;
+			internal readonly struct Mapper : ILuaResultMapper<int, {{targetType}}>
+			{
+				public static {{targetType}} Map(int source) => null;
+			}
+			internal static partial class Globals
+			{
+				[CheatEngineLuaOperation(typeof(Mapper))]
+				[LuaGlobal("invalid")]
+				public static partial bool Invalid(out global::CheatEngine.SDK.Lua.Marshalling.LuaOptional<int> output);
+			}
+			""");
+
+		Assert.Contains(run.Diagnostics, static diagnostic => diagnostic.Id == "CECLUA1103");
+		Assert.Empty(run.GeneratedSources);
+	}
+
+	[Fact]
+	public void UnsupportedOptionalSdkResultCannotBeEnabledByAMatchingMapper()
+	{
+		GeneratorRun run = GeneratorRun.Execute(
+			"""
+			using CheatEngine.Client.Lua;
+			using CheatEngine.SDK.Annotations.Lua;
+			namespace TestPlugin;
+			internal sealed class Source { }
+			internal readonly record struct Snapshot(int Value);
+			internal readonly struct Mapper : ILuaResultMapper<Source, Snapshot>
+			{
+				public static Snapshot Map(Source source) => new(42);
+			}
+			internal static partial class Globals
+			{
+				[CheatEngineLuaOperation(typeof(Mapper))]
+				[LuaGlobal("invalid")]
+				public static partial bool Invalid(out global::CheatEngine.SDK.Lua.Marshalling.LuaOptional<Source> output);
+			}
+			""");
+
+		Assert.Contains(run.Diagnostics, static diagnostic => diagnostic.Id == "CECLUA1103");
+		Assert.Empty(run.GeneratedSources);
+	}
+
+	[Fact]
+	public void OptionalInputsMustFormTheFinalContiguousInputGroup()
+	{
+		GeneratorRun run = GeneratorRun.Execute(
+			"""
+			using CheatEngine.Client.Lua;
+			using CheatEngine.SDK.Annotations.Lua;
+			namespace TestPlugin;
+			internal static partial class Globals
+			{
+				[CheatEngineLuaOperation]
+				[LuaGlobal("invalid")]
+				public static partial int Invalid(
+					global::CheatEngine.SDK.Lua.Marshalling.LuaOptional<bool> optional, int required);
+			}
+			""");
+
+		Assert.Contains(run.Diagnostics, static diagnostic => diagnostic.Id == "CECLUA1103");
+		Assert.Empty(run.GeneratedSources);
+	}
+
+	[Fact]
+	public void OptionalMappedResultsMapOnlyPresentValuesAndKeepOmittedOrNilStates()
+	{
+		GeneratorRun run = GeneratorRun.Execute(
+			"""
+			using CheatEngine.Client.Lua;
+			using CheatEngine.SDK.Annotations.Lua;
+			namespace TestPlugin;
+			internal readonly record struct Snapshot(int Value);
+			internal readonly struct SnapshotMapper : ILuaResultMapper<int, Snapshot>
+			{
+				public static Snapshot Map(int source) => new(42);
+			}
+			internal static partial class Globals
+			{
+				[CheatEngineLuaOperation(typeof(SnapshotMapper))]
+				[LuaGlobal("mappedOptional")]
+				public static partial bool TryReadMappedOptional(
+					out global::CheatEngine.SDK.Lua.Marshalling.LuaOptional<int> result);
+			}
+			""");
+
+		Assert.Empty(run.Diagnostics);
+		string generated = run.GeneratedText("TryReadMappedOptional.CheatEngineLuaOperation.g.cs");
+		Assert.Contains("ILuaOperation<global::CheatEngine.Client.Lua.LuaOptional<global::TestPlugin.Snapshot>>",
+			generated, StringComparison.Ordinal);
+		Assert.Contains("source.IsOmitted ? global::CheatEngine.Client.Lua.LuaOptional.Omitted<global::TestPlugin.Snapshot>()",
+			generated, StringComparison.Ordinal);
+		Assert.Contains("global::TestPlugin.SnapshotMapper.Map(source.Value)", generated, StringComparison.Ordinal);
 	}
 
 	[Fact]

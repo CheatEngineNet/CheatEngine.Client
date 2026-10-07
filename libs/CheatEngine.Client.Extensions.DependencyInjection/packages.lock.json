@@ -110,7 +110,7 @@
       "cheatengine.client.core": {
         "type": "Project",
         "dependencies": {
-          "CheatEngine.Client.Abstractions": "[1.0.0, )",
+          "CheatEngine.Client.Abstractions": "[1.1.0, )",
           "CheatEngine.SDK": "[2.0.0, 3.0.0)"
         }
       },

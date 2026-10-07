@@ -27,7 +27,7 @@
     declares [2.0.0, 3.0.0). The packed template references the exact CheatEngine.Client version it was released with.
   -->
   <ItemGroup>
-    <PackageReference Include="CheatEngine.Client" Version="1.0.0"/>
+    <PackageReference Include="CheatEngine.Client" Version="1.1.0"/>
     <PackageReference Include="CheatEngine.SDK" Version="2.0.0"/>
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.12"/>
   </ItemGroup>

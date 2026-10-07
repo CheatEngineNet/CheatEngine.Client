@@ -258,7 +258,8 @@ public sealed class PackagedClientFeedFixture : IAsyncLifetime
 			return;
 		}
 
-		_temporary = new TemporaryDirectory("PackageConsumptionSmoke");
+		// Keep prerelease package-cache DLL paths below Windows' legacy path limit on ordinary user temp roots.
+		_temporary = new TemporaryDirectory("Packages");
 		_environment = CreateEnvironment(Root);
 		PackageCache = _environment["NUGET_PACKAGES"];
 		PackageSource = decision.Kind == PackageSourceKind.ConfiguredDirectory

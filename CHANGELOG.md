@@ -25,11 +25,24 @@ ship.
 
 ### Added
 
+- **Optional Lua operations.** Generated operations accept trailing SDK `LuaOptional<T>` inputs of SDK-supported
+  scalar types and one optional trailing `out` result on a `bool` binding. Their public surface uses the Client-owned
+  `LuaOptional<T>` and its
+  `Omitted`, `Nil` and `Of` factories; omitted arguments, absent results, explicit `nil` and present values stay
+  distinct. Result mappers run only for present optional values. Existing scalar operation signatures stay unchanged.
+
 ### Changed
+
+- **Roadmap status.** Historical work items now distinguish shipped implementations, deliberately deferred domains
+  and outstanding live qualification or hosted performance evidence.
 
 ### Security
 
 ### Deployment
+
+- **1.1 development line.** Record the published 1.0.0 public API and analyzer rules as shipped, set the MinVer floor
+  and template defaults to 1.1, and regenerate the project-reference lock files. Package validation compares against
+  published 1.0.0 packages with strict baseline equality disabled, permitting additive APIs while checking breaks.
 
 ## [1.0.0] - 2026-09-25
 

@@ -63,6 +63,8 @@ public sealed class LuaContractTests
 			typeof(ILuaExecutionContext),
 			typeof(IUnsafeLuaClient),
 			typeof(LuaScript),
+			typeof(LuaOptional),
+			typeof(LuaOptional<>),
 			typeof(LuaModuleDescriptor),
 			typeof(LuaExportDescriptor),
 			typeof(CheatEngineLuaModuleAttribute),
@@ -141,6 +143,45 @@ public sealed class LuaContractTests
 	public void LuaResultMapperUsesTheDeclaredStaticMapContract()
 	{
 		Assert.Equal("value:42", TextMapper.Map(new MappingSource(42)));
+	}
+
+	[Fact]
+	public void LuaOptionalPreservesOmittedNilAndFalseOrZeroValues()
+	{
+		LuaOptional<int> omitted = LuaOptional.Omitted<int>();
+		LuaOptional<int> nil = LuaOptional.Nil<int>();
+		LuaOptional<bool> falseValue = LuaOptional.Of(false);
+		LuaOptional<int> zero = LuaOptional.Of(0);
+
+		Assert.True(omitted.IsOmitted);
+		Assert.True(default(LuaOptional<int>).IsOmitted);
+		Assert.True(nil.IsNil);
+		Assert.True(falseValue.HasValue);
+		Assert.False(falseValue.Value);
+		Assert.True(zero.HasValue);
+		Assert.Equal(0, zero.Value);
+		Assert.False(omitted.TryGetValue(out int omittedValue));
+		Assert.Equal(0, omittedValue);
+		Assert.False(nil.TryGetValue(out int absent));
+		Assert.Equal(0, absent);
+		Assert.Equal(0, omitted.Value);
+		Assert.Equal(0, nil.Value);
+		Assert.Null(LuaOptional.Omitted<string>().Value);
+		Assert.Null(LuaOptional.Nil<string>().Value);
+		Assert.Equal(3, PresentOptionalTextLength(LuaOptional.Of("fox")));
+		Assert.Equal(0, PresentOptionalTextLength(LuaOptional.Omitted<string>()));
+		Assert.Throws<ArgumentNullException>(() => LuaOptional.Of<string>(null!));
+		Assert.Equal(default, omitted);
+		Assert.Equal(LuaOptional.Nil<int>(), nil);
+		Assert.Equal(LuaOptional.Of(0), zero);
+		Assert.Equal(LuaOptional.Of(0).GetHashCode(), zero.GetHashCode());
+		Assert.NotEqual(omitted, nil);
+		Assert.NotEqual(LuaOptional.Of(1), LuaOptional.Of(2));
+	}
+
+	private static int PresentOptionalTextLength(LuaOptional<string> optional)
+	{
+		return optional.TryGetValue(out string? value) ? value.Length : 0;
 	}
 
 	private static IEnumerable<Type> GetPublicSignatureTypes(Type type)

@@ -35,7 +35,7 @@ Each experimental id leaves experimental once every scenario its capability requ
 
 ### Lua operations
 
-Generated Lua operations take scalar inputs and return one result in 1.0 (`CECLUA1103`). CheatEngine.SDK 2.0.0's `LuaOptional<T>` lets a binding omit a trailing argument (`LUA_TNONE`, not an explicit `nil`) and read the number of results Lua actually returned; the Client adopts it once it has a contract for an omitted input and an absent result.
+Generated Lua operations take scalar inputs and return one result in 1.0 (`CECLUA1103`). The 1.1 implementation adds the Client-owned `LuaOptional<T>` contract over CheatEngine.SDK 2.0.0's optional values: omitted arguments and absent results stay distinct from explicit `nil` and present values. Optional inputs form a trailing group; optional results use the SDK's `bool` binding with one trailing `out LuaOptional<T>` parameter. Ordinary scalar returns remain supported. SDK Lua values remain inside the generated adapter.
 
 ### Benchmarks
 
@@ -44,6 +44,25 @@ The facade-versus-direct-SDK comparison (audit item A24-26) is deferred: `tests/
 ## Milestones
 
 These milestones and epics are the pre-1.0 plan. Their ids stay stable for the issues that reference them; the [CHANGELOG](CHANGELOG.md) says what 1.0.0 shipped.
+
+### Current execution status
+
+Source status as of October 7, 2026. "Shipped" below describes the 1.0.0 implementation; it does not assert live-host qualification. The live runner exists, but no committed run populates `HostQualificationEvidence.Recorded` yet.
+
+| Work items | Status | Evidence or remaining work |
+|---|---|---|
+| CLI-001–003 | Shipped | Governance files, the runtime capability evidence model and the [1.0.0 changelog](CHANGELOG.md#100---2026-09-25). |
+| CLI-004–006 | Shipped | Dispatcher failure mapping, invocation-scoped codec contexts and activation rollback; focused tests in `CheatEngine.Client.Core.Tests` and `CheatEngine.Client.Hosting.Tests`. |
+| CLI-007–009 | Shipped, with documented SDK limitations | Typed SDK operations, failure provenance and target identity are adopted. The three SDK requests above remain outstanding. |
+| CLI-010–012 | Shipped; live composition evidence pending | SDK Lua registration leases, recursive public boundaries and activation-local DI exist. Multi-plugin host behavior still needs the live run. |
+| CLI-013–015 | Shipped | Bounded AOB results, memory batch effect outcomes and typed table/symbol workflows have focused managed tests. |
+| CLI-016–017 | Implemented, experimental | Value-scan sessions, allocation leases and Auto Assembler patch leases exist; their scenarios above must pass before experimental ids are lifted. |
+| CLI-018–019 | Deferred; removed from 1.0 scope | Debugger/subscription adapters and public event streams need owned SDK primitives. The [1.0 removals](CHANGELOG.md#removed) deliberately remove the earlier placeholder contracts; CLI-019's historical prerequisite row is not a claim that an event source is ready. |
+| CLI-020–021 | Shipped | Fluent terminal contracts and stale-client/local-process semantics have implementation and focused tests. |
+| CLI-022–023 | Shipped; host deployment evidence pending | Package-consumer, template and deployment-closure checks exist. Actual Cheat Engine loading and coexistence remain a separate gate. |
+| CLI-024 | Partly implemented; host evidence pending | The qualification runner and fake-port benchmarks exist. Committed live receipts, hosted Client-versus-SDK measurements and published performance budgets remain outstanding. |
+
+The current development line is 1.1. Optional Lua operations are implemented for this line, and package validation uses the published 1.0.0 baseline. Neither change is a published 1.1 release. Qualification and hosted benchmarks remain separate tasks; no receipt or performance result is inferred from a build, package check or fake-port benchmark.
 
 | Phase | Outcome | Exit evidence |
 |---|---|---|

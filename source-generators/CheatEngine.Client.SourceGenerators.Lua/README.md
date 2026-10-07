@@ -11,8 +11,8 @@ registration lease; and at release the lease writes a global only while it still
 so a third-party replacement survives (F12, Q16). The module never calls the legacy SDK
 `RegisterLuaFunctions`/`UnregisterLuaFunctions` pair, which writes unconditionally.
 
-`[CheatEngineLuaOperation]` turns a scalar `[LuaGlobal]` declaration into a readonly value operation
-and strongly typed factory. Mapper calls use static abstract interface dispatch so the generated
+`[CheatEngineLuaOperation]` turns a scalar `[LuaGlobal]` declaration, with supported optional inputs or a supported
+optional trailing `out` result, into a readonly value operation and strongly typed factory. Mapper calls use static abstract interface dispatch so the generated
 runtime path stays trim- and AOT-friendly. The operation classifies only the SDK binding call: it calls the mapper,
 application code, after that classification, so an exception the mapper throws leaves `TryExecute` unchanged and the
 Client rethrows it as the same instance. Next to the factory, the containing class receives an `Execute` and a
@@ -119,8 +119,20 @@ requires both outputs to compile together. Two CheatEngine.SDK 2.0.0 behaviours 
   an unresolved global; the SDK Outcome form (`LuaOperationStatus`) could, but `[CheatEngineLuaOperation]` does not
   support it in 1.0.
 
-`LuaOptional<T>` is deferred past 1.0: an operation takes scalar inputs only (CECLUA1103), and the Client has no
-contract for an omitted result yet.
+`LuaOptional<T>` inputs and trailing `out` results use the Client-owned `CheatEngine.Client.Lua.LuaOptional<T>` contract. Its three
+states stay distinct: `LuaOptional.Omitted<T>()` passes no argument or represents no result, `LuaOptional.Nil<T>()`
+represents an explicit Lua `nil`, and `LuaOptional.Of(value)` represents a present non-null value (including `false`
+and zero). The SDK marshalling type stays inside generated code. Required scalar inputs come first; optional scalar
+inputs form one trailing contiguous group before the optional final `out` result. The SDK does not generate a direct
+`LuaOptional<T>` return, so an optional result requires a `bool Try...(..., out LuaOptional<T>)` binding. Optional results preserve their state;
+a mapper, when required, maps only a present inner value and leaves omitted and `nil` untouched.
+`Value` returns a safe default for omitted or `nil`; use `HasValue` or `TryGetValue` when that distinction matters.
+The SDK rejects an omitted optional input before a later non-omitted optional input as a binding error; use `Nil` for
+the earlier slot when the Lua call needs to preserve the later argument.
+
+The optional inner type is narrower than ordinary scalar bindings: CheatEngine.SDK 2.0.0 supports only non-nullable
+`int`, `long`, `float`, `double`, `bool`, `nuint`, and `string`. The generator rejects every other optional inner type
+before mapper resolution.
 
 ## Diagnostics
 
@@ -140,7 +152,7 @@ disagree.
 | CECLUA1006 | Lua module needs a public constructor | Only non-public explicit constructors exist, so dependency injection cannot create the module. | Make one constructor public, or remove the explicit constructors. |
 | CECLUA1101 | Lua operation requires a supported SDK global declaration | The operation is not a static partial `[LuaGlobal]` method of a top-level static partial class. | Declare `[CheatEngineLuaOperation][LuaGlobal("name")] public static partial T Name(...);` in a top-level `static partial` class. |
 | CECLUA1102 | Lua operation method cannot be overloaded | Several `[CheatEngineLuaOperation]` methods share a name. | Rename the overloads: each operation needs its own method name. |
-| CECLUA1103 | Lua operation has an unsupported result shape | Inputs are not scalar, or the result is not one return value or one trailing `out` value. | Use scalar inputs and one result; `LuaOptional<T>` inputs are deferred past 1.0. |
+| CECLUA1103 | Lua operation has an unsupported result shape | Required inputs are not scalar, optional inputs are non-scalar or not trailing and contiguous, a direct result is SDK `LuaOptional<T>`, or the result is not one return value or one trailing `out` value. | Use scalar required inputs, then a trailing contiguous group of scalar SDK `LuaOptional<T>` inputs, and one scalar result or a `bool Try...` binding with one trailing `out` result. |
 | CECLUA1104 | Lua operation result requires a mapper | A non-scalar SDK result has no `ILuaResultMapper`. | Pass `typeof(MyMapper)` to `[CheatEngineLuaOperation]`, where `MyMapper` implements `ILuaResultMapper<TSource, TResult>`. |
 | CECLUA1105 | Lua operation mapper does not match the SDK result | The mapper does not implement `ILuaResultMapper` for that SDK result. | Implement `ILuaResultMapper<TSource, TResult>` with `TSource` equal to the declared SDK result. |
 | CECLUA1106 | Lua operation mapper must project a safe Client result | The mapped graph exposes an SDK lifetime, interop, callback, or opaque framework type. | Map to a copied value: scalars, approved SDK value types, closed immutable collections or closed DTOs of them. |
