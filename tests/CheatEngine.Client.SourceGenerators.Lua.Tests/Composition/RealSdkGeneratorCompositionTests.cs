@@ -50,6 +50,18 @@ public sealed class RealSdkGeneratorCompositionTests
 			[CheatEngineLuaOperation]
 			[LuaGlobal("tryGetVersion")]
 			public static partial bool TryReadVersion(long address, out long version);
+
+			[CheatEngineLuaOperation]
+			[LuaGlobal("optionalVersion")]
+			public static partial bool TryReadOptionalVersion(
+				global::CheatEngine.SDK.Lua.Marshalling.LuaOptional<bool> enabled,
+				out global::CheatEngine.SDK.Lua.Marshalling.LuaOptional<int> version);
+
+			[CheatEngineLuaOperation]
+			[LuaGlobal("optionalPair")]
+			public static partial int ReadOptionalPair(
+				global::CheatEngine.SDK.Lua.Marshalling.LuaOptional<bool> first,
+				global::CheatEngine.SDK.Lua.Marshalling.LuaOptional<int> second);
 		}
 
 		internal static class Consumer
@@ -58,7 +70,9 @@ public sealed class RealSdkGeneratorCompositionTests
 			{
 				int version = client.Execute(Globals.CreateReadVersionLuaOperation(1));
 				return client.TryExecute(Globals.CreateTryReadVersionLuaOperation(2), out long value, out _)
-					? value + version
+					? value + (client.TryExecute(Globals.CreateTryReadOptionalVersionLuaOperation(
+						CheatEngine.Client.Lua.LuaOptional.Of(false)), out CheatEngine.Client.Lua.LuaOptional<int> optional, out _)
+						? optional.Value : 0) + version
 					: version;
 			}
 		}
@@ -124,6 +138,19 @@ public sealed class RealSdkGeneratorCompositionTests
 		Assert.Contains("Int32Marshaller", globals, StringComparison.Ordinal);
 		Assert.Contains("Int64Marshaller", globals, StringComparison.Ordinal);
 		Assert.Contains("ThrowUnexpectedResult", globals, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	public void TheSdkGeneratedOptionalPairRejectsAnOmissionHoleBeforeLuaAdmissionOrCall()
+	{
+		string globals = SdkGeneratedText(SRun.Value, "ReadOptionalPair(");
+		int hole = globals.IndexOf("__argc > 1 && first.IsOmitted", StringComparison.Ordinal);
+		int admission = globals.IndexOf("AcquireOperation", StringComparison.Ordinal);
+		int call = globals.IndexOf("TryCall", StringComparison.Ordinal);
+
+		Assert.True(hole >= 0, globals);
+		Assert.True(admission > hole, globals);
+		Assert.True(call > hole, globals);
 	}
 
 	private static GeneratorRun Run()

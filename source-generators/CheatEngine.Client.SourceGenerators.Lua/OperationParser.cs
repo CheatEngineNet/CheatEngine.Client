@@ -33,6 +33,7 @@ internal static class OperationParser
 
 		ImmutableArray<OperationParameter>.Builder parameters = ImmutableArray.CreateBuilder<OperationParameter>();
 		IParameterSymbol? outResult = null;
+		bool sawOptionalInput = false;
 		foreach (IParameterSymbol parameter in method.Parameters)
 		{
 			if (parameter.RefKind == RefKind.Out)
@@ -48,14 +49,31 @@ internal static class OperationParser
 				continue;
 			}
 
-			if (parameter.RefKind != RefKind.None || parameter.IsParams || parameter.HasExplicitDefaultValue ||
-				!CheatEngineLuaGenerator.IsScalar(parameter.Type))
+			if (parameter.RefKind != RefKind.None || parameter.IsParams || parameter.HasExplicitDefaultValue)
+			{
+				return Invalid(CheatEngineLuaDiagnostics.UnsupportedSignature, location, method.Name);
+			}
+
+			if (CheatEngineLuaGenerator.TryGetSdkLuaOptional(parameter.Type, out ITypeSymbol? optionalValue))
+			{
+				if (!CheatEngineLuaGenerator.IsSupportedSdkLuaOptionalValue(optionalValue!))
+				{
+					return Invalid(CheatEngineLuaDiagnostics.UnsupportedSignature, location, method.Name);
+				}
+
+				sawOptionalInput = true;
+				parameters.Add(new OperationParameter(CheatEngineLuaGenerator.ClientLuaOptionalTypeName(optionalValue!),
+					CheatEngineLuaGenerator.EscapeIdentifier(parameter.Name), true));
+				continue;
+			}
+
+			if (sawOptionalInput || !CheatEngineLuaGenerator.IsScalar(parameter.Type))
 			{
 				return Invalid(CheatEngineLuaDiagnostics.UnsupportedSignature, location, method.Name);
 			}
 
 			parameters.Add(new OperationParameter(CheatEngineLuaGenerator.TypeName(parameter.Type),
-				CheatEngineLuaGenerator.EscapeIdentifier(parameter.Name)));
+				CheatEngineLuaGenerator.EscapeIdentifier(parameter.Name), false));
 		}
 
 		if (outResult is not null && method.ReturnType.SpecialType != SpecialType.System_Boolean)
@@ -69,23 +87,34 @@ internal static class OperationParser
 		}
 
 		ITypeSymbol sourceResult = outResult?.Type ?? method.ReturnType;
+		bool hasOptionalResult = CheatEngineLuaGenerator.TryGetSdkLuaOptional(sourceResult, out ITypeSymbol? optionalResultValue);
+		if (hasOptionalResult && outResult is null)
+		{
+			return Invalid(CheatEngineLuaDiagnostics.UnsupportedSignature, location, method.Name);
+		}
+		if (hasOptionalResult && !CheatEngineLuaGenerator.IsSupportedSdkLuaOptionalValue(optionalResultValue!))
+		{
+			return Invalid(CheatEngineLuaDiagnostics.UnsupportedSignature, location, method.Name);
+		}
+
+		ITypeSymbol mapperSource = hasOptionalResult ? optionalResultValue! : sourceResult;
 		AttributeData operationAttribute = context.Attributes[0];
 		INamedTypeSymbol? mapper = operationAttribute.ConstructorArguments.Length == 1
 			? operationAttribute.ConstructorArguments[0].Value as INamedTypeSymbol
 			: null;
-		ITypeSymbol result = sourceResult;
+		ITypeSymbol result = mapperSource;
 		if (mapper is null)
 		{
-			if (!CheatEngineLuaGenerator.IsScalar(sourceResult))
+			if (!CheatEngineLuaGenerator.IsScalar(mapperSource))
 			{
 				return Invalid(CheatEngineLuaDiagnostics.MapperRequired, location, method.Name);
 			}
 		}
-		else if (!CheatEngineLuaGenerator.TryGetMapperResult(mapper, sourceResult, out result))
+		else if (!CheatEngineLuaGenerator.TryGetMapperResult(mapper, mapperSource, out result))
 		{
 			return Invalid(CheatEngineLuaDiagnostics.InvalidMapper, location, mapper.Name, method.Name);
 		}
-		else if (CheatEngineLuaGenerator.TryFindClientBoundaryViolation(sourceResult,
+		else if (CheatEngineLuaGenerator.TryFindClientBoundaryViolation(mapperSource,
 					 CheatEngineLuaGenerator.ClientBoundaryRole.MapperSource, out string sourceViolation))
 		{
 			return Invalid(CheatEngineLuaDiagnostics.UnsafeMappedType, location, method.Name, sourceViolation);
@@ -94,6 +123,13 @@ internal static class OperationParser
 					 CheatEngineLuaGenerator.ClientBoundaryRole.ClientResult, out string resultViolation))
 		{
 			return Invalid(CheatEngineLuaDiagnostics.UnsafeMappedType, location, method.Name, resultViolation);
+		}
+
+		string resultType = hasOptionalResult ? CheatEngineLuaGenerator.ClientLuaOptionalTypeName(result) :
+			CheatEngineLuaGenerator.TypeName(result);
+		if (hasOptionalResult && IsNullableOptionalResult(result))
+		{
+			return Invalid(CheatEngineLuaDiagnostics.UnsupportedSignature, location, method.Name);
 		}
 
 		string operationTypeName = method.Name + "LuaOperation";
@@ -111,10 +147,16 @@ internal static class OperationParser
 			operationTypeName,
 			EquatableArray.Create(parameters.ToImmutable()),
 			CheatEngineLuaGenerator.TypeName(sourceResult),
-			CheatEngineLuaGenerator.TypeName(result),
+			resultType,
 			mapper is null ? null : CheatEngineLuaGenerator.TypeName(mapper),
-			outResult is not null,
+			outResult is not null, hasOptionalResult,
 			"Lua.Operation." + method.ContainingType.Name + "." + method.Name);
+	}
+
+	private static bool IsNullableOptionalResult(ITypeSymbol type)
+	{
+		return type.NullableAnnotation == NullableAnnotation.Annotated ||
+			(type is INamedTypeSymbol named && named.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T);
 	}
 
 	private static OperationModel Invalid(DiagnosticDescriptor descriptor, LocationInfo? location,

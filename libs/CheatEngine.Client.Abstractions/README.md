@@ -873,7 +873,8 @@ This charter is normative for every public type of the seven Client packages; th
 - **Names.** `Get<X>` returns an `X` (`GetPreviousInstructionAddress`, `GetSelectedRecord`, `GetCurrentProcess`).
 - **Outputs.** A failed `Try` leaves its value output `default`. A lease or session output is nullable and annotated
   `[NotNullWhen(true)]`.
-- **Exemptions.** BCL-shaped pure lookups and parses (`ClientCapabilities.TryGet`, `AobPattern.TryParse`) have no
+- **Exemptions.** BCL-shaped pure lookups and parses (`ClientCapabilities.TryGet`, `AobPattern.TryParse`,
+  `LuaOptional<T>.TryGetValue`) have no
   failure output and no throwing twin. Implementable callbacks (`ILuaOperation<TResult>.TryExecute`,
   `IMemoryCodec<T>.TryRead`, `TryWrite`) and the codec contexts' `TryReadBytes` and `TryWriteBytes` keep the `Try`
   shape, `out` failure included, without a token or a twin.

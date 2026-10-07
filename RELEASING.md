@@ -85,10 +85,9 @@ otherwise.
    - move the rows of `AnalyzerReleases.Unshipped.md` into a new `## Release X.Y.Z` section of
      `AnalyzerReleases.Shipped.md`.
 
-   Experimental entries keep their `[CECLIENT500x]` prefix in `PublicAPI.Shipped.txt`. For 1.0.0, every Shipped file
-   starts empty and receives the whole 1.0.0 surface. Make both moves in one commit, the last API commit of the release
-   pull request: `PublicApiFileTests` reads the `## Release X.Y.Z` section as the promotion, keeps every Shipped file
-   empty and forbids `*REMOVED*` entries until the first one exists, and requires each one to name a dated
+   Experimental entries keep their `[CECLIENT500x]` prefix in `PublicAPI.Shipped.txt`. The 1.0.0 surface is already
+   recorded as shipped. Make both moves in one commit, the last API commit of the release pull request:
+   `PublicApiFileTests` reads the `## Release X.Y.Z` sections as promotions and requires each one to name a dated
    `CHANGELOG.md` release.
 
    Then confirm the move compiles clean (RS0016/RS0017/RS0025, RS2000–RS2008):
@@ -331,13 +330,12 @@ GitHub release. Then open the next line in one pull request of its own, never in
 
 1. Set `CheatEngineClientPackageValidationBaselineVersion` in [Directory.Build.props](Directory.Build.props) to the
    released version (`1.0.0` after the first release), and update the comment of the baseline hook in
-   `eng/Shipping.props`, which says that nothing is published yet. Package validation then compares every package with
-   the published package of that version and fails the pack on a breaking change. Two consequences are decided in that
-   pull request:
-   - `EnableStrictModeForBaselineValidation` is on (`eng/Shipping.props`), which makes the comparison an equality
-     check: an API that a 1.1 change adds fails the pack too. Either keep strict mode and record each reviewed addition
-     in the project's `CompatibilitySuppressions.xml`, or turn strict mode off for the baseline, so that only breaking
-     changes fail.
+   `eng/Shipping.props` to identify the published baseline. Package validation then compares every package with
+   the published package of that version and fails the pack on a breaking change. The 1.1 development line uses
+   `1.0.0` as its baseline and disables `EnableStrictModeForBaselineValidation`, allowing additive APIs while retaining
+   breaking-change checks. Two consequences must be reviewed when changing that policy:
+   - Turning `EnableStrictModeForBaselineValidation` on makes the comparison an equality check: an API that a minor
+     release adds fails the pack too. Every reviewed addition then needs a project's `CompatibilitySuppressions.xml`.
    - The 1.x policy of the [README](README.md#versioning-and-compatibility) allows changes that package validation
      reports even without strict mode: a member added to a call-only interface (`CP0006`), and the removal or change
      of an experimental API (`CP0001`, `CP0002`). Each one carries a reviewed suppression, generated with

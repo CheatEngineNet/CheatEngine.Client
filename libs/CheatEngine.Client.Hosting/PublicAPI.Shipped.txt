@@ -1,1 +1,22 @@
 #nullable enable
+CheatEngine.Client.Hosting.CheatEngineClientPlugin
+CheatEngine.Client.Hosting.CheatEngineClientPlugin.CheatEngineClientPlugin() -> void
+CheatEngine.Client.Hosting.CheatEngineClientPlugin.GetRequiredClient() -> CheatEngine.Client.ICheatEngineClient!
+CheatEngine.Client.Hosting.CheatEngineHostLogExtensions
+CheatEngine.Client.Hosting.CheatEngineHostLogOptions
+CheatEngine.Client.Hosting.CheatEngineHostLogOptions.CheatEngineHostLogOptions() -> void
+CheatEngine.Client.Hosting.CheatEngineHostLogOptions.IncludeFormattedMessages.get -> bool
+CheatEngine.Client.Hosting.CheatEngineHostLogOptions.IncludeFormattedMessages.set -> void
+CheatEngine.Client.Hosting.CheatEnginePluginBuilder
+CheatEngine.Client.Hosting.CheatEnginePluginBuilder.Client.get -> CheatEngine.Client.Extensions.DependencyInjection.CheatEngineClientBuilder!
+CheatEngine.Client.Hosting.CheatEnginePluginBuilder.Configuration.get -> Microsoft.Extensions.Configuration.ConfigurationManager!
+CheatEngine.Client.Hosting.CheatEnginePluginBuilder.Logging.get -> Microsoft.Extensions.Logging.ILoggingBuilder!
+CheatEngine.Client.Hosting.CheatEnginePluginBuilder.PluginDirectory.get -> string!
+CheatEngine.Client.Hosting.CheatEnginePluginBuilder.Services.get -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+abstract CheatEngine.Client.Hosting.CheatEngineClientPlugin.Configure(CheatEngine.Client.Hosting.CheatEnginePluginBuilder! builder) -> void
+override sealed CheatEngine.Client.Hosting.CheatEngineClientPlugin.OnDisable() -> void
+override sealed CheatEngine.Client.Hosting.CheatEngineClientPlugin.OnEnable() -> void
+static CheatEngine.Client.Hosting.CheatEngineHostLogExtensions.AddCheatEngineHostLog(this Microsoft.Extensions.Logging.ILoggingBuilder! builder) -> Microsoft.Extensions.Logging.ILoggingBuilder!
+static CheatEngine.Client.Hosting.CheatEngineHostLogExtensions.AddCheatEngineHostLog(this Microsoft.Extensions.Logging.ILoggingBuilder! builder, System.Action<CheatEngine.Client.Hosting.CheatEngineHostLogOptions!>! configure) -> Microsoft.Extensions.Logging.ILoggingBuilder!
+virtual CheatEngine.Client.Hosting.CheatEngineClientPlugin.OnClientDisabling(CheatEngine.Client.ICheatEngineClient! client) -> void
+virtual CheatEngine.Client.Hosting.CheatEngineClientPlugin.OnClientEnabled(CheatEngine.Client.ICheatEngineClient! client) -> void
