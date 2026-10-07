@@ -91,7 +91,7 @@ public sealed partial class WorkflowContractTests
 		["xmake-io/github-action-setup-xmake"] = ("3a1a5dddfc7fa625d9a698738334bf55655a861a", "v1.2.5"),
 		["actions/dependency-review-action"] = ("a1d282b36b6f3519aa1f3fc636f609c47dddb294", "v5.0.0"),
 		["zizmorcore/zizmor-action"] = ("cc914d7f3750a2d13d75c7f184a1060aa0e9d482", "v0.6.4"),
-		["github/codeql-action"] = ("1c5b675653bb5c22dbe9b12b556ec555138e09fd", "v4.38.1"),
+		["github/codeql-action"] = ("2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2", "v4.38.2"),
 		["ossf/scorecard-action"] = ("2d1146689b8cda280b9bc96326124645441f03bc", "v2.4.4"),
 		["actions/cache"] = ("55cc8345863c7cc4c66a329aec7e433d2d1c52a9", "v6.1.0")
 	};
