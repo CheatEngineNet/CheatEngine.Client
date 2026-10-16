@@ -173,6 +173,17 @@ The recorded run's id is written here, and its scenario results go to the `CHANG
 from that evidence. Until it is committed, no document claims a host qualification (`QualificationEvidenceTests`). A CI
 result is never presented as a host result, and a scenario that was not run stays not run.
 
+### 1.1.0 release-only host-check waiver — 2026-10-16
+
+For the requested 1.1.0 package publication, this dated waiver covers the release-only host checks Q09, Q10, Q40,
+Q43, Q44, Q45 and Q46. They are not executed in this release session: no operator-driven Cheat Engine qualification
+session or committed live receipts are available. The package-consumer fixtures cover installation and template
+contracts independently; they do not establish the host portion of Q40.
+
+This waiver permits package publication only. It does not provide a scenario result, populate
+`HostQualificationEvidence.Recorded`, satisfy a capability's qualification gate, close F05, or lift CECLIENT5001–5004.
+Runtime qualification remains `Unknown`. A later release needs its own live evidence or a newly dated release waiver.
+
 ## Publish
 
 The release commit must first land on the first-parent history of `main`; the workflow rejects a tag on any other

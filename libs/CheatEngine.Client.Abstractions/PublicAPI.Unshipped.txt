@@ -1,17 +1,1 @@
 #nullable enable
-CheatEngine.Client.Lua.LuaOptional
-CheatEngine.Client.Lua.LuaOptional<T>
-CheatEngine.Client.Lua.LuaOptional<T>.Equals(CheatEngine.Client.Lua.LuaOptional<T> other) -> bool
-CheatEngine.Client.Lua.LuaOptional<T>.HasValue.get -> bool
-CheatEngine.Client.Lua.LuaOptional<T>.IsNil.get -> bool
-CheatEngine.Client.Lua.LuaOptional<T>.IsOmitted.get -> bool
-CheatEngine.Client.Lua.LuaOptional<T>.LuaOptional() -> void
-CheatEngine.Client.Lua.LuaOptional<T>.TryGetValue(out T? value) -> bool
-CheatEngine.Client.Lua.LuaOptional<T>.Value.get -> T?
-override CheatEngine.Client.Lua.LuaOptional<T>.Equals(object? obj) -> bool
-override CheatEngine.Client.Lua.LuaOptional<T>.GetHashCode() -> int
-static CheatEngine.Client.Lua.LuaOptional.Nil<T>() -> CheatEngine.Client.Lua.LuaOptional<T>
-static CheatEngine.Client.Lua.LuaOptional.Of<T>(T value) -> CheatEngine.Client.Lua.LuaOptional<T>
-static CheatEngine.Client.Lua.LuaOptional.Omitted<T>() -> CheatEngine.Client.Lua.LuaOptional<T>
-static CheatEngine.Client.Lua.LuaOptional<T>.operator !=(CheatEngine.Client.Lua.LuaOptional<T> left, CheatEngine.Client.Lua.LuaOptional<T> right) -> bool
-static CheatEngine.Client.Lua.LuaOptional<T>.operator ==(CheatEngine.Client.Lua.LuaOptional<T> left, CheatEngine.Client.Lua.LuaOptional<T> right) -> bool

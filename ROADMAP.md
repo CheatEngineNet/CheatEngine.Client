@@ -62,7 +62,7 @@ Source status as of October 7, 2026. "Shipped" below describes the 1.0.0 impleme
 | CLI-022–023 | Shipped; host deployment evidence pending | Package-consumer, template and deployment-closure checks exist. Actual Cheat Engine loading and coexistence remain a separate gate. |
 | CLI-024 | Partly implemented; host evidence pending | The qualification runner and fake-port benchmarks exist. Committed live receipts, hosted Client-versus-SDK measurements and published performance budgets remain outstanding. |
 
-The current development line is 1.1. Optional Lua operations are implemented for this line, and package validation uses the published 1.0.0 baseline. Neither change is a published 1.1 release. Qualification and hosted benchmarks remain separate tasks; no receipt or performance result is inferred from a build, package check or fake-port benchmark.
+The 1.1 release line adds optional Lua operations, and package validation uses the published 1.0.0 baseline. The [1.1.0 changelog](CHANGELOG.md#110---2026-10-16) records its release scope; package publication is verified through NuGet separately. Qualification and hosted benchmarks remain separate tasks; no receipt or performance result is inferred from a build, package check or fake-port benchmark.
 
 | Phase | Outcome | Exit evidence |
 |---|---|---|

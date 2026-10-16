@@ -25,11 +25,21 @@ ship.
 
 ### Added
 
+### Changed
+
+### Security
+
+### Deployment
+
+## [1.1.0] - 2026-10-16
+
+### Added
+
 - **Optional Lua operations.** Generated operations accept trailing SDK `LuaOptional<T>` inputs of SDK-supported
   scalar types and one optional trailing `out` result on a `bool` binding. Their public surface uses the Client-owned
-  `LuaOptional<T>` and its
-  `Omitted`, `Nil` and `Of` factories; omitted arguments, absent results, explicit `nil` and present values stay
-  distinct. Result mappers run only for present optional values. Existing scalar operation signatures stay unchanged.
+  `LuaOptional<T>` and its `Omitted`, `Nil` and `Of` factories; omitted arguments, absent results, explicit `nil` and
+  present values stay distinct. Result mappers run only for present optional values. Existing scalar operation
+  signatures stay unchanged.
 
 ### Changed
 
