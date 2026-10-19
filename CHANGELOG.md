@@ -27,6 +27,10 @@ ship.
 
 ### Changed
 
+- **Local process enumeration.** Ignore nonpositive operating-system process IDs, including the Windows idle
+  pseudo-process, before filtering and truncation. Unfiltered listings now return attachable process identities
+  instead of failing when the local catalog contains PID 0.
+
 ### Security
 
 ### Deployment

@@ -38,6 +38,46 @@ public sealed class ProcessClientLocalProcessesTests
 	}
 
 	[Fact]
+	public void GetLocalProcessesSkipsSystemAndMalformedRowsBeforeApplyingTheBound()
+	{
+		(ProcessClient client, FakeLocalProcessHost host, FakeRuntimeObservationPort port) = Create(
+		[
+			new LocalProcessInfo(0, "System Idle Process", null),
+			new LocalProcessInfo(-1, "malformed", null),
+			new LocalProcessInfo(52, "alpha-worker", "C:\\fixtures\\alpha-worker.exe"),
+			new LocalProcessInfo(43, "alpha-server", "C:\\fixtures\\alpha-server.exe")
+		]);
+
+		LocalProcessEnumerationResult result = client.GetLocalProcesses(
+			new LocalProcessEnumerationRequest(1), TestContext.Current.CancellationToken);
+
+		Assert.True(result.IsTruncated);
+		LocalProcessSnapshot snapshot = Assert.Single(result.Processes);
+		Assert.Equal(new LocalProcessId(43), snapshot.Id);
+		Assert.Equal("alpha-server", snapshot.Name);
+		Assert.Equal(1, host.GetLocalProcessesCalls);
+		Assert.Empty(port.Calls);
+		Assert.Empty(port.TargetCalls);
+	}
+
+	[Fact]
+	public void GetLocalProcessesReturnsAnEmptyPageWhenOnlyNonpositiveHostRowsMatch()
+	{
+		(ProcessClient client, FakeLocalProcessHost host, _) = Create(
+		[
+			new LocalProcessInfo(0, "System Idle Process", null),
+			new LocalProcessInfo(-4, "malformed", null)
+		]);
+
+		LocalProcessEnumerationResult result = client.GetLocalProcesses(
+			new LocalProcessEnumerationRequest(1), TestContext.Current.CancellationToken);
+
+		Assert.Empty(result.Processes);
+		Assert.False(result.IsTruncated);
+		Assert.Equal(1, host.GetLocalProcessesCalls);
+	}
+
+	[Fact]
 	public void TryGetLocalProcessesReportsACancellationAsNotStartedBeforeReadingTheLocalCatalog()
 	{
 		(ProcessClient client, FakeLocalProcessHost host, _) = Create([]);
