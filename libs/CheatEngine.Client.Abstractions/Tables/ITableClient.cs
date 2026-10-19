@@ -524,7 +524,7 @@ public interface ITableClient
 	///     Cheat Engine 7.7 exposes no supported operation to detach an existing child to the root. SDK builds with
 	///     verified parent assignment refuse that request with <see cref="CheatEngineFailureKind.CapabilityUnavailable" />
 	///     and <see cref="CheatEngineHostEffect.NotStarted" />; a record already at the root succeeds without a setter.
-	///     The older published SDK 2.0.1 can report success for an ignored assignment. These checks require the corrected
+	///     Older packaged SDK builds can report success for an ignored assignment. These checks require the corrected
 	///     SDK implementation; changing the Client's failure mapping alone does not add them.
 	/// </remarks>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
