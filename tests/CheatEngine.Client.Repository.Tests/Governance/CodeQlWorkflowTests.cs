@@ -63,6 +63,12 @@ public sealed class CodeQlWorkflowTests
 			foreach (XElement reference in XDocument.Load(GovernanceFile.FullPath(project)).Descendants("ProjectReference"))
 			{
 				string include = ((string) reference.Attribute("Include")!).Replace('\\', '/');
+				if (include is "$(CheatEngineSdkEngineProject)" or "$(CheatEngineSdkHostingProject)")
+				{
+					// CodeQL builds the package graph. External SDK projects are present only in the explicit workspace mode.
+					Assert.Equal("'$(CheatEngineSdkSourceMode)' == 'true'", (string?) reference.Attribute("Condition"));
+					continue;
+				}
 				pending.Enqueue(RepositoryRoot.ToRelative(Path.GetFullPath(Path.Combine(directory, include))));
 			}
 		}

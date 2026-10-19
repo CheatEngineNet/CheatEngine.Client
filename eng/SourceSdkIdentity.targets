@@ -1,0 +1,80 @@
+<Project>
+  <!-- Read ECMA-335 metadata only. The SDK is not loaded into the MSBuild process. -->
+  <UsingTask TaskName="CheatEngineClientReadSourceSdkMetadata" TaskFactory="RoslynCodeTaskFactory"
+             AssemblyFile="$(MSBuildToolsPath)/Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <AssemblyPath ParameterType="System.String" Required="true"/>
+      <SupportedMajor ParameterType="System.String" Required="true"/>
+      <SdkVersion ParameterType="System.String" Output="true"/>
+      <SourceCommit ParameterType="System.String" Output="true"/>
+    </ParameterGroup>
+    <Task>
+      <Reference Include="$(MSBuildToolsPath)/Sdks/Microsoft.NET.Sdk/tools/net472/System.Collections.Immutable.dll"/>
+      <Reference Include="$(MSBuildToolsPath)/Sdks/Microsoft.NET.Sdk/tools/net472/System.Reflection.Metadata.dll"/>
+      <Using Namespace="System"/>
+      <Using Namespace="System.IO"/>
+      <Using Namespace="System.Reflection.Metadata"/>
+      <Using Namespace="System.Reflection.PortableExecutable"/>
+      <Using Namespace="System.Text.RegularExpressions"/>
+      <Code Type="Fragment" Language="cs"><![CDATA[
+try
+{
+    using (var stream = File.OpenRead(AssemblyPath))
+    using (var pe = new PEReader(stream))
+    {
+        var reader = pe.GetMetadataReader();
+        var assembly = reader.GetAssemblyDefinition();
+        if (reader.GetString(assembly.Name) != "CheatEngine.SDK.Engine")
+            throw new InvalidDataException("The resolved source assembly is not CheatEngine.SDK.Engine.");
+        string information = null;
+        foreach (var handle in assembly.GetCustomAttributes())
+        {
+            var attribute = reader.GetCustomAttribute(handle);
+            if (attribute.Constructor.Kind != HandleKind.MemberReference) continue;
+            var constructor = reader.GetMemberReference((MemberReferenceHandle)attribute.Constructor);
+            if (constructor.Parent.Kind != HandleKind.TypeReference) continue;
+            var type = reader.GetTypeReference((TypeReferenceHandle)constructor.Parent);
+            if (reader.GetString(type.Namespace) != "System.Reflection" ||
+                reader.GetString(type.Name) != "AssemblyInformationalVersionAttribute") continue;
+            if (information != null) throw new InvalidDataException("Duplicate SDK informational version.");
+            var blob = reader.GetBlobReader(attribute.Value);
+            if (blob.ReadUInt16() != 1) throw new InvalidDataException("Invalid SDK version attribute.");
+            information = blob.ReadSerializedString();
+            if (blob.RemainingBytes != 2 || blob.ReadUInt16() != 0)
+                throw new InvalidDataException("Invalid SDK version attribute arguments.");
+        }
+        var identity = Regex.Match(information ?? "", @"^(?<version>(?<major>[0-9]+)\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)\+(?<commit>[0-9a-f]{40})$");
+        if (!identity.Success || identity.Groups["major"].Value != SupportedMajor)
+            throw new InvalidDataException("The source SDK must declare its supported major, semantic version and full Git commit in AssemblyInformationalVersion.");
+        SdkVersion = identity.Groups["version"].Value;
+        SourceCommit = identity.Groups["commit"].Value;
+    }
+}
+catch (Exception exception)
+{
+    Log.LogError(null, "CHEATENGINECLIENT9050", null, AssemblyPath, 0, 0, 0, 0,
+        "Cannot establish the consumed source SDK identity: {0}", exception.Message);
+    return false;
+}
+      ]]></Code>
+    </Task>
+  </UsingTask>
+  <Target Name="CheatEngineClientEmbedSourceSdkIdentity" BeforeTargets="GetAssemblyAttributes"
+          DependsOnTargets="ResolveReferences" Condition="'$(DesignTimeBuild)' != 'true'">
+    <ItemGroup>
+      <_CheatEngineClientSourceEngine Include="@(ReferenceCopyLocalPaths)"
+                                    Condition="'%(ReferenceCopyLocalPaths.Filename)%(ReferenceCopyLocalPaths.Extension)' == 'CheatEngine.SDK.Engine.dll'"/>
+    </ItemGroup>
+    <CheatEngineClientReadSourceSdkMetadata AssemblyPath="@(_CheatEngineClientSourceEngine->Distinct())"
+                                           SupportedMajor="$(_CheatEngineClientSupportedSdkMajor)">
+      <Output TaskParameter="SdkVersion" PropertyName="_CheatEngineClientSourceSdkVersion"/>
+      <Output TaskParameter="SourceCommit" PropertyName="_CheatEngineClientSourceSdkCommit"/>
+    </CheatEngineClientReadSourceSdkMetadata>
+    <ItemGroup>
+      <AssemblyMetadata Include="CheatEngine.Client.ConsumedSdk.Kind" Value="source"/>
+      <AssemblyMetadata Include="CheatEngine.Client.ConsumedSdk.Version" Value="$(_CheatEngineClientSourceSdkVersion)"/>
+      <AssemblyMetadata Include="CheatEngine.Client.ConsumedSdk.SourceCommit" Value="$(_CheatEngineClientSourceSdkCommit)"/>
+      <AssemblyMetadata Include="CheatEngine.Client.ConsumedSdk.SupportedMajor" Value="$(_CheatEngineClientSupportedSdkMajor)"/>
+    </ItemGroup>
+  </Target>
+</Project>

@@ -20,19 +20,35 @@
   <Target Name="CheatEngineClientValidatePluginProjectProfile"
           BeforeTargets="CheatEngineSdkRequireX64Platform;BeforeBuild;PrepareForBuild;CoreCompile"
           Condition="'$(CheatEngineClientPluginProject)' == 'true' and '$(CheatEngineClientSkipPluginProjectValidation)' != 'true'">
+    <PropertyGroup>
+      <_CheatEngineClientExpectedEngineSource Condition="'$(CheatEngineSdkSourceRoot)' != ''">$([MSBuild]::NormalizePath('$(CheatEngineSdkSourceRoot)', 'libs', 'CheatEngine.SDK.Engine', 'CheatEngine.SDK.Engine.csproj'))</_CheatEngineClientExpectedEngineSource>
+      <_CheatEngineClientExpectedHostingSource Condition="'$(CheatEngineSdkSourceRoot)' != ''">$([MSBuild]::NormalizePath('$(CheatEngineSdkSourceRoot)', 'libs', 'CheatEngine.SDK.Hosting', 'CheatEngine.SDK.Hosting.csproj'))</_CheatEngineClientExpectedHostingSource>
+      <_CheatEngineClientExpectedFacadeSource>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '../../../src/CheatEngine.Client/CheatEngine.Client.csproj'))</_CheatEngineClientExpectedFacadeSource>
+    </PropertyGroup>
     <ItemGroup>
       <_CheatEngineClientDirectPackageReference Include="@(PackageReference)"/>
       <_CheatEngineClientDirectSdkReference Include="@(_CheatEngineClientDirectPackageReference)"
                                             Condition="'%(Identity)' == 'CheatEngine.SDK'"/>
       <_CheatEngineClientDirectClientReference Include="@(_CheatEngineClientDirectPackageReference)"
                                                Condition="'%(Identity)' == 'CheatEngine.Client'"/>
+      <_CheatEngineClientDirectSdkEngineSourceReference Include="@(ProjectReference)"
+          Condition="'$(CheatEngineSdkSourceRoot)' != '' and '%(ProjectReference.FullPath)' == '$(_CheatEngineClientExpectedEngineSource)'"/>
+      <_CheatEngineClientDirectSdkHostingSourceReference Include="@(ProjectReference)"
+          Condition="'$(CheatEngineSdkSourceRoot)' != '' and '%(ProjectReference.FullPath)' == '$(_CheatEngineClientExpectedHostingSource)'"/>
+      <_CheatEngineClientDirectClientSourceReference Include="@(ProjectReference)"
+          Condition="'%(ProjectReference.FullPath)' == '$(_CheatEngineClientExpectedFacadeSource)'"/>
     </ItemGroup>
-
-    <Error Condition="'@(_CheatEngineClientDirectSdkReference)' == '' and '$(CheatEngineClientSkipDirectSdkReferenceCheck)' != 'true'"
+    <PropertyGroup>
+      <_CheatEngineClientHasDirectSdkSourceReference>false</_CheatEngineClientHasDirectSdkSourceReference>
+      <_CheatEngineClientHasDirectSdkSourceReference Condition="'@(_CheatEngineClientDirectSdkEngineSourceReference)' != '' and '@(_CheatEngineClientDirectSdkHostingSourceReference)' != ''">true</_CheatEngineClientHasDirectSdkSourceReference>
+      <_CheatEngineClientHasDirectClientSourceReference>false</_CheatEngineClientHasDirectClientSourceReference>
+      <_CheatEngineClientHasDirectClientSourceReference Condition="'@(_CheatEngineClientDirectClientSourceReference)' != ''">true</_CheatEngineClientHasDirectClientSourceReference>
+    </PropertyGroup>
+    <Error Condition="'@(_CheatEngineClientDirectSdkReference)' == '' and '$(_CheatEngineClientHasDirectSdkSourceReference)' != 'true' and '$(CheatEngineClientSkipDirectSdkReferenceCheck)' != 'true'"
            Code="CECLIENT001"
            HelpLink="$(_CheatEngineClientHelpLink)CECLIENT001"
            Text="Cheat Engine plugin projects must reference CheatEngine.SDK directly so its entry-point generator and native bridge assets are active."/>
-    <Error Condition="'@(_CheatEngineClientDirectClientReference)' == ''"
+    <Error Condition="'@(_CheatEngineClientDirectClientReference)' == '' and '$(_CheatEngineClientHasDirectClientSourceReference)' != 'true'"
            Code="CECLIENT002"
            HelpLink="$(_CheatEngineClientHelpLink)CECLIENT002"
            Text="Cheat Engine plugin projects must reference CheatEngine.Client directly so the supported high-level plugin contract is explicit."/>
@@ -71,7 +87,7 @@
   </PropertyGroup>
 
   <Target Name="CheatEngineClientValidateResolvedSdkMajor"
-          AfterTargets="ResolvePackageAssets"
+          AfterTargets="ResolveReferences"
           Condition="'$(CheatEngineClientPluginProject)' == 'true'">
     <ItemGroup>
       <_CheatEngineClientResolvedSdkAsset Remove="@(_CheatEngineClientResolvedSdkAsset)"/>
@@ -80,10 +96,20 @@
       <_CheatEngineClientResolvedSdkAsset Include="@(RuntimeCopyLocalItems)"
                                           Condition="'%(RuntimeCopyLocalItems.NuGetPackageId)' == 'CheatEngine.SDK'"/>
     </ItemGroup>
+    <ItemGroup>
+      <_CheatEngineClientSourceSdkAssembly Include="@(ReferencePath)"
+          Condition="'$(CheatEngineSdkSourceRoot)' != '' and '%(ReferencePath.Filename)%(ReferencePath.Extension)' == 'CheatEngine.SDK.Engine.dll'"/>
+    </ItemGroup>
+    <GetAssemblyIdentity AssemblyFiles="@(_CheatEngineClientSourceSdkAssembly)" Condition="'@(_CheatEngineClientSourceSdkAssembly)' != ''">
+      <Output TaskParameter="Assemblies" ItemName="_CheatEngineClientSourceSdkIdentity"/>
+    </GetAssemblyIdentity>
     <PropertyGroup>
       <_CheatEngineClientResolvedSdkVersion>@(_CheatEngineClientResolvedSdkAsset->'%(NuGetPackageVersion)'->Distinct())</_CheatEngineClientResolvedSdkVersion>
+      <_CheatEngineClientResolvedSdkVersion Condition="'$(CheatEngineSdkSourceRoot)' != ''">@(_CheatEngineClientSourceSdkIdentity->'%(Version)')</_CheatEngineClientResolvedSdkVersion>
       <_CheatEngineClientResolvedSdkMajor>$([System.Text.RegularExpressions.Regex]::Match('$(_CheatEngineClientResolvedSdkVersion)', '^[0-9]+').Value)</_CheatEngineClientResolvedSdkMajor>
       <_CheatEngineClientUnsupportedSdk>false</_CheatEngineClientUnsupportedSdk>
+      <_CheatEngineClientUnsupportedSdk Condition="'$(CheatEngineSdkSourceRoot)' != '' and '$(_CheatEngineClientResolvedSdkMajor)' == ''">true</_CheatEngineClientUnsupportedSdk>
+      <_CheatEngineClientUnsupportedSdk Condition="'$(CheatEngineSdkSourceRoot)' != '' and '$(_CheatEngineClientResolvedSdkMajor)' != '' and '$(_CheatEngineClientResolvedSdkMajor)' != '$([MSBuild]::Subtract($(_CheatEngineClientSdkUpperMajor), 1))'">true</_CheatEngineClientUnsupportedSdk>
       <_CheatEngineClientUnsupportedSdk Condition="'$(_CheatEngineClientResolvedSdkMajor)' != '' and $(_CheatEngineClientResolvedSdkMajor) &gt;= $(_CheatEngineClientSdkUpperMajor)">true</_CheatEngineClientUnsupportedSdk>
     </PropertyGroup>
     <Error Condition="'$(_CheatEngineClientUnsupportedSdk)' == 'true' and '$(CheatEngineClientAllowUnsupportedSdk)' != 'true'"

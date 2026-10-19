@@ -20,7 +20,9 @@
                       ReferenceOutputAssembly="false"
                       PrivateAssets="all"
                       PackAsAnalyzer="true"/>
-    <PackageReference Include="CheatEngine.SDK"
+    <ProjectReference Include="$(CheatEngineSdkEngineProject)" Condition="'$(CheatEngineSdkSourceMode)' == 'true'"/>
+    <ProjectReference Include="$(CheatEngineSdkHostingProject)" Condition="'$(CheatEngineSdkSourceMode)' == 'true'"/>
+    <PackageReference Include="CheatEngine.SDK" Condition="'$(CheatEngineSdkSourceMode)' != 'true'"
                       VersionOverride="$(CheatEngineSdkVersionRange)"
                       IncludeAssets="compile;runtime"
                       ExcludeAssets="build;buildTransitive;analyzers;native;contentFiles"/>

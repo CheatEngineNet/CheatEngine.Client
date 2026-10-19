@@ -11,7 +11,9 @@
 
   <ItemGroup>
     <ProjectReference Include="../CheatEngine.Client.Abstractions/CheatEngine.Client.Abstractions.csproj"/>
-    <PackageReference Include="CheatEngine.SDK" VersionOverride="$(CheatEngineSdkVersionRange)"/>
+    <ProjectReference Include="$(CheatEngineSdkEngineProject)" Condition="'$(CheatEngineSdkSourceMode)' == 'true'"/>
+    <ProjectReference Include="$(CheatEngineSdkHostingProject)" Condition="'$(CheatEngineSdkSourceMode)' == 'true'"/>
+    <PackageReference Include="CheatEngine.SDK" Condition="'$(CheatEngineSdkSourceMode)' != 'true'" VersionOverride="$(CheatEngineSdkVersionRange)"/>
   </ItemGroup>
 
   <ItemGroup>
@@ -38,7 +40,7 @@
     Property functions: https://learn.microsoft.com/visualstudio/msbuild/property-functions
     AssemblyMetadata items: https://learn.microsoft.com/dotnet/core/project-sdk/msbuild-props#assemblymetadata
   -->
-  <PropertyGroup Label="Consumed CheatEngine.SDK identity">
+  <PropertyGroup Label="Consumed CheatEngine.SDK identity" Condition="'$(CheatEngineSdkSourceMode)' != 'true'">
     <_CheatEngineClientSdkLockFile>$(MSBuildThisFileDirectory)packages.lock.json</_CheatEngineClientSdkLockFile>
     <_CheatEngineClientSdkLockJson Condition="Exists('$(_CheatEngineClientSdkLockFile)')">$([System.IO.File]::ReadAllText('$(_CheatEngineClientSdkLockFile)'))</_CheatEngineClientSdkLockJson>
     <_CheatEngineClientLockedSdkVersion Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('$(_CheatEngineClientSdkLockJson)', '&quot;CheatEngine\.SDK&quot;\s*:\s*\{[^}]*?&quot;resolved&quot;\s*:\s*&quot;[0-9A-Za-z.+-]+&quot;'))">$([System.Text.RegularExpressions.Regex]::Replace('$(_CheatEngineClientSdkLockJson)', '(?s)^.*?&quot;CheatEngine\.SDK&quot;\s*:\s*\{[^}]*?&quot;resolved&quot;\s*:\s*&quot;([0-9A-Za-z.+-]+)&quot;.*$', '$1'))</_CheatEngineClientLockedSdkVersion>
@@ -59,7 +61,7 @@
     <_CheatEngineClientEmbedConsumedSdk Condition="'$(_CheatEngineClientConsumedSdkProblem)' == ''">true</_CheatEngineClientEmbedConsumedSdk>
   </PropertyGroup>
 
-  <ItemGroup Label="Consumed CheatEngine.SDK identity" Condition="'$(_CheatEngineClientEmbedConsumedSdk)' == 'true'">
+  <ItemGroup Label="Consumed CheatEngine.SDK identity" Condition="'$(CheatEngineSdkSourceMode)' != 'true' and '$(_CheatEngineClientEmbedConsumedSdk)' == 'true'">
     <AssemblyMetadata Include="CheatEngine.Client.ConsumedSdk.Version" Value="$(_CheatEngineClientLockedSdkVersion)"/>
     <AssemblyMetadata Include="CheatEngine.Client.ConsumedSdk.SourceCommit" Value="$(_CheatEngineClientRestoredSdkCommit)"/>
     <AssemblyMetadata Include="CheatEngine.Client.ConsumedSdk.ContentHashSha512" Value="$(_CheatEngineClientLockedSdkContentHash)"/>
@@ -71,9 +73,11 @@
     producing a Core assembly whose package gates would all report Unknown. Design-time builds are exempt.
   -->
   <Target Name="CheatEngineClientRequireConsumedSdkIdentity" BeforeTargets="CoreCompile"
-          Condition="'$(DesignTimeBuild)' != 'true'">
+          Condition="'$(DesignTimeBuild)' != 'true' and '$(CheatEngineSdkSourceMode)' != 'true'">
     <Error Code="CHEATENGINECLIENT9050" Condition="'$(_CheatEngineClientEmbedConsumedSdk)' != 'true'"
            Text="CheatEngine.Client.Core cannot embed the identity of the consumed CheatEngine.SDK package: $(_CheatEngineClientConsumedSdkProblem). Without it the runtime package gate of every operational capability would report Unknown. Restore with the committed lock files (dotnet restore --locked-mode) and keep eng/CheatEngineSdk.props, libs/CheatEngine.Client.Core/packages.lock.json and the restored package in agreement."/>
   </Target>
+
+  <Import Project="../../eng/SourceSdkIdentity.targets" Condition="'$(CheatEngineSdkSourceMode)' == 'true'"/>
 
 </Project>
