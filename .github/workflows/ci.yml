@@ -188,7 +188,7 @@ jobs:
 
       - name: Upload packages
         if: matrix.configuration == 'Release'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: nuget-packages
           path: |
@@ -199,7 +199,7 @@ jobs:
 
       - name: Upload coverage
         if: matrix.configuration == 'Debug'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage
           path: ${{ env.RESULTS }}/*.xml
@@ -208,7 +208,7 @@ jobs:
 
       - name: Upload test results
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: test-results-${{ matrix.configuration }}
           path: ${{ env.RESULTS }}/*.trx
@@ -218,7 +218,7 @@ jobs:
       # Crash dumps, hang dumps and the test sequence logs that name the tests running at the time.
       - name: Upload test dumps
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: test-dumps-${{ matrix.configuration }}
           path: |
@@ -229,7 +229,7 @@ jobs:
 
       - name: Upload binary logs
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: binlogs-build-test-${{ matrix.configuration }}
           path: artifacts/logs/*.binlog
@@ -273,7 +273,7 @@ jobs:
 
       - name: Upload binary logs
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: binlogs-aot
           path: artifacts/logs/*.binlog
