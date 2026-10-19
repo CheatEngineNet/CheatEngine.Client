@@ -1,4 +1,8 @@
 <Project>
+  <!-- Optional parent-workspace settings allow an identical graph during recursive restore and build.
+       A standalone Client checkout has no such file and keeps the NuGet graph below. -->
+  <Import Project="$(MSBuildThisFileDirectory)../../CheatEngine.Source.props"
+          Condition="'$(CheatEngineImportSourceSettings)' != 'false' and Exists('$(MSBuildThisFileDirectory)../../CheatEngine.Source.props')"/>
   <!--
     The single reviewed source of the CheatEngine.SDK package this Client consumes (audit ADR-10, A21-01).
 
@@ -51,10 +55,21 @@
       (PackageConsumptionSmokeTests.InterClientDependenciesRequireTheExactCoPackedVersion fails if it does).
   -->
   <PropertyGroup Label="Consumed CheatEngine.SDK">
+    <!-- Optional SDK checkout. Empty keeps the reviewed NuGet package graph unchanged. -->
+    <CheatEngineSdkSourceMode Condition="'$(CheatEngineSdkSourceRoot)' != ''">true</CheatEngineSdkSourceMode>
+    <_CheatEngineSdkSourceDirectory Condition="'$(CheatEngineSdkSourceMode)' == 'true'">$([MSBuild]::EnsureTrailingSlash($([System.IO.Path]::GetFullPath('$(CheatEngineSdkSourceRoot)'))))</_CheatEngineSdkSourceDirectory>
+    <CheatEngineSdkEngineProject Condition="'$(CheatEngineSdkSourceMode)' == 'true'">$(_CheatEngineSdkSourceDirectory)libs/CheatEngine.SDK.Engine/CheatEngine.SDK.Engine.csproj</CheatEngineSdkEngineProject>
+    <CheatEngineSdkHostingProject Condition="'$(CheatEngineSdkSourceMode)' == 'true'">$(_CheatEngineSdkSourceDirectory)libs/CheatEngine.SDK.Hosting/CheatEngine.SDK.Hosting.csproj</CheatEngineSdkHostingProject>
+    <NuGetLockFilePath Condition="'$(CheatEngineSourceLockFileDirectory)' != ''">$(CheatEngineSourceLockFileDirectory)/$(MSBuildProjectName).lock.json</NuGetLockFilePath>
     <CheatEngineSdkVersion>2.0.0</CheatEngineSdkVersion>
     <CheatEngineSdkUpperBound>3.0.0</CheatEngineSdkUpperBound>
     <CheatEngineSdkVersionRange>[$(CheatEngineSdkVersion),$(CheatEngineSdkUpperBound))</CheatEngineSdkVersionRange>
     <!-- The one SDK major this Client supports. Changing it is a major migration (see above), not a dependency bump. -->
     <_CheatEngineClientSupportedSdkMajor>2</_CheatEngineClientSupportedSdkMajor>
   </PropertyGroup>
+  <Target Name="CheatEngineClientValidateSdkSourceRoot" BeforeTargets="CollectPackageReferences"
+          Condition="'$(CheatEngineSdkSourceMode)' == 'true'">
+    <Error Condition="!Exists('$(CheatEngineSdkEngineProject)') or !Exists('$(CheatEngineSdkHostingProject)')" Code="CHEATENGINECLIENT9051"
+           Text="CheatEngineSdkSourceRoot must name an SDK checkout containing the Engine and Hosting runtime projects."/>
+  </Target>
 </Project>

@@ -172,8 +172,8 @@ deployment folder"). `CheatEngineClientSkipPluginProjectValidation=true` skips t
 
 | Code | Severity | Reported when | Fix |
 |---|---|---|---|
-| <a id="CECLIENT001"></a>`CECLIENT001` | Error | The plugin project has no direct `PackageReference` to `CheatEngine.SDK` | Reference `CheatEngine.SDK` 2.x directly: its entry-point generator and Lua bridge run only for a direct reference |
-| <a id="CECLIENT002"></a>`CECLIENT002` | Error | The plugin project has no direct `PackageReference` to `CheatEngine.Client`, for example when it references `CheatEngine.Client.Hosting` only | Reference `CheatEngine.Client` directly |
+| <a id="CECLIENT001"></a>`CECLIENT001` | Error | The plugin has neither a direct SDK package reference nor both Engine and Hosting project references below `CheatEngineSdkSourceRoot` | Reference SDK 2.x directly, or use its source projects with explicit generator and bridge imports |
+| <a id="CECLIENT002"></a>`CECLIENT002` | Error | The plugin has neither a direct Client package reference nor the canonical Client facade project reference | Reference `CheatEngine.Client` directly |
 | <a id="CECLIENT003"></a>`CECLIENT003` | Error | The compiled assembly declares no `[CheatEnginePlugin]` type derived from `CheatEngineClientPlugin` | Declare exactly one |
 | <a id="CECLIENT004"></a>`CECLIENT004` | Error | The compiled assembly declares more than one such type | Keep one plugin type per assembly |
 | <a id="CECLIENT005"></a>`CECLIENT005` | Error | `TargetFramework` is not exactly `net10.0`, for example `net10.0-windows` | Target `net10.0` |
@@ -188,7 +188,7 @@ deployment folder"). `CheatEngineClientSkipPluginProjectValidation=true` skips t
 | <a id="CECLIENT014"></a>`CECLIENT014` | Error | Deployment: `CheatEngine.Client.Hosting.dll` is not in the build output | Reference `CheatEngine.Client` and keep package assemblies copied to the output |
 | <a id="CECLIENT015"></a>`CECLIENT015` | Error | Deployment: `cheatengine-sdk-lua-bridge.dll` is not in the build output, because the direct `CheatEngine.SDK` build asset did not copy it | Reference `CheatEngine.SDK` directly and keep its bridge `Content` item |
 | <a id="CECLIENT016"></a>`CECLIENT016` | Error | Deployment: the output holds no managed file, or staging or replacing a destination file failed; the message gives the reason | Check the destination folder and deploy while the plugin is disabled |
-| <a id="CECLIENT017"></a>`CECLIENT017` | Error; Warning with `CheatEngineClientAllowUnsupportedSdk=true` | The plugin resolves a `CheatEngine.SDK` major this release does not support (3.x or later) | Reference `CheatEngine.SDK` 2.x, or a Client release that supports that SDK |
+| <a id="CECLIENT017"></a>`CECLIENT017` | Error; Warning with `CheatEngineClientAllowUnsupportedSdk=true` | The plugin resolves an unsupported SDK major (3.x or later), or a source Engine assembly whose identity cannot be established | Reference SDK 2.x, or a Client release that supports that SDK |
 
 A `CheatEngine.SDK` below 2.0.0 never reaches these checks: the restore fails with `NU1605`. The SDK's own build and
 analyzer diagnostics (`CESDK...`) are documented in the

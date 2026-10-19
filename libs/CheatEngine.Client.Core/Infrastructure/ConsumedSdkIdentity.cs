@@ -21,6 +21,11 @@ namespace CheatEngine.Client.Core.Infrastructure;
 ///         this source.
 ///     </para>
 ///     <para>
+///         With <c>CheatEngineSdkSourceRoot</c>, the build instead reads the referenced Engine assembly's PE metadata.
+///         It records source kind, version, Git commit and supported major, with no NuGet content hash. A source build
+///         requires that exact informational version at runtime; another source revision is not interchangeable.
+///     </para>
+///     <para>
 ///         The package gate follows the dependency range the Client packages declare: it is
 ///         <see cref="ClientCapabilityEvidenceState.Satisfied" /> when the SemVer version of the loaded
 ///         CheatEngine.SDK.Engine informational version (build metadata ignored) has the supported major and is at
@@ -48,6 +53,12 @@ internal sealed class ConsumedSdkIdentity
 	/// <summary>The assembly-metadata key of the consumed CheatEngine.SDK NuGet content hash (SHA-512, base64).</summary>
 	internal const string ContentHashKey = "CheatEngine.Client.ConsumedSdk.ContentHashSha512";
 
+	/// <summary>The assembly-metadata key distinguishing source builds from package builds.</summary>
+	internal const string KindKey = "CheatEngine.Client.ConsumedSdk.Kind";
+
+	/// <summary>The metadata value for a source project dependency.</summary>
+	internal const string SourceKind = "source";
+
 	/// <summary>The assembly-metadata key of the one CheatEngine.SDK major this Client supports.</summary>
 	internal const string SupportedMajorKey = "CheatEngine.Client.ConsumedSdk.SupportedMajor";
 
@@ -69,8 +80,9 @@ internal sealed class ConsumedSdkIdentity
 	/// <param name="contentHashSha512">The embedded NuGet content hash of the consumed package.</param>
 	/// <param name="supportedMajor">The embedded supported major, as the decimal text of the assembly metadata.</param>
 	/// <param name="loadedInformationalVersion">The informational version of the loaded CheatEngine.SDK.Engine.</param>
+	/// <param name="source">Whether the consumed identity was read from a source-built Engine assembly.</param>
 	internal ConsumedSdkIdentity(string? version, string? sourceCommit, string? contentHashSha512,
-		string? supportedMajor, string? loadedInformationalVersion)
+		string? supportedMajor, string? loadedInformationalVersion, bool source = false)
 	{
 		Version = Normalize(version);
 		SourceCommit = Normalize(sourceCommit);
@@ -79,6 +91,7 @@ internal sealed class ConsumedSdkIdentity
 			? major
 			: null;
 		LoadedInformationalVersion = Normalize(loadedInformationalVersion);
+		IsSource = source;
 		(PackageGate, IdentityLabel, ExactReviewedIdentity) = Evaluate();
 	}
 
@@ -109,6 +122,12 @@ internal sealed class ConsumedSdkIdentity
 		get;
 	}
 
+	/// <summary>Gets whether this build consumed an SDK source project instead of a NuGet package.</summary>
+	internal bool IsSource
+	{
+		get;
+	}
+
 	/// <summary>Gets the embedded CheatEngine.SDK major this Client supports, or <see langword="null" />.</summary>
 	internal int? SupportedMajor
 	{
@@ -121,9 +140,9 @@ internal sealed class ConsumedSdkIdentity
 		get;
 	}
 
-	/// <summary>Gets whether the version, commit, content hash and supported major were all embedded at build.</summary>
-	internal bool IsEmbedded => Version is not null && SourceCommit is not null && ContentHashSha512 is not null &&
-								SupportedMajor is not null;
+	/// <summary>Gets whether the identity is complete; a source build has no NuGet content hash.</summary>
+	internal bool IsEmbedded => Version is not null && SourceCommit is not null && SupportedMajor is not null &&
+								(IsSource || ContentHashSha512 is not null);
 
 	/// <summary>
 	///     Gets the informational version of the reviewed package, or <see langword="null" /> when not embedded.
@@ -189,6 +208,19 @@ internal sealed class ConsumedSdkIdentity
 		}
 
 		string supported = $"{SupportedMajor}.x at or above {Version}";
+		if (IsSource)
+		{
+			bool exact = string.Equals(LoadedInformationalVersion, ExpectedInformationalVersion, StringComparison.Ordinal);
+			return exact
+				? (new ClientCapabilityEvidenceGate(ClientCapabilityEvidenceState.Satisfied,
+					$"The loaded CheatEngine.SDK.Engine {LoadedInformationalVersion} matches the source build " +
+					"consumed by this Client build; its identity was read from the Engine PE metadata at build time."),
+					"the consumed source build", true)
+				: (new ClientCapabilityEvidenceGate(ClientCapabilityEvidenceState.Missing,
+					$"The loaded CheatEngine.SDK.Engine {LoadedInformationalVersion} does not match the source build " +
+					$"consumed by this Client build ({ExpectedInformationalVersion})."), "another source build", false);
+		}
+
 		if (string.Equals(LoadedInformationalVersion, ExpectedInformationalVersion, StringComparison.Ordinal))
 		{
 			return (new ClientCapabilityEvidenceGate(ClientCapabilityEvidenceState.Satisfied,
@@ -216,6 +248,7 @@ internal sealed class ConsumedSdkIdentity
 		string? version = null;
 		string? sourceCommit = null;
 		string? contentHash = null;
+		bool source = false;
 		string? supportedMajor = null;
 		foreach (AssemblyMetadataAttribute metadata in typeof(ConsumedSdkIdentity).Assembly
 					 .GetCustomAttributes<AssemblyMetadataAttribute>())
@@ -231,6 +264,9 @@ internal sealed class ConsumedSdkIdentity
 				case ContentHashKey:
 					contentHash = metadata.Value;
 					break;
+				case KindKey:
+					source = string.Equals(metadata.Value, SourceKind, StringComparison.Ordinal);
+					break;
 				case SupportedMajorKey:
 					supportedMajor = metadata.Value;
 					break;
@@ -239,7 +275,7 @@ internal sealed class ConsumedSdkIdentity
 
 		string? loaded = typeof(RuntimeInfo).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
 			?.InformationalVersion;
-		return new ConsumedSdkIdentity(version, sourceCommit, contentHash, supportedMajor, loaded);
+		return new ConsumedSdkIdentity(version, sourceCommit, contentHash, supportedMajor, loaded, source);
 	}
 
 	private static string? Normalize(string? value)
@@ -369,12 +405,7 @@ internal sealed class ConsumedSdkIdentity
 					: string.CompareOrdinal(left, right);
 			}
 
-			if (leftNumeric != rightNumeric)
-			{
-				return leftNumeric ? -1 : 1;
-			}
-
-			return string.CompareOrdinal(left, right);
+			return leftNumeric != rightNumeric ? leftNumeric ? -1 : 1 : string.CompareOrdinal(left, right);
 		}
 
 		/// <summary>

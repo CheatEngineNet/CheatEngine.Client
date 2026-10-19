@@ -24,6 +24,34 @@ The aggregate `ICheatEngineClient` gives an enabled plugin access to runtime fac
 dispatch, process selection, typed memory, AOB scans, inspection, address tables, and protected Lua operations. It
 never exposes a `LuaState`, CE object handle, raw native pointer, or SDK ownership wrapper to plugin code.
 
+### Building with an SDK source checkout
+
+NuGet remains the default. A workspace that builds Client and SDK from source can place `CheatEngine.Source.props`
+beside the Client checkout with these settings:
+
+```xml
+<Project>
+  <PropertyGroup>
+    <CheatEngineSdkSourceRoot>$(MSBuildThisFileDirectory)CheatEngine.SDK</CheatEngineSdkSourceRoot>
+    <CheatEngineSourceLockFileDirectory>$(MSBuildThisFileDirectory)locks</CheatEngineSourceLockFileDirectory>
+  </PropertyGroup>
+</Project>
+```
+
+The SDK root must contain its Engine and Hosting runtime projects. The optional lock directory keeps this source
+graph separate from Client's committed NuGet locks. Parent-workspace settings are read during both restore and build;
+`CheatEngineImportSourceSettings=false` disables the import. Command-line properties can select the same settings.
+Clone complete Git history and tags so MinVer can derive the SDK assembly version and source revision.
+
+Source consumers reference the Client facade project. A plugin also directly references the SDK Engine and Hosting
+projects, imports the SDK and Client consumer build assets, and references their plugin generators as analyzers;
+project references do not propagate NuGet build assets or analyzers. The SDK's checked-in native bridge remains part
+of the plugin output. Source mode reads the consumed Engine PE metadata without executing it and requires that exact
+version and commit at runtime. It does not claim a NuGet package hash or native qualification.
+
+Package publication requires the normal NuGet graph; `CHEATENGINECLIENT9051` refuses source-mode packing or an invalid
+SDK source root. Restore and validate the package graph before publishing Client packages.
+
 ## Why this project exists
 
 `CheatEngine.SDK` deliberately owns the difficult boundary: the generated Cheat Engine entry point, Lua protection,

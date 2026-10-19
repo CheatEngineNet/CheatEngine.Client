@@ -25,6 +25,11 @@ ship.
 
 ### Added
 
+- **Source SDK builds.** Workspace consumers can opt into `CheatEngineSdkSourceRoot` to build Client and SDK together
+  through project references. Source builds record the SDK Engine version and Git commit from its PE metadata,
+  preserve plugin profile checks, and reject mismatched runtime identities. Normal NuGet builds retain their existing
+  package identity checks.
+
 ### Changed
 
 - **Local process enumeration.** Ignore nonpositive operating-system process IDs, including the Windows idle
