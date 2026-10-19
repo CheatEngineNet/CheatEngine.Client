@@ -147,6 +147,13 @@ public interface IProcessClient
 	/// <returns><see langword="true" /> when Cheat Engine selected the requested process and it was observed.</returns>
 	/// <remarks>
 	///     <para>
+	///         Before the selection call, a file-as-process target is refused with
+	///         <see cref="CheatEngineFailureKind.Unsupported" /> and <see cref="CheatEngineHostEffect.NotStarted" />:
+	///         managed and Lua callers cannot restore its memory callbacks. Select a process in Cheat Engine or restart
+	///         it. The prior Client selection is invalidated. A file-as-process status reported only after the selection
+	///         call keeps the ordinary refused-attach mapping below.
+	///     </para>
+	///     <para>
 	///         The attach is CheatEngine.SDK's <c>SelectAndObserve</c>: Cheat Engine's selection call, then the selected
 	///         process identifier read again; a normal return of the call is not success by itself. A refused attach keeps
 	///         the SDK status as its kind, with <see cref="CheatEngineHostEffect.Unknown" />:
@@ -204,7 +211,8 @@ public interface IProcessClient
 	/// <returns><see langword="true" /> when Cheat Engine selected the single match and it was observed.</returns>
 	/// <remarks>
 	///     Activation admission occurs before local discovery; caller cancellation is then observed before catalog access.
-	///     A local match is only an attach candidate. Cheat Engine's selected target is verified before returning.
+	///     A local match is only an attach candidate. Cheat Engine's selected target is verified before returning, including
+	///     the same file-as-process refusal as <see cref="TryAttach" /> before it changes Cheat Engine's selection.
 	/// </remarks>
 	/// <exception cref="ArgumentNullException"><paramref name="processName" /> is <see langword="null" />.</exception>
 	/// <exception cref="ArgumentException">

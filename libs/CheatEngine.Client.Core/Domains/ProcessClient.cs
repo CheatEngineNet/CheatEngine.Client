@@ -142,6 +142,12 @@ internal sealed class ProcessClient : IProcessClient, ITargetSelectionBinder
 		// so the selection epoch follows whatever it now selects, even when the selection is refused.
 		CurrentProcessCapture SelectAndCapture()
 		{
+			CurrentProcessCapture preflight = CaptureFileAsProcessPreflight();
+			if (preflight.Failure != CurrentProcessCaptureFailure.None)
+			{
+				return preflight;
+			}
+
 			ProcessOperationStatus status;
 			try
 			{
@@ -170,6 +176,27 @@ internal sealed class ProcessClient : IProcessClient, ITargetSelectionBinder
 					Advance = observed.Advance
 				}
 				: observed;
+		}
+
+		CurrentProcessCapture CaptureFileAsProcessPreflight()
+		{
+			try
+			{
+				ProcessOperationStatus status = _observations.ObserveCurrent(out _);
+				if (status.Kind == ProcessOperationStatusKind.FileAsProcessTarget)
+				{
+					return new CurrentProcessCapture(CurrentProcessCaptureFailure.FileAsProcessPreflight, status)
+					{
+						Advance = ClearObservedSelection("Processes.Attach")
+					};
+				}
+			}
+			catch (Exception exception) when (SdkBoundary.IsSdkFault(exception))
+			{
+				// This additional observation must not change existing attach behavior when it cannot establish a file target.
+			}
+
+			return default;
 		}
 	}
 
@@ -477,6 +504,12 @@ internal sealed class ProcessClient : IProcessClient, ITargetSelectionBinder
 			// SelectAndObserve refused or could not confirm the selection: what Cheat Engine now selects is unknown.
 			CurrentProcessCaptureFailure.SelectionRefused => RuntimeObservationMapping.ToFailure(operation,
 				captured.Status, CheatEngineHostEffect.Unknown),
+			CurrentProcessCaptureFailure.FileAsProcessPreflight => new CheatEngineFailure(
+				CheatEngineFailureKind.Unsupported,
+				operation,
+				"Cheat Engine has a file opened as a process. Managed and Lua callers cannot restore its memory callbacks; use Cheat Engine's process selector or restart Cheat Engine.",
+				null,
+				CheatEngineHostEffect.NotStarted),
 			// The SDK operation returned a factual status: its call completed without establishing target facts.
 			CurrentProcessCaptureFailure.Unobserved => RuntimeObservationMapping.ToFailure(operation, captured.Status,
 				CheatEngineHostEffect.Completed),
@@ -695,6 +728,7 @@ internal sealed class ProcessClient : IProcessClient, ITargetSelectionBinder
 		InvalidLocalMetadata,
 		Unobserved,
 		SelectionRefused,
+		FileAsProcessPreflight,
 		Faulted
 	}
 }
