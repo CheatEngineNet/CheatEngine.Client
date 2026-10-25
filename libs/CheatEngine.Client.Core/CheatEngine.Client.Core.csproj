@@ -11,8 +11,8 @@
 
   <ItemGroup>
     <ProjectReference Include="../CheatEngine.Client.Abstractions/CheatEngine.Client.Abstractions.csproj"/>
-    <ProjectReference Include="$(CheatEngineSdkEngineProject)" Condition="'$(CheatEngineSdkSourceMode)' == 'true'"/>
-    <ProjectReference Include="$(CheatEngineSdkHostingProject)" Condition="'$(CheatEngineSdkSourceMode)' == 'true'"/>
+    <ProjectReference Include="$(CheatEngineSdkEngineProject)" SetPlatform="Platform=AnyCPU" Condition="'$(CheatEngineSdkSourceMode)' == 'true'"/>
+    <ProjectReference Include="$(CheatEngineSdkHostingProject)" SetPlatform="Platform=AnyCPU" Condition="'$(CheatEngineSdkSourceMode)' == 'true'"/>
     <PackageReference Include="CheatEngine.SDK" Condition="'$(CheatEngineSdkSourceMode)' != 'true'" VersionOverride="$(CheatEngineSdkVersionRange)"/>
   </ItemGroup>
 

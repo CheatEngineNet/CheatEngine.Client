@@ -1,0 +1,27 @@
+<Project>
+  <!-- Project references do not carry NuGet build assets or analyzers. Source fixtures import the SDK's
+       consumer contract and its compiler components explicitly, using the same checkout as Client. -->
+  <Import Project="$(_CheatEngineSdkSourceDirectory)src/CheatEngine.SDK/build/CheatEngine.SDK.props"
+          Condition="Exists('$(_CheatEngineSdkSourceDirectory)src/CheatEngine.SDK/build/CheatEngine.SDK.props')"/>
+  <PropertyGroup>
+    <_CheatEngineSdkLuaBridgePath>$(_CheatEngineSdkSourceDirectory)native/cheatengine-sdk-lua-bridge/runtimes/win-x64/native/cheatengine-sdk-lua-bridge.dll</_CheatEngineSdkLuaBridgePath>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(CheatEngineSdkEngineProject)" SetPlatform="Platform=AnyCPU"/>
+    <ProjectReference Include="$(CheatEngineSdkHostingProject)" SetPlatform="Platform=AnyCPU"/>
+    <Content Include="$(_CheatEngineSdkLuaBridgePath)" Link="cheatengine-sdk-lua-bridge.dll"
+             CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Pack="false" Visible="false"/>
+    <ProjectReference Include="$(_CheatEngineSdkSourceDirectory)analyzers/CheatEngine.SDK.Analyzers/CheatEngine.SDK.Analyzers.csproj" SetPlatform="Platform=AnyCPU"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all"/>
+    <ProjectReference Include="$(_CheatEngineSdkSourceDirectory)analyzers/CheatEngine.SDK.Analyzers.CodeFixes/CheatEngine.SDK.Analyzers.CodeFixes.csproj" SetPlatform="Platform=AnyCPU"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all"/>
+    <ProjectReference Include="$(_CheatEngineSdkSourceDirectory)source-generators/CheatEngine.SDK.SourceGenerators.EntryPoint/CheatEngine.SDK.SourceGenerators.EntryPoint.csproj" SetPlatform="Platform=AnyCPU"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all"/>
+    <ProjectReference Include="$(_CheatEngineSdkSourceDirectory)source-generators/CheatEngine.SDK.SourceGenerators.LuaBindings/CheatEngine.SDK.SourceGenerators.LuaBindings.csproj" SetPlatform="Platform=AnyCPU"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all"/>
+    <ProjectReference Include="$(_CheatEngineSdkSourceDirectory)source-generators/CheatEngine.SDK.SourceGenerators.Shared/CheatEngine.SDK.SourceGenerators.Shared.csproj" SetPlatform="Platform=AnyCPU"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all"/>
+  </ItemGroup>
+  <Import Project="$(_CheatEngineSdkSourceDirectory)src/CheatEngine.SDK/build/CheatEngine.SDK.targets"
+          Condition="Exists('$(_CheatEngineSdkSourceDirectory)src/CheatEngine.SDK/build/CheatEngine.SDK.targets')"/>
+</Project>

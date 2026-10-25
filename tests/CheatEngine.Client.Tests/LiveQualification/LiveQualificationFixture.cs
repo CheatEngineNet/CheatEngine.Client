@@ -18,9 +18,9 @@ public sealed class LiveQualificationSerialGroup : ICollectionFixture<LiveQualif
 
 /// <summary>
 ///     Evaluates the opt-in first and does nothing else when it refuses, so an unauthorized run fails in milliseconds
-///     with instructions. Only an authorized run initializes the <see cref="PackagedClientFeedFixture" /> the plugins are
-///     built from: the exact packages of <c>CHEATENGINE_CLIENT_PACKAGE_SOURCE</c>, restored in isolated consumers with
-///     CheatEngine.SDK from nuget.org.
+///     with instructions. This production-artifact qualification requires an explicit
+///     <c>CHEATENGINE_CLIENT_PACKAGE_SOURCE</c>; it never self-packs a source checkout or claims source qualification.
+///     Only an authorized run with those artifacts initializes the <see cref="PackagedClientFeedFixture" />.
 /// </summary>
 [SupportedOSPlatform("windows")]
 public sealed class LiveQualificationFixture : IAsyncLifetime

@@ -487,6 +487,7 @@ internal static class ConsumedSdkSurface
 		"CheatEngine.Client.Hosting M CheatEngine.SDK.Hosting.Diagnostics.HostLog::IsEnabled(CheatEngine.SDK.Hosting.Diagnostics.HostLogLevel)->boolean",
 		"CheatEngine.Client.Hosting M CheatEngine.SDK.Hosting.Diagnostics.HostLog::Write(CheatEngine.SDK.Hosting.Diagnostics.HostLogLevel,string,System.Exception)->void",
 		"CheatEngine.Client.Hosting M CheatEngine.SDK.Hosting.Plugin.CheatEnginePlugin::.ctor()->void",
+		"CheatEngine.Client.Hosting M CheatEngine.SDK.Hosting.Plugin.CheatEnginePlugin::BeginFailedEnableRollback()->void",
 		"CheatEngine.Client.Hosting T CheatEngine.SDK.Hosting.Diagnostics.HostLog",
 		"CheatEngine.Client.Hosting T CheatEngine.SDK.Hosting.Diagnostics.HostLogLevel",
 		"CheatEngine.Client.Hosting T CheatEngine.SDK.Hosting.Plugin.CheatEnginePlugin"

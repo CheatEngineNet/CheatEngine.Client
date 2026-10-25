@@ -24,7 +24,7 @@
       restore records the candidate closure in a lock file under obj/ and never rewrites the committed one. Lock files
       stay enabled, because disabling them while a committed lock file exists fails the restore (NU1005).
     -->
-    <NuGetLockFilePath Condition="'$(CoexistenceSdkPackageVersion)' != '$(CheatEngineSdkVersion)'">$(MSBuildProjectExtensionsPath)coexistence-candidate.packages.lock.json</NuGetLockFilePath>
+    <NuGetLockFilePath Condition="'$(CheatEngineSdkSourceMode)' != 'true' and '$(CoexistenceSdkPackageVersion)' != '$(CheatEngineSdkVersion)'">$(MSBuildProjectExtensionsPath)coexistence-candidate.packages.lock.json</NuGetLockFilePath>
   </PropertyGroup>
 
   <ItemGroup>
@@ -35,9 +35,11 @@
                       ReferenceOutputAssembly="false"
                       PrivateAssets="all"/>
     <!-- Keep the SDK direct package reference: it supplies the entry-point generator and bridge assets. -->
-    <PackageReference Include="CheatEngine.SDK" Version="$(CoexistenceSdkPackageVersion)"/>
+    <PackageReference Include="CheatEngine.SDK" Version="$(CoexistenceSdkPackageVersion)" Condition="'$(CheatEngineSdkSourceMode)' != 'true'"/>
     <Compile Include="../CoexistenceDiagnostics.cs" Link="CoexistenceDiagnostics.cs"/>
   </ItemGroup>
+
+  <Import Project="../../eng/SdkSourcePlugin.props" Condition="'$(CheatEngineSdkSourceMode)' == 'true'"/>
 
   <!-- Use the same complete-closure deployment mechanics as the Hosting package without misrepresenting this
        source-graph fixture as an isolated Client package consumer. -->

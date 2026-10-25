@@ -992,7 +992,7 @@ This charter is normative for every public type of the seven Client packages; th
 The documentation of every public interface says whether it is **Call-only** (the Client implements it and applications
 call it; a 1.x minor release can add members, so implement it only in a test double) or **Implementable**
 (applications implement it and the Client calls it; its members are frozen for 1.x): `ILuaModule`,
-`ILuaOperation<TResult>`, `ILuaResultMapper<TSource, TResult>`, `IMemoryCodec<T>` and `ICheatEngineClientModule`.
+`ILuaOperation<TResult>`, `ILuaResultMapper<TSource, TResult>`, `IMemoryCodec<T>`, `ICheatEngineClientModule`, `ICheatEngineClientModuleDeactivationNotification` and `ICheatEngineClientResourceCleanup`.
 
 ### CheatEngine.SDK types in public signatures
 

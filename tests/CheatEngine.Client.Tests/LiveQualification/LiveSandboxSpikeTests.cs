@@ -14,6 +14,7 @@ namespace CheatEngine.Client.Tests.LiveQualification;
 /// </remarks>
 [Collection(LiveQualificationSerialGroup.Name)]
 [Trait("Category", "LiveQualification")]
+[Trait("Category", "PackageConsumption")]
 [Trait("Session", "S0")]
 [SupportedOSPlatform("windows")]
 public sealed class LiveSandboxSpikeTests(LiveQualificationFixture fixture)

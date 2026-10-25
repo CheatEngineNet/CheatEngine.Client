@@ -2,7 +2,7 @@
   <Target Name="CheatEngineClientRefuseSourceDependencyPackage" BeforeTargets="Pack;GenerateNuspec"
           Condition="'$(CheatEngineSdkSourceMode)' == 'true'">
     <Error Code="CHEATENGINECLIENT9051"
-           Text="Source SDK mode is for workspace builds. Pack Client with CheatEngineImportSourceSettings=false and no CheatEngineSdkSourceRoot, then restore the reviewed package graph."/>
+           Text="Source SDK mode builds and tests the pinned submodule. For production packaging, restore, build and pack with CheatEngineSdkSourceMode=false to validate the reviewed NuGet dependency graph."/>
   </Target>
   <!-- Imported after the project body and the SDK targets, so conditions here see final property values. -->
 
@@ -205,7 +205,7 @@
     TypeLoadException, which neither package validation nor the public API baselines can see. The seven packages share
     one version (CHEATENGINECLIENT9019), so each one requires exactly that version of every Client package it depends on.
 
-    The .NET SDK 10.0.401 pack targets (NuGet.Build.Tasks.Pack.targets, internal and undocumented; eng/CheatEngineSdk.props
+    The .NET SDK 10.0.402 pack targets (NuGet.Build.Tasks.Pack.targets, internal and undocumented; eng/CheatEngineSdk.props
     asks for a re-check after a .NET SDK bump): GenerateNuspec depends on _GetProjectReferenceVersions, which reads the
     project references of project.assets.json, calls _GetProjectVersion on each and collects the results as
     _ProjectReferencesWithVersions items, whose ProjectVersion metadata is the referenced project's $(PackageVersion).

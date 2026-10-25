@@ -77,7 +77,8 @@ public sealed partial class ReleaseWorkflowTests
 		Assert.Equal("./.github/workflows/ci.yml", Scalar(ci, "uses"));
 		Assert.Equal("${{ needs.verify.outputs.version }}", Scalar(with, "package-version"));
 		Assert.Equal("90", Scalar(with, "package-retention-days"));
-		Assert.Equal(2, with.Children.Count);
+		Assert.Equal("true", Scalar(with, "production-packages"));
+		Assert.Equal(3, with.Children.Count);
 		Assert.False(ci.Children.ContainsKey(new YamlScalarNode("secrets")), "release.yml must not pass secrets to ci.yml (no Sonar on the release path).");
 	}
 

@@ -11,8 +11,9 @@ name: CI
 #   lock-files ───────────────────────────┘
 #
 # The Release leg packs before it tests: the package-consumption tests install the very files CI uploads. Jobs exchange
-# artifacts instead of rebuilding (names reserved, nothing else is uploaded):
-#   nuget-packages                        build-test (Release) → sonar, release.yml
+# artifacts instead of rebuilding (names reserved, nothing else is uploaded). Normal CI compiles and tests the pinned
+# SDK submodule; only the production release path packs and consumes NuGet packages:
+#   nuget-packages                        build-test (production Release) → release.yml
 #   coverage                              build-test (Debug)   → sonar
 #   test-results-<configuration>          build-test           → humans
 #   test-dumps-<configuration>, binlogs-* on failure only      → humans
@@ -34,6 +35,12 @@ on:
         description: Days to keep the nuget-packages artifact.
         type: number
         default: 7
+      production-packages:
+        description: >-
+          Build, pack and consume the reviewed NuGet graph for a production release. Ordinary CI builds and tests the
+          pinned SDK submodule instead.
+        type: boolean
+        default: false
     secrets:
       SONAR_TOKEN:
         description: SonarQube Cloud analysis token. Needed only when sonar is true.
@@ -58,11 +65,14 @@ jobs:
     env:
       CONFIGURATION: ${{ matrix.configuration }}
       RESULTS: artifacts/test-results/${{ matrix.configuration }}
+      PRODUCTION_PACKAGES: ${{ inputs.production-packages }}
+      CheatEngineSdkSourceMode: ${{ inputs.production-packages && 'false' || 'true' }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # the package version comes from tags and history
+          submodules: recursive # normal builds compile the pinned SDK source
           persist-credentials: false
 
       - name: Setup .NET
@@ -85,7 +95,7 @@ jobs:
       # release names the exact version, every file must be named "<Id>.<version>.nupkg" / ".snupkg".
       - name: Pack
         id: pack
-        if: matrix.configuration == 'Release'
+        if: inputs.production-packages && matrix.configuration == 'Release'
         env:
           PACKAGE_VERSION: ${{ inputs.package-version }}
         run: |
@@ -156,8 +166,8 @@ jobs:
           "Discovered $($benchmarks.Count) benchmarks." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
 
       # One parallel run over every tests/**/*.Tests module. A skip fails the run (--fail-skips on). Debug collects one
-      # coverage report per module and leaves the package-consumption tests to Release by trait filter, never Skip.
-      # Release hands those tests the packages the Pack step produced. Both legs exclude the live qualification tests
+      # coverage report per module and excludes package consumption except in the production Release job, never Skip.
+      # That one job hands the package tests the exact packages the Pack step produced. Both legs exclude live tests
       # by trait: they start a sandboxed Cheat Engine and run only on a maintainer workstation that opts in. The hang
       # dump fires after 15 minutes without test activity, well below the job timeout.
       - name: Test
@@ -171,10 +181,13 @@ jobs:
             '--hangdump', '--hangdump-timeout', '15m', '--crashdump',
             '--filter-not-trait', 'Category=LiveQualification'
           )
-          if ($env:CONFIGURATION -eq 'Debug') {
-            $options += '--coverage', '--coverage-output-format', 'xml', '--filter-not-trait', 'Category=PackageConsumption'
+          if ($env:PRODUCTION_PACKAGES -ne 'true' -or $env:CONFIGURATION -eq 'Debug') {
+            $options += '--filter-not-trait', 'Category=PackageConsumption'
           }
-          else {
+          if ($env:CONFIGURATION -eq 'Debug') {
+            $options += '--coverage', '--coverage-output-format', 'xml'
+          }
+          elseif ($env:PRODUCTION_PACKAGES -eq 'true') {
             # Set only here: the smoke tests fail on a set-but-empty value, and the Debug leg has no packages.
             if ([string]::IsNullOrEmpty($env:PACKAGE_SOURCE)) {
               throw 'The Pack step exported no package-source.'
@@ -187,7 +200,7 @@ jobs:
           }
 
       - name: Upload packages
-        if: matrix.configuration == 'Release'
+        if: inputs.production-packages && matrix.configuration == 'Release'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: nuget-packages
@@ -241,11 +254,14 @@ jobs:
     name: Native AOT publication probe
     runs-on: windows-2025
     timeout-minutes: 25
+    env:
+      CheatEngineSdkSourceMode: ${{ inputs.production-packages && 'false' || 'true' }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # the package version comes from tags and history
+          submodules: recursive # the AOT graph uses the pinned SDK source
           persist-credentials: false
 
       - name: Setup .NET
@@ -353,7 +369,7 @@ jobs:
       # Style rules are enforced by the build (EnforceCodeStyleInBuild).
       - name: Verify whitespace formatting
         run: |
-          dotnet format whitespace . --folder --verify-no-changes --exclude artifacts
+          dotnet format whitespace . --folder --verify-no-changes --exclude artifacts externals
           if ($LASTEXITCODE -ne 0) {
             throw "Whitespace formatting differs (exit code $LASTEXITCODE). Fix it with: dotnet format whitespace <path> --folder"
           }
@@ -386,10 +402,13 @@ jobs:
     name: Lock files
     runs-on: windows-2025
     timeout-minutes: 15
+    env:
+      CheatEngineSdkSourceMode: ${{ inputs.production-packages && 'false' || 'true' }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          submodules: recursive # locked restore follows the normal source graph
           persist-credentials: false
 
       - name: Setup .NET

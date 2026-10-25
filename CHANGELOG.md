@@ -25,10 +25,11 @@ ship.
 
 ### Added
 
-- **Source SDK builds.** Workspace consumers can opt into `CheatEngineSdkSourceRoot` to build Client and SDK together
-  through project references. Source builds record the SDK Engine version and Git commit from its PE metadata,
-  preserve plugin profile checks, and reject mismatched runtime identities. Normal NuGet builds retain their existing
-  package identity checks.
+- **Pinned SDK submodule.** Repository builds, tests, plugin fixtures and PR CI build `externals/CheatEngine.SDK`
+  through project references, with separate source lock files. Parent workspaces can override `CheatEngineSdkSourceRoot`.
+  Source builds record the SDK Engine version and Git commit from its PE metadata, preserve plugin profile checks,
+  and reject mismatched runtime identities. NuGet packaging and package-consumer checks run on the production release
+  path with `CheatEngineSdkSourceMode=false`; SDK remains a separate published dependency.
 
 ### Changed
 

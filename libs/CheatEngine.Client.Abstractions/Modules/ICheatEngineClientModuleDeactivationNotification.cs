@@ -2,6 +2,8 @@ namespace CheatEngine.Client.Modules;
 
 /// <summary>Finalizes session-long module state after module shutdown callbacks complete.</summary>
 /// <remarks>
+///     <b>Implementable.</b> Applications implement this callback and Hosting supplies the stopping Client.
+///     Its members are frozen for the 1.x line.
 ///     Hosting invokes this after every module's <see cref="ICheatEngineClientModule.OnDisabling" /> callback and before
 ///     it releases module-owned or Client-owned resources. It runs inside the activation's synchronous cleanup scope,
 ///     after <see cref="ICheatEngineClient.Stopping" /> was cancelled. Implementations may finalize persistent

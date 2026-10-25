@@ -37,6 +37,7 @@ internal static class LiveSessions
 /// <summary>S1: the x64 core on gtutorial-x86_64.</summary>
 [Collection(LiveQualificationSerialGroup.Name)]
 [Trait("Category", "LiveQualification")]
+[Trait("Category", "PackageConsumption")]
 [Trait("Session", "S1")]
 [Trait("Qualification", "Q05")]
 [Trait("Qualification", "Q16.b")]
@@ -70,6 +71,7 @@ public sealed class LiveSessionS1Tests(LiveQualificationFixture fixture)
 /// <summary>S2: lifecycle and faults, without the Auto Assembler opt-in.</summary>
 [Collection(LiveQualificationSerialGroup.Name)]
 [Trait("Category", "LiveQualification")]
+[Trait("Category", "PackageConsumption")]
 [Trait("Session", "S2")]
 [Trait("Qualification", "Q05")]
 [Trait("Qualification", "Q06")]
@@ -90,6 +92,7 @@ public sealed class LiveSessionS2Tests(LiveQualificationFixture fixture)
 /// <summary>S3: target identity on two gtutorial-x86_64 instances and a file opened as a process.</summary>
 [Collection(LiveQualificationSerialGroup.Name)]
 [Trait("Category", "LiveQualification")]
+[Trait("Category", "PackageConsumption")]
 [Trait("Session", "S3")]
 [Trait("Qualification", "Q26")]
 [Trait("Qualification", "Q28")]
@@ -110,6 +113,7 @@ public sealed class LiveSessionS3Tests(LiveQualificationFixture fixture)
 /// <summary>S4: the x86 target gtutorial-i386.</summary>
 [Collection(LiveQualificationSerialGroup.Name)]
 [Trait("Category", "LiveQualification")]
+[Trait("Category", "PackageConsumption")]
 [Trait("Session", "S4")]
 [Trait("Qualification", "Q21")]
 [Trait("Qualification", "Q28")]
@@ -127,6 +131,7 @@ public sealed class LiveSessionS4Tests(LiveQualificationFixture fixture)
 /// <summary>S5: coexistence, in both load orders.</summary>
 [Collection(LiveQualificationSerialGroup.Name)]
 [Trait("Category", "LiveQualification")]
+[Trait("Category", "PackageConsumption")]
 [Trait("Session", "S5")]
 [Trait("Qualification", "Q09")]
 [Trait("Qualification", "Q10")]
@@ -150,6 +155,7 @@ public sealed class LiveSessionS5Tests(LiveQualificationFixture fixture)
 /// <summary>S6: the template, instantiated from the packed Templates package.</summary>
 [Collection(LiveQualificationSerialGroup.Name)]
 [Trait("Category", "LiveQualification")]
+[Trait("Category", "PackageConsumption")]
 [Trait("Session", "S6")]
 [Trait("Qualification", "Q40")]
 [SupportedOSPlatform("windows")]

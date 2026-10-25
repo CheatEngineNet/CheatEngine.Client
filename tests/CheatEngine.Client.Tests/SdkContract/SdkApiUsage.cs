@@ -442,6 +442,11 @@ internal static class SdkApiUsage
 
 	private sealed class CompileOnlyPlugin : CheatEnginePlugin
 	{
+		internal static void RollBackFailedEnable()
+		{
+			BeginFailedEnableRollback();
+		}
+
 		protected override void OnEnable()
 		{
 		}
