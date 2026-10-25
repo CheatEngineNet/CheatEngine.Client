@@ -82,8 +82,8 @@ public sealed partial class WorkflowContractTests
 	private static readonly Dictionary<string, (string Sha, string Version)> CanonicalPins = new(StringComparer.Ordinal)
 	{
 		["actions/checkout"] = ("3d3c42e5aac5ba805825da76410c181273ba90b1", "v7.0.1"),
-		["actions/upload-artifact"] = ("043fb46d1a93c77aae656e7c1c64a875d1fc6a0a", "v7.0.1"),
-		["actions/download-artifact"] = ("3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c", "v8.0.1"),
+		["actions/upload-artifact"] = ("cf430e030ddbb5b0abf93d22962f4752f3646cd9", "v7.0.2"),
+		["actions/download-artifact"] = ("9000827ccba6bdab643e8b6fd33ac0654aef8333", "v8.0.2"),
 		["actions/setup-dotnet"] = ("a98b56852c35b8e3190ac28c8c2271da59106c68", "v6.0.0"),
 		["actions/setup-java"] = ("de7274f081f381c8f8158605e0321c36c376e2e6", "v6.0.1"),
 		["actions/attest"] = ("1e69f48acb82d1966a394da916b4c1698aa569d6", "v4.2.2"),
@@ -91,8 +91,8 @@ public sealed partial class WorkflowContractTests
 		["xmake-io/github-action-setup-xmake"] = ("3a1a5dddfc7fa625d9a698738334bf55655a861a", "v1.2.5"),
 		["actions/dependency-review-action"] = ("a1d282b36b6f3519aa1f3fc636f609c47dddb294", "v5.0.0"),
 		["zizmorcore/zizmor-action"] = ("cc914d7f3750a2d13d75c7f184a1060aa0e9d482", "v0.6.4"),
-		["github/codeql-action"] = ("2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2", "v4.38.2"),
-		["ossf/scorecard-action"] = ("2d1146689b8cda280b9bc96326124645441f03bc", "v2.4.4"),
+		["github/codeql-action"] = ("24c54180a607b1449ed407dd24f251e4e9147c8d", "v4.38.3"),
+		["ossf/scorecard-action"] = ("fa7117db83c52d787ae5a89f350999701505d78e", "v2.5.0"),
 		["actions/cache"] = ("55cc8345863c7cc4c66a329aec7e433d2d1c52a9", "v6.1.0")
 	};
 
@@ -324,7 +324,7 @@ public sealed partial class WorkflowContractTests
 	// ---- build-test ---------------------------------------------------------------------------------------------------
 
 	[Fact]
-	public void ReleaseLegPacksBeforeTestingAndExportsThePackageSource()
+	public void ProductionReleasePacksBeforeTestingAndExportsThePackageSource()
 	{
 		WorkflowJob buildTest = WorkflowFile.Load(CiWorkflow).Job("build-test");
 		IReadOnlyList<WorkflowStep> steps = buildTest.Steps;
@@ -335,6 +335,9 @@ public sealed partial class WorkflowContractTests
 		Assert.True(build.Index < pack.Index && pack.Index < test.Index, "build-test must run Build, then Pack, then Test.");
 		Assert.Equal("pack", pack.Id);
 		Assert.Contains("'Release'", pack.Condition ?? string.Empty, StringComparison.Ordinal);
+		Assert.Contains("inputs.production-packages", pack.Condition ?? string.Empty, StringComparison.Ordinal);
+		Assert.Equal("inputs.production-packages && 'false' || 'true'",
+			Yaml.NormalizeExpression(Yaml.Scalar(Yaml.Mapping(buildTest.Node, "env"), "CheatEngineSdkSourceMode")));
 		Assert.Contains("--no-build", pack.Run, StringComparison.Ordinal);
 		Assert.Contains("manifest.spdx.json", pack.Run, StringComparison.Ordinal);
 
@@ -348,12 +351,13 @@ public sealed partial class WorkflowContractTests
 	}
 
 	[Fact]
-	public void DebugLegExcludesPackageConsumptionTestsByTraitNeverBySkip()
+	public void SourceAndDebugLegsExcludePackageConsumptionTestsByTraitNeverBySkip()
 	{
 		WorkflowStep test = TestStep();
 		IReadOnlyList<string> tokens = Yaml.Tokens(test.Run);
 
 		Assert.Contains("Category=PackageConsumption", TraitExclusions(tokens));
+		Assert.Contains("$env:PRODUCTION_PACKAGES -ne 'true' -or $env:CONFIGURATION -eq 'Debug'", test.Run, StringComparison.Ordinal);
 		Assert.DoesNotContain("Category=PackageConsumption", TraitExclusions(Yaml.Tokens(SharedTestOptions(test.Run))));
 		Assert.Equal("on", TokenAfter(tokens, "--fail-skips"));
 		Assert.Equal("CheatEngine.Client.slnx", TokenAfter(tokens, "--solution"));

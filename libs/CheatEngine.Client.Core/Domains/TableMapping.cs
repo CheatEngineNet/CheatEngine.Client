@@ -360,7 +360,7 @@ internal static class TableMapping
 		return outcome.Problem switch
 		{
 			MemoryRecordMutationProblem.AddressListUnavailable => AddressListUnavailableMessage,
-			MemoryRecordMutationProblem.GlobalUnavailable => "A Cheat Engine Address List function is unavailable.",
+			MemoryRecordMutationProblem.GlobalUnavailable => "The required Cheat Engine Address List operation is unavailable.",
 			MemoryRecordMutationProblem.RecordNotFound => RecordNotFoundMessage,
 			MemoryRecordMutationProblem.ParentNotFound =>
 				"The requested parent Cheat Engine memory record was not found.",

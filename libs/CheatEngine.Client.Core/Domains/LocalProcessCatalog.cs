@@ -48,6 +48,13 @@ internal static class LocalProcessCatalog
 					return Cancel(out result, out failure);
 				}
 
+				// Windows reports the Idle pseudo-process as PID 0. LocalProcessId deliberately models only usable,
+				// positive process identifiers, so omit system and malformed host rows before they affect the bound.
+				if (process.Id <= 0)
+				{
+					continue;
+				}
+
 				if (Matches(request, process))
 				{
 					matches.Add(process);

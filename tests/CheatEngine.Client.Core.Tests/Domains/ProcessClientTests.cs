@@ -724,6 +724,88 @@ public sealed class ProcessClientTests
 	}
 
 	[Fact]
+	public void TryAttachRefusesAFileAsProcessTargetBeforeMutatingTheSelection()
+	{
+		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
+		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
+		ProcessClient client = new(new InlineDispatcher(), host, host.Port, host.Port, selectionLifetime);
+		ProcessSnapshot initial = client.GetCurrentProcess(TestContext.Current.CancellationToken);
+		RecordingDisposable lease = new();
+		selectionLifetime.Track(lease, initial.SelectionEpoch);
+		host.Port.TargetStatus = ProcessOperationStatus.FileAsProcessTarget;
+
+		bool succeeded = client.TryAttach(new TargetProcessId(43), out ProcessSnapshot snapshot,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(default, snapshot);
+		Assert.Equal(CheatEngineFailureKind.Unsupported, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
+		Assert.Contains("cannot restore", failure.Message, StringComparison.Ordinal);
+		Assert.Empty(host.Port.SelectCalls);
+		Assert.Equal(initial.SelectionEpoch + 1, selectionLifetime.Epoch);
+		Assert.Equal(1, lease.DisposeCount);
+	}
+
+	[Fact]
+	public void TryAttachExactNameRefusesAFileAsProcessTargetBeforeMutatingTheSelection()
+	{
+		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
+		host.LocalProcesses[43] = new LocalProcessInfo(43, "fixture-b", "C:\\fixtures\\fixture-b.exe");
+		host.NameMatches["fixture-b"] = [host.LocalProcesses[43]];
+		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
+		ProcessClient client = new(new InlineDispatcher(), host, host.Port, host.Port, selectionLifetime);
+		ProcessSnapshot initial = client.GetCurrentProcess(TestContext.Current.CancellationToken);
+		host.Port.TargetStatus = ProcessOperationStatus.FileAsProcessTarget;
+
+		bool succeeded = client.TryAttachExactName("fixture-b.exe", out ProcessSnapshot snapshot,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(default, snapshot);
+		Assert.Equal(CheatEngineFailureKind.Unsupported, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.NotStarted, failure.HostEffect);
+		Assert.Empty(host.Port.SelectCalls);
+		Assert.Equal(initial.SelectionEpoch + 1, selectionLifetime.Epoch);
+	}
+
+	[Fact]
+	public void TryAttachKeepsThePostSelectionUnknownStatusWhenThePreflightIsNotAFileTarget()
+	{
+		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
+		host.Port.SelectStatus = TargetObservations.Status(ProcessOperationStatusKind.Unknown);
+		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
+		ProcessClient client = new(new InlineDispatcher(), host, host.Port, host.Port, selectionLifetime);
+
+		bool succeeded = client.TryAttach(new TargetProcessId(43), out ProcessSnapshot snapshot,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.False(succeeded);
+		Assert.Equal(default, snapshot);
+		Assert.Equal(CheatEngineFailureKind.IndeterminateHostResult, failure.Kind);
+		Assert.Equal(CheatEngineHostEffect.Unknown, failure.HostEffect);
+		Assert.Equal([43], host.Port.SelectCalls);
+	}
+
+	[Fact]
+	public void TryAttachStillSelectsWhenThePreflightReportsNoSelectedProcess()
+	{
+		FakeProcessHost host = FakeProcessHost.CreateSelected(42, CheatEngineArchitecture.X64);
+		host.OpenedProcessId = 0;
+		host.LocalProcesses[43] = new LocalProcessInfo(43, "fixture-b", "C:\\fixtures\\fixture-b.exe");
+		using TargetSelectionLifetime selectionLifetime = CreateSelectionLifetime();
+		ProcessClient client = new(new InlineDispatcher(), host, host.Port, host.Port, selectionLifetime);
+
+		bool succeeded = client.TryAttach(new TargetProcessId(43), out ProcessSnapshot snapshot,
+			out CheatEngineFailure failure, TestContext.Current.CancellationToken);
+
+		Assert.True(succeeded);
+		Assert.Equal(default, failure);
+		Assert.Equal(new TargetProcessId(43), snapshot.Id);
+		Assert.Equal([43], host.Port.SelectCalls);
+	}
+
+	[Fact]
 	[Trait("Qualification", "Q30.a")]
 	public void ARefusedAttachStillMovesTheSelectionEpochToWhatCheatEngineNowSelects()
 	{

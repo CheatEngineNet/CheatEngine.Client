@@ -25,7 +25,17 @@ ship.
 
 ### Added
 
+- **Pinned SDK submodule.** Repository builds, tests, plugin fixtures and PR CI build `externals/CheatEngine.SDK`
+  through project references, with separate source lock files. Parent workspaces can override `CheatEngineSdkSourceRoot`.
+  Source builds record the SDK Engine version and Git commit from its PE metadata, preserve plugin profile checks,
+  and reject mismatched runtime identities. NuGet packaging and package-consumer checks run on the production release
+  path with `CheatEngineSdkSourceMode=false`; SDK remains a separate published dependency.
+
 ### Changed
+
+- **Local process enumeration.** Ignore nonpositive operating-system process IDs, including the Windows idle
+  pseudo-process, before filtering and truncation. Unfiltered listings now return attachable process identities
+  instead of failing when the local catalog contains PID 0.
 
 ### Security
 

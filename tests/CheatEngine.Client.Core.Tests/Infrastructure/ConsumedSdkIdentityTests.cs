@@ -144,6 +144,41 @@ public sealed class ConsumedSdkIdentityTests
 	}
 
 	[Fact]
+	public void SourceIdentityExactLoadedEngineIsSatisfiedWithoutANuGetHash()
+	{
+		ConsumedSdkIdentity identity = new(SdkVersion, SdkCommit, null, SdkSupportedMajor, SdkVersion + "+" + SdkCommit, true);
+
+		Assert.True(identity.IsEmbedded);
+		Assert.True(identity.IsSource);
+		Assert.Null(identity.ContentHashSha512);
+		Assert.True(identity.ExactReviewedIdentity);
+		Assert.Equal(ClientCapabilityEvidenceState.Satisfied, identity.PackageGate.State);
+		Assert.Equal("the consumed source build", identity.IdentityLabel);
+	}
+
+	[Theory]
+	[InlineData("2.0.0+1111111111111111111111111111111111111111")]
+	[InlineData("2.1.0+1111111111111111111111111111111111111111")]
+	[InlineData("3.0.0+1111111111111111111111111111111111111111")]
+	public void SourceIdentityDifferentBuildIsMissingEvenWithinTheSupportedMajor(string loaded)
+	{
+		ConsumedSdkIdentity identity = new(SdkVersion, SdkCommit, null, SdkSupportedMajor, loaded, true);
+
+		Assert.True(identity.IsEmbedded);
+		Assert.False(identity.ExactReviewedIdentity);
+		Assert.Equal(ClientCapabilityEvidenceState.Missing, identity.PackageGate.State);
+	}
+
+	[Fact]
+	public void SourceIdentityMissingCommitCannotEstablishTheDependencyIdentity()
+	{
+		ConsumedSdkIdentity identity = new(SdkVersion, null, null, SdkSupportedMajor, SdkVersion, true);
+
+		Assert.False(identity.IsEmbedded);
+		Assert.Equal(ClientCapabilityEvidenceState.Unknown, identity.PackageGate.State);
+	}
+
+	[Fact]
 	public void CurrentIdentityCarriesTheSupportedMajorOfItsPin()
 	{
 		// The Core assembly under test embeds the pin and the supported major of eng/CheatEngineSdk.props, and the test

@@ -1,4 +1,23 @@
 <Project>
+  <!-- NuGet adds transitive ProjectReferences during execution, after the project body's direct references.
+       Normalize both sets before MSBuild assigns configurations. The global override must also reach references
+       inside the SDK, whose projects are not listed in Client's solution. -->
+  <Target Name="CheatEngineClientNormalizeSourceSdkReferences" AfterTargets="IncludeTransitiveProjectReferences"
+          Condition="'$(CheatEngineSdkSourceMode)' == 'true'">
+    <ItemGroup>
+      <ProjectReference Update="@(ProjectReference)"
+                        Condition="$([System.String]::Copy('%(ProjectReference.Filename)').StartsWith('CheatEngine.SDK.'))">
+        <SetPlatform>Platform=AnyCPU</SetPlatform>
+        <SetConfiguration>Configuration=$(Configuration)</SetConfiguration>
+        <AdditionalProperties>%(ProjectReference.AdditionalProperties);ShouldUnsetParentConfigurationAndPlatform=false</AdditionalProperties>
+      </ProjectReference>
+    </ItemGroup>
+  </Target>
+  <Target Name="CheatEngineClientRefuseSourceDependencyPackage" BeforeTargets="Pack;GenerateNuspec"
+          Condition="'$(CheatEngineSdkSourceMode)' == 'true'">
+    <Error Code="CHEATENGINECLIENT9051"
+           Text="Source SDK mode builds and tests the pinned submodule. For production packaging, restore, build and pack with CheatEngineSdkSourceMode=false to validate the reviewed NuGet dependency graph."/>
+  </Target>
   <!-- Imported after the project body and the SDK targets, so conditions here see final property values. -->
 
   <Target Name="CheatEngineClientRequireProjectReadme"
@@ -69,7 +88,7 @@
     <Error Condition="'$(MSBuildProjectName)' == 'CheatEngine.Client' and '$(_CheatEngineClientProjectReferences)' != 'CheatEngine.Client.Fluent;CheatEngine.Client.Hosting'"
            Code="CHEATENGINECLIENT9015"
            Text="CheatEngine.Client must reference only CheatEngine.Client.Fluent and CheatEngine.Client.Hosting."/>
-    <Error Condition="('$(MSBuildProjectName)' == 'CheatEngine.Client.Abstractions' or '$(MSBuildProjectName)' == 'CheatEngine.Client.Core' or '$(MSBuildProjectName)' == 'CheatEngine.Client.Hosting') and '@(_CheatEngineClientSdkRangeReference)' == ''"
+    <Error Condition="'$(CheatEngineSdkSourceMode)' != 'true' and ('$(MSBuildProjectName)' == 'CheatEngine.Client.Abstractions' or '$(MSBuildProjectName)' == 'CheatEngine.Client.Core' or '$(MSBuildProjectName)' == 'CheatEngine.Client.Hosting') and '@(_CheatEngineClientSdkRangeReference)' == ''"
            Code="CHEATENGINECLIENT9016"
            Text="SDK-facing published packages must declare CheatEngine.SDK as $(CheatEngineSdkVersionRange), the range of eng/CheatEngineSdk.props."/>
   </Target>
@@ -200,7 +219,7 @@
     TypeLoadException, which neither package validation nor the public API baselines can see. The seven packages share
     one version (CHEATENGINECLIENT9019), so each one requires exactly that version of every Client package it depends on.
 
-    The .NET SDK 10.0.401 pack targets (NuGet.Build.Tasks.Pack.targets, internal and undocumented; eng/CheatEngineSdk.props
+    The .NET SDK 10.0.402 pack targets (NuGet.Build.Tasks.Pack.targets, internal and undocumented; eng/CheatEngineSdk.props
     asks for a re-check after a .NET SDK bump): GenerateNuspec depends on _GetProjectReferenceVersions, which reads the
     project references of project.assets.json, calls _GetProjectVersion on each and collects the results as
     _ProjectReferencesWithVersions items, whose ProjectVersion metadata is the referenced project's $(PackageVersion).

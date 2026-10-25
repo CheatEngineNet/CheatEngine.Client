@@ -8,11 +8,10 @@ using CheatEngine.Client.Tests.Infrastructure;
 namespace CheatEngine.Client.Tests.SdkContract;
 
 /// <summary>
-///     The consumed CheatEngine.SDK identity that Client.Core embeds for its runtime package gate (audit ADR-09, ADR-10,
-///     A21-35) is the locked and restored package: the version and content hash of the resolved lock-file entry, the pin
-///     of <c>eng/CheatEngineSdk.props</c>, the source commit of the CheatEngine.SDK.Engine assembly actually loaded, and
-///     the supported major of <c>eng/CheatEngineSdk.props</c>. A build that cannot embed it fails with
-///     <c>CHEATENGINECLIENT9050</c>.
+///     The consumed CheatEngine.SDK identity that Client.Core embeds for its runtime gate (audit ADR-09, ADR-10,
+///     A21-35) comes from the pinned source submodule in ordinary builds: its Engine assembly contributes the semantic
+///     version and Git commit, while the build records the source kind and supported major without inventing a NuGet
+///     content hash. Production package mode verifies the separate locked and restored package identity.
 /// </summary>
 /// <remarks>
 ///     The guard cases run only the evaluation and the guard target of <c>CheatEngine.Client.Core.csproj</c> (nothing is
@@ -23,38 +22,56 @@ public sealed class ConsumedSdkIdentityEmbeddingTests
 	private const string MetadataPrefix = "CheatEngine.Client.ConsumedSdk.";
 	private const string CoreProject = "libs/CheatEngine.Client.Core/CheatEngine.Client.Core.csproj";
 	private const string CoreLockFile = "libs/CheatEngine.Client.Core/packages.lock.json";
-	private const string IdentityGuard = "CheatEngineClientRequireConsumedSdkIdentity";
+	private const string PackageIdentityGuard = "CheatEngineClientRequireConsumedSdkIdentity";
+	private const string SourceRootGuard = "CheatEngineClientValidateSdkSourceRoot";
 
 	[Fact]
 	[Trait("Qualification", "Q48")]
-	public void EmbeddedSdkIdentityEqualsTheLockedAndLoadedSdkPackage()
+	public void EmbeddedSdkIdentityMatchesTheBuildDependencyKind()
 	{
-		using JsonDocument lockFile = JsonDocument.Parse(File.ReadAllText(RepositoryLayout.Combine(CoreLockFile)));
-		JsonElement lockedSdk = lockFile.RootElement.GetProperty("dependencies").GetProperty("net10.0")
-			.GetProperty("CheatEngine.SDK");
 		string? loaded = ClientAssemblyCatalog.Load("CheatEngine.SDK.Engine")
 			.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
 		Dictionary<string, string> embedded = ReadEmbeddedMetadata();
 
 		Assert.NotNull(loaded);
-		Assert.Equal(
-			new Dictionary<string, string>(StringComparer.Ordinal)
-			{
-				[MetadataPrefix + "Version"] = lockedSdk.GetProperty("resolved").GetString()!,
-				[MetadataPrefix + "SourceCommit"] = loaded[(loaded.IndexOf('+', StringComparison.Ordinal) + 1)..],
-				[MetadataPrefix + "ContentHashSha512"] = lockedSdk.GetProperty("contentHash").GetString()!,
-				[MetadataPrefix + "SupportedMajor"] = SdkPin.SupportedMajor.ToString(CultureInfo.InvariantCulture)
-			},
-			embedded);
-		Assert.Equal(SdkPin.Version, embedded[MetadataPrefix + "Version"]);
+		if (embedded.TryGetValue(MetadataPrefix + "Kind", out string? kind))
+		{
+			Assert.Equal("source", kind);
+			Assert.Equal(
+				new Dictionary<string, string>(StringComparer.Ordinal)
+				{
+					[MetadataPrefix + "Kind"] = "source",
+					[MetadataPrefix + "Version"] = loaded[..loaded.IndexOf('+', StringComparison.Ordinal)],
+					[MetadataPrefix + "SourceCommit"] = loaded[(loaded.IndexOf('+', StringComparison.Ordinal) + 1)..],
+					[MetadataPrefix + "SupportedMajor"] = SdkPin.SupportedMajor.ToString(CultureInfo.InvariantCulture)
+				},
+				embedded);
+		}
+		else
+		{
+			using JsonDocument lockFile = JsonDocument.Parse(File.ReadAllText(RepositoryLayout.Combine(CoreLockFile)));
+			JsonElement lockedSdk = lockFile.RootElement.GetProperty("dependencies").GetProperty("net10.0")
+				.GetProperty("CheatEngine.SDK");
+			Assert.Equal(
+				new Dictionary<string, string>(StringComparer.Ordinal)
+				{
+					[MetadataPrefix + "Version"] = lockedSdk.GetProperty("resolved").GetString()!,
+					[MetadataPrefix + "SourceCommit"] = loaded[(loaded.IndexOf('+', StringComparison.Ordinal) + 1)..],
+					[MetadataPrefix + "ContentHashSha512"] = lockedSdk.GetProperty("contentHash").GetString()!,
+					[MetadataPrefix + "SupportedMajor"] = SdkPin.SupportedMajor.ToString(CultureInfo.InvariantCulture)
+				},
+				embedded);
+			Assert.Equal(SdkPin.Version, embedded[MetadataPrefix + "Version"]);
+		}
 		Assert.Equal($"{embedded[MetadataPrefix + "Version"]}+{embedded[MetadataPrefix + "SourceCommit"]}", loaded);
 	}
 
 	[Fact]
 	[Trait("Qualification", "Q48")]
-	public async Task CommittedLockAndRestoredPackagePassTheConsumedSdkIdentityGuardAsync()
+	public async Task PinnedSourceSdkPassesTheConsumedSdkIdentityGuardAsync()
 	{
-		DotNetProcessResult result = await RunGuardAsync();
+		DotNetProcessResult result = await RunGuardAsync(SourceRootGuard,
+			"-p:CheatEngineSdkSourceMode=true", "-p:CheatEngineImportSourceSettings=false");
 
 		Assert.True(result.ExitCode == 0, result.ToString());
 		Assert.DoesNotContain("CHEATENGINECLIENT9050", result.StandardOutput, StringComparison.Ordinal);
@@ -62,13 +79,41 @@ public sealed class ConsumedSdkIdentityEmbeddingTests
 
 	[Fact]
 	[Trait("Qualification", "Q48")]
-	public async Task BuildThatCannotEmbedTheConsumedSdkIdentityFailsWithCHEATENGINECLIENT9050Async()
+	public async Task SourceBuildWithoutThePinnedSdkReportsTheSubmoduleRecoveryCommandAsync()
+	{
+		using TemporaryDirectory emptySdkRoot = new("empty-sdk-source-root");
+		DotNetProcessResult result = await RunGuardAsync(SourceRootGuard,
+			"-p:CheatEngineSdkSourceMode=true", "-p:CheatEngineImportSourceSettings=false",
+			$"-p:CheatEngineSdkSourceRoot={emptySdkRoot.Path}");
+
+		Assert.True(result.ExitCode != 0, result.ToString());
+		Assert.Contains("error CHEATENGINECLIENT9051", result.StandardOutput, StringComparison.Ordinal);
+		Assert.Contains("git submodule update --init --recursive", result.StandardOutput, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q48")]
+	[Trait("Category", "PackageConsumption")]
+	public async Task ProductionPackageModePassesTheConsumedSdkIdentityGuardAsync()
+	{
+		DotNetProcessResult result = await RunGuardAsync(PackageIdentityGuard, "-p:CheatEngineSdkSourceMode=false");
+
+		Assert.True(result.ExitCode == 0, result.ToString());
+		Assert.DoesNotContain("CHEATENGINECLIENT9050", result.StandardOutput, StringComparison.Ordinal);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q48")]
+	[Trait("Category", "PackageConsumption")]
+	public async Task ProductionPackageModeFailsWhenItCannotEmbedTheConsumedSdkIdentityAsync()
 	{
 		using TemporaryDirectory emptyPackageRoot = new("empty-package-root");
 		string driftedPin = $"{SdkPin.Major}.{SdkPin.Minor}.{SdkPin.Patch + 1}";
 
-		DotNetProcessResult packageMissing = await RunGuardAsync($"-p:NuGetPackageRoot={emptyPackageRoot.Path}");
-		DotNetProcessResult pinDrift = await RunGuardAsync($"-p:CheatEngineSdkVersion={driftedPin}");
+		DotNetProcessResult packageMissing = await RunGuardAsync(PackageIdentityGuard,
+			"-p:CheatEngineSdkSourceMode=false", $"-p:NuGetPackageRoot={emptyPackageRoot.Path}");
+		DotNetProcessResult pinDrift = await RunGuardAsync(PackageIdentityGuard,
+			"-p:CheatEngineSdkSourceMode=false", $"-p:CheatEngineSdkVersion={driftedPin}");
 
 		Assert.True(packageMissing.ExitCode != 0, packageMissing.ToString());
 		Assert.Contains("error CHEATENGINECLIENT9050", packageMissing.StandardOutput, StringComparison.Ordinal);
@@ -80,11 +125,11 @@ public sealed class ConsumedSdkIdentityEmbeddingTests
 			StringComparison.Ordinal);
 	}
 
-	private static Task<DotNetProcessResult> RunGuardAsync(params string[] properties)
+	private static Task<DotNetProcessResult> RunGuardAsync(string target, params string[] properties)
 	{
 		List<string> arguments =
 		[
-			"msbuild", RepositoryLayout.Combine(CoreProject), $"-t:{IdentityGuard}", "-nologo", "-nodeReuse:false",
+			"msbuild", RepositoryLayout.Combine(CoreProject), $"-t:{target}", "-nologo", "-nodeReuse:false",
 			"-verbosity:minimal"
 		];
 		arguments.AddRange(properties);

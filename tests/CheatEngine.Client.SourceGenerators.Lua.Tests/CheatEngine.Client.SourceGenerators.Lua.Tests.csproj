@@ -15,15 +15,25 @@
   </ItemGroup>
 
   <!--
-    RealSdkGeneratorCompositionTests runs the CheatEngine.SDK LuaBindings generator of the restored, pinned package next to
-    the Client generator (CRIT-07). The folder is resolved here, from the NuGet package root and the pin, never from a
-    user path.
+    The real SDK generator composes with Client's generator. Source builds copy the submodule generator and its Shared
+    dependency as normal assembly references; production builds test the generator from the reviewed SDK package.
   -->
-  <ItemGroup>
+  <ItemGroup Condition="'$(CheatEngineSdkSourceMode)' != 'true'">
     <AssemblyMetadata Include="CheatEngine.Client.Tests.SdkGeneratorDirectory"
                       Value="$(NuGetPackageRoot)cheatengine.sdk/$(CheatEngineSdkVersion)/analyzers/dotnet/cs"/>
     <AssemblyMetadata Include="CheatEngine.Client.Tests.SdkVersion" Value="$(CheatEngineSdkVersion)"/>
   </ItemGroup>
+
+  <ItemGroup Condition="'$(CheatEngineSdkSourceMode)' == 'true'">
+    <ProjectReference Include="$(_CheatEngineSdkSourceDirectory)source-generators/CheatEngine.SDK.SourceGenerators.LuaBindings/CheatEngine.SDK.SourceGenerators.LuaBindings.csproj"/>
+  </ItemGroup>
+  <Target Name="CheatEngineClientSourceGeneratorTestIdentity" BeforeTargets="GetAssemblyAttributes"
+          Condition="'$(CheatEngineSdkSourceMode)' == 'true'">
+    <ItemGroup>
+      <AssemblyMetadata Include="CheatEngine.Client.Tests.SdkGeneratorDirectory" Value="$(TargetDir)"/>
+      <AssemblyMetadata Include="CheatEngine.Client.Tests.SdkGeneratorKind" Value="source"/>
+    </ItemGroup>
+  </Target>
 
   <ItemGroup>
     <ProjectReference Include="../../source-generators/CheatEngine.Client.SourceGenerators.Lua/CheatEngine.Client.SourceGenerators.Lua.csproj"/>

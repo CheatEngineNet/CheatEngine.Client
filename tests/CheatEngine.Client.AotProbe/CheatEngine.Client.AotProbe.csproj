@@ -15,4 +15,6 @@
                       ReferenceOutputAssembly="false"/>
   </ItemGroup>
 
+  <Import Project="../../eng/SdkSourcePlugin.props" Condition="'$(CheatEngineSdkSourceMode)' == 'true'"/>
+
 </Project>

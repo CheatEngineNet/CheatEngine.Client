@@ -24,6 +24,40 @@ The aggregate `ICheatEngineClient` gives an enabled plugin access to runtime fac
 dispatch, process selection, typed memory, AOB scans, inspection, address tables, and protected Lua operations. It
 never exposes a `LuaState`, CE object handle, raw native pointer, or SDK ownership wrapper to plugin code.
 
+### Building with an SDK source checkout
+
+Repository builds and tests use the SDK Git submodule pinned at `externals/CheatEngine.SDK`. Clone with
+`git clone --recurse-submodules`, or run `git submodule update --init --recursive` in an existing checkout.
+Keep its full history and tags for MinVer. Updating the SDK means reviewing and committing a new gitlink;
+ordinary builds never follow a moving branch or download the SDK from NuGet.
+
+A parent workspace can override the submodule by placing `CheatEngine.Source.props` beside the Client checkout:
+
+```xml
+<Project>
+  <PropertyGroup>
+    <CheatEngineSdkSourceRoot>$(MSBuildThisFileDirectory)CheatEngine.SDK</CheatEngineSdkSourceRoot>
+    <CheatEngineSourceLockFileDirectory>$(MSBuildThisFileDirectory)locks</CheatEngineSourceLockFileDirectory>
+  </PropertyGroup>
+</Project>
+```
+
+The SDK root must contain its Engine and Hosting runtime projects. Source dependency locks live in `eng/locks/source/`
+unless the parent selects another directory. Parent-workspace settings are read during both restore and build;
+`CheatEngineImportSourceSettings=false` disables that import and selects the nested submodule instead.
+Command-line properties can select an explicit SDK checkout.
+
+Source consumers reference the Client facade project. A plugin also directly references the SDK Engine and Hosting
+projects, imports the SDK and Client consumer build assets, and references their plugin generators as analyzers;
+project references do not propagate NuGet build assets or analyzers. The SDK's checked-in native bridge remains part
+of the plugin output. Source mode reads the consumed Engine PE metadata without executing it and requires that exact
+version and commit at runtime. It does not claim a NuGet package hash or native qualification.
+
+NuGet is reserved for production releases. Set `CheatEngineSdkSourceMode=false` consistently for release restore,
+build, pack and package-consumer tests. `CHEATENGINECLIENT9051` refuses source-mode packing or an invalid SDK source
+root. Production packages retain their separate SDK NuGet dependency and require a published SDK containing every
+API Client uses; a passing source build does not establish release readiness.
+
 ## Why this project exists
 
 `CheatEngine.SDK` deliberately owns the difficult boundary: the generated Cheat Engine entry point, Lua protection,
@@ -60,7 +94,7 @@ A plugin project that consumes the packages needs:
 |---|---|
 | Target framework | `net10.0` |
 | Language | C# 14 (`<LangVersion>14.0</LangVersion>`) |
-| .NET SDK | 10.0.401 or later: the Lua generator packed in Hosting is compiled against Roslyn 5.9.0; an older compiler does not run it and reports only warning CS9057 |
+| .NET SDK | 10.0.402 or later: the Lua generator packed in Hosting is compiled against Roslyn 5.9.0; an older compiler does not run it and reports only warning CS9057 |
 | Platform | Windows x64; `PlatformTarget` is `x64` or `AnyCPU` |
 | Cheat Engine host | 7.7.0.10621 x64 (`cheatengine-x86_64.exe`), loading the plugin through its managed .NET host |
 | Plugin form | Framework-dependent managed plugin output folder, never a Native AOT DLL |
@@ -71,8 +105,8 @@ Building this repository needs:
 | Repository build requirement | Value |
 |---|---|
 | Operating system | Windows x64 |
-| .NET SDK | 10.0.401 exactly (`global.json` `rollForward: disable`); install it with `winget install Microsoft.DotNet.SDK.10 --version 10.0.401` |
-| `CheatEngine.SDK` | 2.0.0, pinned in `eng/CheatEngineSdk.props` and in every committed lock file |
+| .NET SDK | 10.0.402 exactly (`global.json` `rollForward: disable`); install it with `winget install Microsoft.DotNet.SDK.10 --version 10.0.402` |
+| `CheatEngine.SDK` | The Git commit pinned by `externals/CheatEngine.SDK`; production packages separately retain the reviewed 2.0.0 NuGet pin until the release dependency is updated |
 | Tools | PowerShell 7.4 or later and Git, to run the CI checks locally ([CONTRIBUTING](CONTRIBUTING.md#prerequisites)) |
 | Cheat Engine | Only for the opt-in live qualification tests, never for an ordinary build or test run |
 
@@ -344,7 +378,8 @@ dependency of `CheatEngine.Client.Extensions.DependencyInjection`.
     ending in `Kind`, `Status`, `State`, `Effect` or `Scope`) has `Unknown = 0`: handle a value you do not recognize
     like `Unknown`. An option enum has a valid default at 0 and never an outcome suffix.
 - **Frozen for all of 1.x:** the *Implementable* interfaces (`ILuaModule`, `ILuaOperation<TResult>`,
-  `ILuaResultMapper<TSource, TResult>`, `IMemoryCodec<T>` and `ICheatEngineClientModule`) never gain, lose or change a
+  `ILuaResultMapper<TSource, TResult>`, `IMemoryCodec<T>`, `ICheatEngineClientModule`,
+  `ICheatEngineClientModuleDeactivationNotification` and `ICheatEngineClientResourceCleanup`) never gain, lose or change a
   member.
 - **Experimental APIs**, marked `[Experimental("CECLIENT500x")]`, can change or be removed in a minor release until
   their live qualification passes; using one is an explicit opt-in to that diagnostic.
@@ -375,7 +410,7 @@ files, package validation, and the probe described above.
 
 ## Build and validation
 
-The repository pins the .NET SDK in [global.json](global.json) (10.0.401 exactly), uses Central Package Management, and
+The repository pins the .NET SDK in [global.json](global.json) (10.0.402 exactly), uses Central Package Management, and
 commits NuGet lock files. [CONTRIBUTING](CONTRIBUTING.md#build-and-test) gives the exact Windows validation sequence,
 from the locked restore to the package consumption tests and the Native AOT probe, and describes each job of the
 required `CI / Gate` check ([Continuous integration](CONTRIBUTING.md#continuous-integration)).

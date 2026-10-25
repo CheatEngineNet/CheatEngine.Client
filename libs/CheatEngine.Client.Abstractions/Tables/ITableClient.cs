@@ -507,7 +507,7 @@ public interface ITableClient
 	public MemoryRecordSnapshot SetActive(MemoryRecordId id, bool isActive,
 		CancellationToken cancellationToken = default);
 
-	/// <summary>Moves one record under a parent, or passes <see langword="null" /> to restore it to the root.</summary>
+	/// <summary>Requests a parent relationship for one record and copies its resulting state.</summary>
 	/// <param name="childId">The identifier of the record to move.</param>
 	/// <param name="parentId">The identifier of the new parent, or <see langword="null" /> for the root.</param>
 	/// <param name="record">The copied moved record on success; otherwise the default value.</param>
@@ -521,6 +521,11 @@ public interface ITableClient
 	///     <see cref="CheatEngineFailureKind.ResultLimitExceeded" />, and an absent record or parent is
 	///     <see cref="CheatEngineFailureKind.NotFound" />; all of them report <see cref="CheatEngineHostEffect.NotStarted" />.
 	///     The refusals described under <see cref="TryDelete" /> apply too.
+	///     Cheat Engine 7.7 exposes no supported operation to detach an existing child to the root. SDK builds with
+	///     verified parent assignment refuse that request with <see cref="CheatEngineFailureKind.CapabilityUnavailable" />
+	///     and <see cref="CheatEngineHostEffect.NotStarted" />; a record already at the root succeeds without a setter.
+	///     Older packaged SDK builds can report success for an ignored assignment. These checks require the corrected
+	///     SDK implementation; changing the Client's failure mapping alone does not add them.
 	/// </remarks>
 	/// <exception cref="CheatEngineActivationExpiredException">The activation has ended.</exception>
 	/// <exception cref="CheatEngineInvalidStateException">
@@ -529,7 +534,7 @@ public interface ITableClient
 	public bool TrySetParent(MemoryRecordId childId, MemoryRecordId? parentId, out MemoryRecordSnapshot record,
 		out CheatEngineFailure failure, CancellationToken cancellationToken = default);
 
-	/// <summary>Moves one record under a parent, or restores it to the root, and returns its copied post-change state.</summary>
+	/// <summary>Requests a parent relationship and returns the copied record; see <see cref="TrySetParent" /> for host limitations.</summary>
 	/// <param name="childId">The identifier of the record to move.</param>
 	/// <param name="parentId">The identifier of the new parent, or <see langword="null" /> for the root.</param>
 	/// <param name="cancellationToken">Observed before the move is dispatched to Cheat Engine's main thread.</param>

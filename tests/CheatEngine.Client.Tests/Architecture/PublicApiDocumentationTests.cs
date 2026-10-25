@@ -94,7 +94,9 @@ public sealed class PublicApiDocumentationTests
 		"CheatEngine.Client.Lua.ILuaOperation`1",
 		"CheatEngine.Client.Lua.ILuaResultMapper`2",
 		"CheatEngine.Client.Memory.IMemoryCodec`1",
-		"CheatEngine.Client.Modules.ICheatEngineClientModule"
+		"CheatEngine.Client.Modules.ICheatEngineClientModule",
+		"CheatEngine.Client.Modules.ICheatEngineClientModuleDeactivationNotification",
+		"CheatEngine.Client.Modules.ICheatEngineClientResourceCleanup"
 	};
 
 	/// <summary>

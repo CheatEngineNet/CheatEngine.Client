@@ -1,24 +1,25 @@
 # Contributing to CheatEngine.Client
 
 Thanks for contributing. CheatEngine.Client is a Windows x64, .NET 10 layer for in-process Cheat Engine 7.7 plugins,
-built on the `CheatEngine.SDK` package. Keep changes focused, preserve existing patterns, and update the documentation
+built on the pinned `CheatEngine.SDK` Git submodule. Keep changes focused, preserve existing patterns, and update the documentation
 and tests that describe the behavior you change.
 
 ## Prerequisites
 
 - Windows x64
-- .NET SDK 10.0.401 exactly, as pinned in [`global.json`](global.json). `rollForward` is `disable`, so any other
+- .NET SDK 10.0.402 exactly, as pinned in [`global.json`](global.json). `rollForward` is `disable`, so any other
   SDK, a newer one included, stops the build with the install command:
-  `winget install Microsoft.DotNet.SDK.10 --version 10.0.401`
+  `winget install Microsoft.DotNet.SDK.10 --version 10.0.402`
 - PowerShell 7.4 or later, to run the CI checks locally (actionlint, zizmor, the lock-file check)
 - Git
 
 ## Build and test
 
 Run these commands from the repository root before every commit. Restores are locked: they fail when a project's
-dependencies no longer match its committed `packages.lock.json`.
+dependencies no longer match the committed source locks in `eng/locks/source/`.
 
 ```powershell
+git submodule update --init --recursive
 dotnet restore CheatEngine.Client.slnx --locked-mode
 dotnet build CheatEngine.Client.slnx -c Debug --no-restore
 dotnet test --solution CheatEngine.Client.slnx -c Debug --no-build --fail-skips on --filter-not-trait "Category=PackageConsumption" --filter-not-trait "Category=LiveQualification"
@@ -27,23 +28,27 @@ dotnet build CheatEngine.Client.slnx -c Release --no-restore
 
 The test command is the one of the CI Debug leg: it runs every test except the package consumption tests
 (`Category=PackageConsumption`) and the live qualification tests (`Category=LiveQualification`); the Release build
-compiles the configuration that is packed. A skipped test fails the run: an environment-dependent test is fixed or
+also builds the submodule graph. Normal PR CI tests both configurations without package consumption. A skipped test fails the run: an environment-dependent test is fixed or
 deleted, never skipped. The live qualification tests start a sandboxed Cheat Engine, so every command here, like CI,
 excludes them by trait; run without that filter, they fail with the instructions of their opt-in (see
 [Live qualification](#live-qualification)).
 
-The package consumption tests consume the exact packages you pack, as the CI Release leg does. Run them as well when a
-change reaches what is packed: a project file, `eng/`, `Directory.Build.*`, `Directory.Packages.props`, `templates/`,
-a packed README, or a public API that the template or a README snippet uses. The Native AOT probe completes the set:
+NuGet and package-consumption tests belong to production release validation. The release workflow enables
+`production-packages` and requires the exact packages it packs to pass consumption checks. Before preparing a release,
+update the separate SDK NuGet pin to a published version containing every API used by Client, then validate this graph:
 
 ```powershell
-Remove-Item artifacts/nuget -Recurse -Force -ErrorAction SilentlyContinue
+$env:CheatEngineSdkSourceMode = 'false'
+dotnet restore CheatEngine.Client.slnx --locked-mode
+dotnet build CheatEngine.Client.slnx -c Release --no-restore
 dotnet pack CheatEngine.Client.slnx -c Release --no-build -o artifacts/nuget
 $env:CHEATENGINE_CLIENT_PACKAGE_SOURCE = (Resolve-Path artifacts/nuget).Path
 dotnet test --solution CheatEngine.Client.slnx -c Release --no-build --fail-skips on --filter-not-trait "Category=LiveQualification"
 Remove-Item Env:CHEATENGINE_CLIENT_PACKAGE_SOURCE
+dotnet restore tests/CheatEngine.Client.AotProbe/CheatEngine.Client.AotProbe.csproj --locked-mode
 dotnet publish tests/CheatEngine.Client.AotProbe/CheatEngine.Client.AotProbe.csproj -c Release --no-restore -o artifacts/aot-probe
 ./artifacts/aot-probe/CheatEngine.Client.AotProbe.exe
+Remove-Item Env:CheatEngineSdkSourceMode
 ```
 
 Without `CHEATENGINE_CLIENT_PACKAGE_SOURCE`, the package consumption tests pack the repository themselves, which is
@@ -84,7 +89,11 @@ version.
 
 ### The consumed CheatEngine.SDK
 
-The Client consumes exactly one `CheatEngine.SDK` package, pinned in the single reviewed source
+Ordinary builds consume the SDK submodule. Review its changes, check out the intended commit, regenerate affected
+source locks one project at a time, and commit the gitlink together with those locks. Parent workspaces can select
+another SDK checkout as described in the README; standalone CI always uses the committed submodule.
+
+Production releases consume exactly one `CheatEngine.SDK` package, pinned in the single reviewed source
 [`eng/CheatEngineSdk.props`](eng/CheatEngineSdk.props): never write an SDK version literal anywhere else. There is no
 script for the bump; the props file's own header documents the procedure, all of it in one pull request: update
 `CheatEngineSdkVersion`, update the reviewed identity literals it names
@@ -131,11 +140,11 @@ on every push, including on drafts, but it is advisory: it never blocks a merge 
 | Check (`CI / ...`)             | Runner         | What it does                                                                                                                    |
 |--------------------------------|----------------|-----------------------------------------------------------------------------------------------------------------------------------|
 | `Build and test (Debug)`       | `windows-2025` | Locked restore, build, one `dotnet test --solution` run with coverage (package consumption and live qualification tests excluded by trait) |
-| `Build and test (Release)`     | `windows-2025` | Locked restore, build, pack (exact package set, embedded SBOM), benchmark discovery, one test run against the packed packages (live qualification tests excluded by trait) |
+| `Build and test (Release)`     | `windows-2025` | Locked restore, source build, benchmark discovery and portable tests. Production releases additionally pack and validate the exact package set and embedded SBOM. |
 | `Native AOT publication probe` | `windows-2025` | Publishes and runs `tests/CheatEngine.Client.AotProbe`: trim and Native AOT compatibility of the Client graph, not a Cheat Engine load |
 | `Sonar / Analyze`              | `windows-2025` | SonarQube Cloud CI-based analysis with the Debug coverage; waits for the quality gate except on pushes to `main`                  |
 | `Lint`                         | `ubuntu-24.04` | actionlint and the offline zizmor audits over the workflows                                                                       |
-| `Format`                       | `ubuntu-24.04` | `dotnet format whitespace . --folder --verify-no-changes --exclude artifacts`                                                     |
+| `Format`                       | `ubuntu-24.04` | `dotnet format whitespace . --folder --verify-no-changes --exclude artifacts externals`                                           |
 | `Dependency review`            | `ubuntu-24.04` | On pull requests, reviews dependency changes against `.github/dependency-review-config.yml`; a notice on other events             |
 | `Lock files`                   | `windows-2025` | `dotnet restore CheatEngine.Client.slnx --locked-mode`                                                                            |
 | `Gate`                         | `ubuntu-24.04` | The required check described above                                                                                                |
@@ -284,6 +293,9 @@ loaded; it reads assembly attributes only. Its reason says whether the loaded as
 a distinction the qualification gate needs (a receipt covers only the tuple it was produced with). A build that cannot
 embed that identity fails with `CHEATENGINECLIENT9050`.
 
+Source builds instead embed the Engine assembly's exact version and Git commit with `Kind=source` and no NuGet hash.
+The runtime gate requires that exact source identity. The source build does not inherit package qualification evidence.
+
 **Instructions** (`CECLIENT5003`): the internal `AssemblyClient` runs each call in one dispatched callback behind one
 `LuaAdmission`, observes the instruction profile once (`InstructionProfiles.TryObserveCurrent`), refuses an address
 wider than that profile before any instruction function of Cheat Engine is called, and passes the same profile to
@@ -414,6 +426,10 @@ never a Cheat Engine load. CI runs static and managed tests only; the Cheat Engi
 runs in CI.
 
 ### Live qualification
+
+This runner qualifies production packages and templates only. It requires an explicit
+`CHEATENGINE_CLIENT_PACKAGE_SOURCE` artifact directory as well as the live-operation opt-in; it never self-packs
+the development checkout. Source fixture builds and portable tests do not produce live qualification receipts.
 
 The live qualification tests (`tests/CheatEngine.Client.Tests/LiveQualification`, `Category=LiveQualification`) build
 plugins from the packed Client packages, load them into a sandboxed copy of Cheat Engine 7.7.0.10621 x64 and drive

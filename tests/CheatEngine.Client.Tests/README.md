@@ -259,12 +259,15 @@ out the S0 spike, whose receipts are never committed.
 Run it from the repository root, in PowerShell, with Cheat Engine, every gtutorial and DebugView closed:
 
 ```powershell
+$env:CheatEngineSdkSourceMode = 'false'
+dotnet restore CheatEngine.Client.slnx --locked-mode
 dotnet build CheatEngine.Client.slnx -c Release --no-restore
 dotnet pack CheatEngine.Client.slnx -c Release --no-build -o artifacts/nuget
 $env:CHEATENGINE_CLIENT_PACKAGE_SOURCE = (Resolve-Path artifacts/nuget).Path
 $env:CHEATENGINE_CLIENT_LIVE_QUALIFICATION = 'I_AUTHORIZE_CE77_LIVE_PROBES_ON_A_DISPOSABLE_TARGET'
 dotnet test --project tests/CheatEngine.Client.Tests/CheatEngine.Client.Tests.csproj -c Release --no-build --filter-trait Session=S0
 Remove-Item Env:CHEATENGINE_CLIENT_LIVE_QUALIFICATION
+Remove-Item Env:CheatEngineSdkSourceMode
 ```
 
 Optional inputs: `CHEATENGINE_CLIENT_LIVE_QUALIFICATION_CE_DIRECTORY` (default `C:/Program Files/Cheat Engine`, only

@@ -1,4 +1,8 @@
 <Project>
+  <!-- Optional parent-workspace settings allow an identical graph during recursive restore and build.
+       A standalone Client checkout uses its pinned SDK submodule. Production packaging opts out explicitly. -->
+  <Import Project="$(MSBuildThisFileDirectory)../../CheatEngine.Source.props"
+          Condition="'$(CheatEngineSdkSourceMode)' != 'false' and '$(CheatEngineImportSourceSettings)' != 'false' and Exists('$(MSBuildThisFileDirectory)../../CheatEngine.Source.props')"/>
   <!--
     The single reviewed source of the CheatEngine.SDK package this Client consumes (audit ADR-10, A21-01).
 
@@ -51,10 +55,31 @@
       (PackageConsumptionSmokeTests.InterClientDependenciesRequireTheExactCoPackedVersion fails if it does).
   -->
   <PropertyGroup Label="Consumed CheatEngine.SDK">
+    <CheatEngineSdkSourceMode Condition="'$(CheatEngineSdkSourceMode)' == ''">true</CheatEngineSdkSourceMode>
+    <!-- SDK projects are outside Client's solution; keep Release when MSBuild traverses those references. -->
+    <ShouldUnsetParentConfigurationAndPlatform Condition="'$(CheatEngineSdkSourceMode)' == 'true'">false</ShouldUnsetParentConfigurationAndPlatform>
+    <CheatEngineSdkSourceRoot Condition="'$(CheatEngineSdkSourceMode)' == 'true' and '$(CheatEngineSdkSourceRoot)' == ''">$(MSBuildThisFileDirectory)../externals/CheatEngine.SDK</CheatEngineSdkSourceRoot>
+    <_CheatEngineSdkSourceDirectory Condition="'$(CheatEngineSdkSourceMode)' == 'true'">$([MSBuild]::EnsureTrailingSlash($([System.IO.Path]::GetFullPath('$(CheatEngineSdkSourceRoot)'))))</_CheatEngineSdkSourceDirectory>
+    <CheatEngineSdkEngineProject Condition="'$(CheatEngineSdkSourceMode)' == 'true'">$(_CheatEngineSdkSourceDirectory)libs/CheatEngine.SDK.Engine/CheatEngine.SDK.Engine.csproj</CheatEngineSdkEngineProject>
+    <CheatEngineSdkHostingProject Condition="'$(CheatEngineSdkSourceMode)' == 'true'">$(_CheatEngineSdkSourceDirectory)libs/CheatEngine.SDK.Hosting/CheatEngine.SDK.Hosting.csproj</CheatEngineSdkHostingProject>
+    <CheatEngineSourceLockFileDirectory Condition="'$(CheatEngineSdkSourceMode)' == 'true' and '$(CheatEngineSourceLockFileDirectory)' == ''">$(MSBuildThisFileDirectory)locks/source</CheatEngineSourceLockFileDirectory>
+    <NuGetLockFilePath Condition="'$(CheatEngineSdkSourceMode)' == 'true' and '$(CheatEngineSourceLockFileDirectory)' != ''">$(CheatEngineSourceLockFileDirectory)/$(MSBuildProjectName).lock.json</NuGetLockFilePath>
     <CheatEngineSdkVersion>2.0.0</CheatEngineSdkVersion>
     <CheatEngineSdkUpperBound>3.0.0</CheatEngineSdkUpperBound>
     <CheatEngineSdkVersionRange>[$(CheatEngineSdkVersion),$(CheatEngineSdkUpperBound))</CheatEngineSdkVersionRange>
     <!-- The one SDK major this Client supports. Changing it is a major migration (see above), not a dependency bump. -->
     <_CheatEngineClientSupportedSdkMajor>2</_CheatEngineClientSupportedSdkMajor>
   </PropertyGroup>
+  <!-- Use one global Platform for shared project nodes. An unset Platform and an explicit AnyCPU evaluate
+       identically but MSBuild schedules them separately, racing on the SDK's shared generator outputs. -->
+  <ItemDefinitionGroup Condition="'$(CheatEngineSdkSourceMode)' == 'true'">
+    <ProjectReference>
+      <SetPlatform>Platform=AnyCPU</SetPlatform>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+  <Target Name="CheatEngineClientValidateSdkSourceRoot" BeforeTargets="CollectPackageReferences"
+          Condition="'$(CheatEngineSdkSourceMode)' == 'true'">
+    <Error Condition="!Exists('$(CheatEngineSdkEngineProject)') or !Exists('$(CheatEngineSdkHostingProject)')" Code="CHEATENGINECLIENT9051"
+           Text="SDK source projects are missing. Run git submodule update --init --recursive, or set CheatEngineSdkSourceRoot to an SDK checkout containing the Engine and Hosting runtime projects."/>
+  </Target>
 </Project>
