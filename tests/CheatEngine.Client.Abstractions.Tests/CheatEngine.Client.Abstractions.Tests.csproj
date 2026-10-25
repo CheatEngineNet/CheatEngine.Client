@@ -6,6 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="FsCheck" PrivateAssets="all"/>
     <ProjectReference Include="../../libs/CheatEngine.Client.Abstractions/CheatEngine.Client.Abstractions.csproj"/>
   </ItemGroup>
 

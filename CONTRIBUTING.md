@@ -72,6 +72,21 @@ dotnet test --project tests/CheatEngine.Client.Tests/CheatEngine.Client.Tests.cs
 Remove-Item Env:CHEATENGINE_CLIENT_PACKAGE_SOURCE
 ```
 
+### Parser fuzz properties
+
+`AobPatternPropertyTests` runs three bounded FsCheck properties in the normal Debug and Release test suites, with
+1,000 generated cases per property. They check arbitrary UTF-16 against an independent pattern grammar, preserve
+byte/wildcard positions through normalization, and reject injected malformed characters. FsCheck is test-only;
+these checks do not load Cheat Engine or qualify native matching behavior.
+
+```pwsh
+dotnet test --project tests/CheatEngine.Client.Abstractions.Tests/CheatEngine.Client.Abstractions.Tests.csproj -c Debug --filter-class "*AobPatternPropertyTests" --report-trx --results-directory artifacts/test-results/fuzz --fail-skips on
+```
+
+Failures include FsCheck's seed and shrunk counterexample. Preserve both when investigating, replay with FsCheck's
+`Config.WithReplay`, and add the minimal failing input as a named regression case. Keep arbitrary input out of test
+display names so control characters and unpaired surrogates cannot corrupt test report identities.
+
 ### Lock files
 
 Never edit a `packages.lock.json` by hand, and never let an IDE restore rewrite them. After a dependency change,
