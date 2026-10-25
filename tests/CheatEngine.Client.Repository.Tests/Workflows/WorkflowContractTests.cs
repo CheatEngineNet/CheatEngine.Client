@@ -82,17 +82,17 @@ public sealed partial class WorkflowContractTests
 	private static readonly Dictionary<string, (string Sha, string Version)> CanonicalPins = new(StringComparer.Ordinal)
 	{
 		["actions/checkout"] = ("3d3c42e5aac5ba805825da76410c181273ba90b1", "v7.0.1"),
-		["actions/upload-artifact"] = ("043fb46d1a93c77aae656e7c1c64a875d1fc6a0a", "v7.0.1"),
-		["actions/download-artifact"] = ("3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c", "v8.0.1"),
+		["actions/upload-artifact"] = ("cf430e030ddbb5b0abf93d22962f4752f3646cd9", "v7.0.2"),
+		["actions/download-artifact"] = ("9000827ccba6bdab643e8b6fd33ac0654aef8333", "v8.0.2"),
 		["actions/setup-dotnet"] = ("a98b56852c35b8e3190ac28c8c2271da59106c68", "v6.0.0"),
-		["actions/setup-java"] = ("de7274f081f381c8f8158605e0321c36c376e2e6", "v6.0.1"),
+		["actions/setup-java"] = ("b843ebf9b913146b38da2eaa7aeddf76074ae1ad", "v6.1.0"),
 		["actions/attest"] = ("1e69f48acb82d1966a394da916b4c1698aa569d6", "v4.2.2"),
 		["NuGet/login"] = ("8d196754b4036150537f80ac539e15c2f1028841", "v1.2.0"),
 		["xmake-io/github-action-setup-xmake"] = ("3a1a5dddfc7fa625d9a698738334bf55655a861a", "v1.2.5"),
 		["actions/dependency-review-action"] = ("a1d282b36b6f3519aa1f3fc636f609c47dddb294", "v5.0.0"),
-		["zizmorcore/zizmor-action"] = ("cc914d7f3750a2d13d75c7f184a1060aa0e9d482", "v0.6.4"),
-		["github/codeql-action"] = ("2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2", "v4.38.2"),
-		["ossf/scorecard-action"] = ("2d1146689b8cda280b9bc96326124645441f03bc", "v2.4.4"),
+		["zizmorcore/zizmor-action"] = ("85b2b9fb8e3325e7a23d7d0a9d7ba5ae0f999e3e", "v0.7.1"),
+		["github/codeql-action"] = ("6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee", "v4.39.0"),
+		["ossf/scorecard-action"] = ("fa7117db83c52d787ae5a89f350999701505d78e", "v2.5.0"),
 		["actions/cache"] = ("55cc8345863c7cc4c66a329aec7e433d2d1c52a9", "v6.1.0")
 	};
 
