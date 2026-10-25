@@ -145,17 +145,18 @@ jobs:
             Write-Host '::error::The coverage artifact holds no report.'
             exit 1
           }
-          # MinVer's evaluation-time Version is only its floor. Run its target first, then read MinVerVersion so
-          # sonar.projectVersion identifies the exact source revision the scanner analyses.
+          # Run MinVer before reading its version, then retain the core version used by the previous package-based
+          # calculation. A different prerelease commit must not reset Sonar's version-based new-code period.
           $versionOutput = @(dotnet msbuild src/CheatEngine.Client/CheatEngine.Client.csproj -target:MinVer -getProperty:MinVerVersion --nologo)
           if ($LASTEXITCODE -ne 0) {
             throw "Reading the source version failed with exit code $LASTEXITCODE."
           }
           $version = ($versionOutput -join "`n").Trim()
-          if ($version -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$') {
+          if ($version -notmatch '^(?<core>\d+\.\d+\.\d+)(?:-[0-9A-Za-z.-]+)?$') {
             Write-Host "::error::Could not read the MinVer source version from:`n$($versionOutput -join "`n")"
             exit 1
           }
+          $version = $Matches['core']
           Write-Host "Coverage reports: $($reports.Count); project version: $version"
           # These findings conflict with deliberate repository contracts. Keep them in the scanner configuration so the
           # sources stay free of Sonar-only attributes and suppressions.
