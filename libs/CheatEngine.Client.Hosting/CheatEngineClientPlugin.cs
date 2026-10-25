@@ -110,7 +110,12 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 	///     The activation failed and its rollback failed too: the activation failure comes first, then every rollback
 	///     failure. A failure whose rollback succeeded is rethrown unchanged.
 	/// </exception>
-	protected sealed override void OnEnable()
+	protected sealed override void OnEnable() => EnableActivation(signalSdkRollback: true);
+
+	/// <summary>Runs activation for Hosting tests that do not initialize the SDK plugin host.</summary>
+	internal void EnableForHostingTest() => EnableActivation(signalSdkRollback: false);
+
+	private void EnableActivation(bool signalSdkRollback)
 	{
 		if (Volatile.Read(ref _activation) is not null)
 		{
@@ -135,6 +140,11 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 		}
 		catch (Exception enableFailure)
 		{
+			if (signalSdkRollback)
+			{
+				BeginFailedEnableRollback();
+			}
+
 			if (activation is null)
 			{
 				RethrowAfterCleanup(enableFailure, CleanupUnpublishedActivation(construction));
@@ -263,7 +273,7 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 
 	/// <summary>Closes an activation in the only safe disposal order and collects every cleanup failure.</summary>
 	/// <remarks>
-	///     Module callbacks and Client-owned Cheat Engine resources run while the SDK context is valid. The activation scope,
+	///     Module callbacks, persistent-state notifications, module-owned resources and Client-owned Cheat Engine resources run while the SDK context is valid. The activation scope,
 	///     root provider, and configuration are then released in that order. Each stage is attempted even after an earlier
 	///     stage fails, allowing the caller to report one aggregate failure only after all owned resources had a cleanup
 	///     opportunity. Each failed stage is logged with its stable stage name and the exception type name only (Q43,
@@ -279,6 +289,8 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 			using (activation.Cleanup.EnterCleanupScope())
 			{
 				report.Record(CleanupStage.ModuleCallbacks, activation.Lifecycle.Cleanup(OnClientDisabling));
+				report.Record(CleanupStage.ModuleNotifications, activation.Lifecycle.NotifyDeactivated());
+				report.Record(CleanupStage.ModuleResources, activation.Lifecycle.ReleaseOwnedResources());
 				report.Run(CleanupStage.ClientResources, activation.Cleanup.DrainOwnedResourcesForDisable);
 			}
 		}
@@ -415,6 +427,8 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 	{
 		CleanupScope,
 		ModuleCallbacks,
+		ModuleNotifications,
+		ModuleResources,
 		ClientResources,
 		Scope,
 		Provider,
@@ -498,6 +512,8 @@ public abstract class CheatEngineClientPlugin : CheatEnginePlugin
 			{
 				CleanupStage.CleanupScope => "CleanupScope",
 				CleanupStage.ModuleCallbacks => "ModuleCallbacks",
+				CleanupStage.ModuleNotifications => "ModuleNotifications",
+				CleanupStage.ModuleResources => "ModuleResources",
 				CleanupStage.ClientResources => "ClientResources",
 				CleanupStage.Scope => "Scope",
 				CleanupStage.Provider => "Provider",

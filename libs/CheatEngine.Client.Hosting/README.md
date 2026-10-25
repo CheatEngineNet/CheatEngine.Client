@@ -70,9 +70,10 @@ On enable, `CheatEngineClientPlugin` calls `Configure`, builds a provider with `
 resolves options to force validation, resolves the Client, starts registered modules in registration order, and then
 calls `OnClientEnabled`.
 
-On disable—or if activation fails—the host invokes `OnClientDisabling` and module cleanup in reverse order, drains
-Client-owned Cheat Engine resources while the SDK context remains valid, disposes the scope and provider, and finally
-disposes activation configuration. Cleanup failures are aggregated after all cleanup opportunities have run.
+On disable—or if activation fails—the host invokes `OnClientDisabling`, finalizes persistent module state, and releases
+module-owned resources in reverse order, then drains Client-owned Cheat Engine resources while the SDK context remains
+valid, disposes the scope and provider, and finally disposes activation configuration. Cleanup failures are aggregated
+after all cleanup opportunities have run.
 
 ## Composition lifetime and DI ownership
 
@@ -159,6 +160,16 @@ public sealed class MyClientModule : ICheatEngineClientModule
 }
 ```
 
+An activation module that keeps session-long presentation or state can implement
+`ICheatEngineClientModuleDeactivationNotification`. Hosting invokes `OnDeactivated` after all `OnDisabling` callbacks and
+before module-owned resources are released. It is for finalizing already-existing persistent state, never creating a
+resource or invoking the ordinary Client Lua facade. Its failures are collected independently.
+
+An activation module that owns effects which must be released before Client leases drain can also implement
+`ICheatEngineClientResourceCleanup`. Hosting invokes `OnReleasingResources` after deactivation notifications and before
+the Client-owned resource drain. Its failures are collected independently so later modules and Client leases still get
+their cleanup opportunity. The normal Client Lua facade remains unavailable during this stage.
+
 ## Build diagnostics
 
 Plugin projects must reference `CheatEngine.SDK` directly as well as `CheatEngine.Client`. The SDK's plugin entry-point
@@ -215,10 +226,12 @@ while the plugin is disabled; destination files are individually never copied in
 ## Cleanup diagnostics and redaction
 
 Disable runs every cleanup stage even after an earlier stage fails, in this order: `CleanupScope` (the main-thread
-cleanup scope), `ModuleCallbacks` (application hook, then modules in reverse order), `ClientResources` (Client-owned
-Cheat Engine resources, while the SDK context is still attached), then `Scope`, `Provider`, and `Configuration`. One
-failure is rethrown unchanged; several are reported together as one `AggregateException` in attempt order. Core applies
-the same rule to its own resource registries, so a faulty module or lease never prevents the next release.
+cleanup scope), `ModuleCallbacks` (application hook, then modules in reverse order), `ModuleNotifications` (persistent
+module-state finalization, in reverse module order), `ModuleResources` (module-owned resources, in reverse module
+order), `ClientResources` (Client-owned Cheat Engine resources, while the SDK context is still attached), then `Scope`,
+`Provider`, and `Configuration`. One failure is rethrown unchanged; several are reported
+together as one `AggregateException` in attempt order. Core applies the same rule to its own resource registries, so a
+faulty module or lease never prevents the next release.
 
 Once per enable, before the modules start, event 20 (`ActivationIdentified`, Information) identifies the activation:
 epoch, plugin type name, CheatEngine.Client version, the consumed CheatEngine.SDK version and NuGet content hash

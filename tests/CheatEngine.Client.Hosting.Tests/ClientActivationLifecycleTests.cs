@@ -103,6 +103,52 @@ public sealed class ClientActivationLifecycleTests
 			events);
 	}
 
+	[Fact]
+	public void CleanupReleasesModuleResourcesInReverseOrderBeforeReturningEachFailure()
+	{
+		List<string> events = [];
+		ClientActivationLifecycle lifecycle = CreateLifecycle(events, out _,
+			new RecordingResourceModule("first", events),
+			new RecordingResourceModule("second", events, new InvalidOperationException("second resources")));
+		lifecycle.Enable(_ => events.Add("application.enabled"));
+
+		Assert.Empty(lifecycle.Cleanup(_ => events.Add("application.disabling")));
+		List<Exception> failures = lifecycle.ReleaseOwnedResources();
+		List<Exception> repeatedFailures = lifecycle.ReleaseOwnedResources();
+
+		Assert.Collection(failures, failure => Assert.Equal("second resources", failure.Message));
+		Assert.Empty(repeatedFailures);
+		Assert.Equal(
+			[
+				"first.enabled", "second.enabled", "application.enabled", "application.disabling", "second.disabling",
+				"first.disabling", "second.resources", "first.resources"
+			],
+			events);
+	}
+
+	[Fact]
+	public void DeactivationNotificationsRunInReverseOrderBeforeResourceCleanupAndAreIdempotent()
+	{
+		List<string> events = [];
+		ClientActivationLifecycle lifecycle = CreateLifecycle(events, out _,
+			new RecordingNotificationModule("first", events),
+			new RecordingNotificationModule("second", events, new InvalidOperationException("second notification")));
+		lifecycle.Enable(_ => events.Add("application.enabled"));
+
+		Assert.Empty(lifecycle.Cleanup(_ => events.Add("application.disabling")));
+		List<Exception> failures = lifecycle.NotifyDeactivated();
+		List<Exception> repeatedFailures = lifecycle.NotifyDeactivated();
+
+		Assert.Collection(failures, failure => Assert.Equal("second notification", failure.Message));
+		Assert.Empty(repeatedFailures);
+		Assert.Equal(
+			[
+				"first.enabled", "second.enabled", "application.enabled", "application.disabling", "second.disabling",
+				"first.disabling", "second.notified", "first.notified"
+			],
+			events);
+	}
+
 	private static ClientActivationLifecycle CreateLifecycle(
 		List<string> events,
 		out ICheatEngineClient client,
@@ -142,6 +188,56 @@ public sealed class ClientActivationLifecycleTests
 			if (disableFailure is not null)
 			{
 				throw disableFailure;
+			}
+		}
+	}
+
+	private sealed class RecordingResourceModule(
+		string name,
+		List<string> events,
+		Exception? resourceFailure = null) : ICheatEngineClientModule, ICheatEngineClientResourceCleanup
+	{
+		public void OnEnabled(ICheatEngineClient client)
+		{
+			events.Add($"{name}.enabled");
+		}
+
+		public void OnDisabling(ICheatEngineClient client)
+		{
+			events.Add($"{name}.disabling");
+		}
+
+		public void OnReleasingResources(ICheatEngineClient client)
+		{
+			events.Add($"{name}.resources");
+			if (resourceFailure is not null)
+			{
+				throw resourceFailure;
+			}
+		}
+	}
+
+	private sealed class RecordingNotificationModule(
+		string name,
+		List<string> events,
+		Exception? notificationFailure = null) : ICheatEngineClientModule, ICheatEngineClientModuleDeactivationNotification
+	{
+		public void OnEnabled(ICheatEngineClient client)
+		{
+			events.Add($"{name}.enabled");
+		}
+
+		public void OnDisabling(ICheatEngineClient client)
+		{
+			events.Add($"{name}.disabling");
+		}
+
+		public void OnDeactivated(ICheatEngineClient client)
+		{
+			events.Add($"{name}.notified");
+			if (notificationFailure is not null)
+			{
+				throw notificationFailure;
 			}
 		}
 	}

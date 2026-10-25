@@ -12,6 +12,8 @@ internal sealed class ClientActivationLifecycle
 	private readonly ICheatEngineClient _client;
 	private readonly ICheatEngineClientModule[] _modules;
 	private bool _cleanupStarted;
+	private bool _notificationStarted;
+	private bool _resourceCleanupStarted;
 	private bool _clientEnableHookEntered;
 	private int _enabledModuleCount;
 
@@ -73,6 +75,66 @@ internal sealed class ClientActivationLifecycle
 			try
 			{
 				_modules[index].OnDisabling(_client);
+			}
+			catch (Exception exception)
+			{
+				failures.Add(exception);
+			}
+		}
+
+		return failures;
+	}
+
+	/// <summary>Finalizes enabled modules' persistent state in reverse order before owned resources are released.</summary>
+	internal List<Exception> NotifyDeactivated()
+	{
+		if (_notificationStarted)
+		{
+			return [];
+		}
+
+		_notificationStarted = true;
+		List<Exception> failures = [];
+		for (int index = _enabledModuleCount - 1; index >= 0; index--)
+		{
+			if (_modules[index] is not ICheatEngineClientModuleDeactivationNotification notification)
+			{
+				continue;
+			}
+
+			try
+			{
+				notification.OnDeactivated(_client);
+			}
+			catch (Exception exception)
+			{
+				failures.Add(exception);
+			}
+		}
+
+		return failures;
+	}
+
+	/// <summary>Releases enabled modules' owned resources in reverse order before Client leases are drained.</summary>
+	internal List<Exception> ReleaseOwnedResources()
+	{
+		if (_resourceCleanupStarted)
+		{
+			return [];
+		}
+
+		_resourceCleanupStarted = true;
+		List<Exception> failures = [];
+		for (int index = _enabledModuleCount - 1; index >= 0; index--)
+		{
+			if (_modules[index] is not ICheatEngineClientResourceCleanup owner)
+			{
+				continue;
+			}
+
+			try
+			{
+				owner.OnReleasingResources(_client);
 			}
 			catch (Exception exception)
 			{
