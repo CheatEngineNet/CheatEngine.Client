@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using System.Xml.Linq;
 
 using CheatEngine.Client.Tests.Infrastructure;
 
@@ -11,6 +12,39 @@ namespace CheatEngine.Client.Tests.Packaging;
 public sealed class SdkSourceBuildTests
 {
 	private const string HostingProject = "libs/CheatEngine.Client.Hosting/CheatEngine.Client.Hosting.csproj";
+
+	[Theory]
+	[InlineData("Debug")]
+	[InlineData("Release")]
+	public async Task TransitiveSdkReferencesKeepTheSameBuildConfigurationAsync(string configuration)
+	{
+		using TemporaryDirectory directory = new("sdk-transitive-configuration");
+		string project = Path.Combine(directory.Path, "Probe.proj");
+		XDocument document = new(new XElement("Project",
+			new XElement("PropertyGroup", new XElement("CheatEngineSdkSourceMode", "true"),
+				new XElement("Configuration", configuration)),
+			new XElement("Import", new XAttribute("Project", RepositoryLayout.Combine("Directory.Build.targets"))),
+			new XElement("Target", new XAttribute("Name", "IncludeTransitiveProjectReferences"),
+				new XElement("ItemGroup",
+					new XElement("ProjectReference", new XAttribute("Include", "CheatEngine.SDK.Lua.Interop.csproj"),
+						new XElement("AdditionalProperties", "Existing=preserved")),
+					new XElement("ProjectReference", new XAttribute("Include", "Other.csproj"))))));
+		document.Save(project);
+
+		DotNetProcessResult result = await DotNetProcess.RunAsync(RepositoryLayout.Root,
+			"msbuild", project, "-target:IncludeTransitiveProjectReferences", "-getItem:ProjectReference",
+			"-nologo", "-nodeReuse:false", "-verbosity:quiet");
+
+		Assert.True(result.ExitCode == 0, result.ToString());
+		JsonArray references = JsonNode.Parse(result.StandardOutput)!["Items"]!["ProjectReference"]!.AsArray();
+		Assert.Equal(2, references.Count);
+		JsonNode sdk = references[0]!;
+		Assert.Equal("Platform=AnyCPU", sdk["SetPlatform"]!.GetValue<string>());
+		Assert.Equal($"Configuration={configuration}", sdk["SetConfiguration"]!.GetValue<string>());
+		Assert.Equal("Existing=preserved;ShouldUnsetParentConfigurationAndPlatform=false",
+			sdk["AdditionalProperties"]!.GetValue<string>());
+		Assert.Null(references[1]!["AdditionalProperties"]);
+	}
 
 	[Fact]
 	public async Task StandaloneBuildUsesPinnedSubmoduleAndSeparateSourceLockAsync()

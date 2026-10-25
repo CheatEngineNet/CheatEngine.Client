@@ -305,6 +305,15 @@
       "cheatengine.sdk.lua.interop": {
         "type": "Project"
       },
+      "cheatengine.sdk.sourcegenerators.luabindings": {
+        "type": "Project",
+        "dependencies": {
+          "CheatEngine.SDK.SourceGenerators.Shared": "[1.0.0, )"
+        }
+      },
+      "cheatengine.sdk.sourcegenerators.shared": {
+        "type": "Project"
+      },
       "Microsoft.CodeAnalysis.Analyzers": {
         "type": "CentralTransitive",
         "requested": "[5.9.0, )",

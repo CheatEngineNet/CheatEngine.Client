@@ -8,12 +8,12 @@ using Microsoft.CodeAnalysis.Emit;
 namespace CheatEngine.Client.SourceGenerators.Lua.Tests.Composition;
 
 /// <summary>
-///     CRIT-07: the Client generator and the real CheatEngine.SDK LuaBindings generator of the pinned package run on the
+///     CRIT-07: the Client generator and the real CheatEngine.SDK LuaBindings generator of the selected dependency run on the
 ///     same compilation, and what each emits must compile against what the other emits. The other generator tests replace
 ///     the SDK output with hand-written stubs; this is the proof of the contract between the two generators.
 /// </summary>
 /// <remarks>
-///     The SDK generator is loaded from
+///     Source builds use the SDK submodule generator copied next to the test assembly. Production builds load it from
 ///     <c>$(NuGetPackageRoot)cheatengine.sdk/$(CheatEngineSdkVersion)/analyzers/dotnet/cs</c>, which the test project
 ///     passes as assembly metadata with the pin itself: never a user path.
 /// </remarks>
@@ -81,14 +81,24 @@ public sealed class RealSdkGeneratorCompositionTests
 	private static readonly Lazy<GeneratorRun> SRun = new(Run, LazyThreadSafetyMode.ExecutionAndPublication);
 
 	[Fact]
-	public void TheSdkGeneratorIsLoadedFromThePinnedPackageFolder()
+	public void TheSdkGeneratorIsLoadedFromTheSelectedDependency()
 	{
 		string directory = SdkGeneratorDirectory();
 
 		string[] segments = Path.GetFullPath(directory).TrimEnd(Path.DirectorySeparatorChar)
 			.Split(Path.DirectorySeparatorChar);
 		Assert.True(Path.IsPathFullyQualified(directory), directory);
-		Assert.Equal(["cheatengine.sdk", Metadata(VersionMetadataKey), "analyzers", "dotnet", "cs"], segments[^5..]);
+		bool source = typeof(RealSdkGeneratorCompositionTests).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
+			.Any(static attribute => attribute.Key == "CheatEngine.Client.Tests.SdkGeneratorKind" && attribute.Value == "source");
+		if (source)
+		{
+			Assert.Equal(Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory),
+				Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory)));
+		}
+		else
+		{
+			Assert.Equal(["cheatengine.sdk", Metadata(VersionMetadataKey), "analyzers", "dotnet", "cs"], segments[^5..]);
+		}
 		Assert.True(File.Exists(Path.Combine(directory, "CheatEngine.SDK.SourceGenerators.LuaBindings.dll")));
 		Assert.True(File.Exists(Path.Combine(directory, "CheatEngine.SDK.SourceGenerators.Shared.dll")));
 	}

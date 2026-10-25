@@ -1,4 +1,18 @@
 <Project>
+  <!-- NuGet adds transitive ProjectReferences during execution, after the project body's direct references.
+       Normalize both sets before MSBuild assigns configurations. The global override must also reach references
+       inside the SDK, whose projects are not listed in Client's solution. -->
+  <Target Name="CheatEngineClientNormalizeSourceSdkReferences" AfterTargets="IncludeTransitiveProjectReferences"
+          Condition="'$(CheatEngineSdkSourceMode)' == 'true'">
+    <ItemGroup>
+      <ProjectReference Update="@(ProjectReference)"
+                        Condition="$([System.String]::Copy('%(ProjectReference.Filename)').StartsWith('CheatEngine.SDK.'))">
+        <SetPlatform>Platform=AnyCPU</SetPlatform>
+        <SetConfiguration>Configuration=$(Configuration)</SetConfiguration>
+        <AdditionalProperties>%(ProjectReference.AdditionalProperties);ShouldUnsetParentConfigurationAndPlatform=false</AdditionalProperties>
+      </ProjectReference>
+    </ItemGroup>
+  </Target>
   <Target Name="CheatEngineClientRefuseSourceDependencyPackage" BeforeTargets="Pack;GenerateNuspec"
           Condition="'$(CheatEngineSdkSourceMode)' == 'true'">
     <Error Code="CHEATENGINECLIENT9051"
