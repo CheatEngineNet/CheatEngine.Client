@@ -218,7 +218,8 @@ dependency of `CheatEngine.Client.Extensions.DependencyInjection`.
     ending in `Kind`, `Status`, `State`, `Effect` or `Scope`) has `Unknown = 0`: handle a value you do not recognize
     like `Unknown`. An option enum has a valid default at 0 and never an outcome suffix.
 - **Frozen for all of 1.x:** the *Implementable* interfaces (`ILuaModule`, `ILuaOperation<TResult>`,
-  `ILuaResultMapper<TSource, TResult>`, `IMemoryCodec<T>` and `ICheatEngineClientModule`) never gain, lose or change a
+  `ILuaResultMapper<TSource, TResult>`, `IMemoryCodec<T>`, `ICheatEngineClientModule`,
+  `ICheatEngineClientModuleDeactivationNotification` and `ICheatEngineClientResourceCleanup`) never gain, lose or change a
   member.
 - **Experimental APIs**, marked `[Experimental("CECLIENT500x")]`, can change or be removed in a minor release until
   their live qualification passes; using one is an explicit opt-in to that diagnostic.
