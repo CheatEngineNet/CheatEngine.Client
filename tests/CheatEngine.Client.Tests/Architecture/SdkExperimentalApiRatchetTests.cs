@@ -66,7 +66,7 @@ public sealed partial class SdkExperimentalApiRatchetTests
 
 	private static readonly HashSet<string> SkippedDirectories = new(StringComparer.OrdinalIgnoreCase)
 	{
-		"artifacts", "bin", "obj", ".git", ".vs", ".idea", "TestResults", "node_modules"
+		"artifacts", "bin", "obj", ".git", ".vs", ".idea", "TestResults", "node_modules", "externals"
 	};
 
 	private static readonly HashSet<string> MsBuildExtensions = new(StringComparer.OrdinalIgnoreCase)

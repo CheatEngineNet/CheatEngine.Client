@@ -62,7 +62,7 @@ public sealed class CheatEngineClientPluginTests
 		FakeClient client = new(42);
 		RecordingCleanup cleanup = new(events);
 		TestPlugin plugin = CreatePlugin(events, client, cleanup,
-			static builder => builder.Client.AddModule<RecordingModule>());
+			static builder => builder.Client.AddModule<ResourceCleanupModule>());
 
 		plugin.EnableForTest();
 
@@ -76,7 +76,7 @@ public sealed class CheatEngineClientPluginTests
 		Assert.Equal(
 			[
 				"configure", "module.enabled", "client.enabled", "cleanup.enter", "client.disabling",
-				"module.disabling", "cleanup.drain", "cleanup.exit"
+				"module.disabling", "module.deactivated", "module.resources", "cleanup.drain", "cleanup.exit"
 			],
 			events);
 		Assert.Equal(1, cleanup.DrainCount);
@@ -110,6 +110,32 @@ public sealed class CheatEngineClientPluginTests
 		plugin.DisableForTest();
 
 		Assert.Equal(1, cleanup.DrainCount);
+	}
+
+	[Fact]
+	public void FailedModuleEnableStillNotifiesAndReleasesResourcesWhenBothCleanupHooksFail()
+	{
+		List<string> events = [];
+		FakeClient client = new(44);
+		RecordingCleanup cleanup = new(events);
+		TestPlugin plugin = CreatePlugin(events, client, cleanup,
+			static builder => builder.Client.AddModule<FailingEnableCleanupModule>());
+
+		AggregateException exception = Assert.Throws<AggregateException>(plugin.EnableForTest);
+
+		Assert.Collection(exception.InnerExceptions,
+			failure => Assert.Equal("module enable", failure.Message),
+			failure => Assert.Equal("module notification", failure.Message),
+			failure => Assert.Equal("module resources", failure.Message));
+		Assert.Equal(
+			[
+				"configure", "module.enable-failed", "cleanup.enter", "module.disabling",
+				"module.deactivated", "module.resources", "cleanup.drain", "cleanup.exit"
+			], events);
+		Assert.Throws<CheatEngineInvalidStateException>(plugin.GetRequiredClientForTest);
+		plugin.DisableForTest();
+		Assert.Equal(1, cleanup.DrainCount);
+		Assert.Equal(1, cleanup.ScopeDisposeCount);
 	}
 
 	[Fact]
@@ -203,6 +229,30 @@ public sealed class CheatEngineClientPluginTests
 				"configure", "module.enabled", "client.enabled", "cleanup.enter", "client.disabling",
 				"module.disabling",
 				"cleanup.drain", "cleanup.exit"
+			],
+			events);
+		Assert.Equal(1, cleanup.DrainCount);
+	}
+
+	[Fact]
+	[Trait("Qualification", "Q43")]
+	public void DisableAggregatesDeactivationNotificationFailuresBeforeResourceCleanup()
+	{
+		List<string> events = [];
+		FakeClient client = new(451);
+		RecordingCleanup cleanup = new(events);
+		TestPlugin plugin = CreatePlugin(events, client, cleanup,
+			static builder => builder.Client.AddModule<FailingNotificationModule>().AddModule<ResourceCleanupModule>());
+		plugin.EnableForTest();
+
+		InvalidOperationException exception = Assert.Throws<InvalidOperationException>(plugin.DisableForTest);
+
+		Assert.Equal("module notification", exception.Message);
+		Assert.Equal(
+			[
+				"configure", "notification.enabled", "module.enabled", "client.enabled", "cleanup.enter",
+				"client.disabling", "module.disabling", "notification.disabling", "module.deactivated",
+				"notification.deactivated", "module.resources", "cleanup.drain", "cleanup.exit"
 			],
 			events);
 		Assert.Equal(1, cleanup.DrainCount);
@@ -402,7 +452,7 @@ public sealed class CheatEngineClientPluginTests
 
 		AggregateException exception = Assert.Throws<AggregateException>(plugin.DisableForTest);
 
-		Assert.Equal(2, exception.InnerExceptions.Count);
+		Assert.Equal(3, exception.InnerExceptions.Count);
 		Assert.Equal(1, cleanup.DrainCount);
 		Assert.Equal(1, cleanup.ScopeDisposeCount);
 		Assert.Contains("cleanup.exit", events);
@@ -411,11 +461,14 @@ public sealed class CheatEngineClientPluginTests
 			module => Assert.Equal(
 				"Cheat Engine Client activation 51 cleanup stage ModuleCallbacks failed with System.InvalidOperationException.",
 				module.Message),
+			resourceCleanup => Assert.Equal(
+				"Cheat Engine Client activation 51 cleanup stage ModuleResources failed with System.InvalidOperationException.",
+				resourceCleanup.Message),
 			drain => Assert.Equal(
 				"Cheat Engine Client activation 51 cleanup stage ClientResources failed with System.InvalidOperationException.",
 				drain.Message));
 		LogEntry completed = Assert.Single(logs.Entries, static entry => entry.EventId == 7);
-		Assert.Equal("Cheat Engine Client activation 51 attempted 6 cleanup stage(s); 2 failed.", completed.Message);
+		Assert.Equal("Cheat Engine Client activation 51 attempted 8 cleanup stage(s); 3 failed.", completed.Message);
 		Assert.Contains(logs.Entries, static entry => entry.EventId == 5);
 		Assert.All(logs.Entries, static entry =>
 		{
@@ -475,12 +528,17 @@ public sealed class CheatEngineClientPluginTests
 		Assert.Null(identification.Exception);
 		Assert.Contains("activation 53 enables " + typeof(TestPlugin).FullName, message, StringComparison.Ordinal);
 		Assert.Contains("CheatEngine.SDK " + GetConsumedSdkMetadata("Version"), message, StringComparison.Ordinal);
-		Assert.Contains("NuGet content hash " + GetConsumedSdkMetadata("ContentHashSha512"), message,
+		bool sourceSdk = System.Reflection.Assembly.Load("CheatEngine.Client.Core")
+			.GetCustomAttributes<AssemblyMetadataAttribute>()
+			.Any(static attribute => attribute.Key == "CheatEngine.Client.ConsumedSdk.Kind" && attribute.Value == "source");
+		string contentHash = sourceSdk ? "unknown" : GetConsumedSdkMetadata("ContentHashSha512");
+		Assert.Contains("NuGet content hash " + contentHash, message,
 			StringComparison.Ordinal);
-		// The test process loads the reviewed package itself, so the identity label, built from versions only, says so.
+		// Workspace tests load the source SDK; standalone package tests load the reviewed package.
 		string loaded = typeof(CheatEngine.SDK.Engine.Runtime.RuntimeInfo).Assembly
 			.GetCustomAttribute<AssemblyInformationalVersionAttribute>()!.InformationalVersion;
-		Assert.Contains($"loaded CheatEngine.SDK.Engine {loaded} (the reviewed package), package evidence Satisfied;",
+		string identityLabel = sourceSdk ? "the consumed source build" : "the reviewed package";
+		Assert.Contains($"loaded CheatEngine.SDK.Engine {loaded} ({identityLabel}), package evidence Satisfied;",
 			message, StringComparison.Ordinal);
 		Assert.Contains("supported host profile ce-7.7.0.10621-x64-managed-hostfxr.", message, StringComparison.Ordinal);
 		Assert.DoesNotMatch(@"[A-Za-z]:\\", message);
@@ -734,7 +792,7 @@ public sealed class CheatEngineClientPluginTests
 
 		internal void EnableForTest()
 		{
-			OnEnable();
+			EnableForHostingTest();
 		}
 
 		internal void DisableForTest()
@@ -757,7 +815,7 @@ public sealed class CheatEngineClientPluginTests
 
 		internal void EnableForTest()
 		{
-			OnEnable();
+			EnableForHostingTest();
 		}
 
 		internal void DisableForTest()
@@ -784,6 +842,50 @@ public sealed class CheatEngineClientPluginTests
 		}
 	}
 
+	public sealed class ResourceCleanupModule(List<string> events)
+		: ICheatEngineClientModule, ICheatEngineClientModuleDeactivationNotification, ICheatEngineClientResourceCleanup
+	{
+		public void OnEnabled(ICheatEngineClient client)
+		{
+			events.Add("module.enabled");
+		}
+
+		public void OnDisabling(ICheatEngineClient client)
+		{
+			events.Add("module.disabling");
+		}
+
+		public void OnDeactivated(ICheatEngineClient client)
+		{
+			events.Add("module.deactivated");
+		}
+
+		public void OnReleasingResources(ICheatEngineClient client)
+		{
+			events.Add("module.resources");
+		}
+	}
+
+	public sealed class FailingNotificationModule(List<string> events)
+		: ICheatEngineClientModule, ICheatEngineClientModuleDeactivationNotification
+	{
+		public void OnEnabled(ICheatEngineClient client)
+		{
+			events.Add("notification.enabled");
+		}
+
+		public void OnDisabling(ICheatEngineClient client)
+		{
+			events.Add("notification.disabling");
+		}
+
+		public void OnDeactivated(ICheatEngineClient client)
+		{
+			events.Add("notification.deactivated");
+			throw new InvalidOperationException("module notification");
+		}
+	}
+
 	public sealed class FailingEnableModule(List<string> events) : ICheatEngineClientModule
 	{
 		public void OnEnabled(ICheatEngineClient client)
@@ -795,6 +897,33 @@ public sealed class CheatEngineClientPluginTests
 		public void OnDisabling(ICheatEngineClient client)
 		{
 			events.Add("module.disable-failed");
+		}
+	}
+
+	public sealed class FailingEnableCleanupModule(List<string> events) : ICheatEngineClientModule,
+		ICheatEngineClientModuleDeactivationNotification, ICheatEngineClientResourceCleanup
+	{
+		public void OnEnabled(ICheatEngineClient client)
+		{
+			events.Add("module.enable-failed");
+			throw new InvalidOperationException("module enable");
+		}
+
+		public void OnDisabling(ICheatEngineClient client)
+		{
+			events.Add("module.disabling");
+		}
+
+		public void OnDeactivated(ICheatEngineClient client)
+		{
+			events.Add("module.deactivated");
+			throw new InvalidOperationException("module notification");
+		}
+
+		public void OnReleasingResources(ICheatEngineClient client)
+		{
+			events.Add("module.resources");
+			throw new InvalidOperationException("module resources");
 		}
 	}
 
@@ -1092,7 +1221,8 @@ public sealed class CheatEngineClientPluginTests
 
 	public sealed record SensitiveFailure(string Message);
 
-	public sealed class SensitiveDisableModule(List<string> events, SensitiveFailure failure) : ICheatEngineClientModule
+	public sealed class SensitiveDisableModule(List<string> events, SensitiveFailure failure)
+		: ICheatEngineClientModule, ICheatEngineClientResourceCleanup
 	{
 		public void OnEnabled(ICheatEngineClient client)
 		{
@@ -1102,6 +1232,12 @@ public sealed class CheatEngineClientPluginTests
 		public void OnDisabling(ICheatEngineClient client)
 		{
 			events.Add("module.disabling");
+			throw new InvalidOperationException(failure.Message);
+		}
+
+		public void OnReleasingResources(ICheatEngineClient client)
+		{
+			events.Add("module.resources");
 			throw new InvalidOperationException(failure.Message);
 		}
 	}

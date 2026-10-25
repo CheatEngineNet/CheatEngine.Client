@@ -48,12 +48,15 @@ internal static class LiveQualificationOptIn
 	/// <summary>The commands of a local S0 run, from the repository root, in PowerShell. The README repeats them.</summary>
 	internal static readonly string[] LocalCommand =
 	[
+		"$env:CheatEngineSdkSourceMode = 'false'",
+		"dotnet restore CheatEngine.Client.slnx --locked-mode",
 		"dotnet build CheatEngine.Client.slnx -c Release --no-restore",
 		"dotnet pack CheatEngine.Client.slnx -c Release --no-build -o artifacts/nuget",
 		"$env:CHEATENGINE_CLIENT_PACKAGE_SOURCE = (Resolve-Path artifacts/nuget).Path",
 		$"$env:{OptInVariable} = '{Acknowledgement}'",
 		"dotnet test --project tests/CheatEngine.Client.Tests/CheatEngine.Client.Tests.csproj -c Release --no-build --filter-trait Session=S0",
-		$"Remove-Item Env:{OptInVariable}"
+		$"Remove-Item Env:{OptInVariable}",
+		"Remove-Item Env:CheatEngineSdkSourceMode"
 	];
 
 	/// <summary>How to run the live qualification tests, appended to every refusal.</summary>

@@ -28,8 +28,10 @@
                       ReferenceOutputAssembly="false"
                       PrivateAssets="all"/>
     <!-- The direct SDK reference supplies the entry-point generator and the bridge asset; its version is the central pin. -->
-    <PackageReference Include="CheatEngine.SDK"/>
+    <PackageReference Include="CheatEngine.SDK" Condition="'$(CheatEngineSdkSourceMode)' != 'true'"/>
   </ItemGroup>
+
+  <Import Project="../../eng/SdkSourcePlugin.props" Condition="'$(CheatEngineSdkSourceMode)' == 'true'"/>
 
   <!-- The complete-closure deployment target of the Hosting package (-p:CheatEnginePluginOutputPath=<folder>). -->
   <Import Project="../../libs/CheatEngine.Client.Hosting/buildTransitive/CheatEngine.Client.Hosting.targets"/>

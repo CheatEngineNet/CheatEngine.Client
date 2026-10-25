@@ -1,8 +1,8 @@
 name: Sonar
 
 # Reusable SonarQube Cloud analysis, called by ci.yml after build-test when SONAR_EXPECTED is true. It reuses the
-# coverage and nuget-packages artifacts of the same run; only the instrumented build is repeated, because the scanner
-# must observe a compilation.
+# coverage artifacts of the same source-mode run; only the instrumented build is repeated, because the scanner must
+# observe a compilation.
 #
 # CI-based analysis only: Automatic Analysis must stay OFF for the project in SonarQube Cloud (Administration > Analysis
 # Method). SonarQube Cloud exposes no API to read that setting; with both methods on, scanner begin fails, which is the
@@ -47,6 +47,7 @@ jobs:
       SONAR_PROJECT_KEY: ${{ inputs.project-key }}
       SONAR_ORGANIZATION: ${{ inputs.organization }}
       SONAR_WAIT_QUALITY_GATE: ${{ inputs.wait-quality-gate }}
+      CheatEngineImportSourceSettings: 'true'
     steps:
       # ci.yml never calls this workflow for forks or Dependabot, so an empty token is a configuration error. Fail
       # before the instrumented build instead of after it.
@@ -63,6 +64,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # SCM blame for new-code detection
+          submodules: recursive # analyse the same pinned SDK source graph as CI
           persist-credentials: false
 
       # SonarScanner for .NET uses Java. The same JDK 21 distribution as CheatEngine.SDK keeps scanner behaviour
@@ -91,12 +93,6 @@ jobs:
         with:
           name: coverage
           path: ${{ runner.temp }}/coverage
-
-      - name: Download packages
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: nuget-packages
-          path: ${{ runner.temp }}/packages
 
       # Do not use the checked-out nuget.config to resolve tooling. The scanner package and every restored dependency
       # must come only from nuget.org, not a source a pull request can redirect.
@@ -149,15 +145,18 @@ jobs:
             Write-Host '::error::The coverage artifact holds no report.'
             exit 1
           }
-          # The new-code period follows sonar.projectVersion: the core version of the facade package built in this run
-          # (0.1.0 for 0.1.0-alpha.0.37). The digit right after "CheatEngine.Client." excludes the other package ids.
-          $packages = @(Get-ChildItem -Path "$env:RUNNER_TEMP/packages" -Filter 'CheatEngine.Client.*.nupkg' -File |
-            Where-Object { $_.Name -match '^CheatEngine\.Client\.\d' })
-          if ($packages.Count -ne 1 -or $packages[0].Name -notmatch '^CheatEngine\.Client\.(?<version>\d+\.\d+\.\d+)') {
-            Write-Host '::error::The nuget-packages artifact must hold exactly one CheatEngine.Client facade package.'
+          # Run MinVer before reading its version, then retain the core version used by the previous package-based
+          # calculation. A different prerelease commit must not reset Sonar's version-based new-code period.
+          $versionOutput = @(dotnet msbuild src/CheatEngine.Client/CheatEngine.Client.csproj -target:MinVer -getProperty:MinVerVersion --nologo)
+          if ($LASTEXITCODE -ne 0) {
+            throw "Reading the source version failed with exit code $LASTEXITCODE."
+          }
+          $version = ($versionOutput -join "`n").Trim()
+          if ($version -notmatch '^(?<core>\d+\.\d+\.\d+)(?:-[0-9A-Za-z.-]+)?$') {
+            Write-Host "::error::Could not read the MinVer source version from:`n$($versionOutput -join "`n")"
             exit 1
           }
-          $version = $Matches['version']
+          $version = $Matches['core']
           Write-Host "Coverage reports: $($reports.Count); project version: $version"
           # These findings conflict with deliberate repository contracts. Keep them in the scanner configuration so the
           # sources stay free of Sonar-only attributes and suppressions.
@@ -176,7 +175,7 @@ jobs:
             "/k:$env:SONAR_PROJECT_KEY"
             "/o:$env:SONAR_ORGANIZATION"
             "/v:$version"
-            '/d:sonar.exclusions=artifacts/**,tests/CheatEngine.Client.Benchmarks/**'
+            '/d:sonar.exclusions=artifacts/**,externals/**,tests/CheatEngine.Client.Benchmarks/**'
             # CI publishes managed coverage of the shipping code only: tests and build tooling stay out of the coverage
             # metric instead of presenting an incomplete report as if it covered them. Every excluded path exists
             # (the repository has no documentation folder; its Markdown files are not analysed code).
@@ -185,7 +184,7 @@ jobs:
             # (xUnit has no attached Cheat Engine process or Lua state): its lines are untestable, not merely
             # untested, and its non-SDK branches keep the tests they allow next to it (for example
             # SdkTableRecordMutationPortTests). A lot that adds an Sdk*Port.cs adds its own entry here.
-            '/d:sonar.coverage.exclusions=tests/**,eng/**,libs/CheatEngine.Client.Core/Domains/SdkTableRecordMutationPort.cs,libs/CheatEngine.Client.Core/Domains/SdkAobScanPort.cs,libs/CheatEngine.Client.Core/Domains/IMemoryCodecContextPort.cs,libs/CheatEngine.Client.Core/Domains/SdkRuntimeObservationPort.cs,libs/CheatEngine.Client.Core/Domains/SdkProcessSelectionPort.cs,libs/CheatEngine.Client.Core/Domains/SdkInspectionPort.cs,libs/CheatEngine.Client.Core/Domains/SdkTableFilePort.cs,libs/CheatEngine.Client.Core/Domains/SdkTableRecordLookupPort.cs,libs/CheatEngine.Client.Core/Domains/ValueScanning/SdkValueScanPort.cs,libs/CheatEngine.Client.Core/Domains/Allocations/SdkAllocationPort.cs,libs/CheatEngine.Client.Core/Domains/Assembly/SdkAutoAssemblerPort.cs,libs/CheatEngine.Client.Core/Domains/Assembly/SdkInstructionPort.cs'
+            '/d:sonar.coverage.exclusions=externals/**,tests/**,eng/**,libs/CheatEngine.Client.Core/Domains/SdkTableRecordMutationPort.cs,libs/CheatEngine.Client.Core/Domains/SdkAobScanPort.cs,libs/CheatEngine.Client.Core/Domains/IMemoryCodecContextPort.cs,libs/CheatEngine.Client.Core/Domains/SdkRuntimeObservationPort.cs,libs/CheatEngine.Client.Core/Domains/SdkProcessSelectionPort.cs,libs/CheatEngine.Client.Core/Domains/SdkInspectionPort.cs,libs/CheatEngine.Client.Core/Domains/SdkTableFilePort.cs,libs/CheatEngine.Client.Core/Domains/SdkTableRecordLookupPort.cs,libs/CheatEngine.Client.Core/Domains/ValueScanning/SdkValueScanPort.cs,libs/CheatEngine.Client.Core/Domains/Allocations/SdkAllocationPort.cs,libs/CheatEngine.Client.Core/Domains/Assembly/SdkAutoAssemblerPort.cs,libs/CheatEngine.Client.Core/Domains/Assembly/SdkInstructionPort.cs'
             # Never set sonar.dotnet.excludeTestProjects: the scanner then strips every analyzer, including source
             # generators, from test projects, and their [GeneratedRegex]/[LoggerMessage] partial methods fail with
             # CS8795 (https://github.com/SonarSource/sonar-scanner-msbuild/issues/1469). Test projects are analysed as

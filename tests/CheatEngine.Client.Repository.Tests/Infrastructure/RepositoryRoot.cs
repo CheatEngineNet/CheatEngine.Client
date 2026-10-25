@@ -37,6 +37,12 @@ internal static class RepositoryRoot
 
 	private static bool IsExcluded(string relativePath)
 	{
+		// Submodules own their build and governance contracts; these tests audit Client's files only.
+		if (relativePath.StartsWith("externals/", StringComparison.Ordinal))
+		{
+			return true;
+		}
+
 		foreach (string segment in relativePath.Split('/'))
 		{
 			if (segment is "artifacts" or "bin" or "obj" or ".git" or ".idea" or ".vs" or "TestResults")

@@ -65,7 +65,7 @@ public sealed class CodeQlWorkflowTests
 				string include = ((string) reference.Attribute("Include")!).Replace('\\', '/');
 				if (include is "$(CheatEngineSdkEngineProject)" or "$(CheatEngineSdkHostingProject)")
 				{
-					// CodeQL builds the package graph. External SDK projects are present only in the explicit workspace mode.
+					// SDK source belongs to its submodule; this traversal checks Client's own shipped assemblies.
 					Assert.Equal("'$(CheatEngineSdkSourceMode)' == 'true'", (string?) reference.Attribute("Condition"));
 					continue;
 				}

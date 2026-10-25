@@ -75,6 +75,13 @@ otherwise.
 
 ## Prepare a release
 
+Development and PR CI use the pinned SDK submodule. Production packaging deliberately uses the separate SDK NuGet
+dependency: update its reviewed pin and package identity to a published version containing every SDK API Client uses
+before releasing. The source rollback hook added after the current package pin requires that dependency update.
+Set `CheatEngineSdkSourceMode=false` for all local release restore/build/pack/test commands below. The release workflow
+sets it through `production-packages: true` and requires package-consumer checks before publication; source CI alone
+does not qualify a package release.
+
 1. Move the entries of `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md) to a `## [X.Y.Z] - YYYY-MM-DD` section. Its
    body becomes the GitHub release notes; a stable tag fails without it, a prerelease tag falls back to `[Unreleased]`.
    `## [Unreleased]` keeps its four category headings, empty. For 1.0.0, the section summarizes the initial release by

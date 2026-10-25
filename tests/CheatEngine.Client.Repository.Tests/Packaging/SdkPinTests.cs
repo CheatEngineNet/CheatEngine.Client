@@ -352,7 +352,8 @@ public sealed partial class SdkPinTests
 		Assert.Equal("$(CheatEngineSdkVersion)", version.Value);
 		// An operator-supplied SDK version restores into a lock file under obj/: disabling lock files while the committed
 		// one exists fails the restore with NU1005, and rewriting the committed one would record an unreviewed package.
-		Assert.Equal("'$(CoexistenceSdkPackageVersion)' != '$(CheatEngineSdkVersion)'", (string?) candidateLock.Attribute("Condition"));
+		Assert.Equal("'$(CheatEngineSdkSourceMode)' != 'true' and '$(CoexistenceSdkPackageVersion)' != '$(CheatEngineSdkVersion)'", (string?) candidateLock.Attribute("Condition"));
+		Assert.Equal("'$(CheatEngineSdkSourceMode)' != 'true'", (string?) reference.Attribute("Condition"));
 		Assert.StartsWith("$(MSBuildProjectExtensionsPath)", candidateLock.Value, StringComparison.Ordinal);
 		Assert.Empty(props.Descendants("RestorePackagesWithLockFile"));
 		Assert.Equal("$(CoexistenceSdkPackageVersion)", (string?) reference.Attribute("Version"));

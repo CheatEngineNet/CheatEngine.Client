@@ -1,1 +1,5 @@
 #nullable enable
+CheatEngine.Client.Modules.ICheatEngineClientModuleDeactivationNotification
+CheatEngine.Client.Modules.ICheatEngineClientModuleDeactivationNotification.OnDeactivated(CheatEngine.Client.ICheatEngineClient! client) -> void
+CheatEngine.Client.Modules.ICheatEngineClientResourceCleanup
+CheatEngine.Client.Modules.ICheatEngineClientResourceCleanup.OnReleasingResources(CheatEngine.Client.ICheatEngineClient! client) -> void

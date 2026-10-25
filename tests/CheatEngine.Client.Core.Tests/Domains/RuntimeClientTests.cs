@@ -648,17 +648,25 @@ public sealed class RuntimeClientTests
 	}
 
 	[Fact]
-	public void TheIdentityOfThisBuildMatchesTheLoadedSdkPackage()
+	public void TheIdentityOfThisBuildMatchesTheLoadedSdkDependency()
 	{
-		// The Core assembly under test embeds the identity of its locked and restored CheatEngine.SDK package (a
-		// build that cannot embed it fails with CHEATENGINECLIENT9050), and the test process loads that package, so
-		// the production identity is embedded and Satisfied.
+		// Source builds embed the exact version and commit from the pinned SDK project. Production builds embed the
+		// reviewed package identity; both must match the Engine assembly loaded by the test process.
 		ConsumedSdkIdentity current = ConsumedSdkIdentity.Current;
 
 		Assert.True(current.IsEmbedded, "The Core assembly under test embeds no consumed CheatEngine.SDK identity.");
 		Assert.Equal(ClientCapabilityEvidenceState.Satisfied, current.PackageGate.State);
 		Assert.True(current.ExactReviewedIdentity);
-		Assert.Equal("the reviewed package", current.IdentityLabel);
+		if (current.IsSource)
+		{
+			Assert.Null(current.ContentHashSha512);
+			Assert.Equal("the consumed source build", current.IdentityLabel);
+		}
+		else
+		{
+			Assert.Equal(SdkContentHash, current.ContentHashSha512);
+			Assert.Equal("the reviewed package", current.IdentityLabel);
+		}
 		Assert.Equal(typeof(RuntimeInfo).Assembly
 				.GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
 				.Cast<System.Reflection.AssemblyInformationalVersionAttribute>().Single().InformationalVersion,

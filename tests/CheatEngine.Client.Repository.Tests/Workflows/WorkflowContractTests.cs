@@ -324,7 +324,7 @@ public sealed partial class WorkflowContractTests
 	// ---- build-test ---------------------------------------------------------------------------------------------------
 
 	[Fact]
-	public void ReleaseLegPacksBeforeTestingAndExportsThePackageSource()
+	public void ProductionReleasePacksBeforeTestingAndExportsThePackageSource()
 	{
 		WorkflowJob buildTest = WorkflowFile.Load(CiWorkflow).Job("build-test");
 		IReadOnlyList<WorkflowStep> steps = buildTest.Steps;
@@ -335,6 +335,9 @@ public sealed partial class WorkflowContractTests
 		Assert.True(build.Index < pack.Index && pack.Index < test.Index, "build-test must run Build, then Pack, then Test.");
 		Assert.Equal("pack", pack.Id);
 		Assert.Contains("'Release'", pack.Condition ?? string.Empty, StringComparison.Ordinal);
+		Assert.Contains("inputs.production-packages", pack.Condition ?? string.Empty, StringComparison.Ordinal);
+		Assert.Equal("inputs.production-packages && 'false' || 'true'",
+			Yaml.NormalizeExpression(Yaml.Scalar(Yaml.Mapping(buildTest.Node, "env"), "CheatEngineSdkSourceMode")));
 		Assert.Contains("--no-build", pack.Run, StringComparison.Ordinal);
 		Assert.Contains("manifest.spdx.json", pack.Run, StringComparison.Ordinal);
 
@@ -348,12 +351,13 @@ public sealed partial class WorkflowContractTests
 	}
 
 	[Fact]
-	public void DebugLegExcludesPackageConsumptionTestsByTraitNeverBySkip()
+	public void SourceAndDebugLegsExcludePackageConsumptionTestsByTraitNeverBySkip()
 	{
 		WorkflowStep test = TestStep();
 		IReadOnlyList<string> tokens = Yaml.Tokens(test.Run);
 
 		Assert.Contains("Category=PackageConsumption", TraitExclusions(tokens));
+		Assert.Contains("$env:PRODUCTION_PACKAGES -ne 'true' -or $env:CONFIGURATION -eq 'Debug'", test.Run, StringComparison.Ordinal);
 		Assert.DoesNotContain("Category=PackageConsumption", TraitExclusions(Yaml.Tokens(SharedTestOptions(test.Run))));
 		Assert.Equal("on", TokenAfter(tokens, "--fail-skips"));
 		Assert.Equal("CheatEngine.Client.slnx", TokenAfter(tokens, "--solution"));

@@ -519,7 +519,7 @@ public sealed class PackagedClientFeedFixture : IAsyncLifetime
 	{
 		DotNetProcessResult pack = await DotNetProcess.RunAsync(RepositoryLayout.Root,
 			"pack", RepositoryLayout.Combine("CheatEngine.Client.slnx"), "--configuration", "Release", "--output", output,
-			"-nodeReuse:false");
+			"-nodeReuse:false", "-p:CheatEngineSdkSourceMode=false");
 		_steps.Add(new SmokeStep("self-pack", pack));
 		if (pack.ExitCode != 0)
 		{
