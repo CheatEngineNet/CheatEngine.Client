@@ -41,6 +41,8 @@ ship.
 
 ### Deployment
 
+- **Microsoft.Extensions package floors.** Move the Client and plugin template to the 10.0.14 patch line.
+
 ## [1.1.0] - 2026-10-16
 
 ### Added
