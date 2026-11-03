@@ -7,9 +7,9 @@ and tests that describe the behavior you change.
 ## Prerequisites
 
 - Windows x64
-- .NET SDK 10.0.402 exactly, as pinned in [`global.json`](global.json). `rollForward` is `disable`, so any other
+- .NET SDK 10.0.403 exactly, as pinned in [`global.json`](global.json). `rollForward` is `disable`, so any other
   SDK, a newer one included, stops the build with the install command:
-  `winget install Microsoft.DotNet.SDK.10 --version 10.0.402`
+  `winget install Microsoft.DotNet.SDK.10 --version 10.0.403`
 - PowerShell 7.4 or later, to run the CI checks locally (actionlint, zizmor, the lock-file check)
 - Git
 
