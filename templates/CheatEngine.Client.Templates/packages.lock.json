@@ -10,9 +10,9 @@
       },
       "Microsoft.TemplateEngine.Authoring.Tasks": {
         "type": "Direct",
-        "requested": "[10.0.401, )",
-        "resolved": "10.0.401",
-        "contentHash": "YlT7YyzhPbEz60qYJFnYMutyIdqZGADNI0TICy1B87+iv6wKBZsz/9liI7yjHBctyLT8BpZ2l2BTc/3w36kcfA=="
+        "requested": "[10.0.403, )",
+        "resolved": "10.0.403",
+        "contentHash": "KIBiPROh60IPhwYCQTRxR2Uxei804uy2Ivv4gAPSLl7IyQVbf/IwkJKoRKeOj9diQpoHvqkGB1XiHaarFd7nMA=="
       },
       "MinVer": {
         "type": "Direct",
