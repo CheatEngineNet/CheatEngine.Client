@@ -105,7 +105,7 @@ Building this repository needs:
 | Repository build requirement | Value |
 |---|---|
 | Operating system | Windows x64 |
-| .NET SDK | 10.0.402 exactly (`global.json` `rollForward: disable`); install it with `winget install Microsoft.DotNet.SDK.10 --version 10.0.402` |
+| .NET SDK | 10.0.403 exactly (`global.json` `rollForward: disable`); install it with `winget install Microsoft.DotNet.SDK.10 --version 10.0.403` |
 | `CheatEngine.SDK` | The Git commit pinned by `externals/CheatEngine.SDK`; production packages separately retain the reviewed 2.0.0 NuGet pin until the release dependency is updated |
 | Tools | PowerShell 7.4 or later and Git, to run the CI checks locally ([CONTRIBUTING](CONTRIBUTING.md#prerequisites)) |
 | Cheat Engine | Only for the opt-in live qualification tests, never for an ordinary build or test run |
@@ -410,7 +410,7 @@ files, package validation, and the probe described above.
 
 ## Build and validation
 
-The repository pins the .NET SDK in [global.json](global.json) (10.0.402 exactly), uses Central Package Management, and
+The repository pins the .NET SDK in [global.json](global.json) (10.0.403 exactly), uses Central Package Management, and
 commits NuGet lock files. [CONTRIBUTING](CONTRIBUTING.md#build-and-test) gives the exact Windows validation sequence,
 from the locked restore to the package consumption tests and the Native AOT probe, and describes each job of the
 required `CI / Gate` check ([Continuous integration](CONTRIBUTING.md#continuous-integration)).
