@@ -90,8 +90,8 @@ public sealed partial class WorkflowContractTests
 		["NuGet/login"] = ("8d196754b4036150537f80ac539e15c2f1028841", "v1.2.0"),
 		["xmake-io/github-action-setup-xmake"] = ("3a1a5dddfc7fa625d9a698738334bf55655a861a", "v1.2.5"),
 		["actions/dependency-review-action"] = ("a1d282b36b6f3519aa1f3fc636f609c47dddb294", "v5.0.0"),
-		["zizmorcore/zizmor-action"] = ("85b2b9fb8e3325e7a23d7d0a9d7ba5ae0f999e3e", "v0.7.1"),
-		["github/codeql-action"] = ("6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee", "v4.39.0"),
+		["zizmorcore/zizmor-action"] = ("53290badfa369cb0bf7ad16342cb62c2fa47ac7b", "v0.8.0"),
+		["github/codeql-action"] = ("9b3254085494b55a0f7c4c2b3d2d52cc712ce370", "v4.39.1"),
 		["ossf/scorecard-action"] = ("fa7117db83c52d787ae5a89f350999701505d78e", "v2.5.0"),
 		["actions/cache"] = ("55cc8345863c7cc4c66a329aec7e433d2d1c52a9", "v6.1.0")
 	};
